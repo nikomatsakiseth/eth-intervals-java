@@ -17,19 +17,15 @@ abstract class PointImpl implements Point {
 	 *  interval are NOT propagated to its parent. */
 	protected static final int FLAG_MASK_EXC = 1;
 	
-	final PointImpl bound;
-	final int depth;
-	protected EdgeList outEdges;
-	protected int waitCount;
-
-	protected Throwable throwable;
-
-	protected int flags;
-
-	/** Points at the next lock which we must acquire before we can START, or null. */
-	protected LockList pendingLocks;
-
-	protected ThreadPool.WorkItem workItem;
+	final PointImpl bound;                     /** Bound of this point (this->bound). */
+	final int depth;                           /** Depth in point bound tree. */
+	protected EdgeList outEdges;               /** Linked list of outgoing edges from this point. */
+	protected int waitCount;                   /** Number of preceding points that have not arrived.  
+	                                               Set to {@link #OCCURRED} when this has occurred. */
+	protected Throwable pendingException;      /** Exception that occurred while executing the task or in some preceding point. */
+	protected int flags;                       /** Flags (see integer constants like {@link #FLAG_MASK_EXC}) */
+	protected LockList pendingLocks;           /** Locks to acquire once waitCount reaches 0 but before we occur */
+	protected ThreadPool.WorkItem workItem;    /** Work to schedule when we occur (if any) */
 
 	/** Used only for the end point of the root interval. */
 	PointImpl(int waitCount) {
@@ -38,7 +34,7 @@ abstract class PointImpl implements Point {
 		this.waitCount = waitCount;
 	}
 
-	/** Used only for the end point of the root interval. */
+	/** Used only almost all points. */
 	PointImpl(PointImpl bound, int waitCount) {
 		this.bound = bound;
 		this.depth = bound.depth + 1;
@@ -64,6 +60,7 @@ abstract class PointImpl implements Point {
 		}
 	}
 
+	/** Returns the mutual bound of {@code this} and {@code j} */
 	public PointImpl mutualBound(PointImpl j) {
 		PointImpl i = this;
 		
@@ -91,6 +88,11 @@ abstract class PointImpl implements Point {
 		return hb(p, true);
 	}
 	
+	/** true if {@code this} -> {@code p}.
+	 * @param p another point
+	 * @param onlyDeterministic false to exclude edges
+	 * that may depend on scheduler, primarily this means
+	 * those resulting from locks */
 	boolean hb(final Point p, boolean onlyDeterministic) {
 		assert p != null;
 		
@@ -138,6 +140,10 @@ abstract class PointImpl implements Point {
 		return false;
 	}
 
+	/** When a preceding point (or something else we were waiting for)
+	 *  occurs, this method is invoked. 
+	 *  @param cnt the number of preceding things that occurred,
+	 *  should always be positive and non-zero */
 	protected final void arrive(int cnt) {
 		int newCount;
 		synchronized(this) {
@@ -149,32 +155,40 @@ abstract class PointImpl implements Point {
 			Debug.arrive(this, cnt, newCount);
 		}		
 		
+		assert newCount >= 0;
 		if(newCount == 0 && cnt != 0)
-			occur();
+			if(pendingLocks != null)
+				acquirePendingLocks();
+			else
+				occur();
 	}
 	
-	protected final void occur() {
-		// Now that all interval dependencies are resolved, insert
-		// ourselves into the queue for the locks we desire (if any).
-		if(pendingLocks != null) {
-			// Temporarily make this large so it doesn't drop to zero while we work.
-			// Note that everyone who might adjust this count has already arrived.
-			waitCount = initialWaitCount; 
-				
-			int waits = 0;
-			for(LockList lock = this.pendingLocks; lock != null; lock = lock.next) {
-				if(lock.exclusive)
-					waits += lock.guard.addExclusive(this);
-				else
-					lock.guard.addShared(this);
-			}				
-			this.pendingLocks = null;
+	/** Invoked when the wait count is zero.  Attempts to
+	 *  acquire all pending locks. */
+	protected final void acquirePendingLocks() {
+		// Temporarily make this large so it doesn't drop to zero while we work.
+		// Note that everyone who might adjust this count has already arrived.
+		// (Though as we acquire locks we will add new people)
+		waitCount = initialWaitCount; 
 			
-			arrive(initialWaitCount - waits); // may cause this method to be invoked recursively
-			return;
-		} 
+		int waits = 0;
+		for(LockList lock = this.pendingLocks; lock != null; lock = lock.next) {
+			if(lock.exclusive)
+				waits += lock.guard.addExclusive(this);
+			else
+				lock.guard.addShared(this);
+		}				
+		this.pendingLocks = null;
 		
-		// No pending locks, this is really happening:		
+		arrive(initialWaitCount - waits); // may cause this method to be invoked recursively		
+	}
+	
+	/** Invoked when the wait count is zero and all pending locks
+	 *  are acquired. Each point occurs precisely once. */
+	protected final void occur() {
+		assert pendingLocks == null;
+		assert waitCount == 0;
+		
 		final EdgeList outEdges;
 		synchronized(this) {
 			outEdges = this.outEdges;
@@ -184,8 +198,8 @@ abstract class PointImpl implements Point {
 		
 		ExecutionLog.logArrive(this);
 		
-		if((flags & FLAG_MASK_EXC) == 0 && throwable != null)
-			bound.setThrowableFromChild(throwable);
+		if((flags & FLAG_MASK_EXC) == 0 && pendingException != null)
+			bound.setPendingExceptionFromChild(pendingException);
 		
 		for(EdgeList outEdge = outEdges; outEdge != null; outEdge = outEdge.next)
 			outEdge.toPoint.arrive(1);
@@ -198,6 +212,8 @@ abstract class PointImpl implements Point {
 		}
 	}
 	
+	/** Adds to the wait count.  Only safe when the caller is
+	 *  one of the people we are waiting for. */
 	protected void addWaitCount() {
 		int newCount;
 		synchronized(this) {
@@ -208,6 +224,11 @@ abstract class PointImpl implements Point {
 			Debug.addWaitCount(this, newCount);		
 	}
 
+	/** Adds an outgoing edge.  Returns 1 if this
+	 *  point has not yet occurred. Another way to
+	 *  look at it is that this method returns the
+	 *  number of future invocations of {@code #arrive(int)}
+	 *  which {@code targetPnt} can expect. */
 	synchronized int addOutEdge(PointImpl targetPnt, boolean deterministic) {
 		addOutEdgeDuringConstruction(targetPnt, deterministic);
 		if(waitCount == OCCURRED)
@@ -215,10 +236,15 @@ abstract class PointImpl implements Point {
 		return 1;
 	}
 
+	/** Same as {@link #addOutEdge(PointImpl, boolean)} but
+	 *  does not acquire any locks. */
 	void addOutEdgeDuringConstruction(PointImpl targetPnt, boolean deterministic) {
 		outEdges = new EdgeList(targetPnt, deterministic, outEdges);
 	}
 
+	/** Adds to the wait count but only if the point has
+	 *  not yet occurred.  Always safe.
+	 *  @return true if the add succeeded. */
 	synchronized boolean tryAddWaitCount() {
 		if(waitCount == OCCURRED)
 			return false;
@@ -243,33 +269,43 @@ abstract class PointImpl implements Point {
 					}
 			}
 		} else {
-			while(waitCount != OCCURRED) {
+			while(true) {
+				int wc;
+				synchronized(this) {
+					wc = waitCount;
+				}
+				if(wc == OCCURRED)
+					return;
 				if(!worker.doWork(false))
 					Thread.yield();				
 			}
 		}
 	}
 
-	protected synchronized void setThrowable(Throwable thr) {
-		this.throwable = thr; // Note: may overwrite a Throwable from a child.
+	/** Invoked when the task for which this point is an end point
+	 *  results in an error. */
+	protected synchronized void setPendingException(Throwable thr) {
+		this.pendingException = thr; // Note: may overwrite a Throwable from a child.
 	}
 	
-	void checkThrowable() {
-		if(throwable != null)
-			throw new RethrownException(throwable);				
+	/** Checks if a pending throwable is stored and throws a
+	 *  {@link RethrownException} if so. */
+	void checkAndRethrowPendingException() {
+		if(pendingException != null)
+			throw new RethrownException(pendingException);				
 	}
 
 	/** Invoked when a child interval has thrown the exception 't'. 
-	 *  Overwrites the field {@link #throwable} with {@code t}.
+	 *  Overwrites the field {@link #pendingException} with {@code t}.
 	 *  This is non-ideal, as it may result in exceptions being lost,
 	 *  and it is also unpredictable which exception will be reported
 	 *  (the one from the task? the one from a child? if so, which child)
 	 *  The correct behavior is probably to construct an aggregate object
 	 *  containing a set of all exceptions thrown.
 	 */
-	synchronized void setThrowableFromChild(Throwable thr) {
+	synchronized void setPendingExceptionFromChild(Throwable thr) {
 		if(bound != null)
-			setThrowable(thr);
+			setPendingException(thr);
 		else
 			thr.printStackTrace();
 	}

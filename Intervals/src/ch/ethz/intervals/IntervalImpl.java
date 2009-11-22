@@ -45,7 +45,7 @@ implements Interval<R> {
 			R returnValue = task.run(this);
 			result.setResult(returnValue);
 		} catch(Throwable t) {
-			end.setThrowable(t);
+			end.setPendingException(t);
 		}
 		
 		end.arrive(1);

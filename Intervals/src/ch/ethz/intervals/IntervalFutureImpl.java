@@ -26,7 +26,7 @@ implements IntervalFuture<R> {
 	}
 	
 	protected R accessResult() {
-		endPoint.checkThrowable();
+		endPoint.checkAndRethrowPendingException();
 		return result;
 	}
 	
