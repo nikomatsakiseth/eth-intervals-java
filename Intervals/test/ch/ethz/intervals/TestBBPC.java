@@ -98,7 +98,7 @@ public class TestBBPC {
 	}
 	
 	@Test public void test() {
-		ExecutionLog.enableGui();
+//		ExecutionLog.enableGui();
 		blockingInterval(new Task<Void>() {
 			public Void run(Interval<Void> parent) {
 				Producer fstProd = new Producer(0, new Interval[N], null);
@@ -106,7 +106,7 @@ public class TestBBPC {
 				return null;
 			}			
 		});
-		ExecutionLog.disable();
+//		ExecutionLog.disable();
 		
 		for(int i = 1; i < M; i++)
 			Assert.assertTrue(

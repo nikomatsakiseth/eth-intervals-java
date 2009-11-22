@@ -98,6 +98,8 @@ class PointImpl implements Point {
 		
 		if(p == this)
 			return false;
+		if(this == Intervals.ROOT_START)
+			return true;
 		if(p == bound)
 			return true;
 
@@ -229,11 +231,16 @@ class PointImpl implements Point {
 	 *  look at it is that this method returns the
 	 *  number of future invocations of {@code #arrive(int)}
 	 *  which {@code targetPnt} can expect. */
-	synchronized int addOutEdge(PointImpl targetPnt, boolean deterministic) {
-		addOutEdgeDuringConstruction(targetPnt, deterministic);
-		if(waitCount == OCCURRED)
-			return 0; // no notification will be sent
-		return 1;
+	int addOutEdge(PointImpl targetPnt, boolean deterministic) {
+		if(this == Intervals.ROOT_START)
+			return 0;
+	
+		synchronized(this) {
+			addOutEdgeDuringConstruction(targetPnt, deterministic);
+			if(waitCount == OCCURRED)
+				return 0; // no notification will be sent
+			return 1;
+		}
 	}
 
 	/** Same as {@link #addOutEdge(PointImpl, boolean)} but
