@@ -9,11 +9,11 @@ implements Interval<R> {
 	private static final long serialVersionUID = 8105268455633202522L;
 	
 	protected Task<R> task;
-	final StartPointImpl start;
-	final EndPointImpl end;
+	final PointImpl start;
+	final PointImpl end;
 	final IntervalFutureImpl<R> result;
 	
-	public IntervalImpl(Task<R> task, StartPointImpl start, EndPointImpl end) {
+	public IntervalImpl(Task<R> task, PointImpl start, PointImpl end) {
 		this.task = task;
 		this.start = start;
 		this.end = end;

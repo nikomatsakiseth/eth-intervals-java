@@ -2,19 +2,25 @@ package ch.ethz.intervals;
 
 class AsyncPointImpl extends PointImpl implements AsyncPoint {
 	
-	AsyncPointImpl(PointImpl bound, int waitCount) {
-		super(bound, waitCount);
+	private int triggerCount;
+	
+	AsyncPointImpl(PointImpl bound, int triggerCount) {
+		super(bound, 1);
+		this.triggerCount = triggerCount;
 	}
 
 	@Override
-	protected void occur() {
-		defaultOccur();
-		bound.arrive(1);
-	}
-	
-	@Override
-	public void arrive(int cnt) {
-		super.arrive(cnt);
+	public void trigger(int cnt) {
+		boolean arrived = false;
+		synchronized(this) {
+			if(this.triggerCount > 0) {
+				int newCount = this.triggerCount - cnt;
+				this.triggerCount = Math.max(0, newCount);
+				arrived = (newCount <= 0); 
+			}
+		}		
+		if(arrived)
+			arrive(1);
 	}
 
 	@Override

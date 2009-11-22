@@ -1,5 +1,7 @@
 package ch.ethz.intervals;
 
+import static ch.ethz.intervals.UnscheduledIntervalImpl.initialWaitCount;
+
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Queue;
@@ -10,6 +12,10 @@ import ch.ethz.intervals.ThreadPool.Worker;
 abstract class PointImpl implements Point {
 	
 	public static final int OCCURRED = -1;
+
+	/** If this flag is set, then uncaught exceptions for this 
+	 *  interval are NOT propagated to its parent. */
+	protected static final int FLAG_MASK_EXC = 1;
 	
 	final PointImpl bound;
 	final int depth;
@@ -17,6 +23,13 @@ abstract class PointImpl implements Point {
 	protected int waitCount;
 
 	protected Throwable throwable;
+
+	protected int flags;
+
+	/** Points at the next lock which we must acquire before we can START, or null. */
+	protected LockList pendingLocks;
+
+	protected ThreadPool.WorkItem workItem;
 
 	/** Used only for the end point of the root interval. */
 	PointImpl(int waitCount) {
@@ -125,7 +138,7 @@ abstract class PointImpl implements Point {
 		return false;
 	}
 
-	protected void arrive(int cnt) {
+	protected final void arrive(int cnt) {
 		int newCount;
 		synchronized(this) {
 			newCount = this.waitCount - cnt;
@@ -136,37 +149,53 @@ abstract class PointImpl implements Point {
 			Debug.arrive(this, cnt, newCount);
 		}		
 		
-		if(newCount == 0)
+		if(newCount == 0 && cnt != 0)
 			occur();
 	}
 	
-	protected abstract void occur();
-	
-	/**
-	 * The default impl. of occur():
-	 * <ul>
-	 * <li> Sets the wait count to {@link #OCCURRED},
-	 * <li> Passes along any throwable to the bound
-	 * <li> Notifies any outgoing edges that we have arrived, 
-	 *      but <b>does not notify the bound!</b>
-	 * </ul>
-	 * These are the tasks shared by {@link StartPointImpl} and
-	 * {@link AsyncPointImpl}.
-	 */
-	protected void defaultOccur() {
+	protected final void occur() {
+		// Now that all interval dependencies are resolved, insert
+		// ourselves into the queue for the locks we desire (if any).
+		if(pendingLocks != null) {
+			// Temporarily make this large so it doesn't drop to zero while we work.
+			// Note that everyone who might adjust this count has already arrived.
+			waitCount = initialWaitCount; 
+				
+			int waits = 0;
+			for(LockList lock = this.pendingLocks; lock != null; lock = lock.next) {
+				if(lock.exclusive)
+					waits += lock.guard.addExclusive(this);
+				else
+					lock.guard.addShared(this);
+			}				
+			this.pendingLocks = null;
+			
+			arrive(initialWaitCount - waits); // may cause this method to be invoked recursively
+			return;
+		} 
+		
+		// No pending locks, this is really happening:		
 		final EdgeList outEdges;
 		synchronized(this) {
 			outEdges = this.outEdges;
 			this.waitCount = OCCURRED;
+			notifyAll(); // in case anyone is joining us
 		}
 		
 		ExecutionLog.logArrive(this);
-
-		if(throwable != null)
+		
+		if((flags & FLAG_MASK_EXC) == 0 && throwable != null)
 			bound.setThrowableFromChild(throwable);
 		
 		for(EdgeList outEdge = outEdges; outEdge != null; outEdge = outEdge.next)
-			outEdge.toPoint.arrive(1);		
+			outEdge.toPoint.arrive(1);
+		
+		bound.arrive(1);
+		
+		if(workItem != null) {
+			Intervals.POOL.submit(workItem);
+			workItem = null;
+		}
 	}
 	
 	protected void addWaitCount() {
@@ -243,6 +272,22 @@ abstract class PointImpl implements Point {
 			setThrowable(thr);
 		else
 			thr.printStackTrace();
+	}
+
+	protected void addFlagBeforeScheduling(int flag) {
+		this.flags = this.flags | flag;
+	}
+
+	protected void removeFlagBeforeScheduling(int flag) {
+		this.flags = this.flags & (~flag);
+	}
+
+	protected void setPendingLocksBeforeScheduling(LockList pendingLocks) {
+		this.pendingLocks = pendingLocks;
+	}
+
+	protected void setWorkItemBeforeScheduling(ThreadPool.WorkItem workItem) {
+		this.workItem = workItem;
 	}
 
 }

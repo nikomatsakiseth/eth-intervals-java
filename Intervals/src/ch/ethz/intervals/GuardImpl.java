@@ -14,7 +14,7 @@ extends /*@Identity("RO")*/ Object implements Guard
 	 * to execute until the previous exclusive owner has finished.
 	 * @return 1 if inter needs to wait, 0 otherwise  
 	 */
-	protected int addExclusive(StartPointImpl startPnt) {
+	protected int addExclusive(PointImpl startPnt) {
 		PointImpl prevOwner;
 		synchronized(this) {
 			prevOwner = latestOwner;
@@ -32,7 +32,7 @@ extends /*@Identity("RO")*/ Object implements Guard
 		}
 	}
 	
-	protected void addShared(StartPointImpl startPnt) {
+	protected void addShared(PointImpl startPnt) {
 		PointImpl prevOwner;
 		int wait;
 		synchronized(this) {			

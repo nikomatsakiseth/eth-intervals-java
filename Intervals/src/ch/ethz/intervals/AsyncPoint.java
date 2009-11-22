@@ -19,5 +19,5 @@ public interface AsyncPoint extends Point {
 	 *  
 	 * @param count the number of outstanding references that have completed
 	 */
-	public void arrive(int count);
+	public void trigger(int count);
 }

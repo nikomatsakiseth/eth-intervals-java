@@ -9,9 +9,9 @@ class UnscheduledIntervalImpl implements UnscheduledInterval {
 	final static int START_SHIFT = 0, END_SHIFT = 32;
 	
 	private LockList firstLock = null, lastLock = null;
-	private StartPointImpl start;
+	private PointImpl start;
 	
-	private EndPointImpl end;
+	private PointImpl end;
 		
 	private long desiredWaitCounts;
 	
@@ -23,7 +23,7 @@ class UnscheduledIntervalImpl implements UnscheduledInterval {
 		
 		this.end = new EndPointImpl(endBound, initialWaitCount, flags);
 		this.start = new StartPointImpl(this.end, initialWaitCount);
-		this.desiredWaitCounts = (1L << END_SHIFT); // end always waits for the task to finish.
+		this.desiredWaitCounts = (2L << END_SHIFT); // end always waits for start and for task to finish.
 		
 		endBound.addWaitCount();
 		current.start.addOutEdge(start, true);
@@ -174,10 +174,10 @@ class UnscheduledIntervalImpl implements UnscheduledInterval {
 	public <V> Interval<V> schedule(Task<V> task) {
 		checkUnscheduled();
 		
-		StartPointImpl start = this.start;
+		PointImpl start = this.start;
 		this.start = null;
 		
-		EndPointImpl end = this.end;
+		PointImpl end = this.end;
 		this.end = null;
 		
 		IntervalImpl<V> inter = new IntervalImpl<V>(task, start, end);
@@ -214,9 +214,9 @@ class UnscheduledIntervalImpl implements UnscheduledInterval {
 		checkUnscheduled();
 		
 		if(maskExceptions)
-			end.addFlagBeforeScheduling(EndPointImpl.FLAG_MASK_EXC);
+			end.addFlagBeforeScheduling(PointImpl.FLAG_MASK_EXC);
 		else
-			end.removeFlagBeforeScheduling(EndPointImpl.FLAG_MASK_EXC);
+			end.removeFlagBeforeScheduling(PointImpl.FLAG_MASK_EXC);
 		return this;
 	}
 

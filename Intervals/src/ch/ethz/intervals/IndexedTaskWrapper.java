@@ -71,7 +71,7 @@ class IndexedTaskWrapper implements Task<Void> {
         	if(Debug.ENABLED)
         		Debug.mapComplete(IndexedTaskWrapper.this, this, b);
             if(b == 0)
-            	whenDone.arrive(1);
+            	whenDone.trigger(1);
         }
 
         final void internalCompute(Worker worker, int l, int h) {
