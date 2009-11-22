@@ -1,4 +1,0 @@
-Intervals.forkJoin(new Task<Void>() {
-	public Void run(Interval<Void> parent) {
-		parent.newChild(new Task<Void>() {
-			public Void run(Interval<Void> arg) {							
