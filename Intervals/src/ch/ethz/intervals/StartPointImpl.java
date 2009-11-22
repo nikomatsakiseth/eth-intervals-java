@@ -2,7 +2,7 @@ package ch.ethz.intervals;
 
 import static ch.ethz.intervals.UnscheduledIntervalImpl.initialWaitCount;
 
-class StartPointImpl extends PointImpl implements StartPoint {
+class StartPointImpl extends PointImpl {
 
 	/** Points at the next lock which we must acquire before we can START, or null. */
 	private LockList pendingLocks;

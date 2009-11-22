@@ -18,7 +18,7 @@ import org.junit.Test;
  * next producer. 
  * 
  * We use interval return values so that the
- * {@link Producer} simply returns a {@link ProducerResult} instance
+ * {@link Producer} simply returns a {@link ProducerData} instance
  * which contains both the produced data and the interval for the
  * next producer.  The {@link Consumer} reads this result, consumes
  * the generated data, and creates the next consumer interval (which
@@ -37,56 +37,55 @@ public class TestPCAgent {
 	final int MAX = 100;
 	List<Integer> consumed = new ArrayList<Integer>();
 	
-	class ProducerResult {
+	class ProducerData {
 		public final Integer produced;
-		public final EndPoint<ProducerResult> nextProducerInterval;
+		public final IntervalFuture<ProducerData> nextProducerFuture;
 		
-		public ProducerResult(
+		public ProducerData(
 				Integer produced,
-				EndPoint<ProducerResult> nextProducerInterval) 
+				IntervalFuture<ProducerData> nextProducerFuture) 
 		{
 			this.produced = produced;
-			this.nextProducerInterval = nextProducerInterval;
+			this.nextProducerFuture = nextProducerFuture;
 		}
 	}
 	
-	class Producer implements Task<ProducerResult> {
+	class Producer implements Task<ProducerData> {
 		private final int index;
 		
 		private Producer(int index) {
 			this.index = index;
 		}
 
-		public ProducerResult run(Interval<ProducerResult> current) {
-			Interval<ProducerResult> nextProducerInterval;
-			
+		public ProducerData run(Interval<ProducerData> current) {
+			IntervalFuture<ProducerData> nextProducerFuture = null;
 			if(index + 1 < MAX) // Create next producer, if any.
-				nextProducerInterval = Intervals.intervalWithBound(current.bound())
+				nextProducerFuture = Intervals.intervalWithBound(current.bound())
 				.startAfter(end(current))
-				.schedule(new Producer(index + 1));
+				.schedule(new Producer(index + 1)).future();
 			else
-				nextProducerInterval = null;
+				nextProducerFuture = null;
 			
-			return new ProducerResult(index, Intervals.end(nextProducerInterval));
+			return new ProducerData(index, nextProducerFuture);
 		}
 	}
 	
 	class Consumer implements Task<Void> {
-		private final EndPoint<ProducerResult> producerInterval;
+		private final IntervalFuture<ProducerData> producerInterval;
 		
-		public Consumer(EndPoint<ProducerResult> producerInterval) {
+		public Consumer(IntervalFuture<ProducerData> producerInterval) {
 			this.producerInterval = producerInterval;
 		}
 
 		public Void run(Interval<Void> current) {
-			ProducerResult result = producerInterval.result(); // Safe as producer.end -> consumer.start
+			ProducerData result = producerInterval.result(); // Safe as producer.end -> consumer.start
 			
 			consumed.add(result.produced); // "Consume" the data.
 			
-			if(result.nextProducerInterval != null) // Create next consumer, which runs after the next producer.
+			if(result.nextProducerFuture != null) // Create next consumer, which runs after the next producer.
 				Intervals.intervalWithBound(current.bound())
-				.startAfter(result.nextProducerInterval)
-				.schedule(new Consumer(result.nextProducerInterval));
+				.startAfter(result.nextProducerFuture.end())
+				.schedule(new Consumer(result.nextProducerFuture));
 			return null;
 		}
 	}
@@ -94,11 +93,11 @@ public class TestPCAgent {
 	@Test public void test() {
 		blockingInterval(new Task<Void>() {
 			public Void run(Interval<Void> current) {
-				Interval<ProducerResult> firstProducerInterval = 
+				Interval<ProducerData> firstProducerInterval = 
 					intervalDuring(current).schedule(new Producer(0));
 				intervalDuring(current)
 					.startAfter(end(firstProducerInterval))
-					.schedule(new Consumer(firstProducerInterval.end()));
+					.schedule(new Consumer(firstProducerInterval.future()));
 				return null;
 			}			
 		});

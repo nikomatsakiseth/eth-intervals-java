@@ -10,12 +10,14 @@ implements Interval<R> {
 	
 	protected Task<R> task;
 	final StartPointImpl start;
-	final EndPointImpl<R> end;
+	final EndPointImpl end;
+	final IntervalFutureImpl<R> result;
 	
-	public IntervalImpl(Task<R> task, StartPointImpl start, EndPointImpl<R> end) {
+	public IntervalImpl(Task<R> task, StartPointImpl start, EndPointImpl end) {
 		this.task = task;
 		this.start = start;
 		this.end = end;
+		this.result = new IntervalFutureImpl<R>(this.end);
 	}
 
 	/**
@@ -40,8 +42,8 @@ implements Interval<R> {
 		this.task = null; // for g.c., as it will not be needed again
 		
 		try {
-			R result = task.run(this);
-			end.setResult(result);
+			R returnValue = task.run(this);
+			result.setResult(returnValue);
 		} catch(Throwable t) {
 			end.setThrowable(t);
 		}
@@ -51,22 +53,27 @@ implements Interval<R> {
 	
 	@Override
 	public String toString() {
-		return String.format("Interval(%s-%s: %s)", start, end, task);
+		return String.format("Interval(%s-%s)", start, end);
 	}
 
 	@Override
-	public EndPoint<R> end() {
+	public Point end() {
 		return end;
 	}
 
 	@Override
-	public StartPoint start() {
+	public Point start() {
 		return start;
 	}
 
 	@Override
 	public Point bound() {
 		return end.bound;
+	}
+
+	@Override
+	public IntervalFuture<R> future() {
+		return result;
 	}
 
 }

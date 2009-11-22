@@ -11,7 +11,6 @@ class UnscheduledIntervalImpl implements UnscheduledInterval {
 	private LockList firstLock = null, lastLock = null;
 	private StartPointImpl start;
 	
-	@SuppressWarnings("unchecked")
 	private EndPointImpl end;
 		
 	private long desiredWaitCounts;
@@ -22,7 +21,7 @@ class UnscheduledIntervalImpl implements UnscheduledInterval {
 		IntervalImpl<?> current = Intervals.currentInterval.get();
 		checkEdgeOrSame(current.end, endBound);
 		
-		this.end = new EndPointImpl<Void>(endBound, initialWaitCount, flags);
+		this.end = new EndPointImpl(endBound, initialWaitCount, flags);
 		this.start = new StartPointImpl(this.end, initialWaitCount);
 		this.desiredWaitCounts = (1L << END_SHIFT); // end always waits for the task to finish.
 		
@@ -178,8 +177,7 @@ class UnscheduledIntervalImpl implements UnscheduledInterval {
 		StartPointImpl start = this.start;
 		this.start = null;
 		
-		@SuppressWarnings("unchecked")
-		EndPointImpl<V> end = this.end;
+		EndPointImpl end = this.end;
 		this.end = null;
 		
 		IntervalImpl<V> inter = new IntervalImpl<V>(task, start, end);

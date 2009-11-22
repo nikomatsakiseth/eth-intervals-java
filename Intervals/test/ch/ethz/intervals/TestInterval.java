@@ -627,18 +627,18 @@ public class TestInterval {
 				
 				// Links pass it along:
 				for (int i = 0; i < chainLinks; i++) {
-					final EndPoint<String> previousChild = child.end();
+					final IntervalFuture<String> previousChild = child.future();
 					Task<String> link = new Task<String>() {
 						public String run(Interval<String> arg)
 						{
 							return previousChild.result();
 						}
 					};
-					child = intervalDuring(parent).startAfter(previousChild).schedule(link);
+					child = intervalDuring(parent).startAfter(previousChild.end()).schedule(link);
 				}
 
 				// Wait for the entire queue to terminate and return result:
-				return Intervals.blockOn(child.end());
+				return Intervals.blockOn(child.future());
 			}
 
 		});

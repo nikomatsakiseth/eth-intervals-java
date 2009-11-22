@@ -1,8 +1,6 @@
 package ch.ethz.intervals;
 
-import static ch.ethz.intervals.Intervals.end;
 import static ch.ethz.intervals.Intervals.blockingInterval;
-import static ch.ethz.intervals.Intervals.intervalDuring;
 import static ch.ethz.intervals.Intervals.intervalWithBound;
 import static org.junit.Assert.assertEquals;
 
@@ -26,8 +24,7 @@ public class TestPCAgentBBArray {
 	
 	final int BBSIZE = 3;
 	
-	@SuppressWarnings("unchecked")
-	EndPoint<Void> consumerEndPoints[] = new EndPoint[BBSIZE];
+	Point consumerEndPoints[] = new Point[BBSIZE];
 	
 	final AtomicInteger stamp = new AtomicInteger();
 	List<Integer> producerTimes = new ArrayList<Integer>();
@@ -35,14 +32,14 @@ public class TestPCAgentBBArray {
 	
 	class ProducerResult {
 		public final Integer produced;
-		public final EndPoint<ProducerResult> nextProducerInterval;
+		public final IntervalFuture<ProducerResult> nextProducerFuture;
 		
 		public ProducerResult(
 				Integer produced,
-				EndPoint<ProducerResult> nextProducerInterval) 
+				IntervalFuture<ProducerResult> nextProducerFuture) 
 		{
 			this.produced = produced;
-			this.nextProducerInterval = nextProducerInterval;
+			this.nextProducerFuture = nextProducerFuture;
 		}
 	}
 	
@@ -54,36 +51,37 @@ public class TestPCAgentBBArray {
 		}
 
 		public ProducerResult run(Interval<ProducerResult> current) {
-			Interval<ProducerResult> nextProducerInterval;
+			IntervalFuture<ProducerResult> nextProducerFuture;
 			
 			producerTimes.add(stamp.getAndIncrement());
 			
 			if(index + 1 < MAX) { // Create next producer, if any.
 				final int nextIndex = index + 1;
 				
-				EndPoint<?> waitForConsumerPoint;
+				Point waitForConsumerPoint;
 				if(nextIndex >= BBSIZE)
 					waitForConsumerPoint = consumerEndPoints[(nextIndex - BBSIZE) % BBSIZE];
 				else
 					waitForConsumerPoint = null;
 				
-				nextProducerInterval = 
+				nextProducerFuture = 
 					intervalWithBound(current.bound())
 					.startAfter(current.end())
 					.startAfter(waitForConsumerPoint)
-					.schedule(new Producer(nextIndex));
+					.schedule(new Producer(nextIndex))
+					.future();
 			} else
-				nextProducerInterval = null;
+				nextProducerFuture = null;
 			
-			return new ProducerResult(index, Intervals.end(nextProducerInterval));
+			return new ProducerResult(index, nextProducerFuture);
 		}
 	}
 	
 	class Consumer implements Task<Void> {
 		private final int index;
-		private final EndPoint<ProducerResult> producerInterval;
+		private final IntervalFuture<ProducerResult> producerInterval;
 		
-		public Consumer(int index, EndPoint<ProducerResult> producerInterval) {
+		public Consumer(int index, IntervalFuture<ProducerResult> producerInterval) {
 			this.index = index;
 			this.producerInterval = producerInterval;
 		}
@@ -94,13 +92,13 @@ public class TestPCAgentBBArray {
 			consumerTimes.add(stamp.getAndIncrement());			
 			consumed.add(result.produced); // "Consume" the data.
 			
-			if(result.nextProducerInterval != null) { // Create next consumer, which runs after the next producer.
+			if(result.nextProducerFuture != null) { // Create next consumer, which runs after the next producer.
 				final int nextIndex = index + 1;
 				Interval<Void> nextConsumer = 
 					intervalWithBound(current.bound())
 					.startAfter(current.end())
-					.startAfter(result.nextProducerInterval)
-					.schedule(new Consumer(nextIndex, result.nextProducerInterval));
+					.startAfter(result.nextProducerFuture.end())
+					.schedule(new Consumer(nextIndex, result.nextProducerFuture));
 				consumerEndPoints[nextIndex % BBSIZE] = nextConsumer.end();
 			}
 			return null;
@@ -123,7 +121,7 @@ public class TestPCAgentBBArray {
 							intervalWithBound(parent.end())
 							.startAfter(setup.end())
 							.startAfter(firstProducerInterval.end())
-							.schedule(new Consumer(0, firstProducerInterval.end()));
+							.schedule(new Consumer(0, firstProducerInterval.future()));
 
 						consumerEndPoints[0] = firstConsumerInterval.end();	
 						return null;

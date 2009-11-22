@@ -82,7 +82,7 @@ public class ExecutionLog {
 		return System.identityHashCode(i);
 	}
 	
-	static void logNewInterval(StartPoint current, StartPoint sp, EndPoint<?> ep) {
+	static void logNewInterval(Point current, Point sp, Point ep) {
 		ExecutionLog l = log;
 		if(l != null) {
 			l.events.add(new EventLog.NewInterval(
@@ -93,7 +93,7 @@ public class ExecutionLog {
 		}
 	}
 	
-	static void logScheduleInterval(StartPoint sp, Task<?> t) {
+	static void logScheduleInterval(Point sp, Task<?> t) {
 		ExecutionLog l = log;
 		if(l != null) {
 			l.events.add(new EventLog.Schedule(l.identity(sp), t.toString().replace('\n', ' ')));			

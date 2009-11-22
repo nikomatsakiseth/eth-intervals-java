@@ -30,32 +30,32 @@ public class TestPCAgentBB {
 	
 	final int BBSIZE = 3;
 	
-	class ProducerResult {
+	class ProducerData {
 		public final Integer produced;
-		public final EndPoint<ProducerResult> nextProducerInterval;
+		public final IntervalFuture<ProducerData> nextProducerFuture;
 		
-		public ProducerResult(
+		public ProducerData(
 				Integer produced,
-				EndPoint<ProducerResult> nextProducerInterval) 
+				IntervalFuture<ProducerData> nextProducerFuture) 
 		{
 			this.produced = produced;
-			this.nextProducerInterval = nextProducerInterval;
+			this.nextProducerFuture = nextProducerFuture;
 		}
 	}
 	
-	class ConsumerResult {
-		public final EndPoint<ConsumerResult> nextConsumerInterval;
+	class ConsumerData {
+		public final IntervalFuture<ConsumerData> nextConsumerFuture;
 
-		public ConsumerResult(EndPoint<ConsumerResult> nextConsumerInterval) {
-			this.nextConsumerInterval = nextConsumerInterval;
+		public ConsumerData(IntervalFuture<ConsumerData> nextConsumerInterval) {
+			this.nextConsumerFuture = nextConsumerInterval;
 		}
 	}
 	
-	class Producer implements Task<ProducerResult> {
+	class Producer implements Task<ProducerData> {
 		private final int index;
-		private EndPoint<ConsumerResult> waitForConsumer;
+		private IntervalFuture<ConsumerData> waitForConsumer;
 
-		public Producer(int index, EndPoint<ConsumerResult> waitForConsumer) {
+		public Producer(int index, IntervalFuture<ConsumerData> waitForConsumer) {
 			this.index = index;
 			this.waitForConsumer = waitForConsumer;
 		}
@@ -65,37 +65,38 @@ public class TestPCAgentBB {
 			return "Producer["+index+"]";
 		}
 
-		public ProducerResult run(Interval<ProducerResult> current) {
-			Interval<ProducerResult> nextProducerInterval;
+		public ProducerData run(Interval<ProducerData> current) {
+			IntervalFuture<ProducerData> nextProducerFuture;
 			
 			producerTimes.add(stamp.getAndIncrement());
 			
-			EndPoint<ConsumerResult> nextConsumerToWaitFor;
+			IntervalFuture<ConsumerData> nextConsumerToWaitFor;
 			if(index < BBSIZE) {
 				nextConsumerToWaitFor = waitForConsumer;
 			} else {
-				nextConsumerToWaitFor = waitForConsumer.result().nextConsumerInterval;
+				nextConsumerToWaitFor = waitForConsumer.result().nextConsumerFuture;
 			}
 			
 			final int nextIndex = index + 1;
 			if(nextIndex < MAX) // Create next producer, if any.
-				nextProducerInterval = 
+				nextProducerFuture = 
 					intervalWithBound(current.bound())
 					.startAfter(current.end())
-					.startAfter((nextIndex < BBSIZE ? null : nextConsumerToWaitFor))
-					.schedule(new Producer(nextIndex, nextConsumerToWaitFor));
+					.startAfter((nextIndex < BBSIZE ? null : nextConsumerToWaitFor.end()))
+					.schedule(new Producer(nextIndex, nextConsumerToWaitFor))
+					.future();
 			else
-				nextProducerInterval = null;
+				nextProducerFuture = null;
 			
-			return new ProducerResult(index, Intervals.end(nextProducerInterval));
+			return new ProducerData(index, nextProducerFuture);
 		}
 	}
 	
-	class Consumer implements Task<ConsumerResult> {
+	class Consumer implements Task<ConsumerData> {
 		private final int index;
-		private final EndPoint<ProducerResult> producerInterval;
+		private final IntervalFuture<ProducerData> producerInterval;
 		
-		public Consumer(int index, EndPoint<ProducerResult> producerInterval) {
+		public Consumer(int index, IntervalFuture<ProducerData> producerInterval) {
 			this.index = index;
 			this.producerInterval = producerInterval;
 		}
@@ -106,19 +107,19 @@ public class TestPCAgentBB {
 		}
 
 		@Override
-		public ConsumerResult run(Interval<ConsumerResult> current) {
-			ProducerResult result = producerInterval.result(); // Safe as producer.end -> consumer.start
+		public ConsumerData run(Interval<ConsumerData> current) {
+			ProducerData result = producerInterval.result(); // Safe as producer.end -> consumer.start
 			
 			consumerTimes.add(stamp.getAndIncrement());			
 			consumed.add(result.produced); // "Consume" the data.
 			
-			if(result.nextProducerInterval != null) { // Create next consumer, which runs after the next producer.
-				Interval<ConsumerResult> nextConsumerInterval = 
+			if(result.nextProducerFuture != null) { // Create next consumer, which runs after the next producer.
+				Interval<ConsumerData> nextConsumerInterval = 
 					intervalWithBound(current.bound())
 					.startAfter(current.end())
-					.startAfter(result.nextProducerInterval)
-					.schedule(new Consumer(index + 1, result.nextProducerInterval));
-				return new ConsumerResult(nextConsumerInterval.end());
+					.startAfter(result.nextProducerFuture.end())
+					.schedule(new Consumer(index + 1, result.nextProducerFuture));
+				return new ConsumerData(nextConsumerInterval.future());
 			}
 			return null;
 		}
@@ -132,18 +133,18 @@ public class TestPCAgentBB {
 					public Void run(final Interval<Void> setup) {
 						Producer firstProducer = new Producer(0, null); 
 				
-						Interval<ProducerResult> firstProducerInterval = 
+						Interval<ProducerData> firstProducerInterval = 
 							intervalWithBound(parent.end())
 							.startAfter(setup.end())
 							.schedule(firstProducer);
 				
-						Interval<ConsumerResult> firstConsumerInterval = 
+						Interval<ConsumerData> firstConsumerInterval = 
 							intervalWithBound(parent.end())
 							.startAfter(setup.end())
 							.startAfter(end(firstProducerInterval))
-							.schedule(new Consumer(0, firstProducerInterval.end()));
+							.schedule(new Consumer(0, firstProducerInterval.future()));
 						
-						firstProducer.waitForConsumer = firstConsumerInterval.end();
+						firstProducer.waitForConsumer = firstConsumerInterval.future();
 						return null;
 					}			
 				});				

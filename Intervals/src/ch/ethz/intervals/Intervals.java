@@ -21,7 +21,7 @@ public class Intervals {
 	public static final Task<Void> emptyTask = new NamedTask("emptyTask");
 	static final Task<Void> readTask = new NamedTask("readTask");
 
-	static final EndPointImpl<Void> ROOT_END = new EndPointImpl<Void>(1); // never occurs
+	static final EndPointImpl ROOT_END = new EndPointImpl(1); // never occurs
 	static final StartPointImpl ROOT_START = new StartPointImpl(ROOT_END, PointImpl.OCCURRED); // always occurred
 	static final IntervalImpl<Void> ROOT_INTERVAL = new IntervalImpl<Void>(null, ROOT_START, ROOT_END);
 	
@@ -39,7 +39,7 @@ public class Intervals {
 	/** 
 	 * Returns {@code i.start()} unless {@code i} is null, 
 	 * in which case just returns null. */
-	public static StartPoint start(Interval<?> i) {
+	public static Point start(Interval<?> i) {
 		if(i == null)
 			return null;
 		return i.start();
@@ -48,7 +48,7 @@ public class Intervals {
 	/** 
 	 * Returns {@code i.end()} unless {@code i} is null, 
 	 * in which case just returns null. */
-	public static <V> EndPoint<V> end(Interval<V> i) {
+	public static Point end(Interval<?> i) {
 		if(i == null)
 			return null;
 		return i.end();
@@ -147,18 +147,24 @@ public class Intervals {
 
 	/** Waits for {@code ep} to complete and returns its result.
 	 *  Resets the currentInterval afterwards. */
-	static <R> R join(IntervalImpl<?> current, EndPointImpl<R> ep) {
+	static <R> R join(IntervalImpl<?> current, IntervalFutureImpl<R> result) {
+		join(current, result.end());
+		return result.accessResult();
+	}
+
+	/** Waits for {@code ep} to complete and returns its result.
+	 *  Resets the currentInterval afterwards. */
+	static void join(IntervalImpl<?> current, PointImpl pnt) {
 		try {
 			if(Debug.ENABLED)
-				Debug.join(current, ep);
-			ep.join();
-			return ep.accessResult();
+				Debug.join(current, pnt);
+			pnt.join();
 		} finally {
 			// Helping out other tasks can disrupt this value, so restore it
 			currentInterval.set(current); 
 		}
 	}
-
+	
 	/**
 	 * A more efficient way of creating {@code count} distinct
 	 * intervals and joining them immediately.  {@code task}
@@ -215,10 +221,16 @@ public class Intervals {
 	 * {@code ep} was configured to mask errors with 
 	 * {@link UnscheduledInterval#setMaskExceptions(boolean)}.
 	 */
-	public static <R> R blockOn(EndPoint<R> ep) {
+	public static <R> R blockOn(IntervalFuture<R> result) {
+		blockOn(result.end());
+		IntervalFutureImpl<R> resultImpl = (IntervalFutureImpl<R>) result;
+		return resultImpl.accessResult();
+	}
+	
+	public static void blockOn(Point pnt) {
 		IntervalImpl<?> current = currentInterval.get();
-		checkEdge(ep, current.end);
-		return join(current, (EndPointImpl<R>) ep);
+		checkEdge(pnt, current.end);
+		join(current, (PointImpl) pnt);
 	}
 	
 	/**
@@ -233,11 +245,11 @@ public class Intervals {
 	public static <R> R blockingInterval(Task<R> task) 
 	{
 		IntervalImpl<?> current = currentInterval.get();
-		EndPoint<R> ep = intervalWithBound(current.end)
+		IntervalFuture<R> result = intervalWithBound(current.end)
 			.setMaskExceptions(true)
 			.schedule(task)
-			.end();
-		return join(current, (EndPointImpl<R>) ep);
+			.future();
+		return join(current, (IntervalFutureImpl<R>)result);
 	}
 	
 	/** 

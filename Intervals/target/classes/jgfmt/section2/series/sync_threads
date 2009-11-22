@@ -1,0 +1,17 @@
+		Runnable thobjects[] = new Runnable[JGFSeriesBench.nthreads];
+		Thread th[] = new Thread[JGFSeriesBench.nthreads];
+		for (i = 1; i < JGFSeriesBench.nthreads; i++) {
+			thobjects[i] = new SeriesRunner(i);
+			th[i] = new Thread(thobjects[i]);
+			th[i].start();
+		}
+
+		thobjects[0] = new SeriesRunner(0);
+		thobjects[0].run();
+
+		for (i = 1; i < JGFSeriesBench.nthreads; i++) {
+			try {
+				th[i].join();
+			} catch (InterruptedException e) {
+			}
+		}

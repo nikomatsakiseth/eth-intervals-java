@@ -47,7 +47,7 @@ public class TestPC {
 		final int MAX = 100;
 		blockingInterval(new Task<Void>() {
 			public Void run(Interval<Void> current) {				
-				EndPoint<?> endOfPrevConsumer = null;
+				Point endOfPrevConsumer = null;
 				for(int i = 0; i < MAX; i++)
 					endOfPrevConsumer =
 						intervalWithBound(current.end())

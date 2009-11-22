@@ -1,14 +1,12 @@
 package ch.ethz.intervals;
 
-import static ch.ethz.intervals.Intervals.checkEdge;
 
-class EndPointImpl<V> extends PointImpl implements EndPoint<V> {
+class EndPointImpl extends PointImpl {
 	
 	/** If this flag is set, then uncaught exceptions for this 
 	 *  interval are NOT propagated to its parent. */
 	static final int FLAG_MASK_EXC = 1;
 	
-	protected V result;
 	protected int flags;
 	
 	/** Only used for the root end point. */
@@ -28,21 +26,6 @@ class EndPointImpl<V> extends PointImpl implements EndPoint<V> {
 
 	void removeFlagBeforeScheduling(int flag) {
 		this.flags = this.flags & (~flag);
-	}
-
-	@Override
-	public V result() {
-		checkEdge(this, Intervals.currentInterval.get().start());
-		return accessResult();		
-	}
-	
-	protected V accessResult() {
-		checkThrowable();
-		return result;
-	}
-
-	synchronized void setResult(V result) {
-		this.result = result;
 	}
 
 	@Override

@@ -23,9 +23,9 @@ package jgfmt.section2.sor;
 
 import static ch.ethz.intervals.Intervals.intervalDuring;
 import jgfmt.jgfutil.JGFInstrumentor;
-import ch.ethz.intervals.EndPoint;
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
+import ch.ethz.intervals.Point;
 import ch.ethz.intervals.Task;
 
 //class RowRecord {
@@ -133,8 +133,7 @@ public class SORIntervals {
 				
 				// Intervals from previous iteration:
 				//   (note that null just means "no wait")
-				@SuppressWarnings("unchecked")
-				final EndPoint<Void>[][] intervals = new EndPoint[2][M/2+2];
+				final Point[][] intervals = new Point[2][M/2+2];
 
 				// Schedule the various iterations:
 				for (int p = 0; p < 2 * num_iterations; p++) {
