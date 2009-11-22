@@ -17,12 +17,12 @@ class UnscheduledIntervalImpl implements UnscheduledInterval {
 	
 	private StringBuilder description;
 	
-	public UnscheduledIntervalImpl(PointImpl endBound, int flags) {
+	public UnscheduledIntervalImpl(PointImpl endBound) {
 		IntervalImpl<?> current = Intervals.currentInterval.get();
 		checkEdgeOrSame(current.end, endBound);
 		
-		this.end = new EndPointImpl(endBound, initialWaitCount, flags);
-		this.start = new StartPointImpl(this.end, initialWaitCount);
+		this.end = new PointImpl(endBound, initialWaitCount);
+		this.start = new PointImpl(this.end, initialWaitCount);
 		this.desiredWaitCounts = (2L << END_SHIFT); // end always waits for start and for task to finish.
 		
 		endBound.addWaitCount();

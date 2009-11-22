@@ -21,8 +21,8 @@ public class Intervals {
 	public static final Task<Void> emptyTask = new NamedTask("emptyTask");
 	static final Task<Void> readTask = new NamedTask("readTask");
 
-	static final PointImpl ROOT_END = new EndPointImpl(1); // never occurs
-	static final PointImpl ROOT_START = new StartPointImpl(ROOT_END, PointImpl.OCCURRED); // always occurred
+	static final PointImpl ROOT_END = new PointImpl(1); // never occurs
+	static final PointImpl ROOT_START = new PointImpl(ROOT_END, PointImpl.OCCURRED); // always occurred
 	static final IntervalImpl<Void> ROOT_INTERVAL = new IntervalImpl<Void>(null, ROOT_START, ROOT_END);
 	
 	static final ThreadPool POOL = new ThreadPool();
@@ -89,7 +89,7 @@ public class Intervals {
 	 * @see #blockingInterval(Task)
 	 */
 	public static UnscheduledInterval intervalWithBound(Point bnd) {
-		return new UnscheduledIntervalImpl((PointImpl) bnd, 0);
+		return new UnscheduledIntervalImpl((PointImpl) bnd);
 	}
 	
 	/** 

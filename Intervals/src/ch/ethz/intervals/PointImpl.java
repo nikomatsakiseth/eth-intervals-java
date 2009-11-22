@@ -9,7 +9,7 @@ import java.util.Set;
 
 import ch.ethz.intervals.ThreadPool.Worker;
 
-abstract class PointImpl implements Point {
+class PointImpl implements Point {
 	
 	public static final int OCCURRED = -1;
 
