@@ -22,29 +22,27 @@ public class TestP2P {
 		return n | (m << 16);
 	}
 	
-	class P2P implements SetupTask<Void> {
+	class P2P extends SetupTask {
 		final List<Integer> list = Collections.synchronizedList(new ArrayList<Integer>());
 		
-	    @SuppressWarnings("unchecked")
 	    @Override
-		public Void setup(Interval<Void> _, Interval<Void> parent) {        
-	        Interval<Void>[][] intervals = new Interval[2][M+2];
+		public void setup(Point _, Interval parent) {        
+	        Point[][] intervals = new Point[2][M+2];
 	        
 	        for(int n = 0; n < N; n++) {
 	            int bit = n % 2, prevBit = 1 - bit;
 	            for(int m = 1; m < M+1; m++) {
 	                intervals[bit][m] = intervalDuring(parent)
-	                	.startAfter(end(intervals[prevBit][m-1]))
-	                	.startAfter(end(intervals[prevBit][m]))
-	                	.startAfter(end(intervals[prevBit][m+1]))
-	                	.schedule(new AddTask(n, m-1));
+	                	.startAfter(intervals[prevBit][m-1])
+	                	.startAfter(intervals[prevBit][m])
+	                	.startAfter(intervals[prevBit][m+1])
+	                	.schedule(new AddTask(n, m-1))
+	                	.end();
 	            }
 	        }   
-	        
-	        return null;
 	    }
 
-		class AddTask implements Task<Void> {
+		class AddTask extends AbstractTask {
 			
 			final int n, m;
 			
@@ -54,9 +52,8 @@ public class TestP2P {
 			}
 
 			@Override
-			public Void run(Interval<Void> current) {
+			public void run(Point currentEnd) {
 				list.add(c(n, m));
-				return null;
 			}
 			
 		}
@@ -66,7 +63,7 @@ public class TestP2P {
 	
 	@Test public void testP2P() {
 		P2P p2p = new P2P();		
-		Intervals.blockingSetupInterval(p2p);
+		Intervals.blockingInterval(p2p);
 		
 		Set<Integer> finished = new HashSet<Integer>();
 		for(Integer i : p2p.list) {

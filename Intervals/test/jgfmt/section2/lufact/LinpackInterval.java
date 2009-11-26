@@ -23,6 +23,7 @@ package jgfmt.section2.lufact;
 import ch.ethz.intervals.IndexedTask;
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
+import ch.ethz.intervals.Point;
 import ch.ethz.intervals.Task;
 import jgfmt.jgfutil.*;
 
@@ -118,9 +119,9 @@ class LinpackInterval {
 
 					// row elimination with column indexing
 					final int k0 = k;
-					Intervals.blockingIndexedInterval(n - kp1, new IndexedTask() {
-						public void run(Interval<Void> parent, int start, int stop) {
-							for (int i = start; i < stop; i++) {
+					Intervals.blockingInterval(new IndexedTask(n - kp1) {
+						public void run(Point parentEnd, int fromIndex, int toIndex) {
+							for (int i = fromIndex; i < fromIndex; i++) {
 								int j = i + kp1;
 								
 								double[] col_j = a[j];
@@ -132,9 +133,8 @@ class LinpackInterval {
 								}
 	
 								daxpy(n - (kp1), t, col_k, kp1, 1, col_j, kp1, 1);
-							}
+							}						
 						}
-						
 					});
 				} 
 			}

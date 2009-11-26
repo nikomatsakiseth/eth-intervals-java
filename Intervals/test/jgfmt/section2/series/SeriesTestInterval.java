@@ -38,14 +38,16 @@
 
 package jgfmt.section2.series;
 
+import ch.ethz.intervals.AbstractTask;
 import ch.ethz.intervals.Debug;
 import ch.ethz.intervals.IndexedTask;
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
+import ch.ethz.intervals.Point;
 import ch.ethz.intervals.Task;
 import jgfmt.jgfutil.*;
 
-import static ch.ethz.intervals.Intervals.intervalDuring;
+import static ch.ethz.intervals.Intervals.intervalWithBound;
 import static jgfmt.section2.series.SeriesTest.array_rows;
 import static jgfmt.section2.series.SeriesTest.TestArray;
 
@@ -73,15 +75,11 @@ public class SeriesTestInterval {
 		
 		//Thread debugThread = Debug.dumpDebugStateAfterTimeElapsed(8);
 
-		Intervals.blockingInterval(new Task<Void>() {
-			public Void run(Interval<Void> parent) {
-				
+		Intervals.blockingInterval(new AbstractTask() {
+			public void run(Point parentEnd) {
 				for (int i = 0; i < array_rows; i++)
-					intervalDuring(parent).schedule(new SeriesRunnerInterval(i));
-				//Intervals.forkJoinIndexed(array_rows, new SeriesRunnerInterval());
-				
-				return null;
-				
+					intervalWithBound(parentEnd).schedule(new SeriesRunnerInterval(i));
+				//Intervals.forkJoinIndexed(array_rows, new SeriesRunnerInterval());				
 			}			
 		});
 		
@@ -100,7 +98,7 @@ public class SeriesTestInterval {
 
 // This is the Thread
 
-class SeriesRunnerInterval implements Task<Void> {
+class SeriesRunnerInterval extends AbstractTask {
 	
 	final int id;
 	
@@ -108,7 +106,7 @@ class SeriesRunnerInterval implements Task<Void> {
 		this.id = id;
 	}
 
-	public Void run(Interval<Void> _) {
+	public void run(Point _) {
 
 		// int array_rows=SeriesTest.array_rows;
 
@@ -150,8 +148,6 @@ class SeriesRunnerInterval implements Task<Void> {
 					omega * (double) id,
 					2); // 2 = sine term.
 		}
-		
-		return null;
 	}
 
 	/*

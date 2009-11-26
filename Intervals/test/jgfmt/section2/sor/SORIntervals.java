@@ -21,8 +21,9 @@
 
 package jgfmt.section2.sor;
 
-import static ch.ethz.intervals.Intervals.intervalDuring;
+import static ch.ethz.intervals.Intervals.intervalWithBound;
 import jgfmt.jgfutil.JGFInstrumentor;
+import ch.ethz.intervals.AbstractTask;
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.Point;
@@ -127,9 +128,8 @@ public class SORIntervals {
 				
 		JGFInstrumentor.startTimer("Section2:SOR:Kernel");
 		
-		Intervals.blockingInterval(new Task<Void>() {			
-			
-			public Void run(Interval<Void> parent) {
+		Intervals.blockingInterval(new AbstractTask() {						
+			public void run(Point parentEnd) {
 				
 				// Intervals from previous iteration:
 				//   (note that null just means "no wait")
@@ -143,14 +143,14 @@ public class SORIntervals {
 					int prevBit = (bit + 1) % 2;
 					
 					int i = 1 + (p % 2);
-					intervals[bit][1] = intervalDuring(parent)
+					intervals[bit][1] = intervalWithBound(parentEnd)
 						.startAfter(intervals[prevBit][1])
 						.startAfter(intervals[prevBit][2])
 						.schedule(new Row(i)).end();
 					
 					i += 2;
 					for(int j = 2; i < M; i += 2, j++)
-						intervals[bit][j] = intervalDuring(parent)
+						intervals[bit][j] = intervalWithBound(parentEnd)
 							.startAfter(intervals[prevBit][j-2])
 							.startAfter(intervals[prevBit][j-1])
 							.startAfter(intervals[prevBit][j])
@@ -159,11 +159,9 @@ public class SORIntervals {
 				}
 				
 				//System.err.println("Created all intervals");
-				
-				return null;				
 			}	
 			
-			class Row implements Task<Void> {
+			class Row extends AbstractTask {
 				
 				final int i;
 
@@ -171,7 +169,7 @@ public class SORIntervals {
 					i = _i;
 				}
 
-				public Void run(Interval<Void> arg) {
+				public void run(Point _) {
 					double[] Gi = G[i];
 					double[] Gim1 = G[i - 1];
 					
@@ -215,7 +213,6 @@ public class SORIntervals {
 							}
 						}
 					}				
-					return null;
 				}
 				
 			}

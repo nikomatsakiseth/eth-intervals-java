@@ -25,8 +25,9 @@ package jgfmt.section3.raytracer;
 
 import ch.ethz.intervals.IndexedTask;
 import ch.ethz.intervals.LongReduction;
+import ch.ethz.intervals.Point;
 
-public class IntervalRayTracer implements IndexedTask {
+public class IntervalRayTracer extends IndexedTask {
 	
 	final LongReduction checksum;
 	
@@ -64,6 +65,7 @@ public class IntervalRayTracer implements IndexedTask {
 	final Interval interval;
 	
 	public IntervalRayTracer(LongReduction checksum, Scene scene, Interval interval) {
+		super(interval.height);
 		this.checksum = checksum;
 		this.scene = scene;
 		
@@ -107,7 +109,7 @@ public class IntervalRayTracer implements IndexedTask {
 		this.interval = interval;
 	}
 
-	public void run(ch.ethz.intervals.Interval<Void> parent, int start, int stop) {
+	public void run(Point _, int start, int stop) {
 		for(int y = start; y < stop; y++) {
 			long lineChecksum = 0;
 			

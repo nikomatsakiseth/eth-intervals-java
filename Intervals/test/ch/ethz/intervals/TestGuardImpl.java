@@ -1,24 +1,17 @@
 package ch.ethz.intervals;
 
-import static org.mockito.Mockito.times;
-import static ch.ethz.intervals.Intervals.end;
-import static ch.ethz.intervals.Intervals.start;
-
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.InOrder;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
 
 @RunWith(MockitoJUnitRunner.class)
 public class TestGuardImpl {
 	
-	@Mock IntervalImpl<?> fst;
-	@Mock IntervalImpl<?> snd;
-	@Mock IntervalImpl<?> thrd;
+	@Mock IntervalImpl fst;
+	@Mock IntervalImpl snd;
+	@Mock IntervalImpl thrd;
 	
 	@Before public void before() {
 	

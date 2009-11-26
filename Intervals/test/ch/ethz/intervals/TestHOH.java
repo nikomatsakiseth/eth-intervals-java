@@ -1,7 +1,6 @@
 package ch.ethz.intervals;
 
 import static ch.ethz.intervals.Intervals.blockingInterval;
-import static ch.ethz.intervals.Intervals.intervalDuring;
 import static ch.ethz.intervals.Intervals.intervalWithBound;
 import static java.lang.String.format;
 
@@ -73,7 +72,7 @@ public class TestHOH {
 		void transform(Link l);
 	}
 
-	class MapWalk implements Task<Void> {
+	class MapWalk extends AbstractTask {
 	    final Link link;
 	    final Transform transform;
 
@@ -83,15 +82,14 @@ public class TestHOH {
 		}
 
 		@Override @Effects("(mthd-):Ex(link.guard)")
-	    public Void run(Interval<Void> current) {
+	    public void run(Point currentEnd) {
 	        transform.transform(link);
 	        if(link.next != null) {
-	        	intervalWithBound(current.bound())
+	        	intervalWithBound(currentEnd.bound())
 		        .exclusiveLock(link.next.guard)
-		        .startBefore(current.end())
+		        .startBefore(currentEnd)
 		        .schedule(new MapWalk(link.next, transform));
             }
-	        return null;
 	    } 
 		
 		public String toString() {
@@ -116,10 +114,9 @@ public class TestHOH {
 	public @Test void testDouble() {
 	    Guard listGuard = Guards.newGuard();
 		final @HOHList("listGuard") Link list = buildList(5, 10, 25);
-		blockingInterval(new Task<Void>() {
-			public Void run(Interval<Void> current) {
-				intervalDuring(current).schedule(new MapWalk(list, new DoubleTransform()));		
-				return null;
+		blockingInterval(new Task() {
+			public void run(Point currentEnd) {
+				intervalWithBound(currentEnd).schedule(new MapWalk(list, new DoubleTransform()));		
 			}
 		});
 		@HOHList("listGuard") Link expList = buildList(10, 20, 50);

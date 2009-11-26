@@ -1,6 +1,5 @@
 package ch.ethz.intervals;
 
-import static ch.ethz.intervals.Intervals.intervalDuring;
 import static java.lang.Integer.valueOf;
 
 import java.util.ArrayList;
@@ -23,16 +22,15 @@ public class TestFJ {
 		// Interval task instance: defines the behavior of an interval,
 		// like a Runnable.  This particular instance just adds the number
 		// "i" to "list".
-		class AddTask implements Task<Void> {
+		class AddTask extends AbstractTask {
 			final int i;
 			
 			public AddTask(int i) {
 				this.i = i;
 			}
 			
-			public Void run(Interval<Void> current) {
+			public void run(Point currentEnd) {
 				list.add(i);
-				return null;
 			}
 		}
 		
@@ -42,11 +40,10 @@ public class TestFJ {
 		// are children of the current interval and the current
 		// interval always waits for them to finish before 
 		// proceeding.
-		Intervals.blockingInterval(new Task<Void>() {
-			public Void run(Interval<Void> parent) {
+		Intervals.blockingInterval(new Task() {
+			public void run(Point parentEnd) {
 				for(int i = 0; i < N; i++)
-					intervalDuring(parent).schedule(new AddTask(i));				
-				return null;
+					Intervals.intervalWithBound(parentEnd).schedule(new AddTask(i));				
 			}			
 		});
 		

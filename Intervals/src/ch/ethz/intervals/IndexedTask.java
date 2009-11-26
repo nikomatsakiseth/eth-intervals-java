@@ -29,7 +29,7 @@ public abstract class IndexedTask extends AbstractTask {
 	private Point parentEnd;
 	private AsyncPoint whenDone;
 
-	IndexedTask(int count) {
+	protected IndexedTask(int count) {
 		this.count = count;
 		
 		// By default, about 16 times as many tasks as threads.

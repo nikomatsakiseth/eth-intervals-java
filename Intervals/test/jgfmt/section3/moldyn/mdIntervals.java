@@ -32,6 +32,7 @@ import ch.ethz.intervals.IndexedTask;
 import ch.ethz.intervals.IntReduction;
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
+import ch.ethz.intervals.Point;
 import ch.ethz.intervals.Task;
 
 public class mdIntervals extends mdBase {
@@ -221,8 +222,8 @@ public class mdIntervals extends mdBase {
 			/* move the particles and update velocities */
 			
 			// use accumulate shared force to update position of all particles
-			Intervals.blockingIndexedInterval(mdsize, new IndexedTask() {
-				public void run(Interval<Void> parent, int start, int stop) {
+			Intervals.blockingInterval(new IndexedTask(mdsize) {
+				public void run(Point _, int start, int stop) {
 					for(int i = start; i < stop; i++)
 						one[i].domove(side, i);
 				}				
@@ -241,8 +242,8 @@ public class mdIntervals extends mdBase {
 			interacts.resetAccumulators();
 
 			/* compute forces */
-			Intervals.blockingIndexedInterval(mdsize, new IndexedTask() {
-				public void run(Interval<Void> parent, int start, int stop) {
+			Intervals.blockingInterval(new IndexedTask(mdsize) {
+				public void run(Point _, int start, int stop) {
 					for(int i = start; i < stop; i++)
 						one[i].force(side, rcoff, mdsize, i);
 				}				

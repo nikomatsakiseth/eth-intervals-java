@@ -1,6 +1,6 @@
-Intervals.forkJoin(new Task<Void>() {			
-	public Void run(Interval<Void> parent) {
-		final Interval<Void>[][] intervals = new Interval[2][M/2+2];
+Intervals.forkJoin(new Task() {			
+	public Void run(Interval parent) {
+		final Interval[][] intervals = new Interval[2][M/2+2];
         				for (int p = 0; p < 2 * num_iterations; p++) {
         //					System.err.println("Creating phase " + p + " / " + 2*num_iterations);
 

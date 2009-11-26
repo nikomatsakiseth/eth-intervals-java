@@ -30,31 +30,29 @@ public class TestPC {
 	
 	List<Integer> consumed = new ArrayList<Integer>();
 	
-	class Consumer implements Task<Void> {
+	class Consumer extends AbstractTask {
 		public Integer i;
 		
 		private Consumer(Integer i) {
 			this.i = i;
 		}
 
-		public Void run(Interval<Void> current) {
+		public void run(Point currentEnd) {
 			consumed.add(i);
-			return null;
 		}
 	}
 	
 	@Test public void test() {
 		final int MAX = 100;
-		blockingInterval(new Task<Void>() {
-			public Void run(Interval<Void> current) {				
+		blockingInterval(new Task() {
+			public void run(Point currentEnd) {				
 				Point endOfPrevConsumer = null;
 				for(int i = 0; i < MAX; i++)
 					endOfPrevConsumer =
-						intervalWithBound(current.end())
+						intervalWithBound(currentEnd)
 						.startAfter(endOfPrevConsumer)
 						.schedule(new Consumer(i))
 						.end();
-				return null;
 			}			
 		});
 		for(int i = 0; i < MAX; i++)

@@ -1,5 +1,5 @@
-Intervals.syncInterval(new Task<Void>() {
-	public Void run(Interval<Void> parent) {
+Intervals.syncInterval(new Task() {
+	public Void run(Interval parent) {
 		
 		for (int i = 0; i < array_rows; i++)
 			parent.asyncInterval(new SeriesRunnerInterval(i));

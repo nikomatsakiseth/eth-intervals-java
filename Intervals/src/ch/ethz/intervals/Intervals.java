@@ -3,7 +3,7 @@ package ch.ethz.intervals;
 
 public class Intervals {
 	
-	static class NamedTask implements Task {
+	static class NamedTask extends AbstractTask {
 		public final String name;
 		public NamedTask(String name) {
 			super();

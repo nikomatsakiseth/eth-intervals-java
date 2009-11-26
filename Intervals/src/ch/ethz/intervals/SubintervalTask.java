@@ -6,7 +6,7 @@ import static ch.ethz.intervals.Intervals.intervalWithBound;
  * Wraps one task in a subinterval.  Useful when a task could
  * create siblings and you want to wait for those too.
  */
-public class SubintervalTask implements Task {
+public class SubintervalTask extends AbstractTask {
 	
 	public final Task subtask;
 	

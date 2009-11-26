@@ -58,7 +58,7 @@ public class JGFRayTracerBench extends RayTracer implements JGFSection3 {
 			JGFInstrumentor.stopTimer("Section3:RayTracer:Init");
 			
 			JGFInstrumentor.startTimer("Section3:RayTracer:Run");
-			Intervals.blockingIndexedInterval(height, rayTracer);
+			Intervals.blockingInterval(rayTracer);
 			checksum1 = checksumRed.reduce();
 			JGFInstrumentor.stopTimer("Section3:RayTracer:Run");			
 		} else {		

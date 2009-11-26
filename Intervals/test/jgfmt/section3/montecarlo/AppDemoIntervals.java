@@ -21,15 +21,15 @@
 
 package jgfmt.section3.montecarlo;
 
-import java.util.*;
-import java.awt.*;
-
-import ch.ethz.intervals.Interval;
-import ch.ethz.intervals.Task;
-
-import ch.ethz.intervals.Intervals;
-
 import static jgfmt.section3.montecarlo.AppDemo.JGFavgExpectedReturnRateMC;
+
+import java.util.Vector;
+
+import ch.ethz.intervals.AbstractTask;
+import ch.ethz.intervals.Interval;
+import ch.ethz.intervals.Intervals;
+import ch.ethz.intervals.Point;
+import ch.ethz.intervals.Task;
 
 
 /**
@@ -161,25 +161,22 @@ public class AppDemoIntervals extends Universal implements AppDemoInterface {
 	public void runThread() {
 		results = new Vector<Object>(nRunsMC);
 		
-		Intervals.blockingInterval(new Task<Void>() {
-			public Void run(Interval<Void> parent) {
+		Intervals.blockingInterval(new AbstractTask() {
+			public void run(Point parentEnd) {
 				
 				for (int i = 0; i < nRunsMC; i++) {
 					final int iRun = i;
-					Intervals.intervalWithBound(parent.end())
-					.schedule(new Task<Void>() {
-						public Void run(Interval<Void> arg) {							
+					Intervals.intervalWithBound(parentEnd)
+					.schedule(new AbstractTask() {
+						public void run(Point _) {							
 							final PriceStock ps = new PriceStock();
 							ps.setInitAllTasks(AppDemoIntervals.initAllTasks);
 							ps.setTask(tasks.elementAt(iRun));
 							ps.run();
 							results.addElement(ps.getResult());							
-							return null;
 						}					
 					});
 				}
-				
-				return null;
 			}			
 		});
 

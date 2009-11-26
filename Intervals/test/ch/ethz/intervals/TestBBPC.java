@@ -40,12 +40,12 @@ public class TestBBPC {
 	int[] consumed = new int[M];
 	int[] produced = new int[M];
 
-	class Producer implements Task<Void> {
+	class Producer extends AbstractTask {
 		final int i;
-		final Interval<Void> consumers[];
-		final Interval<Void> prevConsumer;
+		final Interval consumers[];
+		final Interval prevConsumer;
 		
-		Producer(int i, Interval<Void>[] consumers,	Interval<Void> prevConsumer) {
+		Producer(int i, Interval[] consumers,	Interval prevConsumer) {
 			this.i = i;
 			this.consumers = consumers;
 			this.prevConsumer = prevConsumer;
@@ -53,25 +53,25 @@ public class TestBBPC {
 		
 		public Integer produceData() { return i; }
 
-		public Void run(Interval<Void> current) {
-			if(i >= M) return null;
+		public void run(Point currentEnd) {
+			if(i >= M) 
+				return;
 			produced[i] = stamp();
 			
 			Integer data = produceData();
 			Consumer consTask = new Consumer(data);
-			Interval<Void> consInter = intervalWithBound(current.bound())
+			Interval consInter = intervalWithBound(currentEnd.bound())
 			.startAfter(end(prevConsumer))
 			.schedule(consTask);
 			consumers[i % N] = consInter;
 			
 			int nxtI = (i+1) % N;
-			Interval<Void> waitInter = consumers[nxtI]; 
+			Interval waitInter = consumers[nxtI]; 
 				
 			Producer nxtTask = new Producer(i + 1, consumers, consInter);
-			Interval<?> nxtInter = intervalWithBound(current.bound())
+			Interval nxtInter = intervalWithBound(currentEnd.bound())
 			.startAfter(end(waitInter))
 			.schedule(nxtTask);
-			return null;
 		}
 		
 		public String toString() {
@@ -80,7 +80,7 @@ public class TestBBPC {
 
 	}
 	
-	class Consumer implements Task<Void> {
+	class Consumer extends AbstractTask {
 		public Integer i;
 		
 		private Consumer(Integer i) {
@@ -91,19 +91,17 @@ public class TestBBPC {
 			return String.format("Consumer[%d]", i);
 		}
 
-		public Void run(Interval<Void> current) {
+		public void run(Point currentEnd) {
 			consumed[i] = stamp();
-			return null;
 		}
 	}
 	
 	@Test public void test() {
 //		ExecutionLog.enableGui();
-		blockingInterval(new Task<Void>() {
-			public Void run(Interval<Void> parent) {
+		blockingInterval(new Task() {
+			public void run(Point parentEnd) {
 				Producer fstProd = new Producer(0, new Interval[N], null);
-				intervalDuring(parent).schedule(fstProd);
-				return null;
+				intervalWithBound(parentEnd).schedule(fstProd);
 			}			
 		});
 //		ExecutionLog.disable();

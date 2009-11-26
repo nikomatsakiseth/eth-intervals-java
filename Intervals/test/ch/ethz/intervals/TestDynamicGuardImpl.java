@@ -11,13 +11,13 @@ import org.junit.Test;
 
 public class TestDynamicGuardImpl {
 	
-	IntervalImpl<?> a;
-	IntervalImpl<?> b;
-	IntervalImpl<?> b1, b11;
-	IntervalImpl<?> b2;
-	IntervalImpl<?> c;
+	IntervalImpl a;
+	IntervalImpl b;
+	IntervalImpl b1, b11;
+	IntervalImpl b2;
+	IntervalImpl c;
 	
-	IntervalImpl<?> l1, l2;
+	IntervalImpl l1, l2;
 	
 	DynamicGuardImpl dg;
 	
@@ -33,19 +33,18 @@ public class TestDynamicGuardImpl {
 		
 		dg = (DynamicGuardImpl) Guards.newDynamicGuard();
 		
-		Intervals.blockingSetupInterval(new SetupTask<Void>() {
+		Intervals.blockingInterval(new SetupTask() {
 			@Override
-			public Void setup(Interval<Void> current, Interval<Void> worker) {
-				a = (IntervalImpl<?>) intervalDuring(worker).schedule(emptyTask);
-				b = (IntervalImpl<?>) intervalDuring(worker).startAfter(end((a))).schedule(emptyTask);
-				c = (IntervalImpl<?>) intervalDuring(worker).startAfter(end((b))).schedule(emptyTask);
-				b1 = (IntervalImpl<?>) intervalDuring(b).schedule(emptyTask);
-				b11 = (IntervalImpl<?>) intervalDuring(b).startAfter(end((b1))).schedule(emptyTask);
-				b2 = (IntervalImpl<?>) intervalDuring(b).schedule(emptyTask);
+			public void setup(Point currentEnd, Interval worker) {
+				a = (IntervalImpl) intervalDuring(worker).schedule(emptyTask);
+				b = (IntervalImpl) intervalDuring(worker).startAfter(end((a))).schedule(emptyTask);
+				c = (IntervalImpl) intervalDuring(worker).startAfter(end((b))).schedule(emptyTask);
+				b1 = (IntervalImpl) intervalDuring(b).schedule(emptyTask);
+				b11 = (IntervalImpl) intervalDuring(b).startAfter(end((b1))).schedule(emptyTask);
+				b2 = (IntervalImpl) intervalDuring(b).schedule(emptyTask);
 				
-				l1 = (IntervalImpl<?>) intervalDuring(b).exclusiveLock(dg).schedule(emptyTask);
-				l2 = (IntervalImpl<?>) intervalDuring(b).exclusiveLock(dg).schedule(emptyTask);
-				return null;
+				l1 = (IntervalImpl) intervalDuring(b).exclusiveLock(dg).schedule(emptyTask);
+				l2 = (IntervalImpl) intervalDuring(b).exclusiveLock(dg).schedule(emptyTask);
 			}
 		});
 				

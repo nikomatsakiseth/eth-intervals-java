@@ -26,7 +26,7 @@ public class TestInterval {
 		//System.err.println(String.format(fmt, args));
 	}
 	
-	class IncTask implements Task<Integer> {
+	class IncTask extends AbstractTask {
 		public final AtomicInteger i;
 
 		public IncTask(AtomicInteger i) {
@@ -34,12 +34,12 @@ public class TestInterval {
 		}
 
 		@Override
-		public Integer run(Interval<Integer> current) {
-			return i.getAndIncrement();
+		public void run(Point _) {
+			i.getAndIncrement();
 		}		
 	}
 	
-	class AddTask implements Task<Void> {
+	class AddTask extends AbstractTask {
 
 		public final List<List<Integer>> list;
 		public final List<Integer> id;
@@ -49,10 +49,9 @@ public class TestInterval {
 			this.list = list;
 		}
 
-		public Void run(Interval<Void> i) {
+		public void run(Point _) {
 			debug("%s", toString());
 			list.add(id);
-			return null;
 		}
 		
 		@Override
@@ -60,12 +59,6 @@ public class TestInterval {
 			return "AddTask id="+id;
 		}
 		
-	}
-	
-	class Empty implements Task<Void> {
-		public Void run(Interval<Void> i) {
-			return null;
-		}
 	}
 	
 	public void checkOrdering(List<List<Integer>> results) {
@@ -81,21 +74,19 @@ public class TestInterval {
 	@Test public void basic() {
 		for (int i = 0; i < repeat; i++) {
 			final List<List<Integer>> list = Collections.synchronizedList(new ArrayList<List<Integer>>());
-			Intervals.blockingInterval(new Task<Void>() {
-				public Void run(final Interval<Void> parent) {
+			Intervals.blockingInterval(new AbstractTask() {
+				public void run(final Point parentEnd) {
 					
-					Intervals.blockingInterval(new Task<Void>() {
-						public Void run(final Interval<Void> child) {
+					Intervals.blockingInterval(new AbstractTask() {
+						public void run(final Point childEnd) {
 							
-							intervalDuring(parent).startAfter(end(child)).schedule(new AddTask(list, 2));
-							intervalDuring(child).schedule(new AddTask(list, 1));
-							intervalDuring(child).schedule(new AddTask(list, 1));
-							intervalDuring(child).schedule(new AddTask(list, 1));
-							return null;
+							intervalWithBound(parentEnd).startAfter(childEnd).schedule(new AddTask(list, 2));
+							intervalWithBound(childEnd).schedule(new AddTask(list, 1));
+							intervalWithBound(childEnd).schedule(new AddTask(list, 1));
+							intervalWithBound(childEnd).schedule(new AddTask(list, 1));
 							
 						}
 					});
-					return null;
 					
 				}				
 			});
@@ -113,16 +104,17 @@ public class TestInterval {
 		 *                              \
 		 *                               s
 		 */
-		Integer r = Intervals.blockingSetupInterval(new SetupTask<Integer>() {
+		final AtomicInteger successful = new AtomicInteger();
+		Intervals.blockingInterval(new SetupTask() {
 			@Override
-			public Integer setup(Interval<Integer> current, Interval<Void> worker) {
-				IntervalImpl<?> d = (IntervalImpl<?>) intervalDuring(worker).schedule(emptyTask);
-				IntervalImpl<?> k = (IntervalImpl<?>) intervalDuring(d).schedule(emptyTask);
-				IntervalImpl<?> n = (IntervalImpl<?>) intervalDuring(d).schedule(emptyTask);
-				IntervalImpl<?> a = (IntervalImpl<?>) intervalDuring(worker).schedule(emptyTask);
-				IntervalImpl<?> m = (IntervalImpl<?>) intervalDuring(a).schedule(emptyTask);
-				IntervalImpl<?> t = (IntervalImpl<?>) intervalDuring(a).schedule(emptyTask);
-				IntervalImpl<?> s = (IntervalImpl<?>) intervalDuring(t).schedule(emptyTask);
+			public void setup(Point _, Interval worker) {
+				IntervalImpl d = (IntervalImpl) intervalDuring(worker).schedule(emptyTask);
+				IntervalImpl k = (IntervalImpl) intervalDuring(d).schedule(emptyTask);
+				IntervalImpl n = (IntervalImpl) intervalDuring(d).schedule(emptyTask);
+				IntervalImpl a = (IntervalImpl) intervalDuring(worker).schedule(emptyTask);
+				IntervalImpl m = (IntervalImpl) intervalDuring(a).schedule(emptyTask);
+				IntervalImpl t = (IntervalImpl) intervalDuring(a).schedule(emptyTask);
+				IntervalImpl s = (IntervalImpl) intervalDuring(t).schedule(emptyTask);
 				
 				Assert.assertEquals(d.end, d.end.mutualBound(d.end));
 				Assert.assertEquals(d.end, k.end.mutualBound(n.end));
@@ -130,12 +122,14 @@ public class TestInterval {
 				Assert.assertEquals(worker.end(), s.end.mutualBound(k.end));
 				Assert.assertEquals(a.end, m.end.mutualBound(s.end));
 				Assert.assertEquals(a.end, s.end.mutualBound(m.end));
-				return 22;
+				
+				successful.addAndGet(1); 
 			}
 		});
-		Assert.assertEquals(Integer.valueOf(22), r);
+		Assert.assertEquals(successful.get(), 1); // just in case an exc. gets swallowed
 	}
 	
+	@SuppressWarnings("serial")
 	class TestException extends RuntimeException { 
 		
 	}
@@ -147,23 +141,22 @@ public class TestInterval {
 		class TestHarness {
 			public void test(final boolean maskExceptions) {
 				try {
-					Intervals.blockingInterval(new Task<Void>() {
+					Intervals.blockingInterval(new Task() {
 
 						@Override
-						public Void run(Interval<Void> current) {
+						public void run(Point currentEnd) {
 							
-							intervalDuring(current)
+							intervalWithBound(currentEnd)
 							.setMaskExceptions(maskExceptions)
-							.schedule(new Task<Void>() {
+							.schedule(new Task() {
 
 								@Override
-								public Void run(Interval<Void> current) {
+								public void run(Point currentEnd) {
 									throw new TestException();
 								}
 								
 							});
 							
-							return null;
 						}
 						
 					});
@@ -189,23 +182,21 @@ public class TestInterval {
 		class TestHarness {
 			public void test(final boolean maskExceptions) {
 				try {
-					Intervals.blockingInterval(new Task<Void>() {
+					Intervals.blockingInterval(new Task() {
 
 						@Override
-						public Void run(Interval<Void> current) {
+						public void run(Point currentEnd) {
 							
-							intervalDuring(current)
+							intervalWithBound(currentEnd)
 							.setMaskExceptions(maskExceptions)
-							.schedule(new SubintervalWrapper(new Task<Void>() {
+							.schedule(new SubintervalTask(new Task() {
 
 								@Override
-								public Void run(Interval<Void> current) {
+								public void run(Point currentEnd) {
 									throw new TestException();
 								}
 								
 							}));
-							
-							return null;
 						}
 						
 					});
@@ -230,16 +221,16 @@ public class TestInterval {
 //		for (int i = 0; i < repeat; i++) {
 //			final List<List<Integer>> list = Collections.synchronizedList(new ArrayList<List<Integer>>());
 //			
-//			class Subinterval implements Task<Void> {
+//			class Subinterval extends AbstractTask {
 //				int phase;
 //
 //				public Subinterval(int phase) {
 //					this.phase = phase;
 //				}								
 //				
-//				public Void run(Interval<Void> _) {
-//					Intervals.forkJoinPhased(2, new ArgCallable<Void, List<Interval<Void>>>() {
-//						public Void run(List<Interval<Void>> phases) {
+//				public Void run(Interval _) {
+//					Intervals.forkJoinPhased(2, new ArgCallable<Void, List<Interval>>() {
+//						public Void run(List<Interval> phases) {
 //							//debug("Phased, Subinterval phase="+phase+" interval="+interval);
 //							phases.get(0).newChild(new AddTask(list, phase, 0));
 //							phases.get(1).newChild(new AddTask(list, phase, 1));
@@ -252,8 +243,8 @@ public class TestInterval {
 //				}
 //			}			
 //			
-//			Intervals.forkJoinPhased(2, new ArgCallable<Void, List<Interval<Void>>>() {
-//				public Void run(List<Interval<Void>> phases) {
+//			Intervals.forkJoinPhased(2, new ArgCallable<Void, List<Interval>>() {
+//				public Void run(List<Interval> phases) {
 //					//debug("Phased, interval="+interval);
 //					phases.get(0).newChild(new Subinterval(0));
 //					phases.get(1).newChild(new Subinterval(1));
@@ -268,9 +259,9 @@ public class TestInterval {
 //	
 //	@Test public void illegalCreateChild() {
 //		final boolean[] res = new boolean[1];		
-//		Intervals.forkJoin(new Task<Void>() {
-//			public Void run(Interval<Void> intervalImpl) throws Exception {				
-//				Interval<Void> i = intervalImpl.newChild(new Empty());
+//		Intervals.forkJoin(new Task() {
+//			public Void run(Interval intervalImpl) throws Exception {				
+//				Interval i = intervalImpl.newChild(new Empty());
 //				try {
 //					i.newChild(new Empty());
 //				} catch (IntervalMustPreventFromClosingException e) {
@@ -288,14 +279,14 @@ public class TestInterval {
 //	@Test public void cyclicWaitGrandchild() {
 //		final boolean[] res = new boolean[1];		
 //		
-//		Intervals.forkJoin(new Task<Void>() {
-//			public Void run(final Interval<Void> parent) {
+//		Intervals.forkJoin(new Task() {
+//			public Void run(final Interval parent) {
 //				
-//				Intervals.forkJoin(new Task<Void>() {
-//					public Void run(final Interval<Void> child1) {
+//				Intervals.forkJoin(new Task() {
+//					public Void run(final Interval child1) {
 //						
-//						Intervals.forkJoin(new Task<Void>() {
-//							public Void run(final Interval<Void> child2) {
+//						Intervals.forkJoin(new Task() {
+//							public Void run(final Interval child2) {
 //								try {
 //									child2.split(null, startAfter(end(parent)));
 //								} catch (IntervalCannotWaitOnException e) {
@@ -319,10 +310,10 @@ public class TestInterval {
 //	/** it's not ok to wait for your parents */
 //	@Test public void illegalJoin() {
 //		final boolean[] res = new boolean[1];		
-//		Intervals.forkJoin(new Task<Void>() {
-//			public Void run(final Interval<Void> parent) {				
-//				parent.newChild(new Task<Void>() {
-//					public Void run(final Interval<Void> child) {
+//		Intervals.forkJoin(new Task() {
+//			public Void run(final Interval parent) {				
+//				parent.newChild(new Task() {
+//					public Void run(final Interval child) {
 //						try {
 //							child.split(null, startAfter(end(parent)));
 //						} catch (IntervalCannotWaitOnException e) {
@@ -340,8 +331,8 @@ public class TestInterval {
 //	/** it's ok to wait for yourself */
 //	@Test public void selfAwait() {
 //		final boolean[] res = new boolean[1];
-//		Intervals.forkJoin(new Task<Void>() {
-//			public Void run(final Interval<Void> parent) {
+//		Intervals.forkJoin(new Task() {
+//			public Void run(final Interval parent) {
 //				try {
 //					parent.split(null, startAfter(end(parent)));
 //				} catch (IntervalCannotWaitOnException e) {
@@ -356,10 +347,10 @@ public class TestInterval {
 //	/** it's ok to wait split as many times as you like, waiting on the same intervals, etc */ 
 //	@Test public void splitTwice() {
 //		@SuppressWarnings("unchecked")
-//		final Interval<Void>[] i = new Interval[3];
-//		Intervals.forkJoin(new Task<Void>() {
-//			public Void run(Interval<Void> parent) {
-//				Interval<Void> child = i[0] = parent.newChild(new Empty());
+//		final Interval[] i = new Interval[3];
+//		Intervals.forkJoin(new Task() {
+//			public Void run(Interval parent) {
+//				Interval child = i[0] = parent.newChild(new Empty());
 //				i[1] = parent = parent.split(null, startAfter(end(child)));
 //				i[2] = parent.split(null, startAfter(end(child)));
 //				return null;
@@ -384,10 +375,10 @@ public class TestInterval {
 //		final int length = parallelismLevel * 2;		
 //		final int[] res = new int[length];
 //		@SuppressWarnings("unchecked")
-//		final Interval<Void>[] children = new Interval[length];
+//		final Interval[] children = new Interval[length];
 //		final AtomicInteger arrived = new AtomicInteger();
 //
-//		class BarrierTask implements Task<Void> {
+//		class BarrierTask extends AbstractTask {
 //			
 //			final int index;	
 //			
@@ -395,7 +386,7 @@ public class TestInterval {
 //				this.index = index;
 //			}
 //
-//			public Void run(Interval<Void> arg) {
+//			public Void run(Interval arg) {
 //				// in theory, no thread can proceed until they all
 //				// have arrived, so add a delay...
 //				debug("Child %d started [%s]", index, arg);
@@ -409,9 +400,9 @@ public class TestInterval {
 //			
 //		}
 //		
-//		Intervals.forkJoinSetup(new SetupTask<Void>() {
+//		Intervals.forkJoinSetup(new SetupTask() {
 //			@Override
-//			public Void setup(Interval<Void> current, Interval<Void> worker) {
+//			public Void setup(Interval current, Interval worker) {
 //				for (int i = 0; i < length; i++) {
 //					children[i] = worker.newChild(new BarrierTask(i));
 //					debug("Spawning child %d==%s from %s", i, children[i], current);
@@ -436,8 +427,7 @@ public class TestInterval {
 	public void _pointToPoint() {
 		// includes 2 "boundary" columns:
 		final int R = 25, C = 25;
-		@SuppressWarnings("unchecked")
-		final Interval<Void>[][] intervals = new Interval[2][C+2];
+		final Point[][] intervals = new Point[2][C+2];
 		final int[][] data = new int[R][C];
 		final int dataPoints = 45;
 			
@@ -462,18 +452,18 @@ public class TestInterval {
 		//
 		//   To deal with the boundary cases, we make the intervals
 		//   array 2 entries bigger than C.
-		Intervals.blockingSetupInterval(new SetupTask<Void>() {
+		Intervals.blockingInterval(new SetupTask() {
 			
-			public Interval<Void> intervalFor(int row, int col) {
+			public Point intervalFor(int row, int col) {
 				return intervals[row & 1][col + 1];
 			}
 
-			public void setIntervalFor(int row, int col, Interval<Void> i) {
-				intervals[row & 1][col + 1] = i;
+			public void setIntervalFor(int row, int col, Point iEnd) {
+				intervals[row & 1][col + 1] = iEnd;
 			}
 			
-			public Void setup(Interval<Void> phase0, final Interval<Void> parent) {				
-				class Cell implements Task<Void> {
+			public void setup(Point phase0End, final Interval parent) {				
+				class Cell extends AbstractTask {
 					// coordinate of data:
 					final int row, col;
 					
@@ -486,38 +476,35 @@ public class TestInterval {
 						this.counter = counter;
 					}
 
-					public Void run(Interval<Void> i) {
-						assert intervalFor(row, col) == i : String.format(
+					public void run(Point iEnd) {
+						assert intervalFor(row, col) == iEnd : String.format(
 								"Invalid interval at (%d,%d): expected %s but found %s", 
-								row, col, i, intervalFor(row, col));
+								row, col, iEnd, intervalFor(row, col));
 						
 						int value = counter.getAndIncrement();
 						//debug("Cell @ %d,%d: value=%d interval=%s", row, col, value, i);
 						
 						if (value > dataPoints)
-							return null;
+							return;
 						
 						data[row][col] = value;
 						
 						// if not maximum row, proceed to next row
 						if (row < R) {
 							Cell nextCell = new Cell(row+1, col, counter);
-							Interval<Void> nextInterval = intervalDuring(parent)
-								.startAfter(end(i))
-								.startAfter(end(intervalFor(row, col - 1)))
-								.startAfter(end(intervalFor(row, col + 1)))
+							Interval nextInterval = intervalDuring(parent)
+								.startAfter(iEnd)
+								.startAfter(intervalFor(row, col - 1))
+								.startAfter(intervalFor(row, col + 1))
 								.schedule(nextCell);
-							setIntervalFor(row + 1, col, nextInterval); 
+							setIntervalFor(row + 1, col, nextInterval.end()); 
 						}
-						
-						return null;
 					}
 				}
 				
 				final AtomicInteger counter = new AtomicInteger(0);
 				for (int c = 0; c < C; c++)
-					setIntervalFor(0, c, intervalDuring(parent).schedule(new Cell(0, c, counter)));
-				return null;
+					setIntervalFor(0, c, intervalDuring(parent).schedule(new Cell(0, c, counter)).end());
 			}			
 			
 		});
@@ -563,102 +550,21 @@ public class TestInterval {
 			Assert.assertTrue("No data point "+dp, found[dp]);
 	}
 	
-	@Test public void passDataAlongChain() {
-		for (int iter = 0; iter < repeat; iter++)
-			tryPassDataAlongChain();
-	}
-	
-	public void tryPassDataAlongChain() {
-		// Simple dataflow that just passes a value along:
-		final String expectedResult = "secret string";
-		
-		Task<String> seed = new Task<String>() {
-			public String run(Interval<String> arg)
-			{
-				return expectedResult;
-			}
-		};
-		
-		final String actualResult = createChain(seed);
-		Assert.assertEquals(expectedResult, actualResult);
-	}
-
-	@Test public void passErrorAlongChain() {
-		for (int iter = 0; iter < repeat; iter++)
-			tryPassErrorAlongChain();
-	}
-	
-	public void tryPassErrorAlongChain() {
-		// Simple dataflow that just passes a value along:
-		final String expectedResult = "secret string";
-		
-		Task<String> seed = new Task<String>() {
-			public String run(Interval<String> arg)
-			{
-				throw new RuntimeException(expectedResult);
-			}
-		};
-
-		try {
-			final String result = createChain(seed);
-			Assert.fail("No exception thrown, but one was expected.  Resulted in: " + result);
-		} catch (RethrownException e) {
-			int links = 0;
-			Throwable cause = e;
-			while (cause.getCause() != null) {
-				cause = cause.getCause();
-				links++;
-			}
-			String msg = cause.getMessage();
-			Assert.assertEquals(expectedResult, msg);
-			Assert.assertEquals(chainLinks + 2, links); // forkJoin wraps, as does waitForChild()
-		}
-	}	
-	
-	final int chainLinks = 25;
-	private String createChain(final Task<String> firstLink) {
-		
-		return Intervals.blockingInterval(new Task<String>() {
-
-			public String run(Interval<String> parent) {
-				
-				// First child simply produces the value:
-				Interval<String> child = intervalDuring(parent).schedule(firstLink);
-				
-				// Links pass it along:
-				for (int i = 0; i < chainLinks; i++) {
-					final IntervalFuture<String> previousChild = child.future();
-					Task<String> link = new Task<String>() {
-						public String run(Interval<String> arg)
-						{
-							return previousChild.result();
-						}
-					};
-					child = intervalDuring(parent).startAfter(previousChild.end()).schedule(link);
-				}
-
-				// Wait for the entire queue to terminate and return result:
-				return Intervals.blockOn(child.future());
-			}
-
-		});
-	}
-	
 	@Test(expected=NoEdgeException.class) 
 	public void raceConditionInBeforeGeneratesError1() {
-		final Interval<Void> a = interval().schedule(Intervals.emptyTask);
+		final Interval a = interval().schedule(Intervals.emptyTask);
 		interval().endBefore(a.start()).schedule(Intervals.emptyTask);
 	}
 	
 	@Test(expected=NoEdgeException.class) 
 	public void raceConditionInBeforeGeneratesError2() {
-		final Interval<Void> a = interval().schedule(Intervals.emptyTask);
+		final Interval a = interval().schedule(Intervals.emptyTask);
 		interval().startBefore(a.end()).schedule(Intervals.emptyTask);
 	}
 	
 	@Test(expected=NoEdgeException.class) 
 	public void raceConditionInBeforeGeneratesError3() {
-		final Interval<Void> a = interval().schedule(Intervals.emptyTask);
+		final Interval a = interval().schedule(Intervals.emptyTask);
 		intervalWithBound(a.start()).schedule(Intervals.emptyTask);
 	}	
 
@@ -669,23 +575,21 @@ public class TestInterval {
 	
 	@Test 
 	public void raceCondErrorsLeaveSchedulerInStableState() {
-		final Interval<Void> a = interval().schedule(Intervals.emptyTask);
+		final Interval a = interval().schedule(Intervals.emptyTask);
 		final AtomicInteger i = new AtomicInteger();
 		
 		try {
-			blockingInterval(new Task<Void>() {
-				public Void run(Interval<Void> current) {
+			blockingInterval(new Task() {
+				public void run(Point currentEnd) {
 			
 					interval()
-					.endBefore(current.end())
+					.endBefore(currentEnd)
 					.schedule(new IncTask(i));
 					
 					interval()
-					.endBefore(current.end())
+					.endBefore(currentEnd)
 					.endBefore(a.end())
 					.schedule(Intervals.emptyTask);
-					
-					return null;
 				}			
 			});
 			
@@ -702,19 +606,17 @@ public class TestInterval {
 		final AtomicInteger i = new AtomicInteger();
 		
 		try {
-			blockingInterval(new Task<Void>() {
-				public Void run(Interval<Void> current) {
+			blockingInterval(new Task() {
+				public void run(Point currentEnd) {
 			
 					interval()
-					.endBefore(current.end())
+					.endBefore(currentEnd)
 					.schedule(new IncTask(i));
 					
 					interval()
-					.endBefore(current.end())
-					.endAfter(current.end())
+					.endBefore(currentEnd)
+					.endAfter(currentEnd)
 					.schedule(Intervals.emptyTask);
-					
-					return null;
 				}			
 			});
 			

@@ -38,6 +38,7 @@ import java.util.*;
 import ch.ethz.intervals.IndexedTask;
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
+import ch.ethz.intervals.Point;
 import ch.ethz.intervals.Task;
 import jgfmt.jgfutil.*;
 
@@ -65,8 +66,8 @@ class IDEATest {
 		
 		// Encrypt plain1.
 		if(JGFCryptBench.nthreads == -1) {
-			Intervals.blockingIndexedInterval(plain1.length / 8, new IDEARunner(-1, plain1, crypt1, Z));
-			Intervals.blockingIndexedInterval(crypt1.length / 8, new IDEARunner(-1, crypt1, plain2, DK));
+			Intervals.blockingInterval(new IDEARunnerTask(plain1.length / 8, plain1, crypt1, Z));
+			Intervals.blockingInterval(new IDEARunnerTask(crypt1.length / 8, crypt1, plain2, DK));
 		} else {
 			Runnable thobjects[] = new Runnable[JGFCryptBench.nthreads];
 			Thread th[] = new Thread[JGFCryptBench.nthreads];
@@ -365,7 +366,7 @@ class IDEATest {
 
 }
 
-class IDEARunner implements Runnable, IndexedTask {
+class IDEARunner implements Runnable {
 
 	int id, key[];
 	byte text1[], text2[];
@@ -531,8 +532,7 @@ class IDEARunner implements Runnable, IndexedTask {
 
 	} // End routine.
 
-	@Override
-	public void run(Interval<Void> parent, int start, int stop) {
+	public void run(Point _, int start, int stop) {
 		int i1 = start * 8; // Index into first text array.
 		int i2 = start * 8; // Index into second text array.
 		for(int idx = start; idx < stop; idx++) {
@@ -659,4 +659,20 @@ class IDEARunner implements Runnable, IndexedTask {
 	}
 
 } // End of class
+
+class IDEARunnerTask extends IndexedTask {
+	public final IDEARunner runner;
+	
+	public IDEARunnerTask(int size, byte[] text1, byte[] text2, int[] key) {
+		super(size);
+		runner = new IDEARunner(-1, text1, text2, key);
+	}
+
+	@Override
+	public void run(Point parentEnd, int fromIndex, int toIndex) {
+		runner.run(parentEnd, fromIndex, toIndex);
+	}	
+	
+	
+}
 
