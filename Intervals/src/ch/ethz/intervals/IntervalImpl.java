@@ -2,22 +2,20 @@ package ch.ethz.intervals;
 
 import ch.ethz.intervals.ThreadPool.Worker;
 
-class IntervalImpl<R> 
+class IntervalImpl 
 extends ThreadPool.WorkItem 
-implements Interval<R> {
+implements Interval {
 	
 	private static final long serialVersionUID = 8105268455633202522L;
 	
-	protected Task<R> task;
+	protected Task task;
 	final PointImpl start;
 	final PointImpl end;
-	final IntervalFutureImpl<R> result;
 	
-	public IntervalImpl(Task<R> task, PointImpl start, PointImpl end) {
+	public IntervalImpl(Task task, PointImpl start, PointImpl end) {
 		this.task = task;
 		this.start = start;
 		this.end = end;
-		this.result = new IntervalFutureImpl<R>(this.end);
 	}
 
 	/**
@@ -38,12 +36,11 @@ implements Interval<R> {
 	void exec() {
 		Intervals.currentInterval.set(this);
 		
-		Task<R> task = this.task;
+		Task task = this.task;
 		this.task = null; // for g.c., as it will not be needed again
 		
 		try {
-			R returnValue = task.run(this);
-			result.setResult(returnValue);
+			task.run(end);
 		} catch(Throwable t) {
 			end.setPendingException(t);
 		}
@@ -69,11 +66,6 @@ implements Interval<R> {
 	@Override
 	public Point bound() {
 		return end.bound;
-	}
-
-	@Override
-	public IntervalFuture<R> future() {
-		return result;
 	}
 
 }

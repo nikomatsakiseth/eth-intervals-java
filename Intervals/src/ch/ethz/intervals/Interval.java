@@ -3,7 +3,7 @@ package ch.ethz.intervals;
 import ch.ethz.intervals.params.Parent;
 
 @Parent
-public interface Interval<R> {
+public interface Interval {
 	
 	/** @return The start point for this interval. */
 	public Point start();
@@ -14,8 +14,4 @@ public interface Interval<R> {
 	/** Short for {@code end().bound()} */
 	public Point bound();
 	
-	/** The future of this interval, which is useful for gaining access to the
-	 *  interval's result. */
-	public IntervalFuture<R> future();
-
 }

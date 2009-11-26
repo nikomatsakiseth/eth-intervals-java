@@ -1,7 +1,7 @@
 package ch.ethz.intervals;
 
-public interface Task<R> {
+public interface Task {
 	
-	public R run(Interval<R> current);
+	public void run(Point currentEnd);
 
 }

@@ -18,7 +18,7 @@ class UnscheduledIntervalImpl implements UnscheduledInterval {
 	private StringBuilder description;
 	
 	public UnscheduledIntervalImpl(PointImpl endBound) {
-		IntervalImpl<?> current = Intervals.currentInterval.get();
+		IntervalImpl current = Intervals.currentInterval.get();
 		checkEdgeOrSame(current.end, endBound);
 		
 		this.end = new PointImpl(endBound, initialWaitCount);
@@ -171,7 +171,7 @@ class UnscheduledIntervalImpl implements UnscheduledInterval {
 	}
 
 	@Override
-	public <V> Interval<V> schedule(Task<V> task) {
+	public Interval schedule(Task task) {
 		checkUnscheduled();
 		
 		PointImpl start = this.start;
@@ -180,7 +180,7 @@ class UnscheduledIntervalImpl implements UnscheduledInterval {
 		PointImpl end = this.end;
 		this.end = null;
 		
-		IntervalImpl<V> inter = new IntervalImpl<V>(task, start, end);
+		IntervalImpl inter = new IntervalImpl(task, start, end);
 		start.setPendingLocksBeforeScheduling(firstLock);
 		start.setWorkItemBeforeScheduling(inter);
 		

@@ -38,6 +38,6 @@ public interface UnscheduledInterval {
 	/** 
 	 * Schedules the interval for execution and returns the scheduled version.
 	 */
-	<V> Interval<V> schedule(Task<V> task);
+	Interval schedule(Task task);
 
 }

@@ -3,14 +3,13 @@ package ch.ethz.intervals;
 
 public class Intervals {
 	
-	static class NamedTask implements Task<Void> {
+	static class NamedTask implements Task {
 		public final String name;
 		public NamedTask(String name) {
 			super();
 			this.name = name;
 		}
-		public Void run(Interval<Void> current) {
-			return null;
+		public void run(Point currentEnd) {
 		}
 		public String toString() {
 			return name;
@@ -18,20 +17,20 @@ public class Intervals {
 	}
 	
 	/** Convenient task that does nothing. */
-	public static final Task<Void> emptyTask = new NamedTask("emptyTask");
-	static final Task<Void> readTask = new NamedTask("readTask");
+	public static final Task emptyTask = new NamedTask("emptyTask");
+	static final Task readTask = new NamedTask("readTask");
 
 	static final PointImpl ROOT_END = new PointImpl(1); // never occurs
 	static final PointImpl ROOT_START = new PointImpl(ROOT_END, PointImpl.OCCURRED); // always occurred
-	static final IntervalImpl<Void> ROOT_INTERVAL = new IntervalImpl<Void>(null, ROOT_START, ROOT_END);
+	static final IntervalImpl ROOT_INTERVAL = new IntervalImpl(null, ROOT_START, ROOT_END);
 	
 	static final ThreadPool POOL = new ThreadPool();
 
 	/** Currently executing interval in each thread, if any. */
-	static ThreadLocal<IntervalImpl<?>> currentInterval = 
-		new ThreadLocal<IntervalImpl<?>>() {
+	static ThreadLocal<IntervalImpl> currentInterval = 
+		new ThreadLocal<IntervalImpl>() {
 			@Override
-			protected IntervalImpl<?> initialValue() {
+			protected IntervalImpl initialValue() {
 				return ROOT_INTERVAL;
 			}
 		};
@@ -39,7 +38,7 @@ public class Intervals {
 	/** 
 	 * Returns {@code i.start()} unless {@code i} is null, 
 	 * in which case just returns null. */
-	public static Point start(Interval<?> i) {
+	public static Point start(Interval i) {
 		if(i == null)
 			return null;
 		return i.start();
@@ -48,7 +47,7 @@ public class Intervals {
 	/** 
 	 * Returns {@code i.end()} unless {@code i} is null, 
 	 * in which case just returns null. */
-	public static Point end(Interval<?> i) {
+	public static Point end(Interval i) {
 		if(i == null)
 			return null;
 		return i.end();
@@ -109,7 +108,7 @@ public class Intervals {
 	 * @see #intervalWithBound(Point) 
 	 * @see #blockingInterval(Task)
 	 */
-	public static UnscheduledInterval intervalDuring(Interval<?> interval) {
+	public static UnscheduledInterval intervalDuring(Interval interval) {
 		return intervalWithBound(interval.end()).startAfter(interval.start());
 	}
 	
@@ -147,14 +146,7 @@ public class Intervals {
 
 	/** Waits for {@code ep} to complete and returns its result.
 	 *  Resets the currentInterval afterwards. */
-	static <R> R join(IntervalImpl<?> current, IntervalFutureImpl<R> result) {
-		join(current, result.end());
-		return result.accessResult();
-	}
-
-	/** Waits for {@code ep} to complete and returns its result.
-	 *  Resets the currentInterval afterwards. */
-	static void join(IntervalImpl<?> current, PointImpl pnt) {
+	static void join(IntervalImpl current, PointImpl pnt) {
 		try {
 			if(Debug.ENABLED)
 				Debug.join(current, pnt);
@@ -163,51 +155,6 @@ public class Intervals {
 			// Helping out other tasks can disrupt this value, so restore it
 			currentInterval.set(current); 
 		}
-	}
-	
-	/**
-	 * A more efficient way of creating {@code count} distinct
-	 * intervals and joining them immediately.  {@code task}
-	 * will be invoked with every integer from 0 to {@code count-1}.
-	 * Creates an outer interval which encompasses all
-	 * computations from 0 to {@code count-1}, but may create
-	 * any number of subintervals to do the actual computations
-	 * in parallel.  The task is always invoked with the outer
-	 * interval, which is always an ancestor of the current interval
-	 * but may not be the current interval itself.  
-	 * 
-	 * @param count the number of times to invoke {@code task}
-	 * @param task the task to invoke
-	 */
-	public static void blockingIndexedInterval(
-			final int count,
-			final IndexedTask task) 
-	{
-		blockingInterval(new IndexedTaskWrapper(count, task));
-	}
-	
-	/**
-	 * Embodies a task which requires an initial "setup" phase that 
-	 * creates the interval structure that performs
-	 * the actual computation.  The method {@link SetupTask#setup(Interval, Interval)}
-	 * is invoked with two intervals: the first is the current,
-	 * setup interval.  The second is a sibling which will not start
-	 * until the setup interval has completed.  The setup interval can therefore
-	 * create new work during the next interval using
-	 * {@link #intervalDuring(Interval)}, safe in the knowledge that none
-	 * of these tasks will execute until the setup interval is complete.  
-	 * 
-	 * @param <R> The result of the setup interval (typically {@link Void})
-	 * @param setupTask The setup task.
-	 * @return the value returned by the setup interval, 
-	 * once the mutual bound of the setup interval and its sibling
-	 * has finished 
-	 */
-	public static <R> R blockingSetupInterval(
-			final SetupTask<R> setupTask)
-	{
-		Task<R> outerTask = new SetupTaskWrapper<R>(setupTask);
-		return blockingInterval(outerTask);
 	}
 	
 	/**
@@ -228,7 +175,7 @@ public class Intervals {
 	}
 	
 	public static void blockOn(Point pnt) {
-		IntervalImpl<?> current = currentInterval.get();
+		IntervalImpl current = currentInterval.get();
 		checkEdge(pnt, current.end);
 		join(current, (PointImpl) pnt);
 	}
@@ -242,14 +189,14 @@ public class Intervals {
 	 * wrapped in {@link RethrownException} and rethrown immediately.
 	 * Exceptions never propagate to the current interval.
 	 */
-	public static <R> R blockingInterval(Task<R> task) 
+	public static void blockingInterval(Task task) 
 	{
-		IntervalImpl<?> current = currentInterval.get();
-		IntervalFuture<R> result = intervalWithBound(current.end)
+		IntervalImpl current = currentInterval.get();
+		PointImpl end = (PointImpl) intervalWithBound(current.end)
 			.setMaskExceptions(true)
 			.schedule(task)
-			.future();
-		return join(current, (IntervalFutureImpl<R>)result);
+			.end();
+		join(current, end);
 	}
 	
 	/** 
@@ -257,7 +204,7 @@ public class Intervals {
 	 * computation.  The point {@code root.start()} has already
 	 * occurred once program execution begins, and {@code root.end()}
 	 * will not occur until program execution completes. */
-	public static Interval<?> root() {
+	public static Interval root() {
 		return ROOT_INTERVAL;
 	}
 

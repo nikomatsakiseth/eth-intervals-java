@@ -9,11 +9,11 @@ class DynamicGuardImpl extends GuardImpl implements DynamicGuard {
 	
 	@Override
 	public void checkRead() throws DataRaceException {
-		IntervalImpl<?> currentInterval = Intervals.currentInterval.get();		
+		IntervalImpl currentInterval = Intervals.currentInterval.get();		
 		checkRead(currentInterval);
 	}
 
-	void checkRead(IntervalImpl<?> currentInterval) {
+	void checkRead(IntervalImpl currentInterval) {
 		synchronized(this) {
 			checkHb(Role.WRITE, writeInterval, Role.READ, currentInterval.start);
 			
@@ -26,11 +26,11 @@ class DynamicGuardImpl extends GuardImpl implements DynamicGuard {
 
 	@Override
 	public void checkWrite() throws DataRaceException {
-		IntervalImpl<?> currentInterval = Intervals.currentInterval.get();
+		IntervalImpl currentInterval = Intervals.currentInterval.get();
 		checkWrite(currentInterval);
 	}
 
-	void checkWrite(IntervalImpl<?> currentInterval) {
+	void checkWrite(IntervalImpl currentInterval) {
 		PointImpl w, r;
 		synchronized(this) {
 			r = readInterval;

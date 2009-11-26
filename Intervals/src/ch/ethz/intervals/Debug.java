@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import ch.ethz.intervals.IndexedTaskWrapper.Subtask;
+import ch.ethz.intervals.IndexedTask.Subtask;
 import ch.ethz.intervals.ThreadPool.WorkItem;
 import ch.ethz.intervals.ThreadPool.Worker;
 
@@ -54,10 +54,10 @@ public class Debug {
 	}
 
 	static class JoinEvent extends Event {
-		public final IntervalImpl<?> current;
+		public final IntervalImpl current;
 		public final PointImpl joinedPnt;
 		
-		public JoinEvent(PointImpl joinedPnt, IntervalImpl<?> current) {
+		public JoinEvent(PointImpl joinedPnt, IntervalImpl current) {
 			this.joinedPnt = joinedPnt;
 			this.current = current;
 		}
@@ -67,15 +67,15 @@ public class Debug {
 		}
 	}
 	
-	public static void join(IntervalImpl<?> current, PointImpl joinedPnt) {
+	public static void join(IntervalImpl current, PointImpl joinedPnt) {
 		addEvent(new JoinEvent(joinedPnt, current));
 	}
 
 	static class NewIntervalEvent extends Event {
-		public final IntervalImpl<?> inter;
+		public final IntervalImpl inter;
 		public final String description;
 
-		public NewIntervalEvent(IntervalImpl<?> inter, String description) {
+		public NewIntervalEvent(IntervalImpl inter, String description) {
 			this.inter = inter;
 			this.description = description;
 		}
@@ -85,7 +85,7 @@ public class Debug {
 		}
 	}
 	
-	public static void newInterval(IntervalImpl<?> inter, String description) {
+	public static void newInterval(IntervalImpl inter, String description) {
 		if(ENABLED_INTER)
 			addEvent(new NewIntervalEvent(inter, description));
 	}
@@ -273,9 +273,9 @@ public class Debug {
 	static class MapForkEvent extends Event {
 		public final Subtask mapBase, mapFork;
 		public final int b;
-		public final IndexedTaskWrapper mapTask;
+		public final IndexedTask mapTask;
 		
-		public MapForkEvent(IndexedTaskWrapper mapTask, Subtask mapBase, Subtask mapFork, int b) {
+		public MapForkEvent(IndexedTask mapTask, Subtask mapBase, Subtask mapFork, int b) {
 			this.mapTask = mapTask;
 			this.mapBase = mapBase;
 			this.mapFork = mapFork;
@@ -288,17 +288,17 @@ public class Debug {
 		}
 	}
 
-	public static void mapFork(IndexedTaskWrapper mapTask, Subtask mapBase, Subtask mapFork, int b) {
+	public static void mapFork(IndexedTask mapTask, Subtask mapBase, Subtask mapFork, int b) {
 		if(ENABLED_WORK_STEAL)
 			addEvent(new MapForkEvent(mapTask, mapBase, mapFork, b));
 	}
 
 	static class MapCompleteEvent extends Event {
-		public final IndexedTaskWrapper mapTask;
+		public final IndexedTask mapTask;
 		public final Subtask mapBase;
 		public final int b;
 		
-		public MapCompleteEvent(IndexedTaskWrapper mapTask, Subtask mapBase, int b) {
+		public MapCompleteEvent(IndexedTask mapTask, Subtask mapBase, int b) {
 			this.mapTask = mapTask;
 			this.mapBase = mapBase;
 			this.b = b;
@@ -310,7 +310,7 @@ public class Debug {
 		}
 	}
 
-	public static void mapComplete(IndexedTaskWrapper mapTask, Subtask mapBase, int b) {
+	public static void mapComplete(IndexedTask mapTask, Subtask mapBase, int b) {
 		if(ENABLED_WORK_STEAL)
 			addEvent(new MapCompleteEvent(mapTask, mapBase, b));
 	}

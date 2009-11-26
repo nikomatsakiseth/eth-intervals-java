@@ -93,7 +93,7 @@ public class ExecutionLog {
 		}
 	}
 	
-	static void logScheduleInterval(Point sp, Task<?> t) {
+	static void logScheduleInterval(Point sp, Task t) {
 		ExecutionLog l = log;
 		if(l != null) {
 			l.events.add(new EventLog.Schedule(l.identity(sp), t.toString().replace('\n', ' ')));			
