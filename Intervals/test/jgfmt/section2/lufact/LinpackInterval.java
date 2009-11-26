@@ -120,7 +120,7 @@ class LinpackInterval {
 					// row elimination with column indexing
 					final int k0 = k;
 					Intervals.blockingInterval(new IndexedTask(n - kp1) {
-						public void run(Point parentEnd, int fromIndex, int toIndex) {
+						public void run(Point _, int fromIndex, int toIndex) {
 							for (int i = fromIndex; i < fromIndex; i++) {
 								int j = i + kp1;
 								

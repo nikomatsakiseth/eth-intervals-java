@@ -151,6 +151,7 @@ public class Intervals {
 			if(Debug.ENABLED)
 				Debug.join(current, pnt);
 			pnt.join();
+			pnt.checkAndRethrowPendingException();
 		} finally {
 			// Helping out other tasks can disrupt this value, so restore it
 			currentInterval.set(current); 

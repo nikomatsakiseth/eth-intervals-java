@@ -62,8 +62,8 @@ public class TestPCAgentBB {
 	}
 	
 	class Producer extends AbstractTask {
-		private final ProducerData pdata;
-		private final ConsumerData cdata;
+		private final ProducerData pdata; /** Data for producer #index */
+		private final ConsumerData cdata; /** Data for consumer #(index-BBSIZE) */
 		private final int index;
 		
 		public Producer(int index, ProducerData pdata, ConsumerData cdata) {
@@ -141,16 +141,19 @@ public class TestPCAgentBB {
 				
 				// Create "BBSIZE" dummy entries to give the producer
 				// some room to execute before it starts to wait on the consumers:
-				ConsumerData cdataN = cdata0; // "cdata # negative"
-				for(int i = 0; i < BBSIZE; i++)
-					cdataN = new ConsumerData(null, cdataN);
+				ConsumerData cdataM1 = new ConsumerData(null, cdata0); // cdata -1
+				ConsumerData cdataMN = cdataM1;                        // cdata -N
+				for(int i = -2; i >= -BBSIZE; i--)
+					cdataMN = new ConsumerData(null, cdataMN); // create cdata -i
 				
 				Interval firstProducerInterval = intervalDuring(worker)
-					.schedule(new Producer(0, pdata0, cdataN));
+					.schedule(new Producer(0, pdata0, cdataMN));
 		
-				intervalDuring(worker)
+				cdataM1.endOfNextConsumer = intervalDuring(worker)
 					.startAfter(firstProducerInterval.end())
-					.schedule(new Consumer(0, pdata0, cdata0));
+					.schedule(new Consumer(0, pdata0, cdata0))
+					.end();
+				
 			}
 		});
 

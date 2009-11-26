@@ -58,8 +58,13 @@ public class TestPCAgentBBArray {
 			this.index = index;
 		}
 
+		public String toString() {
+			return "Producer["+index+"]";
+		}
+
 		public void run(Point currentEnd) {
 			data.produced = index;
+			producerTimes.add(stamp.getAndIncrement());
 			
 			final int nextIndex = index + 1;
 			Point waitForConsumerPoint;
@@ -89,9 +94,14 @@ public class TestPCAgentBBArray {
 			this.index = index;
 			this.data = data;
 		}
+		
+		public String toString() {
+			return "Consumer["+index+"]";
+		}
 
 		public void run(Point currentEnd) {
 			consumed.add(data.produced); // "Consume" the data.
+			consumerTimes.add(stamp.getAndIncrement());
 			
 			if(data.endOfNextProducer != null) { // Create next consumer, which runs after the next producer.
 				final int nextIndex = index + 1;
@@ -123,7 +133,7 @@ public class TestPCAgentBBArray {
 			}
 			
 		});
-		
+
 		for(int i = 0; i < MAX; i++) {
 			assertEquals(i, consumed.get(i).intValue());
 			

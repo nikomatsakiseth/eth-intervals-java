@@ -14,7 +14,7 @@ import ch.ethz.intervals.ThreadPool.Worker;
  * Creates an outer interval which encompasses all
  * computations from 0 to {@code count-1}, but may create
  * any number of subintervals to do the actual computations
- * in parallel.  The task is always invoked with the outer
+ * in parallel.  The task is always invoked with the end of the outer
  * interval, which is always an ancestor of the current interval
  * but may not be the current interval itself.  
  * 
@@ -26,7 +26,6 @@ public abstract class IndexedTask extends AbstractTask {
 	private final int count;
 	private final int threshold;
 	
-	private Point parentEnd;
 	private AsyncPoint whenDone;
 
 	protected IndexedTask(int count) {
@@ -41,7 +40,6 @@ public abstract class IndexedTask extends AbstractTask {
 
 	@Override
 	public final void run(Point currentEnd) {
-		parentEnd = currentEnd;
 		whenDone = Intervals.asyncPoint(currentEnd, 1);
 		
     	Worker worker = POOL.currentWorker();
@@ -49,7 +47,6 @@ public abstract class IndexedTask extends AbstractTask {
 		mt.exec(worker);
 	}
 
-    @SuppressWarnings("serial")
 	final class Subtask extends WorkItem {
         final int lo;
         final int hi;
@@ -70,7 +67,7 @@ public abstract class IndexedTask extends AbstractTask {
             if (h - l > threshold)
                 internalCompute(worker, l, h);
             else
-            	run(parentEnd, l, h);
+            	run(whenDone, l, h);
             
             int b = balance.decrementAndGet(); 
         	if(Debug.ENABLED)
@@ -93,7 +90,7 @@ public abstract class IndexedTask extends AbstractTask {
             } while (h - l > g);
             
             // Run what's left:
-            run(parentEnd, l, h);
+            run(whenDone, l, h);
         }
     }
 }
