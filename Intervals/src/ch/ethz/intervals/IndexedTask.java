@@ -23,17 +23,28 @@ import ch.ethz.intervals.ThreadPool.Worker;
  */
 public abstract class IndexedTask extends AbstractTask {
 	private final AtomicInteger balance = new AtomicInteger(1);
-	private final int count;
-	private final int threshold;
-	
+	private final int lo0, hi0;
+	private final int threshold;	
 	private AsyncPoint whenDone;
 
+	/** {@link #run(Point, int, int)} will be invoked from all indices i where {@code 0 <= i < count} */
 	protected IndexedTask(int count) {
-		this.count = count;
+		this(0, count);
+	}
+	
+	/** {@link #run(Point, int, int)} will be invoked from all indices i where {@code lo <= i < hi} */
+	protected IndexedTask(int lo, int hi) {
+		this.lo0 = lo;
+		this.hi0 = hi;
 		
 		// By default, about 16 times as many tasks as threads.
+		int count = hi - lo;
         int p = POOL.numWorkers;
         this.threshold = (p > 1) ? (1 + count / (p << 4)) : count;		
+	}
+	
+	public String toString() {
+		return String.format("IndexedTask@%x(%d-%d)", System.identityHashCode(this), lo0, hi0);
 	}
 	
 	abstract public void run(Point parentEnd, int fromIndex, int toIndex);
@@ -43,7 +54,7 @@ public abstract class IndexedTask extends AbstractTask {
 		whenDone = Intervals.asyncPoint(currentEnd, 1);
 		
     	Worker worker = POOL.currentWorker();
-    	Subtask mt = new Subtask(0, count);
+    	Subtask mt = new Subtask(lo0, hi0);
 		mt.exec(worker);
 	}
 
@@ -57,7 +68,7 @@ public abstract class IndexedTask extends AbstractTask {
         }
         
         public String toString() {
-        	return String.format("MapBase(%d-%d)", lo, hi);
+        	return String.format("Subtask(%d-%d)", lo, hi);
         }
 
         @Override
@@ -66,14 +77,19 @@ public abstract class IndexedTask extends AbstractTask {
             int h = hi;
             if (h - l > threshold)
                 internalCompute(worker, l, h);
-            else
+            else {
+            	if(Debug.ENABLED)
+            		Debug.mapRun(IndexedTask.this, this, l, h);
             	run(whenDone, l, h);
+            }
             
             int b = balance.decrementAndGet(); 
         	if(Debug.ENABLED)
-        		Debug.mapComplete(IndexedTask.this, this, b);
-            if(b == 0)
-            	whenDone.trigger(1);
+        		Debug.mapComplete(IndexedTask.this, this, b, whenDone);
+            if(b == 0) {
+            	Debug.dump();
+            	whenDone.trigger(1);         
+            }
         }
 
         final void internalCompute(Worker worker, int l, int h) {
@@ -91,6 +107,8 @@ public abstract class IndexedTask extends AbstractTask {
             
             // Run what's left:
             run(whenDone, l, h);
+        	if(Debug.ENABLED)
+        		Debug.mapRun(IndexedTask.this, this, l, h);
         }
     }
 }

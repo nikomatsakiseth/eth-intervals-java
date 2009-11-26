@@ -21,15 +21,12 @@
 package jgfmt.section2.lufact;
 
 import ch.ethz.intervals.IndexedTask;
-import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.Point;
-import ch.ethz.intervals.Task;
-import jgfmt.jgfutil.*;
 
 class LinpackInterval {
 
-	int lda, n, info, ipvt[];
+	int lda, n, ipvt[];
 	double a[][];
 
 	public LinpackInterval(
@@ -84,11 +81,9 @@ class LinpackInterval {
 	 */
 
 	public void run() {
-		int nm1;
-
 		// gaussian elimination with partial pivoting
 
-		nm1 = n - 1;
+		final int nm1 = n - 1;
 
 		if (nm1 >= 0) {
 			for (int k = 0; k < nm1; k++) {
@@ -103,9 +98,7 @@ class LinpackInterval {
 				// zero pivot implies this column already triangularized
 
 				if (col_k[l] != 0) {
-
 					// interchange if necessary
-
 					if (l != k) {
 						double t = col_k[l];
 						col_k[l] = col_k[k];
@@ -113,17 +106,15 @@ class LinpackInterval {
 					}
 
 					// compute multipliers
-
 					double t = -1.0 / col_k[k];
 					dscal(n - (kp1), t, col_k, kp1, 1);
 
 					// row elimination with column indexing
 					final int k0 = k;
-					Intervals.blockingInterval(new IndexedTask(n - kp1) {
-						public void run(Point _, int fromIndex, int toIndex) {
-							for (int i = fromIndex; i < fromIndex; i++) {
-								int j = i + kp1;
-								
+					IndexedTask it = new IndexedTask(kp1, n) {						
+						@Override
+						public void run(Point parentEnd, int fromIndex, int toIndex) {
+							for(int j = fromIndex; j < toIndex; j++) {
 								double[] col_j = a[j];
 								double t = col_j[l];
 	
@@ -133,14 +124,16 @@ class LinpackInterval {
 								}
 	
 								daxpy(n - (kp1), t, col_k, kp1, 1, col_j, kp1, 1);
-							}						
+							}
 						}
-					});
+					};
+					Intervals.blockingInterval(it);
 				} 
 			}
 		}
 
 		ipvt[n - 1] = n - 1;
+
 	}
 
 	/*

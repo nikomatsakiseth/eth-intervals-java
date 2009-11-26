@@ -23,10 +23,20 @@ public class Debug {
 	public static void addEvent(Event e) {
 		assert ENABLED; // all debug actions should be protected by if(ENABLED)
 		if(ENABLED) { // just in case.
-			if(DUMP_IMMEDIATELY)
-				System.err.println(e.toString());
-			else
+			if(DUMP_IMMEDIATELY) {
+				synchronized(events) {
+					System.err.println(e.toString());
+				}
+			} else
 				events.add(e);
+		}
+	}
+	
+	public static void dump() {
+		synchronized(events) {
+			for(Event e : events)
+				System.err.println(e.toString());
+			events.clear();
 		}
 	}
 
@@ -297,24 +307,49 @@ public class Debug {
 		public final IndexedTask mapTask;
 		public final Subtask mapBase;
 		public final int b;
+		public final Point whenDone;
 		
-		public MapCompleteEvent(IndexedTask mapTask, Subtask mapBase, int b) {
+		public MapCompleteEvent(IndexedTask mapTask, Subtask mapBase, int b, Point whenDone) {
 			this.mapTask = mapTask;
 			this.mapBase = mapBase;
 			this.b = b;
+			this.whenDone = whenDone;
 		}
 		
 		public String toString() {
-			return String.format("MAP_COMPLETE %s base=%s balance=%d", 
-					mapTask, mapBase, b);
+			return String.format("MAP_COMPLETE %s base=%s balance=%d whenDone=%s", 
+					mapTask, mapBase, b, whenDone);
 		}
 	}
 
-	public static void mapComplete(IndexedTask mapTask, Subtask mapBase, int b) {
+	public static void mapComplete(IndexedTask mapTask, Subtask mapBase, int b, Point whenDone) {
 		if(ENABLED_WORK_STEAL)
-			addEvent(new MapCompleteEvent(mapTask, mapBase, b));
+			addEvent(new MapCompleteEvent(mapTask, mapBase, b, whenDone));
 	}
 
+	static class MapRunEvent extends Event {
+		public final IndexedTask mapTask;
+		public final Subtask mapBase;
+		public final int l, h;
+		
+		public MapRunEvent(IndexedTask mapTask, Subtask mapBase, int l, int h) {
+			this.mapTask = mapTask;
+			this.mapBase = mapBase;
+			this.l = l;
+			this.h = h;
+		}
+		
+		public String toString() {
+			return String.format("MAP_RUN %s base=%s range=%d-%d",
+					mapTask, mapBase, l, h);
+		}
+	}
+	
+	public static void mapRun(IndexedTask mapTask, Subtask mapBase, int l, int h) {
+		if(ENABLED_WORK_STEAL)
+			addEvent(new MapRunEvent(mapTask, mapBase, l, h));
+	}
+	
 	static class ExecuteEvent extends Event {
 		public final Worker worker;
 		public final WorkItem item;
@@ -390,5 +425,5 @@ public class Debug {
 		if(ENABLED_LOCK)
 			addEvent(new AddSharedEvent(guardImpl, prevOwner, readInterval, inter));
 	}
-	
+
 }
