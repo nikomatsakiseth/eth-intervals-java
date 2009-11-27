@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+<project name="sampleProject" basedir="." default="jar">
+    <target name="compile" depends="create">
+        <javac destdir="bin">            
+            <src path="src"/>            
+            <classpath refid="java"/>
+        </javac>
+
+        <javac destdir="bin">            
+            <src path="test"/>            
+            <classpath refid="java"/>
+        </javac>
+    </target>
+
+    <target name="jar" depends="compile">
+        <jar destfile="test.jar">
+            <fileset dir="bin"/>
+        </jar>
+    </target>
+
+    <target name="clean">
+        <delete dir="bin"/>
+    </target>
+
+    <target name="create" depends="clean">
+        <mkdir dir="bin"/>
+    </target>
+
+    <path id="java">
+      <fileset dir="lib"> <include name="*.jar"/> </fileset>
+    </path>
+</project>
