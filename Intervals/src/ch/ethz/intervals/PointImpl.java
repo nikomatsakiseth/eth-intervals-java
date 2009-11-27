@@ -197,8 +197,10 @@ class PointImpl implements Point {
 		assert waitCount == 0;
 		
 		final Object[] outEdges;
+		final int chunkLen;
 		synchronized(this) {
-			outEdges = EdgeList.save(this.outEdges);
+			outEdges = this.outEdges;
+			chunkLen = EdgeList.chunkLen(outEdges);
 			this.waitCount = OCCURRED;
 			notifyAll(); // in case anyone is joining us
 		}
@@ -208,7 +210,7 @@ class PointImpl implements Point {
 		if((flags & FLAG_MASK_EXC) == 0 && pendingException != null)
 			bound.setPendingExceptionFromChild(pendingException);
 		
-		Iterable<PointImpl> notifiedPoints = EdgeList.edges(outEdges, false);
+		Iterable<PointImpl> notifiedPoints = EdgeList.edges(outEdges, chunkLen, false);
 		if(Debug.ENABLED)
 			Debug.occur(this, notifiedPoints);
 		

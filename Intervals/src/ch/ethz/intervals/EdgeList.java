@@ -18,17 +18,19 @@ public class EdgeList {
 	private static int bits(Object[] list) {
 		return ((Integer)list[BITS]).intValue();
 	}
-	
-	public static Object[] save(Object[] list) {
-		// When we try to read the state of an EdgeList atomically,
-		// we must copy it to a temporary location.  This is non-ideal.
+
+	/** Returns the number of elements in the list chunk {@code list}.
+	 *  Does not count elements in successor chunks.  Used when saving
+	 *  the value of an edge list. */
+	public static int chunkLen(Object[] list) {
 		if(list == null)
-			return null;
-		if(list[CHUNK_SIZE - 1 + OFFSET] != null)
-			return list;
-		Object[] result = new Object[ARRAY_SIZE];
-		System.arraycopy(list, 0, result, 0, ARRAY_SIZE);
-		return result;
+			return 0;
+
+		for(int l = CHUNK_SIZE; l > 1; l--)
+			if(list[l - 1 + OFFSET] != null)
+				return l;
+		
+		return 1;
 	}
 	
 	public static Object[] add(Object[] list, PointImpl toPoint, boolean deterministic) {
@@ -51,25 +53,37 @@ public class EdgeList {
 		return newList;
 	}
 	
-	public static Iterable<PointImpl> edges(final Object[] list0, final boolean onlyDeterministic) {
+	public static Iterable<PointImpl> edges(
+			final Object[] list0,
+			final boolean onlyDeterministic)
+	{
+		return edges(list0, CHUNK_SIZE, onlyDeterministic);
+	}
+	
+	public static Iterable<PointImpl> edges(
+			final Object[] list0,
+			final int maxIdx0,
+			final boolean onlyDeterministic) 
+	{
 		if(list0 == null)
 			return Collections.emptyList();
 		
 		class EdgeListIterator implements Iterator<PointImpl> {
 			Object[] list;
 			int bits;
-			int idx;
+			int idx, maxIdx;
 			
-			public EdgeListIterator(Object[] list) {
-				loadList(list);
+			public EdgeListIterator(Object[] list, int maxIdx) {
+				loadList(list, maxIdx);
 				hasNext();
 			}
 			
-			private boolean loadList(Object[] list) {
+			private boolean loadList(Object[] list, int maxIdx) {
 				if(list != null) {
 					this.list = list;
 					this.bits = bits(list);
 					this.idx = 0;
+					this.maxIdx = maxIdx;
 					return true;
 				} else {
 					this.list = null;
@@ -88,9 +102,9 @@ public class EdgeList {
 			
 			private boolean advance() {
 				idx += 1;
-				if(idx == CHUNK_SIZE || get() == null) {
+				if(idx == maxIdx || get() == null) {
 					Object[] nextList = (Object[])list[NEXT];
-					if(!loadList(nextList))
+					if(!loadList(nextList, CHUNK_SIZE))
 						return false;				
 				} 
 				return true;					
@@ -126,7 +140,7 @@ public class EdgeList {
 		return new Iterable<PointImpl>() {
 			@Override
 			public Iterator<PointImpl> iterator() {
-				return new EdgeListIterator(list0);
+				return new EdgeListIterator(list0, maxIdx0);
 			}
 		};
 	}
