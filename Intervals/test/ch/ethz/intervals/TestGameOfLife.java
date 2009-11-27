@@ -314,47 +314,53 @@ public class TestGameOfLife {
 			}	
 			
 			public byte[][] compute(byte[][] initialConfig, final int maxRound) {
-				byte boards[][][] = new byte[2][rs][cs];
+				final byte boards[][][] = new byte[2][rs][cs];
 				
 				for(int r = 0; r < rs; r++)
 					System.arraycopy(initialConfig[r], 0, boards[0][r], 0, cs);
 				
-				for(int rnd = 0; rnd < maxRound; rnd++) {
-					final byte[][] inBoard = boards[rnd % 2];
-					final byte[][] outBoard = boards[1 - (rnd % 2)];
-					
-					Intervals.blockingInterval(new Task() {
-						public void run(Point currentEnd) {
-							for(int r = 0; r < rs; r += h)
-								for(int c = 0; c < cs; c += w) {
-									final int r0 = r;
-									final int c0 = c;
-									final int rN = Math.min(r + h, rs);
-									final int cN = Math.min(c + w, cs);
-									
-									Intervals.intervalWithBound(currentEnd).schedule(new Task() {
-										public String toString() 
-										{
-											return "Tile("+r0/h+","+c0/w+")";
-										}
-
-										public void run(Point currentEnd) {
+				// using an outer interval is a minor optimization, because it's
+				// expensive to switch from the "main" Java thread to the interval
+				// worker threads.
+				Intervals.blockingInterval(new Task() {
+					public void run(Point _) {
+						for(int rnd = 0; rnd < maxRound; rnd++) {
+							final byte[][] inBoard = boards[rnd % 2];
+							final byte[][] outBoard = boards[1 - (rnd % 2)];
+							
+							Intervals.blockingInterval(new Task() {
+								public void run(Point currentEnd) {
+									for(int r = 0; r < rs; r += h)
+										for(int c = 0; c < cs; c += w) {
+											final int r0 = r;
+											final int c0 = c;
+											final int rN = Math.min(r + h, rs);
+											final int cN = Math.min(c + w, cs);
 											
-											for(int ri = r0; ri < rN; ri++)
-												for(int ci = r0; ci < cN; ci++) {
-													int total = 0;
-													total += total3(inBoard, ri - 1, ci);
-													total += total3(inBoard, ri, ci) - inBoard[ri][ci];
-													total += total3(inBoard, ri + 1, ci);								
-													outBoard[ri][ci] = gameOfLife(inBoard[ri][ci], total);
+											Intervals.intervalWithBound(currentEnd).schedule(new Task() {
+												public String toString() 
+												{
+													return "Tile("+r0/h+","+c0/w+")";
 												}
+		
+												public void run(Point currentEnd) {
+													
+													for(int ri = r0; ri < rN; ri++)
+														for(int ci = r0; ci < cN; ci++) {
+															int total = 0;
+															total += total3(inBoard, ri - 1, ci);
+															total += total3(inBoard, ri, ci) - inBoard[ri][ci];
+															total += total3(inBoard, ri + 1, ci);								
+															outBoard[ri][ci] = gameOfLife(inBoard[ri][ci], total);
+														}
+												}
+											});
 										}
-									});
 								}
+							});
 						}
-					});
-				}
-				
+					}
+				});	
 				return boards[maxRound % 2];
 			}
 		}
