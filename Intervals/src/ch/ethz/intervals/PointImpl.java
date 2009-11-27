@@ -19,7 +19,7 @@ class PointImpl implements Point {
 	
 	final PointImpl bound;                     /** Bound of this point (this->bound). */
 	final int depth;                           /** Depth in point bound tree. */
-	protected EdgeList outEdges;               /** Linked list of outgoing edges from this point. */
+	protected Object[] outEdges;               /** Linked list of outgoing edges from this point. */
 	protected int waitCount;                   /** Number of preceding points that have not arrived.  
 	                                               Set to {@link #OCCURRED} when this has occurred. */
 	protected Throwable pendingException;      /** Exception that occurred while executing the task or in some preceding point. */
@@ -125,16 +125,16 @@ class PointImpl implements Point {
 		}
 		Helper h = new Helper();
 		
+		System.err.printf("---------\n");
+		
 		while(!queue.isEmpty()) {
 			PointImpl q = queue.remove();
 			
 			if(q.bound != null && h.tryEnqueue(q.bound))				
 				return true;
 			
-			for(EdgeList edgeList = q.outEdges; edgeList != null; edgeList = edgeList.next) {
-				if(onlyDeterministic && !edgeList.determinstic)
-					continue;
-				if(h.tryEnqueue(edgeList.toPoint))
+			for(PointImpl toPoint : EdgeList.edges(q.outEdges, onlyDeterministic)) {
+				if(h.tryEnqueue(toPoint))
 					return true;
 			}
 		}
@@ -191,7 +191,7 @@ class PointImpl implements Point {
 		assert pendingLocks == null;
 		assert waitCount == 0;
 		
-		final EdgeList outEdges;
+		final Object[] outEdges;
 		synchronized(this) {
 			outEdges = this.outEdges;
 			this.waitCount = OCCURRED;
@@ -203,8 +203,15 @@ class PointImpl implements Point {
 		if((flags & FLAG_MASK_EXC) == 0 && pendingException != null)
 			bound.setPendingExceptionFromChild(pendingException);
 		
-		for(EdgeList outEdge = outEdges; outEdge != null; outEdge = outEdge.next)
-			outEdge.toPoint.arrive(1);
+		// XXX BUG XXX
+		//
+		// When we read outEdges in the synchronized section above,
+		// we have to remember how many things are stored in it too!
+		// Otherwise, someone could add something to the list even
+		// after we set OCCURRED to true!
+		
+		for(PointImpl toPoint : EdgeList.edges(outEdges, false))
+			toPoint.arrive(1);
 		
 		bound.arrive(1);
 		
@@ -246,7 +253,7 @@ class PointImpl implements Point {
 	/** Same as {@link #addOutEdge(PointImpl, boolean)} but
 	 *  does not acquire any locks. */
 	void addOutEdgeDuringConstruction(PointImpl targetPnt, boolean deterministic) {
-		outEdges = new EdgeList(targetPnt, deterministic, outEdges);
+		outEdges = EdgeList.add(outEdges, targetPnt, deterministic);
 	}
 
 	/** Adds to the wait count but only if the point has
