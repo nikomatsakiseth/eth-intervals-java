@@ -1055,6 +1055,7 @@ public class TestGameOfLife {
 			
 			GameOfLifeEngine engine;			
 			if(engineName.equals("serial")) engine = new SerialEngine();
+			else if(engineName.equals("st")) engine = new SerialTiledEngine(tw, th);
 			else if(engineName.equals("fg")) engine = new FineGrainedIntervalEngine(tw, th);
 			else if(engineName.equals("p")) engine = new PhasedIntervalEngine(tw, th);
 			else if(engineName.equals("sp")) engine = new SimplerPhasedIntervalEngine(tw, th);
