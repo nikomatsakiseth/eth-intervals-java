@@ -130,8 +130,6 @@ class PointImpl implements Point {
 		}
 		Helper h = new Helper();
 		
-		System.err.printf("---------\n");
-		
 		while(!queue.isEmpty()) {
 			PointImpl q = queue.remove();
 			
