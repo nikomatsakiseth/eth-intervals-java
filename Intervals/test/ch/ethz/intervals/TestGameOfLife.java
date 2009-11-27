@@ -143,6 +143,81 @@ public class TestGameOfLife {
 		}		
 	}
 	
+	class SerialTiledEngine implements GameOfLifeEngine {
+		
+		public final int w, h;
+		
+		public SerialTiledEngine() {
+			this(10, 10);
+		}
+
+		public SerialTiledEngine(int w, int h) {
+			this.w = w;
+			this.h = h;
+		}		
+
+		class SerialBoard {
+			
+			final int rs, cs, maxRound;
+			final byte[][][] data;
+			
+			public SerialBoard(byte[][] data, int maxRound) {
+				this.rs = data.length;
+				this.cs = data[0].length;
+				this.maxRound = maxRound;
+				this.data = new byte[2][rs][cs];
+				
+				for(int r = 0; r < rs; r++)
+					for(int c = 0; c < cs; c++)
+						this.data[0][r][c] = data[r][c];
+			}
+			
+			public int total3(byte[][] inData, int r, int c) {
+				int total = 0;
+				if(r >= 0 && r < rs) {
+					if(c > 0) total += inData[r][c - 1];
+					total += inData[r][c];
+					if(c + 1 < cs) total += inData[r][c+1];
+				}
+				return total;
+			}
+
+			public void execute() {
+				for(int rnd = 1; rnd <= maxRound; rnd++) {
+					int mrnd = rnd % 2;
+					byte outData[][] = data[mrnd];
+					byte inData[][] = data[1 - mrnd];
+					
+					for(int r0 = 0; r0 < rs; r0 += h) {
+						for(int c0 = 0; c0 < cs; c0 += w) {
+							int rN = Math.min(r0 + h, rs);
+							int cN = Math.min(c0 + w, cs);
+							for(int r = r0; r < rN; r++) {
+								for(int c = c0; c < cN; c++) {
+									int total = 0;						
+									total += total3(inData, r - 1, c);
+									total += total3(inData, r, c) - inData[r][c];
+									total += total3(inData, r + 1, c);						
+									outData[r][c] = gameOfLife(inData[r][c], total);
+								}
+							}
+						}
+					}
+							
+				}
+			}
+
+		}
+		
+		@Override
+		public byte[][] execute(byte[][] initialConfiguration, int maxRound) {
+			SerialBoard sb = new SerialBoard(initialConfiguration, maxRound);
+			sb.execute();
+			return sb.data[maxRound % 2];
+		}
+
+	}
+	
 	/**
 	 * A version that uses phases.  Each round fully completes before
 	 * the next begins.  The structure follows a generic barrier
@@ -768,6 +843,55 @@ public class TestGameOfLife {
 	 */
 	@Test public void serialTheToad() {
 		testPattern("The Toad", new SerialEngine(), theToad);		
+	}
+	
+	/** 
+	 * Compares the interval board against the serial board for 3 rounds
+	 * of the Blinker pattern, which repeats every other round.
+	 */
+	@Test public void serialTileBlinker() {
+		compareFactories(
+				new SerialEngine(), 
+				new SerialTiledEngine(), 
+				blinker[0], 
+				1, 3, 1);		
+	}
+	
+	/** 
+	 * Compares the interval board against the serial board for 3 rounds
+	 * of the Toad pattern, which repeats every other round.
+	 */	
+	@Test public void serialTileTheToad() {
+		compareFactories(
+				new SerialEngine(), 
+				new SerialTiledEngine(), 
+				theToad[0], 
+				1, 3, 1);		
+	}
+		
+	
+	/** 
+	 * Compares the interval board against the serial board for 150 rounds
+	 * of the Queen Bee pattern.
+	 */
+	@Test public void serialTileQueenBee() {
+		compareFactories(
+				new SerialEngine(), 
+				new SerialTiledEngine(), 
+				queenBee[0], 
+				1, 150, 1);		
+	}
+	
+	/** 
+	 * Compares the interval board against the serial board for 150 rounds
+	 * of the Queen Bee pattern.
+	 */
+	@Test public void serialTileGliderGun() {
+		compareFactories(
+				new SerialEngine(), 
+				new SerialTiledEngine(), 
+				gliderGun[0], 
+				1, 150, 1);	
 	}
 	
 	/** 
