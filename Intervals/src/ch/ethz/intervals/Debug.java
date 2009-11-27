@@ -63,6 +63,29 @@ public class Debug {
 			addEvent(new ArriveEvent(point, count, newCount));
 	}
 
+	static class OccurEvent extends Event {
+		public final PointImpl point;
+		public final Iterable<PointImpl> succs;
+		
+		public OccurEvent(PointImpl point, Iterable<PointImpl> succs) {
+			this.point = point;
+			this.succs = succs;
+		}				
+		
+		public String toString() {
+			StringBuilder sb = new StringBuilder();
+			sb.append(String.format("OCCUR %s bound %s succs", point, point.bound()));
+			for(PointImpl i : succs)
+				sb.append(" ").append(i);
+			return sb.toString();
+		}
+	}
+	
+	public static void occur(PointImpl point, Iterable<PointImpl> succs) {
+		if(ENABLED_WAIT_COUNTS)
+			addEvent(new OccurEvent(point, succs));
+	}
+	
 	static class JoinEvent extends Event {
 		public final IntervalImpl current;
 		public final PointImpl joinedPnt;
@@ -388,7 +411,7 @@ public class Debug {
 		}
 
 		public String toString() {
-			return String.format("LOCK_EXCLUSIVE %s prevOwner=%s newOwner=%s", guard, prevOwner, newOwner);
+			return String.format("LOCK_EXCLUSIVE %s prevOwner=%s newOwner=%s-%s", guard, prevOwner, newOwner, newOwner.bound);
 		}
 	}
 	

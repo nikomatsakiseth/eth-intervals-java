@@ -19,6 +19,18 @@ public class EdgeList {
 		return ((Integer)list[BITS]).intValue();
 	}
 	
+	public static Object[] save(Object[] list) {
+		// When we try to read the state of an EdgeList atomically,
+		// we must copy it to a temporary location.  This is non-ideal.
+		if(list == null)
+			return null;
+		if(list[CHUNK_SIZE - 1 + OFFSET] != null)
+			return list;
+		Object[] result = new Object[ARRAY_SIZE];
+		System.arraycopy(list, 0, result, 0, ARRAY_SIZE);
+		return result;
+	}
+	
 	public static Object[] add(Object[] list, PointImpl toPoint, boolean deterministic) {
 		int bit = (deterministic ? 1 : 0);
 				
@@ -76,14 +88,11 @@ public class EdgeList {
 			
 			private boolean advance() {
 				idx += 1;
-				if(idx == CHUNK_SIZE) {
+				if(idx == CHUNK_SIZE || get() == null) {
 					Object[] nextList = (Object[])list[NEXT];
 					if(!loadList(nextList))
 						return false;				
-				} else if(get() == null) {
-					list = null;
-					return false;
-				}
+				} 
 				return true;					
 			}
 			

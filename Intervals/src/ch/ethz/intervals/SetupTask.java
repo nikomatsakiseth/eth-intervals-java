@@ -27,8 +27,8 @@ public abstract class SetupTask extends AbstractTask {
 					Interval worker = Intervals.intervalWithBound(parentEnd)
 						.startAfter(setupEnd)
 						.schedule(Intervals.emptyTask);
-				setup(setupEnd, worker);
-			}
-		});	
+					setup(setupEnd, worker);
+				}
+			});	
 	}
 }

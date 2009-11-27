@@ -40,6 +40,11 @@ class PointImpl implements Point {
 		this.depth = bound.depth + 1;
 		this.waitCount = waitCount;
 	}
+	
+	@Override
+	public String toString() {
+		return "Point("+System.identityHashCode(this)+")";
+	}
 
 	@Override
 	public Point bound() {
@@ -193,7 +198,7 @@ class PointImpl implements Point {
 		
 		final Object[] outEdges;
 		synchronized(this) {
-			outEdges = this.outEdges;
+			outEdges = EdgeList.save(this.outEdges);
 			this.waitCount = OCCURRED;
 			notifyAll(); // in case anyone is joining us
 		}
@@ -203,16 +208,12 @@ class PointImpl implements Point {
 		if((flags & FLAG_MASK_EXC) == 0 && pendingException != null)
 			bound.setPendingExceptionFromChild(pendingException);
 		
-		// XXX BUG XXX
-		//
-		// When we read outEdges in the synchronized section above,
-		// we have to remember how many things are stored in it too!
-		// Otherwise, someone could add something to the list even
-		// after we set OCCURRED to true!
+		Iterable<PointImpl> notifiedPoints = EdgeList.edges(outEdges, false);
+		if(Debug.ENABLED)
+			Debug.occur(this, notifiedPoints);
 		
-		for(PointImpl toPoint : EdgeList.edges(outEdges, false))
+		for(PointImpl toPoint : notifiedPoints)
 			toPoint.arrive(1);
-		
 		bound.arrive(1);
 		
 		if(workItem != null) {

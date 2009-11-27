@@ -21,6 +21,15 @@ public class TestDynamicGuardImpl {
 	
 	DynamicGuardImpl dg;
 	
+	public static Task debugTask(String name) {
+		return new Intervals.NamedTask(name) {
+			public void run(Point currentEnd) {
+				System.out.printf("%s: currentEnd=%s\n", name, currentEnd);
+			}
+		};
+	};
+	
+	
 	@Before public void before() {
 		
 		/* a -> b------------------> c
@@ -36,15 +45,16 @@ public class TestDynamicGuardImpl {
 		Intervals.blockingInterval(new SetupTask() {
 			@Override
 			public void setup(Point currentEnd, Interval worker) {
-				a = (IntervalImpl) intervalDuring(worker).schedule(emptyTask);
-				b = (IntervalImpl) intervalDuring(worker).startAfter(end((a))).schedule(emptyTask);
-				c = (IntervalImpl) intervalDuring(worker).startAfter(end((b))).schedule(emptyTask);
-				b1 = (IntervalImpl) intervalDuring(b).schedule(emptyTask);
-				b11 = (IntervalImpl) intervalDuring(b).startAfter(end((b1))).schedule(emptyTask);
-				b2 = (IntervalImpl) intervalDuring(b).schedule(emptyTask);
+				System.out.printf("end of setup = %s worker = %s\n", currentEnd, worker);
+				a = (IntervalImpl) intervalDuring(worker).schedule(debugTask("a"));
+				b = (IntervalImpl) intervalDuring(worker).startAfter(end((a))).schedule(debugTask("b"));
+				c = (IntervalImpl) intervalDuring(worker).startAfter(end((b))).schedule(debugTask("c"));
+				b1 = (IntervalImpl) intervalDuring(b).schedule(debugTask("b1"));
+				b11 = (IntervalImpl) intervalDuring(b).startAfter(end((b1))).schedule(debugTask("b11"));
+				b2 = (IntervalImpl) intervalDuring(b).schedule(debugTask("b2"));
 				
-				l1 = (IntervalImpl) intervalDuring(b).exclusiveLock(dg).schedule(emptyTask);
-				l2 = (IntervalImpl) intervalDuring(b).exclusiveLock(dg).schedule(emptyTask);
+				l1 = (IntervalImpl) intervalDuring(b).exclusiveLock(dg).schedule(debugTask("l1"));
+				l2 = (IntervalImpl) intervalDuring(b).exclusiveLock(dg).schedule(debugTask("l2"));
 			}
 		});
 				
@@ -146,14 +156,14 @@ public class TestDynamicGuardImpl {
 	 *  would result in a {@link DataRaceException} */
 	@Test(expected=DataRaceException.class)
 	public void twoUnorderedExclusiveLock1() {
-		dg.checkWrite(l1);
 		dg.checkWrite(l2);
+		dg.checkWrite(l1);
 	}
 	
 	@Test
 	public void twoUnorderedExclusiveLock2() {
-		dg.checkWrite(l2);
 		dg.checkWrite(l1);
+		dg.checkWrite(l2);
 	}
 	
 }
