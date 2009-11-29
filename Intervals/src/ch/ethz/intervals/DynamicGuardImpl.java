@@ -9,38 +9,46 @@ class DynamicGuardImpl extends GuardImpl implements DynamicGuard {
 	
 	@Override
 	public void checkRead() throws DataRaceException {
-		IntervalImpl currentInterval = Intervals.currentInterval.get();		
-		checkRead(currentInterval);
+		Current current = Current.get();
+		checkRead(current.start, current.end);
 	}
 
-	void checkRead(IntervalImpl currentInterval) {
+	void checkRead(IntervalImpl b) {
+		checkRead(b.start, b.end);
+	}
+
+	void checkRead(PointImpl start, PointImpl end) {
 		synchronized(this) {
-			checkHb(Role.WRITE, writeInterval, Role.READ, currentInterval.start);
+			checkHb(Role.WRITE, writeInterval, Role.READ, start);
 			
 			if(readInterval != null)
-				readInterval = readInterval.mutualBound(currentInterval.end);
+				readInterval = readInterval.mutualBound(end);
 			else
-				readInterval = currentInterval.end; 
+				readInterval = end; 
 		}
 	}
 
 	@Override
 	public void checkWrite() throws DataRaceException {
-		IntervalImpl currentInterval = Intervals.currentInterval.get();
-		checkWrite(currentInterval);
+		Current current = Current.get();
+		checkWrite(current.start, current.end);
 	}
 
-	void checkWrite(IntervalImpl currentInterval) {
+	void checkWrite(IntervalImpl b) {
+		checkWrite(b.start, b.end);
+	}
+
+	void checkWrite(PointImpl start, PointImpl end) {
 		PointImpl w, r;
 		synchronized(this) {
 			r = readInterval;
 			w = writeInterval;
-			writeInterval = currentInterval.end;
+			writeInterval = end;
 			readInterval = null;
 		}
 		
-		checkHb(Role.READ, r, Role.WRITE, currentInterval.start);
-		checkHb(Role.WRITE, w, Role.WRITE, currentInterval.start);
+		checkHb(Role.READ, r, Role.WRITE, start);
+		checkHb(Role.WRITE, w, Role.WRITE, start);
 	}
 	
 	private void checkHb(

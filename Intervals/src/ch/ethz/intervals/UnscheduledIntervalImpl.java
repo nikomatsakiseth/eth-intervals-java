@@ -18,7 +18,7 @@ class UnscheduledIntervalImpl implements UnscheduledInterval {
 	private StringBuilder description;
 	
 	public UnscheduledIntervalImpl(PointImpl endBound) {
-		IntervalImpl current = Intervals.currentInterval.get();
+		Current current = Current.get();
 		checkEdgeOrSame(current.end, endBound);
 		
 		this.end = new PointImpl(endBound, initialWaitCount);
@@ -26,7 +26,8 @@ class UnscheduledIntervalImpl implements UnscheduledInterval {
 		this.desiredWaitCounts = (2L << END_SHIFT); // end always waits for start and for task to finish.
 		
 		endBound.addWaitCount();
-		current.start.addOutEdge(start, true);
+		if(current.start != null)
+			current.start.addOutEdge(start, true);
 		
 		ExecutionLog.logNewInterval(current.start, start, end);
 		

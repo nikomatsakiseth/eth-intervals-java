@@ -21,19 +21,8 @@ public class Intervals {
 	static final Task readTask = new NamedTask("readTask");
 
 	static final PointImpl ROOT_END = new PointImpl(1); // never occurs
-	static final PointImpl ROOT_START = new PointImpl(ROOT_END, PointImpl.OCCURRED); // always occurred
-	static final IntervalImpl ROOT_INTERVAL = new IntervalImpl(null, ROOT_START, ROOT_END);
 	
 	static final ThreadPool POOL = new ThreadPool();
-
-	/** Currently executing interval in each thread, if any. */
-	static ThreadLocal<IntervalImpl> currentInterval = 
-		new ThreadLocal<IntervalImpl>() {
-			@Override
-			protected IntervalImpl initialValue() {
-				return ROOT_INTERVAL;
-			}
-		};
 	
 	/** 
 	 * Returns {@code i.start()} unless {@code i} is null, 
@@ -140,27 +129,24 @@ public class Intervals {
 
 	static void checkCurrentIntervalEndHbOrSame(Point to) {
 		if(SAFETY_CHECKS) {
-			checkEdgeOrSame(currentInterval.get().end, to);
+			Current cur = Current.get();
+			checkEdgeOrSame(cur.end, to);
 		}
 	}
 
 	/** Waits for {@code ep} to complete and returns its result.
 	 *  Resets the currentInterval afterwards. */
-	static void join(IntervalImpl current, PointImpl pnt) {
-		try {
-			if(Debug.ENABLED)
-				Debug.join(current, pnt);
-			pnt.join();
-			pnt.checkAndRethrowPendingException();
-		} finally {
-			// Helping out other tasks can disrupt this value, so restore it
-			currentInterval.set(current); 
-		}
+	static void join(PointImpl pnt) {
+		if(Debug.ENABLED)
+			Debug.join(pnt);
+		pnt.join();
+		pnt.checkAndRethrowPendingException();
 	}
 	
 	/**
-	 * Waits for {@code ep} to occur and returns its result, possibly rethrowing any 
-	 * exception.  There must be a path from {@code ep} to the end point
+	 * Waits for {@code pnt} to occur and returns its result, 
+	 * possibly rethrowing any exception.  
+	 * There must be a path from {@code pnt} to the end point
 	 * of the current interval.
 	 * 
 	 * <b>Note:</b> Exceptions that occur in {@code task} are 
@@ -169,16 +155,10 @@ public class Intervals {
 	 * {@code ep} was configured to mask errors with 
 	 * {@link UnscheduledInterval#setMaskExceptions(boolean)}.
 	 */
-	public static <R> R blockOn(IntervalFuture<R> result) {
-		blockOn(result.end());
-		IntervalFutureImpl<R> resultImpl = (IntervalFutureImpl<R>) result;
-		return resultImpl.accessResult();
-	}
-	
 	public static void blockOn(Point pnt) {
-		IntervalImpl current = currentInterval.get();
-		checkEdge(pnt, current.end);
-		join(current, (PointImpl) pnt);
+		Current cur = Current.get();
+		checkEdge(pnt, cur.end);
+		join((PointImpl) pnt);
 	}
 	
 	/**
@@ -192,21 +172,20 @@ public class Intervals {
 	 */
 	public static void blockingInterval(Task task) 
 	{
-		IntervalImpl current = currentInterval.get();
+		Current current = Current.get();
 		PointImpl end = (PointImpl) intervalWithBound(current.end)
 			.setMaskExceptions(true)
 			.schedule(task)
 			.end();
-		join(current, end);
+		join(end);
 	}
 	
 	/** 
-	 * Returns the root interval which represents the entire
-	 * computation.  The point {@code root.start()} has already
-	 * occurred once program execution begins, and {@code root.end()}
-	 * will not occur until program execution completes. */
-	public static Interval root() {
-		return ROOT_INTERVAL;
+	 * Returns the point which represents the end of the entire
+	 * computation.  This point will not occur until all other
+	 * points have occurred, and it is the only point without a bound. */
+	public static Point rootEnd() {
+		return ROOT_END;
 	}
 
 }

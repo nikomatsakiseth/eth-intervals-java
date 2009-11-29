@@ -87,21 +87,19 @@ public class Debug {
 	}
 	
 	static class JoinEvent extends Event {
-		public final IntervalImpl current;
 		public final PointImpl joinedPnt;
 		
-		public JoinEvent(PointImpl joinedPnt, IntervalImpl current) {
+		public JoinEvent(PointImpl joinedPnt) {
 			this.joinedPnt = joinedPnt;
-			this.current = current;
 		}
 		
 		public String toString() {
-			return String.format("JOIN %s current=%s", joinedPnt, current);
+			return String.format("JOIN %s", joinedPnt);
 		}
 	}
 	
-	public static void join(IntervalImpl current, PointImpl joinedPnt) {
-		addEvent(new JoinEvent(joinedPnt, current));
+	public static void join(PointImpl joinedPnt) {
+		addEvent(new JoinEvent(joinedPnt));
 	}
 
 	static class NewIntervalEvent extends Event {

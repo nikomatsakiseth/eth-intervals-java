@@ -103,8 +103,6 @@ class PointImpl implements Point {
 		
 		if(p == this)
 			return false;
-		if(this == Intervals.ROOT_START)
-			return true;
 		if(p == bound)
 			return true;
 
@@ -240,9 +238,6 @@ class PointImpl implements Point {
 	 *  number of future invocations of {@code #arrive(int)}
 	 *  which {@code targetPnt} can expect. */
 	int addOutEdge(PointImpl targetPnt, boolean deterministic) {
-		if(this == Intervals.ROOT_START)
-			return 0;
-	
 		synchronized(this) {
 			addOutEdgeDuringConstruction(targetPnt, deterministic);
 			if(waitCount == OCCURRED)

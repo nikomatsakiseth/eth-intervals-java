@@ -32,20 +32,22 @@ implements Interval {
 	 * the end of the interval that it can occur (assuming all of its other
 	 * dependencies are satisfied).
 	 */
-	@SuppressWarnings("unchecked")
 	void exec() {
-		Intervals.currentInterval.set(this);
-		
-		Task task = this.task;
-		this.task = null; // for g.c., as it will not be needed again
-		
+		Current cur = Current.push(start, end);
 		try {
-			task.run(end);
-		} catch(Throwable t) {
-			end.setPendingException(t);
+			Task task = this.task;
+			this.task = null; // for g.c., as it will not be needed again
+			
+			try {
+				task.run(end);
+			} catch(Throwable t) {
+				end.setPendingException(t);
+			}
+			
+			end.arrive(1);
+		} finally { // I don't expect any exceptions, but...
+			cur.pop();
 		}
-		
-		end.arrive(1);
 	}
 	
 	@Override
