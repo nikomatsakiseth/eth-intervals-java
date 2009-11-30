@@ -162,7 +162,7 @@ class PointImpl implements Point {
 	 *  @param cnt the number of preceding things that occurred,
 	 *  should always be positive and non-zero */
 	protected final void arrive(int cnt) {
-		int newCount = waitCountUpdater.decrementAndGet(this);
+		int newCount = waitCountUpdater.addAndGet(this, -cnt);
 		
 		if(Debug.ENABLED) {
 			Debug.arrive(this, cnt, newCount);

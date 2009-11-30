@@ -583,7 +583,7 @@ public class TestInterval {
 	@Test(expected=CycleException.class) 
 	public void simpleCycleGeneratesError() {
 		final Interval a = interval(Intervals.emptyTask);
-		Intervals.addHb(a.end(), Intervals.ROOT_END);
+		Intervals.addHb(Intervals.ROOT_END, a.end());
 	}
 	
 	@Test(expected=CycleException.class) 

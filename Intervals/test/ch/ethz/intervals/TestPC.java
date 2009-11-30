@@ -50,6 +50,7 @@ public class TestPC {
 				for(int i = 0; i < MAX; i++) {
 					Interval cons = Intervals.childInterval(new Consumer(i));
 					Intervals.addHb(endOfPrevConsumer, cons.start());
+					endOfPrevConsumer = cons.end();
 				}
 			}			
 		});

@@ -83,7 +83,7 @@ public class TestHOH {
 		
 		@Override
 		public void addDependencies(Interval inter) {
-        	Intervals.exclusiveLock(inter, link.next.guard);
+        	Intervals.exclusiveLock(inter, link.guard);
 		}
 
 		@Override @Effects("(mthd-):Ex(link.guard)")
