@@ -46,15 +46,22 @@ public class TestDynamicGuardImpl {
 			@Override
 			public void setup(Point currentEnd, Interval worker) {
 				System.out.printf("end of setup = %s worker = %s\n", currentEnd, worker);
-				a = (IntervalImpl) intervalDuring(worker).schedule(debugTask("a"));
-				b = (IntervalImpl) intervalDuring(worker).startAfter(end((a))).schedule(debugTask("b"));
-				c = (IntervalImpl) intervalDuring(worker).startAfter(end((b))).schedule(debugTask("c"));
-				b1 = (IntervalImpl) intervalDuring(b).schedule(debugTask("b1"));
-				b11 = (IntervalImpl) intervalDuring(b).startAfter(end((b1))).schedule(debugTask("b11"));
-				b2 = (IntervalImpl) intervalDuring(b).schedule(debugTask("b2"));
+				a = (IntervalImpl) intervalDuring(worker, debugTask("a"));
+				b = (IntervalImpl) intervalDuring(worker, debugTask("b"));
+				c = (IntervalImpl) intervalDuring(worker, debugTask("c"));
+				b1 = (IntervalImpl) intervalDuring(b, debugTask("b1"));
+				b11 = (IntervalImpl) intervalDuring(b, debugTask("b11"));
+				b2 = (IntervalImpl) intervalDuring(b, debugTask("b2"));
 				
-				l1 = (IntervalImpl) intervalDuring(b).exclusiveLock(dg).schedule(debugTask("l1"));
-				l2 = (IntervalImpl) intervalDuring(b).exclusiveLock(dg).schedule(debugTask("l2"));
+				Intervals.addHb(a.end(), b.start());
+				Intervals.addHb(b.end(), c.start());
+				Intervals.addHb(b1.end(), b11.start());
+				
+				l1 = (IntervalImpl) intervalDuring(b, debugTask("l1"));
+				l2 = (IntervalImpl) intervalDuring(b, debugTask("l2"));
+				
+				Intervals.exclusiveLock(l1, dg);
+				Intervals.exclusiveLock(l2, dg);
 			}
 		});
 				

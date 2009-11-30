@@ -4,8 +4,8 @@ class AsyncPointImpl extends PointImpl implements AsyncPoint {
 	
 	private int triggerCount;
 	
-	AsyncPointImpl(PointImpl bound, int triggerCount) {
-		super(bound, 1);
+	AsyncPointImpl(Current unscheduled, PointImpl bound, int triggerCount) {
+		super(unscheduled, bound, 1);
 		this.triggerCount = triggerCount;
 	}
 

@@ -60,18 +60,16 @@ public class TestBBPC {
 			
 			Integer data = produceData();
 			Consumer consTask = new Consumer(data);
-			Interval consInter = intervalWithBound(currentEnd.bound())
-			.startAfter(end(prevConsumer))
-			.schedule(consTask);
+			Interval consInter = intervalWithBound(currentEnd.bound(), consTask);
+			Intervals.addHb(end(prevConsumer), consInter.start());
 			consumers[i % N] = consInter;
 			
 			int nxtI = (i+1) % N;
 			Interval waitInter = consumers[nxtI]; 
 				
 			Producer nxtTask = new Producer(i + 1, consumers, consInter);
-			Interval nxtInter = intervalWithBound(currentEnd.bound())
-			.startAfter(end(waitInter))
-			.schedule(nxtTask);
+			Interval nxtInter = intervalWithBound(currentEnd.bound(), nxtTask);
+			Intervals.addHb(end(waitInter), nxtInter.start());
 		}
 		
 		public String toString() {
@@ -98,10 +96,10 @@ public class TestBBPC {
 	
 	@Test public void test() {
 //		ExecutionLog.enableGui();
-		blockingInterval(new Task() {
+		blockingInterval(new AbstractTask() {
 			public void run(Point parentEnd) {
 				Producer fstProd = new Producer(0, new Interval[N], null);
-				intervalWithBound(parentEnd).schedule(fstProd);
+				intervalWithBound(parentEnd, fstProd);
 			}			
 		});
 //		ExecutionLog.disable();

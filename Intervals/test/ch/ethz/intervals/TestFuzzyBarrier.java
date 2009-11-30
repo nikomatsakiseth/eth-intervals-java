@@ -14,6 +14,9 @@ import java.util.Set;
 import org.junit.Assert;
 import org.junit.Test;
 
+import ch.ethz.intervals.TestBarrier.Barrier.BarrierTask;
+import ch.ethz.intervals.TestBarrier.Barrier.WorkerTask;
+
 public class TestFuzzyBarrier {
 	
 	final int N = 22; // number of workers
@@ -30,15 +33,19 @@ public class TestFuzzyBarrier {
 		@Override
 		public void setup(Point currentEnd, Interval worker) {
 			this.parent = worker;			
-			startRound(intervalDuring(worker).schedule(emptyTask));			
+			startRound(intervalDuring(worker, emptyTask));			
 			for(int id = 0; id < N; id++)
-				intervalDuring(thisRound).schedule(new WorkerTask(id, R.nextInt(MAX_COUNTER)));
+				intervalDuring(thisRound, new WorkerTask(id, R.nextInt(MAX_COUNTER)));
 		}
 		
 	    private void startRound(Interval inter) {
 	        thisRound = inter;
-	        Interval barrier = intervalDuring(parent).startAfter(end(thisRound)).schedule(new BarrierTask());
-	        nextRound = intervalDuring(parent).startAfter(end(barrier)).schedule(emptyTask);
+	        Interval barrier = intervalDuring(parent, new BarrierTask());
+	        nextRound = intervalDuring(parent, emptyTask);
+	       
+	        // thisRound.end -> barrier -> nextRound.start
+	        Intervals.addHb(thisRound.end(), barrier.start());
+	        Intervals.addHb(barrier.end(), nextRound.start());
 	    }
 	    
 	    class BarrierTask extends AbstractTask {
@@ -55,8 +62,9 @@ public class TestFuzzyBarrier {
 	    final BarrierTask barrierTask = new BarrierTask();
 	    
 	    void barrier(Task untilBarrier, Task afterBarrier) {
-	    	Interval fuzzy = intervalDuring(parent).schedule(untilBarrier); // overlaps with barrier!
-	    	intervalDuring(nextRound).startAfter(end(fuzzy)).schedule(afterBarrier);
+	    	Interval fuzzy = intervalDuring(parent, untilBarrier); // overlaps with barrier!
+	    	Interval strict = intervalDuring(nextRound, afterBarrier);
+	    	Intervals.addHb(fuzzy.end(), strict.start());
 	    }
 	    
 	    class WorkerTask extends AbstractTask {

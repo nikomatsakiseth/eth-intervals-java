@@ -162,12 +162,11 @@ public class AppDemoIntervals extends Universal implements AppDemoInterface {
 		results = new Vector<Object>(nRunsMC);
 		
 		Intervals.blockingInterval(new AbstractTask() {
-			public void run(Point parentEnd) {
+			public void run(Point end) {
 				
 				for (int i = 0; i < nRunsMC; i++) {
 					final int iRun = i;
-					Intervals.intervalWithBound(parentEnd)
-					.schedule(new AbstractTask() {
+					Intervals.intervalWithBound(end, new AbstractTask() {
 						public void run(Point _) {							
 							final PriceStock ps = new PriceStock();
 							ps.setInitAllTasks(AppDemoIntervals.initAllTasks);

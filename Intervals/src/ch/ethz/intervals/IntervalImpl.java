@@ -11,13 +11,14 @@ implements Interval {
 	protected Task task;
 	final PointImpl start;
 	final PointImpl end;
+	IntervalImpl nextUnscheduled; /** @see Current#unscheduled */
 	
 	public IntervalImpl(Task task, PointImpl start, PointImpl end) {
 		this.task = task;
 		this.start = start;
 		this.end = end;
 	}
-
+	
 	/**
 	 * The "main" method for this interval: invoked when we are scheduled.
 	 * Simply invokes {@link #exec()}.
@@ -35,16 +36,21 @@ implements Interval {
 	void exec() {
 		Current cur = Current.push(start, end);
 		try {
-			Task task = this.task;
-			this.task = null; // for g.c., as it will not be needed again
-			
 			try {
-				task.run(end);
-			} catch(Throwable t) {
-				end.setPendingException(t);
+				Task task = this.task;
+				this.task = null; // for g.c., as it will not be needed again
+				
+				try {
+					task.run(end);
+				} catch(Throwable t) {
+					end.setPendingException(t);
+				}
+				
+				end.arrive(1);
+				cur.schedule();
+			} catch(Throwable e) {
+				e.printStackTrace(); // unexpected!
 			}
-			
-			end.arrive(1);
 		} finally { // I don't expect any exceptions, but...
 			cur.pop();
 		}

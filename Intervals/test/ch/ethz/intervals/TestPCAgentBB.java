@@ -12,37 +12,19 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Assert;
 import org.junit.Test;
 
+import com.sun.org.apache.xpath.internal.axes.ChildIterator;
+
+import ch.ethz.intervals.TestPCAgent.ProducerData;
+
 /**
  * Bounded-Buffer Agent Producer-Consumer Example
  *
  * Similar to {@link TestPCAgent}, except done in 
  * bounded-buffer style.
  */
-public class TestPCAgentBB {
+public class TestPCAgentBB extends TestPCAgent {
 		
-	final int MAX = 100;
-	List<Integer> consumed = new ArrayList<Integer>();
-	
-	final AtomicInteger stamp = new AtomicInteger();
-	List<Integer> producerTimes = new ArrayList<Integer>();
-	List<Integer> consumerTimes = new ArrayList<Integer>();
-	
 	final int BBSIZE = 3;
-	
-	/** Where the producer writes its data.  There is one 
-	 *  instance per producer. It is not safe to read these
-	 *  fields unless the end of the producer <em>happens before</em>
-	 *  the interval which is reading. */
-	class ProducerData {
-		/** Data producer by producer <em>i</em> */
-		public int produced;
-		
-		/** End of producer <em>i+1</em> */
-		public Point endOfNextProducer;
-		
-		/** Where producer <em>i+1</em> will write its data */
-		public ProducerData dataForNextProducer;		
-	}
 	
 	/** Where the consumer writes its data.  There is one 
 	 *  instance per consumer. It is not safe to read these
@@ -61,80 +43,58 @@ public class TestPCAgentBB {
 		}
 	}
 	
-	class Producer extends AbstractTask {
-		private final ProducerData pdata; /** Data for producer #index */
+	class ProducerBB extends Producer {
+		
+		private final ConsumerData cdataMN; /** Data for consumer #(index-BBSIZE) */
+
+		public ProducerBB(int index, ProducerData producerData, ConsumerData cdataMN) {
+			super(index, producerData);
+			assert cdataMN != null;
+			this.cdataMN = cdataMN;
+		}
+
+		@Override
+		protected Interval nextProducer(ProducerData dataForNextProducer) {	
+			assert cdataMN.dataForNextConsumer != null;
+			Interval inter = Intervals.successorInterval(new ProducerBB(
+					index + 1, 
+					dataForNextProducer, 
+					cdataMN.dataForNextConsumer));
+			Intervals.addHb(cdataMN.endOfNextConsumer, inter.start());
+			return inter;
+		}
+		
+	}
+	
+	class ConsumerBB extends Consumer {
+
 		private final ConsumerData cdata; /** Data for consumer #(index-BBSIZE) */
-		private final int index;
 		
-		public Producer(int index, ProducerData pdata, ConsumerData cdata) {
-			this.index = index;
-			this.pdata = pdata;
+		public ConsumerBB(int index, Point endOfProducer, ProducerData pdata, ConsumerData cdata) {
+			super(index, endOfProducer, pdata);
 			this.cdata = cdata;
 		}
 		
 		@Override
-		public String toString() {
-			return "Producer["+index+"]";
-		}
-		
-		public void run(Point currentEnd) {
-			pdata.produced = index;
-			producerTimes.add(stamp.getAndIncrement());
-			
-			final int nextIndex = index + 1;
-			if(nextIndex < MAX) { // Create next producer, if any.
-				pdata.dataForNextProducer = new ProducerData();
-				Producer nextProducer = new Producer(
-						nextIndex, pdata.dataForNextProducer, cdata.dataForNextConsumer);
-				pdata.endOfNextProducer =
-					intervalWithBound(currentEnd.bound())
-						.startAfter(currentEnd)
-						.startAfter(cdata.endOfNextConsumer)
-						.schedule(nextProducer)
-						.end();
-			}
-		}
-	}
-	
-	class Consumer extends AbstractTask {
-		private final int index;
-		private final ProducerData pdata;
-		private final ConsumerData cdata;
-
-		public Consumer(int index, ProducerData pdata, ConsumerData cdata) {
-			this.index = index;
-			this.pdata = pdata;
-			this.cdata = cdata;
+		protected void nextConsumer() {
+			cdata.dataForNextConsumer = new ConsumerData(null, null);
+			Interval inter = Intervals.successorInterval(new ConsumerBB(
+					index + 1,
+					pdata.endOfNextProducer,
+					pdata.dataForNextProducer,
+					cdata.dataForNextConsumer));
+			cdata.endOfNextConsumer = inter.end();
 		}
 
-		@Override
-		public String toString() {
-			return "Consumer["+index+"]";
-		}
 		
-		public void run(Point currentEnd) {
-			consumed.add(pdata.produced); // "Consume" the data.
-			consumerTimes.add(stamp.getAndIncrement());			
-			
-			if(pdata.endOfNextProducer != null) { // Create next consumer, which runs after the next producer.
-				cdata.dataForNextConsumer = new ConsumerData(null, null);
-				cdata.endOfNextConsumer = 
-					Intervals.intervalWithBound(currentEnd.bound())
-						.startAfter(currentEnd)
-						.startAfter(pdata.endOfNextProducer)
-						.schedule(new Consumer(
-								index + 1,
-								pdata.dataForNextProducer, 
-								cdata.dataForNextConsumer))
-						.end();
-			}
-		}
 	}
 	
-	@Test public void test() {
-		blockingInterval(new SetupTask() {			
+	@Override 
+	protected void runProducerConsumer() {
+		blockingInterval(new AbstractTask() {
+			
 			@Override
-			public void setup(Point setupEnd, Interval worker) {
+			public void run(Point _) {
 				// Data for the 0th producer and consumer:
 				ProducerData pdata0 = new ProducerData();				
 				ConsumerData cdata0 = new ConsumerData(null, null);
@@ -146,21 +106,18 @@ public class TestPCAgentBB {
 				for(int i = -2; i >= -BBSIZE; i--)
 					cdataMN = new ConsumerData(null, cdataMN); // create cdata -i
 				
-				Interval firstProducerInterval = intervalDuring(worker)
-					.schedule(new Producer(0, pdata0, cdataMN));
-		
-				cdataM1.endOfNextConsumer = intervalDuring(worker)
-					.startAfter(firstProducerInterval.end())
-					.schedule(new Consumer(0, pdata0, cdata0))
-					.end();
-				
+				Interval p0 = Intervals.childInterval(new ProducerBB(0, pdata0, cdataMN));
+				Interval c0 = Intervals.childInterval(new ConsumerBB(0, p0.end(), pdata0, cdata0));
+				cdataM1.endOfNextConsumer = c0.end();
 			}
 		});
-
+	}
+	
+	@Override
+	protected void checkResults() {
+		super.checkResults();
 		
 		for(int i = 0; i < MAX; i++) {
-			assertEquals(i, consumed.get(i).intValue());
-			
 			if(i >= BBSIZE) {
 				int pTime = producerTimes.get(i);
 				int cTime = consumerTimes.get(i - BBSIZE);

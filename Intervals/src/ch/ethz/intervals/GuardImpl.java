@@ -47,7 +47,7 @@ extends /*@Identity("RO")*/ Object implements Guard
 			}
 			
 			final int initialWaitCount = 2;
-			latestOwner = new AsyncPointImpl(Intervals.ROOT_END, initialWaitCount);
+			latestOwner = new AsyncPointImpl(null, Intervals.ROOT_END, initialWaitCount);
 			latestOwnerIsSharedInterval = true;
 			wait = prevOwner.addOutEdge(latestOwner, false);
 			wait += startPnt.bound.addOutEdge(latestOwner, false);

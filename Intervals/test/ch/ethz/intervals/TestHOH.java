@@ -80,15 +80,18 @@ public class TestHOH {
 			this.link = link;
 			this.transform = transform;
 		}
+		
+		@Override
+		public void addDependencies(Interval inter) {
+        	Intervals.exclusiveLock(inter, link.next.guard);
+		}
 
 		@Override @Effects("(mthd-):Ex(link.guard)")
 	    public void run(Point currentEnd) {
 	        transform.transform(link);
 	        if(link.next != null) {
-	        	intervalWithBound(currentEnd.bound())
-		        .exclusiveLock(link.next.guard)
-		        .startBefore(currentEnd)
-		        .schedule(new MapWalk(link.next, transform));
+	        	Interval next = intervalWithBound(currentEnd.bound(), new MapWalk(link.next, transform));
+	        	Intervals.addHb(next.start(), currentEnd);
             }
 	    } 
 		
@@ -114,9 +117,9 @@ public class TestHOH {
 	public @Test void testDouble() {
 	    Guard listGuard = Guards.newGuard();
 		final @HOHList("listGuard") Link list = buildList(5, 10, 25);
-		blockingInterval(new Task() {
+		blockingInterval(new AbstractTask() {
 			public void run(Point currentEnd) {
-				intervalWithBound(currentEnd).schedule(new MapWalk(list, new DoubleTransform()));		
+				intervalWithBound(currentEnd, new MapWalk(list, new DoubleTransform()));		
 			}
 		});
 		@HOHList("listGuard") Link expList = buildList(10, 20, 50);

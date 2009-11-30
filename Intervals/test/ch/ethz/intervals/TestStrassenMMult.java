@@ -1,7 +1,5 @@
 package ch.ethz.intervals;
 
-import static ch.ethz.intervals.Intervals.intervalWithBound;
-
 import java.util.Random;
 
 import junit.framework.Assert;
@@ -119,11 +117,11 @@ public class TestStrassenMMult {
 			final Matrix C21 = C.submatrix(m2, nf); 
 			final Matrix C22 = C.submatrix(m2, n2);
 			
-			Intervals.blockingInterval(new Task() {
-				public void run(Point currentEnd) {
+			Intervals.blockingInterval(new AbstractTask() {
+				public void run(Point _) {
 					
 					// M1 = (A11 + A22)*(B11 + B22)
-					intervalWithBound(currentEnd).schedule(new Task() {
+					Intervals.childInterval(new AbstractTask() {
 						public void run(Point currentEnd) {
 							Matrix tAM1 = new Matrix(m2, p2);
 							addMatrixBlocks(tAM1, m2, p2, A11, A22);
@@ -134,7 +132,7 @@ public class TestStrassenMMult {
 					});
 					
 					//M2 = (A21 + A22)*B11
-					intervalWithBound(currentEnd).schedule(new Task() {
+					Intervals.childInterval(new AbstractTask() {
 						public void run(Point currentEnd) {
 							Matrix tAM2 = new Matrix(m2, p2);
 							addMatrixBlocks(tAM2, m2, p2, A21, A22);
@@ -143,7 +141,7 @@ public class TestStrassenMMult {
 					});
 					
 					//M3 = A11*(B12 - B22)
-					intervalWithBound(currentEnd).schedule(new Task() {
+					Intervals.childInterval(new AbstractTask() {
 						public void run(Point currentEnd) {
 							Matrix tBM3 = new Matrix(p2, n2);
 							subMatrixBlocks(tBM3, p2, n2, B12, B22);
@@ -152,7 +150,7 @@ public class TestStrassenMMult {
 					});
 					
 					//M4 = A22*(B21 - B11)
-					intervalWithBound(currentEnd).schedule(new Task() {
+					Intervals.childInterval(new AbstractTask() {
 						public void run(Point currentEnd) {
 							Matrix tBM4 = new Matrix(p2, n2);
 							subMatrixBlocks(tBM4, p2, n2, B21, B11);
@@ -161,7 +159,7 @@ public class TestStrassenMMult {
 					});
 					
 					//M5 = (A11 + A12)*B22
-					intervalWithBound(currentEnd).schedule(new Task() {
+					Intervals.childInterval(new AbstractTask() {
 						public void run(Point currentEnd) {
 							Matrix tAM5 = new Matrix(m2, p2);
 							addMatrixBlocks(tAM5, m2, p2, A11, A12);
@@ -170,7 +168,7 @@ public class TestStrassenMMult {
 					});
 					
 					//M6 = (A21 - A11)*(B11 + B12)
-					intervalWithBound(currentEnd).schedule(new Task() {
+					Intervals.childInterval(new AbstractTask() {
 						public void run(Point currentEnd) {
 							Matrix tAM6 = new Matrix(m2, p2);
 							Matrix tBM6 = new Matrix(p2, n2);
@@ -181,7 +179,7 @@ public class TestStrassenMMult {
 					});
 
 					//M7 = (A12 - A22)*(B21 + B22)
-					intervalWithBound(currentEnd).schedule(new Task() {
+					Intervals.childInterval(new AbstractTask() {
 						public void run(Point currentEnd) {
 							Matrix tAM7 = new Matrix(m2, p2);
 							Matrix tBM7 = new Matrix(p2, n2);

@@ -31,15 +31,19 @@ public class TestBarrier {
 		@Override
 		public void setup(Point currentEnd, Interval worker) {
 			this.parent = worker;			
-			startRound(intervalDuring(worker).schedule(emptyTask));			
+			startRound(intervalDuring(worker, emptyTask));			
 			for(int id = 0; id < N; id++)
-				intervalDuring(thisRound).schedule(new WorkerTask(id, R.nextInt(MAX_COUNTER)));
+				intervalDuring(thisRound, new WorkerTask(id, R.nextInt(MAX_COUNTER)));
 		}
 		
 	    private void startRound(Interval inter) {
 	        thisRound = inter;
-	        Interval barrier = intervalDuring(parent).startAfter(end(thisRound)).schedule(new BarrierTask());
-	        nextRound = intervalDuring(parent).startAfter(end(barrier)).schedule(emptyTask);
+	        Interval barrier = intervalDuring(parent, new BarrierTask());
+	        nextRound = intervalDuring(parent, emptyTask);
+	       
+	        // thisRound.end -> barrier -> nextRound.start
+	        Intervals.addHb(thisRound.end(), barrier.start());
+	        Intervals.addHb(barrier.end(), nextRound.start());
 	    }
 	    
 	    class BarrierTask extends AbstractTask {
@@ -56,7 +60,7 @@ public class TestBarrier {
 	    final BarrierTask barrierTask = new BarrierTask();
 	    
 	    void barrier(Task afterBarrier) {
-	    	intervalDuring(nextRound).schedule(afterBarrier);
+	    	intervalDuring(nextRound, afterBarrier);
 	    }
 	    
 	    class WorkerTask extends AbstractTask {

@@ -76,9 +76,9 @@ public class SeriesTestInterval {
 		//Thread debugThread = Debug.dumpDebugStateAfterTimeElapsed(8);
 
 		Intervals.blockingInterval(new AbstractTask() {
-			public void run(Point parentEnd) {
+			public void run(Point end) {
 				for (int i = 0; i < array_rows; i++)
-					intervalWithBound(parentEnd).schedule(new SeriesRunnerInterval(i));
+					intervalWithBound(end, new SeriesRunnerInterval(i));
 				//Intervals.forkJoinIndexed(array_rows, new SeriesRunnerInterval());				
 			}			
 		});

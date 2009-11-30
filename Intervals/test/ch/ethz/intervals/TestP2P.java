@@ -32,12 +32,12 @@ public class TestP2P {
 	        for(int n = 0; n < N; n++) {
 	            int bit = n % 2, prevBit = 1 - bit;
 	            for(int m = 1; m < M+1; m++) {
-	                intervals[bit][m] = intervalDuring(parent)
-	                	.startAfter(intervals[prevBit][m-1])
-	                	.startAfter(intervals[prevBit][m])
-	                	.startAfter(intervals[prevBit][m+1])
-	                	.schedule(new AddTask(n, m-1))
-	                	.end();
+	            	Interval i = intervalDuring(parent, new AddTask(n, m-1));
+	                intervals[bit][m] = i.end(); 
+	                Intervals.addHb(intervals[prevBit][m-1], i.start());
+	                Intervals.addHb(intervals[prevBit][m], i.start());
+	                Intervals.addHb(intervals[prevBit][m+1], i.start());
+	                Intervals.schedule();
 	            }
 	        }   
 	    }

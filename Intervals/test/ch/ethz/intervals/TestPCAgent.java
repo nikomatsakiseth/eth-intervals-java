@@ -5,7 +5,9 @@ import static org.junit.Assert.assertEquals;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 /**
@@ -27,13 +29,12 @@ import org.junit.Test;
  */
 public class TestPCAgent {
 	
-	static int nextStamp;
-	public synchronized int stamp() {
-		return nextStamp++;
-	}
-	
 	final int MAX = 100;
 	List<Integer> consumed = new ArrayList<Integer>();
+	
+	final AtomicInteger stamp = new AtomicInteger();
+	List<Integer> producerTimes = new ArrayList<Integer>();
+	List<Integer> consumerTimes = new ArrayList<Integer>();	
 	
 	/** Where the producer writes its data.  There is one 
 	 *  instance per producer. It is not safe to read these
@@ -51,60 +52,91 @@ public class TestPCAgent {
 	}
 	
 	class Producer extends AbstractTask {
-		private final ProducerData data;
-		private final int index;
+		protected final ProducerData pdata;
+		protected final int index;
 		
-		public Producer(ProducerData producerData, int index) {
-			this.data = producerData;
+		public Producer(int index, ProducerData producerData) {
+			this.pdata = producerData;
 			this.index = index;
 		}
 
 		public void run(Point currentEnd) {
-			data.produced = index;
+			pdata.produced = index;
+			producerTimes.add(stamp.getAndIncrement());
 			
-			if(index + 1 < MAX) { // Create next producer, if any.
-				data.dataForNextProducer = new ProducerData();
-				Producer nextProducer = new Producer(data.dataForNextProducer, index + 1);
-				data.endOfNextProducer = 
-					Intervals.intervalWithBound(currentEnd.bound())
-						.startAfter(currentEnd)
-						.schedule(nextProducer)
-						.end();
+			if(index + 1 < MAX) { 
+				// Create next producer, if any.  Publish its data and endpoint.
+				pdata.dataForNextProducer = new ProducerData();
+				pdata.endOfNextProducer = nextProducer(pdata.dataForNextProducer).end(); 
 			} 
+		}
+		
+		protected Interval nextProducer(ProducerData dataForNextProducer) {
+			return Intervals.successorInterval(
+					new Producer(index + 1, dataForNextProducer));			
 		}
 	}
 	
 	class Consumer extends AbstractTask {
-		private final ProducerData data;
+		protected final int index;
+		protected final Point endOfProducer;
+		protected final ProducerData pdata;
 
-		public Consumer(ProducerData data) {
-			this.data = data;
+		public Consumer(int index, Point endOfProducer, ProducerData pdata) {
+			this.index = index;
+			this.endOfProducer = endOfProducer;
+			this.pdata = pdata;
+		}
+		
+		public String toString() {
+			return "Consumer["+index+"]";
+		}
+		
+		@Override
+		public void addDependencies(Interval inter) {
+			super.addDependencies(inter);
+			Intervals.addHb(endOfProducer, inter.start());
 		}
 
-		public void run(Point currentEnd) {
-			consumed.add(data.produced); // "Consume" the data.
+		public void run(Point _) {
+			consumed.add(pdata.produced); // "Consume" the data.
+			consumerTimes.add(stamp.getAndIncrement());			
 			
-			if(data.endOfNextProducer != null) // Create next consumer, which runs after the next producer.
-				Intervals.intervalWithBound(currentEnd.bound())
-					.startAfter(currentEnd)
-					.startAfter(data.endOfNextProducer)
-					.schedule(new Consumer(data.dataForNextProducer));
+			if(pdata.endOfNextProducer != null) {
+				// Create next consumer, which runs after the next producer.
+				nextConsumer();
+			}
+		}
+		
+		protected void nextConsumer() {
+			Intervals.successorInterval(
+					new Consumer(index + 1, pdata.endOfNextProducer, pdata.dataForNextProducer));
 		}
 	}
 	
-	@Test public void test() {
-		blockingInterval(new Task() {
-			public void run(Point currentEnd) {
+	@Test public final void test() {
+		runProducerConsumer();		
+		checkResults();
+	}
+
+	protected void runProducerConsumer() {
+		blockingInterval(new AbstractTask() {
+			public void run(Point _) {
 				ProducerData data0 = new ProducerData();
-				Interval prod0 = Intervals.intervalWithBound(currentEnd)
-					.schedule(new Producer(data0, 0));
-				Intervals.intervalWithBound(currentEnd)
-					.startAfter(prod0.end())
-					.schedule(new Consumer(data0));
+				Interval prod0 = Intervals.childInterval(new Producer(0, data0));
+				Intervals.childInterval(new Consumer(0, prod0.end(), data0));
 			}			
 		});
-		for(int i = 0; i < MAX; i++)
+	}
+	
+	protected void checkResults() {
+		for(int i = 0; i < MAX; i++) {
 			assertEquals(i, consumed.get(i).intValue());
+		}
+		for(int i = 1; i < MAX; i++) {
+			Assert.assertTrue("Producer out of order", producerTimes.get(i) > producerTimes.get(i-1));
+			Assert.assertTrue("Consumer out of order", consumerTimes.get(i) > consumerTimes.get(i-1));
+		}
 	}
 	
 }

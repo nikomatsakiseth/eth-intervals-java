@@ -143,19 +143,20 @@ public class SORIntervals {
 					int prevBit = (bit + 1) % 2;
 					
 					int i = 1 + (p % 2);
-					intervals[bit][1] = intervalWithBound(parentEnd)
-						.startAfter(intervals[prevBit][1])
-						.startAfter(intervals[prevBit][2])
-						.schedule(new Row(i)).end();
+					Interval inter = intervalWithBound(parentEnd, new Row(i));
+					intervals[bit][1] = inter.end();
+					Intervals.addHb(intervals[prevBit][1], inter.start());
+					Intervals.addHb(intervals[prevBit][2], inter.start());
 					
 					i += 2;
-					for(int j = 2; i < M; i += 2, j++)
-						intervals[bit][j] = intervalWithBound(parentEnd)
-							.startAfter(intervals[prevBit][j-2])
-							.startAfter(intervals[prevBit][j-1])
-							.startAfter(intervals[prevBit][j])
-							.startAfter(intervals[prevBit][j+1])
-							.schedule(new Row(i)).end();
+					for(int j = 2; i < M; i += 2, j++) {
+						inter = intervalWithBound(parentEnd, new Row(i));
+						intervals[bit][j] = inter.end();
+						Intervals.addHb(intervals[prevBit][j-2], inter.start());
+						Intervals.addHb(intervals[prevBit][j-1], inter.start());
+						Intervals.addHb(intervals[prevBit][j-0], inter.start());
+						Intervals.addHb(intervals[prevBit][j+1], inter.start());
+					}
 				}
 				
 				//System.err.println("Created all intervals");

@@ -40,10 +40,10 @@ public class TestFJ {
 		// are children of the current interval and the current
 		// interval always waits for them to finish before 
 		// proceeding.
-		Intervals.blockingInterval(new Task() {
+		Intervals.blockingInterval(new AbstractTask() {
 			public void run(Point parentEnd) {
 				for(int i = 0; i < N; i++)
-					Intervals.intervalWithBound(parentEnd).schedule(new AddTask(i));				
+					Intervals.intervalWithBound(parentEnd, new AddTask(i));				
 			}			
 		});
 		

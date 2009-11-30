@@ -1,31 +1,36 @@
 package ch.ethz.intervals;
 
-import static ch.ethz.intervals.UnscheduledIntervalImpl.initialWaitCount;
-
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
 import ch.ethz.intervals.ThreadPool.Worker;
 
 class PointImpl implements Point {
 	
-	public static final int OCCURRED = -1;
+	public static final int OCCURRED = -1;	
+	public static final int initialWaitCount = Integer.MAX_VALUE;
+	
+	private static AtomicIntegerFieldUpdater<PointImpl> waitCountUpdater =
+		AtomicIntegerFieldUpdater.newUpdater(PointImpl.class, "waitCount");
 
 	/** If this flag is set, then uncaught exceptions for this 
 	 *  interval are NOT propagated to its parent. */
 	protected static final int FLAG_MASK_EXC = 1;
 	
-	final PointImpl bound;                     /** Bound of this point (this->bound). */
-	final int depth;                           /** Depth in point bound tree. */
-	protected Object[] outEdges;               /** Linked list of outgoing edges from this point. */
-	protected int waitCount;                   /** Number of preceding points that have not arrived.  
-	                                               Set to {@link #OCCURRED} when this has occurred. */
-	protected Throwable pendingException;      /** Exception that occurred while executing the task or in some preceding point. */
-	protected int flags;                       /** Flags (see integer constants like {@link #FLAG_MASK_EXC}) */
-	protected LockList pendingLocks;           /** Locks to acquire once waitCount reaches 0 but before we occur */
-	protected ThreadPool.WorkItem workItem;    /** Work to schedule when we occur (if any) */
+	final PointImpl bound;                  /** Bound of this point (this->bound). */
+	final int depth;                        /** Depth in point bound tree. */
+	private Object[] outEdges;              /** Linked list of outgoing edges from this point. */
+	private volatile int waitCount;         /** Number of preceding points that have not arrived.  
+	                                            Set to {@link #OCCURRED} when this has occurred. 
+	                                            Modified only through {@link #waitCountUpdater}. */
+	private Throwable pendingException;     /** Exception that occurred while executing the task or in some preceding point. */
+	private int flags;                      /** Flags (see integer constants like {@link #FLAG_MASK_EXC}) */
+	private LockList pendingLocks;          /** Locks to acquire once waitCount reaches 0 but before we occur */
+	private ThreadPool.WorkItem workItem;   /** Work to schedule when we occur (if any) */
+	private Current unscheduled;
 
 	/** Used only for the end point of the root interval. */
 	PointImpl(int waitCount) {
@@ -35,10 +40,19 @@ class PointImpl implements Point {
 	}
 
 	/** Used only almost all points. */
-	PointImpl(PointImpl bound, int waitCount) {
+	PointImpl(Current unscheduled, PointImpl bound, int waitCount) {
 		this.bound = bound;
 		this.depth = bound.depth + 1;
 		this.waitCount = waitCount;
+		this.unscheduled = unscheduled;
+	}
+	
+	boolean isUnscheduled(Current current) {
+		return unscheduled == current;
+	}
+	
+	void clearUnscheduled() {
+		unscheduled = null;
 	}
 	
 	@Override
@@ -148,11 +162,7 @@ class PointImpl implements Point {
 	 *  @param cnt the number of preceding things that occurred,
 	 *  should always be positive and non-zero */
 	protected final void arrive(int cnt) {
-		int newCount;
-		synchronized(this) {
-			newCount = this.waitCount - cnt;
-			this.waitCount = newCount;
-		}
+		int newCount = waitCountUpdater.decrementAndGet(this);
 		
 		if(Debug.ENABLED) {
 			Debug.arrive(this, cnt, newCount);
@@ -221,22 +231,17 @@ class PointImpl implements Point {
 	}
 	
 	/** Adds to the wait count.  Only safe when the caller is
-	 *  one of the people we are waiting for. */
+	 *  one of the people we are waiting for.  
+	 *  <b>Does not acquire a lock on this.</b> */
 	protected void addWaitCount() {
-		int newCount;
-		synchronized(this) {
-			assert waitCount >= 1;
-			newCount = ++waitCount;
-		}
+		int newCount = waitCountUpdater.incrementAndGet(this);
 		if(Debug.ENABLED)
 			Debug.addWaitCount(this, newCount);		
 	}
 
-	/** Adds an outgoing edge.  Returns 1 if this
-	 *  point has not yet occurred. Another way to
-	 *  look at it is that this method returns the
-	 *  number of future invocations of {@code #arrive(int)}
-	 *  which {@code targetPnt} can expect. */
+	/** Adds an outgoing edge.  
+	 *  @return number of times arrive() will eventually be invoked
+	 *          on targetPnt (0 or 1). */
 	int addOutEdge(PointImpl targetPnt, boolean deterministic) {
 		synchronized(this) {
 			addOutEdgeDuringConstruction(targetPnt, deterministic);
@@ -328,12 +333,29 @@ class PointImpl implements Point {
 		this.flags = this.flags & (~flag);
 	}
 
-	protected void setPendingLocksBeforeScheduling(LockList pendingLocks) {
-		this.pendingLocks = pendingLocks;
+	public void addPendingLock(GuardImpl guard, boolean exclusive) {
+		LockList list = new LockList(guard, exclusive, null);
+		synchronized(this) {
+			list.next = pendingLocks;
+			pendingLocks = list;
+		}
 	}
 
 	protected void setWorkItemBeforeScheduling(ThreadPool.WorkItem workItem) {
 		this.workItem = workItem;
+	}
+
+	public void addHbUnchecked(PointImpl toImpl, boolean deterministic) {
+		// Note: we must increment the wait count before we release
+		// the lock on this, because otherwise toImpl could arrive and
+		// then decrement the wait count before we get a chance to increment
+		// it.  Therefore, it's important that we do not have to acquire a lock
+		// on toImpl, because otherwise deadlock could result.
+		synchronized(this) {
+			addOutEdgeDuringConstruction(toImpl, deterministic);
+			if(waitCount != OCCURRED)
+				toImpl.addWaitCount();
+		}
 	}
 
 }

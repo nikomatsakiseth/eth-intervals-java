@@ -44,15 +44,13 @@ public class TestPC {
 	
 	@Test public void test() {
 		final int MAX = 100;
-		blockingInterval(new Task() {
-			public void run(Point currentEnd) {				
+		blockingInterval(new AbstractTask() {
+			public void run(Point _) {				
 				Point endOfPrevConsumer = null;
-				for(int i = 0; i < MAX; i++)
-					endOfPrevConsumer =
-						intervalWithBound(currentEnd)
-						.startAfter(endOfPrevConsumer)
-						.schedule(new Consumer(i))
-						.end();
+				for(int i = 0; i < MAX; i++) {
+					Interval cons = Intervals.childInterval(new Consumer(i));
+					Intervals.addHb(endOfPrevConsumer, cons.start());
+				}
 			}			
 		});
 		for(int i = 0; i < MAX; i++)

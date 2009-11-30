@@ -16,7 +16,7 @@ public class SubintervalTask extends AbstractTask {
 
 	@Override
 	public final void run(Point parentEnd) {
-		intervalWithBound(parentEnd).schedule(subtask);
+		intervalWithBound(parentEnd, subtask);
 	}
 	
 	public String toString() {

@@ -253,19 +253,17 @@ public class TestGameOfLife {
 			}
 
 			void switchRounds(Point endOfThisRound) {
-				Interval switchInterval =
-					Intervals.intervalWithBound(endOfThisRound.bound())
-						.startAfter(endOfThisRound)
-						.schedule(switchRoundTask);
+				Interval switchInterval = Intervals.intervalWithBound(endOfThisRound.bound(), switchRoundTask);
+				Intervals.addHb(endOfThisRound, switchInterval.start());
 				
-				nextRound = 
-					Intervals.intervalWithBound(endOfThisRound.bound())
-						.startAfter(switchInterval.end())
-						.schedule(Intervals.emptyTask);
+				nextRound = Intervals.intervalWithBound(endOfThisRound.bound(), Intervals.emptyTask);
+				Intervals.addHb(switchInterval.end(), nextRound.start());
+				
+				Intervals.schedule();
 			}
 			
-			class SwitchRoundTask implements Task {
-
+			class SwitchRoundTask extends AbstractTask {
+				
 				@Override
 				public void run(Point currentEnd) {
 					if(roundsRemaining-- > 0)
@@ -276,12 +274,10 @@ public class TestGameOfLife {
 			final SwitchRoundTask switchRoundTask = new SwitchRoundTask();
 			
 			public void startTile(Tile tile, byte[][] inBoard, byte[][] outBoard) {
-				Intervals
-					.intervalDuring(nextRound)
-					.schedule(new TileTask(tile, inBoard, outBoard));
+				Intervals.intervalDuring(nextRound, new TileTask(tile, inBoard, outBoard));
 			}
 
-			class TileTask implements Task {
+			class TileTask extends AbstractTask {
 				public final Tile tile;
 				public final byte[][] inBoard;
 				public final byte[][] outBoard;
@@ -337,7 +333,7 @@ public class TestGameOfLife {
 			for(int r = 0; r < rs; r++)
 				System.arraycopy(initialConfig[r], 0, boards[0][r], 0, cs);
 			
-			Intervals.blockingInterval(new SubintervalTask(new Task() {
+			Intervals.blockingInterval(new SubintervalTask(new AbstractTask() {
 
 				@Override
 				public void run(Point currentEnd) {
@@ -397,13 +393,13 @@ public class TestGameOfLife {
 				// using an outer interval is a minor optimization, because it's
 				// expensive to switch from the "main" Java thread to the interval
 				// worker threads.
-				Intervals.blockingInterval(new Task() {
+				Intervals.blockingInterval(new AbstractTask() {
 					public void run(Point _) {
 						for(int rnd = 0; rnd < maxRound; rnd++) {
 							final byte[][] inBoard = boards[rnd % 2];
 							final byte[][] outBoard = boards[1 - (rnd % 2)];
 							
-							Intervals.blockingInterval(new Task() {
+							Intervals.blockingInterval(new AbstractTask() {
 								public void run(Point currentEnd) {
 									for(int r = 0; r < rs; r += h)
 										for(int c = 0; c < cs; c += w) {
@@ -412,7 +408,7 @@ public class TestGameOfLife {
 											final int rN = Math.min(r + h, rs);
 											final int cN = Math.min(c + w, cs);
 											
-											Intervals.intervalWithBound(currentEnd).schedule(new Task() {
+											Intervals.intervalWithBound(currentEnd, new AbstractTask() {
 												public String toString() 
 												{
 													return "Tile("+r0/h+","+c0/w+")";
@@ -478,26 +474,20 @@ public class TestGameOfLife {
 
 			class TileTask implements Task {
 				public final Tile tile;
-				public final int roundsRemaining;
-				public final Point[][] inIntervals;
-				public final byte[][] inBoard;
-				public final Point[][] outIntervals;
-				public final byte[][] outBoard;
+				public final int round, maxRound;
+				public final Point[][][] intervals;
+				public final byte[][][] data;
 				
 				public TileTask(
-						Tile tile, 
-						int roundsRemaining,
-						Point[][] inIntervals, byte[][] inBoard,
-						Point[][] outIntervals, byte[][] outBoard)
-				{
+						Tile tile, int round, int maxRound,
+						Point[][][] intervals, byte[][][] data) {
 					this.tile = tile;
-					this.roundsRemaining = roundsRemaining;
-					this.inIntervals = inIntervals;
-					this.inBoard = inBoard;
-					this.outIntervals = outIntervals;
-					this.outBoard = outBoard;
+					this.round = round;
+					this.maxRound = maxRound;
+					this.intervals = intervals;
+					this.data = data;
 				}
-				
+
 				public String toString() 
 				{
 					return "Tile("+tile.tr+","+tile.tc+")";
@@ -514,7 +504,29 @@ public class TestGameOfLife {
 				}				
 				
 				@Override
+				public void addDependencies(Interval inter) {
+					if(round > 0) {
+						// n.b.: The inIntervals and outIntervals arrays are padded with nulls
+						//       at the boundaries, and therefore use a 1-based offset!
+						Point[][] inIntervals = intervals[(round - 1) % 2];
+						Intervals.addHb(inIntervals[tile.tr+0][tile.tc+0], inter.start());
+						Intervals.addHb(inIntervals[tile.tr+0][tile.tc+1], inter.start());
+						Intervals.addHb(inIntervals[tile.tr+0][tile.tc+2], inter.start());
+						Intervals.addHb(inIntervals[tile.tr+1][tile.tc+0], inter.start());
+						Intervals.addHb(inIntervals[tile.tr+1][tile.tc+1], inter.start());
+						Intervals.addHb(inIntervals[tile.tr+1][tile.tc+2], inter.start());
+						Intervals.addHb(inIntervals[tile.tr+2][tile.tc+0], inter.start());
+						Intervals.addHb(inIntervals[tile.tr+2][tile.tc+1], inter.start());
+						Intervals.addHb(inIntervals[tile.tr+2][tile.tc+2], inter.start());
+					}
+				}
+				
+				@Override
 				public void run(Point currentEnd) {
+					
+					final int nextRound = round + 1;
+					byte[][] inBoard = data[round % 2];
+					byte[][] outBoard = data[nextRound % 2];
 					
 					for(int r = tile.r0; r < tile.rN; r++)
 						for(int c = tile.c0; c < tile.cN; c++) {
@@ -525,23 +537,15 @@ public class TestGameOfLife {
 							outBoard[r][c] = gameOfLife(inBoard[r][c], total);
 						}
 					
-					if(roundsRemaining > 0) {
-						// n.b.: The inIntervals and outIntervals arrays are padded with nulls
-						//       at the boundaries, and therefore use a 1-based offset!
-						outIntervals[tile.tr+1][tile.tc+1] =
-							Intervals.intervalWithBound(currentEnd.bound())
-							.startAfter(inIntervals[tile.tr+0][tile.tc+0])
-							.startAfter(inIntervals[tile.tr+1][tile.tc+0])
-							.startAfter(inIntervals[tile.tr+2][tile.tc+0])
-							.startAfter(inIntervals[tile.tr+0][tile.tc+1])
-							.startAfter(inIntervals[tile.tr+2][tile.tc+1])
-							.startAfter(inIntervals[tile.tr+0][tile.tc+2])
-							.startAfter(inIntervals[tile.tr+1][tile.tc+2])
-							.startAfter(inIntervals[tile.tr+2][tile.tc+2])
-							.schedule(new TileTask(tile, roundsRemaining - 1, outIntervals, outBoard, inIntervals, inBoard))
+					if(nextRound < maxRound) {
+						intervals[nextRound % 2][tile.tr+1][tile.tc+1] =
+							Intervals.intervalWithBound(
+									currentEnd.bound(), 
+									new TileTask(tile, round + 1, maxRound, intervals, data))
 							.end();
 					}
 				}
+
 			}
 		}
 		
@@ -555,9 +559,9 @@ public class TestGameOfLife {
 			for(int r = 0; r < rs; r++)
 				System.arraycopy(initialConfig[r], 0, boards[0][r], 0, cs);
 			
-			Intervals.blockingInterval(new SetupTask() {
+			Intervals.blockingInterval(new AbstractTask() {
 				@Override
-				public void setup(Point currentEnd, Interval worker) {
+				public void run(Point currentEnd) {
 					FineGrainedIntervalBoard fgBoard = new FineGrainedIntervalBoard(rs, cs);
 					for(int r = 0; r < rs; r += h)
 						for(int c = 0; c < cs; c += w) {
@@ -565,8 +569,9 @@ public class TestGameOfLife {
 							int cN = Math.min(c + w, cs);
 							Tile tile = new Tile(r / h, c / h, r, rN, c, cN);
 							intervals[0][tile.tr+1][tile.tc+1] =
-								Intervals.intervalDuring(worker)
-								.schedule(fgBoard.new TileTask(tile, maxRound, intervals[0], boards[0], intervals[1], boards[1]))
+								Intervals.intervalWithBound(
+										currentEnd,
+										fgBoard.new TileTask(tile, 0, maxRound, intervals, boards))
 								.end();
 						}
 				}

@@ -80,10 +80,11 @@ public class TestInterval {
 					Intervals.blockingInterval(new AbstractTask() {
 						public void run(final Point childEnd) {
 							
-							intervalWithBound(parentEnd).startAfter(childEnd).schedule(new AddTask(list, 2));
-							intervalWithBound(childEnd).schedule(new AddTask(list, 1));
-							intervalWithBound(childEnd).schedule(new AddTask(list, 1));
-							intervalWithBound(childEnd).schedule(new AddTask(list, 1));
+							Interval after = intervalWithBound(parentEnd, new AddTask(list, 2));
+							Intervals.addHb(childEnd, after.start());
+							intervalWithBound(childEnd, new AddTask(list, 1));
+							intervalWithBound(childEnd, new AddTask(list, 1));
+							intervalWithBound(childEnd, new AddTask(list, 1));
 							
 						}
 					});
@@ -105,16 +106,17 @@ public class TestInterval {
 		 *                               s
 		 */
 		final AtomicInteger successful = new AtomicInteger();
-		Intervals.blockingInterval(new SetupTask() {
+		Intervals.blockingInterval(new AbstractTask() {
 			@Override
-			public void setup(Point _, Interval worker) {
-				IntervalImpl d = (IntervalImpl) intervalDuring(worker).schedule(emptyTask);
-				IntervalImpl k = (IntervalImpl) intervalDuring(d).schedule(emptyTask);
-				IntervalImpl n = (IntervalImpl) intervalDuring(d).schedule(emptyTask);
-				IntervalImpl a = (IntervalImpl) intervalDuring(worker).schedule(emptyTask);
-				IntervalImpl m = (IntervalImpl) intervalDuring(a).schedule(emptyTask);
-				IntervalImpl t = (IntervalImpl) intervalDuring(a).schedule(emptyTask);
-				IntervalImpl s = (IntervalImpl) intervalDuring(t).schedule(emptyTask);
+			public void run(Point end) {
+				IntervalImpl worker = (IntervalImpl) intervalWithBound(end, emptyTask);
+				IntervalImpl d = (IntervalImpl) intervalDuring(worker, emptyTask);
+				IntervalImpl k = (IntervalImpl) intervalDuring(d, emptyTask);
+				IntervalImpl n = (IntervalImpl) intervalDuring(d, emptyTask);
+				IntervalImpl a = (IntervalImpl) intervalDuring(worker, emptyTask);
+				IntervalImpl m = (IntervalImpl) intervalDuring(a, emptyTask);
+				IntervalImpl t = (IntervalImpl) intervalDuring(a, emptyTask);
+				IntervalImpl s = (IntervalImpl) intervalDuring(t, emptyTask);
 				
 				Assert.assertEquals(d.end, d.end.mutualBound(d.end));
 				Assert.assertEquals(d.end, k.end.mutualBound(n.end));
@@ -134,6 +136,26 @@ public class TestInterval {
 		
 	}
 	
+	class ThrowExceptionTask implements Task {
+		final boolean maskExceptions;
+		
+		public ThrowExceptionTask(boolean maskExceptions) {
+			this.maskExceptions = maskExceptions;
+		}
+
+		@Override
+		public void run(Point currentEnd) {
+			throw new TestException();
+		}
+
+		@Override
+		public void addDependencies(Interval inter) {
+			PointImpl end = (PointImpl) inter.end();
+			if(maskExceptions)
+				end.addFlagBeforeScheduling(PointImpl.FLAG_MASK_EXC);
+		}		
+	}
+	
 	/**
 	 * Tests that uncaught exceptions propagate up to the parent, etc.
 	 */
@@ -141,22 +163,11 @@ public class TestInterval {
 		class TestHarness {
 			public void test(final boolean maskExceptions) {
 				try {
-					Intervals.blockingInterval(new Task() {
+					Intervals.blockingInterval(new AbstractTask() {
 
 						@Override
 						public void run(Point currentEnd) {
-							
-							intervalWithBound(currentEnd)
-							.setMaskExceptions(maskExceptions)
-							.schedule(new Task() {
-
-								@Override
-								public void run(Point currentEnd) {
-									throw new TestException();
-								}
-								
-							});
-							
+							intervalWithBound(currentEnd, new ThrowExceptionTask(maskExceptions));
 						}
 						
 					});
@@ -182,21 +193,13 @@ public class TestInterval {
 		class TestHarness {
 			public void test(final boolean maskExceptions) {
 				try {
-					Intervals.blockingInterval(new Task() {
+					Intervals.blockingInterval(new AbstractTask() {
 
 						@Override
 						public void run(Point currentEnd) {
-							
-							intervalWithBound(currentEnd)
-							.setMaskExceptions(maskExceptions)
-							.schedule(new SubintervalTask(new Task() {
-
-								@Override
-								public void run(Point currentEnd) {
-									throw new TestException();
-								}
-								
-							}));
+							intervalWithBound(
+									currentEnd, 
+									new SubintervalTask(new ThrowExceptionTask(maskExceptions)));
 						}
 						
 					});
@@ -475,6 +478,14 @@ public class TestInterval {
 						this.col = col;
 						this.counter = counter;
 					}
+					
+					@Override
+					public void addDependencies(Interval inter) {
+						super.addDependencies(inter);
+						Intervals.addHb(intervalFor(row - 1, col - 1), inter.start());
+						Intervals.addHb(intervalFor(row - 1, col + 0), inter.start());
+						Intervals.addHb(intervalFor(row - 1, col + 1), inter.start());
+					}
 
 					public void run(Point iEnd) {
 						assert intervalFor(row, col) == iEnd : String.format(
@@ -492,11 +503,7 @@ public class TestInterval {
 						// if not maximum row, proceed to next row
 						if (row < R) {
 							Cell nextCell = new Cell(row+1, col, counter);
-							Interval nextInterval = intervalDuring(parent)
-								.startAfter(iEnd)
-								.startAfter(intervalFor(row, col - 1))
-								.startAfter(intervalFor(row, col + 1))
-								.schedule(nextCell);
+							Interval nextInterval = intervalDuring(parent, nextCell);
 							setIntervalFor(row + 1, col, nextInterval.end()); 
 						}
 					}
@@ -504,7 +511,7 @@ public class TestInterval {
 				
 				final AtomicInteger counter = new AtomicInteger(0);
 				for (int c = 0; c < C; c++)
-					setIntervalFor(0, c, intervalDuring(parent).schedule(new Cell(0, c, counter)).end());
+					setIntervalFor(0, c, intervalDuring(parent, new Cell(0, c, counter)).end());
 			}			
 			
 		});
@@ -552,44 +559,52 @@ public class TestInterval {
 	
 	@Test(expected=NoEdgeException.class) 
 	public void raceConditionInBeforeGeneratesError1() {
-		final Interval a = interval().schedule(Intervals.emptyTask);
-		interval().endBefore(a.start()).schedule(Intervals.emptyTask);
+		final Interval a = interval(Intervals.emptyTask);
+		Intervals.schedule();
+		Interval b = interval(Intervals.emptyTask);
+		Intervals.addHb(b.end(), a.start());
 	}
 	
 	@Test(expected=NoEdgeException.class) 
 	public void raceConditionInBeforeGeneratesError2() {
-		final Interval a = interval().schedule(Intervals.emptyTask);
-		interval().startBefore(a.end()).schedule(Intervals.emptyTask);
+		final Interval a = interval(Intervals.emptyTask);
+		Intervals.schedule();
+		Interval b = interval(Intervals.emptyTask);
+		Intervals.addHb(b.start(), a.end());
 	}
 	
 	@Test(expected=NoEdgeException.class) 
 	public void raceConditionInBeforeGeneratesError3() {
-		final Interval a = interval().schedule(Intervals.emptyTask);
-		intervalWithBound(a.start()).schedule(Intervals.emptyTask);
+		final Interval a = interval(Intervals.emptyTask);
+		Intervals.schedule();
+		intervalWithBound(a.start(), Intervals.emptyTask);
 	}	
 
 	@Test(expected=CycleException.class) 
 	public void simpleCycleGeneratesError() {
-		interval().endAfter(Intervals.ROOT_END).schedule(emptyTask);
+		final Interval a = interval(Intervals.emptyTask);
+		Intervals.addHb(a.end(), Intervals.ROOT_END);
+	}
+	
+	@Test(expected=CycleException.class) 
+	public void simpleCycleGeneratesError2() {
+		final Interval a = interval(Intervals.emptyTask);
+		final Interval b = interval(Intervals.emptyTask);
+		Intervals.addHb(a.end(), b.start());
+		Intervals.addHb(b.end(), a.start());
 	}
 	
 	@Test 
 	public void raceCondErrorsLeaveSchedulerInStableState() {
-		final Interval a = interval().schedule(Intervals.emptyTask);
+		final Interval a = interval(Intervals.emptyTask);
 		final AtomicInteger i = new AtomicInteger();
 		
 		try {
-			blockingInterval(new Task() {
+			blockingInterval(new AbstractTask() {
 				public void run(Point currentEnd) {
-			
-					interval()
-					.endBefore(currentEnd)
-					.schedule(new IncTask(i));
-					
-					interval()
-					.endBefore(currentEnd)
-					.endBefore(a.end())
-					.schedule(Intervals.emptyTask);
+					intervalWithBound(currentEnd, new IncTask(i));
+					Interval b = intervalWithBound(currentEnd, Intervals.emptyTask);
+					Intervals.addHb(b.end(), a.start());
 				}			
 			});
 			
@@ -606,17 +621,13 @@ public class TestInterval {
 		final AtomicInteger i = new AtomicInteger();
 		
 		try {
-			blockingInterval(new Task() {
+			blockingInterval(new AbstractTask() {
 				public void run(Point currentEnd) {
-			
-					interval()
-					.endBefore(currentEnd)
-					.schedule(new IncTask(i));
-					
-					interval()
-					.endBefore(currentEnd)
-					.endAfter(currentEnd)
-					.schedule(Intervals.emptyTask);
+					intervalWithBound(currentEnd, new IncTask(i));
+					Interval a = intervalWithBound(currentEnd, Intervals.emptyTask);
+					Interval b = intervalWithBound(currentEnd, Intervals.emptyTask);
+					Intervals.addHb(a.end(), b.start());
+					Intervals.addHb(b.end(), a.start());
 				}			
 			});
 			
