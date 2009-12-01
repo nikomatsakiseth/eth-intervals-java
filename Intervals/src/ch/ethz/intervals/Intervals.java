@@ -142,6 +142,7 @@ public class Intervals {
 		IntervalImpl result = new IntervalImpl(task, start, end);		
 		start.setWorkItemBeforeScheduling(result);
 		ExecutionLog.logNewInterval(current.start, start, end);
+		ExecutionLog.logScheduleInterval(start, task); // XXX this event is no longer logically separate
 		current.addUnscheduled(result);
 		task.addDependencies(result);
 		return result;
@@ -205,6 +206,7 @@ public class Intervals {
 		PointImpl fromImpl = (PointImpl) from;
 		PointImpl toImpl = (PointImpl) to;
 		fromImpl.addHbUnchecked(toImpl, true);
+		ExecutionLog.logEdge(from, to);
 	}
 	
 	public static void exclusiveLock(Interval interval, Guard guard) {
