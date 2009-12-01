@@ -69,8 +69,9 @@ public class Intervals {
 	 * Returns an interval whose bound is the end of the current interval.
 	 */
 	public static Interval childInterval(Task task) {
+		// No need for safety checks, it's always legal to create a child interval:
 		Current current = Current.get();
-		return intervalWithBound(current, current.end, task);
+		return intervalWithBoundUnchecked(current.end, task, current);
 	}
 
 	/**
@@ -89,7 +90,8 @@ public class Intervals {
 			bound = current.end;
 		else
 			bound = current.end.bound;
-		return intervalWithBound(current, bound, task);
+		// No need for safety checks, it's always legal to create a sibling interval:
+		return intervalWithBoundUnchecked(bound, task, current);
 	}
 	
 	/**
@@ -99,7 +101,14 @@ public class Intervals {
 	public static Interval successorInterval(Task task) {
 		Current current = Current.get();
 		Interval result = siblingInterval(current, task);
-		current.end.addHbUnchecked((PointImpl) result.start(), true);
+		
+		// XXX Depending on the dependencies specified in task, 
+		// this edge may or may not be legal!  We should really
+		// add it before invoking task.addDependencies(),
+		// so that any error would occur THERE and not HERE,
+		// but that requires reshuffling our APIs a bit.
+		Intervals.addHb(current.end, result.start());
+		
 		return result;
 	}
 	
