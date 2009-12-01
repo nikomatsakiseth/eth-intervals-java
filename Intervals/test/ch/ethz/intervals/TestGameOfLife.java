@@ -4,42 +4,6 @@ import junit.framework.Assert;
 
 import org.junit.Test;
 
-/**
- * ------------------------------------------------------------------------------------
- * READ ME FIRST
- * 
- * This file is intended to be used as a JUnit 4 test.  In Eclipse, you can simply 
- * right-click on the class and choose Run As > JUnit Test.  (You may have to add 
- * JUnit 4 to the project's build path.  To do that, right-click the project and select
- * Properties > Java Build Path.  From there, choose Libraries > Add Library and select
- * JUnit version 4.  Alternatively, you can download the JUnit 4 jar file and add it to the
- * project as well)
- * 
- * It contains a reference engine {@link TestGameOfLife.SerialEngine} which performs the 
- * game of life in a serial, round-based fashion, and a 
- * placeholder class {@link TestGameOfLife.PhasedIntervalEngine} 
- * for you to implement your own Intervals-based engine.  
- * Feel free to create more than one intervals-based engine to test multiple strategies:
- * you simply need to create additional classes implementing the
- * {@link TestGameOfLife.GameOfLifeEngine} interface and add appropriate tests.
- * 
- * There are currently 3 sample patterns.  You can of course add more.  The 
- * tests serialBlinker, serialTheToad, and serialQueenBee check that the 
- * serial engine, when using each of these patterns,
- * gets the expected results.  As you won't be modifying the serial engine,
- * these are not for you to use, they are just a sanity
- * check.
- * 
- * The next three tests (intervalBlinker, etc) check your Interval-based engine 
- * against the serial one. These should help you to debug.  They currently print 
- * out the board whenever testing fails; if you set the boolean flag 
- * {@link TestGameOfLife#DUMP_ALL_CONFIGS} (below) to true, they will dump out the board
- * after each step, which is sometimes helpful. 
- * 
- * The game of life board is represented as a square, 2D array of bytes: byte[][].
- * Each cell is either 0 (dead) or 1 (alive).  
- * ------------------------------------------------------------------------------------
- */
 public class TestGameOfLife {
 	
 	/** If set to true, then we dump the configuration at each intermediate
@@ -61,77 +25,25 @@ public class TestGameOfLife {
 		if(total == 3) return 1;
 		return 0;
 	}
-
-	/** Simple abstraction layer for testing and comparing different engines */ 
-	interface GameOfLifeEngine {
-		/** Runs the game of life given the initial configuration {@code config},
-		 *  which must be a square matrix.  The routine should execute
-		 *  {@code maxRound} rounds and return the final configuration. */
-		byte[][] execute(byte[][] initialConfiguration, int maxRound);
-	}
 	
-	class SerialEngine implements GameOfLifeEngine {
-
-		class SerialBoard {
-			
-			final int rs, cs, maxRound;
-			final byte[][][] data;
-			
-			public SerialBoard(byte[][] data, int maxRound) {
-				this.rs = data.length;
-				this.cs = data[0].length;
-				this.maxRound = maxRound;
-				this.data = new byte[2][rs][cs];
-				
-				for(int r = 0; r < rs; r++)
-					for(int c = 0; c < cs; c++)
-						this.data[0][r][c] = data[r][c];
-			}
-			
-			public int total3(byte[][] inData, int r, int c) {
-				int total = 0;
-				if(r >= 0 && r < rs) {
-					if(c > 0) total += inData[r][c - 1];
-					total += inData[r][c];
-					if(c + 1 < cs) total += inData[r][c+1];
-				}
-				return total;
-			}
-
-			public void execute() {
-				for(int rnd = 1; rnd <= maxRound; rnd++) {
-					int mrnd = rnd % 2;
-					byte outData[][] = data[mrnd];
-					byte inData[][] = data[1 - mrnd];
-					
-					for(int r = 0; r < rs; r++) {
-						for(int c = 0; c < cs; c++) {
-							int total = 0;						
-							total += total3(inData, r - 1, c);
-							total += total3(inData, r, c) - inData[r][c];
-							total += total3(inData, r + 1, c);						
-							outData[r][c] = gameOfLife(inData[r][c], total);
-						}
-					}
-							
-				}
-			}
-
+	/** Encodes the basic rules of the game of life.  Assumes 1-based row
+	 *  and col indices. */
+	public void gameOfLife(byte[][] inData, byte[][] outData, int row, int col) {
+		byte current = inData[row][col]; 
+		int total = -current;
+		for(int r = row - 1; r <= row + 1; r++) {
+			total += inData[r][col - 1];
+			total += inData[r][col];
+			total += inData[r][col + 1];
 		}
 		
-		@Override
-		public byte[][] execute(byte[][] initialConfiguration, int maxRound) {
-			SerialBoard sb = new SerialBoard(initialConfiguration, maxRound);
-			sb.execute();
-			return sb.data[maxRound % 2];
-		}
-
+		outData[row][col] = gameOfLife(current, total);
 	}
 	
 	class Tile {
 		public final int tr, tc; /** tile row, tile column */
-		public final int r0, rN; /** first, last row + 1   */
-		public final int c0, cN; /** first, last col + 1   */
+		public final int r0, rN; /** first, last row       */
+		public final int c0, cN; /** first, last col       */
 		
 		public Tile(int tr, int tc, int r0, int rN, int c0, int cN) {
 			this.tr = tr;
@@ -140,7 +52,119 @@ public class TestGameOfLife {
 			this.rN = rN;
 			this.c0 = c0;
 			this.cN = cN;
+		}
+
+		public void run(byte[][] inData, byte[][] outData) {
+			for(int ri = r0; ri <= rN; ri++)
+				for(int ci = c0; ci <= cN; ci++) 				
+					gameOfLife(inData, outData, ri, ci);
 		}		
+	}
+	
+	interface InvokableWithTile {
+		void run(Tile t);
+	}
+	
+	void subdivide(int rows, int cols, int w, int h, InvokableWithTile run) {
+		int tileRows = (rows + h - 1) / h;
+		int tileCols = (cols + w - 1) / w;
+		
+		for(int tr = 1; tr <= tileRows; tr++) {
+			int r0 = (tr - 1) * h + 1;
+			int rN = Math.min(r0 + h - 1, rows);
+			
+			for(int tc = 1; tc <= tileCols; tc++) {
+				int c0 = (tc - 1) * w + 1;
+				int cN = Math.min(c0 + w - 1, cols);
+				
+				Tile t = new Tile(tr, tc, r0, rN, c0, cN);
+				run.run(t);
+			}
+		}
+	}
+
+	/** Simple abstraction layer for testing and comparing different engines */ 
+	interface GameOfLifeEngine {
+		/** Runs the game of life given the initial configuration {@code config},
+		 *  which must be a square matrix.  The routine should execute
+		 *  {@code numRounds} gens and return the final configuration. */
+		byte[][] execute(byte[][] initialConfiguration, int rs, int cs, int numRounds);
+	}
+	
+	abstract class GameOfLifeBoard {
+		
+		final int rs, cs;
+		final byte[][][] data;
+		final int numGens;
+		
+		GameOfLifeBoard(byte[][] initialConfiguration, int rs, int cs, int numRounds) {
+			this.rs = rs;
+			this.cs = cs;
+			this.numGens = numRounds;			
+			this.data = new byte[2][rs+2][cs+2];
+			
+			for(int r = 1; r <= rs; r++)
+				for(int c = 1; c <= cs; c++)
+					data[0][r][c] = initialConfiguration[r][c];
+		}
+		
+		abstract byte[][] execute();
+		
+	}
+	
+	class SerialBoard extends GameOfLifeBoard {
+		
+		public SerialBoard(byte[][] initialConfiguration, int rs, int cs, int numGens) {
+			super(initialConfiguration, rs, cs, numGens);
+		}
+
+		@Override
+		byte[][] execute() {
+			for(int g = 0; g < numGens; g++) {
+				byte[][] inData = data[g % 2], outData = data[(g + 1) % 2];
+				for(int r = 1; r <= rs; r++)
+					for(int c = 1; c <= cs; c++)
+						gameOfLife(inData, outData, r, c);
+			}
+			return data[numGens % 2];
+		}
+		
+	}
+	
+	class SerialEngine implements GameOfLifeEngine {
+
+		@Override
+		public byte[][] execute(byte[][] initialConfiguration, int rs, int cs, int numGens) {
+			SerialBoard sb = new SerialBoard(initialConfiguration, rs, cs, numGens);
+			return sb.execute();
+		}
+
+	}
+	
+	class SerialTiledBoard extends GameOfLifeBoard {
+		
+		final int w, h;
+		
+		public SerialTiledBoard(byte[][] initialConfiguration, int rs, int cs, int numGens, int w, int h) {
+			super(initialConfiguration, rs, cs, numGens);
+			this.w = w;
+			this.h = h;
+		}
+
+		@Override
+		byte[][] execute() {
+			for(int g = 0; g < numGens; g++) {
+				final byte[][] inData = data[g % 2], outData = data[(g + 1) % 2];
+				subdivide(rs, cs, w, h, new InvokableWithTile() {					
+					@Override
+					public void run(Tile t) {
+						t.run(inData, outData);
+					}
+				});
+			}
+			return data[numGens % 2];
+		}
+		
 	}
 	
 	class SerialTiledEngine implements GameOfLifeEngine {
@@ -156,73 +180,110 @@ public class TestGameOfLife {
 			this.h = h;
 		}		
 
-		class SerialBoard {
-			
-			final int rs, cs, maxRound;
-			final byte[][][] data;
-			
-			public SerialBoard(byte[][] data, int maxRound) {
-				this.rs = data.length;
-				this.cs = data[0].length;
-				this.maxRound = maxRound;
-				this.data = new byte[2][rs][cs];
-				
-				for(int r = 0; r < rs; r++)
-					for(int c = 0; c < cs; c++)
-						this.data[0][r][c] = data[r][c];
-			}
-			
-			public int total3(byte[][] inData, int r, int c) {
-				int total = 0;
-				if(r >= 0 && r < rs) {
-					if(c > 0) total += inData[r][c - 1];
-					total += inData[r][c];
-					if(c + 1 < cs) total += inData[r][c+1];
-				}
-				return total;
-			}
-
-			public void execute() {
-				for(int rnd = 1; rnd <= maxRound; rnd++) {
-					int mrnd = rnd % 2;
-					byte outData[][] = data[mrnd];
-					byte inData[][] = data[1 - mrnd];
-					
-					for(int r0 = 0; r0 < rs; r0 += h) {
-						for(int c0 = 0; c0 < cs; c0 += w) {
-							int rN = Math.min(r0 + h, rs);
-							int cN = Math.min(c0 + w, cs);
-							for(int r = r0; r < rN; r++) {
-								for(int c = c0; c < cN; c++) {
-									int total = 0;						
-									total += total3(inData, r - 1, c);
-									total += total3(inData, r, c) - inData[r][c];
-									total += total3(inData, r + 1, c);						
-									outData[r][c] = gameOfLife(inData[r][c], total);
-								}
-							}
-						}
-					}
-							
-				}
-			}
-
-		}
-		
 		@Override
-		public byte[][] execute(byte[][] initialConfiguration, int maxRound) {
-			SerialBoard sb = new SerialBoard(initialConfiguration, maxRound);
-			sb.execute();
-			return sb.data[maxRound % 2];
+		public byte[][] execute(byte[][] initialConfiguration, int rs, int cs, int maxGen) {
+			SerialTiledBoard sb = new SerialTiledBoard(initialConfiguration, rs, cs, maxGen, w, h);
+			return sb.execute();
 		}
 
 	}
 	
+	class PhasedIntervalBoard extends GameOfLifeBoard {
+		
+		final int w, h;
+		
+		int gensRemaining;
+		Interval nextGen;
+		
+		public PhasedIntervalBoard(byte[][] initialConfiguration, int rs, int cs, int numGens, int w, int h) {
+			super(initialConfiguration, rs, cs, numGens);
+			this.w = w;
+			this.h = h;			
+		}
+
+		void switchGens(Point endOfThisGen) {
+			Interval switchInterval = Intervals.intervalWithBound(endOfThisGen.bound(), switchGenTask);
+			Intervals.addHb(endOfThisGen, switchInterval.start());
+			
+			nextGen = Intervals.intervalWithBound(endOfThisGen.bound(), Intervals.emptyTask);
+			Intervals.addHb(switchInterval.end(), nextGen.start());
+			
+			Intervals.schedule();
+		}
+		
+		class SwitchGenTask extends AbstractTask {
+			
+			@Override
+			public void run(Point currentEnd) {
+				if(gensRemaining-- > 0)
+					switchGens(nextGen.end());
+			}
+			
+		}
+		final SwitchGenTask switchGenTask = new SwitchGenTask();
+		
+		public void startTile(Tile tile, byte[][] inBoard, byte[][] outBoard) {
+			Intervals.intervalDuring(nextGen, new TileTask(tile, inBoard, outBoard));
+		}
+
+		class TileTask extends AbstractTask {
+			public final Tile tile;
+			public final byte[][] inBoard;
+			public final byte[][] outBoard;
+			
+			public TileTask(
+					Tile tile,
+					byte[][] inBoard,
+					byte[][] outBoard) 
+			{
+				this.tile = tile;
+				this.inBoard = inBoard;
+				this.outBoard = outBoard;
+			}
+
+			public String toString() 
+			{
+				return "Tile("+tile.tr+","+tile.tc+")";
+			}			
+			
+			@Override
+			public void run(Point currentEnd) {
+				tile.run(inBoard, outBoard);
+				if(gensRemaining > 0)
+					startTile(tile, outBoard, inBoard);					
+			}
+		}
+
+		@Override
+		byte[][] execute() {
+			gensRemaining = numGens;
+			
+			Intervals.blockingInterval(new SubintervalTask(new AbstractTask() {
+				
+				@Override
+				public void run(Point currentEnd) {
+					switchGens(currentEnd);
+					
+					subdivide(rs, cs, w, h, new InvokableWithTile() {					
+						@Override
+						public void run(Tile t) {
+							startTile(t, data[0], data[1]);
+						}
+					});
+				}
+				
+			}));
+
+			return data[numGens % 2];
+		}
+		
+	}
+	
 	/**
-	 * A version that uses phases.  Each round fully completes before
+	 * A version that uses phases.  Each gen fully completes before
 	 * the next begins.  The structure follows a generic barrier
 	 * pattern, where at any given moment there is an interval
-	 * {@code nextRound} where processing for the next round is
+	 * {@code nextGen} where processing for the next gen is
 	 * scheduled.  You could also write this as a simple for loop
 	 * with a bounded interval for each iteration.  
 	 */
@@ -239,118 +300,53 @@ public class TestGameOfLife {
 			this.h = h;
 		}
 		
-		class PhasedIntervalBoard {
-			public final int rs, cs;
-			public Interval nextRound;
-			public int roundsRemaining;
-			
-			public PhasedIntervalBoard(int rs, int cs, int roundsRemaining, Point endOfThisRound) 
-			{
-				this.rs = rs;
-				this.cs = cs;
-				this.roundsRemaining = roundsRemaining;
-				switchRounds(endOfThisRound);
-			}
-
-			void switchRounds(Point endOfThisRound) {
-				Interval switchInterval = Intervals.intervalWithBound(endOfThisRound.bound(), switchRoundTask);
-				Intervals.addHb(endOfThisRound, switchInterval.start());
-				
-				nextRound = Intervals.intervalWithBound(endOfThisRound.bound(), Intervals.emptyTask);
-				Intervals.addHb(switchInterval.end(), nextRound.start());
-				
-				Intervals.schedule();
-			}
-			
-			class SwitchRoundTask extends AbstractTask {
-				
-				@Override
-				public void run(Point currentEnd) {
-					if(roundsRemaining-- > 0)
-						switchRounds(nextRound.end());
-				}
-				
-			}
-			final SwitchRoundTask switchRoundTask = new SwitchRoundTask();
-			
-			public void startTile(Tile tile, byte[][] inBoard, byte[][] outBoard) {
-				Intervals.intervalDuring(nextRound, new TileTask(tile, inBoard, outBoard));
-			}
-
-			class TileTask extends AbstractTask {
-				public final Tile tile;
-				public final byte[][] inBoard;
-				public final byte[][] outBoard;
-				
-				public TileTask(
-						Tile tile,
-						byte[][] inBoard,
-						byte[][] outBoard) 
-				{
-					this.tile = tile;
-					this.inBoard = inBoard;
-					this.outBoard = outBoard;
-				}
-
-				public String toString() 
-				{
-					return "Tile("+tile.tr+","+tile.tc+")";
-				}
-				
-				public int total3(byte[][] inData, int r, int c) {
-					int total = 0;
-					if(r >= 0 && r < rs) {
-						if(c > 0) total += inData[r][c - 1];
-						total += inData[r][c];
-						if(c + 1 < cs) total += inData[r][c+1];
-					}
-					return total;
-				}				
-				
-				@Override
-				public void run(Point currentEnd) {
-					for(int r = tile.r0; r < tile.rN; r++)
-						for(int c = tile.c0; c < tile.cN; c++) {
-							int total = 0;
-							total += total3(inBoard, r - 1, c);
-							total += total3(inBoard, r, c) - inBoard[r][c];
-							total += total3(inBoard, r + 1, c);								
-							outBoard[r][c] = gameOfLife(inBoard[r][c], total);
-						}
-					
-					if(roundsRemaining > 0)
-						startTile(tile, outBoard, inBoard);					
-				}
-			}
-		}
-		
 		@Override
-		public byte[][] execute(byte[][] initialConfig, final int maxRound) {
-			final int rs = initialConfig.length;
-			final int cs = initialConfig[0].length;
-			final byte[][][] boards = new byte[2][rs][cs];
-
-			for(int r = 0; r < rs; r++)
-				System.arraycopy(initialConfig[r], 0, boards[0][r], 0, cs);
-			
-			Intervals.blockingInterval(new SubintervalTask(new AbstractTask() {
-
-				@Override
-				public void run(Point currentEnd) {
-					PhasedIntervalBoard piBoard = new PhasedIntervalBoard(rs, cs, maxRound, currentEnd);
-					for(int r = 0; r < rs; r += h)
-						for(int c = 0; c < cs; c += w) {
-							int rN = Math.min(r + h, rs);
-							int cN = Math.min(c + w, cs);
-							Tile tile = new Tile(r / h, c / w, r, rN, c, cN);
-							piBoard.startTile(tile, boards[0], boards[1]);
-						}
-				}
-				
-			}));
-			
-			return boards[maxRound % 2];
+		public byte[][] execute(byte[][] initialConfig, int rs, int cs, int numGens) {
+			PhasedIntervalBoard board = new PhasedIntervalBoard(initialConfig, rs, cs, numGens, w, h);
+			return board.execute();
 		}		
+	}
+	
+	class SimplerPhasedIntervalBoard extends GameOfLifeBoard {
+		
+		final int w, h;
+		
+		SimplerPhasedIntervalBoard(byte[][] initialConfiguration, int rs,
+				int cs, int numGens, int w, int h) 
+		{
+			super(initialConfiguration, rs, cs, numGens);
+			this.w = w;
+			this.h = h;
+		}
+
+		@Override
+		byte[][] execute() {
+			for(int gen = 0; gen < numGens; gen++) {
+				final byte[][] inBoard = data[gen % 2];
+				final byte[][] outBoard = data[(gen + 1) % 2];
+				
+				Intervals.blockingInterval(new AbstractTask() {
+					public void run(final Point currentEnd) {
+						subdivide(rs, cs, w, h, new InvokableWithTile() {
+							public void run(final Tile t) {
+								Intervals.intervalWithBound(currentEnd, new AbstractTask() {
+									public String toString() 
+									{
+										return "Tile("+t.tr+","+t.tc+")";
+									}
+
+									public void run(Point currentEnd) {
+										t.run(inBoard, outBoard);
+									}
+								});
+								
+							}
+						});
+					}
+				});
+			}
+			return data[numGens % 2];
+		}
 	}
 	
 	class SimplerPhasedIntervalEngine implements GameOfLifeEngine {
@@ -366,89 +362,92 @@ public class TestGameOfLife {
 			this.h = h;
 		}
 		
-		class SimplerPhasedIntervalBoard {
-			public final int rs, cs;
-			
-			public SimplerPhasedIntervalBoard(int rs, int cs) {
-				this.rs = rs;
-				this.cs = cs;
-			}
-
-			public int total3(byte[][] inData, int r, int c) {
-				int total = 0;
-				if(r >= 0 && r < rs) {
-					if(c > 0) total += inData[r][c - 1];
-					total += inData[r][c];
-					if(c + 1 < cs) total += inData[r][c+1];
-				}
-				return total;
-			}	
-			
-			public byte[][] compute(byte[][] initialConfig, final int maxRound) {
-				final byte boards[][][] = new byte[2][rs][cs];
-				
-				for(int r = 0; r < rs; r++)
-					System.arraycopy(initialConfig[r], 0, boards[0][r], 0, cs);
-				
-				// using an outer interval is a minor optimization, because it's
-				// expensive to switch from the "main" Java thread to the interval
-				// worker threads.
-				Intervals.blockingInterval(new AbstractTask() {
-					public void run(Point _) {
-						for(int rnd = 0; rnd < maxRound; rnd++) {
-							final byte[][] inBoard = boards[rnd % 2];
-							final byte[][] outBoard = boards[1 - (rnd % 2)];
-							
-							Intervals.blockingInterval(new AbstractTask() {
-								public void run(Point currentEnd) {
-									for(int r = 0; r < rs; r += h)
-										for(int c = 0; c < cs; c += w) {
-											final int r0 = r;
-											final int c0 = c;
-											final int rN = Math.min(r + h, rs);
-											final int cN = Math.min(c + w, cs);
-											
-											Intervals.intervalWithBound(currentEnd, new AbstractTask() {
-												public String toString() 
-												{
-													return "Tile("+r0/h+","+c0/w+")";
-												}
-		
-												public void run(Point currentEnd) {
-													
-													for(int ri = r0; ri < rN; ri++)
-														for(int ci = r0; ci < cN; ci++) {
-															int total = 0;
-															total += total3(inBoard, ri - 1, ci);
-															total += total3(inBoard, ri, ci) - inBoard[ri][ci];
-															total += total3(inBoard, ri + 1, ci);								
-															outBoard[ri][ci] = gameOfLife(inBoard[ri][ci], total);
-														}
-												}
-											});
-										}
-								}
-							});
-						}
-					}
-				});	
-				return boards[maxRound % 2];
-			}
-		}
-		
 		@Override
-		public byte[][] execute(byte[][] initialConfig, final int maxRound) {
-			final int rs = initialConfig.length;
-			final int cs = initialConfig[0].length;
-			SimplerPhasedIntervalBoard sib = new SimplerPhasedIntervalBoard(rs, cs);
-			return sib.compute(initialConfig, maxRound);
+		public byte[][] execute(byte[][] initialConfig, int rs, int cs, int numGens) {
+			SimplerPhasedIntervalBoard sib = new SimplerPhasedIntervalBoard(initialConfig, rs, cs, numGens, w, h);
+			return sib.execute();
 		}		
 	}
 	
+	class FineGrainedIntervalBoard extends GameOfLifeBoard {
+		
+		final int w, h;
+		final Point[][][] points;
+
+		FineGrainedIntervalBoard(byte[][] initialConfiguration, int rs, int cs,
+				int numGens, int w, int h) {
+			super(initialConfiguration, rs, cs, numGens);
+			this.w = w;
+			this.h = h;
+			points = new Point[2][rs+2][cs+2];
+		}
+
+		class TileTask implements Task {
+			public final Tile tile;
+			public final int gen;
+			
+			public TileTask(Tile tile, int gen) {
+				this.tile = tile;
+				this.gen = gen;
+			}
+
+			public String toString() 
+			{
+				return "Tile("+gen+","+tile.tr+","+tile.tc+")";
+			}
+
+			@Override
+			public void addDependencies(Interval inter) {
+				if(gen > 0) {
+					// n.b.: The points array is padded with nulls.
+					Point[][] prevGen = points[(gen - 1) % 2];					
+					for(int r = -1; r <= 1; r++)
+						for(int c = -1; c <= 1; c++) {
+							Intervals.addHb(prevGen[tile.tr+r][tile.tc+c], inter.start());
+						}
+				}
+			}
+			
+			@Override
+			public void run(Point _) {				
+				final int nextGen = gen + 1;
+				byte[][] inBoard = data[gen % 2];
+				byte[][] outBoard = data[nextGen % 2];
+				
+				tile.run(inBoard, outBoard);
+				
+				if(nextGen < numGens) {
+					points[nextGen % 2][tile.tr][tile.tc] =
+						Intervals.siblingInterval(new TileTask(tile, nextGen)).end();
+				}
+			}
+
+		}
+
+		@Override
+		byte[][] execute() {
+			
+			Intervals.blockingInterval(new AbstractTask() {
+				public void run(Point _) {
+					
+					subdivide(rs, cs, w, h, new InvokableWithTile() {
+						public void run(Tile t) {
+							points[0][t.tr][t.tc] = 
+								Intervals.childInterval(new TileTask(t, 0)).end();								
+						}
+					});
+					
+				}
+			});
+			
+			return data[numGens % 2];
+		}
+	}
+
 	/**
 	 * A version which uses fine-grained dependencies.  
-	 * Rounds do not have to fully complete before the next
-	 * round can begin.    
+	 * Gens do not have to fully complete before the next
+	 * gen can begin.    
 	 */
 	class FineGrainedIntervalEngine implements GameOfLifeEngine {
 		
@@ -463,122 +462,13 @@ public class TestGameOfLife {
 			this.h = h;
 		}
 
-		class FineGrainedIntervalBoard {
-			public final int rs, cs;
-			
-			public FineGrainedIntervalBoard(int rs, int cs)
-			{
-				this.rs = rs;
-				this.cs = cs;
-			}
-
-			class TileTask implements Task {
-				public final Tile tile;
-				public final int round, maxRound;
-				public final Point[][][] intervals;
-				public final byte[][][] data;
-				
-				public TileTask(
-						Tile tile, int round, int maxRound,
-						Point[][][] intervals, byte[][][] data) {
-					this.tile = tile;
-					this.round = round;
-					this.maxRound = maxRound;
-					this.intervals = intervals;
-					this.data = data;
-				}
-
-				public String toString() 
-				{
-					return "Tile("+tile.tr+","+tile.tc+")";
-				}
-
-				public int total3(byte[][] inData, int r, int c) {
-					int total = 0;
-					if(r >= 0 && r < rs) {
-						if(c > 0) total += inData[r][c - 1];
-						total += inData[r][c];
-						if(c + 1 < cs) total += inData[r][c+1];
-					}
-					return total;
-				}				
-				
-				@Override
-				public void addDependencies(Interval inter) {
-					if(round > 0) {
-						// n.b.: The inIntervals and outIntervals arrays are padded with nulls
-						//       at the boundaries, and therefore use a 1-based offset!
-						Point[][] inIntervals = intervals[(round - 1) % 2];
-						Intervals.addHb(inIntervals[tile.tr+0][tile.tc+0], inter.start());
-						Intervals.addHb(inIntervals[tile.tr+0][tile.tc+1], inter.start());
-						Intervals.addHb(inIntervals[tile.tr+0][tile.tc+2], inter.start());
-						Intervals.addHb(inIntervals[tile.tr+1][tile.tc+0], inter.start());
-						Intervals.addHb(inIntervals[tile.tr+1][tile.tc+1], inter.start());
-						Intervals.addHb(inIntervals[tile.tr+1][tile.tc+2], inter.start());
-						Intervals.addHb(inIntervals[tile.tr+2][tile.tc+0], inter.start());
-						Intervals.addHb(inIntervals[tile.tr+2][tile.tc+1], inter.start());
-						Intervals.addHb(inIntervals[tile.tr+2][tile.tc+2], inter.start());
-					}
-				}
-				
-				@Override
-				public void run(Point currentEnd) {
-					
-					final int nextRound = round + 1;
-					byte[][] inBoard = data[round % 2];
-					byte[][] outBoard = data[nextRound % 2];
-					
-					for(int r = tile.r0; r < tile.rN; r++)
-						for(int c = tile.c0; c < tile.cN; c++) {
-							int total = 0;
-							total += total3(inBoard, r - 1, c);
-							total += total3(inBoard, r, c) - inBoard[r][c];
-							total += total3(inBoard, r + 1, c);								
-							outBoard[r][c] = gameOfLife(inBoard[r][c], total);
-						}
-					
-					if(nextRound < maxRound) {
-						intervals[nextRound % 2][tile.tr+1][tile.tc+1] =
-							Intervals.intervalWithBound(
-									currentEnd.bound(), 
-									new TileTask(tile, round + 1, maxRound, intervals, data))
-							.end();
-					}
-				}
-
-			}
-		}
-		
 		@Override
-		public byte[][] execute(byte[][] initialConfig, final int maxRound) {
-			final int rs = initialConfig.length;
-			final int cs = initialConfig[0].length;
-			final byte[][][] boards = new byte[2][rs][cs];
-			final Point[][][] intervals = new Point[2][rs+2][cs+2];
+		public byte[][] execute(byte[][] initialConfiguration, int rs, int cs,
+				int numGens) {
+			GameOfLifeBoard board = new FineGrainedIntervalBoard(initialConfiguration, rs, cs, numGens, w, h);
+			return board.execute();
+		}
 
-			for(int r = 0; r < rs; r++)
-				System.arraycopy(initialConfig[r], 0, boards[0][r], 0, cs);
-			
-			Intervals.blockingInterval(new AbstractTask() {
-				@Override
-				public void run(Point currentEnd) {
-					FineGrainedIntervalBoard fgBoard = new FineGrainedIntervalBoard(rs, cs);
-					for(int r = 0; r < rs; r += h)
-						for(int c = 0; c < cs; c += w) {
-							int rN = Math.min(r + h, rs);
-							int cN = Math.min(c + w, cs);
-							Tile tile = new Tile(r / h, c / h, r, rN, c, cN);
-							intervals[0][tile.tr+1][tile.tc+1] =
-								Intervals.intervalWithBound(
-										currentEnd,
-										fgBoard.new TileTask(tile, 0, maxRound, intervals, boards))
-								.end();
-						}
-				}
-			});
-			
-			return boards[maxRound % 2];
-		}		
 	}
 	
 	/** Checks two byte arrays for equality. */
@@ -588,8 +478,8 @@ public class TestGameOfLife {
 			dumpConfig(desc + " actual", actConfig);
 		}
 		
-		for (int r = 0; r < expConfig.length; r++)
-			for (int c = 0; c < expConfig[0].length; c++) {
+		for (int r = 1; r < expConfig.length; r++)
+			for (int c = 1; c < expConfig[0].length; c++) {
 				if(expConfig[r][c] != actConfig[r][c]) {
 					dumpConfig(desc + " expected", expConfig);
 					dumpConfig(desc + " actual", actConfig);
@@ -607,14 +497,14 @@ public class TestGameOfLife {
 		System.err.println(name+":");
 		
 		System.err.print("  ");
-		for (int c = 0; c < expConfig[0].length; c++)
+		for (int c = 1; c < expConfig[0].length; c++)
 			System.err.print(c % 10);
 		System.err.println();
 		
-		for (int r = 0; r < expConfig.length; r++) {
+		for (int r = 1; r < expConfig.length; r++) {
 			System.err.print(" ");
 			System.err.print(r % 10);
-			for (int c = 0; c < expConfig[0].length; c++)
+			for (int c = 1; c < expConfig[0].length; c++)
 				if(expConfig[r][c] == 0)
 					System.err.print(".");
 				else
@@ -623,39 +513,71 @@ public class TestGameOfLife {
 		}
 	}
 
+	/** Prints the config to stderr */
+	private void dumpConfig(String name, byte[][] expConfig, Tile tile) {
+		System.err.printf("%s (%d,%d)-(%d,%d):\n", name, tile.r0, tile.c0, tile.rN, tile.cN);
+		
+		System.err.print("  ");
+		for (int c = tile.c0; c <= tile.cN; c++)
+			System.err.print(c % 10);
+		System.err.println();
+		
+		for (int r = tile.r0; r <= tile.rN; r++) {
+			System.err.print(" ");
+			System.err.print(r % 10);
+			for (int c = tile.c0; c <= tile.cN; c++)
+				if(expConfig[r][c] == 0)
+					System.err.print(".");
+				else
+					System.err.print("x");
+			System.err.println();
+		}
+	}
+	
 	/** Little class used to structure sample patterns. */
 	class PatternEvolution {
-		final int round;
-		final byte[][] expected;
-		public PatternEvolution(int round, byte[][] expected) {
-			super();
-			this.round = round;
+		final int gen;
+		final byte[][] expected; /// 1-based!
+		final int rs, cs;
+		
+		public PatternEvolution(int gen, int rs, int cs, byte[][] expected) {
+			this.gen = gen;
+			this.rs = rs;
+			this.cs = cs;
 			this.expected = expected;
 		}
 		
 		/** Returns the same pattern but padded with blank space */
-		public PatternEvolution paddedToSize(int rs, int cs) {
-			byte[][] result = new byte[rs][cs];
-			for(int r = 0; r < expected.length; r++)
-				System.arraycopy(expected[r], 0, result[r], 0, expected[r].length);
-			return new PatternEvolution(round, result);
+		public PatternEvolution paddedToSize(int rs1, int cs1) {
+			byte[][] result = new byte[rs1+2][cs1+2];
+			for(int r = 1; r <= rs; r++)
+				System.arraycopy(expected[r], 1, result[r], 1, cs);
+			return new PatternEvolution(gen, rs1, cs1, result);
 		}
 	}
-
-	/** Sample pattern called the Blinker which repeats after two rounds. */
+	
+	public PatternEvolution pattern(int gen, byte[][] in) {
+		int rs = in.length, cs = in[0].length;
+		byte[][] out = new byte[rs+2][cs+2];
+		for(int r = 0; r < rs; r++)
+			System.arraycopy(in[r], 0, out[r+1], 1, cs);
+		return new PatternEvolution(gen, rs, cs, out);
+	}
+	
+	/** Sample pattern called the Blinker which repeats after two gens. */
 	PatternEvolution[] blinker = new PatternEvolution[] {
 			
-			new PatternEvolution(0, new byte[][] {
+			pattern(0, new byte[][] {
 					{ 0, 0, 0, },
 					{ 1, 1, 1, },
 					{ 0, 0, 0, }					
 			}),
-			new PatternEvolution(1, new byte[][] {
+			pattern(1, new byte[][] {
 					{ 0, 1, 0, },
 					{ 0, 1, 0, },
 					{ 0, 1, 0, }
    			}),
-			new PatternEvolution(2, new byte[][] {
+			pattern(2, new byte[][] {
 					{ 0, 0, 0, },
 					{ 1, 1, 1, },
 					{ 0, 0, 0, }										
@@ -663,22 +585,22 @@ public class TestGameOfLife {
 			                       			                       			
 	};
 
-	/** Sample pattern called the Toad which repeats after two rounds. */
+	/** Sample pattern called the Toad which repeats after two gens. */
 	PatternEvolution[] theToad = new PatternEvolution[] {
 			
-			new PatternEvolution(0, new byte[][] {
+			pattern(0, new byte[][] {
 					{ 0, 0, 0, 0, }, 
 					{ 0, 1, 1, 1, },
 					{ 1, 1, 1, 0, },
 					{ 0, 0, 0, 0, } 
 			}),
-			new PatternEvolution(1, new byte[][] {
+			pattern(1, new byte[][] {
 					{ 0, 0, 1, 0, }, 
 					{ 1, 0, 0, 1, },
 					{ 1, 0, 0, 1, },
 					{ 0, 1, 0, 0, }
 			}),
-			new PatternEvolution(2, new byte[][] {
+			pattern(2, new byte[][] {
 					{ 0, 0, 0, 0, }, 
 					{ 0, 1, 1, 1, },
 					{ 1, 1, 1, 0, },
@@ -689,7 +611,7 @@ public class TestGameOfLife {
 	
 	/** Sample pattern called the Queen Bee which runs indefinitely. */
 	PatternEvolution[] queenBee = new PatternEvolution[] {
-		new PatternEvolution(0, new byte[][] {
+		pattern(0, new byte[][] {
 				//0              5              10             15             20             30
 				{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 				{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
@@ -702,7 +624,7 @@ public class TestGameOfLife {
 				{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 				{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },								
 		}),
-		new PatternEvolution(1, new byte[][] {
+		pattern(1, new byte[][] {
    				//0              5              10             15             20             30
    				{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
    				{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
@@ -715,7 +637,7 @@ public class TestGameOfLife {
    				{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
    				{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },				
    		}),
-   		new PatternEvolution(2, new byte[][] {
+   		pattern(2, new byte[][] {
    				//0              5              10             15             20             30
    				{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
    				{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
@@ -728,7 +650,7 @@ public class TestGameOfLife {
    				{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
    				{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },				
    		}),
-   		new PatternEvolution(7, new byte[][] {
+   		pattern(7, new byte[][] {
 				//0              5              10             15             20             30
 				{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 				{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
@@ -741,7 +663,7 @@ public class TestGameOfLife {
 				{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 				{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },				
 		}),
-		new PatternEvolution(37, new byte[][] {
+		pattern(37, new byte[][] {
 				//0              5              10             15             20             30
 				{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 				{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
@@ -759,7 +681,7 @@ public class TestGameOfLife {
 	/** Sample pattern called the Gun which runs indefinitely and produces 
 	 *  gliders that continue across the board.   */
 	PatternEvolution[] gliderGun = new PatternEvolution[] {
-		new PatternEvolution(0, new byte[][] {
+		pattern(0, new byte[][] {
 				//0              5              10             15             20             25             30             35
 				{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 				{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
@@ -777,20 +699,20 @@ public class TestGameOfLife {
 	
 	/**
 	 * Compares the results from two board factories.  Always starts from the
-	 * same initial pattern and runs for all rounds between 1 and {@code maxRound},
+	 * same initial pattern and runs for all gens between 1 and {@code maxGen},
 	 * changing by {@code step}.  Do not modify.  
-	 * @param minRound TODO
+	 * @param minGen TODO
 	 */
 	void compareFactories(
 			GameOfLifeEngine reference,
 			GameOfLifeEngine test,
 			PatternEvolution initialPattern, 
-			int minRound, int maxRound, int step) 
+			int minGen, int maxGen, int step) 
 	{
-		for(int rnd = minRound; rnd < maxRound; rnd += step) {
-			byte[][] refResult = reference.execute(initialPattern.expected, rnd);
-			byte[][] testResult = test.execute(initialPattern.expected, rnd);			
-			assertConfigEqual("Round " + rnd, refResult, testResult);
+		for(int rnd = minGen; rnd < maxGen; rnd += step) {
+			byte[][] refResult = reference.execute(initialPattern.expected, initialPattern.rs, initialPattern.cs, rnd);
+			byte[][] testResult = test.execute(initialPattern.expected, initialPattern.rs, initialPattern.cs, rnd);			
+			assertConfigEqual("Gen " + rnd, refResult, testResult);
 		}
 		
 	}
@@ -798,11 +720,11 @@ public class TestGameOfLife {
 	void timeFactory(
 			GameOfLifeEngine test,
 			PatternEvolution initialPattern, 
-			int minRound, int maxRound, int step) 
+			int minGen, int maxGen, int step) 
 	{
 		double time0 = System.nanoTime() / 1e9;
-		for(int rnd = minRound; rnd < maxRound; rnd += step) {
-			test.execute(initialPattern.expected, rnd);			
+		for(int rnd = minGen; rnd < maxGen; rnd += step) {
+			test.execute(initialPattern.expected, initialPattern.rs, initialPattern.cs, rnd);			
 		}
 		double time1 = System.nanoTime() / 1e9;
 		System.err.println(test.getClass().getName()+": "+(time1 - time0));
@@ -819,9 +741,9 @@ public class TestGameOfLife {
 		
 		for(int i = 1; i < patterns.length; i++) {
 			PatternEvolution finalPattern = patterns[i];
-			byte[][] result = engine.execute(initialPattern.expected, finalPattern.round);
+			byte[][] result = engine.execute(initialPattern.expected, initialPattern.rs, initialPattern.cs, finalPattern.gen);
 			assertConfigEqual(
-					name + " (round "+finalPattern.round+")", 
+					name + " (gen "+finalPattern.gen+")", 
 					finalPattern.expected, result);
 		}
 	}
@@ -851,8 +773,8 @@ public class TestGameOfLife {
 	}
 	
 	/** 
-	 * Compares the interval board against the serial board for 3 rounds
-	 * of the Blinker pattern, which repeats every other round.
+	 * Compares the interval board against the serial board for 3 gens
+	 * of the Blinker pattern, which repeats every other gen.
 	 */
 	@Test public void serialTileBlinker() {
 		compareFactories(
@@ -863,8 +785,8 @@ public class TestGameOfLife {
 	}
 	
 	/** 
-	 * Compares the interval board against the serial board for 3 rounds
-	 * of the Toad pattern, which repeats every other round.
+	 * Compares the interval board against the serial board for 3 gens
+	 * of the Toad pattern, which repeats every other gen.
 	 */	
 	@Test public void serialTileTheToad() {
 		compareFactories(
@@ -876,7 +798,7 @@ public class TestGameOfLife {
 		
 	
 	/** 
-	 * Compares the interval board against the serial board for 150 rounds
+	 * Compares the interval board against the serial board for 150 gens
 	 * of the Queen Bee pattern.
 	 */
 	@Test public void serialTileQueenBee() {
@@ -888,7 +810,7 @@ public class TestGameOfLife {
 	}
 	
 	/** 
-	 * Compares the interval board against the serial board for 150 rounds
+	 * Compares the interval board against the serial board for 150 gens
 	 * of the Queen Bee pattern.
 	 */
 	@Test public void serialTileGliderGun() {
@@ -900,8 +822,8 @@ public class TestGameOfLife {
 	}
 	
 	/** 
-	 * Compares the interval board against the serial board for 3 rounds
-	 * of the Blinker pattern, which repeats every other round.
+	 * Compares the interval board against the serial board for 3 gens
+	 * of the Blinker pattern, which repeats every other gen.
 	 */
 	@Test public void phasedBlinker() {
 		compareFactories(
@@ -912,8 +834,8 @@ public class TestGameOfLife {
 	}
 	
 	/** 
-	 * Compares the interval board against the serial board for 3 rounds
-	 * of the Toad pattern, which repeats every other round.
+	 * Compares the interval board against the serial board for 3 gens
+	 * of the Toad pattern, which repeats every other gen.
 	 */	
 	@Test public void phasedTheToad() {
 		compareFactories(
@@ -925,7 +847,7 @@ public class TestGameOfLife {
 		
 	
 	/** 
-	 * Compares the interval board against the serial board for 150 rounds
+	 * Compares the interval board against the serial board for 150 gens
 	 * of the Queen Bee pattern.
 	 */
 	@Test public void phasedQueenBee() {
@@ -937,20 +859,20 @@ public class TestGameOfLife {
 	}
 	
 	/** 
-	 * Compares the interval board against the serial board for 150 rounds
+	 * Compares the interval board against the serial board for 150 gens
 	 * of the Queen Bee pattern.
 	 */
 	@Test public void phasedGliderGun() {
 		compareFactories(
 				new SerialEngine(), 
-				new FineGrainedIntervalEngine(),
+				new PhasedIntervalEngine(),
 				gliderGun[0], 
 				1, 150, 1);	
 	}
 	
 	/** 
-	 * Compares the interval board against the serial board for 3 rounds
-	 * of the Blinker pattern, which repeats every other round.
+	 * Compares the interval board against the serial board for 3 gens
+	 * of the Blinker pattern, which repeats every other gen.
 	 */
 	@Test public void simplerPhasedBlinker() {
 		compareFactories(
@@ -961,8 +883,8 @@ public class TestGameOfLife {
 	}
 	
 	/** 
-	 * Compares the interval board against the serial board for 3 rounds
-	 * of the Toad pattern, which repeats every other round.
+	 * Compares the interval board against the serial board for 3 gens
+	 * of the Toad pattern, which repeats every other gen.
 	 */	
 	@Test public void simplerPhasedTheToad() {
 		compareFactories(
@@ -974,7 +896,7 @@ public class TestGameOfLife {
 		
 	
 	/** 
-	 * Compares the interval board against the serial board for 150 rounds
+	 * Compares the interval board against the serial board for 150 gens
 	 * of the Queen Bee pattern.
 	 */
 	@Test public void simplerPhasedQueenBee() {
@@ -986,20 +908,20 @@ public class TestGameOfLife {
 	}
 	
 	/** 
-	 * Compares the interval board against the serial board for 150 rounds
+	 * Compares the interval board against the serial board for 150 gens
 	 * of the Queen Bee pattern.
 	 */
 	@Test public void simplerPhasedGliderGun() {
 		compareFactories(
 				new SerialEngine(), 
-				new FineGrainedIntervalEngine(),
+				new SimplerPhasedIntervalEngine(),
 				gliderGun[0], 
 				1, 150, 1);		
 	}
 	
 	/** 
-	 * Compares the interval board against the serial board for 3 rounds
-	 * of the Blinker pattern, which repeats every other round.
+	 * Compares the interval board against the serial board for 3 gens
+	 * of the Blinker pattern, which repeats every other gen.
 	 */
 	@Test public void fgBlinker() {
 		compareFactories(
@@ -1010,8 +932,8 @@ public class TestGameOfLife {
 	}
 	
 	/** 
-	 * Compares the interval board against the serial board for 3 rounds
-	 * of the Toad pattern, which repeats every other round.
+	 * Compares the interval board against the serial board for 3 gens
+	 * of the Toad pattern, which repeats every other gen.
 	 */	
 	@Test public void fgTheToad() {
 		compareFactories(
@@ -1023,7 +945,7 @@ public class TestGameOfLife {
 		
 	
 	/** 
-	 * Compares the interval board against the serial board for 150 rounds
+	 * Compares the interval board against the serial board for 150 gens
 	 * of the Queen Bee pattern.
 	 */
 	@Test public void fgQueenBee() {
@@ -1035,7 +957,7 @@ public class TestGameOfLife {
 	}
 	
 	/** 
-	 * Compares the interval board against the serial board for 150 rounds
+	 * Compares the interval board against the serial board for 150 gens
 	 * of the Queen Bee pattern.
 	 */
 	@Test public void fgGliderGun() {
@@ -1052,8 +974,8 @@ public class TestGameOfLife {
 			int tw = Integer.valueOf(args[i+1]);
 			int th = Integer.valueOf(args[i+2]);
 			String patternName = args[i+3];
-			int minRound = Integer.valueOf(args[i+4]);
-			int maxRound = Integer.valueOf(args[i+5]);
+			int minGen = Integer.valueOf(args[i+4]);
+			int maxGen = Integer.valueOf(args[i+5]);
 			int step = Integer.valueOf(args[i+6]);
 			int bw = Integer.valueOf(args[i+7]);
 			int bh = Integer.valueOf(args[i+8]);
@@ -1073,11 +995,11 @@ public class TestGameOfLife {
 			
 			pattern = pattern.paddedToSize(bh, bw);
 						
-			// Warm up round:
-			timeFactory(engine, pattern, minRound, minRound + 1, 1);
+			// Warm up gen:
+			timeFactory(engine, pattern, minGen, minGen + 1, 1);
 			
 			// Real run:
-			timeFactory(engine, pattern, minRound, maxRound, step);			
+			timeFactory(engine, pattern, minGen, maxGen, step);			
 		}
 		
 	}
@@ -1085,5 +1007,5 @@ public class TestGameOfLife {
 	public static void main(String args[]) {
 		new TestGameOfLife().profile(args);
 	}
-	
+
 }
