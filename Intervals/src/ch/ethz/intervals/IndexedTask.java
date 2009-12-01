@@ -18,14 +18,20 @@ import ch.ethz.intervals.ThreadPool.Worker;
  * interval, which is always an ancestor of the current interval
  * but may not be the current interval itself.  
  * 
+ * Because the current interval is not predictable in the
+ * {@link #run(Point, int, int)} method, it is not recommended
+ * to use {@link Intervals#siblingInterval(Task)} or 
+ * {@link Intervals#successorInterval(Task)}, although 
+ * {@link Intervals#childInterval(Task)} will still lead to the
+ * desired results.
+ * 
  * @param count the number of times to invoke {@code task}
  * @param task the task to invoke
  */
 public abstract class IndexedTask extends AbstractTask {
-	private final AtomicInteger balance = new AtomicInteger(1);
 	private final int lo0, hi0;
-	private final int threshold;	
-	private AsyncPoint whenDone;
+	private final int threshold;
+	private Point parentEnd;
 
 	/** {@link #run(Point, int, int)} will be invoked from all indices i where {@code 0 <= i < count} */
 	protected IndexedTask(int count) {
@@ -51,17 +57,15 @@ public abstract class IndexedTask extends AbstractTask {
 
 	@Override
 	public final void run(Point currentEnd) {
-		whenDone = Intervals.asyncPoint(currentEnd, 1);
-		
-    	Worker worker = POOL.currentWorker();
+		parentEnd = currentEnd;
     	Subtask mt = new Subtask(lo0, hi0);
-		mt.exec(worker);
+		mt.run(currentEnd);
 	}
-
-	final class Subtask extends WorkItem {
+	
+	final class Subtask extends AbstractTask {
         final int lo;
         final int hi;
-        
+		
         Subtask(int lo, int hi) {
             this.lo = lo;
             this.hi = hi;
@@ -71,44 +75,29 @@ public abstract class IndexedTask extends AbstractTask {
         	return String.format("Subtask(%d-%d)", lo, hi);
         }
 
-        @Override
-        public void exec(Worker worker) {
+		@Override
+		public void run(Point _) {
             int l = lo;
             int h = hi;
-            if (h - l > threshold)
-                internalCompute(worker, l, h);
-            else {
-            	if(Debug.ENABLED)
-            		Debug.mapRun(IndexedTask.this, this, l, h);
-            	run(whenDone, l, h);
+            if (h - l > threshold) {
+            	// Divvy up l-h into chunks smaller than threshold:
+            	Current current = Current.get();
+            	final int g = threshold;
+                do {
+                    int rh = h;
+                    h = (l + h) >>> 1;
+                    Intervals.intervalWithBoundUnchecked(
+                    		parentEnd, 
+                    		new Subtask(h, rh), 
+                    		current);
+                    current.schedule();
+                } while (h - l > g);
+                
             }
-            
-            int b = balance.decrementAndGet(); 
-        	if(Debug.ENABLED)
-        		Debug.mapComplete(IndexedTask.this, this, b, whenDone);
-            if(b == 0) {
-            	Debug.dump();
-            	whenDone.trigger(1);         
-            }
-        }
-
-        final void internalCompute(Worker worker, int l, int h) {
-        	// Divvy up l-h into chunks smaller than threshold:
-        	final int g = threshold;
-            do {
-                int rh = h;
-                h = (l + h) >>> 1;
-                Subtask r = new Subtask(h, rh);
-                int b = balance.getAndIncrement();
-                if(Debug.ENABLED)
-                	Debug.mapFork(IndexedTask.this, this, r, b+1);
-                worker.enqueue(r);                
-            } while (h - l > g);
             
             // Run what's left:
-            run(whenDone, l, h);
-        	if(Debug.ENABLED)
-        		Debug.mapRun(IndexedTask.this, this, l, h);
-        }
-    }
+            IndexedTask.this.run(parentEnd, l, h);            	
+		}		
+	}
+
 }

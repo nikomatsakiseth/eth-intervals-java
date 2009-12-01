@@ -83,7 +83,7 @@ public class Intervals {
 		return siblingInterval(current, task);
 	}
 
-	private static Interval siblingInterval(Current current, Task task) {
+	static Interval siblingInterval(Current current, Task task) {
 		Point bound;
 		if(current.end == ROOT_END)
 			bound = current.end;
@@ -130,9 +130,12 @@ public class Intervals {
 		IntervalImpl result = intervalWithBoundUnchecked(bnd, task, current);		
 		return result;
 	}
-
-	private static IntervalImpl intervalWithBoundUnchecked(Point bnd,
-			Task task, Current current) {
+	
+	static IntervalImpl intervalWithBoundUnchecked(
+			Point bnd,
+			Task task, 
+			Current current) 
+	{
 		PointImpl bndImpl = (PointImpl) bnd;
 		bndImpl.addWaitCount(); // now waiting for end
 		PointImpl end = new PointImpl(current, bndImpl, 2); // waiting for task, start 

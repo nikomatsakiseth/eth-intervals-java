@@ -315,6 +315,93 @@ public class TestGameOfLife {
 		}		
 	}
 	
+	class IndexedIntervalBoard extends GameOfLifeBoard {
+		
+		public IndexedIntervalBoard(byte[][] initialConfiguration, int rs, int cs, int numGens) {
+			super(initialConfiguration, rs, cs, numGens);
+		}
+
+		class ColTask extends IndexedTask {
+			
+			final int row, gen;
+
+			protected ColTask(int gen, int row) {
+				super(1, cs+1);
+				this.gen = gen;
+				this.row = row;
+			}
+
+			@Override
+			public void run(Point parentEnd, int fromIndex, int toIndex) {
+				byte[][] inData = data[gen % 2];
+				byte[][] outData = data[(gen + 1) % 2];
+				for(int c = fromIndex; c < toIndex; c++)
+					gameOfLife(inData, outData, row, c);
+			}
+			
+		}
+
+		class GenTask extends IndexedTask {
+
+			final int gen;
+
+			protected GenTask(int gen) {
+				super(1, rs+1);
+				this.gen = gen;
+			}
+
+			@Override
+			public void run(Point parentEnd, int fromIndex, int toIndex) {
+				for(int r = fromIndex; r < toIndex; r++) {
+					Intervals.childInterval(new ColTask(gen, r));
+					Intervals.schedule();
+				}
+			}
+			
+		}
+
+		@Override
+		byte[][] execute() {
+			Intervals.blockingInterval(new AbstractTask() {
+				
+				@Override
+				public void run(Point currentEnd) {
+					Point prevGen = null;
+					for(int gen = 0; gen < numGens; gen++) {
+						Interval thisGen = Intervals.childInterval(new GenTask(gen));
+						Intervals.addHb(prevGen, thisGen.start());
+						Intervals.schedule();
+						prevGen = thisGen.end();
+					}
+				}
+				
+			});
+
+			return data[numGens % 2];
+		}
+		
+	}
+	
+	/**
+	 * A version that uses phases.  Each gen fully completes before
+	 * the next begins.  The structure follows a generic barrier
+	 * pattern, where at any given moment there is an interval
+	 * {@code nextGen} where processing for the next gen is
+	 * scheduled.  You could also write this as a simple for loop
+	 * with a bounded interval for each iteration.  
+	 */
+	class IndexedIntervalEngine implements GameOfLifeEngine {
+		
+		public IndexedIntervalEngine() {
+		}
+		
+		@Override
+		public byte[][] execute(byte[][] initialConfig, int rs, int cs, int numGens) {
+			IndexedIntervalBoard board = new IndexedIntervalBoard(initialConfig, rs, cs, numGens);
+			return board.execute();
+		}		
+	}
+	
 	final ExecutorService executorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 	
 	class BarrierBoard extends GameOfLifeBoard {
@@ -1005,6 +1092,55 @@ public class TestGameOfLife {
 	 * Compares the interval board against the serial board for 3 gens
 	 * of the Blinker pattern, which repeats every other gen.
 	 */
+	@Test public void indexedBlinker() {
+		compareFactories(
+				new SerialEngine(), 
+				new IndexedIntervalEngine(), 
+				blinker[0], 
+				1, 3, 1);		
+	}
+	
+	/** 
+	 * Compares the interval board against the serial board for 3 gens
+	 * of the Toad pattern, which repeats every other gen.
+	 */	
+	@Test public void indexedTheToad() {
+		compareFactories(
+				new SerialEngine(), 
+				new IndexedIntervalEngine(), 
+				theToad[0], 
+				1, 3, 1);		
+	}
+		
+	
+	/** 
+	 * Compares the interval board against the serial board for 150 gens
+	 * of the Queen Bee pattern.
+	 */
+	@Test public void indexedQueenBee() {
+		compareFactories(
+				new SerialEngine(), 
+				new IndexedIntervalEngine(),
+				queenBee[0], 
+				1, 150, 1);		
+	}
+	
+	/** 
+	 * Compares the interval board against the serial board for 150 gens
+	 * of the Queen Bee pattern.
+	 */
+	@Test public void indexedGliderGun() {
+		compareFactories(
+				new SerialEngine(), 
+				new IndexedIntervalEngine(),
+				gliderGun[0], 
+				1, 150, 1);		
+	}
+	
+	/** 
+	 * Compares the interval board against the serial board for 3 gens
+	 * of the Blinker pattern, which repeats every other gen.
+	 */
 	@Test public void fgBlinker() {
 		compareFactories(
 				new SerialEngine(), 
@@ -1118,6 +1254,7 @@ public class TestGameOfLife {
 			else if(engineName.equals("b")) engine = new BarrierEngine();
 			else if(engineName.equals("p")) engine = new PhasedIntervalEngine(tw, th);
 			else if(engineName.equals("sp")) engine = new SimplerPhasedIntervalEngine(tw, th);
+			else if(engineName.equals("i")) engine = new IndexedIntervalEngine();
 			else throw new RuntimeException("Unknown engine: "+engineName);
 			
 			PatternEvolution pattern;
