@@ -1,5 +1,13 @@
 package ch.ethz.intervals;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+
 import junit.framework.Assert;
 
 import org.junit.Test;
@@ -307,6 +315,80 @@ public class TestGameOfLife {
 		}		
 	}
 	
+	final ExecutorService executorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+	
+	class BarrierBoard extends GameOfLifeBoard {
+		
+		final CyclicBarrier barrier;
+		
+		public BarrierBoard(byte[][] initialConfiguration, int rs, int cs, int numGens) {
+			super(initialConfiguration, rs, cs, numGens);
+			barrier = new CyclicBarrier(Runtime.getRuntime().availableProcessors());
+		}
+		
+		class TileTask implements Callable<Void> {
+			public final Tile tile;
+			
+			public TileTask(Tile tile) 
+			{
+				this.tile = tile;
+			}
+
+			public String toString() 
+			{
+				return "Tile("+tile.tr+","+tile.tc+")";
+			}			
+
+			@Override
+			public Void call() throws Exception {
+				for(int i = 0; i < numGens; i++) {
+					tile.run(data[i%2], data[(i+1)%2]);
+					barrier.await();
+				}
+				return null;
+			}
+		}
+
+		@Override
+		byte[][] execute() {
+			int parties = barrier.getParties();
+			int w = (cs + parties - 1) / parties;
+			int h = rs;
+			
+			final List<Future<?>> futures = new ArrayList<Future<?>>();
+			subdivide(rs, cs, w, h, new InvokableWithTile() {					
+				public void run(Tile t) {
+					futures.add(executorService.submit(new TileTask(t)));
+				}
+			});
+			
+			for(Future<?> f : futures)
+				try {
+					f.get();
+				} catch(Exception e) {}
+
+			return data[numGens % 2];
+		}
+		
+	}
+	
+	/**
+	 * A version that uses phases.  Each gen fully completes before
+	 * the next begins.  The structure follows a generic barrier
+	 * pattern, where at any given moment there is an interval
+	 * {@code nextGen} where processing for the next gen is
+	 * scheduled.  You could also write this as a simple for loop
+	 * with a bounded interval for each iteration.  
+	 */
+	class BarrierEngine implements GameOfLifeEngine {
+		
+		@Override
+		public byte[][] execute(byte[][] initialConfig, int rs, int cs, int numGens) {
+			BarrierBoard board = new BarrierBoard(initialConfig, rs, cs, numGens);
+			return board.execute();
+		}		
+	}
+
 	class SimplerPhasedIntervalBoard extends GameOfLifeBoard {
 		
 		final int w, h;
@@ -968,6 +1050,55 @@ public class TestGameOfLife {
 				1, 150, 1);
 	}
 	
+	/** 
+	 * Compares the interval board against the serial board for 3 gens
+	 * of the Blinker pattern, which repeats every other gen.
+	 */
+	@Test public void barrierBlinker() {
+		compareFactories(
+				new SerialEngine(), 
+				new BarrierEngine(), 
+				blinker[0], 
+				1, 3, 1);		
+	}
+	
+	/** 
+	 * Compares the interval board against the serial board for 3 gens
+	 * of the Toad pattern, which repeats every other gen.
+	 */	
+	@Test public void barrierTheToad() {
+		compareFactories(
+				new SerialEngine(), 
+				new BarrierEngine(), 
+				theToad[0], 
+				1, 3, 1);		
+	}
+		
+	
+	/** 
+	 * Compares the interval board against the serial board for 150 gens
+	 * of the Queen Bee pattern.
+	 */
+	@Test public void barrierQueenBee() {
+		compareFactories(
+				new SerialEngine(), 
+				new BarrierEngine(),
+				queenBee[0], 
+				1, 150, 1);		
+	}
+	
+	/** 
+	 * Compares the interval board against the serial board for 150 gens
+	 * of the Queen Bee pattern.
+	 */
+	@Test public void barrierGliderGun() {
+		compareFactories(
+				new SerialEngine(), 
+				new BarrierEngine(),
+				gliderGun[0], 
+				1, 150, 1);
+	}
+	
 	public void profile(String args[]) {
 		for(int i = 0; i < args.length; i += 9) {
 			String engineName = args[i];
@@ -984,6 +1115,7 @@ public class TestGameOfLife {
 			if(engineName.equals("serial")) engine = new SerialEngine();
 			else if(engineName.equals("st")) engine = new SerialTiledEngine(tw, th);
 			else if(engineName.equals("fg")) engine = new FineGrainedIntervalEngine(tw, th);
+			else if(engineName.equals("b")) engine = new BarrierEngine();
 			else if(engineName.equals("p")) engine = new PhasedIntervalEngine(tw, th);
 			else if(engineName.equals("sp")) engine = new SimplerPhasedIntervalEngine(tw, th);
 			else throw new RuntimeException("Unknown engine: "+engineName);
