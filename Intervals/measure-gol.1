@@ -1,0 +1,15 @@
+#!/bin/bash
+for k in serial st fg b p sp i 
+do 
+for t in gg 
+do
+for ts in 100
+do
+for n in 1 2 3 
+do 
+	echo Testing kind=$k test=$t trial=$n tile_size=$ts
+	java -cp bin ch.ethz.intervals.TestGameOfLife $k $ts $ts $t 150 155 1 1000 1000  
+done
+done
+done
+done

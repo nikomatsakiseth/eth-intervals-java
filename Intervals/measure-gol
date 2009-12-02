@@ -1,0 +1,5 @@
+#!/bin/bash
+MYDIR=$(dirname $0)
+LOGDIR=$MYDIR/../measurements
+LOGFILE=$(hostname)-$(date +'%Y-%m-%d-%H:%M:%S').txt
+script -c "$MYDIR/measure-gol.1 $LOGFILE" $LOGDIR/$LOGFILE
