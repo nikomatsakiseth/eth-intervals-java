@@ -9,119 +9,148 @@ import java.util.Iterator;
 
 public class EdgeList {
 	
-	private static final int BITS = 0;	
-	private static final int NEXT = 1;	
-	private static final int OFFSET = 2;	
-	private static final int CHUNK_SIZE = 3;	
-	private static final int ARRAY_SIZE = CHUNK_SIZE + OFFSET;
+	static private final int ALL_POINTS_MASK = 7; 
+	static private final int CHUNK_LEN = 3; 
 	
-	private static int bits(Object[] list) {
-		return ((Integer)list[BITS]).intValue();
-	}
-
-	/** Returns the number of elements in the list chunk {@code list}.
-	 *  Does not count elements in successor chunks.  Used when saving
-	 *  the value of an edge list. */
-	public static int chunkLen(Object[] list) {
-		if(list == null)
-			return 0;
-
-		for(int l = CHUNK_SIZE; l > 1; l--)
-			if(list[l - 1 + OFFSET] != null)
-				return l;
-		
-		return 1;
+	private int bits;
+	private PointImpl toPoint0;
+	private PointImpl toPoint1;
+	private PointImpl toPoint2;
+	private EdgeList next;
+	
+	private EdgeList(PointImpl pnt0, int bits, EdgeList next) {
+		this.bits = bits;
+		this.toPoint0 = pnt0;
+		this.next = next;
 	}
 	
-	public static Object[] add(Object[] list, PointImpl toPoint, boolean deterministic) {
-		int bit = (deterministic ? 1 : 0);
-				
-		if(list != null) {
-			for(int i = 1; i < CHUNK_SIZE; i++) {
-				if(list[i+OFFSET] == null) {
-					list[BITS] = Integer.valueOf(bits(list) | (bit << i));
-					list[i+OFFSET] = toPoint;
-					return list;
-				}
-			}
+	private boolean add(PointImpl toPoint, int bit) {
+		if(toPoint0 == null) {
+			toPoint0 = toPoint;
+			bits |= (bit);
+			return true;
+		} else if(toPoint1 == null) {
+			toPoint1 = toPoint;
+			bits |= (bit << 1);
+			return true;
+		} else if(toPoint2 == null) {
+			toPoint2 = toPoint;
+			bits |= (bit << 2);
+			return true;
+		} else {
+			return false;
 		}
-		
-		Object[] newList = new Object[ARRAY_SIZE];
-		newList[BITS] = Integer.valueOf(bit);
-		newList[NEXT] = list;
-		newList[OFFSET] = toPoint;
-		return newList;
+	}
+	
+	public static int chunkMask(EdgeList list) {
+		int mask = 0;
+		if(list != null) {
+			if(list.toPoint0 != null) mask |= 1;
+			if(list.toPoint1 != null) mask |= 2;
+			if(list.toPoint2 != null) mask |= 4;
+		}
+		return mask;
+	}
+	
+	public static EdgeList add(EdgeList list, PointImpl toPoint, boolean deterministic) {
+		int bit = (deterministic ? 1 : 0);
+		if(list != null && list.add(toPoint, bit))
+			return list;
+		return new EdgeList(toPoint, bit, list);		
 	}
 	
 	public static Iterable<PointImpl> edges(
-			final Object[] list0,
+			final EdgeList list,
 			final boolean onlyDeterministic)
 	{
-		return edges(list0, CHUNK_SIZE, onlyDeterministic);
+		return edges(list, ALL_POINTS_MASK, onlyDeterministic);
+	}
+
+	public static void remove(EdgeList list, PointImpl toImpl) {
+		for(; list != null; list = list.next) {
+			if(list.toPoint0 == toImpl) {
+				list.toPoint0 = null;
+				list.bits &= ~1;
+				return;
+			} else if(list.toPoint1 == toImpl) {
+				list.toPoint1 = null;
+				list.bits &= ~2;
+				return;
+			} else if(list.toPoint2 == toImpl) {
+				list.toPoint2 = null;
+				list.bits &= ~4;
+				return;
+			}
+		}
+	}
+
+	public static void setDeterministic(EdgeList list, PointImpl toImpl) {
+		for(; list != null; list = list.next) {
+			if(list.toPoint0 == toImpl) {
+				list.bits |= 1;
+				return;
+			} else if(list.toPoint1 == toImpl) {
+				list.bits |= 2;
+				return;
+			} else if(list.toPoint2 == toImpl) {
+				list.bits |= 4;
+				return;
+			}
+		}
 	}
 	
 	public static Iterable<PointImpl> edges(
-			final Object[] list0,
-			final int maxIdx0,
+			final EdgeList list0,
+			final int mask0,
 			final boolean onlyDeterministic) 
 	{
 		if(list0 == null)
 			return Collections.emptyList();
 		
 		class EdgeListIterator implements Iterator<PointImpl> {
-			Object[] list;
-			int bits;
-			int idx, maxIdx;
+			EdgeList list;
+			int idx,  idxMask;
 			
-			public EdgeListIterator(Object[] list, int maxIdx) {
-				loadList(list, maxIdx);
-				hasNext();
+			public EdgeListIterator(EdgeList list, int idxMask) {
+				loadList(list, idxMask);
 			}
 			
-			private boolean loadList(Object[] list, int maxIdx) {
+			private boolean deterministic() {
+				int mask = (1 << idx);
+				return (list.bits & mask) != 0;
+			}
+			
+			private PointImpl get() {
+				if(idx == 0 && (idxMask & 1) != 0) return list.toPoint0;
+				if(idx == 1 && (idxMask & 2) != 0) return list.toPoint1;
+				if(idx == 2 && (idxMask & 4) != 0) return list.toPoint2;
+				return null;
+			}			
+			
+			private boolean loadList(EdgeList list, int idxMask) {
 				if(list != null) {
 					this.list = list;
-					this.bits = bits(list);
-					this.idx = 0;
-					this.maxIdx = maxIdx;
-					return true;
+					this.idx = CHUNK_LEN;
+					this.idxMask = idxMask;
+					return advance();
 				} else {
 					this.list = null;
 					return false;
 				}
 			}
 
-			private boolean deterministic() {
-				int mask = (1 << idx);
-				return (bits & mask) != 0;
-			}
-			
-			private PointImpl get() {
-				return (PointImpl) list[idx + OFFSET];
-			}			
-			
+			/** Moves along the list until it finds a suitable, non-null entry. */
 			private boolean advance() {
-				idx += 1;
-				if(idx == maxIdx || get() == null) {
-					Object[] nextList = (Object[])list[NEXT];
-					if(!loadList(nextList, CHUNK_SIZE))
-						return false;				
-				} 
+				do {
+					if(--idx == -1)
+						return loadList(list.next, ALL_POINTS_MASK);
+				} while(get() == null || (onlyDeterministic && !deterministic()));
 				return true;					
 			}
 			
 			@Override
 			public boolean hasNext() {
-				if(list == null)
-					return false;
-				
-				if(onlyDeterministic) {
-					while(!deterministic())
-						if(!advance())
-							return false;
-				}
-				
-				return get() != null;
+				return list != null;
 			}
 			
 			@Override
@@ -140,9 +169,9 @@ public class EdgeList {
 		return new Iterable<PointImpl>() {
 			@Override
 			public Iterator<PointImpl> iterator() {
-				return new EdgeListIterator(list0, maxIdx0);
+				return new EdgeListIterator(list0, mask0);
 			}
 		};
 	}
-		
+
 }

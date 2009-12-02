@@ -41,7 +41,6 @@ public class TestDynamicGuardImpl {
 		Intervals.blockingInterval(new SetupTask() {
 			@Override
 			public void setup(Point currentEnd, Interval worker) {
-				System.out.printf("end of setup = %s worker = %s\n", currentEnd, worker);
 				a = (IntervalImpl) intervalDuring(worker, debugTask("a"));
 				b = (IntervalImpl) intervalDuring(worker, debugTask("b"));
 				c = (IntervalImpl) intervalDuring(worker, debugTask("c"));
@@ -58,6 +57,9 @@ public class TestDynamicGuardImpl {
 				
 				Intervals.exclusiveLock(l1, dg);
 				Intervals.exclusiveLock(l2, dg);
+				
+				System.out.printf("a=%s b=%s c=%s b1=%s b11=%s b2=%s l1=%s l2=%s setup.end=%s, worker=%s\n", 
+						a, b, c, b1, b11, b2, l1, l2, currentEnd, worker);
 			}
 		});
 				
@@ -157,13 +159,13 @@ public class TestDynamicGuardImpl {
 	 *  for l1 to write before l2.  If the impl. were changed so
 	 *  that l1 got the lock first, then {@link #twoUnorderedExclusiveLock2()}
 	 *  would result in a {@link DataRaceException} */
-	@Test(expected=DataRaceException.class)
+	@Test
 	public void twoUnorderedExclusiveLock1() {
 		dg.checkWrite(l2);
 		dg.checkWrite(l1);
 	}
 	
-	@Test
+	@Test(expected=DataRaceException.class)
 	public void twoUnorderedExclusiveLock2() {
 		dg.checkWrite(l1);
 		dg.checkWrite(l2);

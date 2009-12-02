@@ -22,7 +22,7 @@ class PointImpl implements Point {
 	
 	final PointImpl bound;                  /** Bound of this point (this->bound). */
 	final int depth;                        /** Depth in point bound tree. */
-	private Object[] outEdges;              /** Linked list of outgoing edges from this point. */
+	private EdgeList outEdges;              /** Linked list of outgoing edges from this point. */
 	private volatile int waitCount;         /** Number of preceding points that have not arrived.  
 	                                            Set to {@link #OCCURRED} when this has occurred. 
 	                                            Modified only through {@link #waitCountUpdater}. */
@@ -53,6 +53,10 @@ class PointImpl implements Point {
 	
 	void clearUnscheduled() {
 		unscheduled = null;
+	}
+	
+	synchronized EdgeList outEdgesSync() {
+		return outEdges;
 	}
 	
 	@Override
@@ -148,7 +152,7 @@ class PointImpl implements Point {
 			if(q.bound != null && h.tryEnqueue(q.bound))				
 				return true;
 			
-			for(PointImpl toPoint : EdgeList.edges(q.outEdges, onlyDeterministic)) {
+			for(PointImpl toPoint : EdgeList.edges(q.outEdgesSync(), onlyDeterministic)) {
 				if(h.tryEnqueue(toPoint))
 					return true;
 			}
@@ -202,11 +206,11 @@ class PointImpl implements Point {
 		assert pendingLocks == null;
 		assert waitCount == 0;
 		
-		final Object[] outEdges;
-		final int chunkLen;
+		final EdgeList outEdges;
+		final int chunkMask;
 		synchronized(this) {
 			outEdges = this.outEdges;
-			chunkLen = EdgeList.chunkLen(outEdges);
+			chunkMask = EdgeList.chunkMask(outEdges);
 			this.waitCount = OCCURRED;
 			notifyAll(); // in case anyone is joining us
 		}
@@ -216,7 +220,7 @@ class PointImpl implements Point {
 		if((flags & FLAG_MASK_EXC) == 0 && pendingException != null)
 			bound.setPendingExceptionFromChild(pendingException);
 		
-		Iterable<PointImpl> notifiedPoints = EdgeList.edges(outEdges, chunkLen, false);
+		Iterable<PointImpl> notifiedPoints = EdgeList.edges(outEdges, chunkMask, false);
 		if(Debug.ENABLED)
 			Debug.occur(this, notifiedPoints);
 		
@@ -239,21 +243,23 @@ class PointImpl implements Point {
 			Debug.addWaitCount(this, newCount);		
 	}
 
-	/** Adds an outgoing edge.  
-	 *  @return number of times arrive() will eventually be invoked
+	/** Adds an outgoing edge, but does not adjust wait count of
+	 *  target.  
+	 *    
+	 *  @return number of times {@link #arrive(int)} will eventually be invoked
 	 *          on targetPnt (0 or 1). */
-	int addOutEdge(PointImpl targetPnt, boolean deterministic) {
+	int addEdgeWithoutAdjustingWaitCount(PointImpl targetPnt, boolean deterministic) {
 		synchronized(this) {
-			addOutEdgeDuringConstruction(targetPnt, deterministic);
+			primAddOutEdge(targetPnt, deterministic);
 			if(waitCount == OCCURRED)
 				return 0; // no notification will be sent
 			return 1;
 		}
 	}
 
-	/** Same as {@link #addOutEdge(PointImpl, boolean)} but
-	 *  does not acquire any locks. */
-	void addOutEdgeDuringConstruction(PointImpl targetPnt, boolean deterministic) {
+	/** Simply adds an outgoing edge, without acquiring locks or performing any
+	 *  further checks. */
+	private void primAddOutEdge(PointImpl targetPnt, boolean deterministic) {
 		outEdges = EdgeList.add(outEdges, targetPnt, deterministic);
 	}
 
@@ -345,17 +351,37 @@ class PointImpl implements Point {
 		this.workItem = workItem;
 	}
 
-	public void addHbUnchecked(PointImpl toImpl, boolean deterministic) {
+	/**
+	 * Adds an edge from {@code this} to {@code toImpl}, doing no safety
+	 * checking, and adjusts the wait count of {@code toImpl}.
+	 *  
+	 * Returns the number of wait counts added to {@code toImpl}.
+	 */
+	public int addEdgeAndAdjustWaitCount(PointImpl toImpl, boolean deterministic) {
 		// Note: we must increment the wait count before we release
 		// the lock on this, because otherwise toImpl could arrive and
 		// then decrement the wait count before we get a chance to increment
 		// it.  Therefore, it's important that we do not have to acquire a lock
 		// on toImpl, because otherwise deadlock could result.
 		synchronized(this) {
-			addOutEdgeDuringConstruction(toImpl, deterministic);
-			if(waitCount != OCCURRED)
+			primAddOutEdge(toImpl, deterministic);
+			if(waitCount != OCCURRED) {
 				toImpl.addWaitCount();
+				return 1;
+			}
+			return 0;
 		}
 	}
 
+	public void unAddEdge(PointImpl toImpl) {
+		synchronized(this) {
+			EdgeList.remove(outEdges, toImpl);
+		}
+	}
+
+	public void confirmEdge(PointImpl toImpl) {
+		synchronized(this) {
+			EdgeList.setDeterministic(outEdges, toImpl);
+		}
+	}
 }

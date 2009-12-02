@@ -95,6 +95,67 @@ public class TestInterval {
 		}
 	}
 	
+	/**
+	 * Check that if we have a whole bunch of children, they all
+	 * complete and execute once.  Don't schedule them right away
+	 * to stress test unscheduled list as it gets bigger.
+	 */
+	@Test public void manyChildren() {
+		final int c = 1024;
+		final AtomicInteger cnt = new AtomicInteger();
+		Intervals.blockingInterval(new AbstractTask() {
+			
+			@Override
+			public void run(Point currentEnd) {
+				for(int i = 0; i < c; i++)
+					Intervals.childInterval(new IncTask(cnt));
+			}
+			
+		});
+		Assert.assertEquals(cnt.get(), c);
+	}
+	
+	/**
+	 * Check that if we have a whole bunch of children, they all
+	 * complete and execute once.  Schedule them right away.
+	 */
+	@Test public void manyChildrenScheduled() {
+		final int c = 1024;
+		final AtomicInteger cnt = new AtomicInteger();
+		Intervals.blockingInterval(new AbstractTask() {
+			
+			@Override
+			public void run(Point currentEnd) {
+				for(int i = 0; i < c; i++) {
+					Intervals.childInterval(new IncTask(cnt));
+					Intervals.schedule();
+				}
+			}
+			
+		});
+		Assert.assertEquals(cnt.get(), c);
+	}
+	
+	/**
+	 * Check that if we schedule a bunch of tasks as children of
+	 * a future, not-yet-scheduled interval, everything still works.
+	 */
+	@Test public void manyDuring() {
+		final int c = 1024;
+		final AtomicInteger cnt = new AtomicInteger();
+		Intervals.blockingInterval(new AbstractTask() {
+			
+			@Override
+			public void run(Point currentEnd) {
+				Interval future = Intervals.childInterval(Intervals.emptyTask);
+				for(int i = 0; i < c; i++)
+					Intervals.intervalDuring(future, new IncTask(cnt));
+			}
+			
+		});
+		Assert.assertEquals(cnt.get(), c);
+	}
+	
 	@Test public void ancestor() {
 		/*                    worker
 		 *                   /      \

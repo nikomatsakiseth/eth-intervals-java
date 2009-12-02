@@ -148,8 +148,8 @@ public class Intervals {
 		bndImpl.addWaitCount(); // now waiting for end
 		PointImpl end = new PointImpl(current, bndImpl, 2); // waiting for task, start 
 		PointImpl start = new PointImpl(current, end, 1);   // waiting to be scheduled
-		if(current.start != null)
-			current.start.addOutEdge(start, true); // note: 		
+		if(current.start != null) // current.start must have occurred, so can't affect WC
+			current.start.addEdgeWithoutAdjustingWaitCount(start, true);
 		IntervalImpl result = new IntervalImpl(task, start, end);		
 		start.setWorkItemBeforeScheduling(result);
 		ExecutionLog.logNewInterval(current.start, start, end);
@@ -208,23 +208,110 @@ public class Intervals {
 		if(to == null)
 			return;
 		
+		/* Subtle:
+		 * 
+		 * It is rather expensive to guarantee that adding the edge
+		 * from->to will not lead to a cycle!  This is because the
+		 * check and addition would have to be done atomically
+		 * across the whole graph.
+		 * 
+		 * Consider the following scenario:
+		 * 
+		 *  i1---+
+		 *       |
+		 *       v
+		 *       a < - - - b
+		 *       |         ^
+		 *       v         |
+		 *       c - - - > d
+		 *                 ^
+		 *                 |
+		 *  i2-------------+
+		 * 
+		 * The edges b->a and c->d are both being added in parallel
+		 * by intervals i1 and i2.  The edges a->c and d->b both exist already.  
+		 * Now, these two edges to be added do not share any endpoints, but
+		 * together they form a cycle.  If both do a cycle check
+		 * simultaneously, they will not find a problem, but then
+		 * both could proceed to add and create a problem.
+		 * 
+		 * There are several possible solutions here.  One technique
+		 * would be to accumulate locks during the cycle check and
+		 * only release them once the add is complete.  This guarantees
+		 * that the region of the graph you care about is modified 
+		 * atomically.  A modified version of this algorithm acquires
+		 * locks not on the nodes themselves but on the *bound* of the
+		 * node.  This would have the effect of segmenting the graph so
+		 * that fewer locks are required (no locks would ever be acquired
+		 * on leaf nodes, essentially).  You know that this technique is
+		 * deadlock free because the graph you are walking is acyclic, as
+		 * an invariant.
+		 * 
+		 * Another technique is to be optimistic: insert the edge, and
+		 * then do the check.  If you find a cycle, uninsert the edge and
+		 * throw an exception.  This sounds difficult, but it's not as
+		 * bad as it sounds.  Assume we are interval i1 adding the edge b->a.
+		 * 
+		 * (1) We know that a (and thus c) cannot have occurred because otherwise it is
+		 *     not a legal target for a new edge.
+		 *     
+		 * (2) When we add the edge b->a, we remember whether b had occurred or not,
+		 *     so we know whether b had occurred at the time that the edge was
+		 *     added.
+		 *     
+		 * We can therefore acquire a lock on b and remove the edge entry to a.  We
+		 * then may need to adjust the wait count of a, according to the following
+		 * table:
+		 * 
+		 * Point b:             | has not yet occurred | has occurred now
+		 * had not yet occurred | decrement by 1       | no change needed
+		 * had already occurred | impossible           | no change needed
+		 * 
+		 * One downside of this technique is that it is possible for a simultaneous
+		 * user to query whether b.hb(a), get true and then later false.  To fix
+		 * this, we could mark the edge as non-deterministic and only upgrade it to
+		 * deterministic once the check is complete.  The edge is then recorded for
+		 * posterity.
+		 */
+		
 		Current current = Current.get();
-		current.checkCanAddHb(from, to);
+		current.checkCanAddDep(to);
 		
 		if(from == null)
 			return;
 		
+		// Optimistically add edge (though it may cause a cycle!):
+		//
+		//   If safety checks are enabled, then we initially record
+		//   the edge as non-deterministic until we have confirmed
+		//   that it causes no problems.
 		PointImpl fromImpl = (PointImpl) from;
 		PointImpl toImpl = (PointImpl) to;
-		fromImpl.addHbUnchecked(toImpl, true);
+		int adjust = fromImpl.addEdgeAndAdjustWaitCount(toImpl, !SAFETY_CHECKS);
+		
+		// Perform cycle check:
+		if(SAFETY_CHECKS) {
+			if(toImpl.hb(from, false)) {
+				// Uh-oh, error, go into damage control.
+				fromImpl.unAddEdge(toImpl);
+				if(adjust != 0)
+					toImpl.arrive(adjust);
+				throw new CycleException(fromImpl, toImpl);
+			} else {
+				fromImpl.confirmEdge(toImpl);
+			}
+		} 
+		
 		ExecutionLog.logEdge(from, to);
 	}
 	
 	public static void exclusiveLock(Interval interval, Guard guard) {
-		Current current = Current.get();
-		PointImpl start = (PointImpl) interval.start();
-		current.checkCanAddDep(start);
-		start.addPendingLock((GuardImpl) guard, true);
+		if(interval != null && guard != null) {
+			Current current = Current.get();
+			PointImpl start = (PointImpl) interval.start();
+			current.checkCanAddDep(start);
+			start.addPendingLock((GuardImpl) guard, true);
+		}
 	}
 
 	/**
