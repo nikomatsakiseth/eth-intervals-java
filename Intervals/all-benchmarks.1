@@ -1,0 +1,47 @@
+#!/bin/bash
+
+JAVAOPTS="-Xmx2048M"
+SIZES2="SizeA SizeB SizeC"
+SIZES3="SizeA SizeB"
+ITERFAST=6
+ITERSLOW=3
+NS="8 -1"
+
+echo "File name is $1"
+echo "> date"
+date
+echo "> svn info"
+svn info
+echo "> svn diff"
+svn diff
+
+echo 
+echo "Settings:"
+echo "JAVAOPTS=${JAVAOPTS}"
+echo "SIZES2=${JAVAOPTS}"
+echo "SIZES3=${JAVAOPTS}"
+echo "ITERFAST=${ITERFAST}"
+echo "ITERSLOW=${ITERSLOW}"
+echo "NS=${NS}"
+echo "NOBUILD=${NOBUILD}"
+
+if [ ! -n "$NOBUILD" ]; then
+	make clean compile
+fi
+
+for N in ${NS}
+do 
+	for B in Crypt LUFact SOR
+	do 
+		./jgf-benchmark jgfmt.section2.JGF${B}Bench $N $ITERFAST "$SIZES2" "$JAVAOPTS"
+	done
+	./jgf-benchmark jgfmt.section2.JGFSeriesBench $N $ITERSLOW "$SIZES2" "$JAVAOPTS"
+done
+
+for N in ${NS}
+do
+	for B in MolDyn MonteCarlo RayTracer
+	do 
+		./jgf-benchmark jgfmt.section3.JGF${B}Bench $N "$ITERFAST" "$SIZES3" "$JAVAOPTS"
+	done
+done
