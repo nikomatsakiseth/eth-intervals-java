@@ -20,7 +20,7 @@ package jgfmt.section1;
  *                                                                         *
  **************************************************************************/
 
-import jgfmt.jgfutil.*;
+import jgfmt.jgfutil.JGFInstrumentor;
 
 public class JGFAll {
 

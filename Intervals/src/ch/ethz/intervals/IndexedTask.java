@@ -2,11 +2,6 @@ package ch.ethz.intervals;
 
 import static ch.ethz.intervals.Intervals.POOL;
 
-import java.util.concurrent.atomic.AtomicInteger;
-
-import ch.ethz.intervals.ThreadPool.WorkItem;
-import ch.ethz.intervals.ThreadPool.Worker;
-
 /**
  * A more efficient way of creating {@code count} distinct
  * intervals and joining them immediately.  {@code task}

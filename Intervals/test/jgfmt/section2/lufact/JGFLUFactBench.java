@@ -20,7 +20,8 @@
 
 package jgfmt.section2.lufact;
 
-import jgfmt.jgfutil.*;
+import jgfmt.jgfutil.JGFInstrumentor;
+import jgfmt.jgfutil.JGFSection2;
 
 public class JGFLUFactBench extends Linpack implements JGFSection2 {
 

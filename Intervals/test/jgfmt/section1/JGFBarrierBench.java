@@ -20,7 +20,8 @@ package jgfmt.section1;
  *                                                                         *
  **************************************************************************/
 
-import jgfmt.jgfutil.*;
+import jgfmt.jgfutil.JGFInstrumentor;
+import jgfmt.jgfutil.JGFSection1;
 
 public class JGFBarrierBench implements JGFSection1 {
 

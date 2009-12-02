@@ -20,9 +20,10 @@
 
 package jgfmt.section3.raytracer;
 
+import jgfmt.jgfutil.JGFInstrumentor;
+import jgfmt.jgfutil.JGFSection3;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.LongReduction;
-import jgfmt.jgfutil.*;
 
 public class JGFRayTracerBench extends RayTracer implements JGFSection3 {
 

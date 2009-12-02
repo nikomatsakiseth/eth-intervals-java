@@ -21,8 +21,7 @@
 
 package jgfmt.section3.montecarlo;
 
-import java.util.*;
-import java.awt.*;
+import java.util.Vector;
 
 /**
  * Code, a test-harness for invoking and driving the Applications Demonstrator

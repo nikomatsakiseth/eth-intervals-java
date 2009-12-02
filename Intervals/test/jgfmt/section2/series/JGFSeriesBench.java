@@ -20,7 +20,8 @@
 
 package jgfmt.section2.series;
 
-import jgfmt.jgfutil.*;
+import jgfmt.jgfutil.JGFInstrumentor;
+import jgfmt.jgfutil.JGFSection2;
 
 public class JGFSeriesBench extends SeriesTest implements JGFSection2 {
 

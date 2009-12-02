@@ -1,6 +1,5 @@
 package ch.ethz.intervals;
 
-import static ch.ethz.intervals.Intervals.end;
 import static ch.ethz.intervals.Intervals.intervalDuring;
 
 import java.util.ArrayList;

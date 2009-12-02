@@ -1,9 +1,7 @@
 package ch.ethz.intervals;
 
 import static ch.ethz.intervals.Intervals.emptyTask;
-import static ch.ethz.intervals.Intervals.end;
 import static ch.ethz.intervals.Intervals.intervalDuring;
-import static ch.ethz.intervals.Intervals.start;
 
 import java.util.ArrayList;
 import java.util.Collections;

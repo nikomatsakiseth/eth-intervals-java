@@ -20,8 +20,8 @@ package jgfmt.section2;
  *                                                                         *
  **************************************************************************/
 
-import jgfmt.jgfutil.*;
-import jgfmt.section2.sor.*;
+import jgfmt.jgfutil.JGFInstrumentor;
+import jgfmt.section2.sor.JGFSORBench;
 
 public class JGFSORBenchSizeA {
 

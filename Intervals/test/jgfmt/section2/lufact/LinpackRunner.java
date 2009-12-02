@@ -20,7 +20,6 @@
 
 package jgfmt.section2.lufact;
 
-import jgfmt.jgfutil.*;
 
 class LinpackRunner implements Runnable {
 

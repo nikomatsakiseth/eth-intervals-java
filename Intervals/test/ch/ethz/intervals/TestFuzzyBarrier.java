@@ -1,7 +1,6 @@
 package ch.ethz.intervals;
 
 import static ch.ethz.intervals.Intervals.emptyTask;
-import static ch.ethz.intervals.Intervals.end;
 import static ch.ethz.intervals.Intervals.intervalDuring;
 
 import java.util.ArrayList;
@@ -13,9 +12,6 @@ import java.util.Set;
 
 import org.junit.Assert;
 import org.junit.Test;
-
-import ch.ethz.intervals.TestBarrier.Barrier.BarrierTask;
-import ch.ethz.intervals.TestBarrier.Barrier.WorkerTask;
 
 public class TestFuzzyBarrier {
 	

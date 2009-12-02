@@ -1,6 +1,6 @@
 package ch.ethz.intervals.params;
 
-import ch.ethz.intervals.quals.*;
+import ch.ethz.intervals.quals.ObjectParameter;
 
 /** 
     Refers to the guard/interval which contains the current guard/interval. 

@@ -20,10 +20,10 @@ package jgfmt.section3;
  *                                                                         *
  **************************************************************************/
 
-import jgfmt.jgfutil.*;
-import jgfmt.section3.moldyn.*;
-import jgfmt.section3.montecarlo.*;
-import jgfmt.section3.raytracer.*;
+import jgfmt.jgfutil.JGFInstrumentor;
+import jgfmt.section3.moldyn.JGFMolDynBench;
+import jgfmt.section3.montecarlo.JGFMonteCarloBench;
+import jgfmt.section3.raytracer.JGFRayTracerBench;
 
 public class JGFAllSizeB {
 

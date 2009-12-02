@@ -54,7 +54,6 @@
 
 package jgfmt.section2.lufact;
 
-import jgfmt.jgfutil.*;
 
 public class Linpack {
 

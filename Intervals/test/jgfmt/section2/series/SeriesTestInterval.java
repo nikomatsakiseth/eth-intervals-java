@@ -38,18 +38,12 @@
 
 package jgfmt.section2.series;
 
-import ch.ethz.intervals.AbstractTask;
-import ch.ethz.intervals.Debug;
-import ch.ethz.intervals.IndexedTask;
-import ch.ethz.intervals.Interval;
-import ch.ethz.intervals.Intervals;
-import ch.ethz.intervals.Point;
-import ch.ethz.intervals.Task;
-import jgfmt.jgfutil.*;
-
 import static ch.ethz.intervals.Intervals.intervalWithBound;
 import static jgfmt.section2.series.SeriesTest.array_rows;
-import static jgfmt.section2.series.SeriesTest.TestArray;
+import jgfmt.jgfutil.JGFInstrumentor;
+import ch.ethz.intervals.AbstractTask;
+import ch.ethz.intervals.Intervals;
+import ch.ethz.intervals.Point;
 
 public class SeriesTestInterval {
 

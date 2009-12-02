@@ -1,6 +1,5 @@
 package ch.ethz.intervals;
 
-import static ch.ethz.intervals.Intervals.checkEdgeOrSame;
 
 
 public class Intervals {

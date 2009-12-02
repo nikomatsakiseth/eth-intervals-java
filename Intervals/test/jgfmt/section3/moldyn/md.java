@@ -25,10 +25,7 @@
 
 package jgfmt.section3.moldyn;
 
-import java.util.*;
-import java.text.NumberFormat;
-
-import jgfmt.jgfutil.*;
+import jgfmt.jgfutil.JGFInstrumentor;
 
 public class md extends mdBase {
 

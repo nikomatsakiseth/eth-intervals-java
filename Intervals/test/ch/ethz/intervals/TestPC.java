@@ -1,9 +1,6 @@
 package ch.ethz.intervals;
 
-import static ch.ethz.intervals.Intervals.end;
 import static ch.ethz.intervals.Intervals.blockingInterval;
-import static ch.ethz.intervals.Intervals.intervalDuring;
-import static ch.ethz.intervals.Intervals.intervalWithBound;
 import static org.junit.Assert.assertEquals;
 
 import java.util.ArrayList;

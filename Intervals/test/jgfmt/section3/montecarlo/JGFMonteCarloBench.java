@@ -20,9 +20,8 @@
 
 package jgfmt.section3.montecarlo;
 
-import java.io.*;
-
-import jgfmt.jgfutil.*;
+import jgfmt.jgfutil.JGFInstrumentor;
+import jgfmt.jgfutil.JGFSection3;
 
 public class JGFMonteCarloBench extends CallAppDemo implements JGFSection3 {
 

@@ -23,7 +23,6 @@
 
 package jgfmt.section3.raytracer;
 
-import ch.ethz.intervals.IndexedTask;
 
 public class RayTracer {
 

@@ -20,12 +20,12 @@ package jgfmt.section2;
  *                                                                         *
  **************************************************************************/
 
-import jgfmt.jgfutil.*;
-import jgfmt.section2.crypt.*;
-import jgfmt.section2.lufact.*;
-import jgfmt.section2.series.*;
-import jgfmt.section2.sor.*;
-import jgfmt.section2.sparsematmult.*;
+import jgfmt.jgfutil.JGFInstrumentor;
+import jgfmt.section2.crypt.JGFCryptBench;
+import jgfmt.section2.lufact.JGFLUFactBench;
+import jgfmt.section2.series.JGFSeriesBench;
+import jgfmt.section2.sor.JGFSORBench;
+import jgfmt.section2.sparsematmult.JGFSparseMatmultBench;
 
 public class JGFAllSizeC {
 

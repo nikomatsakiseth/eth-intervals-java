@@ -20,8 +20,8 @@ package jgfmt.section2;
  *                                                                         *
  **************************************************************************/
 
-import jgfmt.jgfutil.*;
-import jgfmt.section2.sparsematmult.*;
+import jgfmt.jgfutil.JGFInstrumentor;
+import jgfmt.section2.sparsematmult.JGFSparseMatmultBench;
 
 public class JGFSparseMatmultBenchSizeA {
 

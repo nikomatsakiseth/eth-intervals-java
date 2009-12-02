@@ -1,6 +1,6 @@
 package ch.ethz.intervals.params;
 
-import ch.ethz.intervals.quals.*;
+import ch.ethz.intervals.quals.ObjectParameter;
 
 /** 
     The Locked guard is defined on the root package and therefore in 

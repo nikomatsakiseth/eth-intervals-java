@@ -21,7 +21,7 @@
 
 package jgfmt.section2.sparsematmult;
 
-import jgfmt.jgfutil.*;
+import jgfmt.jgfutil.JGFInstrumentor;
 
 public class SparseMatmult {
 

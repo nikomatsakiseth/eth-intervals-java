@@ -21,7 +21,7 @@
 
 package jgfmt.section2.sor;
 
-import jgfmt.jgfutil.*;
+import jgfmt.jgfutil.JGFInstrumentor;
 
 public class SOR {
 

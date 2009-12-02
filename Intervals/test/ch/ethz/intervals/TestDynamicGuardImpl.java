@@ -1,12 +1,8 @@
 package ch.ethz.intervals;
 
-import static ch.ethz.intervals.Intervals.emptyTask;
-import static ch.ethz.intervals.Intervals.end;
 import static ch.ethz.intervals.Intervals.intervalDuring;
-import static ch.ethz.intervals.Intervals.start;
 
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 public class TestDynamicGuardImpl {

@@ -20,8 +20,10 @@
 
 package jgfmt.section2.sparsematmult;
 
-import jgfmt.jgfutil.*;
 import java.util.Random;
+
+import jgfmt.jgfutil.JGFInstrumentor;
+import jgfmt.jgfutil.JGFSection2;
 
 public class JGFSparseMatmultBench extends SparseMatmult implements JGFSection2
 {

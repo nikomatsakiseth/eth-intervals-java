@@ -20,7 +20,7 @@
 
 package jgfmt.jgfutil;
 
-import java.util.*;
+import java.util.Hashtable;
 
 public class JGFInstrumentor {
 

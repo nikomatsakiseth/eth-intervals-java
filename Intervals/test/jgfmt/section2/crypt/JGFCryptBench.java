@@ -20,7 +20,8 @@
 
 package jgfmt.section2.crypt;
 
-import jgfmt.jgfutil.*;
+import jgfmt.jgfutil.JGFInstrumentor;
+import jgfmt.jgfutil.JGFSection2;
 
 public class JGFCryptBench extends IDEATest implements JGFSection2 {
 

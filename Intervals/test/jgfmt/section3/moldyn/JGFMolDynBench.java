@@ -20,9 +20,8 @@
 
 package jgfmt.section3.moldyn;
 
-import java.io.*;
-
-import jgfmt.jgfutil.*;
+import jgfmt.jgfutil.JGFInstrumentor;
+import jgfmt.jgfutil.JGFSection3;
 
 public class JGFMolDynBench implements JGFSection3 {
 

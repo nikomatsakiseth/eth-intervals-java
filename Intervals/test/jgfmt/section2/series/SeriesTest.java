@@ -38,7 +38,7 @@
 
 package jgfmt.section2.series;
 
-import jgfmt.jgfutil.*;
+import jgfmt.jgfutil.JGFInstrumentor;
 
 public class SeriesTest {
 

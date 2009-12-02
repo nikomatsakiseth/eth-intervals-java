@@ -25,15 +25,12 @@
 
 package jgfmt.section3.moldyn;
 
-import static jgfmt.section3.moldyn.md.PARTSIZE;
 import jgfmt.jgfutil.JGFInstrumentor;
 import ch.ethz.intervals.DoubleReduction;
 import ch.ethz.intervals.IndexedTask;
 import ch.ethz.intervals.IntReduction;
-import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.Point;
-import ch.ethz.intervals.Task;
 
 public class mdIntervals extends mdBase {
 	

@@ -33,14 +33,12 @@
 
 package jgfmt.section2.crypt;
 
-import java.util.*;
+import java.util.Random;
 
+import jgfmt.jgfutil.JGFInstrumentor;
 import ch.ethz.intervals.IndexedTask;
-import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.Point;
-import ch.ethz.intervals.Task;
-import jgfmt.jgfutil.*;
 
 class IDEATest {
 

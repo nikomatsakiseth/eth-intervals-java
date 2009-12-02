@@ -20,8 +20,8 @@ package jgfmt.section3;
  *                                                                         *
  **************************************************************************/
 
-import jgfmt.jgfutil.*;
-import jgfmt.section3.moldyn.*;
+import jgfmt.jgfutil.JGFInstrumentor;
+import jgfmt.section3.moldyn.JGFMolDynBench;
 
 public class JGFMolDynBenchSizeA {
 

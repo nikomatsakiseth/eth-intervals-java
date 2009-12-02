@@ -20,8 +20,8 @@ package jgfmt.section3;
  *                                                                         *
  **************************************************************************/
 
-import jgfmt.jgfutil.*;
-import jgfmt.section3.montecarlo.*;
+import jgfmt.jgfutil.JGFInstrumentor;
+import jgfmt.section3.montecarlo.JGFMonteCarloBench;
 
 public class JGFMonteCarloBenchSizeA {
 

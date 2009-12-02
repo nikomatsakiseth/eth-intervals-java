@@ -1,20 +1,8 @@
 package ch.ethz.intervals;
 
 import static ch.ethz.intervals.Intervals.blockingInterval;
-import static ch.ethz.intervals.Intervals.intervalDuring;
-import static ch.ethz.intervals.Intervals.intervalWithBound;
-import static org.junit.Assert.assertEquals;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.Assert;
-import org.junit.Test;
-
-import com.sun.org.apache.xpath.internal.axes.ChildIterator;
-
-import ch.ethz.intervals.TestPCAgent.ProducerData;
 
 /**
  * Bounded-Buffer Agent Producer-Consumer Example

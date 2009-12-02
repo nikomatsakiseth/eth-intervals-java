@@ -1,6 +1,6 @@
 package ch.ethz.intervals.params;
 
-import ch.ethz.intervals.quals.*;
+import ch.ethz.intervals.quals.ObjectParameter;
 
 /** 
     This parameter is defined by default on {@link Object}.  
