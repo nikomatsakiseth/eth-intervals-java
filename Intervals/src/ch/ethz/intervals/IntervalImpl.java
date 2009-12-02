@@ -43,7 +43,7 @@ implements Interval {
 				try {
 					task.run(end);
 				} catch(Throwable t) {
-					end.setPendingException(t);
+					end.addPendingException(t);
 				}
 				
 				end.arrive(1);

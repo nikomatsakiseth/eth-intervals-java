@@ -1,5 +1,6 @@
 package ch.ethz.intervals;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Queue;
@@ -20,16 +21,16 @@ class PointImpl implements Point {
 	 *  interval are NOT propagated to its parent. */
 	protected static final int FLAG_MASK_EXC = 1;
 	
-	final PointImpl bound;                  /** Bound of this point (this->bound). */
-	final int depth;                        /** Depth in point bound tree. */
-	private EdgeList outEdges;              /** Linked list of outgoing edges from this point. */
-	private volatile int waitCount;         /** Number of preceding points that have not arrived.  
-	                                            Set to {@link #OCCURRED} when this has occurred. 
-	                                            Modified only through {@link #waitCountUpdater}. */
-	private Throwable pendingException;     /** Exception that occurred while executing the task or in some preceding point. */
-	private int flags;                      /** Flags (see integer constants like {@link #FLAG_MASK_EXC}) */
-	private LockList pendingLocks;          /** Locks to acquire once waitCount reaches 0 but before we occur */
-	private ThreadPool.WorkItem workItem;   /** Work to schedule when we occur (if any) */
+	final PointImpl bound;                    /** Bound of this point (this->bound). */
+	final int depth;                          /** Depth in point bound tree. */
+	private EdgeList outEdges;                /** Linked list of outgoing edges from this point. */
+	private volatile int waitCount;           /** Number of preceding points that have not arrived.  
+	                                              Set to {@link #OCCURRED} when this has occurred. 
+	                                              Modified only through {@link #waitCountUpdater}. */
+	private Set<Throwable> pendingExceptions; /** Exception(s) that occurred while executing the task or in some preceding point. */
+	private int flags;                        /** Flags (see integer constants like {@link #FLAG_MASK_EXC}) */
+	private LockList pendingLocks;            /** Locks to acquire once waitCount reaches 0 but before we occur */
+	private IntervalImpl workItem;            /** Work to schedule when we occur (if any) */
 	private Current unscheduled;
 
 	/** Used only for the end point of the root interval. */
@@ -217,20 +218,30 @@ class PointImpl implements Point {
 		
 		ExecutionLog.logArrive(this);
 		
-		if((flags & FLAG_MASK_EXC) == 0 && pendingException != null)
-			bound.setPendingExceptionFromChild(pendingException);
-		
 		Iterable<PointImpl> notifiedPoints = EdgeList.edges(outEdges, chunkMask, false);
 		if(Debug.ENABLED)
 			Debug.occur(this, notifiedPoints);
+		
+		// Propagate any exception to all successors unless we are
+		// set to mask exceptions:
+		Set<Throwable> pendingExceptions = this.pendingExceptions;
+		if((flags & FLAG_MASK_EXC) == 0 && pendingExceptions != null) {
+			for(PointImpl toPoint : notifiedPoints)
+				toPoint.addPendingExceptions(pendingExceptions);
+			bound.addPendingExceptions(pendingExceptions);
+		}
 		
 		for(PointImpl toPoint : notifiedPoints)
 			toPoint.arrive(1);
 		bound.arrive(1);
 		
 		if(workItem != null) {
-			Intervals.POOL.submit(workItem);
-			workItem = null;
+			if(pendingExceptions == null) {
+				Intervals.POOL.submit(workItem);
+				workItem = null;
+			} else {
+				bound.arrive(1);
+			}
 		}
 	}
 	
@@ -303,32 +314,41 @@ class PointImpl implements Point {
 		}
 	}
 
-	/** Invoked when the task for which this point is an end point
-	 *  results in an error. */
-	protected synchronized void setPendingException(Throwable thr) {
-		this.pendingException = thr; // Note: may overwrite a Throwable from a child.
-	}
-	
 	/** Checks if a pending throwable is stored and throws a
 	 *  {@link RethrownException} if so. */
 	void checkAndRethrowPendingException() {
-		if(pendingException != null)
-			throw new RethrownException(pendingException);				
+		if(pendingExceptions != null)
+			throw new RethrownException(pendingExceptions);				
+	}
+	
+	synchronized void addPendingException(Throwable thr) {
+		if(bound == null) {
+			thr.printStackTrace();
+		} else {
+			// Using a PSet<> would really be better here:
+			if(pendingExceptions == null)
+				pendingExceptions = Collections.singleton(thr);
+			else if(pendingExceptions.size() == 1) {
+				pendingExceptions = new HashSet<Throwable>(pendingExceptions);
+				pendingExceptions.add(thr);
+			} else {
+				pendingExceptions.add(thr);
+			}
+		}
 	}
 
+
 	/** Invoked when a child interval has thrown the exception 't'. 
-	 *  Overwrites the field {@link #pendingException} with {@code t}.
+	 *  Overwrites the field {@link #pendingExceptions} with {@code t}.
 	 *  This is non-ideal, as it may result in exceptions being lost,
 	 *  and it is also unpredictable which exception will be reported
 	 *  (the one from the task? the one from a child? if so, which child)
 	 *  The correct behavior is probably to construct an aggregate object
 	 *  containing a set of all exceptions thrown.
 	 */
-	synchronized void setPendingExceptionFromChild(Throwable thr) {
-		if(bound != null)
-			setPendingException(thr);
-		else
-			thr.printStackTrace();
+	synchronized void addPendingExceptions(Set<Throwable> thr) {
+		for(Throwable t : thr)
+			addPendingException(t);
 	}
 
 	protected void addFlagBeforeScheduling(int flag) {
@@ -347,7 +367,7 @@ class PointImpl implements Point {
 		}
 	}
 
-	protected void setWorkItemBeforeScheduling(ThreadPool.WorkItem workItem) {
+	protected void setWorkItemBeforeScheduling(IntervalImpl workItem) {
 		this.workItem = workItem;
 	}
 

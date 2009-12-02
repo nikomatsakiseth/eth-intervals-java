@@ -196,24 +196,11 @@ public class TestInterval {
 		
 	}
 	
-	class ThrowExceptionTask implements Task {
-		final boolean maskExceptions;
-		
-		public ThrowExceptionTask(boolean maskExceptions) {
-			this.maskExceptions = maskExceptions;
-		}
-
+	class ThrowExceptionTask extends AbstractTask {
 		@Override
 		public void run(Point currentEnd) {
 			throw new TestException();
 		}
-
-		@Override
-		public void addDependencies(Interval inter) {
-			PointImpl end = (PointImpl) inter.end();
-			if(maskExceptions)
-				end.addFlagBeforeScheduling(PointImpl.FLAG_MASK_EXC);
-		}		
 	}
 	
 	/**
@@ -221,29 +208,25 @@ public class TestInterval {
 	 */
 	@Test public void exceptionPropagatesToParent() {
 		class TestHarness {
-			public void test(final boolean maskExceptions) {
+			public void test() {
 				try {
 					Intervals.blockingInterval(new AbstractTask() {
 
 						@Override
 						public void run(Point currentEnd) {
-							intervalWithBound(currentEnd, new ThrowExceptionTask(maskExceptions));
+							intervalWithBound(currentEnd, new ThrowExceptionTask());
 						}
 						
 					});
 					
-					if(!maskExceptions)
-						Assert.fail("No exception thrown!");
+					Assert.fail("No exception thrown!");
 				} catch (RethrownException e) {
-					if(!maskExceptions)
-						Assert.assertTrue("Not subtype: "+e.getCause(), e.getCause() instanceof TestException);
-					else
-						Assert.fail("Mask is true, but exception thrown: " + e);
+					Assert.assertTrue("Not subtype: "+e.getCause(), e.getCause() instanceof TestException);
 				}				
 			}
 		}
 		
-		new TestHarness().test(false);
+		new TestHarness().test();
 	}
 	
 	/**
@@ -251,7 +234,7 @@ public class TestInterval {
 	 */
 	@Test public void exceptionPropagatesToGrandparent() {
 		class TestHarness {
-			public void test(final boolean maskExceptions) {
+			public void test() {
 				try {
 					Intervals.blockingInterval(new AbstractTask() {
 
@@ -259,227 +242,89 @@ public class TestInterval {
 						public void run(Point currentEnd) {
 							intervalWithBound(
 									currentEnd, 
-									new SubintervalTask(new ThrowExceptionTask(maskExceptions)));
+									new SubintervalTask(new ThrowExceptionTask()));
 						}
 						
 					});
 					
-					if(!maskExceptions)
-						Assert.fail("No exception thrown!");
+					Assert.fail("No exception thrown!");
 				} catch (RethrownException e) {
-					if(!maskExceptions)
-						Assert.assertTrue("Not subtype: "+e.getCause(), e.getCause() instanceof TestException);
-					else
-						Assert.fail("Mask is true, but exception thrown: " + e);
+					Assert.assertTrue("Not subtype: "+e.getCause(), e.getCause() instanceof TestException);
 				}				
 			}
 		}
 		
-		new TestHarness().test(false);
+		new TestHarness().test();
 	}
 	
-//	@Test public void phased() {
-//		// Repeat 10 times, hoping to catch the scheduler in a screw up!
-//		
-//		for (int i = 0; i < repeat; i++) {
-//			final List<List<Integer>> list = Collections.synchronizedList(new ArrayList<List<Integer>>());
-//			
-//			class Subinterval extends AbstractTask {
-//				int phase;
-//
-//				public Subinterval(int phase) {
-//					this.phase = phase;
-//				}								
-//				
-//				public Void run(Interval _) {
-//					Intervals.forkJoinPhased(2, new ArgCallable<Void, List<Interval>>() {
-//						public Void run(List<Interval> phases) {
-//							//debug("Phased, Subinterval phase="+phase+" interval="+interval);
-//							phases.get(0).newChild(new AddTask(list, phase, 0));
-//							phases.get(1).newChild(new AddTask(list, phase, 1));
-//							phases.get(0).newChild(new AddTask(list, phase, 0));
-//							phases.get(1).newChild(new AddTask(list, phase, 1));
-//							return null;
-//						}
-//					});
-//					return null;
-//				}
-//			}			
-//			
-//			Intervals.forkJoinPhased(2, new ArgCallable<Void, List<Interval>>() {
-//				public Void run(List<Interval> phases) {
-//					//debug("Phased, interval="+interval);
-//					phases.get(0).newChild(new Subinterval(0));
-//					phases.get(1).newChild(new Subinterval(1));
-//					return null;
-//				}
-//			});			
-//			
-//			Assert.assertEquals("equal", 8, list.size());
-//			checkOrdering(list);
-//		}
-//	}
-//	
-//	@Test public void illegalCreateChild() {
-//		final boolean[] res = new boolean[1];		
-//		Intervals.forkJoin(new Task() {
-//			public Void run(Interval intervalImpl) throws Exception {				
-//				Interval i = intervalImpl.newChild(new Empty());
-//				try {
-//					i.newChild(new Empty());
-//				} catch (IntervalMustPreventFromClosingException e) {
-//					res[0] = true;
-//				}
-//				return null;
-//			}
-//		});
-//		Assert.assertTrue("createChild() did not throw exception", res[0]);
-//	}
-	
-//	/**
-//	 * Check for a cycle when a grandchild waits on its grandparent.
-//	 */
-//	@Test public void cyclicWaitGrandchild() {
-//		final boolean[] res = new boolean[1];		
-//		
-//		Intervals.forkJoin(new Task() {
-//			public Void run(final Interval parent) {
-//				
-//				Intervals.forkJoin(new Task() {
-//					public Void run(final Interval child1) {
-//						
-//						Intervals.forkJoin(new Task() {
-//							public Void run(final Interval child2) {
-//								try {
-//									child2.split(null, startAfter(end(parent)));
-//								} catch (IntervalCannotWaitOnException e) {
-//									res[0] = true;
-//								}
-//								return null;
-//								
-//							}
-//						});
-//						return null;
-//						
-//					}
-//				});
-//				return null;
-//				
-//			}
-//		});
-//		Assert.assertTrue("joinIntervalChain() did not throw exception", res[0]);
-//	}
-	
-//	/** it's not ok to wait for your parents */
-//	@Test public void illegalJoin() {
-//		final boolean[] res = new boolean[1];		
-//		Intervals.forkJoin(new Task() {
-//			public Void run(final Interval parent) {				
-//				parent.newChild(new Task() {
-//					public Void run(final Interval child) {
-//						try {
-//							child.split(null, startAfter(end(parent)));
-//						} catch (IntervalCannotWaitOnException e) {
-//							res[0] = true;
-//						}
-//						return null;
-//					}
-//				});
-//				return null;
-//			}
-//		});
-//		Assert.assertTrue("join() did not throw exception", res[0]);
-//	}
-	
-//	/** it's ok to wait for yourself */
-//	@Test public void selfAwait() {
-//		final boolean[] res = new boolean[1];
-//		Intervals.forkJoin(new Task() {
-//			public Void run(final Interval parent) {
-//				try {
-//					parent.split(null, startAfter(end(parent)));
-//				} catch (IntervalCannotWaitOnException e) {
-//					res[0] = true;
-//				}
-//				return null;
-//			}
-//		});
-//		Assert.assertTrue("joinIntervalChain() threw exception", !res[0]);
-//	}
-	
-//	/** it's ok to wait split as many times as you like, waiting on the same intervals, etc */ 
-//	@Test public void splitTwice() {
-//		@SuppressWarnings("unchecked")
-//		final Interval[] i = new Interval[3];
-//		Intervals.forkJoin(new Task() {
-//			public Void run(Interval parent) {
-//				Interval child = i[0] = parent.newChild(new Empty());
-//				i[1] = parent = parent.split(null, startAfter(end(child)));
-//				i[2] = parent.split(null, startAfter(end(child)));
-//				return null;
-//			}
-//		});
-//		Assert.assertNotSame(i[0], i[1]);
-//		Assert.assertNotSame(i[1], i[2]);
-//		Assert.assertNotSame(i[0], i[2]);
-//	}
-	
-//	/**
-//	 * That that any number children can wait for each other without a problem,
-//	 * and that this acts as a barrier.
-//	 */
-//	@Test public void joinOpposite() {
-//		for (int iter = 0; iter < repeat; iter++)
-//			tryJoinOpposite();
-//	}
-//
-//	private void tryJoinOpposite() {
-//		final int parallelismLevel = Intervals.POOL.getParallelism();
-//		final int length = parallelismLevel * 2;		
-//		final int[] res = new int[length];
-//		@SuppressWarnings("unchecked")
-//		final Interval[] children = new Interval[length];
-//		final AtomicInteger arrived = new AtomicInteger();
-//
-//		class BarrierTask extends AbstractTask {
-//			
-//			final int index;	
-//			
-//			public BarrierTask(int index) {
-//				this.index = index;
-//			}
-//
-//			public Void run(Interval arg) {
-//				// in theory, no thread can proceed until they all
-//				// have arrived, so add a delay...
-//				debug("Child %d started [%s]", index, arg);
-//				arrived.incrementAndGet();
-//				debug("Child %d sleeping [%s]", index, arg);
-//				arg = arg.split(null, children);	
-//				res[index] = arrived.get();				
-//				debug("Child %d done [%s]", index, arg);
-//				return null;
-//			}
-//			
-//		}
-//		
-//		Intervals.forkJoinSetup(new SetupTask() {
-//			@Override
-//			public Void setup(Interval current, Interval worker) {
-//				for (int i = 0; i < length; i++) {
-//					children[i] = worker.newChild(new BarrierTask(i));
-//					debug("Spawning child %d==%s from %s", i, children[i], current);
-//				}
-//				debug("Next interval: %s", worker);
-//				return null;
-//			}
-//		});
-//
-//		// both should read 2 from the values array.
-//		for (int i = 0; i < length; i++)
-//			Assert.assertEquals(length, res[i]);
-//	}
+	/**
+	 * Tests that uncaught exceptions propagate up to the parent, etc.
+	 */
+	@Test public void exceptionPropagatesToSuccessors() {
+		final AtomicInteger ctr = new AtomicInteger();
+		final IncTask incTask = new IncTask(ctr);
+		
+		class TestHarness {
+			public void test(final int length) {
+				Intervals.blockingInterval(new AbstractTask() {
+					
+					@Override
+					public void run(Point outerEnd) {
+						try {
+							Intervals.blockingInterval(new AbstractTask() {
+								@Override
+								public void run(Point currentEnd) {
+									Interval link0 = Intervals.interval(new ThrowExceptionTask());
+									Interval linkN = link0;
+									for(int i = 0; i < length; i++) {
+										linkN = Intervals.interval(incTask);
+										Intervals.addHb(link0.end(), linkN.start());
+									}
 
+									Intervals.addHb(linkN.end(), currentEnd);
+								}
+							});
+							
+							Assert.fail("No exception thrown!");
+						} catch (RethrownException e) {
+							Assert.assertTrue("Not subtype: "+e.getCause(), e.getCause() instanceof TestException);
+						}
+					}
+				});
+				
+				// The incTasks should be cancelled!				
+				Assert.assertEquals(0, ctr.get());
+			}
+		}
+		
+		for(int length = 5; length < 25; length++) {
+			new TestHarness().test(length);
+		}
+	}
+	
+	@Test public void multipleExceptionsCollected() {
+		class TestHarness {
+			public void test(final int length) {
+				try {
+					Intervals.blockingInterval(new AbstractTask() {
+						@Override
+						public void run(Point currentEnd) {
+							for(int i = 0; i < length; i++) {
+								Intervals.childInterval(new ThrowExceptionTask());
+							}
+						}
+					});
+					Assert.fail("No exception thrown");
+				} catch (RethrownException e) {
+					Assert.assertEquals("Wrong number of exceptions", length, e.allErrors.size());
+				}
+			}
+		}
+		
+		for(int length = 5; length < 25; length++) {
+			new TestHarness().test(length);
+		}
+	}	
 	
 	// A test of a P2P setup.  
 	@Test public void pointToPoint() {
