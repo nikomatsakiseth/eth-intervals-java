@@ -287,22 +287,56 @@ public class Intervals {
 		//   that it causes no problems.
 		PointImpl fromImpl = (PointImpl) from;
 		PointImpl toImpl = (PointImpl) to;
-		int adjust = fromImpl.addEdgeAndAdjustWaitCount(toImpl, !SAFETY_CHECKS);
 		
-		// Perform cycle check:
-		if(SAFETY_CHECKS) {
-			if(toImpl.hb(from, false)) {
-				// Uh-oh, error, go into damage control.
-				fromImpl.unAddEdge(toImpl);
-				if(adjust != 0)
-					toImpl.arrive(adjust);
-				throw new CycleException(fromImpl, toImpl);
-			} else {
-				fromImpl.confirmEdge(toImpl);
-			}
-		} 
+		if(!SAFETY_CHECKS) {
+			fromImpl.addEdgeAndAdjustWaitCount(toImpl, true);
+		} else {
+			// Really, these helper methods ought to be inlined,
+			// but they are separated to aid in testing. 
+			int adjust = optimisticallyAddEdge(fromImpl, toImpl);
+			checkForCycleAndRecover(fromImpl, toImpl, adjust);			
+		}
 		
 		ExecutionLog.logEdge(from, to);
+	}
+
+	/** Helper method of {@link #addHb(Point, Point)}.
+	 *  Pulled apart for use with testing. */
+	static int optimisticallyAddEdge(
+			PointImpl fromImpl,
+			PointImpl toImpl) 
+	{
+		// Note: the edge is not considered deterministic until we have
+		// verified that the resulting graph is acyclic.
+		return fromImpl.addEdgeAndAdjustWaitCount(toImpl, false);
+	}
+	
+	/** Helper method of {@link #addHb(Point, Point)}.
+	 *  Pulled apart for use with testing. */
+	static void checkForCycleAndRecover(
+			PointImpl fromImpl,
+			PointImpl toImpl, 
+			int adjust) 
+	{
+		if(toImpl.hb(fromImpl, false)) {
+			recoverFromCycle(fromImpl, toImpl, adjust);
+		} else {
+			fromImpl.confirmEdge(toImpl);
+		}
+	}
+
+	/** Helper method of {@link #addHb(Point, Point)}.
+	 *  Pulled apart for use with testing. */
+	static void recoverFromCycle(
+			PointImpl fromImpl, 
+			PointImpl toImpl,
+			int adjust) 
+	{
+		// Uh-oh, error, go into damage control.
+		fromImpl.unAddEdge(toImpl);
+		if(adjust != 0)
+			toImpl.arrive(adjust);
+		throw new CycleException(fromImpl, toImpl);
 	}
 	
 	public static void exclusiveLock(Interval interval, Guard guard) {

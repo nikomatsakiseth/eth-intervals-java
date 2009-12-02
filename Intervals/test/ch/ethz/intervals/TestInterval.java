@@ -698,4 +698,83 @@ public class TestInterval {
 		
 		Assert.assertEquals("Increment task failed to execute", 1, i.get());	
 	}
+	
+	@Test
+	public void raceCycle1() {
+		assert Intervals.SAFETY_CHECKS; // or else this test is not so useful.
+		final AtomicInteger cnt = new AtomicInteger();
+		blockingInterval(new AbstractTask() {			
+			@Override
+			public void run(Point currentEnd) {
+				IncTask task = new IncTask(cnt);
+				IntervalImpl a = (IntervalImpl) Intervals.childInterval(task);
+				IntervalImpl b = (IntervalImpl) Intervals.childInterval(task);
+				IntervalImpl c = (IntervalImpl) Intervals.childInterval(task);
+				IntervalImpl d = (IntervalImpl) Intervals.childInterval(task);
+				
+				Intervals.addHb(a.end, c.start);
+				Intervals.addHb(d.end, b.start);
+				
+				int adjust = Intervals.optimisticallyAddEdge(b.end, a.start);
+				Assert.assertFalse("hb observed before final", b.end.hb(a.start));
+				try {
+					Intervals.addHb(c.end, d.start);
+					Assert.fail("No cycle exception");
+				} catch(CycleException e) {					
+				}
+				Intervals.checkForCycleAndRecover(b.end, a.start, adjust);
+				Assert.assertTrue("hb not observed after final", b.end.hb(a.start));
+			}
+		});
+		Assert.assertEquals("Not all subintervals executed!", 4, cnt.get());
+	}
+
+	@Test
+	public void raceCycle2() {
+		assert Intervals.SAFETY_CHECKS; // or else this test is not so useful.
+		final AtomicInteger cnt = new AtomicInteger();
+		blockingInterval(new AbstractTask() {			
+			@Override
+			public void run(Point currentEnd) {
+				IncTask task = new IncTask(cnt);
+				IntervalImpl a = (IntervalImpl) Intervals.childInterval(task);
+				IntervalImpl b = (IntervalImpl) Intervals.childInterval(task);
+				IntervalImpl c = (IntervalImpl) Intervals.childInterval(task);
+				IntervalImpl d = (IntervalImpl) Intervals.childInterval(task);
+				
+				Intervals.addHb(a.end, c.start);
+				Intervals.addHb(d.end, b.start);
+				
+				int adjust = Intervals.optimisticallyAddEdge(b.end, a.start);
+				Assert.assertFalse("hb observed before final", b.end.hb(a.start));
+				try {
+					Intervals.addHb(c.end, d.start);
+					Assert.fail("No cycle exception");
+				} catch(CycleException e) {					
+				}
+
+				// Have to resort to some wicked internal APIs
+				// in order to force the scenario where we started
+				// adding an edge b->a and b had not occurred, 
+				// found a cycle, but then b occurred before we 
+				// could undo the cycle.  This could only happen in practice
+				// if another thread was simultaneously adding an edge,
+				// we both found the cycle, and then they fixed theirs, allowing
+				// the scheduler to proceed, before we could fix ours.
+				Current current = Current.get();
+				current.schedule(b);
+				current.schedule(d);				
+				b.end.join();
+				
+				try {
+					Intervals.recoverFromCycle(b.end, a.start, adjust);
+					Assert.fail("No cycle exception");
+				} catch(CycleException e) {					
+				}
+				
+				Assert.assertFalse("hb observed after recoverFromCycle", b.end.hb(a.start));
+			}
+		});
+		Assert.assertEquals("Not all subintervals executed!", 4, cnt.get());
+	}
 }
