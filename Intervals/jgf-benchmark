@@ -1,0 +1,38 @@
+#!/bin/bash
+
+# Script for running JGF benchmarks.
+# Usage:
+# ./jgf-benchmark jgfmt.section2.JGFSORBench -1 3 "SizeA SizeB SizeC" "-Xmx512M"
+
+RDIR=$(dirname $0)
+DIR=$(cd $RDIR; pwd)
+CLSNAME=$1
+THREADS=$2
+TRIALS=$3
+ALL="$4"
+JAVAC_OPTS="$5"
+FOUND=
+TMPDIR=/tmp
+
+export CLASSPATH=$CLASSPATH:$DIR/bin
+
+rm -f $TMPDIR/prof
+for x in $ALL
+do
+    CLSFILE=bin/${CLSNAME//./\/}$x.class
+    if [ -f $CLSFILE ]
+    then
+	FOUND+="$x "
+	for iter in $(seq 1 $TRIALS)
+	do 
+		echo Running java $JAVAC_OPTS $CLSNAME$x $THREADS from $DIR/runtime
+		java $JAVAC_OPTS $CLSNAME$x $THREADS >> $TMPDIR/prof
+	done
+    else
+       echo $CLSFILE not found.
+    fi
+done
+
+re '([0-9.]*) \(s\)' '$1' $TMPDIR/prof > $TMPDIR/prof-num
+columnize $FOUND < $TMPDIR/prof-num
+

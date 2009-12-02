@@ -7,27 +7,13 @@ ITERFAST=6
 ITERSLOW=3
 NS="8 -1"
 
-echo "File name is $1"
-echo "> date"
-date
-echo "> svn info"
-svn info
-echo "> svn diff"
-svn diff
+./benchmark-init.sh $1
 
-echo 
-echo "Settings:"
-echo "JAVAOPTS=${JAVAOPTS}"
 echo "SIZES2=${JAVAOPTS}"
 echo "SIZES3=${JAVAOPTS}"
 echo "ITERFAST=${ITERFAST}"
 echo "ITERSLOW=${ITERSLOW}"
 echo "NS=${NS}"
-echo "NOBUILD=${NOBUILD}"
-
-if [ ! -n "$NOBUILD" ]; then
-	make clean compile
-fi
 
 for N in ${NS}
 do 

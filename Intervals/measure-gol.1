@@ -1,11 +1,6 @@
 #!/bin/bash
 
-echo Logfile: $1
-date
-git show --oneline | head -1
-git status
-git diff | cat
-pwd
+./benchmark-init.sh $1
 
 for k in serial st fg b p sp i 
 do 

@@ -1,5 +1,5 @@
 #!/bin/bash
 MYDIR=$(dirname $0)
-LOGDIR=../../measurements
+LOGDIR=../measurements
 LOGFILE=$(hostname)-$(date +'%Y-%m-%d-%H:%M:%S').txt
 script -c "$MYDIR/all-benchmarks.1 $LOGFILE" $LOGDIR/$LOGFILE
