@@ -2,10 +2,13 @@ package ch.ethz.intervals;
 
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
+
+import com.sun.tools.jdi.LinkedHashMap;
 
 import ch.ethz.intervals.ThreadPool.Worker;
 
@@ -73,12 +76,13 @@ class PointImpl implements Point {
 	@Override
 	public boolean isBoundedBy(Point p) {
 		PointImpl pp = (PointImpl) p;
+		PointImpl bb = bound;
 		
-		if(bound != null) {
-			while(pp.depth > bound.depth)
-				pp = pp.bound;
+		if(bb != null) {
+			while(bb.depth > pp.depth)
+				bb = bb.bound;
 			
-			return (pp == bound);
+			return (pp == bb);
 		} else {
 			return false;
 		}
@@ -109,7 +113,7 @@ class PointImpl implements Point {
 	
 	@Override
 	public boolean hb(final Point p) {
-		return hb(p, true);
+		return hb((PointImpl) p, true);
 	}
 	
 	/** true if {@code this} -> {@code p}.
@@ -117,21 +121,42 @@ class PointImpl implements Point {
 	 * @param onlyDeterministic false to exclude edges
 	 * that may depend on scheduler, primarily this means
 	 * those resulting from locks */
-	boolean hb(final Point p, boolean onlyDeterministic) {
+	boolean hb(final PointImpl p, boolean onlyDeterministic) {
 		assert p != null;
 		
 		if(p == this)
 			return false;
-		if(p == bound)
+		if(isBoundedBy(p))
 			return true;
-
-		// Perform a BFS to find p:
 		
+		// Common case check:
+		//
+		//                 bound
+		//                   /
+		//   p --> this--bound
+		//
+		// Check for the scenario where 
+		// (a) this is a start point;
+		// (b) p shares a bound with our end point;
+		// (c) this has no other successors.
+		if(bound == null || (
+				outEdges == null && 
+				bound.outEdges == null &&
+				bound.bound != null &&
+				p.isBoundedBy(bound.bound)))
+			return false;
+
+		// Perform a BFS to find p:		
+		final PointImpl pBounds[] = p.bounds();
 		final Queue<PointImpl> queue = new LinkedList<PointImpl>();
-		final Set<PointImpl> visited = new HashSet<PointImpl>();
+		final Set<PointImpl> visited = new HashSet<PointImpl>(64);
 		queue.add(this);
 		
 		class Helper {
+			boolean pIsBoundedBy(PointImpl q) {
+				return(q.depth < pBounds.length && pBounds[q.depth] == q);
+			}
+			
 			/** Add {@code q} to queue if not already visited, returning
 			 *  {@code true} if {@code q} is the node we are looking for. */
 			boolean tryEnqueue(PointImpl q) {
@@ -139,8 +164,12 @@ class PointImpl implements Point {
 				
 				if(q == p)
 					return true; // found it
-				
-				if(visited.add(q))
+
+				// If p is bounded by q, then p->q, so q cannot hb p.
+				//
+				// (If the user attempted to add such an edge, a cycle
+				//  exception would result.)
+				if(!pIsBoundedBy(q) && visited.add(q))
 					queue.add(q);
 				return false;
 			}
@@ -403,5 +432,12 @@ class PointImpl implements Point {
 		synchronized(this) {
 			EdgeList.setDeterministic(outEdges, toImpl);
 		}
+	}
+
+	PointImpl[] bounds() {
+		PointImpl[] result = new PointImpl[depth];
+		for(PointImpl b = bound; b != null; b = b.bound)
+			result[b.depth] = b;
+		return result;
 	}
 }

@@ -320,6 +320,7 @@ public class Intervals {
 	{
 		if(toImpl.hb(fromImpl, false)) {
 			recoverFromCycle(fromImpl, toImpl, adjust);
+			throw new CycleException(fromImpl, toImpl);
 		} else {
 			fromImpl.confirmEdge(toImpl);
 		}
@@ -336,7 +337,6 @@ public class Intervals {
 		fromImpl.unAddEdge(toImpl);
 		if(adjust != 0)
 			toImpl.arrive(adjust);
-		throw new CycleException(fromImpl, toImpl);
 	}
 	
 	public static void exclusiveLock(Interval interval, Guard guard) {

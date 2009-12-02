@@ -499,6 +499,20 @@ public class TestInterval {
 		Intervals.addHb(b.end(), a.start());
 	}
 	
+	@Test(expected=CycleException.class) 
+	public void boundToStartGeneratesError() {
+		final Interval a = interval(Intervals.emptyTask);
+		final Interval b = intervalWithBound(a.end(), emptyTask);
+		Intervals.addHb(a.end(), b.start());
+	}
+	
+	@Test(expected=CycleException.class) 
+	public void boundToEndGeneratesError() {
+		final Interval a = interval(Intervals.emptyTask);
+		final Interval b = intervalWithBound(a.end(), emptyTask);
+		Intervals.addHb(a.end(), b.end());
+	}
+	
 	@Test 
 	public void raceCondErrorsLeaveSchedulerInStableState() {
 		final Interval a = interval(Intervals.emptyTask);
@@ -611,12 +625,8 @@ public class TestInterval {
 				current.schedule(d);				
 				b.end.join();
 				
-				try {
-					Intervals.recoverFromCycle(b.end, a.start, adjust);
-					Assert.fail("No cycle exception");
-				} catch(CycleException e) {					
-				}
-				
+				// Note: manually invoking this method doesn't cause a CycleException
+				Intervals.recoverFromCycle(b.end, a.start, adjust);				
 				Assert.assertFalse("hb observed after recoverFromCycle", b.end.hb(a.start));
 			}
 		});
