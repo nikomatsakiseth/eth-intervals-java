@@ -1,0 +1,392 @@
+Script started on Wed 02 Dec 2009 09:21:16 PM CET
+Logfile: mafushi-2009-12-02-21:21:16.txt
+> date
+Wed Dec  2 21:21:16 CET 2009
+git show --pretty=oneline | head -1
+9ee8049dfd950ff1d7e009d029bcb86c26662275 Merge branch '2009.11.22-Points-Points-And-More-Points' of ssh://maf/~/git/eth-intervals-java into 2009.11.22-Points-Points-And-More-Points
+git diff | cat
+diff --git a/Intervals/benchmark-init.sh b/Intervals/benchmark-init.sh
+index 045b2f0..3d6062a 100755
+--- a/Intervals/benchmark-init.sh
++++ b/Intervals/benchmark-init.sh
+@@ -1,8 +1,8 @@
+ echo Logfile: $1
+ echo "> date"
+ date
+-echo "git show --online | head -1"
+-git show --oneline | head -1
++echo 'git show --pretty=oneline | head -1'
++git show --pretty=oneline | head -1
+ echo "git diff | cat"
+ git diff | cat
+ echo "pwd"
+pwd
+/home/nmatsaki/git/eth-intervals-java/Intervals
+
+Settings:
+JAVAOPTS=
+NOBUILD=
+Buildfile: build.xml
+
+clean:
+   [delete] Deleting directory /home/nmatsaki/git/eth-intervals-java/Intervals/bin
+
+create:
+    [mkdir] Created dir: /home/nmatsaki/git/eth-intervals-java/Intervals/bin
+
+compile:
+    [javac] Compiling 67 source files to /home/nmatsaki/git/eth-intervals-java/Intervals/bin
+    [javac] Compiling 107 source files to /home/nmatsaki/git/eth-intervals-java/Intervals/bin
+    [javac] Note: Some input files use unchecked or unsafe operations.
+    [javac] Note: Recompile with -Xlint:unchecked for details.
+
+jar:
+      [jar] Building jar: /home/nmatsaki/git/eth-intervals-java/Intervals/test.jar
+
+BUILD SUCCESSFUL
+Total time: 5 seconds
+SIZES2=-Xmx2048M
+SIZES3=-Xmx2048M
+ITERFAST=6
+ITERSLOW=3
+NS=8 -1
+Running java -Xmx2048M jgfmt.section2.JGFCryptBenchSizeA 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFCryptBenchSizeA 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFCryptBenchSizeA 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFCryptBenchSizeA 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFCryptBenchSizeA 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFCryptBenchSizeA 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFCryptBenchSizeB 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFCryptBenchSizeB 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFCryptBenchSizeB 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFCryptBenchSizeB 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFCryptBenchSizeB 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFCryptBenchSizeB 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFCryptBenchSizeC 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFCryptBenchSizeC 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFCryptBenchSizeC 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFCryptBenchSizeC 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFCryptBenchSizeC 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFCryptBenchSizeC 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+SizeA	SizeB	SizeC
+0.123	0.386	0.649
+0.104	0.387	0.563
+0.101	0.361	0.525
+0.125	0.376	0.563
+0.131	0.337	0.566
+0.115	0.319	0.717
+Running java -Xmx2048M jgfmt.section2.JGFLUFactBenchSizeA 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFLUFactBenchSizeA 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFLUFactBenchSizeA 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFLUFactBenchSizeA 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFLUFactBenchSizeA 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFLUFactBenchSizeA 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFLUFactBenchSizeB 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFLUFactBenchSizeB 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFLUFactBenchSizeB 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFLUFactBenchSizeB 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFLUFactBenchSizeB 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFLUFactBenchSizeB 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFLUFactBenchSizeC 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFLUFactBenchSizeC 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFLUFactBenchSizeC 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFLUFactBenchSizeC 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFLUFactBenchSizeC 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFLUFactBenchSizeC 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+SizeA	SizeB	SizeC
+0.21	0.275	1.724
+0.186	0.195	1.841
+0.201	0.198	1.658
+0.188	0.2	1.843
+0.159	0.296	1.808
+0.181	0.194	1.65
+Running java -Xmx2048M jgfmt.section2.JGFSORBenchSizeA 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSORBenchSizeA 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSORBenchSizeA 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSORBenchSizeA 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSORBenchSizeA 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSORBenchSizeA 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSORBenchSizeB 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSORBenchSizeB 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSORBenchSizeB 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSORBenchSizeB 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSORBenchSizeB 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSORBenchSizeB 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSORBenchSizeC 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSORBenchSizeC 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSORBenchSizeC 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSORBenchSizeC 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSORBenchSizeC 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSORBenchSizeC 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+SizeA	SizeB	SizeC
+0.186	0.436	0.755
+0.21	0.459	0.886
+0.304	0.337	0.827
+0.392	0.323	0.881
+0.567	0.328	0.648
+0.303	0.431	0.777
+Running java -Xmx2048M jgfmt.section2.JGFSeriesBenchSizeA 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSeriesBenchSizeA 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSeriesBenchSizeA 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSeriesBenchSizeB 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSeriesBenchSizeB 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSeriesBenchSizeB 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSeriesBenchSizeC 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSeriesBenchSizeC 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSeriesBenchSizeC 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+SizeA	SizeB	SizeC
+1.212	10.748	220.361
+1.236	10.701	224.645
+1.245	10.665	220.06
+Running java -Xmx2048M jgfmt.section2.JGFCryptBenchSizeA -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFCryptBenchSizeA -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFCryptBenchSizeA -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFCryptBenchSizeA -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFCryptBenchSizeA -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFCryptBenchSizeA -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFCryptBenchSizeB -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFCryptBenchSizeB -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFCryptBenchSizeB -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFCryptBenchSizeB -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFCryptBenchSizeB -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFCryptBenchSizeB -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFCryptBenchSizeC -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFCryptBenchSizeC -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFCryptBenchSizeC -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFCryptBenchSizeC -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFCryptBenchSizeC -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFCryptBenchSizeC -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+SizeA	SizeB	SizeC
+0.204	0.327	0.599
+0.162	0.316	0.541
+0.164	0.317	0.566
+0.133	0.312	0.557
+0.135	0.309	0.559
+0.176	0.309	0.568
+Running java -Xmx2048M jgfmt.section2.JGFLUFactBenchSizeA -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFLUFactBenchSizeA -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFLUFactBenchSizeA -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFLUFactBenchSizeA -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFLUFactBenchSizeA -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFLUFactBenchSizeA -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFLUFactBenchSizeB -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFLUFactBenchSizeB -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFLUFactBenchSizeB -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFLUFactBenchSizeB -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFLUFactBenchSizeB -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFLUFactBenchSizeB -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFLUFactBenchSizeC -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFLUFactBenchSizeC -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFLUFactBenchSizeC -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFLUFactBenchSizeC -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFLUFactBenchSizeC -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFLUFactBenchSizeC -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+SizeA	SizeB	SizeC
+0.47	0.679	2.391
+0.355	0.85	2.33
+0.31	0.565	2.295
+0.537	0.798	2.282
+0.376	0.606	2.242
+0.456	0.577	2.281
+Running java -Xmx2048M jgfmt.section2.JGFSORBenchSizeA -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSORBenchSizeA -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSORBenchSizeA -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSORBenchSizeA -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSORBenchSizeA -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSORBenchSizeA -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSORBenchSizeB -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSORBenchSizeB -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSORBenchSizeB -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSORBenchSizeB -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSORBenchSizeB -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSORBenchSizeB -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSORBenchSizeC -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSORBenchSizeC -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSORBenchSizeC -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSORBenchSizeC -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSORBenchSizeC -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSORBenchSizeC -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+SizeA	SizeB	SizeC
+0.906	1.176	1.422
+0.918	1.211	1.474
+0.945	1.083	1.705
+1.107	1.324	1.529
+0.986	1.192	1.671
+0.858	1.174	1.453
+Running java -Xmx2048M jgfmt.section2.JGFSeriesBenchSizeA -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSeriesBenchSizeA -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSeriesBenchSizeA -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSeriesBenchSizeB -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSeriesBenchSizeB -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSeriesBenchSizeB -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSeriesBenchSizeC -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSeriesBenchSizeC -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section2.JGFSeriesBenchSizeC -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+SizeA	SizeB	SizeC
+1.773	11.229	174.198
+1.378	11.268	172.0
+1.39	11.52	171.732
+Running java -Xmx2048M jgfmt.section3.JGFMolDynBenchSizeA 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFMolDynBenchSizeA 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFMolDynBenchSizeA 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFMolDynBenchSizeA 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFMolDynBenchSizeA 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFMolDynBenchSizeA 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFMolDynBenchSizeB 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFMolDynBenchSizeB 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFMolDynBenchSizeB 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFMolDynBenchSizeB 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFMolDynBenchSizeB 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFMolDynBenchSizeB 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+SizeA	SizeB
+0.592	5.32
+0.7	5.522
+0.669	5.477
+0.756	5.661
+0.774	5.406
+0.861	5.572
+0.732	5.481
+0.824	5.64
+0.753	5.82
+0.85	6.011
+0.626	6.072
+0.719	6.241
+Running java -Xmx2048M jgfmt.section3.JGFMonteCarloBenchSizeA 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFMonteCarloBenchSizeA 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFMonteCarloBenchSizeA 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFMonteCarloBenchSizeA 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFMonteCarloBenchSizeA 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFMonteCarloBenchSizeA 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFMonteCarloBenchSizeB 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFMonteCarloBenchSizeB 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFMonteCarloBenchSizeB 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFMonteCarloBenchSizeB 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFMonteCarloBenchSizeB 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFMonteCarloBenchSizeB 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+SizeA	SizeB
+1.09	4.274
+1.653	4.804
+0.975	4.724
+1.175	5.208
+1.067	4.715
+1.266	5.16
+0.913	4.405
+1.091	4.867
+1.012	5.102
+1.195	5.612
+1.043	4.624
+1.24	5.032
+Running java -Xmx2048M jgfmt.section3.JGFRayTracerBenchSizeA 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFRayTracerBenchSizeA 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFRayTracerBenchSizeA 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFRayTracerBenchSizeA 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFRayTracerBenchSizeA 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFRayTracerBenchSizeA 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFRayTracerBenchSizeB 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFRayTracerBenchSizeB 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFRayTracerBenchSizeB 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFRayTracerBenchSizeB 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFRayTracerBenchSizeB 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFRayTracerBenchSizeB 8 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+SizeA	SizeB
+0.012	0.066
+0.494	4.278
+0.516	4.355
+0.026000000000000002	0.026000000000000002
+0.591	4.271
+0.624	4.308
+0.021	0.0080
+0.593	4.164
+0.626	4.262
+0.0040	0.025
+0.456	4.277
+0.477	4.321
+0.0060	0.026000000000000002
+0.579	4.629
+0.593	4.661
+0.125	0.0070
+0.542	3.955
+0.817	4.009
+Running java -Xmx2048M jgfmt.section3.JGFMolDynBenchSizeA -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFMolDynBenchSizeA -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFMolDynBenchSizeA -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFMolDynBenchSizeA -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFMolDynBenchSizeA -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFMolDynBenchSizeA -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFMolDynBenchSizeB -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFMolDynBenchSizeB -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFMolDynBenchSizeB -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFMolDynBenchSizeB -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFMolDynBenchSizeB -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFMolDynBenchSizeB -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+SizeA	SizeB
+0.816	5.576
+0.903	5.683
+0.736	6.392
+0.799	6.498
+0.786	6.005
+0.849	6.111
+0.82	5.713
+0.882	5.807
+0.761	6.154
+0.823	6.263
+0.873	6.17
+0.928	6.275
+Running java -Xmx2048M jgfmt.section3.JGFMonteCarloBenchSizeA -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFMonteCarloBenchSizeA -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFMonteCarloBenchSizeA -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFMonteCarloBenchSizeA -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFMonteCarloBenchSizeA -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFMonteCarloBenchSizeA -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFMonteCarloBenchSizeB -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFMonteCarloBenchSizeB -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFMonteCarloBenchSizeB -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFMonteCarloBenchSizeB -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFMonteCarloBenchSizeB -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFMonteCarloBenchSizeB -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+SizeA	SizeB
+1.168	4.875
+1.4	5.344
+1.098	5.452
+1.306	5.954
+1.329	4.988
+1.546	5.512
+1.185	4.939
+1.403	5.523
+1.33	4.394
+1.546	4.951
+1.263	4.579
+1.472	5.102
+Running java -Xmx2048M jgfmt.section3.JGFRayTracerBenchSizeA -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFRayTracerBenchSizeA -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFRayTracerBenchSizeA -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFRayTracerBenchSizeA -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFRayTracerBenchSizeA -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFRayTracerBenchSizeA -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFRayTracerBenchSizeB -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFRayTracerBenchSizeB -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFRayTracerBenchSizeB -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFRayTracerBenchSizeB -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFRayTracerBenchSizeB -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+Running java -Xmx2048M jgfmt.section3.JGFRayTracerBenchSizeB -1 from /home/nmatsaki/git/eth-intervals-java/Intervals/runtime
+SizeA	SizeB
+0.015	0.0090
+0.568	3.789
+0.621	3.833
+0.0090	0.0090
+0.574	3.475
+0.619	3.519
+0.0080	0.0090
+0.676	3.396
+0.721	3.435
+0.0090	0.0090
+0.502	3.923
+0.546	3.961
+0.0090	0.0090
+0.445	4.462
+0.484	4.509
+0.0090	0.0090
+0.561	4.69
+0.606	4.736
+
+Script done on Wed 02 Dec 2009 09:48:34 PM CET

@@ -1,0 +1,33 @@
+Script started on Wed 02 Dec 2009 09:20:19 PM CET
+Logfile: mafushi-2009-12-02-21:20:19.txt
+> date
+Wed Dec  2 21:20:19 CET 2009
+git show --online | head -1
+fatal: unrecognized argument: --oneline
+git diff | cat
+pwd
+/home/nmatsaki/git/eth-intervals-java/Intervals
+
+Settings:
+JAVAOPTS=
+NOBUILD=
+Buildfile: build.xml
+
+clean:
+   [delete] Deleting directory /home/nmatsaki/git/eth-intervals-java/Intervals/bin
+
+create:
+    [mkdir] Created dir: /home/nmatsaki/git/eth-intervals-java/Intervals/bin
+
+compile:
+    [javac] Compiling 67 source files to /home/nmatsaki/git/eth-intervals-java/Intervals/bin
+^CSIZES2=-Xmx2048M
+SIZES3=-Xmx2048M
+ITERFAST=6
+ITERSLOW=3
+NS=8 -1
+bin/jgfmt/section2/JGFCryptBenchSizeA.class not found.
+bin/jgfmt/section2/JGFCryptBenchSizeB.class not found.
+bin/jgfmt/section2/JGFCryptBenchSizeC.class not found.
+^C
+Script done on Wed 02 Dec 2009 09:20:22 PM CET
