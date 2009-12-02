@@ -1271,6 +1271,7 @@ public class TestGameOfLife {
 			timeFactory(engine, pattern, minGen, maxGen, step);			
 		}
 		
+		executorService.shutdown();
 	}
 	
 	public static void main(String args[]) {
