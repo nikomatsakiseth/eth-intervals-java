@@ -1,5 +1,8 @@
 package ch.ethz.intervals;
 
+import static ch.ethz.intervals.EdgeList.NORMAL;
+import static ch.ethz.intervals.EdgeList.SPECULATIVE;
+
 
 
 public class Intervals {
@@ -149,13 +152,12 @@ public class Intervals {
 		PointImpl end = new PointImpl(current, bndImpl, 2); // waiting for task, start 
 		PointImpl start = new PointImpl(current, end, 1);   // waiting to be scheduled
 		if(current.start != null) // current.start must have occurred, so can't affect WC
-			current.start.addEdgeWithoutAdjustingWaitCount(start, true);
+			current.start.justAddEdgeWithoutAdjusting(start, NORMAL);
 		IntervalImpl result = new IntervalImpl(task, start, end);		
 		start.setWorkItemBeforeScheduling(result);
 		ExecutionLog.logNewInterval(current.start, start, end);
 		ExecutionLog.logScheduleInterval(start, task); // XXX this event is no longer logically separate
 		current.addUnscheduled(result);
-		task.addDependencies(result);
 		return result;
 	}
 	
@@ -249,29 +251,15 @@ public class Intervals {
 		 * 
 		 * Another technique is to be optimistic: insert the edge, and
 		 * then do the check.  If you find a cycle, uninsert the edge and
-		 * throw an exception.  This sounds difficult, but it's not as
-		 * bad as it sounds.  Assume we are interval i1 adding the edge b->a.
+		 * throw an exception.  
 		 * 
-		 * (1) We know that a (and thus c) cannot have occurred because otherwise it is
-		 *     not a legal target for a new edge.
-		 *     
-		 * (2) When we add the edge b->a, we remember whether b had occurred or not,
-		 *     so we know whether b had occurred at the time that the edge was
-		 *     added.
-		 *     
-		 * We can therefore acquire a lock on b and remove the edge entry to a.  We
-		 * then may need to adjust the wait count of a, according to the following
-		 * table:
-		 * 
-		 * Point b:             | has not yet occurred | has occurred now
-		 * had not yet occurred | decrement by 1       | no change needed
-		 * had already occurred | impossible           | no change needed
-		 * 
-		 * One downside of this technique is that it is possible for a simultaneous
-		 * user to query whether b.hb(a), get true and then later false.  To fix
-		 * this, we could mark the edge as non-deterministic and only upgrade it to
-		 * deterministic once the check is complete.  The edge is then recorded for
-		 * posterity.
+		 * To make this easier, we insert the edge with
+		 * a flag that marks it as SPECULATIVE.  It will then be ignored 
+		 * should the source point occur in the meantime, and also for any
+		 * hb() checks the user may perform.  This means that after 
+		 * we have confirmed the edge is okay, we have to remove the speculative
+		 * mark.  At that time, we also adjust its wait count and 
+		 * propagate any exceptions. 
 		 */
 		
 		Current current = Current.get();
@@ -289,12 +277,12 @@ public class Intervals {
 		PointImpl toImpl = (PointImpl) to;
 		
 		if(!SAFETY_CHECKS) {
-			fromImpl.addEdgeAndAdjustWaitCount(toImpl, true);
+			fromImpl.addEdgeAndAdjust(toImpl, NORMAL);
 		} else {
 			// Really, these helper methods ought to be inlined,
 			// but they are separated to aid in testing. 
-			int adjust = optimisticallyAddEdge(fromImpl, toImpl);
-			checkForCycleAndRecover(fromImpl, toImpl, adjust);			
+			optimisticallyAddEdge(fromImpl, toImpl);
+			checkForCycleAndRecover(fromImpl, toImpl);			
 		}
 		
 		ExecutionLog.logEdge(from, to);
@@ -302,41 +290,34 @@ public class Intervals {
 
 	/** Helper method of {@link #addHb(Point, Point)}.
 	 *  Pulled apart for use with testing. */
-	static int optimisticallyAddEdge(
+	static void optimisticallyAddEdge(
 			PointImpl fromImpl,
 			PointImpl toImpl) 
 	{
-		// Note: the edge is not considered deterministic until we have
+		// Note: the edge is considered speculative until we have
 		// verified that the resulting graph is acyclic.
-		return fromImpl.addEdgeAndAdjustWaitCount(toImpl, false);
+		fromImpl.justAddEdgeWithoutAdjusting(toImpl, SPECULATIVE);
 	}
 	
 	/** Helper method of {@link #addHb(Point, Point)}.
 	 *  Pulled apart for use with testing. */
 	static void checkForCycleAndRecover(
 			PointImpl fromImpl,
-			PointImpl toImpl, 
-			int adjust) 
+			PointImpl toImpl) 
 	{
-		if(toImpl.hb(fromImpl, false)) {
-			recoverFromCycle(fromImpl, toImpl, adjust);
+		if(toImpl.hb(fromImpl, 0)) {
+			recoverFromCycle(fromImpl, toImpl);
 			throw new CycleException(fromImpl, toImpl);
 		} else {
-			fromImpl.confirmEdge(toImpl);
+			fromImpl.confirmEdgeAndAdjust(toImpl, NORMAL);
 		}
 	}
 
 	/** Helper method of {@link #addHb(Point, Point)}.
 	 *  Pulled apart for use with testing. */
-	static void recoverFromCycle(
-			PointImpl fromImpl, 
-			PointImpl toImpl,
-			int adjust) 
-	{
+	static void recoverFromCycle(PointImpl fromImpl, PointImpl toImpl) {
 		// Uh-oh, error, go into damage control.
 		fromImpl.unAddEdge(toImpl);
-		if(adjust != 0)
-			toImpl.arrive(adjust);
 	}
 	
 	public static void exclusiveLock(Interval interval, Guard guard) {

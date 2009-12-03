@@ -1,5 +1,6 @@
 package ch.ethz.intervals;
 
+import static ch.ethz.intervals.EdgeList.NONDETERMINISTIC;
 import ch.ethz.intervals.params.Parent;
 
 @Parent
@@ -28,7 +29,7 @@ extends /*@Identity("RO")*/ Object implements Guard
 		if(prevOwner == null)
 			return 0;
 		else {
-			return prevOwner.addEdgeWithoutAdjustingWaitCount(startPnt, false);
+			return prevOwner.justAddEdgeWithoutAdjusting(startPnt, NONDETERMINISTIC);
 		}
 	}
 	
@@ -39,7 +40,7 @@ extends /*@Identity("RO")*/ Object implements Guard
 			prevOwner = latestOwner;
 			if(latestOwnerIsSharedInterval) {
 				if(prevOwner.tryAddWaitCount()) {
-					startPnt.bound.addEdgeWithoutAdjustingWaitCount(prevOwner, false);
+					startPnt.bound.justAddEdgeWithoutAdjusting(prevOwner, NONDETERMINISTIC);
 					if(Debug.ENABLED)
 						Debug.sharedLock(this, null, prevOwner, startPnt);
 					return; // can safely start immediately
@@ -49,8 +50,8 @@ extends /*@Identity("RO")*/ Object implements Guard
 			final int initialWaitCount = 2;
 			latestOwner = new AsyncPointImpl(null, Intervals.ROOT_END, initialWaitCount);
 			latestOwnerIsSharedInterval = true;
-			wait = prevOwner.addEdgeWithoutAdjustingWaitCount(latestOwner, false);
-			wait += startPnt.bound.addEdgeWithoutAdjustingWaitCount(latestOwner, false);
+			wait = prevOwner.justAddEdgeWithoutAdjusting(latestOwner, NONDETERMINISTIC);
+			wait += startPnt.bound.justAddEdgeWithoutAdjusting(latestOwner, NONDETERMINISTIC);
 		}
 		latestOwner.arrive(2 - wait);
 		if(Debug.ENABLED)

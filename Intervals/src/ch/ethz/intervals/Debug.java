@@ -16,7 +16,7 @@ public class Debug {
 	public static final boolean ENABLED_LOCK = true;        /** Debug statements related to locks. */
 	public static final boolean ENABLED_WAIT_COUNTS = true; /** Debug statements related to wait counts. */
 	public static final boolean ENABLED_INTER = true;       /** Debug statements related to higher-level interval control-flow */
-	public static final boolean ENABLED_WORK_STEAL = true;  /** Debug statements related to the work-stealing queue */
+	public static final boolean ENABLED_WORK_STEAL = false;  /** Debug statements related to the work-stealing queue */
 	
 	public static List<Event> events = Collections.synchronizedList(new ArrayList<Event>());
 	
@@ -65,25 +65,32 @@ public class Debug {
 
 	static class OccurEvent extends Event {
 		public final PointImpl point;
-		public final Iterable<PointImpl> succs;
+		public final EdgeList list;
+		public final int mask;
 		
-		public OccurEvent(PointImpl point, Iterable<PointImpl> succs) {
+		public OccurEvent(PointImpl point, EdgeList list, int mask) {
 			this.point = point;
-			this.succs = succs;
+			this.list = list;
+			this.mask = mask;
 		}				
 		
 		public String toString() {
-			StringBuilder sb = new StringBuilder();
+			final StringBuilder sb = new StringBuilder();
 			sb.append(String.format("OCCUR %s bound %s succs", point, point.bound()));
-			for(PointImpl i : succs)
-				sb.append(" ").append(i);
+			
+			new EdgeList.Iterator(list, mask) {
+				public void doForEach(PointImpl toPoint, int flags) {
+					sb.append(String.format(" %s(%x)", toPoint, flags & EdgeList.ALL_USER_FLAGS));					
+				}
+			};
+			
 			return sb.toString();
 		}
 	}
 	
-	public static void occur(PointImpl point, Iterable<PointImpl> succs) {
+	public static void occur(PointImpl point, EdgeList list, int mask) {
 		if(ENABLED_WAIT_COUNTS)
-			addEvent(new OccurEvent(point, succs));
+			addEvent(new OccurEvent(point, list, mask));
 	}
 	
 	static class JoinEvent extends Event {

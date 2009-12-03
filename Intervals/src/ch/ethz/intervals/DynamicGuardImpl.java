@@ -1,5 +1,6 @@
 package ch.ethz.intervals;
 
+import static ch.ethz.intervals.EdgeList.SPECULATIVE;
 import ch.ethz.intervals.DataRaceException.Role;
 
 class DynamicGuardImpl extends GuardImpl implements DynamicGuard {
@@ -58,7 +59,7 @@ class DynamicGuardImpl extends GuardImpl implements DynamicGuard {
 			PointImpl toPoint)
 	{
 		if(fromPoint != null)
-			if(!fromPoint.hb(toPoint, false))
+			if(!fromPoint.hb(toPoint, SPECULATIVE))
 				throw new DataRaceException(this, fromRole, fromPoint, toRole, toPoint);		
 	}
 

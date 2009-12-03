@@ -266,22 +266,49 @@ public class TestInterval {
 		
 		class TestHarness {
 			public void test(final int length) {
+				// Complex system creates a dependency pattern like:
+				//
+				// * ----------------------------- end0
+				//   * --------------------- end1
+				//     * ---------------- end2  ^
+				//        link0 -> linkN -------+
+				//
+				// The exception in link0 travels along to linkN, where
+				// it escapes to end1.
+				System.err.printf("ROOT_END=%s\n", Intervals.ROOT_END);
 				Intervals.blockingInterval(new AbstractTask() {
 					
 					@Override
-					public void run(Point outerEnd) {
+					public void run(final Point end0) {
+						System.err.printf("end0=%s\n", end0);
 						try {
 							Intervals.blockingInterval(new AbstractTask() {
+								Interval link0, linkN;
+								
 								@Override
-								public void run(Point currentEnd) {
-									Interval link0 = Intervals.interval(new ThrowExceptionTask());
-									Interval linkN = link0;
-									for(int i = 0; i < length; i++) {
-										linkN = Intervals.interval(incTask);
-										Intervals.addHb(link0.end(), linkN.start());
+								public void run(final Point end1) {
+									try {
+										System.err.printf("end1=%s\n", end1);
+										Intervals.blockingInterval(new AbstractTask() {
+											@Override
+											public void run(final Point end2) {
+												System.err.printf("end2=%s\n", end2);
+												link0 = Intervals.childInterval(new ThrowExceptionTask());
+												System.err.printf("link0=%s\n", link0);
+												linkN = link0;
+												for(int i = 0; i < length; i++) {
+													linkN = Intervals.childInterval(incTask);
+													Intervals.addHb(link0.end(), linkN.start());
+													System.err.printf("link%d=%s\n", (i+1), linkN);
+												}
+												Intervals.addHb(linkN.end(), end1);
+											}
+										});							
+										Assert.fail("No exception thrown!");
+									} catch (RethrownException e) {
+										Assert.assertTrue("Not subtype: "+e.getCause(), e.getCause() instanceof TestException);
 									}
 
-									Intervals.addHb(linkN.end(), currentEnd);
 								}
 							});
 							
@@ -301,6 +328,44 @@ public class TestInterval {
 			new TestHarness().test(length);
 		}
 	}
+	
+	@Test public void exceptionPropagatesEvenIfPointOccurred() {
+		Intervals.blockingInterval(new AbstractTask() {
+			Interval link0;
+			public void run(Point currentEnd) {
+				
+				try {
+					Intervals.blockingInterval(new AbstractTask() {
+						public void run(Point _) {
+							link0 = Intervals.childInterval(new ThrowExceptionTask());
+						}
+					});
+					Assert.fail("No exception thrown!");
+				} catch(RethrownException e) {					
+					Assert.assertTrue("Not subtype: "+e.getCause(), e.getCause() instanceof TestException);
+				}
+				
+				// At this stage, link0 points to a terminated interval 
+				// which has pending exceptions.  Now we add an outgoing
+				// end from link0.end to the end of a new blocking interval;
+				// this should cause the exceptions to be transmitted,
+				// even though link0.end already occurred.
+				
+				try {
+					Intervals.blockingInterval(new AbstractTask() {
+						public void run(Point end) {
+							Intervals.addHb(link0.end(), end);
+						}
+					});
+					Assert.fail("No exception thrown!");
+				} catch(RethrownException e) {					
+					Assert.assertTrue("Not subtype: "+e.getCause(), e.getCause() instanceof TestException);
+				}
+				
+			}
+		});
+	}
+
 	
 	@Test public void multipleExceptionsCollected() {
 		class TestHarness {
@@ -574,14 +639,14 @@ public class TestInterval {
 				Intervals.addHb(a.end, c.start);
 				Intervals.addHb(d.end, b.start);
 				
-				int adjust = Intervals.optimisticallyAddEdge(b.end, a.start);
+				Intervals.optimisticallyAddEdge(b.end, a.start);
 				Assert.assertFalse("hb observed before final", b.end.hb(a.start));
 				try {
 					Intervals.addHb(c.end, d.start);
 					Assert.fail("No cycle exception");
 				} catch(CycleException e) {					
 				}
-				Intervals.checkForCycleAndRecover(b.end, a.start, adjust);
+				Intervals.checkForCycleAndRecover(b.end, a.start);
 				Assert.assertTrue("hb not observed after final", b.end.hb(a.start));
 			}
 		});
@@ -604,7 +669,7 @@ public class TestInterval {
 				Intervals.addHb(a.end, c.start);
 				Intervals.addHb(d.end, b.start);
 				
-				int adjust = Intervals.optimisticallyAddEdge(b.end, a.start);
+				Intervals.optimisticallyAddEdge(b.end, a.start);
 				Assert.assertFalse("hb observed before final", b.end.hb(a.start));
 				try {
 					Intervals.addHb(c.end, d.start);
@@ -626,7 +691,7 @@ public class TestInterval {
 				b.end.join();
 				
 				// Note: manually invoking this method doesn't cause a CycleException
-				Intervals.recoverFromCycle(b.end, a.start, adjust);				
+				Intervals.recoverFromCycle(b.end, a.start);				
 				Assert.assertFalse("hb observed after recoverFromCycle", b.end.hb(a.start));
 			}
 		});

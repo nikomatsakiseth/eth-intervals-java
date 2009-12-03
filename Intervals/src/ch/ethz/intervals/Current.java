@@ -60,6 +60,7 @@ class Current {
 			p.nextUnscheduled = interval.nextUnscheduled;
 		}
 		
+		interval.nextUnscheduled = null;
 		scheduleUnchecked(interval);
 	}
 
@@ -76,6 +77,10 @@ class Current {
 	}
 
 	private void scheduleUnchecked(IntervalImpl p) {
+		assert p.start.isUnscheduled(this);
+		assert p.end.isUnscheduled(this);
+		
+		p.task.addDependencies(p);
 		p.start.clearUnscheduled();
 		p.end.clearUnscheduled();
 		p.start.arrive(1);

@@ -1,5 +1,9 @@
 package ch.ethz.intervals;
 
+import static ch.ethz.intervals.EdgeList.NONDETERMINISTIC;
+import static ch.ethz.intervals.EdgeList.SPECULATIVE;
+import static ch.ethz.intervals.EdgeList.speculative;
+
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -14,7 +18,9 @@ import ch.ethz.intervals.ThreadPool.Worker;
 
 class PointImpl implements Point {
 	
-	public static final int OCCURRED = -1;	
+	public static final int OCCURRED1 = -1;	
+	public static final int OCCURRED2 = -2;	
+	
 	public static final int initialWaitCount = Integer.MAX_VALUE;
 	
 	private static AtomicIntegerFieldUpdater<PointImpl> waitCountUpdater =
@@ -61,6 +67,10 @@ class PointImpl implements Point {
 	
 	synchronized EdgeList outEdgesSync() {
 		return outEdges;
+	}
+
+	private boolean didOccur() {
+		return waitCount <= OCCURRED1;
 	}
 	
 	@Override
@@ -113,15 +123,13 @@ class PointImpl implements Point {
 	
 	@Override
 	public boolean hb(final Point p) {
-		return hb((PointImpl) p, true);
+		return hb((PointImpl) p, NONDETERMINISTIC | SPECULATIVE);
 	}
 	
 	/** true if {@code this} -> {@code p}.
 	 * @param p another point
-	 * @param onlyDeterministic false to exclude edges
-	 * that may depend on scheduler, primarily this means
-	 * those resulting from locks */
-	boolean hb(final PointImpl p, boolean onlyDeterministic) {
+	 * @param skipFlags Skips edges which have any of the flags in here. */
+	boolean hb(final PointImpl p, final int skipFlags) {
 		assert p != null;
 		
 		if(p == this)
@@ -153,6 +161,8 @@ class PointImpl implements Point {
 		queue.add(this);
 		
 		class Helper {
+			boolean foundIt = false;
+			
 			boolean pIsBoundedBy(PointImpl q) {
 				return(q.depth < pBounds.length && pBounds[q.depth] == q);
 			}
@@ -162,8 +172,10 @@ class PointImpl implements Point {
 			boolean tryEnqueue(PointImpl q) {
 				assert q != null;
 				
-				if(q == p)
+				if(q == p) {
+					foundIt = true;
 					return true; // found it
+				}
 
 				// If p is bounded by q, then p->q, so q cannot hb p.
 				//
@@ -174,21 +186,27 @@ class PointImpl implements Point {
 				return false;
 			}
 		}
-		Helper h = new Helper();
+		final Helper h = new Helper();
 		
-		while(!queue.isEmpty()) {
+		do {
 			PointImpl q = queue.remove();
 			
 			if(q.bound != null && h.tryEnqueue(q.bound))				
 				return true;
 			
-			for(PointImpl toPoint : EdgeList.edges(q.outEdgesSync(), onlyDeterministic)) {
-				if(h.tryEnqueue(toPoint))
-					return true;
-			}
-		}
+			// Do we need to use synchronized accessor here?
+			// Would it be good enough to use a volatile field for outEdges?
+			new EdgeList.InterruptibleIterator(q.outEdgesSync()) {
+				public boolean forEach(PointImpl toPoint, int flags) {
+					if((flags & skipFlags) == 0) {
+						return h.tryEnqueue(toPoint);
+					}
+					return false;
+				}
+			};
+		} while(!queue.isEmpty() && !h.foundIt);
 		
-		return false;
+		return h.foundIt;
 	}
 
 	/** When a preceding point (or something else we were waiting for)
@@ -235,34 +253,45 @@ class PointImpl implements Point {
 	protected final void occur() {
 		assert pendingLocks == null;
 		assert waitCount == 0;
+		assert unscheduled == null;
 		
 		final EdgeList outEdges;
 		final int chunkMask;
 		synchronized(this) {
 			outEdges = this.outEdges;
 			chunkMask = EdgeList.chunkMask(outEdges);
-			this.waitCount = OCCURRED;
+			this.waitCount = OCCURRED1;
 			notifyAll(); // in case anyone is joining us
 		}
 		
 		ExecutionLog.logArrive(this);
 		
-		Iterable<PointImpl> notifiedPoints = EdgeList.edges(outEdges, chunkMask, false);
 		if(Debug.ENABLED)
-			Debug.occur(this, notifiedPoints);
+			Debug.occur(this, outEdges, chunkMask);
 		
 		// Propagate any exception to all successors unless we are
-		// set to mask exceptions:
-		Set<Throwable> pendingExceptions = this.pendingExceptions;
+		// set to mask exceptions, or the successor is speculative:
+		final Set<Throwable> pendingExceptions = this.pendingExceptions;
 		if((flags & FLAG_MASK_EXC) == 0 && pendingExceptions != null) {
-			for(PointImpl toPoint : notifiedPoints)
-				toPoint.addPendingExceptions(pendingExceptions);
+			new EdgeList.Iterator(outEdges, chunkMask) {
+				public void doForEach(PointImpl toPoint, int flags) {
+					if(!EdgeList.speculative(flags))
+						toPoint.addPendingExceptions(pendingExceptions);
+				}
+			};
 			bound.addPendingExceptions(pendingExceptions);
 		}
 		
-		for(PointImpl toPoint : notifiedPoints)
-			toPoint.arrive(1);
+		new EdgeList.Iterator(outEdges, chunkMask) {
+			public void doForEach(PointImpl toPoint, int flags) {
+				if(!EdgeList.speculative(flags))
+					toPoint.arrive(1);
+			}
+		};
 		bound.arrive(1);
+		
+		// We have now notified everyone that we are going to notify:
+		this.waitCount = OCCURRED2;
 		
 		if(workItem != null) {
 			if(pendingExceptions == null) {
@@ -288,10 +317,10 @@ class PointImpl implements Point {
 	 *    
 	 *  @return number of times {@link #arrive(int)} will eventually be invoked
 	 *          on targetPnt (0 or 1). */
-	int addEdgeWithoutAdjustingWaitCount(PointImpl targetPnt, boolean deterministic) {
+	int justAddEdgeWithoutAdjusting(PointImpl targetPnt, int flags) {
 		synchronized(this) {
-			primAddOutEdge(targetPnt, deterministic);
-			if(waitCount == OCCURRED)
+			primAddOutEdge(targetPnt, flags);
+			if(didOccur())
 				return 0; // no notification will be sent
 			return 1;
 		}
@@ -299,15 +328,15 @@ class PointImpl implements Point {
 
 	/** Simply adds an outgoing edge, without acquiring locks or performing any
 	 *  further checks. */
-	private void primAddOutEdge(PointImpl targetPnt, boolean deterministic) {
-		outEdges = EdgeList.add(outEdges, targetPnt, deterministic);
+	private void primAddOutEdge(PointImpl targetPnt, int flags) {
+		outEdges = EdgeList.add(outEdges, targetPnt, flags);
 	}
 
 	/** Adds to the wait count but only if the point has
 	 *  not yet occurred.  Always safe.
 	 *  @return true if the add succeeded. */
 	synchronized boolean tryAddWaitCount() {
-		if(waitCount == OCCURRED)
+		if(didOccur())
 			return false;
 		waitCount++;
 		return true;
@@ -322,7 +351,7 @@ class PointImpl implements Point {
 	
 		if(worker == null) {
 			synchronized(this) {
-				while(waitCount != OCCURRED)
+				while(!didOccur())
 					try {
 						wait();
 					} catch (InterruptedException e) {
@@ -335,7 +364,7 @@ class PointImpl implements Point {
 				synchronized(this) {
 					wc = waitCount;
 				}
-				if(wc == OCCURRED)
+				if(wc <= OCCURRED1)
 					return;
 				if(!worker.doWork(false))
 					Thread.yield();				
@@ -406,34 +435,85 @@ class PointImpl implements Point {
 	 *  
 	 * Returns the number of wait counts added to {@code toImpl}.
 	 */
-	public int addEdgeAndAdjustWaitCount(PointImpl toImpl, boolean deterministic) {
+	public void addEdgeAndAdjust(PointImpl toImpl, int flags) {
+		assert !speculative(flags) : "addEdgeAndAdjust should not be used for spec. edges!";
+		
 		// Note: we must increment the wait count before we release
 		// the lock on this, because otherwise toImpl could arrive and
 		// then decrement the wait count before we get a chance to increment
 		// it.  Therefore, it's important that we do not have to acquire a lock
 		// on toImpl, because otherwise deadlock could result.
+		boolean occurred;
 		synchronized(this) {
-			primAddOutEdge(toImpl, deterministic);
-			if(waitCount != OCCURRED) {
+			primAddOutEdge(toImpl, flags);
+			if(!didOccur()) {
 				toImpl.addWaitCount();
-				return 1;
-			}
-			return 0;
+				occurred = false;
+			} else
+				occurred = true;
+		}
+		
+		// If we already occurred and have pending exceptions, 
+		// then propagate them.
+		if(!occurred && pendingExceptions != null) {
+			toImpl.addPendingExceptions(pendingExceptions);
 		}
 	}
-
+	
+	/** Removes an edge to {@code toImpl}, returning true 
+	 *  if this point has occurred. */
 	public void unAddEdge(PointImpl toImpl) {
 		synchronized(this) {
 			EdgeList.remove(outEdges, toImpl);
 		}
 	}
 
-	public void confirmEdge(PointImpl toImpl) {
-		synchronized(this) {
-			EdgeList.setDeterministic(outEdges, toImpl);
-		}
+	public void confirmEdgeAndAdjust(PointImpl toImpl, int flags) {
+		boolean occurred;
+		
+		// Careful:
+		//
+		// We are going to retroactively change the flags on
+		// our outEdges list.  The danger is that if a point has
+		// occurred but not yet finished notifying its successors, 
+		// it is still iterating over the list.  If we set the flag 
+		// to non-synthetic now, then toImpl might still get notified.
+		//
+		// HOWEVER, that is not true if the pointer to toImpl is in the
+		// first chunk of the list (which is most of the time), because
+		// we save the flags from the first chunk.  Therefore, even if
+		// notification is in progress, we check to see if we can find 
+		// toImpl in the first chunk of the list.
+		
+		succeeded:
+		while(true) {			
+			synchronized(this) {
+				int wc = waitCount;
+				occurred = (wc <= OCCURRED1);
+				if(!occurred) { // Did not yet occur.
+					EdgeList.setFlagsInPlace(outEdges, toImpl, flags);
+					toImpl.addWaitCount();
+					occurred = false;
+					break succeeded;
+				} else if(wc == OCCURRED2) { // Fully notified.
+					EdgeList.setFlagsInPlace(outEdges, toImpl, flags);
+					break succeeded;
+				} else if(wc == OCCURRED1) { // Not yet fully notified.
+					if(EdgeList.setFlagsInPlaceOneLink(outEdges, toImpl, flags))
+						break succeeded; // But we were able to update just 1st link.
+				}
+			}			
+			
+			// Just spin until the point has fully occurred.
+			while(waitCount == OCCURRED1)
+				Thread.yield();				
+		} 
+		
+		if(occurred && pendingExceptions != null) {
+			toImpl.addPendingExceptions(pendingExceptions);
+		}		
 	}
-
+	
 	PointImpl[] bounds() {
 		PointImpl[] result = new PointImpl[depth];
 		for(PointImpl b = bound; b != null; b = b.bound)

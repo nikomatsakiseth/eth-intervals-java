@@ -46,8 +46,13 @@ implements Interval {
 					end.addPendingException(t);
 				}
 				
+				try {
+					cur.schedule();					
+				} catch(Throwable t) {
+					end.addPendingException(t);
+				}
+				
 				end.arrive(1);
-				cur.schedule();
 			} catch(Throwable e) {
 				e.printStackTrace(); // unexpected!
 			}
