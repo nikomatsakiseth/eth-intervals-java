@@ -66,21 +66,20 @@ public class Debug {
 	static class OccurEvent extends Event {
 		public final PointImpl point;
 		public final EdgeList list;
-		public final int mask;
 		
-		public OccurEvent(PointImpl point, EdgeList list, int mask) {
+		public OccurEvent(PointImpl point, EdgeList list) {
 			this.point = point;
 			this.list = list;
-			this.mask = mask;
 		}				
 		
 		public String toString() {
 			final StringBuilder sb = new StringBuilder();
 			sb.append(String.format("OCCUR %s bound %s succs", point, point.bound()));
 			
-			new EdgeList.Iterator(list, mask) {
+			new EdgeList.Iterator(list) {
 				public void doForEach(PointImpl toPoint, int flags) {
-					sb.append(String.format(" %s(%x)", toPoint, flags & EdgeList.ALL_USER_FLAGS));					
+					if(EdgeList.waiting(flags))
+						sb.append(String.format(" %s(%x)", toPoint, flags & EdgeList.ALL_USER_FLAGS));					
 				}
 			};
 			
@@ -88,9 +87,9 @@ public class Debug {
 		}
 	}
 	
-	public static void occur(PointImpl point, EdgeList list, int mask) {
+	public static void occur(PointImpl point, EdgeList list) {
 		if(ENABLED_WAIT_COUNTS)
-			addEvent(new OccurEvent(point, list, mask));
+			addEvent(new OccurEvent(point, list));
 	}
 	
 	static class JoinEvent extends Event {

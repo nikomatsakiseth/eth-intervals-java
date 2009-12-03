@@ -12,12 +12,13 @@ public class EdgeList implements Cloneable {
 	public static final int NORMAL = 0;               /** A user-created, confirmed edge. */   
 	static public final int NONDETERMINISTIC = 1;     /** May not exist on every program run. */
 	static public final int SPECULATIVE = 2;          /** Not yet confirmed. */
-	static public final int CNT_USER_FLAGS = 2;
+	static public final int WAITING = 4;              /** Waiting for point to occur. */
+	static public final int CNT_USER_FLAGS = 3;
 	static public final int ALL_USER_FLAGS = (1 << CNT_USER_FLAGS) - 1;
 
-	static private final int EXISTS = 4;              /** Internal flag: Is non-null. */
-	static private final int CNT_FLAGS = 3;           /** Number of flags, both user and internal. */
-	static private final int ALL_FLAGS = (1 << CNT_FLAGS) - 1; /** Union of all user flags. */
+	static private final int EXISTS = 8;              /** Internal flag: Is non-null. */
+	static private final int CNT_FLAGS = CNT_USER_FLAGS + 1;
+	static private final int ALL_FLAGS = (1 << CNT_FLAGS) - 1;
 	
 	static public final boolean speculative(int flags) {
 		return (flags & SPECULATIVE) != 0;
@@ -29,6 +30,10 @@ public class EdgeList implements Cloneable {
 	
 	static public final boolean exists(int flags) {
 		return (flags & EXISTS) != 0;
+	}
+	
+	static public final boolean waiting(int flags) {
+		return (flags & WAITING) != 0;
 	}
 	
 	static private final int SHIFT0 = 0;
@@ -48,14 +53,6 @@ public class EdgeList implements Cloneable {
 		this.next = next;
 	}
 	
-	private EdgeList copy() {
-		try {
-			return (EdgeList)clone();
-		} catch (CloneNotSupportedException e) {
-			throw new RuntimeException(e);
-		}
-	}
-	
 	private boolean add(PointImpl toPoint, int toFlags) {
 		if(toPoint0 == null) {
 			toPoint0 = toPoint;
@@ -72,13 +69,6 @@ public class EdgeList implements Cloneable {
 		} else {
 			return false;
 		}
-	}
-	
-	public static int chunkMask(EdgeList list) {
-		int mask = 0;
-		if(list != null)
-			return list.flags;
-		return mask;
 	}
 	
 	public static EdgeList add(EdgeList list, PointImpl toPoint, int toFlags) {
@@ -106,44 +96,34 @@ public class EdgeList implements Cloneable {
 			}
 		}
 	}
-
-	/**
-	 * Finds a speculative edge to toImpl in list and clears the bit.  If no
-	 * edge can be found in this link, returns false. 
-	 */	
-	public static boolean setFlagsInPlaceOneLink(EdgeList list, PointImpl toImpl, int newFlags) {
-		assert (newFlags & ~ALL_USER_FLAGS) == 0;
-		
-		int flags = list.flags;
-		if(list.toPoint0 == toImpl && speculative(flags >> SHIFT0)) {
-			flags &= ~(ALL_USER_FLAGS << SHIFT0);
-			flags |= (newFlags << SHIFT0);
-			list.flags = flags;
-			return true;
-		} else if(list.toPoint1 == toImpl && speculative(flags >> SHIFT1)) {
-			flags &= ~(ALL_USER_FLAGS << SHIFT1);
-			flags |= (newFlags << SHIFT1);
-			list.flags = flags;
-			return true;
-		} else if(list.toPoint2 == toImpl && speculative(flags >> SHIFT2)) {
-			flags &= ~(ALL_USER_FLAGS << SHIFT2);
-			flags |= (newFlags << SHIFT2);
-			list.flags = flags;
-			return true;
-		}
-		
-		return false;
-	}
 	
-	/** Finds a speculative edge to toImpl and clears the speculative bit. 
-	 *  Note: if someone else were concurrently iterating over this list,
-	 *  they might see the status change from speculative to non-speculative. */
-	public static void setFlagsInPlace(EdgeList list, PointImpl toImpl, int newFlags) {
-		assert (newFlags & ~ALL_USER_FLAGS) == 0;
+	/** Finds a speculative edge to toImpl and clears the speculative bit,
+	 *  also adding the flags in {@code addFlags}. */
+	public static void removeSpeculativeFlagAndAdd(
+			EdgeList list, 
+			PointImpl toImpl, 
+			int addFlags) 
+	{
+		assert (addFlags & ~ALL_USER_FLAGS) == 0;
 		
 		for(; list != null; list = list.next) {
-			if(setFlagsInPlaceOneLink(list, toImpl, newFlags))
+			int flags = list.flags;
+			if(list.toPoint0 == toImpl && speculative(flags >> SHIFT0)) {
+				flags &= ~(EdgeList.SPECULATIVE << SHIFT0);
+				flags |= (addFlags << SHIFT0);
+				list.flags = flags;
 				return;
+			} else if(list.toPoint1 == toImpl && speculative(flags >> SHIFT1)) {
+				flags &= ~(EdgeList.SPECULATIVE << SHIFT1);
+				flags |= (addFlags << SHIFT1);
+				list.flags = flags;
+				return;
+			} else if(list.toPoint2 == toImpl && speculative(flags >> SHIFT2)) {
+				flags &= ~(EdgeList.SPECULATIVE << SHIFT2);
+				flags |= (addFlags << SHIFT2);
+				list.flags = flags;
+				return;
+			}
 		}
 		assert false : "No speculative edge found!";
 	}
@@ -151,11 +131,9 @@ public class EdgeList implements Cloneable {
 	public static abstract class InterruptibleIterator {
 		
 		public InterruptibleIterator(EdgeList list) {
-			this(list, (list != null ? list.flags : 0));
-		}
-		
-		public InterruptibleIterator(EdgeList list, int flags) {
 			while(list != null) {
+				int flags = list.flags;
+				
 				final int flags0 = flags >> SHIFT0;
 				if(exists(flags0) && forEach(list.toPoint0, flags0))
 					break;
@@ -169,8 +147,6 @@ public class EdgeList implements Cloneable {
 					break;				
 				
 				list = list.next;
-				if(list != null)
-					flags = list.flags;
 			}
 		}
 
@@ -186,10 +162,6 @@ public class EdgeList implements Cloneable {
 
 	public static abstract class Iterator extends InterruptibleIterator {
 		
-		public Iterator(EdgeList list, int mask) {
-			super(list, mask);
-		}
-
 		public Iterator(EdgeList list) {
 			super(list);
 		}

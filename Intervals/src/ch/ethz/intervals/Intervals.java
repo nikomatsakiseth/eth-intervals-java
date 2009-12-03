@@ -151,8 +151,8 @@ public class Intervals {
 		bndImpl.addWaitCount(); // now waiting for end
 		PointImpl end = new PointImpl(current, bndImpl, 2); // waiting for task, start 
 		PointImpl start = new PointImpl(current, end, 1);   // waiting to be scheduled
-		if(current.start != null) // current.start must have occurred, so can't affect WC
-			current.start.justAddEdgeWithoutAdjusting(start, NORMAL);
+		if(current.start != null) 
+			current.start.addEdgeAfterOccurredWithoutException(start, NORMAL);
 		IntervalImpl result = new IntervalImpl(task, start, end);		
 		start.setWorkItemBeforeScheduling(result);
 		ExecutionLog.logNewInterval(current.start, start, end);
@@ -296,7 +296,7 @@ public class Intervals {
 	{
 		// Note: the edge is considered speculative until we have
 		// verified that the resulting graph is acyclic.
-		fromImpl.justAddEdgeWithoutAdjusting(toImpl, SPECULATIVE);
+		fromImpl.addSpeculativeEdge(toImpl, NORMAL);
 	}
 	
 	/** Helper method of {@link #addHb(Point, Point)}.
