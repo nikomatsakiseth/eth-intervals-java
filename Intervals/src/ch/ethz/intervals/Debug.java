@@ -79,7 +79,7 @@ public class Debug {
 			new EdgeList.Iterator(list) {
 				public void doForEach(PointImpl toPoint, int flags) {
 					if(EdgeList.waiting(flags))
-						sb.append(String.format(" %s(%x)", toPoint, flags & EdgeList.ALL_USER_FLAGS));					
+						sb.append(String.format(" %s(%x)", toPoint, flags & EdgeList.ALL_FLAGS));					
 				}
 			};
 			
