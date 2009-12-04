@@ -203,6 +203,19 @@ public class TestInterval {
 		}
 	}
 	
+	class ThrowExceptionWhenScheduledTask extends AbstractTask {
+		
+		@Override
+		public void addDependencies(Interval inter) {
+			throw new TestException();
+		}
+
+		@Override
+		public void run(Point currentEnd) {
+		}
+		
+	}
+	
 	/**
 	 * Tests that uncaught exceptions propagate up to the parent, etc.
 	 */
@@ -222,6 +235,34 @@ public class TestInterval {
 					Assert.fail("No exception thrown!");
 				} catch (RethrownException e) {
 					Assert.assertTrue("Not subtype: "+e.getCause(), e.getCause() instanceof TestException);
+				}				
+			}
+		}
+		
+		new TestHarness().test();
+	}
+	
+	/**
+	 * Tests that uncaught exceptions propagate up to the parent, etc.
+	 */
+	@Test public void exceptionInAddDependenciesPropagates() {
+		class TestHarness {
+			public void test() {
+				try {
+					Intervals.blockingInterval(new AbstractTask() {
+						
+						@Override
+						public void run(Point currentEnd) {
+							intervalWithBound(currentEnd, new ThrowExceptionWhenScheduledTask());
+							intervalWithBound(currentEnd, new ThrowExceptionWhenScheduledTask());
+						}
+						
+					});
+					
+					Assert.fail("No exception thrown!");
+				} catch (RethrownException e) {
+					Assert.assertTrue("Not subtype: "+e.getCause(), e.getCause() instanceof TestException);
+					Assert.assertEquals("Both exceptions not collected", 2, e.allErrors.size());
 				}				
 			}
 		}

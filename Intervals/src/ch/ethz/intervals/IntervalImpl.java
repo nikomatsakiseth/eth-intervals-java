@@ -45,12 +45,8 @@ implements Interval {
 				} catch(Throwable t) {
 					end.addPendingException(t);
 				}
-				
-				try {
-					cur.schedule();					
-				} catch(Throwable t) {
-					end.addPendingException(t);
-				}
+
+				cur.schedule();					
 				
 				end.arrive(1);
 			} catch(Throwable e) {
