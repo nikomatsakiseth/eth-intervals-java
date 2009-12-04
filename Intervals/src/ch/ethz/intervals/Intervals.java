@@ -1,33 +1,27 @@
 package ch.ethz.intervals;
 
 import static ch.ethz.intervals.EdgeList.NORMAL;
-import static ch.ethz.intervals.EdgeList.SPECULATIVE;
 
 
 
 public class Intervals {
 	
-	public static class NamedTask extends AbstractTask {
-		public final String name;
-		public NamedTask(String name) {
-			super();
-			this.name = name;
-		}
-		public void run(Point currentEnd) {
-		}
-		public String toString() {
-			return name;
-		}		
-	}
-	
+	/**
+	 * If set to false, disables all safety checks against
+	 * cycles or race conditions.  
+	 */
+	public static final boolean SAFETY_CHECKS = true;	
+
 	/** Convenient task that does nothing. */
 	public static final Task emptyTask = new NamedTask("emptyTask");
-	static final Task readTask = new NamedTask("readTask");
 
-	static final PointImpl ROOT_END = new PointImpl(1); // never occurs
+	/** Final point of the program.  Never occurs until program ends. */
+	static final PointImpl ROOT_END = new PointImpl(1); 
 	
+	/** Shared thread pool that executes tasks. */
 	static final ThreadPool POOL = new ThreadPool();
 	
+	/** Creates a task with a given name that does nothing. */
 	public static Task namedTask(String name) {
 		return new NamedTask(name);
 	}
@@ -71,29 +65,31 @@ public class Intervals {
 	 * Returns an interval whose bound is the end of the current interval.
 	 */
 	public static Interval childInterval(Task task) {
-		// No need for safety checks, it's always legal to create a child interval:
+		// No need for safety checks, it's always legal to create a child interval.
+		// The only path it creates is current.start ~~> current.end,
+		// which already exists.
 		Current current = Current.get();
 		return intervalWithBoundUnchecked(current.end, task, current);
 	}
 
 	/**
 	 * Returns an interval whose bound is the same as the bound of the current interval.
-	 * However, If the current interval is the root interval, then the bound is the end of
-	 * the root interval.
+	 * @throws CycleException if invoked when the current interval is the root interval.
 	 */
 	public static Interval siblingInterval(Task task) {
 		Current current = Current.get();
 		return siblingInterval(current, task);
 	}
 
-	static Interval siblingInterval(Current current, Task task) {
-		Point bound;
+	static IntervalImpl siblingInterval(Current current, Task task) {
+		// Cannot be invoked on the root interval:
 		if(current.end == ROOT_END)
-			bound = current.end;
-		else
-			bound = current.end.bound;
+			throw new CycleException(ROOT_END, ROOT_END);
+		
 		// No need for safety checks, it's always legal to create a sibling interval:
-		return intervalWithBoundUnchecked(bound, task, current);
+		// The only path it creates is current.start ~~> current.end.bound,
+		// which already exists.
+		return intervalWithBoundUnchecked(current.end.bound, task, current);
 	}
 	
 	/**
@@ -102,14 +98,13 @@ public class Intervals {
 	 */
 	public static Interval successorInterval(Task task) {
 		Current current = Current.get();
-		Interval result = siblingInterval(current, task);
 		
-		// XXX Depending on the dependencies specified in task, 
-		// this edge may or may not be legal!  We should really
-		// add it before invoking task.addDependencies(),
-		// so that any error would occur THERE and not HERE,
-		// but that requires reshuffling our APIs a bit.
-		Intervals.addHb(current.end, result.start());
+		IntervalImpl result = siblingInterval(current, task);
+		
+		// No need for safety checks when adding the successor edge.
+		// The only points reachable from result.start are result.end (freshly 
+		// created) and current.end.bound (already reachable from current.end).
+		current.end.addEdgeAndAdjust(result.start, NORMAL);
 		
 		return result;
 	}
@@ -136,8 +131,17 @@ public class Intervals {
 		return intervalWithBound(current, bnd, task);
 	}
 
-	static Interval intervalWithBound(Current current, Point bnd, Task task) {
-		current.checkCanAddHb(current.start, bnd);		
+	static IntervalImpl intervalWithBound(Current current, Point bnd, Task task) {
+		// Note: if this check passes, then no need to check for cycles 
+		// for the path from current.start->bnd.  This is because we require
+		// one of the following three conditions to be true, and in all three
+		// cases a path current.start->bnd must already exist:
+		// (1) Bound was created by us and is unscheduled.  Then a
+		//     path current.start->bnd was already added.
+		// (2) Bound is current.end.  current.start->current.end.
+		// (3) A path exists from current.end -> bnd.  Same as (2).
+		current.checkCanAddDep(bnd);
+		
 		IntervalImpl result = intervalWithBoundUnchecked(bnd, task, current);		
 		return result;
 	}
@@ -147,17 +151,23 @@ public class Intervals {
 			Task task, 
 			Current current) 
 	{
+		// Create new points:
 		PointImpl bndImpl = (PointImpl) bnd;
-		bndImpl.addWaitCount(); // now waiting for end
 		PointImpl end = new PointImpl(current, bndImpl, 2); // waiting for task, start 
 		PointImpl start = new PointImpl(current, end, 1);   // waiting to be scheduled
-		if(current.start != null) 
-			current.start.addEdgeAfterOccurredWithoutException(start, NORMAL);
+		
+		// Create interval and add to unscheduled list:
 		IntervalImpl result = new IntervalImpl(task, start, end);		
 		start.setWorkItemBeforeScheduling(result);
+		current.addUnscheduled(result);
+		
+		// Add edge current.start -> start, end -> bnd:
+		bndImpl.addWaitCount(); 
+		if(current.start != null) 
+			current.start.addEdgeAfterOccurredWithoutException(start, NORMAL);
+		
 		ExecutionLog.logNewInterval(current.start, start, end);
 		ExecutionLog.logScheduleInterval(start, task); // XXX this event is no longer logically separate
-		current.addUnscheduled(result);
 		return result;
 	}
 	
@@ -178,9 +188,18 @@ public class Intervals {
 	 * @see #intervalWithBound(Point) 
 	 * @see #blockingInterval(Task)
 	 */
-	public static Interval intervalDuring(Interval interval, Task task) {
+	public static Interval intervalDuring(Interval interval, Task task) {		
 		Interval result = intervalWithBound(interval.end(), task);
-		addHb(interval.start(), result.start());
+		
+		PointImpl intervalStart = (PointImpl) interval.start();
+		PointImpl resultStart = (PointImpl) result.start();
+		
+		// No need to check for cycle or other safety conditions.  
+		// We already created a path result.start->interval.end, and 
+		// result has no other outgoing edges.  Therefore, adding a path 
+		// interval.start->result.start does not cause any paths which do 
+		// not already exist.
+		intervalStart.addEdgeAndAdjust(resultStart, NORMAL);
 		return result;
 	}
 	
@@ -342,33 +361,11 @@ public class Intervals {
 	 * @see AsyncPoint
 	 */
 	public static AsyncPoint asyncPoint(Point bound, int cnt) {
-		checkCurrentIntervalEndHbOrSame(bound);
+		Current current = Current.get();
+		current.checkCanAddDep(bound);
 		PointImpl boundImpl = (PointImpl) bound;
 		boundImpl.addWaitCount();
 		return new AsyncPointImpl(null, boundImpl, cnt);
-	}
-	
-	/**
-	 * If set to false, disables all safety checks against
-	 * cycles or race conditions.  
-	 */
-	public static final boolean SAFETY_CHECKS = true;	
-
-	static void checkEdge(Point from, Point to) {
-		if (SAFETY_CHECKS && !from.hb(to))
-			throw new NoEdgeException(from, to);
-	}
-	
-	static void checkEdgeOrSame(Point from, Point to) {
-		if(from != to)
-			checkEdge(from, to);
-	}
-
-	static void checkCurrentIntervalEndHbOrSame(Point to) {
-		if(SAFETY_CHECKS) {
-			Current cur = Current.get();
-			checkEdgeOrSame(cur.end, to);
-		}
 	}
 
 	/** Waits for {@code ep} to complete and returns its result.

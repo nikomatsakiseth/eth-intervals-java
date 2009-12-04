@@ -18,7 +18,7 @@ public class TestDynamicGuardImpl {
 	DynamicGuardImpl dg;
 	
 	public static Task debugTask(String name) {
-		return new Intervals.NamedTask(name) {
+		return new NamedTask(name) {
 			public void run(Point currentEnd) {
 				System.out.printf("%s: currentEnd=%s\n", name, currentEnd);
 			}
