@@ -259,26 +259,14 @@ class PointImpl implements Point {
 		if(Debug.ENABLED)
 			Debug.occur(this, outEdges);
 		
-		// Propagate any exception to all successors unless we are
-		// set to mask exceptions, or the successor is speculative:
-		final Set<Throwable> pendingExceptions = this.pendingExceptions;
-		if((flags & FLAG_MASK_EXC) == 0 && pendingExceptions != null) {
-			new EdgeList.Iterator(outEdges) {
-				public void doForEach(PointImpl toPoint, int flags) {
-					if(EdgeList.waiting(flags))
-						toPoint.addPendingExceptions(pendingExceptions);
-				}
-			};
-			bound.addPendingExceptions(pendingExceptions);
-		}
-		
+		// Notify our successors:
 		new EdgeList.Iterator(outEdges) {
 			public void doForEach(PointImpl toPoint, int flags) {
 				if(EdgeList.waiting(flags))
-					toPoint.arrive(1);
+					notifySuccessor(toPoint, true);
 			}
 		};
-		bound.arrive(1);
+		notifySuccessor(bound, true);
 		
 		if(workItem != null) {
 			if(pendingExceptions == null) {
@@ -290,6 +278,16 @@ class PointImpl implements Point {
 		}
 	}
 	
+	/** Takes the appropriate action to notify a successor {@code pnt}
+	 *  that {@code this} has occurred.  Propagates exceptions and 
+	 *  optionally invokes {@link #arrive(int)}. */
+	private void notifySuccessor(PointImpl pnt, boolean arrive) {
+		if((flags & FLAG_MASK_EXC) == 0 && pendingExceptions != null)
+			pnt.addPendingExceptions(pendingExceptions);
+		if(arrive)
+			pnt.arrive(1);
+	}
+
 	/** Adds to the wait count.  Only safe when the caller is
 	 *  one of the people we are waiting for.  
 	 *  <b>Does not acquire a lock on this.</b> */
@@ -347,6 +345,7 @@ class PointImpl implements Point {
 	}
 	
 	synchronized void addPendingException(Throwable thr) {
+		assert !didOccur() : "Cannot add a pending exception after pnt occurs!";
 		if(bound == null) {
 			thr.printStackTrace();
 		} else {
@@ -443,11 +442,10 @@ class PointImpl implements Point {
 			}
 		}
 		
-		// If we already occurred, then we have to push the pending
-		// exceptions.
-		assert didOccur();		
-		if(pendingExceptions != null)
-			toImpl.addPendingExceptions(pendingExceptions);
+		// If we already occurred, then we may still have to push the pending
+		// exceptions, but we do not need to invoke arrive():
+		assert didOccur();
+		notifySuccessor(toImpl, false);
 	}
 	
 	/** Removes an edge to {@code toImpl}, returning true 
@@ -480,11 +478,12 @@ class PointImpl implements Point {
 			}			
 		} 
 		
-		// If we get here, then we HAVE occurred!  Consider pushing
-		// our pending exceptions.
-		assert didOccur();		
-		if(pendingExceptions != null)
-			toImpl.addPendingExceptions(pendingExceptions);
+		// If we get here, then we occurred either before the speculative
+		// edge was added, or while it was being confirmed.  In that case, 
+		// we have to notify it of any pending exceptions, but we do not
+		// need to invoke accept():
+		assert didOccur();	
+		notifySuccessor(toImpl, false);
 	}
 	
 	PointImpl[] bounds() {

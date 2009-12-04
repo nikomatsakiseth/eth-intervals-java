@@ -230,6 +230,47 @@ public class TestInterval {
 	}
 	
 	/**
+	 * Uncaught exceptions do not propagate if the MASK_EXC flag is set
+	 * and 
+	 */
+	@Test public void maskExceptionsOnSpeculativeEdges() {
+		class TestHarness {
+			public Interval savedInter;
+			public void test() {
+				try {
+					Intervals.blockingInterval(new AbstractTask() {
+						public void addDependencies(Interval inter) {
+							savedInter = inter; // bad, but legal.
+						}
+						
+						public void run(Point currentEnd) {
+							Intervals.childInterval(new ThrowExceptionTask());
+						}						
+					});					
+					Assert.fail("No exception thrown!");
+				} catch (RethrownException e) {
+					Assert.assertTrue("Not subtype: "+e.getCause(), e.getCause() instanceof TestException);
+				}		
+			}
+		}	
+		final TestHarness h = new TestHarness();
+		h.test();
+		
+		Assert.assertNotNull("addDependencies was never called", h.savedInter);
+
+		// We now add an edge from the end of the blocking interval,
+		// which must have occurred, to the end of this blocking interval.
+		// This should not cause an exception to be thrown, even though
+		// the end of h.savedInter has an associated exception, because h.savedInter.end
+		// is set to mask exceptions.
+		Intervals.blockingInterval(new AbstractTask() {			
+			public void run(Point currentEnd) {
+				Intervals.addHb(h.savedInter.end(), currentEnd);
+			}
+		});
+	}
+	
+	/**
 	 * Tests that uncaught exceptions propagate up to the parent, etc.
 	 */
 	@Test public void exceptionPropagatesToGrandparent() {
