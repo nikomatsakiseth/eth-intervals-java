@@ -1,8 +1,7 @@
 package ch.ethz.intervals;
 
-import ch.ethz.intervals.params.Parent;
-
-@Parent
+/** The span of time required to execute its associated task and any
+ *  subtasks. */
 public interface Interval {
 	
 	/** @return The start point for this interval. */

@@ -1,5 +1,10 @@
 package ch.ethz.intervals;
 
+/** Interval tasks.  This interface may grow additional optional
+ *  methods in the future.  Therefore, you are encourage to derive a task
+ *  from {@link AbstractTask} rather than implementing this
+ *  interface directly.  {@link AbstractTask} will include default
+ *  implementations for any new methods. */
 public interface Task {
 	
 	/** When a new interval is created that will execute this task,

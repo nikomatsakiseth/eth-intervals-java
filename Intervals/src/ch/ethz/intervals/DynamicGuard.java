@@ -1,5 +1,6 @@
 package ch.ethz.intervals;
 
+/** A guard which supports dynamic checks against race conditions. */
 public interface DynamicGuard extends Guard {
 	/** Checks that it is legal for the current interval to write to data in this guard. */
 	public void checkWrite() throws DataRaceException;

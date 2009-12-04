@@ -2,8 +2,7 @@ package ch.ethz.intervals;
 
 import static ch.ethz.intervals.EdgeList.NORMAL;
 
-
-
+/** Static methods for creating and manipulating intervals. */
 public class Intervals {
 	
 	/**

@@ -7,13 +7,10 @@ import static ch.ethz.intervals.EdgeList.speculative;
 
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
-
-import com.sun.tools.jdi.LinkedHashMap;
 
 import ch.ethz.intervals.ThreadPool.Worker;
 

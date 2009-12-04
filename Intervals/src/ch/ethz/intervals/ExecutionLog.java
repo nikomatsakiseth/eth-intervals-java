@@ -26,17 +26,19 @@ import ch.ethz.intervals.visualizer.EventLog.Schedule;
 
 /**
  * The Execution Log is a utility for debugging intervals.
- * The intended usage is that you invoke enable() in the
- * beginning of your code (and perhaps disable() later).  
- * The log will then execute asynchronously, dumping events
- * into a temporary file called {@code Intervals.*.executionLog}.
- * This file can later be inspected by a tool (currently
- * being written) to reconstruct the execution. 
+ * The intended usage is that you invoke {@link #enable()}
+ * or {@link #enableGui()} before you create some troublesome
+ * set of intervals, and then later invoke {@link #disable()}.
+ * Interval events between the two calls will then be logged.
  */
 public class ExecutionLog {
 
 	static volatile ExecutionLog log = null;
 	
+	/**
+	 * Logs events into a temporary file (named {@code Intervals.*.executionLog})
+	 * for later, postmortem analysis.
+	 */
 	public static void enable() {
 		synchronized(ExecutionLog.class) {
 			if(log == null) {
@@ -46,6 +48,10 @@ public class ExecutionLog {
 		}
 	}
 	
+	/**
+	 * Creates a visualization window and feeds it events live.  The window
+	 * will be updated as the program executes.
+	 */
 	public static void enableGui() {
 		synchronized(ExecutionLog.class) {
 			if(log == null) {
@@ -55,6 +61,11 @@ public class ExecutionLog {
 		}
 	}	
 	
+	/**
+	 * Convenience wrapper that
+	 * enables the GUI, invokes {@link Runnable#run()}, 
+	 * and then disables the GUI. 
+	 */
 	public static void runWithGui(Runnable run) {
 		enableGui();
 		try {
@@ -64,6 +75,10 @@ public class ExecutionLog {
 		}
 	}	
 	
+	/** 
+	 * Disables the execution log.  Blocks until the gui window (if any)
+	 * is closed.
+	 */
 	public static void disable() {
 		ExecutionLog l;
 		synchronized(ExecutionLog.class) {

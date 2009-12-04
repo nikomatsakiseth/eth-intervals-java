@@ -2,6 +2,7 @@ package ch.ethz.intervals;
 
 /** Indicates that a data race was detected on a {@link DynamicGuard} */
 public class DataRaceException extends RuntimeException {
+	private static final long serialVersionUID = -4846309821441326261L;
 
 	enum Role { READ, WRITE, LOCK };
 	

@@ -8,7 +8,7 @@ import ch.ethz.intervals.IndexedTask.Subtask;
 import ch.ethz.intervals.ThreadPool.WorkItem;
 import ch.ethz.intervals.ThreadPool.Worker;
 
-public class Debug {
+class Debug {
 	
 	public static final boolean ENABLED = false;
 	public static final boolean DUMP_IMMEDIATELY = true;

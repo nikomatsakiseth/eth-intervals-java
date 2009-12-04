@@ -262,7 +262,7 @@ public class TestInterval {
 					Assert.fail("No exception thrown!");
 				} catch (RethrownException e) {
 					Assert.assertTrue("Not subtype: "+e.getCause(), e.getCause() instanceof TestException);
-					Assert.assertEquals("Both exceptions not collected", 2, e.allErrors.size());
+					Assert.assertEquals("Both exceptions not collected", 2, e.allErrors().size());
 				}				
 			}
 		}
@@ -463,7 +463,7 @@ public class TestInterval {
 					});
 					Assert.fail("No exception thrown");
 				} catch (RethrownException e) {
-					Assert.assertEquals("Wrong number of exceptions", length, e.allErrors.size());
+					Assert.assertEquals("Wrong number of exceptions", length, e.allErrors().size());
 				}
 			}
 		}

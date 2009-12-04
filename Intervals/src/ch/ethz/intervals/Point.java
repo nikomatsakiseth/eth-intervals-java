@@ -1,16 +1,21 @@
 package ch.ethz.intervals;
 
+/**
+ * A single point in time for the scheduler.  
+ */
 public interface Point {
 	
 	/**
-	 * Returns the bound of this point.  For a start point, the 
-	 * bound is the corresponding end point.  For an end point,
-	 * the bound is either the end of the root interval, or
-	 * specified by the user when using 
+	 * Returns the bound of this point.  For the start point
+	 * of an interval, the bound is the corresponding end point.  
+	 * For an end point, the bound is either the end of the root 
+	 * interval, or specified by the user when using 
 	 * {@link Intervals#intervalWithBound(Point)}. 
 	 * 
 	 * There is always an outgoing edge from every point to its
-	 * bound.  Bounds are also important in dynamic race detection.
+	 * bound.  Bounds are used to group related tasks by functions
+	 * like {@link Intervals#childInterval(Task)} or
+	 * {@link Intervals#successorInterval(Task)}. 
 	 */
 	Point bound();	
 	
@@ -21,11 +26,9 @@ public interface Point {
 	boolean isBoundedBy(Point p);
 	
 	/**
-	 * True if this point <i>happens before</i> {@code p}.  Which
-	 * points <i>happen before</i> one another is specified by
-	 * the user when new intervals are created via methods like
-	 * {@link UnscheduledInterval#endAfter(Point)} or
-	 * {@link UnscheduledInterval#startBefore(Point)}.
+	 * True if this point <i>happens before</i> {@code p}.
+	 *   
+	 * @see Intervals#addHb(Point, Point)
 	 */
 	boolean hb(Point p);
 

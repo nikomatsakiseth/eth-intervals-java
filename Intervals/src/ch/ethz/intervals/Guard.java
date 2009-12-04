@@ -1,8 +1,7 @@
 package ch.ethz.intervals;
 
-import ch.ethz.intervals.params.Parent;
-
-@Parent
+/** Protects a set of objects.  Use with {@link Intervals#exclusiveLock(Interval, Guard)}
+ *  to acquire and release locks with intervals. */
 public interface Guard {
-
+	
 }
