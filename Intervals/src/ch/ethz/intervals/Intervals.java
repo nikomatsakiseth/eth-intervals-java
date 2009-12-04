@@ -218,12 +218,12 @@ public class Intervals {
 	 * <li>The end of the current interval <em>happens before</em> {@code to}.
 	 * </ul>
 	 * If none of the above conditions are met, then 
-	 * the method throws a {@link NoEdgeException}.
+	 * the method throws a {@link EdgeNeededException}.
 	 * 
 	 * Furthermore, if {@code to} already <em>happens before</em> {@code from},
 	 * then a {@link CycleException} is thrown.
 	 * 
-	 * @throws NoEdgeException see above.
+	 * @throws EdgeNeededException see above.
 	 * @throws CycleException see above.
 	 */	
 	public static void addHb(Point from, Point to) {
@@ -363,6 +363,8 @@ public class Intervals {
 	}
 	
 	/**
+	 * Creates an asynchronous point.
+	 * 
 	 * @see AsyncPoint
 	 */
 	public static AsyncPoint asyncPoint(Point bound, int cnt) {

@@ -8,6 +8,10 @@ import static ch.ethz.intervals.Intervals.POOL;
 // makereductions.sh!
 //******************************************************
 
+/**
+ * Reductions allow efficient, race-free parallel addition
+ * and subtraction. 
+ */
 // @JPartParams("@V @W=@V")
 public class LongReduction {
 	

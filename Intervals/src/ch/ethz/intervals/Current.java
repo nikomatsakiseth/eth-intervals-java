@@ -106,7 +106,7 @@ class Current {
 				return;
 			if(end.hb(to))
 				return;
-			throw new NoEdgeException(end, to);
+			throw new EdgeNeededException(end, to);
 		}		
 	}
 

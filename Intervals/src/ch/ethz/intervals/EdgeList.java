@@ -1,12 +1,6 @@
-/**
- * 
- */
 package ch.ethz.intervals;
 
-
-
-
-public class EdgeList implements Cloneable {
+class EdgeList implements Cloneable {
 	
 	// Flags for edges:
 	public static final int NORMAL = 0;               /** A user-created, confirmed edge. */   
@@ -118,7 +112,7 @@ public class EdgeList implements Cloneable {
 		assert false : "No speculative edge found!";
 	}
 	
-	public static abstract class InterruptibleIterator {
+	static abstract class InterruptibleIterator {
 		
 		public InterruptibleIterator(EdgeList list) {
 			while(list != null) {
@@ -147,7 +141,7 @@ public class EdgeList implements Cloneable {
 		
 	}
 
-	public static abstract class Iterator extends InterruptibleIterator {
+	static abstract class Iterator extends InterruptibleIterator {
 		
 		public Iterator(EdgeList list) {
 			super(list);

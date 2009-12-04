@@ -1,5 +1,6 @@
 package ch.ethz.intervals;
 
+/** Base class for all exceptions thrown by the interval runtime. */
 public abstract class IntervalException extends RuntimeException {
 	private static final long serialVersionUID = -7494012490281334869L;
 

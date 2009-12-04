@@ -77,4 +77,10 @@ implements Interval {
 		return end.bound;
 	}
 
+	@Override
+	public void schedule() throws AlreadyScheduledException {
+		Current current = Current.get();
+		current.schedule(this);
+	}
+
 }

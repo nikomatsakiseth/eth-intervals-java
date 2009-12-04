@@ -1,5 +1,6 @@
 package ch.ethz.intervals;
 
+/** Static methods for working with guards. */
 public class Guards {
 
 	public static Guard newGuard() {

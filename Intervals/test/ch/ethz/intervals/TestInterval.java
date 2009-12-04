@@ -609,7 +609,7 @@ public class TestInterval {
 			Assert.assertTrue("No data point "+dp, found[dp]);
 	}
 	
-	@Test(expected=NoEdgeException.class) 
+	@Test(expected=EdgeNeededException.class) 
 	public void raceConditionInBeforeGeneratesError1() {
 		final Interval a = interval(Intervals.emptyTask);
 		Intervals.schedule();
@@ -617,7 +617,7 @@ public class TestInterval {
 		Intervals.addHb(b.end(), a.start());
 	}
 	
-	@Test(expected=NoEdgeException.class) 
+	@Test(expected=EdgeNeededException.class) 
 	public void raceConditionInBeforeGeneratesError2() {
 		final Interval a = interval(Intervals.emptyTask);
 		Intervals.schedule();
@@ -625,7 +625,7 @@ public class TestInterval {
 		Intervals.addHb(b.start(), a.end());
 	}
 	
-	@Test(expected=NoEdgeException.class) 
+	@Test(expected=EdgeNeededException.class) 
 	public void raceConditionInBeforeGeneratesError3() {
 		final Interval a = interval(Intervals.emptyTask);
 		Intervals.schedule();
@@ -676,7 +676,7 @@ public class TestInterval {
 			
 			Assert.fail("NoEdgeException never thrown");
 		} catch (RethrownException e) {
-			Assert.assertTrue(e.getCause() instanceof NoEdgeException);
+			Assert.assertTrue(e.getCause() instanceof EdgeNeededException);
 		}
 		
 		Assert.assertEquals("Increment task failed to execute", 1, i.get());
@@ -759,7 +759,10 @@ public class TestInterval {
 				} catch(CycleException e) {					
 				}
 
-				// Have to resort to some wicked internal APIs
+				b.schedule();
+				d.schedule();
+				
+				// Have to resort to this wicked internal APIs
 				// in order to force the scenario where we started
 				// adding an edge b->a and b had not occurred, 
 				// found a cycle, but then b occurred before we 
@@ -767,9 +770,6 @@ public class TestInterval {
 				// if another thread was simultaneously adding an edge,
 				// we both found the cycle, and then they fixed theirs, allowing
 				// the scheduler to proceed, before we could fix ours.
-				Current current = Current.get();
-				current.schedule(b);
-				current.schedule(d);				
 				b.end.join();
 				
 				// Note: manually invoking this method doesn't cause a CycleException

@@ -3,7 +3,7 @@ package ch.ethz.intervals;
 import java.util.concurrent.CountDownLatch;
 
 /**
- * Async. points are used to model asynchronous, user-defined events
+ * Asynchronous points are used to model asynchronous, user-defined events
  * which the scheduler should wait for.  They are similar to a {@link CountDownLatch}:
  * when an async. point is constructed (via {@link Intervals#asyncPoint(Point, int)})
  * they have a certain number of outstanding references.  The user must invoke
