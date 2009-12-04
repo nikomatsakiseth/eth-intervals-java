@@ -28,7 +28,7 @@ public class Intervals {
 	
 	/** 
 	 * Returns {@code i.start()} unless {@code i} is null, 
-	 * in which case just returns null. */
+	 * in which case just returns {@code null}. */
 	public static Point start(Interval i) {
 		if(i == null)
 			return null;
@@ -37,7 +37,7 @@ public class Intervals {
 	
 	/** 
 	 * Returns {@code i.end()} unless {@code i} is null, 
-	 * in which case just returns null. */
+	 * in which case just returns {@code null}. */
 	public static Point end(Interval i) {
 		if(i == null)
 			return null;
@@ -63,6 +63,7 @@ public class Intervals {
 	
 	/**
 	 * Returns an interval whose bound is the end of the current interval.
+	 * @see #intervalWithBound(Point, Task)
 	 */
 	public static Interval childInterval(Task task) {
 		// No need for safety checks, it's always legal to create a child interval.
@@ -93,8 +94,9 @@ public class Intervals {
 	}
 	
 	/**
-	 * Like {@link #siblingInterval(Task)}, but the returned interval does
-	 * not begin until the current interval has completed.
+	 * Like {@link #siblingInterval(Task)}, but adds an edge
+	 * {@code current.end -> result.start} so that the returned 
+	 * interval does not begin until the current interval has completed.
 	 */
 	public static Interval successorInterval(Task task) {
 		Current current = Current.get();
@@ -339,6 +341,10 @@ public class Intervals {
 		fromImpl.unAddEdge(toImpl);
 	}
 	
+	/** Indicates that {@code interval} should execute while holding
+	 *  an exclusive lock on {@code guard}.  The lock will be automatically
+	 *  acquired sometime before {@code interval.start} and release
+	 *  sometime after {@code interval.end}. */
 	public static void exclusiveLock(Interval interval, Guard guard) {
 		if(interval != null && guard != null) {
 			Current current = Current.get();

@@ -11,6 +11,7 @@ class AsyncPointImpl extends PointImpl implements AsyncPoint {
 
 	@Override
 	public void trigger(int cnt) {
+		assert cnt >= 0;
 		boolean arrived = false;
 		synchronized(this) {
 			if(this.triggerCount > 0) {
