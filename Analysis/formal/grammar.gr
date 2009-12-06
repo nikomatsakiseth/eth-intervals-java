@@ -1,0 +1,21 @@
+# -*- coding: utf-8 -*-
+terminals a b c d e f g h k l m n o p q r s t u v w x y z root new Rd Wr Lock run start end
+substs `~>`=`\leadsto` `|\-`=`\nvdash` `OR`=`\vee` `AND`=`\wedge` `>>`=`\mapsto` `~>I`=`{\buildrel I \over \rightarrow}` `~>E`=`{\buildrel E \over \rightarrow}`
+
+class   := "class" c"<"{x}">" "extends" T \{ {T} {x}; {mthd} \}
+mthd    := void m(T y) {E} \{ {stmt} \}
+stmt    := T x = expr
+        |  x.f = y
+expr    := x.m(y)
+        |  x.f
+        |  "new" T
+        |  "newInterval"(y, {z})
+        |  "addHb"(n, m)
+        |  "newGuard"()
+t       := c"<"{x}">""["{m}({y})={e}"]"
+side    := "start" | "end"
+n,m     := x.side
+g,h     := {n}→{m}
+e,f     := (n→m):a
+a       := k(x) | x.m(y)
+k       := "Rd" | "Wr" | "Lock"
