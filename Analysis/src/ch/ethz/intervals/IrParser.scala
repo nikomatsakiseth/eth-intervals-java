@@ -5,8 +5,20 @@ import scala.util.parsing.combinator.syntactical.StandardTokenParsers
 import Util._
 
 class IrParser extends StandardTokenParsers {
-    lexical.delimiters += ("{", "}", "[", "]", "(", ")", ",", "@", "?", ":", ".", ";", "=", "->", "#", "<=", "&&", "`")
-    lexical.reserved += ("start", "end", "Sh", "Ex", "Free", "Lock")
+    lexical.delimiters += (
+        "{", "}", "[", "]", "(", ")", "<", ">",
+        ",", "@", "?", ":", ".", ";", "=", "->", 
+        "#", "<=", "&&", "`"
+    )
+    lexical.reserved += (
+        "class", "new", "interval", "guard", "null", "add", 
+        "return", "Rd", "Wr", "Free", "extends", "final", "guardedBy"
+    )
+
+    def parse[A](p: Parser[A])(text: String) = {
+      val tokens = new lexical.Scanner(text)
+      phrase(p)(tokens)
+    }
 
     def optd[A](p: Parser[A], d: A) = 
         opt(p)                                  ^^ { case None => d
@@ -50,9 +62,10 @@ class IrParser extends StandardTokenParsers {
     def expr = (
         p~"->"~m~"("~p~")"                      ^^ { case p~"->"~m~"("~q~")" => ir.ExprCall(p, m, q) }
     |   p~"->"~f                                ^^ { case p~"->"~f => ir.ExprField(p, f) }
-    |   "new"~t                                 ^^ { case _~t => ir.ExprNew(t) }
+    |   "new"~t~"("~")"                         ^^ { case _~t~"("~")" => ir.ExprNew(t) }
     |   "interval"~p~p~"("~comma(p)~")"         ^^ { case _~b~t~_~gs~_ => ir.ExprNewInterval(b, t, gs) }
     |   "guard"~p                               ^^ { case _~g => ir.ExprNewGuard(g) }    
+    |   "null"                                  ^^ { case _ => ir.ExprNull }
     )
     
     def lvdecl = (
@@ -110,7 +123,7 @@ class IrParser extends StandardTokenParsers {
     )
 
     def realFieldDecl = (
-        rep(mod)~wt~f~"guarded_by"~p            ^^ { case mods~wt~f~_~p => ir.RealFieldDecl(mods, wt, f, p) }
+        rep(mod)~wt~f~"guardedBy"~p~";"         ^^ { case mods~wt~f~_~p~_ => ir.RealFieldDecl(mods, wt, f, p) }
     )
 
     def classDecl = (
@@ -124,5 +137,7 @@ class IrParser extends StandardTokenParsers {
         case _~name~_~ghosts~_~_~superType~_~fields~methods~_ =>
             ir.ClassDecl(name, ghosts, Some(superType), fields, methods)
     }
+    
+    def classDecls = rep(classDecl)
     
 }

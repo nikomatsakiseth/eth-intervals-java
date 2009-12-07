@@ -2,7 +2,7 @@ package ch.ethz.intervals
 
 import scala.collection.mutable.ListBuffer
 
-class Prog(cds_user: List[ir.ClassDecl]) {
+class Prog(val cds_user: List[ir.ClassDecl]) {
     val classDecls = cds_user ++ ir.cds_default
     
     // ______________________________________________________________________

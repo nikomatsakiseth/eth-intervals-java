@@ -44,7 +44,7 @@ object ir {
     sealed case class Error(
         loc: Locatable,
         msg: String,
-        args: List[Object]
+        args: List[String]
     )
     
     sealed case class ClassDecl(
@@ -117,6 +117,7 @@ object ir {
     sealed case class ExprNew(t: TypeRef) extends Expr
     sealed case class ExprNewInterval(bound: Path, task: Path, guards: List[Path]) extends Expr
     sealed case class ExprNewGuard(p: Path) extends Expr
+    case object ExprNull extends Expr
     
     sealed case class WcTypeRef(
         c: ClassName,
@@ -222,7 +223,7 @@ object ir {
     val p_root = ir.VarName("root").path
 
     val p_locked = ir.VarName("locked").path
-    val p_readonly = ir.VarName("readonly").path
+    val p_readOnly = ir.VarName("readOnly").path
     
     val f_start = ir.FieldName("start")
     val f_end = ir.FieldName("end")
@@ -230,11 +231,14 @@ object ir {
     val m_run = ir.MethodName("run")
     
     val c_object = ir.ClassName("java.lang.Object")
+    val c_void = ir.ClassName("java.lang.Void")
     val c_interval = ir.ClassName("ch.ethz.intervals.Interval")
     val c_point = ir.ClassName("ch.ethz.intervals.Point")
     val c_guard = ir.ClassName("ch.ethz.intervals.Guard")    
     val c_task = ir.ClassName("ch.ethz.intervals.Task")
     
+    val t_object = ir.TypeRef(c_object, List(), List())
+    val t_void = ir.TypeRef(c_void, List(), List())
     val wt_interval = ir.WcTypeRef(c_interval, List(ir.WcUnkPath), List())
     val wt_point = ir.WcTypeRef(c_point, List(ir.WcUnkPath), List())
     val wt_guard = ir.WcTypeRef(c_guard, List(ir.WcUnkPath), List())
@@ -247,8 +251,15 @@ object ir {
     val cds_default = List(
         ClassDecl(
             /* Name:    */ c_object,
-            /* Ghosts:  */ List(), // Ghosts
+            /* Ghosts:  */ List(),
             /* Extends: */ None,
+            /* Fields:  */ List(),
+            /* Methods: */ List()
+        ),
+        ClassDecl(
+            /* Name:    */ c_void,
+            /* Ghosts:  */ List(),
+            /* Extends: */ Some(t_object),
             /* Fields:  */ List(),
             /* Methods: */ List()
         ),
@@ -256,17 +267,32 @@ object ir {
             /* Name:    */ c_interval,
             /* Ghosts:  */ List(
                 GhostFieldDecl(FieldName("bound"), wt_point)),
-            /* Extends: */ None,
+            /* Extends: */ Some(t_object),
             /* Fields:  */ List(
-                RealFieldDecl(List(Final), wt_point, f_start, p_readonly), // XXX bound
-                RealFieldDecl(List(Final), wt_point, f_end, p_readonly)),  // XXX bound
+                RealFieldDecl(List(Final), wt_point, f_start, p_readOnly), // XXX bound
+                RealFieldDecl(List(Final), wt_point, f_end, p_readOnly)),  // XXX bound
             /* Methods: */ List()
+        ),
+        ClassDecl(
+            /* Name:    */ c_task,
+            /* Ghosts:  */ List(),
+            /* Extends: */ Some(t_object),
+            /* Fields:  */ List(),
+            /* Methods: */ List(
+                MethodDecl(
+                    /* wt_ret: */ t_void, 
+                    /* name:   */ m_run, 
+                    /* arg:    */ ir.LvDecl(lv_end, wt_point),
+                    /* effect: */ ir.EffectAny,
+                    /* stmts:  */ List(),
+                    /* ex_ret: */ ir.ExprNull
+                    ))
         ),
         ClassDecl(
             /* Name:    */ c_point,
             /* Ghosts:  */ List(
                 GhostFieldDecl(FieldName("bound"), wt_point)),
-            /* Extends: */ None,
+            /* Extends: */ Some(t_object),
             /* Fields:  */ List(),
             /* Methods: */ List()
         ),
@@ -274,7 +300,7 @@ object ir {
             /* Name:    */ c_guard,
             /* Ghosts:  */ List(
                 GhostFieldDecl(FieldName("parent"), wt_guard)),
-            /* Extends: */ None,
+            /* Extends: */ Some(t_object),
             /* Fields:  */ List(),
             /* Methods: */ List()
         )

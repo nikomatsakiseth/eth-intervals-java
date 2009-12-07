@@ -6,7 +6,7 @@ import Util.forallzip
 import Util.forallcross
 import Util.foreachzip
 
-class TypeCheck(prog: Prog) {    
+class TypeCheck(log: Log, prog: Prog) {    
     import prog.classDecl
     import prog.fresh
 
@@ -375,6 +375,9 @@ class TypeCheck(prog: Prog) {
             checkIsSubtype(wt_path(p), ir.wt_guard)
             (ir.TypeRef(ir.c_guard, List(p), List()), ir.EffectNone)
             
+        case ir.ExprNull =>
+            (ir.t_void, ir.EffectNone)
+            
     }
     
     def statement(stmt: ir.Stmt): ir.Effect = 
@@ -383,7 +386,8 @@ class TypeCheck(prog: Prog) {
                 case ir.StmtVarDecl(ir.LvDecl(x, wt_x), ex) =>
                     checkWfWt(wt_x)
                     val (wt_e, e) = expr(ex)
-                    checkIsSubtype(wt_e, wt_x)
+                    if(ex != ir.ExprNull)
+                        checkIsSubtype(wt_e, wt_x)
                     addLv(x, wt_x)
                     e
         
@@ -414,7 +418,8 @@ class TypeCheck(prog: Prog) {
             addLv(md.arg.name, md.arg.wt)
             val e_stmts = statements(ir.EffectNone, md.stmts)
             val (wt_ret, e_ret) = expr(md.ex_ret)
-            checkIsSubtype(wt_ret, md.wt_ret)
+            if(md.ex_ret != ir.ExprNull)
+                checkIsSubtype(wt_ret, md.wt_ret)
             checkAllows(e_stmts, e_ret)
             checkIsSubeffect(ir.union(e_stmts, e_ret), md.e)
         }         
@@ -425,4 +430,6 @@ class TypeCheck(prog: Prog) {
             
         }
     }
+    
+    def check = prog.cds_user.foreach(checkClassDecl)
 }
