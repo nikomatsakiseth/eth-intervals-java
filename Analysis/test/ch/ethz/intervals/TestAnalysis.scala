@@ -83,22 +83,47 @@ class TestAnalysis extends JUnitSuite {
         tc(
             """
             class Foo<Guard<?> g, Guard<?> h> 
-                g # h 
+                this.g # this.h 
             extends Object 
             {
             }
             class Bar<> extends Object {
-                Void run(Guard<?> g, Guard<?> h)
+                Void run(Guard<?> a, Guard<?> b)
                 {
-                    Foo<?,?> f = new Foo<g, h>();
+                    Foo<?,?> f = new Foo<a, b>();
                     return null;
                 }
             }
             """,
             List(
-                ExpError("intervals.not.disjoint", List("g", "h"))
+                ExpError("intervals.not.disjoint", List("a", "b"))
             )
         )
     }
-        
+
+    @Test 
+    def disjointGhosts2() {
+        tc(
+            """
+            class Foo<>
+                this.g # this.h 
+            extends Object 
+            {
+                final Guard<?> g guardedBy readOnly;
+                final Guard<?> h guardedBy readOnly;
+            }
+            class Bar<> extends Object {
+                Void run(Guard<?> a, Guard<?> b)
+                {
+                    Foo f = new Foo(a, b);
+                    return null;
+                }
+            }
+            """,
+            List(
+                ExpError("intervals.not.disjoint", List("a", "b"))
+            )
+        )
+    }
+            
 }
