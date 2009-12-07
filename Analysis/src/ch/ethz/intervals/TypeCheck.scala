@@ -130,6 +130,38 @@ class TypeCheck(log: Log, prog: Prog) {
     }
     
     // ______________________________________________________________________
+    // Well-formedness
+    //
+    // Very basic sanity checks.
+    
+    def checkWfPath(p: ir.Path) = {
+        wt_path(p) // Computing the type of a path also checks that it's WF.
+    }
+    
+    def checkWfEffect(e: ir.Effect) = {
+        // XXX
+    }
+            
+    def checkWfDisjoint(disjoint: List[ir.Path]) {
+        disjoint.foreach(checkWfPath)
+    }
+    
+    def checkWfWt(wt: ir.WcTypeRef) = {
+        val cd = classDecl(wt.c)
+        
+        if(cd.ghosts.length != wt.wpaths.length)
+            throw new ir.IrError("intervals.wrong.number.of.ghosts", cd.ghosts.length, wt.wpaths.length)
+        
+        wt.overs.foreach { case ov =>
+            cd.methods.find(_.name == ov.m) match {
+                case Some(md) => 
+                    checkWfEffect(ov.e)
+                case None => throw new ir.IrError("intervals.no.such.method", wt, ov.m)
+            }
+        }
+    }
+
+    // ______________________________________________________________________
     // Path Canonicalization
     
     class Canon(excl: List[ir.VarName]) extends BaseSubst {
@@ -356,24 +388,6 @@ class TypeCheck(log: Log, prog: Prog) {
         if(!canFollow(None, Set(), e_pre, None, Set(), e_post))
             throw new ir.IrError("intervals.cannot.follow", e_pre, e_post)
             
-    def checkWfEffect(e: ir.Effect) = {
-        // XXX
-    }
-            
-    def checkWfWt(wt: ir.WcTypeRef) = {
-        val cd = classDecl(wt.c)
-        
-        if(cd.ghosts.length != wt.wpaths.length)
-            throw new ir.IrError("intervals.wrong.number.of.ghosts", cd.ghosts.length, wt.wpaths.length)
-        
-        wt.overs.foreach { case ov =>
-            cd.methods.find(_.name == ov.m) match {
-                case Some(_) => checkWfEffect(ov.e)
-                case None => throw new ir.IrError("intervals.no.such.method", wt, ov.m)
-            }
-        }
-    }
-
     def realFieldDecl(p: ir.Path, f: ir.FieldName) = {
         val fd = substdFieldDecl(p, f)
         if(fd.isGhost)
@@ -552,6 +566,7 @@ class TypeCheck(log: Log, prog: Prog) {
                 val ps_ghosts = cd.ghosts.map(_.thisPath)
                 val t_this = ir.TypeRef(cd.name, ps_ghosts, List())
                 addLv(ir.lv_this, t_this)
+                cd.disjoints.foreach(checkWfDisjoint)
                 cd.fields.foreach(checkRealFieldDecl)
                 cd.methods.foreach(checkMethodDecl)
             }

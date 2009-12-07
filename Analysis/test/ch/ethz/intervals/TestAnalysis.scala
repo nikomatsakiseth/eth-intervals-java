@@ -79,7 +79,7 @@ class TestAnalysis extends JUnitSuite {
     }
     
     @Test 
-    def disjointGhosts1() {
+    def classDisjointGhosts() {
         tc(
             """
             class Foo<Guard<?> g, Guard<?> h> 
@@ -102,7 +102,7 @@ class TestAnalysis extends JUnitSuite {
     }
 
     @Test 
-    def disjointGhosts2() {
+    def classDisjointFinal() {
         tc(
             """
             class Foo<>
@@ -125,5 +125,22 @@ class TestAnalysis extends JUnitSuite {
             )
         )
     }
-            
+    
+    @Test 
+    def classDisjointWf() {
+        tc(
+            """
+            class Foo<>
+                this.g # this.h 
+            extends Object 
+            {
+                final Guard<?> g guardedBy readOnly;
+                Guard<?> h guardedBy readOnly;
+            }
+            """,
+            List(
+                ExpError("intervals.not.final", List("this", "Foo<>", "h"))
+            )
+        )
+    }        
 }
