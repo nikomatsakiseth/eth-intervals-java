@@ -105,14 +105,16 @@ class IrParser extends StandardTokenParsers {
                                                      case es => ir.EffectUnion(es) }
     )
     
+    def disjoint = repsep(p, "#")               ^^ { case ps => ir.DisjointDecl(ps) }
+
     def methodDecl = (
-        wt~m~"("~comma(lvdecl)~")"~eff~"{"~
+        wt~m~"("~comma(lvdecl)~")"~comma(disjoint)~eff~"{"~
             rep(stmt)~
             "return"~expr~";"~
         "}"
     ) ^^ {
-        case wt_ret~name~_~args~_~e~_~stmts~_~ex_ret~_~_ =>
-            ir.MethodDecl(wt_ret, name, args, e, stmts, ex_ret)
+        case wt_ret~name~_~args~_~disj~e~_~stmts~_~ex_ret~_~_ =>
+            ir.MethodDecl(wt_ret, name, args, disj, e, stmts, ex_ret)
     }
     
     def mod = (
@@ -127,8 +129,6 @@ class IrParser extends StandardTokenParsers {
         rep(mod)~wt~f~"guardedBy"~p~";"         ^^ { case mods~wt~f~_~p~_ => ir.RealFieldDecl(mods, wt, f, p) }
     )
     
-    def disjoint = repsep(p, "#")
-
     def classDecl = (
         "class"~c~"<"~
             comma(ghostFieldDecl)~

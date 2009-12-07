@@ -138,12 +138,26 @@ class TypeCheck(log: Log, prog: Prog) {
         wt_path(p) // Computing the type of a path also checks that it's WF.
     }
     
-    def checkWfEffect(e: ir.Effect) = {
-        // XXX
+    def checkWfEffect(e: ir.Effect): Unit = e match {
+        case ir.EffectInterval(i, e) => 
+            i.ps.foreach(checkWfPath)
+            i.qs.foreach(checkWfPath)
+            checkWfEffect(e)
+        case ir.EffectMethod(p, m, qs) => 
+            checkWfPath(p) // XXX also check that m exists, accepts qs args or correct type, etc
+            qs.foreach(checkWfPath)
+        case ir.EffectFixed(k, p) => 
+            checkWfPath(p)
+        case ir.EffectLock(ps, e) => 
+            ps.foreach(checkWfPath)
+            checkWfEffect(e)
+        case ir.EffectUnion(es) => es.foreach(checkWfEffect)
+        case ir.EffectNone => 
+        case ir.EffectAny => 
     }
             
-    def checkWfDisjoint(disjoint: List[ir.Path]) {
-        disjoint.foreach(checkWfPath)
+    def checkWfDisjoint(disj: ir.DisjointDecl) {
+        disj.ps.foreach(checkWfPath)
     }
     
     def checkWfWt(wt: ir.WcTypeRef) = {
@@ -252,6 +266,11 @@ class TypeCheck(log: Log, prog: Prog) {
     def checkIsDisjointGuard(wp: ir.WcPath, wq: ir.WcPath) =
         if(!isDisjointGuard(wp, wq))
             throw new ir.IrError("intervals.not.disjoint", wp, wq)
+    def checkDisjointDecl(disj: ir.DisjointDecl) = {
+        val ps = disj.ps.map(canon.path)
+        pairs(ps).foreach { case (p, q) => 
+            checkIsDisjointGuard(p, q) }        
+    }
 
     /// p→q in the minimal interpretation
     def hb(p: ir.Path, q: ir.Path): Boolean =
@@ -413,12 +432,14 @@ class TypeCheck(log: Log, prog: Prog) {
             foreachzip(wts_q, msig.args.map(_.wt))(checkIsSubtype)
         
             // Compute return type:
-            val wt_ret0 = 
-                PathSubst.vp(
-                    ir.lv_this :: msig.args.map(_.name), 
-                    p :: qs
-                ).wtref(msig.wt_ret)
-            val wt_ret = canon.wtref(wt_ret0)
+            val subst = PathSubst.vp(
+                ir.lv_this :: msig.args.map(_.name), 
+                p :: qs
+            )
+            val wt_ret = canon.wtref(subst.wtref(msig.wt_ret))
+            
+            // Check disjointedness conditions:
+            msig.disjoints.map(subst.disj).foreach(checkDisjointDecl)            
                     
             (wt_ret, effectwt(p, t_p, m, qs))
                    
@@ -459,10 +480,7 @@ class TypeCheck(log: Log, prog: Prog) {
                 (cd.ghosts ++ fds_final).map(_.thisPath),
                 t.paths ++ qs
             )
-            cd.disjoints.foreach { case ps =>
-                pairs(ps.map(subst.path)).foreach { case (p, q) => 
-                    checkIsDisjointGuard(p, q) }
-            }
+            cd.disjoints.map(subst.disj).foreach(checkDisjointDecl)
             
             (t, ir.EffectNone)
             
@@ -550,6 +568,7 @@ class TypeCheck(log: Log, prog: Prog) {
                     checkWfWt(arg.wt)
                     addLv(arg.name, arg.wt) 
                 }
+                checkWfEffect(md.e)
                 val e_stmts = statements(ir.EffectNone, md.stmts)
                 val (wt_ret, e_ret) = expr(md.ex_ret)
                 if(md.ex_ret != ir.ExprNull)

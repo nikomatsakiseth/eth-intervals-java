@@ -42,11 +42,16 @@ abstract class BaseSubst {
         case rfd: ir.RealFieldDecl => realFieldDecl(rfd)
     }
     
+    def disj(d: ir.DisjointDecl) =
+        ir.DisjointDecl(d.ps.map(path))
+    
     def lvDecl(lv: ir.LvDecl) = 
         ir.LvDecl(lv.name, wtref(lv.wt))
 
-    def methodSig(msig: ir.MethodSig) = {
-        val subst = without(msig.args.map(_.name))
-        ir.MethodSig(subst.effect(msig.e), msig.args.map(subst.lvDecl), subst.wtref(msig.wt_ret))
-    }    
+    def methodSig(msig: ir.MethodSig) =
+        ir.MethodSig(
+            effect(msig.e), 
+            msig.args.map(lvDecl), 
+            msig.disjoints.map(disj),
+            wtref(msig.wt_ret))
 }

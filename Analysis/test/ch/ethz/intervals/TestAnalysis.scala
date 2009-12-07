@@ -53,7 +53,7 @@ class TestAnalysis extends JUnitSuite {
             """
             class Producer<Guard<?> g> extends Object {
                 Void run(Point<?> end) 
-                    (->end):Wr(g)
+                    (->end):Wr(this.g)
                 {
                     Data<this.g> d = new Data<this.g>();
                     Consumer<this.g> cTask = new Consumer<this.g>(d);
@@ -142,5 +142,39 @@ class TestAnalysis extends JUnitSuite {
                 ExpError("intervals.not.final", List("this", "Foo<>", "h"))
             )
         )
-    }        
+    }    
+    
+    @Test 
+    def mthdDisjointGhosts() {
+        tc(
+            """
+            class Foo<Guard<?> g, Guard<?> h> 
+            extends Object 
+            {
+                Void mthd() 
+                this.g # this.h // In order to invoke, g/h must be disjoint.
+                {
+                    return null;
+                }
+            }
+            class Bar<> extends Object {
+                Void one(Guard<?> a, Guard<?> b)
+                {
+                    Foo<a,b> f = new Foo<a,b>(); // ok to create...
+                    return null;
+                }
+                Void two(Guard<?> c, Guard<?> d)
+                {
+                    Foo<c,d> f = new Foo<c,d>(); 
+                    Void v = f->mthd(); // ...but not to call.
+                    return null;
+                }
+            }
+            """,
+            List(
+                ExpError("intervals.not.disjoint", List("c", "d"))
+            )
+        )
+    }
+                
 }

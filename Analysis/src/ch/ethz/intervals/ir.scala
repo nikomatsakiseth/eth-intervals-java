@@ -51,7 +51,7 @@ object ir {
     sealed case class ClassDecl(
         name: ClassName,
         ghosts: List[GhostFieldDecl],
-        disjoints: List[List[ir.Path]],
+        disjoints: List[DisjointDecl],
         superType: Option[TypeRef],
         fields: List[RealFieldDecl],
         methods: List[MethodDecl]
@@ -59,30 +59,38 @@ object ir {
         def allFields = ghosts ++ fields
         
         override def toString =
-            "class %s<%s> extends %s".format(
-                name, ", ".join(ghosts), superType)        
+            "class %s<%s>%s extends %s".format(
+                name, ", ".join(ghosts), ",".join(" ", disjoints), superType)
     }
     
     sealed case class MethodDecl(
         wt_ret: WcTypeRef,
         name: MethodName,
         args: List[LvDecl],
+        disjoints: List[DisjointDecl],
         e: Effect,
         stmts: List[Stmt],
         ex_ret: Expr
     ) extends Locatable {
-        def msig = at(MethodSig(e, args, wt_ret), srcLoc)
+        def msig = at(MethodSig(e, args, disjoints, wt_ret), srcLoc)
         
         override def toString =
-            "%s %s(%s) %s".format(wt_ret, name, ", ".join(args), e)
+            "%s %s(%s) %s %s".format(wt_ret, name, ", ".join(args), ", ".join(disjoints), e)
     }
     
     sealed case class MethodSig(
         e: Effect,
         args: List[LvDecl],
+        disjoints: List[DisjointDecl],
         wt_ret: WcTypeRef
     ) extends Locatable {
         override def toString = "(%s _(%s) %s)".format(wt_ret, ", ".join(args), e)
+    }
+    
+    sealed case class DisjointDecl(
+        ps: List[ir.Path]
+    ) {
+        override def toString = " # ".join(ps)
     }
     
     sealed case class LvDecl(
@@ -354,7 +362,8 @@ object ir {
                 MethodDecl(
                     /* wt_ret: */ t_void, 
                     /* name:   */ m_run, 
-                    /* arg:    */ List(ir.LvDecl(lv_end, wt_point)),
+                    /* args:   */ List(ir.LvDecl(lv_end, wt_point)),
+                    /* disj.:  */ List(),
                     /* effect: */ ir.EffectAny,
                     /* stmts:  */ List(),
                     /* ex_ret: */ ir.ExprNull
