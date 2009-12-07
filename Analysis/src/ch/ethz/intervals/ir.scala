@@ -1,6 +1,7 @@
 package ch.ethz.intervals
 
 import scala.collection.immutable.Set
+import Util._
 
 object ir {
     
@@ -55,6 +56,10 @@ object ir {
         methods: List[MethodDecl]
     ) extends Locatable {
         def allFields = ghosts ++ fields
+        
+        override def toString =
+            "class %s<%s> extends %s".format(
+                name, ", ".join(ghosts), superType)        
     }
     
     sealed case class MethodDecl(
@@ -66,20 +71,27 @@ object ir {
         ex_ret: Expr
     ) extends Locatable {
         def msig = at(MethodSig(e, arg, wt_ret), srcLoc)
+        
+        override def toString =
+            "%s %s(%s) %s".format(wt_ret, name, arg, e)
     }
     
     sealed case class MethodSig(
         e: Effect,
         arg: LvDecl,
         wt_ret: WcTypeRef
-    ) extends Locatable
+    ) extends Locatable {
+        override def toString = "(%s _(%s) %s)".format(wt_ret, arg, e)
+    }
     
     sealed case class LvDecl(
         name: VarName,
         wt: WcTypeRef
-    ) 
+    ) {
+        override def toString = "%s %s".format(wt, name)
+    }
 
-    sealed abstract class FieldDecl {
+    sealed abstract class FieldDecl extends Locatable {
         val wt: WcTypeRef
         val name: FieldName
         def isFinal: Boolean
@@ -94,6 +106,8 @@ object ir {
     ) extends FieldDecl {
         def isFinal = true
         def isGhost = true
+        
+        override def toString = "%s %s".format(wt, name)
     }
     
     sealed case class RealFieldDecl(
@@ -104,26 +118,49 @@ object ir {
     ) extends FieldDecl {
         def isFinal = mods.contains(Final)
         def isGhost = false
+        
+        override def toString = 
+            "%s%s %s guardedBy %s".format(" ".join("", mods, " "), wt, name, guard)
     }
     
     sealed abstract class Stmt extends Locatable
-    sealed case class StmtVarDecl(vd: LvDecl, ex: Expr) extends Stmt
-    sealed case class StmtAssignField(p: Path, f: FieldName, q: Path) extends Stmt
-    sealed case class StmtAddHb(p: Path, q: Path) extends Stmt
+    sealed case class StmtVarDecl(vd: LvDecl, ex: Expr) extends Stmt {
+        override def toString = "%s = %s;".format(vd, ex)
+    }
+    sealed case class StmtAssignField(p: Path, f: FieldName, q: Path) extends Stmt {
+        override def toString = "%s->%s = %s;".format(p, f, q)
+    }
+    sealed case class StmtAddHb(p: Path, q: Path) extends Stmt {
+        override def toString = "add %s->%s;".format(p, q)        
+    }
     
     sealed abstract class Expr extends Locatable
-    sealed case class ExprCall(p: Path, m: MethodName, q: Path) extends Expr
-    sealed case class ExprField(p: Path, f: FieldName) extends Expr
-    sealed case class ExprNew(t: TypeRef) extends Expr
-    sealed case class ExprNewInterval(bound: Path, task: Path, guards: List[Path]) extends Expr
-    sealed case class ExprNewGuard(p: Path) extends Expr
-    case object ExprNull extends Expr
+    sealed case class ExprCall(p: Path, m: MethodName, q: Path) extends Expr {
+        override def toString = "%s->%s(%s)".format(p, m, q)
+    }
+    sealed case class ExprField(p: Path, f: FieldName) extends Expr {
+        override def toString = "%s->%s".format(p, f)
+    }
+    sealed case class ExprNew(t: TypeRef) extends Expr {
+        override def toString = "new %s()".format(t)
+    }
+    sealed case class ExprNewInterval(bound: Path, task: Path, guards: List[Path]) extends Expr {
+        override def toString = "interval %s %s (%s)".format(bound, task, ", ".join(guards))
+    }
+    sealed case class ExprNewGuard(p: Path) extends Expr {
+        override def toString = "guard %s".format(p)
+    }
+    case object ExprNull extends Expr {
+        override def toString = "null"
+    }
     
     sealed case class WcTypeRef(
         c: ClassName,
         wpaths: List[WcPath],
         overs: List[Over]
-    ) 
+    ) {
+        override def toString = "%s<%s>%s".format(c, ", ".join(wpaths), "".join(overs))
+    }
     
     sealed case class TypeRef(
         override val c: ClassName,
@@ -132,7 +169,9 @@ object ir {
     ) extends WcTypeRef(c, paths, overs)
     
     sealed abstract class WcPath
-    case object WcUnkPath extends WcPath
+    case object WcUnkPath extends WcPath {
+        override def toString = "?"
+    }
     
     sealed case class Path(
         lv: VarName, rev_fs: List[FieldName] // Fields stored in reverse order!
@@ -140,22 +179,40 @@ object ir {
         def fs = rev_fs.reverse
         def +(f: ir.FieldName) = Path(lv, f :: rev_fs)
         def ++(fs: List[ir.FieldName]) = fs.foldLeft(this)(_ + _)
+        
+        override def toString = lv.name + ".".join(".", fs)
     }
     
     sealed case class Over(
         m: MethodName,
         lv: VarName,
         e: Effect
-    )
+    ) {
+        override def toString = "[%s(%s)=%s]".format(m, lv, e)
+    }
     
     sealed abstract class Effect
-    sealed case class EffectInterval(i: Interval, e: ir.Effect) extends Effect
-    sealed case class EffectLock(ps: List[Path], e: ir.Effect) extends Effect
-    sealed case class EffectMethod(p: Path, m: MethodName, q: Path) extends Effect
-    sealed case class EffectFixed(k: ActionKind, p: Path) extends Effect
-    sealed case class EffectUnion(es: List[ir.Effect]) extends Effect
-    case object EffectNone extends Effect
-    case object EffectAny extends Effect
+    sealed case class EffectInterval(i: Interval, e: ir.Effect) extends Effect {
+        override def toString = "%s:%s".format(i, e)
+    }
+    sealed case class EffectLock(ps: List[Path], e: ir.Effect) extends Effect {
+        override def toString = "(%s)/%s".format(", ".join(ps), e)
+    }
+    sealed case class EffectMethod(p: Path, m: MethodName, q: Path) extends Effect {
+        override def toString = "%s->%s(%s)".format(p, m, q)
+    }
+    sealed case class EffectFixed(k: ActionKind, p: Path) extends Effect {
+        override def toString = "%s(%s)".format(k, p)
+    }
+    sealed case class EffectUnion(es: List[ir.Effect]) extends Effect {
+        override def toString = ", ".join("(", es, ")")
+    }
+    case object EffectNone extends Effect {
+        override def toString = "0"
+    }
+    case object EffectAny extends Effect {
+        override def toString = "?"
+    }
 
     /// Unions two effects.  Avoid "stupid" final effects like
     /// union with the empty set, etc.
@@ -174,7 +231,10 @@ object ir {
     }
     
     /// Bounds a point r: ∀p∈ps.p→r, ∀q∈qs.r→q
-    sealed case class Interval(ps: List[Path], qs: List[Path])
+    sealed case class Interval(ps: List[Path], qs: List[Path]) {
+        override def toString = 
+            "(%s-%s)".format(" ".join(ps), " ".join(qs))
+    }
     
     sealed abstract class ActionKind
     case object Rd extends ActionKind
@@ -211,11 +271,14 @@ object ir {
     )
     
     case class IrError(msg: String, args: Any*) 
-    extends RuntimeException
+    extends RuntimeException {
+        override def toString = "%s(%s)".format(msg, ", ".join(args.toList))
+    }
     
     val lv_end = ir.VarName("end")
+    val lv_this = ir.VarName("this")
     
-    val p_this = ir.VarName("this").path
+    val p_this = lv_this.path
     val p_new = ir.VarName("new").path
     
     val p_schedule = ir.VarName("schedule").path

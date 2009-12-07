@@ -2,9 +2,7 @@ package ch.ethz.intervals
 
 import scala.collection.immutable.Map
 import scala.collection.immutable.Set
-import Util.forallzip
-import Util.forallcross
-import Util.foreachzip
+import Util._
 
 class TypeCheck(log: Log, prog: Prog) {    
     import prog.classDecl
@@ -37,6 +35,7 @@ class TypeCheck(log: Log, prog: Prog) {
         } catch {
             case err: ir.IrError =>
                 prog.reportError(loc, err)
+                log("Error: %s", err)
                 default           
         }
     
@@ -97,7 +96,10 @@ class TypeCheck(log: Log, prog: Prog) {
     
     /// type of a local variable ref.
     def wt_lv(lv: ir.VarName) =
-        env.lvs(lv)
+        env.lvs.get(lv) match {
+            case Some(wt) => wt
+            case None => throw ir.IrError("intervals.no.such.variable", lv)
+        }
     
     /// type of an object reference.
     def wt_path(p: ir.Path): ir.WcTypeRef = p match {
@@ -412,22 +414,40 @@ class TypeCheck(log: Log, prog: Prog) {
             statements(ir.union(e0, e), stmts)
     }
     
+    def checkRealFieldDecl(rfd: ir.RealFieldDecl) = savingEnv {
+        log.indented(rfd) {
+            at(rfd, ()) {
+                checkWfWt(rfd.wt)
+                val wt_guard = wt_path(rfd.guard)
+                checkIsSubtype(wt_guard, ir.wt_guard)
+            }
+        }
+    }
+    
     def checkMethodDecl(md: ir.MethodDecl) = savingEnv {
-        at(md, ()) {
-            checkWfWt(md.arg.wt)
-            addLv(md.arg.name, md.arg.wt)
-            val e_stmts = statements(ir.EffectNone, md.stmts)
-            val (wt_ret, e_ret) = expr(md.ex_ret)
-            if(md.ex_ret != ir.ExprNull)
-                checkIsSubtype(wt_ret, md.wt_ret)
-            checkAllows(e_stmts, e_ret)
-            checkIsSubeffect(ir.union(e_stmts, e_ret), md.e)
-        }         
+        log.indented(md) {
+            at(md, ()) {
+                checkWfWt(md.arg.wt)
+                addLv(md.arg.name, md.arg.wt)
+                val e_stmts = statements(ir.EffectNone, md.stmts)
+                val (wt_ret, e_ret) = expr(md.ex_ret)
+                if(md.ex_ret != ir.ExprNull)
+                    checkIsSubtype(wt_ret, md.wt_ret)
+                checkAllows(e_stmts, e_ret)
+                checkIsSubeffect(ir.union(e_stmts, e_ret), md.e)
+            }         
+        }
     }
     
     def checkClassDecl(cd: ir.ClassDecl) = savingEnv {
-        at(cd, ()) {
-            
+        log.indented(cd) {
+            at(cd, ()) {
+                val ps_ghosts = cd.ghosts.map(_.thisPath)
+                val t_this = ir.TypeRef(cd.name, ps_ghosts, List())
+                addLv(ir.lv_this, t_this)
+                cd.fields.foreach(checkRealFieldDecl)
+                cd.methods.foreach(checkMethodDecl)
+            }
         }
     }
     

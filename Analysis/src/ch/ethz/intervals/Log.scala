@@ -11,25 +11,25 @@ abstract class Log {
   def apply(msg: String): Unit = rawWrite(escape(msg))
   
   def apply(fmt: String, arg0: Any, args: Any*) = rawWrite {
-    def toLogString(o: Any) = o match {
-      case null => escape("null")
-      /*
-      case elem: Element => escape("%s[%s]".format(elem.getKind, qualName(elem)))
-      case tree: Tree => escape("%s[%s]".format(tree.getKind, prefix(tree.toString)))
-      */
-      case _ => escape(o.toString)
-    }
-    
-    val strs = (arg0 :: args.toList).map(toLogString).toArray[String]
-    escape(fmt).format(strs: _*)
+      def toLogString(o: Any) = o match {
+        case null => escape("null")
+        /*
+        case elem: Element => escape("%s[%s]".format(elem.getKind, qualName(elem)))
+        case tree: Tree => escape("%s[%s]".format(tree.getKind, prefix(tree.toString)))
+        */
+        case _ => escape(o.toString)
+      }
+
+      val strs = (arg0 :: args.toList).map(toLogString).toArray[String]
+      escape(fmt).format(strs: _*)      
   }
   
   // ______________________________________________________________________
   // Indentation
-  
-  def indented[R](fmt: String, args: Any*)(f: => R) = {
+
+  def indented[R](fmt: String, arg0: Any, args: Any*)(f: => R): R = {
     try {
-      apply(fmt.format(args: _*))
+      apply(fmt, arg0, args)
       rawIndent
       f 
     } finally { 
@@ -37,9 +37,11 @@ abstract class Log {
     }
   }
   
-  def indentedRes[R](fmt: String, args: Any*)(f: => R) = {
+  def indented[R](str: Any)(f: => R): R = indented("%s", str)(f)
+  
+  def indentedRes[R](fmt: String, arg0: Any, args: Any*)(f: => R): R = {
     try {
-      apply(fmt.format(args: _*))
+      apply(fmt, arg0, args)
       rawIndent
       val result = f
       apply("Result = %s", result)
@@ -48,6 +50,8 @@ abstract class Log {
       rawUndent
     }
   }
+  
+  def indentedRes[R](fmt: Any)(f: => R): R = indentedRes("%s", fmt)(f)
   
   // ______________________________________________________________________
   // Links

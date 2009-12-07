@@ -85,7 +85,7 @@ class IrParser extends StandardTokenParsers {
     
     def guards = (
         p                                       ^^ { case p => List(p) }
-    |   "("~rep(p)~")"                          ^^ { case _~ps~_ => ps }
+    |   "("~comma(p)~")"                        ^^ { case _~ps~_ => ps }
     )
     
     def eff0: Parser[ir.Effect] = (
@@ -95,11 +95,12 @@ class IrParser extends StandardTokenParsers {
     |   p~"->"~m~"("~p~")"                      ^^ { case p~"->"~m~"("~q~")" => ir.EffectMethod(p, m, q) }
     |   "Rd"~"("~p~")"                          ^^ { case _~_~p~_ => ir.EffectFixed(ir.Rd, p) }
     |   "Wr"~"("~p~")"                          ^^ { case _~_~p~_ => ir.EffectFixed(ir.Wr, p) }
+    |   "0"                                     ^^ { case _ => ir.EffectNone }
     |   "?"                                     ^^ { case _ => ir.EffectAny }
     )
     
     def eff = (
-        rep(eff0)                               ^^ { case List(e) => e
+        comma(eff0)                             ^^ { case List(e) => e
                                                      case List() => ir.EffectNone
                                                      case es => ir.EffectUnion(es) }
     )
