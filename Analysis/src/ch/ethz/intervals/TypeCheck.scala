@@ -105,7 +105,7 @@ class TypeCheck(prog: Prog) {
         val msig = methodSig(t_p, m)
         checkIsSubtype(t_q, msig.arg.wt)
         PathSubst(
-            List(ir.p_this, msig.arg.lv.path), 
+            List(ir.p_this, msig.arg.name.path), 
             List(p, q)
         ).msig(msig)        
     }
@@ -122,7 +122,7 @@ class TypeCheck(prog: Prog) {
                 val t = cap(wt_p)
                 val msig = methodSig(t, m)
                 PathSubst(
-                    List(ir.p_this, msig.arg.lv.path),
+                    List(ir.p_this, msig.arg.name.path),
                     List(p, q)
                 ).effect(msig.e)
         }
@@ -281,7 +281,7 @@ class TypeCheck(prog: Prog) {
             // Compute return type:
             val wt_ret = 
                 PathSubst(
-                    List(ir.p_this, msig.arg.lv.path), 
+                    List(ir.p_this, msig.arg.name.path), 
                     List(p, q)
                 ).wtref(msig.wt_ret)
                     
@@ -343,7 +343,7 @@ class TypeCheck(prog: Prog) {
     def methodDecl(md: ir.MethodDecl) = savingEnv {
         at(md, ()) {
             checkWf(md.arg.wt)
-            env = env.addLv(md.arg.lv, md.arg.wt)
+            env = env.addLv(md.arg.name, md.arg.wt)
             val e_stmts = statements(md.stmts)
             val (wt_ret, e_ret) = expr(md.ex_ret)
             checkIsSubtype(wt_ret, md.wt_ret)

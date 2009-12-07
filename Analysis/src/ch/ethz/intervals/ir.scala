@@ -47,16 +47,16 @@ object ir {
     
     sealed case class ClassDecl(
         name: ClassName,
-        objs: List[VarDecl],
+        ghosts: List[GhostFieldDecl],
         superType: Option[TypeRef],
-        fields: List[FieldDecl],
+        fields: List[RealFieldDecl],
         methods: List[MethodDecl]
     ) extends Locatable
     
     sealed case class MethodDecl(
-        name: MethodName,
         wt_ret: WcTypeRef
-        arg: VarDecl,
+        name: MethodName,
+        arg: LvDecl,
         e: Effect,
         stmts: List[Stmt],
         ex_ret: Expr,
@@ -66,24 +66,34 @@ object ir {
     
     sealed case class MethodSig(
         e: Effect,
-        arg: VarDecl,
+        arg: LvDecl,
         wt_ret: WcTypeRef
     ) extends Locatable
     
-    sealed abstract class VarDecl {
-        val x: VarName
+    case class LvDecl(
+        name: VarName,
+        wt: WcTypeRef
+    ) 
+
+    sealed abstract class FieldDecl {
         val wt: WcTypeRef
+        val name: FieldName
+        val isFinal: Boolean
     }
     
-    case class LvDecl(
-        x: VarName,
+    sealed case class GhostFieldDecl(
+        name: FieldName,
         wt: WcTypeRef
-    ) extends VarDecl
-        
-    sealed case class FieldDecl(
-        guard: Path,
-        mods: Set[Modifier]
-    ) extends VarDecl {
+    ) extends FieldDecl {
+        def isFinal = true
+    }
+    
+    sealed case class RealFieldDecl(
+        mods: Set[Modifier],
+        wt: WcTypeRef,
+        name: FieldName,
+        guard: Path
+    ) extends FieldDecl {
         def isFinal = mods.contains(Final)
     }
     
@@ -96,7 +106,7 @@ object ir {
     case class ExprCall(p: Path, m: MethodName, q: Path) extends Expr
     case class ExprField(p: Path, f: FieldName) extends Expr
     case class ExprNew(t: TypeRef) extends Expr
-    case class ExprNewInterval(p: Path, task: VarName, guards: VarName) extends Expr
+    case class ExprNewInterval(bound: Path, task: VarName, guards: VarName) extends Expr
     case class ExprNewGuard(p: Path) extends Expr
     
     case class WcTypeRef(
@@ -128,10 +138,6 @@ object ir {
         e: Effect
     )
     
-    sealed abstract class Side
-    case class Start extends Side
-    case class End extends Side
-
     sealed abstract class Effect
     sealed case class EffectShift(i: Interval, e: ir.Effect)
     sealed case class EffectLock(ps: List[Path], e: ir.Effect)
@@ -192,6 +198,9 @@ object ir {
     val p_current = ir.VarName("current").path
     val p_root = ir.VarName("root").path
     
+    val f_start = ir.FieldName("start")
+    val f_end = ir.FieldName("end")
+    
     val m_run = ir.MethodName("run")
     
     val c_inter = ir.ClassName("ch.ethz.intervals.Interval")
@@ -203,4 +212,6 @@ object ir {
     val wt_point = ir.WcTypeRef(c_point, List(ir.WcUnkPath), List())
     val wt_guard = ir.WcTypeRef(c_guard, List(ir.WcUnkPath), List())
     val wt_task = ir.WcTypeRef(c_task, List(), List(ir.Over(m_run, p_end, ir.EffectAny)))
+    
+    val objectClassDefn = 
 }
