@@ -1,19 +1,23 @@
 package ch.ethz.intervals
 
-class Prog(val classDecls: List[ClassDecl]) {
+import scala.collection.mutable.ListBuffer
+
+class Prog(cds_user: List[ir.ClassDecl]) {
+    val classDecls = cds_user ++ ir.cds_default
     
     // ______________________________________________________________________
     // Class Table
     
-    val classTable = Util.nameMap(ir.classDecls)
+    val classTable = Util.nameMap[ir.ClassName, ir.ClassDecl](classDecls)
     def classDecl(c: ir.ClassName) = classTable.get(c) match {
-        case None => throw IrError("intervals.no.such.class", c)
+        case Some(cd) => cd
+        case None => throw ir.IrError("intervals.no.such.class", c)
     }
         
     // ______________________________________________________________________
     // Fresh Variables
     
-    private var counter: Int
+    private var counter = 0
     def fresh(nm: String) = {
         val c = counter
         counter = counter + 1
@@ -23,10 +27,10 @@ class Prog(val classDecls: List[ClassDecl]) {
     // ______________________________________________________________________
     // Errors
     
-    val errors: ListBuffer[Error]
-    def report(loc: ir.Locatable, msg: String, args: args: Any*) {
+    val errors: ListBuffer[ir.Error]
+    def report(loc: ir.Locatable, msg: String, args: Any*) {
         val argList = args.toList.map(_.toString)
-        errors += error(loc, msg, args)
+        errors += ir.Error(loc, msg, argList)
     }
 
     def reportError(loc: ir.Locatable, i: ir.IrError) {

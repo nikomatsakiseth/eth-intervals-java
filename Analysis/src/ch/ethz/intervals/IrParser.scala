@@ -2,6 +2,8 @@ package ch.ethz.intervals
 
 import scala.util.parsing.combinator.syntactical.StandardTokenParsers
 
+import Util._
+
 class IrParser extends StandardTokenParsers {
     lexical.delimiters += ("{", "}", "[", "]", "(", ")", ",", "@", "?", ":", ".", ";", "=", "->", "#", "<=", "&&", "`")
     lexical.reserved += ("start", "end", "Sh", "Ex", "Free", "Lock")
@@ -24,7 +26,7 @@ class IrParser extends StandardTokenParsers {
     def lv = id                                 ^^ { case i => ir.VarName(i) }
     
     def dotf = "."~f                            ^^ { case _~f => f }
-    def p = lv~rep(dotf)                        ^^ { case lv~fs => }
+    def p = lv~rep(dotf)                        ^^ { case lv~fs => lv ++ fs }
     
     def wp = (
         "?"                                     ^^ { case _ => ir.WcUnkPath }
@@ -37,12 +39,12 @@ class IrParser extends StandardTokenParsers {
     
     def wt = (
         c~"<"~comma(wp)~">"~rep(over)           ^^ { case c~_~wps~_~overs => ir.WcTypeRef(c, wps, overs) }
-    |   c~rep(over)                             ^^ { case c~_~overs => ir.WcTypeRef(c, List(), overs) }
+    |   c~rep(over)                             ^^ { case c~overs => ir.WcTypeRef(c, List(), overs) }
     )
     
     def t = (
         c~"<"~comma(p)~">"~rep(over)            ^^ { case c~_~ps~_~overs => ir.TypeRef(c, ps, overs) }
-    |   c~rep(over)                             ^^ { case c~_~overs => ir.TypeRef(c, List(), overs) }
+    |   c~rep(over)                             ^^ { case c~overs => ir.TypeRef(c, List(), overs) }
     )
     
     def expr = (
@@ -54,28 +56,28 @@ class IrParser extends StandardTokenParsers {
     )
     
     def lvdecl = (
-        wt~lv                                   ^^ { case wt~lv => ir.LvDecl(wt, lv) }
+        wt~lv                                   ^^ { case wt~lv => ir.LvDecl(lv, wt) }
     )
     
     def stmt = (
         lvdecl~"="~expr~";"                     ^^ { case vd~_~ex~_ => ir.StmtVarDecl(vd, ex) }
     |   p~"->"~f~"="~p~";"                      ^^ { case p~_~f~_~q~_ => ir.StmtAssignField(p, f, q) }
-    |   "add"~p~"->"~q~";"                      ^^ { case _~p~_~q~_ => ir.StmtAddHb(p, q) }
+    |   "add"~p~"->"~p~";"                      ^^ { case _~p~_~q~_ => ir.StmtAddHb(p, q) }
     )
     
     def interval = (
-        p                                       ^^ { case i => ir.Interval(List(i+ir.f_start), List(i+ir.f_end)) }
-    |   "("~rep(p)~"-"~rep(p)~")"               ^^ { case ps~_~qs => ir.Interval(ps, qs) }
+        p                                       ^^ { case i => ir.startEnd(i) }
+    |   "("~rep(p)~"-"~rep(p)~")"               ^^ { case _~ps~_~qs~_ => ir.Interval(ps, qs) }
     )
     
     def guards = (
         p                                       ^^ { case p => List(p) }
-    |   "("~rep(p)~")"                          ^^ { case ps => ps }
+    |   "("~rep(p)~")"                          ^^ { case _~ps~_ => ps }
     )
     
-    def eff0 = (
+    def eff0: Parser[ir.Effect] = (
         "("~eff~")"                             ^^ { case _~e~_ => e }
-    |   interval~":"~eff0                       ^^ { case i~_~e => ir.EffectShift(i, e) }
+    |   interval~":"~eff0                       ^^ { case i~_~e => ir.EffectInterval(i, e) }
     |   guards~"/"~eff0                         ^^ { case gs~_~e => ir.EffectLock(gs, e) }
     |   p~"->"~m~"("~p~")"                      ^^ { case p~"->"~m~"("~q~")" => ir.EffectMethod(p, m, q) }
     |   "Rd"~"("~p~")"                          ^^ { case _~_~p~_ => ir.EffectFixed(ir.Rd, p) }
@@ -95,7 +97,7 @@ class IrParser extends StandardTokenParsers {
             "return"~expr~";"~
         "}"
     ) ^^ {
-        case wt_ret~name~_~arg~_~e~_~stmts~ex_ret~_ =>
+        case wt_ret~name~_~arg~_~e~_~stmts~_~ex_ret~_~_ =>
             ir.MethodDecl(wt_ret, name, arg, e, stmts, ex_ret)
     }
     
@@ -104,7 +106,7 @@ class IrParser extends StandardTokenParsers {
     )
     
     def ghostFieldDecl = (
-        wt~f                                    ^^ { case wt~f => ir.GhostFieldDecl(wt, f) }
+        wt~f                                    ^^ { case wt~f => ir.GhostFieldDecl(f, wt) }
     )
 
     def realFieldDecl = (
@@ -120,7 +122,7 @@ class IrParser extends StandardTokenParsers {
         "}"
     ) ^^ {
         case _~name~_~ghosts~_~_~superType~_~fields~methods~_ =>
-            ir.ClassDecl(name, ghosts, superType, fields, methods)
+            ir.ClassDecl(name, ghosts, Some(superType), fields, methods)
     }
     
 }

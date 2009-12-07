@@ -73,7 +73,7 @@ object Util {
           val r = fn(hd)
           r match {
             case Some(f) => r
-            case None => tl.firstWhere(fn)
+            case None => UtilList(tl).firstWhere(fn)
           }
       }
     }
@@ -272,13 +272,6 @@ object Util {
     
     override def toString =
       "/".join(for(k <- keys) yield k + " => " + this(k))
-
-    def dump(log: Log, prefix: String) { 
-      log.indented("%s", prefix) {
-        for(k <- keys)
-          log(k + " => " + this(k))
-      }
-    }    
   }
   
   class MultiMap[K,V](size: Int, _m: Map[K, Set[V]])
@@ -322,7 +315,7 @@ object Util {
     as.zip(bs).forall(p => f(p._1, p._2))
   def forallcross[A,B](as: List[A], bs: List[B], f: Function2[A, B, Boolean]) =
     as.forall(a => bs.forall(b => f(a,b)))
-  def foreachzip[A,B](as: List[A], bs: List[B], f: Function2[A, B, Unit]) =
+  def foreachzip[A,B](as: List[A], bs: List[B])(f: Function2[A, B, Unit]) =
     as.zip(bs).foreach(p => f(p._1, p._2))
     
   def intersect[A](sets: Iterable[Set[A]]): Set[A] = {
