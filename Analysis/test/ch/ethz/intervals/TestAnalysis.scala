@@ -45,11 +45,11 @@ class TestAnalysis extends JUnitSuite {
             """
             class Producer<Guard<?> g> extends Object {
                 Void run(Point<?> end) 
-                    (-end):Wr(g)
+                    (->end):Wr(g)
                 {
                     Data<this.g> d = new Data<this.g>();
                     Consumer<this.g> cTask = new Consumer<this.g>();
-                    c->data = d;
+                    cTask->data = d;
                     Interval<?> cInter = interval end cTask ();
                     return this->run(end); // endless loop
                 }

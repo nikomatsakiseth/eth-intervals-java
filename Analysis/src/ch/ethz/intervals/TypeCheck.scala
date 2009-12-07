@@ -2,6 +2,7 @@ package ch.ethz.intervals
 
 import scala.collection.immutable.Map
 import scala.collection.immutable.Set
+import scala.collection.mutable.ListBuffer
 import Util._
 
 class TypeCheck(log: Log, prog: Prog) {    
@@ -9,9 +10,14 @@ class TypeCheck(log: Log, prog: Prog) {
     import prog.fresh
 
     // ______________________________________________________________________
-    // Environment: mutable field is easier than tracing it through
+    // Environment
     
-    var env = ir.TcEnv(Map.empty, ir.Graph.empty)
+    var env = ir.TcEnv(
+        Map(
+            (ir.lv_readOnly, ir.wt_guard),
+            (ir.lv_locked, ir.wt_guard)
+        ),
+        ir.Graph.empty)
     
     def savingEnv[R](g: => R): R = {
         val oldEnv = env
@@ -40,6 +46,7 @@ class TypeCheck(log: Log, prog: Prog) {
         }
     
     // ______________________________________________________________________
+    // Captures 
     
     /// capture an object ref.
     def capObj(wo: ir.WcPath) = wo match {
@@ -66,6 +73,7 @@ class TypeCheck(log: Log, prog: Prog) {
         }
     }
     
+    /// lookup field decl for ot.f 
     def fieldDecl(ot: ir.TypeRef, f: ir.FieldName) = {
         def search(t: ir.TypeRef): ir.FieldDecl = {
             val cd = classDecl(t.c)
@@ -80,6 +88,7 @@ class TypeCheck(log: Log, prog: Prog) {
         search(ot)        
     }
     
+    /// lookup method decl for ot.m()
     def methodSig(ot: ir.TypeRef, m: ir.MethodName): ir.MethodSig = {
         def search(t: ir.TypeRef): ir.MethodSig = {
             val cd = classDecl(t.c)
@@ -93,7 +102,7 @@ class TypeCheck(log: Log, prog: Prog) {
         }
         search(ot)
     }
-    
+        
     /// type of a local variable ref.
     def wt_lv(lv: ir.VarName) =
         env.lvs.get(lv) match {
@@ -112,10 +121,92 @@ class TypeCheck(log: Log, prog: Prog) {
             else throw new ir.IrError("intervals.not.final", q, t, f)
     }
     
+    // ______________________________________________________________________
+    // Lv Substitution
+    
+    class LvSubst(m: Map[ir.VarName, ir.Path]) {
+        
+        def variable(v: ir.VarName): ir.Path = {
+            m.get(v) match {
+                case None => v.path
+                case Some(p) => p
+            }
+        }
+        
+        def path(p: ir.Path): ir.Path = {
+            p match {
+                case ir.Path(lv, List()) => variable(lv)
+                case ir.Path(lv, f :: fs) =>
+                    val p1 = path(ir.Path(lv, fs))
+                    val wt = wt_path(p1)
+                    val cd = classDecl(wt.c)
+                    cd.ghosts.zip(wt.wpaths).find(_._1.name == f) match {
+                        case Some((_, p: ir.Path)) => p
+                        case _ => p1 + f
+                    }
+            }
+        }
+        
+        def wpath(wp: ir.WcPath) = wp match {
+            case ir.WcUnkPath => ir.WcUnkPath
+            case p: ir.Path => path(p)
+        }
+
+        def interval(i: ir.Interval) =
+            ir.Interval(i.ps.map(path), i.qs.map(path))
+
+        def effect(e: ir.Effect): ir.Effect = e match {
+            case ir.EffectInterval(i, e) => ir.EffectInterval(interval(i), effect(e))
+            case ir.EffectMethod(p, m, qs) => ir.EffectMethod(path(p), m, qs.map(path))
+            case ir.EffectFixed(k, p) => ir.EffectFixed(k, path(p))
+            case ir.EffectLock(ps, e) => ir.EffectLock(ps.map(path), effect(e))
+            case ir.EffectUnion(es) => ir.EffectUnion(es.map(effect))
+            case ir.EffectNone => ir.EffectNone
+            case ir.EffectAny => ir.EffectAny
+        }
+
+        def over(ov: ir.Over) = 
+            ir.Over(ov.m, ov.args, new LvSubst(m -- ov.args).effect(ov.e))
+
+        def wtref(wt: ir.WcTypeRef) =
+            ir.WcTypeRef(wt.c, wt.wpaths.map(wpath), wt.overs.map(over))
+
+        def tref(t: ir.TypeRef) = 
+            ir.TypeRef(t.c, t.paths.map(path), t.overs.map(over))
+
+        def ghostFieldDecl(fd: ir.GhostFieldDecl) =
+            ir.GhostFieldDecl(fd.name, wtref(fd.wt))
+
+        def realFieldDecl(fd: ir.RealFieldDecl) =
+            ir.RealFieldDecl(fd.mods, wtref(fd.wt), fd.name, path(fd.guard))
+
+        def fieldDecl(fd: ir.FieldDecl): ir.FieldDecl = fd match {
+            case gfd: ir.GhostFieldDecl => ghostFieldDecl(gfd)
+            case rfd: ir.RealFieldDecl => realFieldDecl(rfd)
+        }
+
+        def lvDecl(lv: ir.LvDecl) = 
+            ir.LvDecl(lv.name, wtref(lv.wt))
+
+        def methodSig(msig: ir.MethodSig) = {
+            val subst = new LvSubst(m -- msig.args.map(_.name))
+            ir.MethodSig(subst.effect(msig.e), msig.args.map(subst.lvDecl), subst.wtref(msig.wt_ret))
+        }
+             
+    }
+    
+    def lvSubst(lvs: List[ir.VarName], paths: List[ir.Path]): LvSubst =
+        new LvSubst(Map(lvs.zip(paths): _*))
+    
+    def lvSubst(lv: ir.VarName, path: ir.Path): LvSubst =
+        new LvSubst(Map((lv, path)))
+    
+    // ______________________________________________________________________
+    
     /// field decl of p.f, with ref to this subst'd
     def substdFieldDecl(p: ir.Path, f: ir.FieldName) = {
         val fd = fieldDecl(cap(wt_path(p)), f)
-        PathSubst(ir.p_this, p).fieldDecl(fd)        
+        lvSubst(ir.lv_this, p).fieldDecl(fd)        
     }
 
     /// method sig. for o.m(p) with subst. performed
@@ -124,25 +215,25 @@ class TypeCheck(log: Log, prog: Prog) {
         val ts_q = qs.map(wt_path).map(cap)
         val msig = methodSig(t_p, m)
         foreachzip(ts_q, msig.args.map(_.wt))(checkIsSubtype)
-        PathSubst(
-            ir.p_this :: msig.args.map(_.name.path),
+        lvSubst(
+            ir.lv_this :: msig.args.map(_.name),
             p :: qs
         ).methodSig(msig)        
     }
     
     /// effect of invoking p.m(q) where p has type wt_p
     def effectwt(p: ir.Path, wt_p: ir.WcTypeRef, m: ir.MethodName, qs: List[ir.Path]) = {
-        wt_p.overs.find(_.m == m) match {
+        val t_p = cap(wt_p)
+        t_p.overs.find(_.m == m) match {
             case Some(ov) => 
                 PathSubst(
                     ir.p_this :: ov.args.map(_.path),
                     p :: qs
                 ).effect(ov.e)
             case None =>
-                val t = cap(wt_p)
-                val msig = methodSig(t, m)
-                PathSubst(
-                    ir.p_this :: msig.args.map(_.name.path),
+                val msig = methodSig(t_p, m)
+                lvSubst(
+                    ir.lv_this :: msig.args.map(_.name),
                     p :: qs
                 ).effect(msig.e)
         }
@@ -221,10 +312,11 @@ class TypeCheck(log: Log, prog: Prog) {
     /// are effects of ov
     def isSubover(ov_sub: ir.Over, ov_sup: ir.Over): Boolean = {
         if(ov_sub.m == ov_sup.m) {
+            // XXX Use LvSubst?  Then we have to gin up some types.
             val lvs = ov_sub.args.map { case _ => ir.VarName(fresh("Sub")).path }
             val es_sub = PathSubst(ov_sub.args.map(_.path), lvs).effect(ov_sub.e)
             val es_sup = PathSubst(ov_sup.args.map(_.path), lvs).effect(ov_sup.e)
-            isSubeffect(es_sub, es_sup)
+            isSubeffect(es_sub, es_sup)                
         } else
             false
     }
@@ -350,8 +442,8 @@ class TypeCheck(log: Log, prog: Prog) {
         
             // Compute return type:
             val wt_ret = 
-                PathSubst(
-                    ir.p_this :: msig.args.map(_.name.path), 
+                lvSubst(
+                    ir.lv_this :: msig.args.map(_.name), 
                     p :: qs
                 ).wtref(msig.wt_ret)
                     
@@ -389,7 +481,7 @@ class TypeCheck(log: Log, prog: Prog) {
                 case ir.StmtVarDecl(ir.LvDecl(x, wt_x), ex) =>
                     checkWfWt(wt_x)
                     val (wt_e, e) = expr(ex)
-                    val subst = PathSubst(ir.p_new, x.path)
+                    val subst = lvSubst(ir.lv_new, x.path)
                     if(ex != ir.ExprNull)
                         checkIsSubtype(wt_e, wt_x)
                     addLv(x, wt_x)

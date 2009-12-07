@@ -80,7 +80,7 @@ class IrParser extends StandardTokenParsers {
     
     def interval = (
         p                                       ^^ { case i => ir.startEnd(i) }
-    |   "("~rep(p)~"-"~rep(p)~")"               ^^ { case _~ps~_~qs~_ => ir.Interval(ps, qs) }
+    |   "("~rep(p)~"->"~rep(p)~")"              ^^ { case _~ps~_~qs~_ => ir.Interval(ps, qs) }
     )
     
     def guards = (

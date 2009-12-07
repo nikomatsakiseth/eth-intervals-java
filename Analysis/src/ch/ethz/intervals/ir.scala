@@ -275,18 +275,21 @@ object ir {
         override def toString = "%s(%s)".format(msg, ", ".join(args.toList))
     }
     
+    val lv_new = ir.VarName("new")
     val lv_end = ir.VarName("end")
     val lv_this = ir.VarName("this")
+    val lv_locked = ir.VarName("locked")
+    val lv_readOnly = ir.VarName("readOnly")
     
     val p_this = lv_this.path
-    val p_new = ir.VarName("new").path
+    val p_new = lv_new.path
     
     val p_schedule = ir.VarName("schedule").path
     val p_current = ir.VarName("current").path
     val p_root = ir.VarName("root").path
 
-    val p_locked = ir.VarName("locked").path
-    val p_readOnly = ir.VarName("readOnly").path
+    val p_locked = lv_locked.path
+    val p_readOnly = lv_readOnly.path
     
     val f_start = ir.FieldName("start")
     val f_end = ir.FieldName("end")
