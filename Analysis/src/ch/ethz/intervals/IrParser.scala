@@ -46,7 +46,7 @@ class IrParser extends StandardTokenParsers {
     )
     
     def over = (
-        "["~m~"("~lv~")"~"="~eff~"]"            ^^ { case _~m~_~lv~_~_~e~_ => ir.Over(m, lv, e) }
+        "["~m~"("~comma(lv)~")"~"="~eff~"]"     ^^ { case _~m~_~lvs~_~_~e~_ => ir.Over(m, lvs, e) }
     )
     
     def wt = (
@@ -60,7 +60,7 @@ class IrParser extends StandardTokenParsers {
     )
     
     def expr = (
-        p~"->"~m~"("~p~")"                      ^^ { case p~"->"~m~"("~q~")" => ir.ExprCall(p, m, q) }
+        p~"->"~m~"("~comma(p)~")"               ^^ { case p~"->"~m~"("~qs~")" => ir.ExprCall(p, m, qs) }
     |   p~"->"~f                                ^^ { case p~"->"~f => ir.ExprField(p, f) }
     |   "new"~t~"("~")"                         ^^ { case _~t~"("~")" => ir.ExprNew(t) }
     |   "interval"~p~p~"("~comma(p)~")"         ^^ { case _~b~t~_~gs~_ => ir.ExprNewInterval(b, t, gs) }
@@ -92,7 +92,7 @@ class IrParser extends StandardTokenParsers {
         "("~eff~")"                             ^^ { case _~e~_ => e }
     |   interval~":"~eff0                       ^^ { case i~_~e => ir.EffectInterval(i, e) }
     |   guards~"/"~eff0                         ^^ { case gs~_~e => ir.EffectLock(gs, e) }
-    |   p~"->"~m~"("~p~")"                      ^^ { case p~"->"~m~"("~q~")" => ir.EffectMethod(p, m, q) }
+    |   p~"->"~m~"("~comma(p)~")"               ^^ { case p~"->"~m~"("~qs~")" => ir.EffectMethod(p, m, qs) }
     |   "Rd"~"("~p~")"                          ^^ { case _~_~p~_ => ir.EffectFixed(ir.Rd, p) }
     |   "Wr"~"("~p~")"                          ^^ { case _~_~p~_ => ir.EffectFixed(ir.Wr, p) }
     |   "0"                                     ^^ { case _ => ir.EffectNone }
@@ -106,13 +106,13 @@ class IrParser extends StandardTokenParsers {
     )
     
     def methodDecl = (
-        wt~m~"("~lvdecl~")"~eff~"{"~
+        wt~m~"("~comma(lvdecl)~")"~eff~"{"~
             rep(stmt)~
             "return"~expr~";"~
         "}"
     ) ^^ {
-        case wt_ret~name~_~arg~_~e~_~stmts~_~ex_ret~_~_ =>
-            ir.MethodDecl(wt_ret, name, arg, e, stmts, ex_ret)
+        case wt_ret~name~_~args~_~e~_~stmts~_~ex_ret~_~_ =>
+            ir.MethodDecl(wt_ret, name, args, e, stmts, ex_ret)
     }
     
     def mod = (

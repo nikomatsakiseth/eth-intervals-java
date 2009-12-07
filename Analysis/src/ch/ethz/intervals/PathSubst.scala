@@ -21,7 +21,7 @@ class PathSubst(m: Map[ir.Path, ir.Path]) {
         
     def effect(e: ir.Effect): ir.Effect = e match {
         case ir.EffectInterval(i, e) => ir.EffectInterval(interval(i), effect(e))
-        case ir.EffectMethod(p, m, q) => ir.EffectMethod(path(p), m, path(q))
+        case ir.EffectMethod(p, m, qs) => ir.EffectMethod(path(p), m, qs.map(path))
         case ir.EffectFixed(k, p) => ir.EffectFixed(k, path(p))
         case ir.EffectLock(ps, e) => ir.EffectLock(ps.map(path), effect(e))
         case ir.EffectUnion(es) => ir.EffectUnion(es.map(effect))
@@ -30,7 +30,7 @@ class PathSubst(m: Map[ir.Path, ir.Path]) {
     }
 
     def over(ov: ir.Over) = 
-        ir.Over(ov.m, ov.lv, new PathSubst(m - ov.lv.path).effect(ov.e))
+        ir.Over(ov.m, ov.args, new PathSubst(m -- ov.args.map(_.path)).effect(ov.e))
         
     def wtref(wt: ir.WcTypeRef) =
         ir.WcTypeRef(wt.c, wt.wpaths.map(wpath), wt.overs.map(over))
@@ -53,8 +53,8 @@ class PathSubst(m: Map[ir.Path, ir.Path]) {
         ir.LvDecl(lv.name, wtref(lv.wt))
 
     def methodSig(msig: ir.MethodSig) = {
-        val subst = new PathSubst(m - msig.arg.name.path)
-        ir.MethodSig(subst.effect(msig.e), subst.lvDecl(msig.arg), subst.wtref(msig.wt_ret))
+        val subst = new PathSubst(m -- msig.args.map(_.name.path))
+        ir.MethodSig(subst.effect(msig.e), msig.args.map(subst.lvDecl), subst.wtref(msig.wt_ret))
     }
 }
 

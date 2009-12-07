@@ -65,23 +65,23 @@ object ir {
     sealed case class MethodDecl(
         wt_ret: WcTypeRef,
         name: MethodName,
-        arg: LvDecl,
+        args: List[LvDecl],
         e: Effect,
         stmts: List[Stmt],
         ex_ret: Expr
     ) extends Locatable {
-        def msig = at(MethodSig(e, arg, wt_ret), srcLoc)
+        def msig = at(MethodSig(e, args, wt_ret), srcLoc)
         
         override def toString =
-            "%s %s(%s) %s".format(wt_ret, name, arg, e)
+            "%s %s(%s) %s".format(wt_ret, name, ", ".join(args), e)
     }
     
     sealed case class MethodSig(
         e: Effect,
-        arg: LvDecl,
+        args: List[LvDecl],
         wt_ret: WcTypeRef
     ) extends Locatable {
-        override def toString = "(%s _(%s) %s)".format(wt_ret, arg, e)
+        override def toString = "(%s _(%s) %s)".format(wt_ret, ", ".join(args), e)
     }
     
     sealed case class LvDecl(
@@ -135,8 +135,8 @@ object ir {
     }
     
     sealed abstract class Expr extends Locatable
-    sealed case class ExprCall(p: Path, m: MethodName, q: Path) extends Expr {
-        override def toString = "%s->%s(%s)".format(p, m, q)
+    sealed case class ExprCall(p: Path, m: MethodName, qs: List[Path]) extends Expr {
+        override def toString = "%s->%s(%s)".format(p, m, qs)
     }
     sealed case class ExprField(p: Path, f: FieldName) extends Expr {
         override def toString = "%s->%s".format(p, f)
@@ -185,10 +185,10 @@ object ir {
     
     sealed case class Over(
         m: MethodName,
-        lv: VarName,
+        args: List[VarName],
         e: Effect
     ) {
-        override def toString = "[%s(%s)=%s]".format(m, lv, e)
+        override def toString = "[%s(%s)=%s]".format(m, ", ".join(args), e)
     }
     
     sealed abstract class Effect
@@ -198,8 +198,8 @@ object ir {
     sealed case class EffectLock(ps: List[Path], e: ir.Effect) extends Effect {
         override def toString = "(%s)/%s".format(", ".join(ps), e)
     }
-    sealed case class EffectMethod(p: Path, m: MethodName, q: Path) extends Effect {
-        override def toString = "%s->%s(%s)".format(p, m, q)
+    sealed case class EffectMethod(p: Path, m: MethodName, qs: List[Path]) extends Effect {
+        override def toString = "%s->%s(%s)".format(p, m, ", ".join(qs))
     }
     sealed case class EffectFixed(k: ActionKind, p: Path) extends Effect {
         override def toString = "%s(%s)".format(k, p)
@@ -293,19 +293,19 @@ object ir {
     
     val m_run = ir.MethodName("run")
     
-    val c_object = ir.ClassName("java.lang.Object")
-    val c_void = ir.ClassName("java.lang.Void")
-    val c_interval = ir.ClassName("ch.ethz.intervals.Interval")
-    val c_point = ir.ClassName("ch.ethz.intervals.Point")
-    val c_guard = ir.ClassName("ch.ethz.intervals.Guard")    
-    val c_task = ir.ClassName("ch.ethz.intervals.Task")
+    val c_object = ir.ClassName("Object")
+    val c_void = ir.ClassName("Void")
+    val c_interval = ir.ClassName("Interval")
+    val c_point = ir.ClassName("Point")
+    val c_guard = ir.ClassName("Guard")    
+    val c_task = ir.ClassName("Task")
     
     val t_object = ir.TypeRef(c_object, List(), List())
     val t_void = ir.TypeRef(c_void, List(), List())
     val wt_interval = ir.WcTypeRef(c_interval, List(ir.WcUnkPath), List())
     val wt_point = ir.WcTypeRef(c_point, List(ir.WcUnkPath), List())
     val wt_guard = ir.WcTypeRef(c_guard, List(ir.WcUnkPath), List())
-    val wt_task = ir.WcTypeRef(c_task, List(), List(ir.Over(m_run, lv_end, ir.EffectAny)))
+    val wt_task = ir.WcTypeRef(c_task, List(), List(ir.Over(m_run, List(lv_end), ir.EffectAny)))
     
     /// Returns an interval p.start -> p.end
     def startEnd(p: ir.Path): ir.Interval =
@@ -345,7 +345,7 @@ object ir {
                 MethodDecl(
                     /* wt_ret: */ t_void, 
                     /* name:   */ m_run, 
-                    /* arg:    */ ir.LvDecl(lv_end, wt_point),
+                    /* arg:    */ List(ir.LvDecl(lv_end, wt_point)),
                     /* effect: */ ir.EffectAny,
                     /* stmts:  */ List(),
                     /* ex_ret: */ ir.ExprNull
