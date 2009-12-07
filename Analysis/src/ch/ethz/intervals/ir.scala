@@ -7,11 +7,14 @@ object ir {
     /*
     Naming Conventions
     
-    x, y, z -> local variables
+    lv -> variable name
+    p, q, r -> paths
+    i, j -> intervals
+    e, f -> effects
     f -> field names
     m -> method names
     c -> class names
-    e -> expressions
+    ex -> expressions
     */
     
     sealed abstract class Modifier
@@ -19,7 +22,9 @@ object ir {
     
     sealed abstract class Name(val name: String)
     case class VarName(name: String) extends Name(name) {
-        def o = ir.Obj(this, List())
+        def path = ir.Path(this, List())
+        def +(f: FieldName) = path + f
+        def ++(fs: List[FieldName]) = path ++ fs
     }
     case class FieldName(name: String) extends Name(name)
     case class MethodName(name: String) extends Name(name)
@@ -42,7 +47,7 @@ object ir {
     
     sealed case class ClassDecl(
         name: ClassName,
-        objs: String,
+        objs: List[VarDecl],
         superType: Option[TypeRef],
         fields: List[FieldDecl],
         methods: List[MethodDecl]
@@ -50,11 +55,11 @@ object ir {
     
     sealed case class MethodDecl(
         name: MethodName,
+        wt_ret: WcTypeRef
+        arg: VarDecl,
         e: Effect,
         stmts: List[Stmt],
-        e_ret: Expr,
-        arg: VarDecl,
-        wt_ret: WcTypeRef
+        ex_ret: Expr,
     ) extends Locatable {
         def msig = at(MethodSig(es, arg, t_ret), srcLoc)
     }
@@ -76,62 +81,51 @@ object ir {
     ) extends VarDecl
         
     sealed case class FieldDecl(
-        guard: ir.Obj,
+        guard: Path,
         mods: Set[Modifier]
     ) extends VarDecl {
         def isFinal = mods.contains(Final)
     }
     
     sealed abstract class Stmt extends Locatable
-    case class StmtVarDecl(vd: LvDecl, e: Expr) extends Stmt
-    case class StmtAssignField(x: VarName, f: FieldName, y: VarName) extends Stmt
-    case class StmtAddHb(n: Point, m: Point) extends Expr
+    case class StmtVarDecl(vd: LvDecl, ex: Expr) extends Stmt
+    case class StmtAssignField(p: Path, f: FieldName, q: Path) extends Stmt
+    case class StmtAddHb(p: Path, q: Path) extends Stmt
     
     sealed abstract class Expr extends Locatable
-    case class ExprCall(x: VarName, m: MethodName, y: VarName) extends Expr
-    case class ExprField(x: VarName, f: FieldName) extends Expr
+    case class ExprCall(p: Path, m: MethodName, q: Path) extends Expr
+    case class ExprField(p: Path, f: FieldName) extends Expr
     case class ExprNew(t: TypeRef) extends Expr
-    case class ExprNewInterval(x: VarName, task: VarName, guards: VarName) extends Expr
-    case class ExprNewGuard() extends Expr
-    
-    sealed abstract class AnyTypeRef {
-        val c: ClassName
-        val objs: List[WcObj]
-        val overs: List[Over]
-    }
+    case class ExprNewInterval(p: Path, task: VarName, guards: VarName) extends Expr
+    case class ExprNewGuard(p: Path) extends Expr
     
     case class WcTypeRef(
         c: ClassName,
-        objs: List[WcObj],
+        wpaths: List[WcPath],
         overs: List[Over]
-    ) extends AnyTypeRef
+    ) extends TypeRef
     
-    sealed abstract class WcObj
-    case object WcUnkObj extends WcObj
+    case class TypeRef(
+        override c: ClassName,
+        paths: List[Path],
+        override overs: List[Over]
+    ) extends WcTypeRef(c, paths, overs)
     
-    sealed case class TypeRef(
-        c: ClassName,
-        objs: List[Obj],
-        overs: List[Over]        
-    ) extends AnyTypeRef
+    sealed abstract class WcPath
+    case object WcUnkPath extends WcPath
     
-    sealed case class Obj(
+    sealed case class Path(
         x: VarName, rev_fs: List[VarName] // Fields stored in reverse order!
-    ) extends WcObjPath {
+    ) extends WcPath {
         def fs = rev_fs.reverse
-        def +(f: ir.FieldName) = Obj(x, f :: rev_fs)
+        def +(f: ir.FieldName) = Path(x, f :: rev_fs)
         def ++(fs: List[ir.FieldName]) = fs.foldLeft(this)(_ + _)
     }
     
     sealed case class Over(
         m: MethodName,
-        y: VarName,
+        lv: VarName,
         e: Effect
-    )
-    
-    sealed case class Point(
-        o: Obj,
-        s: Side
     )
     
     sealed abstract class Side
@@ -140,28 +134,33 @@ object ir {
 
     sealed abstract class Effect
     sealed case class EffectShift(i: Interval, e: ir.Effect)
-    sealed case class EffectLock(os: List[Obj], e: ir.Effect)
-    sealed case class EffectMethod(o: Obj, m: MethodName, p: Obj)
-    sealed case class EffectFixed(k: ActionKind, o: Obj)
+    sealed case class EffectLock(ps: List[Path], e: ir.Effect)
+    sealed case class EffectMethod(p: Path, m: MethodName, q: Path)
+    sealed case class EffectFixed(k: ActionKind, p: Path)
     sealed case class EffectUnion(es: List[ir.Effect])
     sealed case object EffectNone
+    sealed case object EffectAny
     
-    /// An interval puts a bound on a point p in time.
-    /// ∀n∈ns.n→p, ∀m∈ms.p→m
-    sealed case class Interval(ns: List[Point], ms: List[Point])
+    def union(e_0: ir.Effect, e_1: ir.Effect) = (e_0, e_1) match {
+        case (ir.EffectUnion(es_0), ir.EffectUnion(es_1)) =>
+            ir.EffectUnion(es_0 ++ es_1)
+        case (ir.EffectUnion(es), e) | (e, ir.EffectUnion(es)) =>
+            ir.EffectUnion(e :: es)
+        case _ =>
+            ir.EffectUnion(List(e_0, e_1))
+    }
     
-    sealed abstract class Action
-    case class ActionFixed(k: ActionKind, o: Obj)
-    case class ActionMethod(o: Obj, m: MethodName, p: Obj)
+    /// Bounds a point r: ∀p∈ps.p→r, ∀q∈qs.r→q
+    sealed case class Interval(ps: List[Path], qs: List[Path])
     
     sealed abstract class ActionKind
     case class Rd extends ActionKind
     case class Wr extends ActionKind
     
     class Graph(
-        hbs: Util.MultiMap[ir.Point, ir.Point]
+        hbs: Util.MultiMap[Path, Path]
     ) {
-        private var cachedTc: Option[Util.MultiMap[ir.Point, ir.Point]] = 
+        private var cachedTc: Option[Util.MultiMap[Path, Path]] = 
             None        
         private def tc = {
             cachedTc match {
@@ -173,7 +172,7 @@ object ir {
             }
         }
         
-        def contains(n: ir.Point, m: ir.Point) =
+        def contains(n: Path, m: Path) =
             tc.contains(n, m)
     }
     
@@ -185,10 +184,23 @@ object ir {
     case class IrError(msg: String, args: Any*) 
     extends RuntimeException
     
-    val x_this = ir.VarName("this")
-    val x_new = ir.VarName("new")
-    val o_this = ir.Obj("this")
+    val p_this = ir.VarName("this").path
+    val p_new = ir.VarName("new").path
+    val p_end = ir.VarName("end").path
+    
+    val p_schedule = ir.VarName("schedule").path
+    val p_current = ir.VarName("current").path
+    val p_root = ir.VarName("root").path
+    
     val m_run = ir.MethodName("run")
+    
     val c_inter = ir.ClassName("ch.ethz.intervals.Interval")
+    val c_point = ir.ClassName("ch.ethz.intervals.Point")
     val c_guard = ir.ClassName("ch.ethz.intervals.Guard")    
+    val c_task = ir.ClassName("ch.ethz.intervals.Task")
+    
+    val wt_inter = ir.WcTypeRef(c_inter, List(ir.WcUnkPath), List())
+    val wt_point = ir.WcTypeRef(c_point, List(ir.WcUnkPath), List())
+    val wt_guard = ir.WcTypeRef(c_guard, List(ir.WcUnkPath), List())
+    val wt_task = ir.WcTypeRef(c_task, List(), List(ir.Over(m_run, p_end, ir.EffectAny)))
 }
