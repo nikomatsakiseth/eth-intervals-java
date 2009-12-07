@@ -27,7 +27,7 @@ class Prog(cds_user: List[ir.ClassDecl]) {
     // ______________________________________________________________________
     // Errors
     
-    val errors: ListBuffer[ir.Error]
+    val errors = new ListBuffer[ir.Error]
     def report(loc: ir.Locatable, msg: String, args: Any*) {
         val argList = args.toList.map(_.toString)
         errors += ir.Error(loc, msg, argList)

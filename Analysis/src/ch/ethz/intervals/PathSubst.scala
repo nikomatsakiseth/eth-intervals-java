@@ -21,9 +21,12 @@ class PathSubst(m: Map[ir.Path, ir.Path]) {
         
     def effect(e: ir.Effect): ir.Effect = e match {
         case ir.EffectInterval(i, e) => ir.EffectInterval(interval(i), effect(e))
-        case ir.EffectMethod(x, m, y) => ir.EffectMethod(path(x), m, path(y))
-        case ir.EffectFixed(k, x) => ir.EffectFixed(k, path(x))
+        case ir.EffectMethod(p, m, q) => ir.EffectMethod(path(p), m, path(q))
+        case ir.EffectFixed(k, p) => ir.EffectFixed(k, path(p))
+        case ir.EffectLock(ps, e) => ir.EffectLock(ps.map(path), effect(e))
         case ir.EffectUnion(es) => ir.EffectUnion(es.map(effect))
+        case ir.EffectNone => ir.EffectNone
+        case ir.EffectAny => ir.EffectAny
     }
 
     def over(ov: ir.Over) = 

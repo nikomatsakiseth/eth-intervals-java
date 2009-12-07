@@ -20,7 +20,9 @@ object ir {
     sealed abstract class Modifier
     case object Final extends Modifier
     
-    sealed abstract class Name(val name: String)
+    sealed abstract class Name(name: String) {
+        override def toString = name
+    }
     case class VarName(name: String) extends Name(name) {
         def path = ir.Path(this, List())
         def +(f: FieldName) = path + f
@@ -31,7 +33,7 @@ object ir {
     case class ClassName(name: String) extends Name(name)
     
     abstract class Locatable {
-        var srcLoc: Object
+        var srcLoc: Object = null
     }
     
     def at[I <: Locatable](i: I, pos: Object): I = {
@@ -80,8 +82,8 @@ object ir {
     sealed abstract class FieldDecl {
         val wt: WcTypeRef
         val name: FieldName
-        val isFinal: Boolean
-        val isGhost: Boolean
+        def isFinal: Boolean
+        def isGhost: Boolean
         
         def thisPath = p_this + name
     }
