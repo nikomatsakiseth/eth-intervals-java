@@ -51,6 +51,7 @@ object ir {
     sealed case class ClassDecl(
         name: ClassName,
         ghosts: List[GhostFieldDecl],
+        disjoints: List[List[ir.Path]],
         superType: Option[TypeRef],
         fields: List[RealFieldDecl],
         methods: List[MethodDecl]
@@ -141,8 +142,8 @@ object ir {
     sealed case class ExprField(p: Path, f: FieldName) extends Expr {
         override def toString = "%s->%s".format(p, f)
     }
-    sealed case class ExprNew(t: TypeRef) extends Expr {
-        override def toString = "new %s()".format(t)
+    sealed case class ExprNew(t: TypeRef, qs: List[Path]) extends Expr {
+        override def toString = "new %s(%s)".format(t, ", ".join(qs))
     }
     sealed case class ExprNewInterval(bound: Path, task: Path, guards: List[Path]) extends Expr {
         override def toString = "interval %s %s (%s)".format(bound, task, ", ".join(guards))
@@ -267,7 +268,8 @@ object ir {
     
     sealed case class TcEnv(
         lvs: Map[ir.VarName, ir.WcTypeRef],
-        min: Graph
+        min: Graph,
+        disjoints: MultiMap[ir.WcPath, ir.Path]
     )
     
     case class IrError(msg: String, args: Any*) 
@@ -318,6 +320,7 @@ object ir {
         ClassDecl(
             /* Name:    */ c_object,
             /* Ghosts:  */ List(),
+            /* Disj.:   */ List(),
             /* Extends: */ None,
             /* Fields:  */ List(),
             /* Methods: */ List()
@@ -325,6 +328,7 @@ object ir {
         ClassDecl(
             /* Name:    */ c_void,
             /* Ghosts:  */ List(),
+            /* Disj.:   */ List(),
             /* Extends: */ Some(t_object),
             /* Fields:  */ List(),
             /* Methods: */ List()
@@ -333,6 +337,7 @@ object ir {
             /* Name:    */ c_interval,
             /* Ghosts:  */ List(
                 GhostFieldDecl(FieldName("bound"), wt_point)),
+            /* Disj.:   */ List(),
             /* Extends: */ Some(t_object),
             /* Fields:  */ List(
                 RealFieldDecl(List(Final), wt_point, f_start, p_readOnly), // XXX bound
@@ -342,6 +347,7 @@ object ir {
         ClassDecl(
             /* Name:    */ c_task,
             /* Ghosts:  */ List(),
+            /* Disj.:   */ List(),
             /* Extends: */ Some(t_object),
             /* Fields:  */ List(),
             /* Methods: */ List(
@@ -358,6 +364,7 @@ object ir {
             /* Name:    */ c_point,
             /* Ghosts:  */ List(
                 GhostFieldDecl(FieldName("bound"), wt_point)),
+            /* Disj.:   */ List(),
             /* Extends: */ Some(t_object),
             /* Fields:  */ List(),
             /* Methods: */ List()
@@ -366,6 +373,7 @@ object ir {
             /* Name:    */ c_guard,
             /* Ghosts:  */ List(
                 GhostFieldDecl(FieldName("parent"), wt_guard)),
+            /* Disj.:   */ List(),
             /* Extends: */ Some(t_object),
             /* Fields:  */ List(),
             /* Methods: */ List()

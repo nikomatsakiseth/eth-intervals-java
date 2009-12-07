@@ -48,8 +48,7 @@ class TestAnalysis extends JUnitSuite {
                     (->end):Wr(g)
                 {
                     Data<this.g> d = new Data<this.g>();
-                    Consumer<this.g> cTask = new Consumer<this.g>();
-                    cTask->data = d;
+                    Consumer<this.g> cTask = new Consumer<this.g>(d);
                     Interval<?> cInter = interval end cTask ();
                     return this->run(end); // endless loop
                 }

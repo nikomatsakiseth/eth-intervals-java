@@ -62,7 +62,7 @@ class IrParser extends StandardTokenParsers {
     def expr = (
         p~"->"~m~"("~comma(p)~")"               ^^ { case p~"->"~m~"("~qs~")" => ir.ExprCall(p, m, qs) }
     |   p~"->"~f                                ^^ { case p~"->"~f => ir.ExprField(p, f) }
-    |   "new"~t~"("~")"                         ^^ { case _~t~"("~")" => ir.ExprNew(t) }
+    |   "new"~t~"("~comma(p)~")"                ^^ { case _~t~"("~qs~")" => ir.ExprNew(t, qs) }
     |   "interval"~p~p~"("~comma(p)~")"         ^^ { case _~b~t~_~gs~_ => ir.ExprNewInterval(b, t, gs) }
     |   "guard"~p                               ^^ { case _~g => ir.ExprNewGuard(g) }    
     |   "null"                                  ^^ { case _ => ir.ExprNull }
@@ -126,17 +126,19 @@ class IrParser extends StandardTokenParsers {
     def realFieldDecl = (
         rep(mod)~wt~f~"guardedBy"~p~";"         ^^ { case mods~wt~f~_~p~_ => ir.RealFieldDecl(mods, wt, f, p) }
     )
+    
+    def disjoint = repsep(p, "#")
 
     def classDecl = (
         "class"~c~"<"~
             comma(ghostFieldDecl)~
-        ">"~"extends"~t~"{"~
+        ">"~comma(disjoint)~"extends"~t~"{"~
             rep(realFieldDecl)~
             rep(methodDecl)~
         "}"
     ) ^^ {
-        case _~name~_~ghosts~_~_~superType~_~fields~methods~_ =>
-            ir.ClassDecl(name, ghosts, Some(superType), fields, methods)
+        case _~name~"<"~ghosts~">"~disjoints~"extends"~superType~_~fields~methods~_ =>
+            ir.ClassDecl(name, ghosts, disjoints, Some(superType), fields, methods)
     }
     
     def classDecls = rep(classDecl)

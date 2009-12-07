@@ -17,7 +17,9 @@ class TypeCheck(log: Log, prog: Prog) {
             (ir.lv_readOnly, ir.wt_guard),
             (ir.lv_locked, ir.wt_guard)
         ),
-        ir.Graph.empty)
+        ir.Graph.empty,
+        MultiMap.empty
+    )
     
     def savingEnv[R](g: => R): R = {
         val oldEnv = env
@@ -25,11 +27,17 @@ class TypeCheck(log: Log, prog: Prog) {
     }
     
     def addLv(lv: ir.VarName, wt: ir.WcTypeRef) {
-        env = ir.TcEnv(env.lvs + Pair(lv, wt), env.min)
+        env = ir.TcEnv(env.lvs + Pair(lv, wt), env.min, env.disjoints)
     }
 
     def addHb(p: ir.Path, q: ir.Path) {
-        env = ir.TcEnv(env.lvs, env.min + (p, q))
+        env = ir.TcEnv(env.lvs, env.min + (p, q), env.disjoints)
+    }
+
+    def addDisjoint(ps: List[ir.Path]) {
+        pairs(ps).foreach { case (p, q) =>
+            env = ir.TcEnv(env.lvs, env.min, env.disjoints + (p, q))
+        }
     }
 
     // ______________________________________________________________________
@@ -61,7 +69,7 @@ class TypeCheck(log: Log, prog: Prog) {
     /// subst. for obj. param. of t
     def pathSubst(t: ir.TypeRef) = {
         val ghostPaths = classDecl(t.c).ghosts.map(_.thisPath)
-        PathSubst(ghostPaths, t.paths)
+        PathSubst.pp(ghostPaths, t.paths)
     }    
 
     /// supertype of t
@@ -122,20 +130,16 @@ class TypeCheck(log: Log, prog: Prog) {
     }
     
     // ______________________________________________________________________
-    // Lv Substitution
+    // Path Canonicalization
     
-    class LvSubst(m: Map[ir.VarName, ir.Path]) {
+    class Canon(excl: List[ir.VarName]) extends BaseSubst {
         
-        def variable(v: ir.VarName): ir.Path = {
-            m.get(v) match {
-                case None => v.path
-                case Some(p) => p
-            }
-        }
+        def without(lvs: List[ir.VarName]) =
+            new Canon(excl ++ lvs)
         
         def path(p: ir.Path): ir.Path = {
             p match {
-                case ir.Path(lv, List()) => variable(lv)
+                case ir.Path(lv, List()) => p // ref. to a lv is canonical
                 case ir.Path(lv, f :: fs) =>
                     val p1 = path(ir.Path(lv, fs))
                     val wt = wt_path(p1)
@@ -145,68 +149,18 @@ class TypeCheck(log: Log, prog: Prog) {
                         case _ => p1 + f
                     }
             }
-        }
+        }        
         
-        def wpath(wp: ir.WcPath) = wp match {
-            case ir.WcUnkPath => ir.WcUnkPath
-            case p: ir.Path => path(p)
-        }
-
-        def interval(i: ir.Interval) =
-            ir.Interval(i.ps.map(path), i.qs.map(path))
-
-        def effect(e: ir.Effect): ir.Effect = e match {
-            case ir.EffectInterval(i, e) => ir.EffectInterval(interval(i), effect(e))
-            case ir.EffectMethod(p, m, qs) => ir.EffectMethod(path(p), m, qs.map(path))
-            case ir.EffectFixed(k, p) => ir.EffectFixed(k, path(p))
-            case ir.EffectLock(ps, e) => ir.EffectLock(ps.map(path), effect(e))
-            case ir.EffectUnion(es) => ir.EffectUnion(es.map(effect))
-            case ir.EffectNone => ir.EffectNone
-            case ir.EffectAny => ir.EffectAny
-        }
-
-        def over(ov: ir.Over) = 
-            ir.Over(ov.m, ov.args, new LvSubst(m -- ov.args).effect(ov.e))
-
-        def wtref(wt: ir.WcTypeRef) =
-            ir.WcTypeRef(wt.c, wt.wpaths.map(wpath), wt.overs.map(over))
-
-        def tref(t: ir.TypeRef) = 
-            ir.TypeRef(t.c, t.paths.map(path), t.overs.map(over))
-
-        def ghostFieldDecl(fd: ir.GhostFieldDecl) =
-            ir.GhostFieldDecl(fd.name, wtref(fd.wt))
-
-        def realFieldDecl(fd: ir.RealFieldDecl) =
-            ir.RealFieldDecl(fd.mods, wtref(fd.wt), fd.name, path(fd.guard))
-
-        def fieldDecl(fd: ir.FieldDecl): ir.FieldDecl = fd match {
-            case gfd: ir.GhostFieldDecl => ghostFieldDecl(gfd)
-            case rfd: ir.RealFieldDecl => realFieldDecl(rfd)
-        }
-
-        def lvDecl(lv: ir.LvDecl) = 
-            ir.LvDecl(lv.name, wtref(lv.wt))
-
-        def methodSig(msig: ir.MethodSig) = {
-            val subst = new LvSubst(m -- msig.args.map(_.name))
-            ir.MethodSig(subst.effect(msig.e), msig.args.map(subst.lvDecl), subst.wtref(msig.wt_ret))
-        }
-             
     }
-    
-    def lvSubst(lvs: List[ir.VarName], paths: List[ir.Path]): LvSubst =
-        new LvSubst(Map(lvs.zip(paths): _*))
-    
-    def lvSubst(lv: ir.VarName, path: ir.Path): LvSubst =
-        new LvSubst(Map((lv, path)))
+    val canon = new Canon(List())
     
     // ______________________________________________________________________
     
     /// field decl of p.f, with ref to this subst'd
     def substdFieldDecl(p: ir.Path, f: ir.FieldName) = {
-        val fd = fieldDecl(cap(wt_path(p)), f)
-        lvSubst(ir.lv_this, p).fieldDecl(fd)        
+        val fd0 = fieldDecl(cap(wt_path(p)), f)
+        val fd1 = PathSubst.vp(ir.lv_this, p).fieldDecl(fd0)
+        canon.fieldDecl(fd1)
     }
 
     /// method sig. for o.m(p) with subst. performed
@@ -215,28 +169,30 @@ class TypeCheck(log: Log, prog: Prog) {
         val ts_q = qs.map(wt_path).map(cap)
         val msig = methodSig(t_p, m)
         foreachzip(ts_q, msig.args.map(_.wt))(checkIsSubtype)
-        lvSubst(
+        val msig1 = PathSubst.vp(
             ir.lv_this :: msig.args.map(_.name),
             p :: qs
-        ).methodSig(msig)        
+        ).methodSig(msig)
+        canon.methodSig(msig1)
     }
     
     /// effect of invoking p.m(q) where p has type wt_p
     def effectwt(p: ir.Path, wt_p: ir.WcTypeRef, m: ir.MethodName, qs: List[ir.Path]) = {
         val t_p = cap(wt_p)
-        t_p.overs.find(_.m == m) match {
+        val e = t_p.overs.find(_.m == m) match {
             case Some(ov) => 
-                PathSubst(
-                    ir.p_this :: ov.args.map(_.path),
+                PathSubst.vp(
+                    ir.lv_this :: ov.args,
                     p :: qs
                 ).effect(ov.e)
             case None =>
                 val msig = methodSig(t_p, m)
-                lvSubst(
+                PathSubst.vp(
                     ir.lv_this :: msig.args.map(_.name),
                     p :: qs
                 ).effect(msig.e)
         }
+        canon.effect(e)
     }
     
     /// effect of invoking p.m(q)
@@ -255,8 +211,12 @@ class TypeCheck(log: Log, prog: Prog) {
         isSubpath(wp, wq) // XXX Take type into account.
 
     /// wp # wq
+    val builtIn = Set[ir.WcPath](ir.p_readOnly, ir.p_locked)
     def isDisjointGuard(wp: ir.WcPath, wq: ir.WcPath) =  
-        false // XXX
+        if(wp != wq && (builtIn(wp) || builtIn(wq)))
+            true
+        else
+            env.disjoints(wp).exists(isSubguard(wq, _))
 
     /// p→q in the minimal interpretation
     def hb(p: ir.Path, q: ir.Path): Boolean =
@@ -312,10 +272,9 @@ class TypeCheck(log: Log, prog: Prog) {
     /// are effects of ov
     def isSubover(ov_sub: ir.Over, ov_sup: ir.Over): Boolean = {
         if(ov_sub.m == ov_sup.m) {
-            // XXX Use LvSubst?  Then we have to gin up some types.
             val lvs = ov_sub.args.map { case _ => ir.VarName(fresh("Sub")).path }
-            val es_sub = PathSubst(ov_sub.args.map(_.path), lvs).effect(ov_sub.e)
-            val es_sup = PathSubst(ov_sup.args.map(_.path), lvs).effect(ov_sup.e)
+            val es_sub = PathSubst.vp(ov_sub.args, lvs).effect(ov_sub.e)
+            val es_sup = PathSubst.vp(ov_sup.args, lvs).effect(ov_sup.e)
             isSubeffect(es_sub, es_sup)                
         } else
             false
@@ -404,17 +363,6 @@ class TypeCheck(log: Log, prog: Prog) {
         if(cd.ghosts.length != wt.wpaths.length)
             throw new ir.IrError("intervals.wrong.number.of.ghosts", cd.ghosts.length, wt.wpaths.length)
         
-        // XXX Is this guaranteed to terminate??  Probably not,
-        // XXX have to think about this a bit.
-        foreachzip(cd.ghosts, wt.wpaths) { case (gfd, wp) =>
-            wp match {
-                case ir.WcUnkPath =>
-                case p: ir.Path =>
-                    val wt_p = wt_path(p)
-                    checkIsSubtype(wt_p, gfd.wt)
-            }
-        }
-
         wt.overs.foreach { case ov =>
             cd.methods.find(_.name == ov.m) match {
                 case Some(_) => checkWfEffect(ov.e)
@@ -430,9 +378,16 @@ class TypeCheck(log: Log, prog: Prog) {
         fd.asInstanceOf[ir.RealFieldDecl]        
     }
     
+    def checkReified(p: ir.Path) {
+        // XXX
+    }
+    
     def expr(ex: ir.Expr): (ir.WcTypeRef, ir.Effect) = ex match {
         
         case ir.ExprCall(p, m, qs) =>
+            checkReified(p)
+            qs.foreach(checkReified)
+            
             val t_p = cap(wt_path(p))
             val wts_q = qs.map(wt_path)
         
@@ -441,23 +396,53 @@ class TypeCheck(log: Log, prog: Prog) {
             foreachzip(wts_q, msig.args.map(_.wt))(checkIsSubtype)
         
             // Compute return type:
-            val wt_ret = 
-                lvSubst(
+            val wt_ret0 = 
+                PathSubst.vp(
                     ir.lv_this :: msig.args.map(_.name), 
                     p :: qs
                 ).wtref(msig.wt_ret)
+            val wt_ret = canon.wtref(wt_ret0)
                     
             (wt_ret, effectwt(p, t_p, m, qs))
                    
         case ir.ExprField(p, f) =>
+            checkReified(p)
             val fd = realFieldDecl(p, f)
             (fd.wt, ir.EffectFixed(ir.Rd, fd.guard))
             
-        case ir.ExprNew(t: ir.TypeRef) =>
-            checkWfWt(t)
+        case ir.ExprNew(t, qs) =>
+            checkWfWt(t)            
+            qs.foreach(checkReified)
+            
+            val cd = classDecl(t.c)
+            
+            // Check types of ghosts:
+            if(cd.ghosts.length != t.paths.length)
+                throw new ir.IrError(
+                    "intervals.wrong.number.ghost.arguments", 
+                    cd.ghosts.length, t.paths.length)
+            foreachzip(cd.ghosts, t.paths) { case (gfd, p) =>
+                val wt_p = wt_path(p)
+                checkIsSubtype(wt_p, gfd.wt)
+            }
+            
+            // Check types of final arguments:
+            val fds_final = cd.fields.filter(_.isFinal)
+            if(fds_final.length != qs.length)
+                throw new ir.IrError(
+                    "intervals.wrong.number.final.arguments", 
+                    fds_final.length, qs.length)
+            foreachzip(fds_final, qs) { case (fd, q) =>
+                val wt_q = wt_path(q)
+                checkIsSubtype(wt_q, fd.wt)
+            }
+            
             (t, ir.EffectNone)
             
         case ir.ExprNewInterval(p_b, p_t, ps_g) =>
+            checkReified(p_b)
+            checkReified(p_t)
+            ps_g.foreach(checkReified)
             checkIsSubtype(wt_path(p_b), ir.wt_point)
             checkIsSubtype(wt_path(p_t), ir.wt_task)
             ps_g.map(wt_path).foreach(checkIsSubtype(_, ir.wt_guard))
@@ -467,6 +452,7 @@ class TypeCheck(log: Log, prog: Prog) {
             (ir.TypeRef(ir.c_interval, List(p_b), List()), e_i)
             
         case ir.ExprNewGuard(p) =>
+            checkReified(p)
             checkIsSubtype(wt_path(p), ir.wt_guard)
             (ir.TypeRef(ir.c_guard, List(p), List()), ir.EffectNone)
             
@@ -481,18 +467,25 @@ class TypeCheck(log: Log, prog: Prog) {
                 case ir.StmtVarDecl(ir.LvDecl(x, wt_x), ex) =>
                     checkWfWt(wt_x)
                     val (wt_e, e) = expr(ex)
-                    val subst = lvSubst(ir.lv_new, x.path)
+                    val subst = PathSubst.vp(ir.lv_new, x.path)
                     if(ex != ir.ExprNull)
                         checkIsSubtype(wt_e, wt_x)
                     addLv(x, wt_x)
-                    subst.effect(e)
+                    canon.effect(subst.effect(e))
         
                 case ir.StmtAssignField(p, f, q) =>
+                    checkReified(p)
+                    checkReified(q)                    
                     val fd = realFieldDecl(p, f)
                     checkIsSubtype(wt_path(q), fd.wt)
-                    ir.EffectFixed(ir.Wr, fd.guard)
+                    if(fd.isFinal)
+                        ir.EffectNone // kind of a hack...
+                    else
+                        ir.EffectFixed(ir.Wr, fd.guard)
         
                 case ir.StmtAddHb(p, q) =>
+                    checkReified(p)
+                    checkReified(q)                    
                     checkIsSubtype(wt_path(p), ir.wt_point)
                     checkIsSubtype(wt_path(q), ir.wt_point)
                     addHb(p, q)
