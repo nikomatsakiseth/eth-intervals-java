@@ -217,6 +217,9 @@ class TypeCheck(log: Log, prog: Prog) {
             true
         else
             env.disjoints(wp).exists(isSubguard(wq, _))
+    def checkIsDisjointGuard(wp: ir.WcPath, wq: ir.WcPath) =
+        if(!isDisjointGuard(wp, wq))
+            throw new ir.IrError("intervals.not.disjoint", wp, wq)
 
     /// p→q in the minimal interpretation
     def hb(p: ir.Path, q: ir.Path): Boolean =
@@ -435,6 +438,16 @@ class TypeCheck(log: Log, prog: Prog) {
             foreachzip(fds_final, qs) { case (fd, q) =>
                 val wt_q = wt_path(q)
                 checkIsSubtype(wt_q, fd.wt)
+            }
+            
+            // Check disjointedness conditions:
+            val subst = PathSubst.pp(
+                (cd.ghosts ++ fds_final).map(_.thisPath),
+                t.paths ++ qs
+            )
+            cd.disjoints.foreach { case ps =>
+                pairs(ps.map(subst.path)).foreach { case (p, q) => 
+                    checkIsDisjointGuard(p, q) }
             }
             
             (t, ir.EffectNone)

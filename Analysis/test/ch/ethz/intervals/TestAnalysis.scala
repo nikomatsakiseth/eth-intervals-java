@@ -6,10 +6,13 @@ import scala.collection.mutable.ListBuffer
 import org.junit.Assert._
 import org.junit.Test
 import org.junit.Before
+import Util._
+
+case class ExpError(msg: String, args: List[String])
 
 class TestAnalysis extends JUnitSuite { 
     
-    def tc(text: String, expErrors: List[(Integer, String)]) = {
+    def tc(text: String, expErrors: List[ExpError]) = {
         val log = new Log.TmpHtmlLog()
         try {
             val text1 = text.replaceAll("//[^\n]*", "")
@@ -25,12 +28,17 @@ class TestAnalysis extends JUnitSuite {
             val tc = new TypeCheck(log, prog)
             tc.check
         
-            log.indented("Encountered Errors: ") {
+            log.indented("Encountered Errors: ") {                
                 for(error <- prog.errors)
-                    log("%s", error)
+                    log("ExpError(\"%s\", List(%s))", 
+                        error.msg, ", ".join("\"", error.args, "\""))                    
             }
 
             assertEquals(expErrors.length, prog.errors.length)
+            for((expError, error) <- expErrors.zip(prog.errors.toList)) {
+                assertEquals(expError.msg, error.msg)
+                assertEquals(expError.args, error.args)
+            }            
         } catch {
             case t: Throwable => // only print log if test fails:
                 System.out.println("Debugging output for failed test:")
@@ -70,4 +78,27 @@ class TestAnalysis extends JUnitSuite {
         )
     }
     
+    @Test 
+    def disjointGhosts1() {
+        tc(
+            """
+            class Foo<Guard<?> g, Guard<?> h> 
+                g # h 
+            extends Object 
+            {
+            }
+            class Bar<> extends Object {
+                Void run(Guard<?> g, Guard<?> h)
+                {
+                    Foo<?,?> f = new Foo<g, h>();
+                    return null;
+                }
+            }
+            """,
+            List(
+                ExpError("intervals.not.disjoint", List("g", "h"))
+            )
+        )
+    }
+        
 }
