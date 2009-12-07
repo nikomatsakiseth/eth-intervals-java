@@ -479,7 +479,7 @@ class TypeCheck(log: Log, prog: Prog) {
                     val fd = realFieldDecl(p, f)
                     checkIsSubtype(wt_path(q), fd.wt)
                     if(fd.isFinal)
-                        ir.EffectNone // kind of a hack...
+                        throw new ir.IrError("intervals.assignment.to.final", p, f)
                     else
                         ir.EffectFixed(ir.Wr, fd.guard)
         
