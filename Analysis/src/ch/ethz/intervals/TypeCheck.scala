@@ -49,10 +49,7 @@ class TypeCheck(log: Log, prog: Prog) {
         }
     }
 
-    def addHb(p0: ir.Path, q0: ir.Path) {
-        val p = canon.path(p0)
-        val q = canon.path(q0)
-        log("addHb(%s,%s)", p, q)
+    def addHb(p: ir.Path, q: ir.Path) = log.indented("addHb(%s,%s)", p, q) {
         env = ir.TcEnv(
             env.lvs,
             env.hb + (p, q),
@@ -61,10 +58,7 @@ class TypeCheck(log: Log, prog: Prog) {
             env.locks)
     }
 
-    def addHbEq(p0: ir.Path, q0: ir.Path) {
-        val p = canon.path(p0)
-        val q = canon.path(q0)
-        log("addHbEq(%s,%s)", p, q)
+    def addHbEq(p: ir.Path, q: ir.Path) = log.indented("addHbEq(%s,%s)", p, q) {
         env = ir.TcEnv(
             env.lvs,
             env.hb,
@@ -73,10 +67,7 @@ class TypeCheck(log: Log, prog: Prog) {
             env.locks)
     }
     
-    def addEq(p0: ir.Path, q0: ir.Path) {
-        val p = canon.path(p0)
-        val q = canon.path(q0)
-        log("addEq(%s,%s)", p, q)
+    def addEq(p: ir.Path, q: ir.Path) = log.indented("addEq(%s,%s)", p, q) {
         env = ir.TcEnv(
             env.lvs,
             env.hb,
@@ -85,9 +76,29 @@ class TypeCheck(log: Log, prog: Prog) {
             env.locks)
     }
 
-    def addLocks(p0: ir.Path, q0: ir.Path) {
-        val p = canon.path(p0)
-        val q = canon.path(q0)
+    /// Adds equivalencies for 'p' that result from ghost arguments.
+    /// For example, if p is obj.creator and obj has type Object<q>,
+    /// then we add an equivalence between obj.creator and q.
+    def addGhostEq(p: ir.Path): ir.WcTypeRef = log.indentedRes("addGhostEq(%s)", p) {
+        p match {
+            case ir.Path(lv, List()) => wt_lv(lv)
+            case ir.Path(lv, f :: rev_fs) =>
+                val p1 = ir.Path(lv, rev_fs)
+                val wt_p1 = addGhostEq(p1)
+                val cd = classDecl(wt_p1.c)
+                cd.ghosts.zip(wt_p1.wpaths).find(_._1.name == f) match {
+                    case Some((wt, wp_ghost)) =>
+                        val p_ghost = capPath(wp_ghost)
+                        addEq(p, p_ghost)
+                        log("Ghost field: %s maps to path: %s cap: %s", p, wp_ghost, p_ghost)
+                        wt
+                    case _ => 
+                        log("Not ghost field: %s", f)
+                }
+        }
+    }
+    
+    def addLocks(p: ir.Path, q: ir.Path) = log.indented("addLocks(%s,%s)", p, q) {
         log("addLocks(%s,%s)", p, q)
         env = ir.TcEnv(
             env.lvs,
@@ -104,27 +115,19 @@ class TypeCheck(log: Log, prog: Prog) {
         case ir.ReqLocks(p, qs) => qs.foreach(addLocks(p, _))
     }
     
-    def hb(p0: ir.Path, q0: ir.Path) = log.indentedRes("%s hb %s?", p0, q0) {            
-        val p = canon.path(p0)
-        val q = canon.path(q0)
+    def hb(p: ir.Path, q: ir.Path) = log.indentedRes("%s hb %s?", p, q) {
         existscross(equivPaths(p), equivPaths(q))(env.hb.contains)
     }
     
-    def hbeq(p0: ir.Path, q0: ir.Path) = log.indentedRes("%s hbeq %s?", p0, q0) {
-        val p = canon.path(p0)
-        val q = canon.path(q0)        
+    def hbeq(p: ir.Path, q: ir.Path) = log.indentedRes("%s hbeq %s?", p, q) {
         existscross(equivPaths(p), equivPaths(q))(env.hbeq.contains)
     }
     
-    def eq(p0: ir.Path, q0: ir.Path) = log.indentedRes("%s eq %s?", p0, q0) {
-        val p = canon.path(p0)
-        val q = canon.path(q0)
+    def eq(p: ir.Path, q: ir.Path) = log.indentedRes("%s eq %s?", p, q) {
         existscross(equivPaths(p), equivPaths(q)) { _ == _ }
     }
     
-    def locks(p0: ir.Path, q0: ir.Path) = log.indentedRes("%s locks %s?", p0, q0) {
-        val p = canon.path(p0)
-        val q = canon.path(q0)        
+    def locks(p: ir.Path, q: ir.Path) = log.indentedRes("%s locks %s?", p, q) {
         existscross(equivPaths(p), equivPaths(q))(env.locks.contains)
     }
     
@@ -145,7 +148,7 @@ class TypeCheck(log: Log, prog: Prog) {
     // Captures 
     
     /// capture an object ref. (affects the environment)
-    def capObj(wo: ir.WcPath) = {
+    def capPath(wo: ir.WcPath) = {
         def cap(add: Function2[ir.Path, ir.Path, Unit], ps: List[ir.Path], qs: List[ir.Path]) = {
             val lv_cap = ir.VarName(fresh("Cap"))
             addLv(lv_cap, ir.t_interval)
@@ -163,7 +166,7 @@ class TypeCheck(log: Log, prog: Prog) {
     
     /// capture wt into a TypeRef
     def cap(wt: ir.WcTypeRef): ir.TypeRef = log.indentedRes("cap(%s)", wt) {        
-        ir.TypeRef(wt.c, wt.wpaths.map(capObj))
+        ir.TypeRef(wt.c, wt.wpaths.map(capPath))
     }
         
     /// subst. for obj. param. of t
@@ -303,27 +306,6 @@ class TypeCheck(log: Log, prog: Prog) {
     }
 
     // ______________________________________________________________________
-    // Path Canonicalization
-    
-    object canon extends BaseSubst {
-        
-        def path(p: ir.Path): ir.Path = log.indentedRes("canon.path(%s)", p) {
-            p match {
-                case ir.Path(lv, List()) => p // ref. to a lv is canonical
-                case ir.Path(lv, f :: rev_fs) =>
-                    val p1 = path(ir.Path(lv, rev_fs))
-                    val wt = wt_path(p1)
-                    val cd = classDecl(wt.c)
-                    cd.ghosts.zip(wt.wpaths).find(_._1.name == f) match {
-                        case Some((_, p: ir.Path)) => p
-                        case _ => p1 + f
-                    }
-            }
-        }        
-        
-    }
-    
-    // ______________________________________________________________________
     
     /// field decl of p.f, with ref to this subst'd
     def substdFieldDecl(p: ir.Path, f: ir.FieldName) = {
@@ -426,6 +408,7 @@ class TypeCheck(log: Log, prog: Prog) {
             val fd = substdRealFieldDecl(p, f)
             
             val wt_guard = wt_path(fd.guard)
+            addGhostEq(fd.guard)
             val req = 
                 if(isSubtype(wt_guard, ir.t_interval))
                     ir.ReqHbEq(fd.guard, List(ir.p_cur))
@@ -488,6 +471,7 @@ class TypeCheck(log: Log, prog: Prog) {
                     checkIsSubtype(wt_path(q), fd.wt)
                     
                     val wt_guard = wt_path(fd.guard)
+                    addGhostEq(fd.guard)
                     if(isSubtype(wt_guard, ir.t_interval))
                         List(ir.ReqEq(ir.p_cur, fd.guard))
                     else
