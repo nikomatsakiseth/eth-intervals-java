@@ -25,18 +25,24 @@ class IrParser extends StandardTokenParsers {
         opt(p)                                  ^^ { case None => d
                                                      case Some(l) => l }
     def optl[A](p: Parser[List[A]]) = optd(p, List())
+
+    def optl3[A](a: String, p: Parser[List[A]], b: String) =
+        opt(a~p~b)                              ^^ { case Some(_~l~_) => l; case None => List() }
     
     def comma[A](p: Parser[A]): Parser[List[A]] = repsep(p, ",")
                                     
     def id = (
-        ident
-    | "`"~repsep(ident, ".")~"`"                ^^ { case "`"~is~"`" => ".".join(is) }
+        "`"~repsep(ident, ".")~"`"              ^^ { case "`"~is~"`" => ".".join(is) }
+    |   ident
     )
                                                 
     def m = id                                  ^^ { case i => ir.MethodName(i) }
-    def f = id                                  ^^ { case i => ir.FieldName(i) }
     def c = id                                  ^^ { case i => ir.ClassName(i) }
     def lv = id                                 ^^ { case i => ir.VarName(i) }
+    def f = (
+        "constructor"                           ^^ { case _ => ir.f_ctor }
+    |   id                                      ^^ { case i => ir.FieldName(i) }
+    )
     
     def dotf = "."~f                            ^^ { case _~f => f }
     def p = lv~rep(dotf)                        ^^ { case lv~fs => lv ++ fs }
@@ -47,15 +53,11 @@ class IrParser extends StandardTokenParsers {
     |   p
     )
     
-    def wt = (
-        c~"<"~comma(wp)~">"                     ^^ { case c~_~wps~_ => ir.WcTypeRef(c, wps) }
-    |   c                                       ^^ { case c => ir.WcTypeRef(c, List()) }
-    )
+    def wt =
+        c~optl3("<",comma(wp),">")              ^^ { case c~wps => ir.WcTypeRef(c, wps) }
     
-    def t = (
-        c~"<"~comma(p)~">"                      ^^ { case c~_~ps~_ => ir.TypeRef(c, ps) }
-    |   c                                       ^^ { case c => ir.TypeRef(c, List()) }
-    )
+    def t =
+        c~optl3("<",comma(p),">")               ^^ { case c~ps => ir.TypeRef(c, ps) }
     
     def expr = (
         p~"->"~m~"("~comma(p)~")"               ^^ { case p~"->"~m~"("~qs~")" => ir.ExprCall(p, m, qs) }
@@ -76,10 +78,10 @@ class IrParser extends StandardTokenParsers {
     )
     
     def req = (
-        "requires"~comma(p)~"hb"~comma(p)~";"   ^^ { case _~ps~_~qs~_ => ir.ReqHb(ps, qs) }
-    |   "requires"~comma(p)~"hbeq"~comma(p)~";" ^^ { case _~ps~_~qs~_ => ir.ReqHbEq(ps, qs) }
-    |   "requires"~p~"=="~p~";"                 ^^ { case _~p~_~q~_ => ir.ReqEq(p, q) }
-    |   "requires"~p~"locks"~comma(p)~";"       ^^ { case _~ps~_~qs~_ => ir.ReqLocks(ps, qs) }
+        "requires"~p~"hb"~comma(p)              ^^ { case _~p~_~qs => ir.ReqHb(p, qs) }
+    |   "requires"~p~"hbeq"~comma(p)            ^^ { case _~p~_~qs => ir.ReqHbEq(p, qs) }
+    |   "requires"~p~"=="~p                     ^^ { case _~p~_~q => ir.ReqEq(p, q) }
+    |   "requires"~p~"locks"~comma(p)           ^^ { case _~p~_~qs => ir.ReqLocks(p, qs) }
     )
     
     def reqs = rep(req)
@@ -104,7 +106,7 @@ class IrParser extends StandardTokenParsers {
     }
     
     def ghostFieldDecl = (
-        wt~f                                    ^^ { case wt~f => ir.GhostFieldDecl(f, wt) }
+        wt~f                                    ^^ { case wt~f => ir.GhostFieldDecl(wt, f) }
     )
 
     def realFieldDecl = (
@@ -112,15 +114,15 @@ class IrParser extends StandardTokenParsers {
     )
     
     def classDecl = (
-        "class"~c~"<"~
-            comma(ghostFieldDecl)~
-        ">"~"extends"~t~"{"~
+        "class"~c~optl3("<",
+            comma(ghostFieldDecl),
+        ">")~"extends"~t~"{"~
             rep(realFieldDecl)~
             constructor~
             rep(methodDecl)~
         "}"
     ) ^^ {
-        case _~name~"<"~ghosts~">"~"extends"~superType~"{"~fields~ctor~methods~"}" =>
+        case "class"~name~ghosts~"extends"~superType~"{"~fields~ctor~methods~"}" =>
             ir.ClassDecl(name, ghosts, Some(superType), ctor, fields, methods)
     }
     

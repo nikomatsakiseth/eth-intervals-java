@@ -311,10 +311,12 @@ object Util {
     else transitiveClosure(out)
   }
 
-  def forallzip[A,B](as: List[A], bs: List[B], f: Function2[A, B, Boolean]) =
+  def forallzip[A,B](as: List[A], bs: List[B])(f: Function2[A, B, Boolean]) =
     as.zip(bs).forall(p => f(p._1, p._2))
-  def forallcross[A,B](as: List[A], bs: List[B], f: Function2[A, B, Boolean]) =
+  def forallcross[A,B](as: Iterable[A], bs: Iterable[B])(f: Function2[A, B, Boolean]) =
     as.forall(a => bs.forall(b => f(a,b)))
+  def existscross[A,B](as: Iterable[A], bs: Iterable[B])(f: Function2[A, B, Boolean]) =
+    as.exists(a => bs.exists(b => f(a,b)))
   def foreachzip[A,B](as: List[A], bs: List[B])(f: Function2[A, B, Unit]) =
     as.zip(bs).foreach(p => f(p._1, p._2))
   def foreachcross[A,B](as: List[A], bs: List[B])(f: Function2[A, B, Unit]) =

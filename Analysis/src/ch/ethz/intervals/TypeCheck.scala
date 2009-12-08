@@ -13,16 +13,26 @@ class TypeCheck(log: Log, prog: Prog) {
     // Environment
     
     var env = ir.TcEnv(
-        Map(),
+        Map(
+            (ir.lv_cur, ir.t_interval)
+        ),
         ir.Relation.emptyTrans,
         ir.Relation.emptyTransRefl,
         ir.Relation.emptyTransRefl,
         ir.Relation.empty
     )
     
+    val nonreifiedVars = env.lvs.keySet
+    
     def savingEnv[R](g: => R): R = {
         val oldEnv = env
         try { g } finally { env = oldEnv }
+    }
+    
+    def equivPaths(p: ir.Path): Set[ir.Path] = p match {
+        case ir.Path(lv, List()) => Set(p) ++ env.equiv(p)
+        case ir.Path(lv, f :: rev_fs) =>
+            equivPaths(ir.Path(lv, rev_fs)).map(_ + f) ++ env.equiv(p)
     }
     
     def addLv(lv: ir.VarName, wt: ir.WcTypeRef) {
@@ -32,7 +42,7 @@ class TypeCheck(log: Log, prog: Prog) {
                     env.lvs + Pair(lv, wt), 
                     env.hb,
                     env.hbeq,
-                    env.eq,
+                    env.equiv,
                     env.locks)
             case Some(_) =>
                 throw new ir.IrError("intervals.shadowed.variable", lv)
@@ -42,65 +52,81 @@ class TypeCheck(log: Log, prog: Prog) {
     def addHb(p0: ir.Path, q0: ir.Path) {
         val p = canon.path(p0)
         val q = canon.path(q0)
+        log("addHb(%s,%s)", p, q)
         env = ir.TcEnv(
             env.lvs,
             env.hb + (p, q),
             env.hbeq + (p, q),
-            env.eq,
+            env.equiv,
             env.locks)
     }
 
     def addHbEq(p0: ir.Path, q0: ir.Path) {
         val p = canon.path(p0)
         val q = canon.path(q0)
+        log("addHbEq(%s,%s)", p, q)
         env = ir.TcEnv(
             env.lvs,
             env.hb,
             env.hbeq + (p, q),
-            env.eq,
+            env.equiv,
             env.locks)
     }
     
     def addEq(p0: ir.Path, q0: ir.Path) {
         val p = canon.path(p0)
         val q = canon.path(q0)
+        log("addEq(%s,%s)", p, q)
         env = ir.TcEnv(
             env.lvs,
             env.hb,
             env.hbeq + (p, q) + (q, p),
-            env.eq + (p, q) + (q, p),
+            env.equiv + (p, q) + (q, p),
             env.locks)
     }
 
     def addLocks(p0: ir.Path, q0: ir.Path) {
         val p = canon.path(p0)
         val q = canon.path(q0)
+        log("addLocks(%s,%s)", p, q)
         env = ir.TcEnv(
             env.lvs,
             env.hb,
             env.hbeq,
-            env.eq,
+            env.equiv,
             env.locks + (p, q))
     }
     
     def addReq(req: ir.Req) = req match {
-        case ir.ReqHb(ps, qs) => foreachcross(ps, qs)(addHb)
-        case ir.ReqHbEq(ps, qs) => foreachcross(ps, qs)(addHbEq)
+        case ir.ReqHb(p, qs) => qs.foreach(addHb(p, _))
+        case ir.ReqHbEq(p, qs) => qs.foreach(addHbEq(p, _))
         case ir.ReqEq(p, q) => addEq(p, q)
         case ir.ReqLocks(p, qs) => qs.foreach(addLocks(p, _))
     }
     
-    def hb(p: ir.Path, q: ir.Path) =
-        env.hb.contains(canon.path(p), canon.path(q)) // XXX Needs to take eq into account
+    def hb(p0: ir.Path, q0: ir.Path) = log.indentedRes("%s hb %s?", p0, q0) {            
+        val p = canon.path(p0)
+        val q = canon.path(q0)
+        existscross(equivPaths(p), equivPaths(q))(env.hb.contains)
+    }
     
-    def hbeq(p: ir.Path, q: ir.Path) =
-        env.hbeq.contains(canon.path(p), canon.path(q))
+    def hbeq(p0: ir.Path, q0: ir.Path) = log.indentedRes("%s hbeq %s?", p0, q0) {
+        val p = canon.path(p0)
+        val q = canon.path(q0)        
+        existscross(equivPaths(p), equivPaths(q))(env.hbeq.contains)
+    }
     
-    def eq(p: ir.Path, q: ir.Path) =
-        env.eq.contains(canon.path(p), canon.path(q))
+    def eq(p0: ir.Path, q0: ir.Path) = log.indentedRes("%s eq %s?", p0, q0) {
+        val p = canon.path(p0)
+        val q = canon.path(q0)
+        existscross(equivPaths(p), equivPaths(q)) { _ == _ }
+    }
     
-    def locks(p: ir.Path, q: ir.Path) =
-        env.locks.contains(canon.path(p), canon.path(q)) // XXX Needs to take eq into account
+    def locks(p0: ir.Path, q0: ir.Path) = log.indentedRes("%s locks %s?", p0, q0) {
+        val p = canon.path(p0)
+        val q = canon.path(q0)        
+        existscross(equivPaths(p), equivPaths(q))(env.locks.contains)
+    }
     
     // ______________________________________________________________________
     // Errors
@@ -136,8 +162,9 @@ class TypeCheck(log: Log, prog: Prog) {
     }
     
     /// capture wt into a TypeRef
-    def cap(wt: ir.WcTypeRef): ir.TypeRef = 
+    def cap(wt: ir.WcTypeRef): ir.TypeRef = log.indentedRes("cap(%s)", wt) {        
         ir.TypeRef(wt.c, wt.wpaths.map(capObj))
+    }
         
     /// subst. for obj. param. of t
     def pathSubst(t: ir.TypeRef) = {
@@ -155,18 +182,21 @@ class TypeCheck(log: Log, prog: Prog) {
     }
     
     /// lookup field decl for ot.f 
-    def fieldDecl(ot: ir.TypeRef, f: ir.FieldName) = {
-        def search(t: ir.TypeRef): ir.FieldDecl = {
+    def fieldDecl(ot: ir.TypeRef, f: ir.FieldName) = log.indentedRes("fieldDecl(%s,%s)", ot, f) {
+        def search(t: ir.TypeRef): ir.FieldDecl = log.indentedRes("search(%s)", t) {
             val cd = classDecl(t.c)
             cd.allFields.find(_.name == f) match {
-                case Some(fd) => pathSubst(t).fieldDecl(fd) // XXX Improper capture?
+                case Some(fd) => fd
                 case None => sup(t) match {
-                    case Some(t_1) => search(t_1)
+                    case Some(t_1) => pathSubst(t_1).fieldDecl(search(t_1))
                     case None => throw ir.IrError("intervals.no.such.field", ot, f)
                 }
             }
         }
-        search(ot)        
+        if(f == ir.f_ctor)
+            ir.gfd_ctor        
+        else
+            search(ot)        
     }
     
     /// lookup method decl for ot.m(), no substitutions performed!
@@ -174,9 +204,9 @@ class TypeCheck(log: Log, prog: Prog) {
         def search(t: ir.TypeRef): ir.MethodSig = {
             val cd = classDecl(t.c)
             cd.methods.find(_.name == m) match {
-                case Some(md) => pathSubst(t).methodSig(md.msig) // XXX Improper capture?
+                case Some(md) => md.msig
                 case None => sup(t) match {
-                    case Some(t_1) => search(t_1)
+                    case Some(t_1) => pathSubst(t_1).methodSig(search(t_1))
                     case None => throw ir.IrError("intervals.no.such.method", ot, m)
                 }
             }
@@ -199,16 +229,48 @@ class TypeCheck(log: Log, prog: Prog) {
             case Some(wt) => wt
             case None => throw ir.IrError("intervals.no.such.variable", lv)
         }
-    
+        
     /// type of an object reference.
-    def wt_path(p: ir.Path): ir.WcTypeRef = p match {
-        case ir.Path(lv, List()) => wt_lv(lv)
-        case ir.Path(lv, f :: fs) => 
-            val q = lv ++ fs
-            val t = cap(wt_path(q))
-            val fd = fieldDecl(t, f)
-            if(fd.isFinal) fd.wt
-            else throw new ir.IrError("intervals.not.final", q, t, f)
+    def wt_path(p: ir.Path): ir.WcTypeRef = 
+        log.indentedRes("wt_path(%s)", p) {
+            p match {
+                case ir.Path(lv, List()) => 
+                    wt_lv(lv)
+                case ir.Path(lv, f :: rev_fs) => 
+                    val t = cap(wt_path(ir.Path(lv, rev_fs)))
+                    fieldDecl(t, f).wt
+            }    
+        }
+    
+    // ______________________________________________________________________
+    // Path checking
+    
+    /// Checks whether path p is reified and/or constant.
+    def checkPath(p: ir.Path, chkReified: Boolean, chkConstant: Boolean, chkReliable: Boolean) {
+        p match {
+            case ir.Path(lv, List()) => 
+                if(chkReified && nonreifiedVars(lv))
+                    throw new ir.IrError("intervals.reified.path.required", p)            
+                    
+            case ir.Path(lv, f :: rev_fs) => 
+                val p1 = ir.Path(lv, rev_fs)
+                checkPath(p1, chkReified, chkConstant, chkReliable)
+                val wt_p1 = wt_path(p1)
+                val t_p1 = cap(wt_p1)
+                fieldDecl(t_p1, f) match {
+                    case ir.RealFieldDecl(wt, _, p_guard) =>
+                        // A field is constant if its guard has completed.
+                        //
+                        // A field is "reliable" if (a) it is constant or                        
+                        // (b) the field is relative to "this"
+                        if(chkConstant || (chkReliable && (p != ir.p_this + f)))
+                            checkReqFulfilled(ir.ReqHb(p_guard, List(ir.p_cur)))
+
+                    case ir.GhostFieldDecl(wt, _) =>
+                        if(chkReified)
+                            throw new ir.IrError("intervals.reified.path.required", p)
+                }            
+        }
     }
     
     // ______________________________________________________________________
@@ -221,8 +283,8 @@ class TypeCheck(log: Log, prog: Prog) {
     }
     
     def checkWfReq(req: ir.Req) = req match {
-        case ir.ReqHb(ps, qs) => ps.foreach(checkWfPath); qs.foreach(checkWfPath)
-        case ir.ReqHbEq(ps, qs) => ps.foreach(checkWfPath); qs.foreach(checkWfPath)
+        case ir.ReqHb(p, qs) => checkWfPath(p); qs.foreach(checkWfPath)
+        case ir.ReqHbEq(p, qs) => checkWfPath(p); qs.foreach(checkWfPath)
         case ir.ReqEq(p, q) => checkWfPath(p); checkWfPath(q)
         case ir.ReqLocks(p, qs) => checkWfPath(p); qs.foreach(checkWfPath)
     }
@@ -245,11 +307,11 @@ class TypeCheck(log: Log, prog: Prog) {
     
     object canon extends BaseSubst {
         
-        def path(p: ir.Path): ir.Path = {
+        def path(p: ir.Path): ir.Path = log.indentedRes("canon.path(%s)", p) {
             p match {
                 case ir.Path(lv, List()) => p // ref. to a lv is canonical
-                case ir.Path(lv, f :: fs) =>
-                    val p1 = path(ir.Path(lv, fs))
+                case ir.Path(lv, f :: rev_fs) =>
+                    val p1 = path(ir.Path(lv, rev_fs))
                     val wt = wt_path(p1)
                     val cd = classDecl(wt.c)
                     cd.ghosts.zip(wt.wpaths).find(_._1.name == f) match {
@@ -270,8 +332,8 @@ class TypeCheck(log: Log, prog: Prog) {
         canon.fieldDecl(fd1)
     }
     
-    /// wp <: wq
-    def isSubpath(wp: ir.WcPath, wq: ir.WcPath) = {
+    /// wp <= wq
+    def isSubpath(wp: ir.WcPath, wq: ir.WcPath) = log.indentedRes("%s <= %s?", wp, wq) {
         (wp, wq) match {
             case (p: ir.Path, q: ir.Path) => 
                 eq(p, q)
@@ -284,29 +346,31 @@ class TypeCheck(log: Log, prog: Prog) {
                 ps.forall { p => hbeq(p, r) } &&
                 qs.forall { q => hbeq(r, q) }
             case (ir.WcHb(rs, ss), ir.WcHb(ps, qs)) => 
-                forallcross(ps, rs, hbeq) &&
-                forallcross(ss, qs, hbeq)
+                forallcross(ps, rs)(hbeq) &&
+                forallcross(ss, qs)(hbeq)
             case (ir.WcHbEq(rs, ss), ir.WcHbEq(ps, qs)) => 
-                forallcross(ps, rs, hbeq) &&
-                forallcross(ss, qs, hbeq)
+                forallcross(ps, rs)(hbeq) &&
+                forallcross(ss, qs)(hbeq)
             case (ir.WcHb(rs, ss), ir.WcHbEq(ps, qs)) => 
-                forallcross(ps, rs, hb) &&
-                forallcross(ss, qs, hb)
+                forallcross(ps, rs)(hb) &&
+                forallcross(ss, qs)(hb)
             case (ir.WcHbEq(rs, ss), ir.WcHb(ps, qs)) => 
-                forallcross(ps, rs, hb) &&
-                forallcross(ss, qs, hb)
+                forallcross(ps, rs)(hb) &&
+                forallcross(ss, qs)(hb)
         }
     }
     
     /// wt_sub <: wt_sup
     def isSubtype(wt_sub: ir.WcTypeRef, wt_sup: ir.WcTypeRef): Boolean =
-        if(wt_sub.c == wt_sub.c)
-            forallzip(wt_sub.wpaths, wt_sup.wpaths, isSubpath) 
-        else
-            sup(cap(wt_sub)) match {
-                case None => false
-                case Some(wt) => isSubtype(wt, wt_sup)
-            }
+        log.indentedRes("%s <: %s?", wt_sub, wt_sup) {
+            if(wt_sub.c == wt_sub.c)
+                forallzip(wt_sub.wpaths, wt_sup.wpaths)(isSubpath) 
+            else
+                sup(cap(wt_sub)) match {
+                    case None => false
+                    case Some(wt) => isSubtype(wt, wt_sup)
+                }            
+        }
     
     /// wt_sub <: wt_sup
     def checkIsSubtype(wt_sub: ir.WcTypeRef, wt_sup: ir.WcTypeRef) {
@@ -321,13 +385,9 @@ class TypeCheck(log: Log, prog: Prog) {
         fd.asInstanceOf[ir.RealFieldDecl]        
     }    
     
-    def checkReified(p: ir.Path) {
-        // XXX
-    }
-    
     def isReqFulfilled(req: ir.Req) = req match {
-        case ir.ReqHb(ps, qs) => forallcross(ps, qs, hb)
-        case ir.ReqHbEq(ps, qs) => forallcross(ps, qs, hbeq)
+        case ir.ReqHb(p, qs) => qs.forall(hb(p, _))
+        case ir.ReqHbEq(p, qs) => qs.forall(hbeq(p, _))
         case ir.ReqEq(p, q) => eq(p, q)
         case ir.ReqLocks(p, qs) => qs.forall(locks(p, _))
     }
@@ -348,23 +408,27 @@ class TypeCheck(log: Log, prog: Prog) {
         foreachzip(wts_q, msig.args.map(_.wt))(checkIsSubtype)
     }
     
+    def checkReifiedAndConstant(p: ir.Path) {
+        checkPath(p, true, true, false)
+    }
+    
     def expr(ex: ir.Expr): (ir.WcTypeRef, List[ir.Req]) = ex match {
         
         case ir.ExprCall(p, m, qs) =>
-            checkReified(p)
-            qs.foreach(checkReified)
+            checkReifiedAndConstant(p)
+            qs.foreach(checkReifiedAndConstant)
             val msig = substdMethodSig(p, m, qs)
             checkArgumentTypes(msig, qs)
             (msig.wt_ret, msig.reqs)
 
         case ir.ExprField(p, f) =>
-            checkReified(p)
+            checkReifiedAndConstant(p)
             val fd = substdRealFieldDecl(p, f)
             
             val wt_guard = wt_path(fd.guard)
             val req = 
                 if(isSubtype(wt_guard, ir.t_interval))
-                    ir.ReqHbEq(List(ir.p_cur), List(fd.guard))
+                    ir.ReqHbEq(fd.guard, List(ir.p_cur))
                 else
                     ir.ReqLocks(ir.p_cur, List(fd.guard))
             
@@ -372,7 +436,7 @@ class TypeCheck(log: Log, prog: Prog) {
             
         case ir.ExprNew(t, qs) =>
             checkWfWt(t)
-            qs.foreach(checkReified)
+            qs.foreach(checkReifiedAndConstant)
             
             val cd = classDecl(t.c)
             val ctor = cd.ctor
@@ -418,8 +482,8 @@ class TypeCheck(log: Log, prog: Prog) {
                 case ir.StmtAssignField(p, f, q) =>
                     // XXX Here is where we might incur obligations
                     // XXX to re-assign other fields that use f!
-                    checkReified(p)
-                    checkReified(q)                    
+                    checkReifiedAndConstant(p)
+                    checkReifiedAndConstant(q)                    
                     val fd = substdRealFieldDecl(p, f)
                     checkIsSubtype(wt_path(q), fd.wt)
                     
@@ -430,16 +494,22 @@ class TypeCheck(log: Log, prog: Prog) {
                         List(ir.ReqLocks(ir.p_cur, List(fd.guard)))
         
                 case ir.StmtHb(p, q) =>
-                    checkReified(p)
-                    checkReified(q)
-                    checkIsSubtype(wt_path(p), ir.t_point)
-                    checkIsSubtype(wt_path(q), ir.t_point)
+                    checkReifiedAndConstant(p)
+                    checkReifiedAndConstant(q)
+                    
+                    // XXX Rejigger HB to be based on points:
+                    //checkIsSubtype(wt_path(p), ir.t_point)
+                    //checkIsSubtype(wt_path(q), ir.t_point)
+                    
+                    checkIsSubtype(wt_path(p), ir.t_interval)
+                    checkIsSubtype(wt_path(q), ir.t_interval)
                     addHb(p, q)
+                    
                     List()
                     
                 case ir.StmtLocks(p, q) =>
-                    checkReified(p)
-                    checkReified(q)
+                    checkReifiedAndConstant(p)
+                    checkReifiedAndConstant(q)
                     checkIsSubtype(wt_path(p), ir.t_interval)
                     checkIsSubtype(wt_path(q), ir.t_lock)
                     addLocks(p, q)
@@ -495,13 +565,21 @@ class TypeCheck(log: Log, prog: Prog) {
                 addLv(ir.lv_this, t_this)                
                 cd.fields.foreach(checkRealFieldDecl)
                 
+                addHb(ir.p_readOnly, ir.p_cur) // HACK
+                
                 // XXX Need to extract visible effects of ctor
                 // XXX and save them in environment for other
                 // XXX methods.
-                checkMethodDecl(cd.ctor)
+                savingEnv {
+                    addEq(ir.p_cur, ir.gfd_ctor.thisPath)
+                    checkMethodDecl(cd.ctor)                    
+                }
                 
-                cd.ctor.reqs.foreach(addReq)
-                cd.methods.foreach(checkMethodDecl)
+                savingEnv {
+                    cd.ctor.reqs.foreach(addReq)
+                    addHb(ir.gfd_ctor.thisPath, ir.p_cur)
+                    cd.methods.foreach(checkMethodDecl)                    
+                }
             }
         }
     }

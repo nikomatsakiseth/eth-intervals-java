@@ -29,7 +29,7 @@ abstract class Log {
 
   def indented[R](fmt: String, arg0: Any, args: Any*)(f: => R): R = {
     try {
-      apply(fmt, arg0, args)
+      apply(fmt, arg0, args: _*)
       rawIndent
       f 
     } finally { 
@@ -41,7 +41,7 @@ abstract class Log {
   
   def indentedRes[R](fmt: String, arg0: Any, args: Any*)(f: => R): R = {
     try {
-      apply(fmt, arg0, args)
+      apply(fmt, arg0, args: _*)
       rawIndent
       val result = f
       apply("Result = %s", result)

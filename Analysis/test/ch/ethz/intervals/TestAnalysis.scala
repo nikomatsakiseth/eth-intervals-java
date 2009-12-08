@@ -47,6 +47,7 @@ class TestAnalysis extends JUnitSuite {
         }
     }
 
+    /*
     @Test 
     def bbpc() {
         tc(
@@ -57,7 +58,7 @@ class TestAnalysis extends JUnitSuite {
             }
             
             class Producer extends Interval {
-                Consumer c guardedBy constructor;
+                Consumer c guardedBy this.constructor;
                              
                 Producer nextProd guardedBy this;
                 Data<this> data guardedBy this;
@@ -65,15 +66,19 @@ class TestAnalysis extends JUnitSuite {
                 constructor(Consumer c)
                 {
                     this->c = c;
-                    
-                    this.c hb start;
                 }
 
+                Void addDependencies()
+                {
+                    this.c hb start; 
+                    return null;                 
+                }
+                
                 Void run()
                 requires current == this
                 {
-                    this->data = new Data<this>(); // "produce"
-                    this->o = new Object<this>();  // "produce"
+                    Data<this> data = new Data<this>();
+                    this->data = data; // "produce"
                     
                     Interval nextCons = c->nextCons;                    
                     Interval nextProd = new Producer(nextCons);
@@ -85,6 +90,7 @@ class TestAnalysis extends JUnitSuite {
             
             class Consumer extends Interval {
                 Consumer nextCons guardedBy this;
+                constructor() {}
             }
             
             class DummyConsumer<Interval init> extends Consumer 
@@ -98,18 +104,25 @@ class TestAnalysis extends JUnitSuite {
                 
                 Void run()
                 {
-                    nextCons = c;
+                    Consumer c = this->c;
+                    this->nextCons = c;
+                    
+                    return null;
                 }
             }
 
             class RealConsumer extends Consumer {
-                Producer p guardedBy constructor;
+                Producer p guardedBy this.constructor;
                 
                 constructor(Producer p)
                 {
-                    this->p = p;
-                    
-                    this.p hb start;
+                    this->p = p;                    
+                }
+                
+                Void addDependencies()
+                {
+                    this.p hb start;                    
+                    return null;                 
                 }
 
                 Void run()
@@ -149,8 +162,10 @@ class TestAnalysis extends JUnitSuite {
             List(
             )
         )
-    }  
+    }
+    */
     
+    @Test
     def bbpcData() {
         tc(
             """
@@ -173,12 +188,12 @@ class TestAnalysis extends JUnitSuite {
             }
             
             class Producer extends Interval {
-                ConsData<hb this> cdata guardedBy constructor;
-                ProdData<this> pdata guardedBy constructor;
+                ConsData<hb this> cdata guardedBy this.constructor;
+                ProdData<this> pdata guardedBy this.constructor;
                 
                 constructor(Interval c, ConsData<c> cdata)
                 {
-                    c.end hb this.start;
+                    c hb this;
                     this->cdata = cdata;
                     ProdData<this> pdata = new ProdData<this>();
                     this->pdata = pdata;
@@ -188,6 +203,7 @@ class TestAnalysis extends JUnitSuite {
                 requires current == this
                 {
                     ProdData<this> pdata = this->pdata;
+                    ConsData<hb this> cdata = this->cdata;
                     
                     Data<this> data = new Data<this>(); // "produce"
                     pdata->data = data;
@@ -204,13 +220,13 @@ class TestAnalysis extends JUnitSuite {
                 }
             }
             
-            class Consumer extends Consumer {
-                ProdData<hb this> pdata guardedBy constructor;
-                ConsData<this> cdata guardedBy constructor;
+            class Consumer extends Interval {
+                ProdData<hb this> pdata guardedBy this.constructor;
+                ConsData<this> cdata guardedBy this.constructor;
                 
                 constructor(Interval p, ProdData<p> pdata)
                 {
-                    p.end hb this.start;
+                    p hb this;
                     this->pdata = pdata;
                     ConsData<this> cdata = new ConsData<this>();
                     this->cdata = cdata;
@@ -219,6 +235,9 @@ class TestAnalysis extends JUnitSuite {
                 Void run()
                 requires current == this
                 {
+                    ProdData<hb this> pdata = this->pdata;
+                    ConsData<this> cdata = this->cdata;
+                    
                     Data<hb this> data = pdata->data; // "consume" 
                     
                     Interval nextProd = pdata->nextProd;

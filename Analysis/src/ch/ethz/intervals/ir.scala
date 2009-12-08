@@ -110,8 +110,8 @@ object ir {
     }
     
     sealed case class GhostFieldDecl(
-        name: FieldName,
-        wt: WcTypeRef
+        wt: WcTypeRef,
+        name: FieldName
     ) extends FieldDecl {
         def isFinal = true
         def isGhost = true
@@ -194,15 +194,17 @@ object ir {
         def +(f: ir.FieldName) = Path(lv, f :: rev_fs)
         def ++(fs: List[ir.FieldName]) = fs.foldLeft(this)(_ + _)
         
+        def start = this + f_start
+        def end = this + f_end        
         override def toString = lv.name + ".".join(".", fs)
     }
     
     sealed abstract class Req
-    sealed case class ReqHb(ps: List[Path], qs: List[Path]) extends Req {
-        override def toString = "%s hb %s".format(", ".join(ps), ", ".join(qs))
+    sealed case class ReqHb(p: Path, qs: List[Path]) extends Req {
+        override def toString = "%s hb %s".format(p, ", ".join(qs))
     }
-    sealed case class ReqHbEq(ps: List[Path], qs: List[Path]) extends Req {
-        override def toString = "%s hbeq %s".format(", ".join(ps), ", ".join(qs))
+    sealed case class ReqHbEq(p: Path, qs: List[Path]) extends Req {
+        override def toString = "%s hbeq %s".format(p, ", ".join(qs))
     }
     sealed case class ReqEq(p: Path, q: Path) extends Req {
         override def toString = "%s == %s".format(p, q)
@@ -255,14 +257,14 @@ object ir {
         private val emptyMap = Util.MultiMap.empty[Path, Path]
         val empty = new Relation(emptyMap, false, false)
         val emptyTrans = new Relation(emptyMap, true, false)
-        val emptyTransRefl = new Relation(emptyMap, true, false)
+        val emptyTransRefl = new Relation(emptyMap, true, true)
     }
     
     sealed case class TcEnv(
         lvs: Map[ir.VarName, ir.WcTypeRef],
         hb: Relation,
         hbeq: Relation,
-        eq: Relation,
+        equiv: Relation,
         locks: Relation
     )
     
@@ -275,7 +277,6 @@ object ir {
     val lv_new = ir.VarName("new")
     val lv_end = ir.VarName("end")
     val lv_root = ir.VarName("root")
-    val lv_ctor = ir.VarName("constructor")
     val lv_mthd = ir.VarName("method")
     val lv_cur = ir.VarName("current")
     val lv_readOnly = ir.VarName("readOnly")
@@ -283,13 +284,13 @@ object ir {
     val p_this = lv_this.path
     val p_new = lv_new.path
     val p_root = lv_root.path
-    val p_ctor = lv_ctor.path
     val p_mthd = lv_mthd.path
     val p_cur = lv_cur.path
     val p_readOnly = lv_readOnly.path
 
     val f_creator = ir.FieldName("creator")    
     val f_start = ir.FieldName("start")
+    val f_ctor = ir.FieldName("constructor")
     val f_end = ir.FieldName("end")
     
     val m_ctor = ir.MethodName("constructor")
@@ -309,7 +310,8 @@ object ir {
     val t_point = ir.TypeRef(c_point, List())
     val t_lock = ir.TypeRef(c_lock, List())
     
-    val gfd_creator = GhostFieldDecl(f_creator, t_interval)
+    val gfd_creator = GhostFieldDecl(t_interval, f_creator)
+    val gfd_ctor = GhostFieldDecl(t_interval, f_ctor)
     val t_objectCreator = ir.TypeRef(c_object, List(gfd_creator.thisPath))
     val t_objectReadOnly = ir.TypeRef(c_object, List(p_readOnly))
     
@@ -332,7 +334,7 @@ object ir {
                     /* wt_ret: */ t_void, 
                     /* name:   */ m_toString, 
                     /* args:   */ List(),
-                    /* reqs:   */ List(ir.ReqHbEq(List(p_cur), List(gfd_creator.thisPath))),
+                    /* reqs:   */ List(ir.ReqHbEq(p_cur, List(gfd_creator.thisPath))),
                     /* stmts:  */ List(),
                     /* ex_ret: */ ir.ExprNull
                     ))                

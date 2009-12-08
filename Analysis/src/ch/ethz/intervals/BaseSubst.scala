@@ -16,14 +16,14 @@ abstract class BaseSubst {
         ir.TypeRef(t.c, t.paths.map(path))
         
     def req(r: ir.Req) = r match {
-        case ir.ReqHb(ps, qs) => ir.ReqHb(ps.map(path), qs.map(path))
-        case ir.ReqHbEq(ps, qs) => ir.ReqHbEq(ps.map(path), qs.map(path))
+        case ir.ReqHb(p, qs) => ir.ReqHb(path(p), qs.map(path))
+        case ir.ReqHbEq(p, qs) => ir.ReqHbEq(path(p), qs.map(path))
         case ir.ReqEq(p, q) => ir.ReqEq(path(p), path(q))
         case ir.ReqLocks(p, qs) => ir.ReqLocks(path(p), qs.map(path))
     }
         
     def ghostFieldDecl(fd: ir.GhostFieldDecl) =
-        ir.GhostFieldDecl(fd.name, wtref(fd.wt))
+        ir.GhostFieldDecl(wtref(fd.wt), fd.name)
         
     def realFieldDecl(fd: ir.RealFieldDecl) =
         ir.RealFieldDecl(wtref(fd.wt), fd.name, path(fd.guard))
