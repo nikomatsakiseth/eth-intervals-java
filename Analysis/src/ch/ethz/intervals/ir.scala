@@ -142,8 +142,11 @@ object ir {
     sealed case class StmtAddHb(p: Path, q: Path) extends Stmt {
         override def toString = "add %s->%s;".format(p, q)        
     }
+    sealed case class StmtSchedule() extends Stmt {
+        override def toString = "schedule();"
+    }
     
-    sealed abstract class Expr extends Locatable
+    sealed abstract class Expr 
     sealed case class ExprCall(p: Path, m: MethodName, qs: List[Path]) extends Expr {
         override def toString = "%s->%s(%s)".format(p, m, qs)
     }

@@ -77,6 +77,55 @@ class TestAnalysis extends JUnitSuite {
             )
         )
     }
+
+    @Test 
+    def bbpc() {
+        tc(
+            """
+            class ProdData<Guard<?> g> extends Object {
+                
+            }
+            
+            
+            """,
+            List(
+            )
+        )
+    }  
+    
+    @Test 
+    def hoh() {
+        tc(
+            """
+            class Link<
+                Guard<locked> lst
+            > extends Object {
+                final Guard<locked> lock guardedBy readOnly;
+                Link<this.lst> next guardedBy this.lock;
+                Void fld guardedBy this.lock;
+            }
+            
+            class ProcLink<Guard<locked> lst> extends Task
+            {
+                final Link<lst> link guardedBy readOnly;
+                
+                Void run(Point<?> end)
+                    Wr(this.link.lock)
+                {
+                    this.link->fld = null;
+                                        
+                    Link<lst> next = this.link->next;
+                    ProcLink<lst> nlTask = new ProcLink<lst>(next);                
+                    Interval<?> nlInter = interval end nlTask (nlTask.link.lock);
+                }
+            }
+            
+            class ProcList
+            """,
+            List(
+            )
+        )
+    }
     
     @Test 
     def classDisjointGhosts() {

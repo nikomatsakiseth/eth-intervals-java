@@ -76,6 +76,7 @@ class IrParser extends StandardTokenParsers {
         lvdecl~"="~expr~";"                     ^^ { case vd~_~ex~_ => ir.StmtVarDecl(vd, ex) }
     |   p~"->"~f~"="~p~";"                      ^^ { case p~_~f~_~q~_ => ir.StmtAssignField(p, f, q) }
     |   "add"~p~"->"~p~";"                      ^^ { case _~p~_~q~_ => ir.StmtAddHb(p, q) }
+    |   "schedule"~"("~")"~";"                  ^^ { case _ => ir.StmtSchedule() }
     )
     
     def interval = (

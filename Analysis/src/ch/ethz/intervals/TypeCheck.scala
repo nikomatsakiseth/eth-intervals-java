@@ -494,6 +494,13 @@ class TypeCheck(log: Log, prog: Prog) {
             val e_m = effect(p_t, ir.m_run, List(ir.p_new))
             val e_l = ir.EffectLock(ps_g, e_m)
             val e_i = ir.EffectInterval(ir.startEnd(ir.p_new), e_l)
+            
+            val start = ir.p_new + ir.f_start
+            val end = ir.p_new + ir.f_end
+            addHb(ir.p_schedule, start)
+            addHb(start, end)
+            addHb(end, p_b)
+            
             (ir.TypeRef(ir.c_interval, List(p_b), List()), e_i)
             
         case ir.ExprNewGuard(p) =>
@@ -505,7 +512,7 @@ class TypeCheck(log: Log, prog: Prog) {
             (ir.t_void, ir.EffectNone)
             
     }
-    
+                    
     def statement(stmt: ir.Stmt): ir.Effect = 
         at[ir.Effect](stmt, ir.EffectNone) {
             stmt match {        
@@ -534,7 +541,10 @@ class TypeCheck(log: Log, prog: Prog) {
                     checkIsSubtype(wt_path(p), ir.wt_point)
                     checkIsSubtype(wt_path(q), ir.wt_point)
                     addHb(p, q)
-                    ir.EffectNone            
+                    ir.EffectNone
+                    
+                case ir.StmtSchedule() =>
+                    
             }
         } 
         
