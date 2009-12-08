@@ -317,6 +317,8 @@ object Util {
     as.forall(a => bs.forall(b => f(a,b)))
   def foreachzip[A,B](as: List[A], bs: List[B])(f: Function2[A, B, Unit]) =
     as.zip(bs).foreach(p => f(p._1, p._2))
+  def foreachcross[A,B](as: List[A], bs: List[B])(f: Function2[A, B, Unit]) =
+    as.foreach(a => bs.foreach(b => f(a, b)))
     
   def intersect[A](sets: Iterable[Set[A]]): Set[A] = {
     val iter = sets.elements

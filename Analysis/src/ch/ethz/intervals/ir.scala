@@ -18,9 +18,6 @@ object ir {
     ex -> expressions
     */
     
-    sealed abstract class Modifier
-    case object Final extends Modifier
-    
     sealed abstract class Name(name: String) {
         override def toString = name
     }
@@ -51,46 +48,49 @@ object ir {
     sealed case class ClassDecl(
         name: ClassName,
         ghosts: List[GhostFieldDecl],
-        disjoints: List[DisjointDecl],
         superType: Option[TypeRef],
+        ctor: MethodDecl,
         fields: List[RealFieldDecl],
         methods: List[MethodDecl]
     ) extends Locatable {
         def allFields = ghosts ++ fields
         
         override def toString =
-            "class %s<%s>%s extends %s".format(
-                name, ", ".join(ghosts), ",".join(" ", disjoints), superType)
+            "class %s<%s> extends %s".format(
+                name, ", ".join(ghosts), superType)
     }
     
     sealed case class MethodDecl(
         wt_ret: WcTypeRef,
         name: MethodName,
         args: List[LvDecl],
-        disjoints: List[DisjointDecl],
-        e: Effect,
+        reqs: List[Req],
         stmts: List[Stmt],
         ex_ret: Expr
     ) extends Locatable {
-        def msig = at(MethodSig(e, args, disjoints, wt_ret), srcLoc)
+        def msig = at(MethodSig(args, reqs, wt_ret), srcLoc)
         
         override def toString =
-            "%s %s(%s) %s %s".format(wt_ret, name, ", ".join(args), ", ".join(disjoints), e)
+            "%s %s(%s)%s".format(
+                wt_ret, name, ", ".join(args), 
+                "".join(" ", reqs))
     }
     
     sealed case class MethodSig(
-        e: Effect,
         args: List[LvDecl],
-        disjoints: List[DisjointDecl],
+        reqs: List[Req],
         wt_ret: WcTypeRef
     ) extends Locatable {
-        override def toString = "(%s _(%s) %s)".format(wt_ret, ", ".join(args), e)
+        override def toString = "(%s _(%s) %s)".format(
+            wt_ret, ", ".join(args), "".join("requires ", reqs))
     }
     
-    sealed case class DisjointDecl(
-        ps: List[ir.Path]
-    ) {
-        override def toString = " # ".join(ps)
+    sealed case class HbDecl(p: ir.Path, q: ir.Path) extends Locatable {
+        override def toString = "%s hb %s".format(p, q)
+    }
+    
+    sealed case class LockDecl(p: ir.Path) extends Locatable {
+        override def toString = "locks %s".format(p)
     }
     
     sealed case class LvDecl(
@@ -120,16 +120,15 @@ object ir {
     }
     
     sealed case class RealFieldDecl(
-        mods: List[Modifier],
         wt: WcTypeRef,
         name: FieldName,
         guard: Path
     ) extends FieldDecl {
-        def isFinal = mods.contains(Final)
+        def isFinal = (guard == p_readOnly)
         def isGhost = false
         
         override def toString = 
-            "%s%s %s guardedBy %s".format(" ".join("", mods, " "), wt, name, guard)
+            "%s %s guardedBy %s".format(wt, name, guard)
     }
     
     sealed abstract class Stmt extends Locatable
@@ -139,11 +138,11 @@ object ir {
     sealed case class StmtAssignField(p: Path, f: FieldName, q: Path) extends Stmt {
         override def toString = "%s->%s = %s;".format(p, f, q)
     }
-    sealed case class StmtAddHb(p: Path, q: Path) extends Stmt {
-        override def toString = "add %s->%s;".format(p, q)        
+    sealed case class StmtHb(p: Path, q: Path) extends Stmt {
+        override def toString = "%s hb %s;".format(p, q)        
     }
-    sealed case class StmtSchedule() extends Stmt {
-        override def toString = "schedule();"
+    sealed case class StmtLocks(p: Path, q: Path) extends Stmt {
+        override def toString = "%s locks %s;".format(p, q)        
     }
     
     sealed abstract class Expr 
@@ -156,35 +155,38 @@ object ir {
     sealed case class ExprNew(t: TypeRef, qs: List[Path]) extends Expr {
         override def toString = "new %s(%s)".format(t, ", ".join(qs))
     }
-    sealed case class ExprNewInterval(bound: Path, task: Path, guards: List[Path]) extends Expr {
-        override def toString = "interval %s %s (%s)".format(bound, task, ", ".join(guards))
-    }
-    sealed case class ExprNewGuard(p: Path) extends Expr {
-        override def toString = "guard %s".format(p)
-    }
     case object ExprNull extends Expr {
         override def toString = "null"
     }
     
     sealed case class WcTypeRef(
         c: ClassName,
-        wpaths: List[WcPath],
-        overs: List[Over]
+        wpaths: List[WcPath]
     ) {
-        override def toString = "%s<%s>%s".format(c, ", ".join(wpaths), "".join(overs))
+        override def toString = "%s<%s>".format(c, ", ".join(wpaths))
     }
     
     sealed case class TypeRef(
         override val c: ClassName,
-        paths: List[Path],
-        override val overs: List[Over]
-    ) extends WcTypeRef(c, paths, overs)
+        paths: List[Path]
+    ) extends WcTypeRef(c, paths)
     
     sealed abstract class WcPath
-    case object WcUnkPath extends WcPath {
-        override def toString = "?"
+    sealed case class WcHb(ps: List[Path], qs: List[Path]) extends WcPath {
+        override def toString = {
+            (ps match { case List() => ""; case _ => ", ".join(ps) + " " }) +
+            "hb" + 
+            (qs match { case List() => ""; case _ => " " + ", ".join(qs) })
+        }
     }
-    
+    sealed case class WcHbEq(ps: List[Path], qs: List[Path]) extends WcPath {
+        override def toString = {
+            (ps match { case List() => ""; case _ => ", ".join(ps) + " " }) +
+            "hbeq" + 
+            (qs match { case List() => ""; case _ => " " + ", ".join(qs) })
+        }
+    }
+        
     sealed case class Path(
         lv: VarName, rev_fs: List[FieldName] // Fields stored in reverse order!
     ) extends WcPath {
@@ -195,65 +197,24 @@ object ir {
         override def toString = lv.name + ".".join(".", fs)
     }
     
-    sealed case class Over(
-        m: MethodName,
-        args: List[VarName],
-        e: Effect
-    ) {
-        override def toString = "[%s(%s)=%s]".format(m, ", ".join(args), e)
+    sealed abstract class Req
+    sealed case class ReqHb(ps: List[Path], qs: List[Path]) extends Req {
+        override def toString = "%s hb %s".format(", ".join(ps), ", ".join(qs))
+    }
+    sealed case class ReqHbEq(ps: List[Path], qs: List[Path]) extends Req {
+        override def toString = "%s hbeq %s".format(", ".join(ps), ", ".join(qs))
+    }
+    sealed case class ReqEq(p: Path, q: Path) extends Req {
+        override def toString = "%s == %s".format(p, q)
+    }
+    sealed case class ReqLocks(p: Path, qs: List[Path]) extends Req {
+        override def toString = "%s locks %s".format(p, ", ".join(qs))
     }
     
-    sealed abstract class Effect
-    sealed case class EffectInterval(i: Interval, e: ir.Effect) extends Effect {
-        override def toString = "%s:%s".format(i, e)
-    }
-    sealed case class EffectLock(ps: List[Path], e: ir.Effect) extends Effect {
-        override def toString = "(%s)/%s".format(", ".join(ps), e)
-    }
-    sealed case class EffectMethod(p: Path, m: MethodName, qs: List[Path]) extends Effect {
-        override def toString = "%s->%s(%s)".format(p, m, ", ".join(qs))
-    }
-    sealed case class EffectFixed(k: ActionKind, p: Path) extends Effect {
-        override def toString = "%s(%s)".format(k, p)
-    }
-    sealed case class EffectUnion(es: List[ir.Effect]) extends Effect {
-        override def toString = ", ".join("(", es, ")")
-    }
-    case object EffectNone extends Effect {
-        override def toString = "0"
-    }
-    case object EffectAny extends Effect {
-        override def toString = "?"
-    }
-
-    /// Unions two effects.  Avoid "stupid" final effects like
-    /// union with the empty set, etc.
-    def union(e_0: ir.Effect, e_1: ir.Effect) = (e_0, e_1) match {
-        case (ir.EffectNone, e) => e
-        case (e, ir.EffectNone) => e
-        
-        case (ir.EffectAny, _) => ir.EffectAny
-        case (_, ir.EffectAny) => ir.EffectAny
-        
-        case (ir.EffectUnion(es_0), ir.EffectUnion(es_1)) => ir.EffectUnion(es_0 ++ es_1)
-        case (ir.EffectUnion(es), e) => ir.EffectUnion(e :: es)
-        case (e, ir.EffectUnion(es)) => ir.EffectUnion(e :: es)
-        
-        case _ => ir.EffectUnion(List(e_0, e_1))
-    }
-    
-    /// Bounds a point r: ∀p∈ps.p→r, ∀q∈qs.r→q
-    sealed case class Interval(ps: List[Path], qs: List[Path]) {
-        override def toString = 
-            "(%s-%s)".format(" ".join(ps), " ".join(qs))
-    }
-    
-    sealed abstract class ActionKind
-    case object Rd extends ActionKind
-    case object Wr extends ActionKind
-    
-    sealed class Graph(
-        hbs: Util.MultiMap[Path, Path]
+    sealed class Relation(
+        rels: Util.MultiMap[Path, Path],
+        transitive: Boolean,
+        reflexive: Boolean
     ) {
         private var cachedTc: Option[Util.MultiMap[Path, Path]] = 
             None        
@@ -261,26 +222,48 @@ object ir {
             cachedTc match {
                 case Some(t) => t
                 case None =>
-                    val t = Util.transitiveClosure(hbs)
+                    val t = Util.transitiveClosure(rels)
                     cachedTc = Some(t)
                     t
             }
         }
         
         def +(p: Path, q: Path) =
-            new Graph(hbs + Pair(p, q))
+            new Relation(rels + Pair(p, q), transitive, reflexive)
+            
+        def apply(p: Path): Set[Path] = {
+            val base =
+                if(transitive)
+                    tc(p)
+                else
+                    rels(p)
+            if(reflexive)
+                base + p
+            else
+                base
+        }
         
         def contains(p: Path, q: Path) =
-            tc.contains(p, q)
+            if(reflexive && p == q)
+                true
+            else if(transitive)
+                tc.contains(p, q)
+            else
+                rels.contains(p, q)
     }
-    object Graph {
-        val empty = new Graph(Util.MultiMap.empty[Path, Path])
+    object Relation {
+        private val emptyMap = Util.MultiMap.empty[Path, Path]
+        val empty = new Relation(emptyMap, false, false)
+        val emptyTrans = new Relation(emptyMap, true, false)
+        val emptyTransRefl = new Relation(emptyMap, true, false)
     }
     
     sealed case class TcEnv(
         lvs: Map[ir.VarName, ir.WcTypeRef],
-        min: Graph,
-        disjoints: MultiMap[ir.WcPath, ir.Path]
+        hb: Relation,
+        hbeq: Relation,
+        eq: Relation,
+        locks: Relation
     )
     
     case class IrError(msg: String, args: Any*) 
@@ -288,107 +271,156 @@ object ir {
         override def toString = "%s(%s)".format(msg, ", ".join(args.toList))
     }
     
+    val lv_this = ir.VarName("this")
     val lv_new = ir.VarName("new")
     val lv_end = ir.VarName("end")
-    val lv_this = ir.VarName("this")
-    val lv_locked = ir.VarName("locked")
+    val lv_root = ir.VarName("root")
+    val lv_ctor = ir.VarName("constructor")
+    val lv_mthd = ir.VarName("method")
+    val lv_cur = ir.VarName("current")
     val lv_readOnly = ir.VarName("readOnly")
     
     val p_this = lv_this.path
     val p_new = lv_new.path
-    
-    val p_schedule = ir.VarName("schedule").path
-    val p_current = ir.VarName("current").path
-    val p_root = ir.VarName("root").path
-
-    val p_locked = lv_locked.path
+    val p_root = lv_root.path
+    val p_ctor = lv_ctor.path
+    val p_mthd = lv_mthd.path
+    val p_cur = lv_cur.path
     val p_readOnly = lv_readOnly.path
-    
+
+    val f_creator = ir.FieldName("creator")    
     val f_start = ir.FieldName("start")
     val f_end = ir.FieldName("end")
     
+    val m_ctor = ir.MethodName("constructor")
+    val m_toString = ir.MethodName("toString")
     val m_run = ir.MethodName("run")
     
     val c_object = ir.ClassName("Object")
     val c_void = ir.ClassName("Void")
     val c_interval = ir.ClassName("Interval")
     val c_point = ir.ClassName("Point")
-    val c_guard = ir.ClassName("Guard")    
-    val c_task = ir.ClassName("Task")
+    val c_lock = ir.ClassName("Lock")    
+    val c_string = ir.ClassName("String")
     
-    val t_object = ir.TypeRef(c_object, List(), List())
-    val t_void = ir.TypeRef(c_void, List(), List())
-    val wt_interval = ir.WcTypeRef(c_interval, List(ir.WcUnkPath), List())
-    val wt_point = ir.WcTypeRef(c_point, List(ir.WcUnkPath), List())
-    val wt_guard = ir.WcTypeRef(c_guard, List(ir.WcUnkPath), List())
-    val wt_task = ir.WcTypeRef(c_task, List(), List(ir.Over(m_run, List(lv_end), ir.EffectAny)))
+    val t_void = ir.TypeRef(c_void, List())
+    val t_string = ir.TypeRef(c_void, List())
+    val t_interval = ir.TypeRef(c_interval, List())
+    val t_point = ir.TypeRef(c_point, List())
+    val t_lock = ir.TypeRef(c_lock, List())
     
-    /// Returns an interval p.start -> p.end
-    def startEnd(p: ir.Path): ir.Interval =
-        Interval(List(p + f_start), List(p + f_end))
-            
+    val gfd_creator = GhostFieldDecl(f_creator, t_interval)
+    val t_objectCreator = ir.TypeRef(c_object, List(gfd_creator.thisPath))
+    val t_objectReadOnly = ir.TypeRef(c_object, List(p_readOnly))
+    
     val cds_default = List(
         ClassDecl(
-            /* Name:    */ c_object,
-            /* Ghosts:  */ List(),
-            /* Disj.:   */ List(),
-            /* Extends: */ None,
-            /* Fields:  */ List(),
-            /* Methods: */ List()
+            /* Name:    */  c_object,
+            /* Ghosts:  */  List(gfd_creator),
+            /* Extends: */  None,
+            /* Ctor:    */  MethodDecl(
+                    /* wt_ret: */ t_void, 
+                    /* name:   */ m_ctor, 
+                    /* args:   */ List(),
+                    /* reqs:   */ List(),
+                    /* stmts:  */ List(),
+                    /* ex_ret: */ ir.ExprNull
+                    ),
+            /* Fields:  */  List(),
+            /* Methods: */  List(
+                MethodDecl(
+                    /* wt_ret: */ t_void, 
+                    /* name:   */ m_toString, 
+                    /* args:   */ List(),
+                    /* reqs:   */ List(ir.ReqHbEq(List(p_cur), List(gfd_creator.thisPath))),
+                    /* stmts:  */ List(),
+                    /* ex_ret: */ ir.ExprNull
+                    ))                
         ),
         ClassDecl(
-            /* Name:    */ c_void,
-            /* Ghosts:  */ List(),
-            /* Disj.:   */ List(),
-            /* Extends: */ Some(t_object),
-            /* Fields:  */ List(),
-            /* Methods: */ List()
+            /* Name:    */  c_void,
+            /* Ghosts:  */  List(),
+            /* Extends: */  Some(t_objectReadOnly),
+            /* Ctor:    */  MethodDecl(
+                    /* wt_ret: */ t_void, 
+                    /* name:   */ m_ctor, 
+                    /* args:   */ List(),
+                    /* reqs:   */ List(),
+                    /* stmts:  */ List(),
+                    /* ex_ret: */ ir.ExprNull
+                    ),
+            /* Fields:  */  List(),
+            /* Methods: */  List()
         ),
         ClassDecl(
-            /* Name:    */ c_interval,
-            /* Ghosts:  */ List(
-                GhostFieldDecl(FieldName("bound"), wt_point)),
-            /* Disj.:   */ List(),
-            /* Extends: */ Some(t_object),
-            /* Fields:  */ List(
-                RealFieldDecl(List(Final), wt_point, f_start, p_readOnly), // XXX bound
-                RealFieldDecl(List(Final), wt_point, f_end, p_readOnly)),  // XXX bound
-            /* Methods: */ List()
+            /* Name:    */  c_string,
+            /* Ghosts:  */  List(),
+            /* Extends: */  Some(t_objectReadOnly),
+            /* Ctor:    */  MethodDecl(
+                    /* wt_ret: */ t_void, 
+                    /* name:   */ m_ctor, 
+                    /* args:   */ List(),
+                    /* reqs:   */ List(),
+                    /* stmts:  */ List(),
+                    /* ex_ret: */ ir.ExprNull
+                    ),
+            /* Fields:  */  List(),
+            /* Methods: */  List()
         ),
         ClassDecl(
-            /* Name:    */ c_task,
-            /* Ghosts:  */ List(),
-            /* Disj.:   */ List(),
-            /* Extends: */ Some(t_object),
-            /* Fields:  */ List(),
-            /* Methods: */ List(
+            /* Name:    */  c_interval,
+            /* Ghosts:  */  List(),
+            /* Extends: */  Some(t_objectReadOnly),
+            /* Ctor:    */  MethodDecl(
+                    /* wt_ret: */ t_void, 
+                    /* name:   */ m_ctor, 
+                    /* args:   */ List(),
+                    /* reqs:   */ List(),
+                    /* stmts:  */ List(),
+                    /* ex_ret: */ ir.ExprNull
+                    ),
+            /* Fields:  */  List(
+                RealFieldDecl(t_point, f_start, p_readOnly),
+                RealFieldDecl(t_point, f_end, p_readOnly)),
+            /* Methods: */  List(
                 MethodDecl(
                     /* wt_ret: */ t_void, 
                     /* name:   */ m_run, 
-                    /* args:   */ List(ir.LvDecl(lv_end, wt_point)),
-                    /* disj.:  */ List(),
-                    /* effect: */ ir.EffectAny,
+                    /* args:   */ List(),
+                    /* reqs:   */ List(ir.ReqEq(p_cur, p_this)),
                     /* stmts:  */ List(),
                     /* ex_ret: */ ir.ExprNull
-                    ))
+                    ))                
         ),
         ClassDecl(
-            /* Name:    */ c_point,
-            /* Ghosts:  */ List(
-                GhostFieldDecl(FieldName("bound"), wt_point)),
-            /* Disj.:   */ List(),
-            /* Extends: */ Some(t_object),
-            /* Fields:  */ List(),
-            /* Methods: */ List()
+            /* Name:    */  c_point,
+            /* Ghosts:  */  List(),
+            /* Extends: */  Some(t_objectReadOnly),
+            /* Ctor:    */  MethodDecl(
+                    /* wt_ret: */ t_void, 
+                    /* name:   */ m_ctor, 
+                    /* args:   */ List(),
+                    /* reqs:   */ List(),
+                    /* stmts:  */ List(),
+                    /* ex_ret: */ ir.ExprNull
+                    ),
+            /* Fields:  */  List(),
+            /* Methods: */  List()
         ),
         ClassDecl(
-            /* Name:    */ c_guard,
-            /* Ghosts:  */ List(
-                GhostFieldDecl(FieldName("parent"), wt_guard)),
-            /* Disj.:   */ List(),
-            /* Extends: */ Some(t_object),
-            /* Fields:  */ List(),
-            /* Methods: */ List()
+            /* Name:    */  c_lock,
+            /* Ghosts:  */  List(),
+            /* Extends: */  Some(t_objectReadOnly),
+            /* Ctor:    */  MethodDecl(
+                    /* wt_ret: */ t_void, 
+                    /* name:   */ m_ctor, 
+                    /* args:   */ List(),
+                    /* reqs:   */ List(),
+                    /* stmts:  */ List(),
+                    /* ex_ret: */ ir.ExprNull
+                    ),
+            /* Fields:  */  List(),
+            /* Methods: */  List()
         )
     )
    

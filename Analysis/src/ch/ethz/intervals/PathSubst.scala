@@ -4,9 +4,6 @@ import scala.collection.immutable.Map
 
 class PathSubst(m: Map[ir.Path, ir.Path]) extends BaseSubst {
     
-    def without(lvs: List[ir.VarName]) =
-        new PathSubst(m -- lvs.map(_.path))
-    
     def path(p: ir.Path): ir.Path =
         (m.get(p), p) match {
             case (Some(q), _) => q

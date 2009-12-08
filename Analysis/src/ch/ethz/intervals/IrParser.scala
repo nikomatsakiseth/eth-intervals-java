@@ -8,11 +8,12 @@ class IrParser extends StandardTokenParsers {
     lexical.delimiters += (
         "{", "}", "[", "]", "(", ")", "<", ">",
         ",", "@", "?", ":", ".", ";", "=", "->", 
-        "#", "<=", "&&", "`"
+        "#", "<=", "&&", "`", "=="
     )
     lexical.reserved += (
-        "class", "new", "interval", "guard", "null", "add", 
-        "return", "Rd", "Wr", "Free", "extends", "final", "guardedBy"
+        "class", "new", "constructor", "null", 
+        "return", "Rd", "Wr", "Free", "extends", "guardedBy", 
+        "hb", "hbeq", "requires"
     )
 
     def parse[A](p: Parser[A])(text: String) = {
@@ -41,30 +42,25 @@ class IrParser extends StandardTokenParsers {
     def p = lv~rep(dotf)                        ^^ { case lv~fs => lv ++ fs }
     
     def wp = (
-        "?"                                     ^^ { case _ => ir.WcUnkPath }
+        comma(p)~"hb"~comma(p)                  ^^ { case ps~_~qs => ir.WcHb(ps, qs) }
+    |   comma(p)~"hbeq"~comma(p)                ^^ { case ps~_~qs => ir.WcHbEq(ps, qs) }
     |   p
     )
     
-    def over = (
-        "["~m~"("~comma(lv)~")"~"="~eff~"]"     ^^ { case _~m~_~lvs~_~_~e~_ => ir.Over(m, lvs, e) }
-    )
-    
     def wt = (
-        c~"<"~comma(wp)~">"~rep(over)           ^^ { case c~_~wps~_~overs => ir.WcTypeRef(c, wps, overs) }
-    |   c~rep(over)                             ^^ { case c~overs => ir.WcTypeRef(c, List(), overs) }
+        c~"<"~comma(wp)~">"                     ^^ { case c~_~wps~_ => ir.WcTypeRef(c, wps) }
+    |   c                                       ^^ { case c => ir.WcTypeRef(c, List()) }
     )
     
     def t = (
-        c~"<"~comma(p)~">"~rep(over)            ^^ { case c~_~ps~_~overs => ir.TypeRef(c, ps, overs) }
-    |   c~rep(over)                             ^^ { case c~overs => ir.TypeRef(c, List(), overs) }
+        c~"<"~comma(p)~">"                      ^^ { case c~_~ps~_ => ir.TypeRef(c, ps) }
+    |   c                                       ^^ { case c => ir.TypeRef(c, List()) }
     )
     
     def expr = (
         p~"->"~m~"("~comma(p)~")"               ^^ { case p~"->"~m~"("~qs~")" => ir.ExprCall(p, m, qs) }
     |   p~"->"~f                                ^^ { case p~"->"~f => ir.ExprField(p, f) }
     |   "new"~t~"("~comma(p)~")"                ^^ { case _~t~"("~qs~")" => ir.ExprNew(t, qs) }
-    |   "interval"~p~p~"("~comma(p)~")"         ^^ { case _~b~t~_~gs~_ => ir.ExprNewInterval(b, t, gs) }
-    |   "guard"~p                               ^^ { case _~g => ir.ExprNewGuard(g) }    
     |   "null"                                  ^^ { case _ => ir.ExprNull }
     )
     
@@ -75,71 +71,57 @@ class IrParser extends StandardTokenParsers {
     def stmt = (
         lvdecl~"="~expr~";"                     ^^ { case vd~_~ex~_ => ir.StmtVarDecl(vd, ex) }
     |   p~"->"~f~"="~p~";"                      ^^ { case p~_~f~_~q~_ => ir.StmtAssignField(p, f, q) }
-    |   "add"~p~"->"~p~";"                      ^^ { case _~p~_~q~_ => ir.StmtAddHb(p, q) }
-    |   "schedule"~"("~")"~";"                  ^^ { case _ => ir.StmtSchedule() }
+    |   p~"hb"~p~";"                            ^^ { case p~_~q~_ => ir.StmtHb(p, q) }
+    |   p~"locks"~p~";"                         ^^ { case p~_~q~_ => ir.StmtLocks(p, q) }
     )
     
-    def interval = (
-        p                                       ^^ { case i => ir.startEnd(i) }
-    |   "("~rep(p)~"->"~rep(p)~")"              ^^ { case _~ps~_~qs~_ => ir.Interval(ps, qs) }
+    def req = (
+        "requires"~comma(p)~"hb"~comma(p)~";"   ^^ { case _~ps~_~qs~_ => ir.ReqHb(ps, qs) }
+    |   "requires"~comma(p)~"hbeq"~comma(p)~";" ^^ { case _~ps~_~qs~_ => ir.ReqHbEq(ps, qs) }
+    |   "requires"~p~"=="~p~";"                 ^^ { case _~p~_~q~_ => ir.ReqEq(p, q) }
+    |   "requires"~p~"locks"~comma(p)~";"       ^^ { case _~ps~_~qs~_ => ir.ReqLocks(ps, qs) }
     )
     
-    def guards = (
-        p                                       ^^ { case p => List(p) }
-    |   "("~comma(p)~")"                        ^^ { case _~ps~_ => ps }
-    )
+    def reqs = rep(req)
     
-    def eff0: Parser[ir.Effect] = (
-        "("~eff~")"                             ^^ { case _~e~_ => e }
-    |   interval~":"~eff0                       ^^ { case i~_~e => ir.EffectInterval(i, e) }
-    |   guards~"/"~eff0                         ^^ { case gs~_~e => ir.EffectLock(gs, e) }
-    |   p~"->"~m~"("~comma(p)~")"               ^^ { case p~"->"~m~"("~qs~")" => ir.EffectMethod(p, m, qs) }
-    |   "Rd"~"("~p~")"                          ^^ { case _~_~p~_ => ir.EffectFixed(ir.Rd, p) }
-    |   "Wr"~"("~p~")"                          ^^ { case _~_~p~_ => ir.EffectFixed(ir.Wr, p) }
-    |   "0"                                     ^^ { case _ => ir.EffectNone }
-    |   "?"                                     ^^ { case _ => ir.EffectAny }
-    )
-    
-    def eff = (
-        comma(eff0)                             ^^ { case List(e) => e
-                                                     case List() => ir.EffectNone
-                                                     case es => ir.EffectUnion(es) }
-    )
-    
-    def disjoint = repsep(p, "#")               ^^ { case ps => ir.DisjointDecl(ps) }
-
     def methodDecl = (
-        wt~m~"("~comma(lvdecl)~")"~comma(disjoint)~eff~"{"~
+        wt~m~"("~comma(lvdecl)~")"~reqs~"{"~
             rep(stmt)~
             "return"~expr~";"~
         "}"
     ) ^^ {
-        case wt_ret~name~_~args~_~disj~e~_~stmts~_~ex_ret~_~_ =>
-            ir.MethodDecl(wt_ret, name, args, disj, e, stmts, ex_ret)
+        case wt_ret~name~"("~args~")"~reqs~"{"~stmts~"return"~ex_ret~";"~"}" =>
+            ir.MethodDecl(wt_ret, name, args, reqs, stmts, ex_ret)
     }
     
-    def mod = (
-        "final"                                 ^^ { case _ => ir.Final }
-    )
+    def constructor = (
+        "constructor"~"("~comma(lvdecl)~")"~reqs~"{"~
+            rep(stmt)~
+        "}"
+    ) ^^ {
+        case "constructor"~"("~args~")"~reqs~"{"~stmts~"}" =>
+            ir.MethodDecl(ir.t_void, ir.m_ctor, args, reqs, stmts, ir.ExprNull)        
+    }
     
     def ghostFieldDecl = (
         wt~f                                    ^^ { case wt~f => ir.GhostFieldDecl(f, wt) }
     )
 
     def realFieldDecl = (
-        rep(mod)~wt~f~"guardedBy"~p~";"         ^^ { case mods~wt~f~_~p~_ => ir.RealFieldDecl(mods, wt, f, p) }
+        wt~f~"guardedBy"~p~";"                  ^^ { case wt~f~_~p~_ => ir.RealFieldDecl(wt, f, p) }
     )
     
     def classDecl = (
         "class"~c~"<"~
             comma(ghostFieldDecl)~
-        ">"~comma(disjoint)~"extends"~t~"{"~
+        ">"~"extends"~t~"{"~
             rep(realFieldDecl)~
+            constructor~
             rep(methodDecl)~
         "}"
     ) ^^ {
-        case _~name~"<"~ghosts~">"~disjoints~"extends"~superType~_~fields~methods~_ =>
-            ir.ClassDecl(name, ghosts, disjoints, Some(superType), fields, methods)
+        case _~name~"<"~ghosts~">"~"extends"~superType~"{"~fields~ctor~methods~"}" =>
+            ir.ClassDecl(name, ghosts, Some(superType), ctor, fields, methods)
     }
     
     def classDecls = rep(classDecl)

@@ -82,10 +82,201 @@ class TestAnalysis extends JUnitSuite {
     def bbpc() {
         tc(
             """
-            class ProdData<Guard<?> g> extends Object {
-                
+            class Data<Interval p> extends Object<this.p> {
+                Object<this.p> o guardedBy this.p;
             }
             
+            class Producer extends Interval {
+                Consumer c guardedBy constructor;
+                             
+                Producer nextProd guardedBy this;
+                Data<this> data guardedBy this;
+                
+                Producer(Consumer c)
+                {
+                    this->c = c;
+                    
+                    this.c hb start;
+                }
+
+                Void run()
+                requires current == this
+                {
+                    this->data = new Data<this>(); // "produce"
+                    this->o = new Object<this>();  // "produce"
+                    
+                    Interval nextCons = c->nextCons;                    
+                    Interval nextProd = new Producer(nextCons);
+                    this->nextProd = nextProd;
+                    
+                    return null;
+                }
+            }
+            
+            class Consumer extends Interval {
+                Consumer nextCons guardedBy this;
+            }
+            
+            class DummyConsumer<Interval init> extends Consumer 
+            {
+                Consumer c guardedBy this.init;
+                
+                DummyConsumer() 
+                requires this.init hb this 
+                {                    
+                }
+                
+                Void run()
+                {
+                    nextCons = c;
+                }
+            }
+
+            class RealConsumer extends Consumer {
+                Producer p guardedBy constructor;
+                
+                Consumer(Producer p)
+                {
+                    this->p = p;
+                    
+                    this.p hb start;
+                }
+
+                Void run()
+                requires current == this
+                {
+                    Data<hb current> data = p->data; // "consume" 
+                    Object<hb current> o = data->o;  // "consume"
+                    
+                    Interval nextProd = p->nextProd;
+                    Interval nextCons = new Consumer(nextProd);
+                    this->nextCons = nextCons;
+                    
+                    return null;
+                }
+            }
+            
+            class BBPC extends Interval {
+                Void run()
+                requires current == this
+                {
+                    DummyConsumer<this> d0 = new DummyConsumer<this>();
+                    Producer p = new Producer(d0);
+
+                    DummyConsumer<this> d1 = new DummyConsumer<this>();                    
+                    d0->c = d1;
+
+                    Consumer c = new Consumer(p);
+                    d1->c = c;                        
+                    
+                    return null;
+                }
+            }
+            
+            """,
+            List(
+            )
+        )
+    }  
+    
+    def bbpcData() {
+        tc(
+            """
+            class Data<Interval p> extends Object<this.p> {
+                Object<this.p> o guardedBy this.p;
+                constructor() {}
+            }
+            
+            class ProdData<Interval p> extends Object<this.p> {
+                Data<this.p> data guardedBy this.p;                              
+                Interval nextProd guardedBy this.p;
+                ProdData<this.nextProd> nextPdata guardedBy this.p;                
+                constructor() {}
+            }
+            
+            class ConsData<Interval c> extends Object<this.c> {
+                Interval nextCons guardedBy this.c;
+                ConsData<this.nextCons> nextCdata guardedBy this.c;
+                constructor() {}
+            }
+            
+            class Producer extends Interval {
+                ConsData<hb this> cdata guardedBy constructor;
+                ProdData<this> pdata guardedBy constructor;
+                
+                constructor(Interval c, ConsData<c> cdata)
+                {
+                    c.end hb this.start;
+                    this->cdata = cdata;
+                    ProdData<this> pdata = new ProdData<this>();
+                    this->pdata = pdata;
+                }
+
+                Void run()
+                requires current == this
+                {
+                    ProdData<this> pdata = this->pdata;
+                    
+                    Data<this> data = new Data<this>(); // "produce"
+                    pdata->data = data;
+                    
+                    // Note: Non-trivial deduction here that equates
+                    // nextCons with cdata.nextCons!
+                    Interval nextCons = cdata->nextCons;
+                    ConsData<nextCons> nextCdata = cdata->nextCdata;                    
+                    
+                    Interval nextProd = new Producer(nextCons, nextCdata);
+                    this->nextProd = nextProd;
+                    
+                    return null;
+                }
+            }
+            
+            class Consumer extends Consumer {
+                ProdData<hb this> pdata guardedBy constructor;
+                ConsData<this> cdata guardedBy constructor;
+                
+                constructor(Interval p, ProdData<p> pdata)
+                {
+                    p.end hb this.start;
+                    this->pdata = pdata;
+                    ConsData<this> cdata = new ConsData<this>();
+                    this->cdata = cdata;
+                }
+
+                Void run()
+                requires current == this
+                {
+                    Data<hb this> data = pdata->data; // "consume" 
+                    
+                    Interval nextProd = pdata->nextProd;
+                    ProdData<nextProd> nextPdata = pdata->nextPdata;
+                    
+                    Interval nextCons = new Consumer(nextProd, nextPdata);
+                    cdata->nextCons = nextCons;
+                    return null;
+                }
+            }
+            
+            class BBPC extends Interval {
+                Void run()
+                requires current == this
+                {
+                    ConsumerData<this> d0 = new ConsumerData<this>();
+                    ConsumerData<this> d1 = new ConsumerData<this>();                    
+                    d0->nextCons = this;
+                    d0->nextCdata = d1;
+                    
+                    Producer p = new Producer(this, d0);                    
+                    ProdData<p> pdata = p->pdata;
+                    
+                    Consumer c = new Consumer(p, pdata);
+                    d1->nextCons = c; 
+                    ConsData<c> cdata = c->cdata;
+                    d1->nextCdata = cdata;                    
+                    return null;
+                }
+            }
             
             """,
             List(
@@ -123,105 +314,6 @@ class TestAnalysis extends JUnitSuite {
             class ProcList
             """,
             List(
-            )
-        )
-    }
-    
-    @Test 
-    def classDisjointGhosts() {
-        tc(
-            """
-            class Foo<Guard<?> g, Guard<?> h> 
-                this.g # this.h 
-            extends Object 
-            {
-            }
-            class Bar<> extends Object {
-                Void run(Guard<?> a, Guard<?> b)
-                {
-                    Foo<?,?> f = new Foo<a, b>();
-                    return null;
-                }
-            }
-            """,
-            List(
-                ExpError("intervals.not.disjoint", List("a", "b"))
-            )
-        )
-    }
-
-    @Test 
-    def classDisjointFinal() {
-        tc(
-            """
-            class Foo<>
-                this.g # this.h 
-            extends Object 
-            {
-                final Guard<?> g guardedBy readOnly;
-                final Guard<?> h guardedBy readOnly;
-            }
-            class Bar<> extends Object {
-                Void run(Guard<?> a, Guard<?> b)
-                {
-                    Foo f = new Foo(a, b);
-                    return null;
-                }
-            }
-            """,
-            List(
-                ExpError("intervals.not.disjoint", List("a", "b"))
-            )
-        )
-    }
-    
-    @Test 
-    def classDisjointWf() {
-        tc(
-            """
-            class Foo<>
-                this.g # this.h 
-            extends Object 
-            {
-                final Guard<?> g guardedBy readOnly;
-                Guard<?> h guardedBy readOnly;
-            }
-            """,
-            List(
-                ExpError("intervals.not.final", List("this", "Foo<>", "h"))
-            )
-        )
-    }    
-    
-    @Test 
-    def mthdDisjointGhosts() {
-        tc(
-            """
-            class Foo<Guard<?> g, Guard<?> h> 
-            extends Object 
-            {
-                Void mthd() 
-                this.g # this.h // In order to invoke, g/h must be disjoint.
-                {
-                    return null;
-                }
-            }
-            class Bar<> extends Object {
-                Void one(Guard<?> a, Guard<?> b)
-                {
-                    Foo<a,b> f = new Foo<a,b>(); // ok to create...
-                    return null;
-                }
-                Void two(Guard<?> c, Guard<?> d)
-                {
-                    Foo<c,d> f = new Foo<c,d>(); 
-                    Void v = f->mthd(); // ...but not to call.
-                    return null;
-                }
-            }
-            """,
-            List(
-                ExpError("intervals.not.disjoint", List("c", "d"))
             )
         )
     }
