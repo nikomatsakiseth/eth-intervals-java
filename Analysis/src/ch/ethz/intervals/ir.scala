@@ -136,7 +136,7 @@ object ir {
         override def toString = "%s = %s->%s(%s)".format(vd, p, m, qs)        
     }
     sealed case class StmtGetField(vd: LvDecl, p: Path, f: FieldName) extends Stmt {
-        override def toString = "%s = %s->%s(%s)".format(vd, p, f)
+        override def toString = "%s = %s->%s".format(vd, p, f)
     }
     sealed case class StmtNew(vd: LvDecl, t: TypeRef, qs: List[Path]) extends Stmt {
         override def toString = "%s = new %s(%s);".format(vd, t, ", ".join(qs))
@@ -191,7 +191,15 @@ object ir {
         
         def start = this + f_start
         def end = this + f_end        
-        override def toString = lv.name + ".".join(".", fs)
+        override def toString = lv.name + "".join(".", fs)
+    }
+    
+    /// A TeePee is a typed path.
+    sealed case class TeePee(
+        t: ir.TypeRef, p: ir.Path
+    ) {
+        def thisSubst = PathSubst.vp(lv_this, p)
+        def thisSubst = PathSubst.vp(lv_this, p)
     }
     
     sealed abstract class Req
@@ -259,7 +267,7 @@ object ir {
     }
     
     sealed case class TcEnv(
-        lvs: Map[ir.VarName, (ir.WcTypeRef, ir.Path)],
+        lvs: Map[ir.VarName, ir.TeePee],
         hb: Relation,
         hbeq: Relation,
         locks: Relation        

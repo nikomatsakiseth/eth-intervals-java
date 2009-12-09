@@ -204,7 +204,7 @@ class TestAnalysis extends JUnitSuite {
                     ConsData<nextCons> nextCdata = cdata->nextCdata;                    
                     
                     Interval nextProd = new Producer(nextCons, nextCdata);
-                    this->nextProd = nextProd;
+                    pdata->nextProd = nextProd;
                 }
             }
             
