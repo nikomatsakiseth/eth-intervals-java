@@ -18,7 +18,8 @@ abstract class BaseSubst {
     def req(r: ir.Req) = r match {
         case ir.ReqHb(p, qs) => ir.ReqHb(path(p), qs.map(path))
         case ir.ReqHbEq(p, qs) => ir.ReqHbEq(path(p), qs.map(path))
-        case ir.ReqEq(p, q) => ir.ReqEq(path(p), path(q))
+        case ir.ReqEq(lv, q) => ir.ReqEqPath(path(lv.path), path(q))
+        case ir.ReqEqPath(p, q) => ir.ReqEqPath(path(p), path(q))
         case ir.ReqLocks(p, qs) => ir.ReqLocks(path(p), qs.map(path))
     }
         

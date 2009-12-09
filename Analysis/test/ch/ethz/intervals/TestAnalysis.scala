@@ -71,7 +71,6 @@ class TestAnalysis extends JUnitSuite {
                 Void addDependencies()
                 {
                     this.c hb start; 
-                    return null;                 
                 }
                 
                 Void run()
@@ -83,8 +82,6 @@ class TestAnalysis extends JUnitSuite {
                     Interval nextCons = c->nextCons;                    
                     Interval nextProd = new Producer(nextCons);
                     this->nextProd = nextProd;
-                    
-                    return null;
                 }
             }
             
@@ -106,8 +103,6 @@ class TestAnalysis extends JUnitSuite {
                 {
                     Consumer c = this->c;
                     this->nextCons = c;
-                    
-                    return null;
                 }
             }
 
@@ -122,7 +117,6 @@ class TestAnalysis extends JUnitSuite {
                 Void addDependencies()
                 {
                     this.p hb start;                    
-                    return null;                 
                 }
 
                 Void run()
@@ -134,8 +128,6 @@ class TestAnalysis extends JUnitSuite {
                     Interval nextProd = p->nextProd;
                     Interval nextCons = new Consumer(nextProd);
                     this->nextCons = nextCons;
-                    
-                    return null;
                 }
             }
             
@@ -153,8 +145,6 @@ class TestAnalysis extends JUnitSuite {
 
                     Consumer c = new Consumer(p);
                     d1->c = c;                        
-                    
-                    return null;
                 }
             }
             
@@ -215,8 +205,6 @@ class TestAnalysis extends JUnitSuite {
                     
                     Interval nextProd = new Producer(nextCons, nextCdata);
                     this->nextProd = nextProd;
-                    
-                    return null;
                 }
             }
             
@@ -245,7 +233,6 @@ class TestAnalysis extends JUnitSuite {
                     
                     Interval nextCons = new Consumer(nextProd, nextPdata);
                     cdata->nextCons = nextCons;
-                    return null;
                 }
             }
             
@@ -267,7 +254,6 @@ class TestAnalysis extends JUnitSuite {
                     d1->nextCons = c; 
                     ConsData<c> cdata = c->cdata;
                     d1->nextCdata = cdata;                    
-                    return null;
                 }
             }
             

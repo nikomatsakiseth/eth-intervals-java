@@ -14,10 +14,9 @@ class TypeCheck(log: Log, prog: Prog) {
     
     var env = ir.TcEnv(
         Map(
-            (ir.lv_cur, ir.t_interval)
+            (ir.lv_cur, (ir.t_interval, ir.lv_cur.path))
         ),
         ir.Relation.emptyTrans,
-        ir.Relation.emptyTransRefl,
         ir.Relation.emptyTransRefl,
         ir.Relation.empty
     )
@@ -29,106 +28,110 @@ class TypeCheck(log: Log, prog: Prog) {
         try { g } finally { env = oldEnv }
     }
     
-    def equivPaths(p: ir.Path): Set[ir.Path] = p match {
-        case ir.Path(lv, List()) => Set(p) ++ env.equiv(p)
-        case ir.Path(lv, f :: rev_fs) =>
-            equivPaths(ir.Path(lv, rev_fs)).map(_ + f) ++ env.equiv(p)
-    }
-    
-    def addLv(lv: ir.VarName, wt: ir.WcTypeRef) {
-        env.lvs.get(lv) match {
-            case None =>
-                env = ir.TcEnv(
-                    env.lvs + Pair(lv, wt), 
-                    env.hb,
-                    env.hbeq,
-                    env.equiv,
-                    env.locks)
-            case Some(_) =>
-                throw new ir.IrError("intervals.shadowed.variable", lv)
+    def addLv(lv: ir.VarName, wt: ir.WcTypeRef, p: ir.Path) = 
+        log.indented("addLv(%s,%s,%s)", lv, wt, p) {
+            val p1 = canon.path(p)
+            env.lvs.get(lv) match {
+                case None =>
+                    env = ir.TcEnv(
+                        env.lvs + Pair(lv, (wt, p1)), 
+                        env.hb,
+                        env.hbeq,
+                        env.locks)
+                case Some(_) =>
+                    throw new ir.IrError("intervals.shadowed.variable", lv)
+            }
         }
-    }
-
+        
+    def addEq(lv: ir.VarName, p: ir.Path) =
+        log.indented("addEq(%s,%s)", lv, p) {
+            val p1 = canon.path(p)
+            env.lvs.get(lv) match {
+                case None =>
+                    throw new ir.IrError("intervals.no.such.variable", lv)
+                case Some((wt, _)) =>
+                    env = ir.TcEnv(
+                        env.lvs + Pair(lv, (wt, p1)),
+                        env.hb,
+                        env.hbeq,
+                        env.locks)
+            }
+        }
+        
     def addHb(p: ir.Path, q: ir.Path) = log.indented("addHb(%s,%s)", p, q) {
+        val p1 = canon.path(p)
+        val q1 = canon.path(p)
         env = ir.TcEnv(
             env.lvs,
-            env.hb + (p, q),
-            env.hbeq + (p, q),
-            env.equiv,
+            env.hb + (p1, q1),
+            env.hbeq + (p1, q1),
             env.locks)
     }
 
     def addHbEq(p: ir.Path, q: ir.Path) = log.indented("addHbEq(%s,%s)", p, q) {
+        val p1 = canon.path(p)
+        val q1 = canon.path(p)
         env = ir.TcEnv(
             env.lvs,
             env.hb,
-            env.hbeq + (p, q),
-            env.equiv,
+            env.hbeq + (p1, q1),
             env.locks)
-    }
-    
-    def addEq(p: ir.Path, q: ir.Path) = log.indented("addEq(%s,%s)", p, q) {
-        env = ir.TcEnv(
-            env.lvs,
-            env.hb,
-            env.hbeq + (p, q) + (q, p),
-            env.equiv + (p, q) + (q, p),
-            env.locks)
-    }
-
-    /// Adds equivalencies for 'p' that result from ghost arguments.
-    /// For example, if p is obj.creator and obj has type Object<q>,
-    /// then we add an equivalence between obj.creator and q.
-    def addGhostEq(p: ir.Path): ir.WcTypeRef = log.indentedRes("addGhostEq(%s)", p) {
-        p match {
-            case ir.Path(lv, List()) => wt_lv(lv)
-            case ir.Path(lv, f :: rev_fs) =>
-                val p1 = ir.Path(lv, rev_fs)
-                val wt_p1 = addGhostEq(p1)
-                val cd = classDecl(wt_p1.c)
-                cd.ghosts.zip(wt_p1.wpaths).find(_._1.name == f) match {
-                    case Some((wt, wp_ghost)) =>
-                        val p_ghost = capPath(wp_ghost)
-                        addEq(p, p_ghost)
-                        log("Ghost field: %s maps to path: %s cap: %s", p, wp_ghost, p_ghost)
-                        wt
-                    case _ => 
-                        log("Not ghost field: %s", f)
-                }
-        }
     }
     
     def addLocks(p: ir.Path, q: ir.Path) = log.indented("addLocks(%s,%s)", p, q) {
-        log("addLocks(%s,%s)", p, q)
+        val p1 = canon.path(p)
+        val q1 = canon.path(p)
         env = ir.TcEnv(
             env.lvs,
             env.hb,
             env.hbeq,
-            env.equiv,
-            env.locks + (p, q))
+            env.locks + (p1, q1))
     }
     
     def addReq(req: ir.Req) = req match {
         case ir.ReqHb(p, qs) => qs.foreach(addHb(p, _))
         case ir.ReqHbEq(p, qs) => qs.foreach(addHbEq(p, _))
-        case ir.ReqEq(p, q) => addEq(p, q)
+        case ir.ReqEq(lv, p) => addEq(lv, p)
+        case ir.ReqEqPath(lv, p) => /* users can't enter these directly, can't add to env */
         case ir.ReqLocks(p, qs) => qs.foreach(addLocks(p, _))
     }
     
+    /// type of a local variable ref.
+    def wt_lv(lv: ir.VarName) =
+        env.lvs.get(lv) match {
+            case Some((wt, _)) => wt
+            case None => throw ir.IrError("intervals.no.such.variable", lv)
+        }
+    
+    /// equivalent path for a lv.
+    def p_lv(lv: ir.VarName) =
+        env.lvs.get(lv) match {
+            case Some((_, p)) => p
+            case None => throw ir.IrError("intervals.no.such.variable", lv)
+        }    
+        
     def hb(p: ir.Path, q: ir.Path) = log.indentedRes("%s hb %s?", p, q) {
-        existscross(equivPaths(p), equivPaths(q))(env.hb.contains)
+        val p1 = canon.path(p)
+        val q1 = canon.path(p)
+        env.hb.contains(p1, q1)
     }
     
     def hbeq(p: ir.Path, q: ir.Path) = log.indentedRes("%s hbeq %s?", p, q) {
-        existscross(equivPaths(p), equivPaths(q))(env.hbeq.contains)
+        val p1 = canon.path(p)
+        val q1 = canon.path(p)
+        env.hbeq.contains(p1, q1)
     }
     
     def eq(p: ir.Path, q: ir.Path) = log.indentedRes("%s eq %s?", p, q) {
-        existscross(equivPaths(p), equivPaths(q)) { _ == _ }
+        val p1 = canon.path(p)
+        val q1 = canon.path(p)
+        p1 == q1
     }
     
     def locks(p: ir.Path, q: ir.Path) = log.indentedRes("%s locks %s?", p, q) {
-        existscross(equivPaths(p), equivPaths(q))(env.locks.contains)
+        val p1 = canon.path(p)
+        val q1 = canon.path(p)
+        env.locks.contains(p1, q1)
     }
     
     // ______________________________________________________________________
@@ -151,7 +154,7 @@ class TypeCheck(log: Log, prog: Prog) {
     def capPath(wo: ir.WcPath) = {
         def cap(add: Function2[ir.Path, ir.Path, Unit], ps: List[ir.Path], qs: List[ir.Path]) = {
             val lv_cap = ir.VarName(fresh("Cap"))
-            addLv(lv_cap, ir.t_interval)
+            addLv(lv_cap, ir.t_interval, lv_cap.path)
             val p_cap = lv_cap.path
             ps.foreach(add(_, p_cap))
             qs.foreach(add(p_cap, _))
@@ -226,13 +229,6 @@ class TypeCheck(log: Log, prog: Prog) {
         ).methodSig(msig)        
     }
         
-    /// type of a local variable ref.
-    def wt_lv(lv: ir.VarName) =
-        env.lvs.get(lv) match {
-            case Some(wt) => wt
-            case None => throw ir.IrError("intervals.no.such.variable", lv)
-        }
-        
     /// type of an object reference.
     def wt_path(p: ir.Path): ir.WcTypeRef = 
         log.indentedRes("wt_path(%s)", p) {
@@ -245,6 +241,28 @@ class TypeCheck(log: Log, prog: Prog) {
             }    
         }
     
+    // ______________________________________________________________________
+    // Path Canonicalization
+    
+    object canon extends BaseSubst {
+        
+        def path(p: ir.Path): ir.Path = log.indentedRes("canon.path(%s)", p) {
+            p match {
+                case ir.Path(lv, List()) => 
+                    p_lv(lv) // Find canonical path for lv
+                case ir.Path(lv, f :: rev_fs) =>
+                    val p1 = path(ir.Path(lv, rev_fs))
+                    val wt = wt_path(p1) // could be made more efficient...but so what.
+                    val cd = classDecl(wt.c)
+                    cd.ghosts.zip(wt.wpaths).find(_._1.name == f) match {
+                        case Some((_, p: ir.Path)) => p // subst value for ghost path if known
+                        case _ => p1 + f // but not if it's a wildcard or not a ghost
+                    }
+            }
+        }        
+        
+    }
+        
     // ______________________________________________________________________
     // Path checking
     
@@ -276,6 +294,18 @@ class TypeCheck(log: Log, prog: Prog) {
         }
     }
     
+    def checkReifiedAndConstant(p: ir.Path) {
+        checkPath(p, true, true, false)
+    }
+    
+    def checkConstant(p: ir.Path) {
+        checkPath(p, false, true, false)
+    }
+    
+    def checkReliable(p: ir.Path) {
+        checkPath(p, false, false, true)
+    }
+    
     // ______________________________________________________________________
     // Well-formedness
     //
@@ -288,7 +318,8 @@ class TypeCheck(log: Log, prog: Prog) {
     def checkWfReq(req: ir.Req) = req match {
         case ir.ReqHb(p, qs) => checkWfPath(p); qs.foreach(checkWfPath)
         case ir.ReqHbEq(p, qs) => checkWfPath(p); qs.foreach(checkWfPath)
-        case ir.ReqEq(p, q) => checkWfPath(p); checkWfPath(q)
+        case ir.ReqEq(lv, p) => checkWfPath(lv.path); checkWfPath(p)
+        case ir.ReqEqPath(p, q) => checkWfPath(p); checkWfPath(q)
         case ir.ReqLocks(p, qs) => checkWfPath(p); qs.foreach(checkWfPath)
     }
     
@@ -370,7 +401,8 @@ class TypeCheck(log: Log, prog: Prog) {
     def isReqFulfilled(req: ir.Req) = req match {
         case ir.ReqHb(p, qs) => qs.forall(hb(p, _))
         case ir.ReqHbEq(p, qs) => qs.forall(hbeq(p, _))
-        case ir.ReqEq(p, q) => eq(p, q)
+        case ir.ReqEq(lv, p) => eq(lv.path, p)
+        case ir.ReqEqPath(p, q) => eq(p, q)
         case ir.ReqLocks(p, qs) => qs.forall(locks(p, _))
     }
     
@@ -390,79 +422,85 @@ class TypeCheck(log: Log, prog: Prog) {
         foreachzip(wts_q, msig.args.map(_.wt))(checkIsSubtype)
     }
     
-    def checkReifiedAndConstant(p: ir.Path) {
-        checkPath(p, true, true, false)
+    def checkLvDecl(vd: ir.LvDecl, owt: Option[ir.WcTypeRef], op: Option[ir.Path]) = {
+        checkWfWt(vd.wt)
+        owt.foreach(checkIsSubtype(_, vd.wt))
+        addLv(vd.name, vd.wt, op.getOrElse(vd.name.path))
     }
     
-    def expr(ex: ir.Expr): (ir.WcTypeRef, List[ir.Req]) = ex match {
-        
-        case ir.ExprCall(p, m, qs) =>
-            checkReifiedAndConstant(p)
-            qs.foreach(checkReifiedAndConstant)
-            val msig = substdMethodSig(p, m, qs)
-            checkArgumentTypes(msig, qs)
-            (msig.wt_ret, msig.reqs)
-
-        case ir.ExprField(p, f) =>
-            checkReifiedAndConstant(p)
-            val fd = substdRealFieldDecl(p, f)
-            
-            val wt_guard = wt_path(fd.guard)
-            addGhostEq(fd.guard)
-            val req = 
-                if(isSubtype(wt_guard, ir.t_interval))
-                    ir.ReqHbEq(fd.guard, List(ir.p_cur))
-                else
-                    ir.ReqLocks(ir.p_cur, List(fd.guard))
-            
-            (fd.wt, List(req))
-            
-        case ir.ExprNew(t, qs) =>
-            checkWfWt(t)
-            qs.foreach(checkReifiedAndConstant)
-            
-            val cd = classDecl(t.c)
-            val ctor = cd.ctor
-            
-            // Check Ghost Types:
-            checkLengths(cd.ghosts, t.paths, "intervals.wrong.number.ghost.arguments")
-            val substGhosts = PathSubst.pp(cd.ghosts.map(_.thisPath), t.paths)
-            foreachzip(cd.ghosts, t.paths) { case (gfd, p) =>
-                val wt_p = wt_path(p)
-                checkIsSubtype(wt_p, substGhosts.wtref(gfd.wt))
-            }
-                        
-            // Check Argument Types:
-            val subst = PathSubst.vp(
-                ir.lv_this :: ctor.args.map(_.name),
-                ir.p_new :: qs
-            )
-            val msig = subst.methodSig(ctor.msig)
-            savingEnv {
-                addLv(ir.lv_new, t)
-                checkArgumentTypes(msig, qs)
-            }
-            
-            (t, msig.reqs)
-            
-        case ir.ExprNull =>
-            (ir.t_void, List())
-            
+    def checkCurrentLocks(p_guard: ir.Path) {
+        if(!locks(ir.p_cur, p_guard))
+            throw new ir.IrError("intervals.no.lock", canon.path(p_guard))
     }
                     
-    def statement(stmt: ir.Stmt): List[ir.Req] = 
-        at(stmt, List[ir.Req]()) {
-            stmt match {        
-                case ir.StmtVarDecl(ir.LvDecl(x, wt_x), ex) =>
-                    checkWfWt(wt_x)
-                    val (wt_e, reqs) = expr(ex)
-                    val subst = PathSubst.vp(ir.lv_new, x.path)
-                    if(ex != ir.ExprNull)
-                        checkIsSubtype(wt_e, wt_x)
-                    addLv(x, wt_x)
-                    reqs.map(subst.req)
+    def checkStatement(stmt: ir.Stmt) = log.indented(stmt) {
+        at(stmt, ()) {
+            stmt match {  
+                case ir.StmtCall(vd, p, m, qs) =>
+                    checkReifiedAndConstant(p)
+                    qs.foreach(checkReifiedAndConstant)
+                    val msig = substdMethodSig(p, m, qs)
+                    checkArgumentTypes(msig, qs)
+                    checkLvDecl(vd, Some(msig.wt_ret), None)
+                    msig.reqs.foreach(checkReqFulfilled)
         
-                case ir.StmtAssignField(p, f, q) =>
+                case ir.StmtGetField(vd, p, f) =>
+                    checkReifiedAndConstant(p)
+                    val fd = substdRealFieldDecl(p, f)
+            
+                    val wt_guard = wt_path(fd.guard)
+
+                    val op = 
+                        if(isSubtype(wt_guard, ir.t_interval)) {
+                            if(hb(fd.guard, ir.p_mthd))
+                                Some(p + f) // safe, constant
+                            else if(eq(fd.guard, ir.p_cur))
+                                None // safe, non-constant
+                            else if(eq(fd.guard, ir.p_mthd))
+                                None // safe, non-constant
+                            else 
+                                throw new ir.IrError("intervals.no.hb", wt_guard)
+                        }
+                        else {
+                            checkCurrentLocks(fd.guard)
+                            None // safe, non-constant
+                        }
+            
+                    checkLvDecl(vd, Some(fd.wt), op)
+                    
+                case ir.StmtNew(vd, t, qs) =>
+                    checkWfWt(t)
+                    qs.foreach(checkReifiedAndConstant)
+                    t.paths.foreach(checkConstant) // maybe weaken to reliable?
+
+                    val cd = classDecl(t.c)
+                    val ctor = cd.ctor
+
+                    // Check Ghost Types:
+                    checkLengths(cd.ghosts, t.paths, "intervals.wrong.number.ghost.arguments")
+                    val substGhosts = PathSubst.pp(cd.ghosts.map(_.thisPath), t.paths)
+                    foreachzip(cd.ghosts, t.paths) { case (gfd, p) =>
+                        val wt_p = wt_path(p)
+                        checkIsSubtype(wt_p, substGhosts.wtref(gfd.wt))
+                    }
+
+                    // Check Argument Types:
+                    val subst = PathSubst.vp(
+                        ir.lv_this :: ctor.args.map(_.name),
+                        vd.name.path :: qs
+                    )
+                    val msig = subst.methodSig(ctor.msig)
+                    checkArgumentTypes(msig, qs)
+
+                    // Check Constructor Requirements:
+                    msig.reqs.foreach(checkReqFulfilled)
+                    
+                    checkLvDecl(vd, Some(t), None)
+                    
+                case ir.StmtNull(vd) =>
+                    checkLvDecl(vd, None, None)
+
+                case ir.StmtSetField(p, f, q) =>
                     // XXX Here is where we might incur obligations
                     // XXX to re-assign other fields that use f!
                     checkReifiedAndConstant(p)
@@ -471,12 +509,13 @@ class TypeCheck(log: Log, prog: Prog) {
                     checkIsSubtype(wt_path(q), fd.wt)
                     
                     val wt_guard = wt_path(fd.guard)
-                    addGhostEq(fd.guard)
+                    
                     if(isSubtype(wt_guard, ir.t_interval))
-                        List(ir.ReqEq(ir.p_cur, fd.guard))
+                        if(!eq(ir.p_cur, fd.guard))
+                            throw new ir.IrError("intervals.not.current", fd.guard)
                     else
-                        List(ir.ReqLocks(ir.p_cur, List(fd.guard)))
-        
+                        checkCurrentLocks(fd.guard)
+                        
                 case ir.StmtHb(p, q) =>
                     checkReifiedAndConstant(p)
                     checkReifiedAndConstant(q)
@@ -489,23 +528,13 @@ class TypeCheck(log: Log, prog: Prog) {
                     checkIsSubtype(wt_path(q), ir.t_interval)
                     addHb(p, q)
                     
-                    List()
-                    
                 case ir.StmtLocks(p, q) =>
                     checkReifiedAndConstant(p)
                     checkReifiedAndConstant(q)
                     checkIsSubtype(wt_path(p), ir.t_interval)
                     checkIsSubtype(wt_path(q), ir.t_lock)
                     addLocks(p, q)
-                    List()
             }
-        }
-        
-    def checkStatement(stmt: ir.Stmt) {
-        log.indented(stmt) {
-            val reqs = statement(stmt)
-            log("Requirements: %s", reqs)
-            reqs.foreach(checkReqFulfilled)
         }
     }
     
@@ -525,7 +554,7 @@ class TypeCheck(log: Log, prog: Prog) {
             at(md, ()) {
                 md.args.foreach { case arg => 
                     checkWfWt(arg.wt)
-                    addLv(arg.name, arg.wt) 
+                    addLv(arg.name, arg.wt, arg.name.path) 
                 }
                 
                 md.reqs.foreach(checkWfReq)
@@ -533,10 +562,11 @@ class TypeCheck(log: Log, prog: Prog) {
                 
                 md.stmts.foreach(checkStatement)
                 
-                val (wt_ret, reqs_ret) = expr(md.ex_ret)
-                if(md.ex_ret != ir.ExprNull)
+                md.p_ret.foreach { p_ret =>
+                    checkReifiedAndConstant(p_ret)
+                    val wt_ret = wt_path(p_ret)
                     checkIsSubtype(wt_ret, md.wt_ret)
-                reqs_ret.foreach(checkReqFulfilled)                
+                }
             }         
         }
     }
@@ -546,7 +576,7 @@ class TypeCheck(log: Log, prog: Prog) {
             at(cd, ()) {
                 val ps_ghosts = cd.ghosts.map(_.thisPath)
                 val t_this = ir.TypeRef(cd.name, ps_ghosts)
-                addLv(ir.lv_this, t_this)                
+                addLv(ir.lv_this, t_this, ir.p_this)                
                 cd.fields.foreach(checkRealFieldDecl)
                 
                 addHb(ir.p_readOnly, ir.p_cur) // HACK
@@ -555,13 +585,13 @@ class TypeCheck(log: Log, prog: Prog) {
                 // XXX and save them in environment for other
                 // XXX methods.
                 savingEnv {
-                    addEq(ir.p_cur, ir.gfd_ctor.thisPath)
+                    addEq(ir.lv_mthd, ir.gfd_ctor.thisPath)
                     checkMethodDecl(cd.ctor)                    
                 }
                 
                 savingEnv {
                     cd.ctor.reqs.foreach(addReq)
-                    addHb(ir.gfd_ctor.thisPath, ir.p_cur)
+                    addHb(ir.gfd_ctor.thisPath, ir.p_mthd)
                     cd.methods.foreach(checkMethodDecl)                    
                 }
             }

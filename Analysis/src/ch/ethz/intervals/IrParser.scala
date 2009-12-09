@@ -59,20 +59,16 @@ class IrParser extends StandardTokenParsers {
     def t =
         c~optl3("<",comma(p),">")               ^^ { case c~ps => ir.TypeRef(c, ps) }
     
-    def expr = (
-        p~"->"~m~"("~comma(p)~")"               ^^ { case p~"->"~m~"("~qs~")" => ir.ExprCall(p, m, qs) }
-    |   p~"->"~f                                ^^ { case p~"->"~f => ir.ExprField(p, f) }
-    |   "new"~t~"("~comma(p)~")"                ^^ { case _~t~"("~qs~")" => ir.ExprNew(t, qs) }
-    |   "null"                                  ^^ { case _ => ir.ExprNull }
-    )
-    
     def lvdecl = (
         wt~lv                                   ^^ { case wt~lv => ir.LvDecl(lv, wt) }
     )
     
     def stmt = (
-        lvdecl~"="~expr~";"                     ^^ { case vd~_~ex~_ => ir.StmtVarDecl(vd, ex) }
-    |   p~"->"~f~"="~p~";"                      ^^ { case p~_~f~_~q~_ => ir.StmtAssignField(p, f, q) }
+        lvdecl~"="~p~"->"~m~"("~comma(p)~")"~";"^^ { case vd~"="~p~"->"~m~"("~qs~")"~_ => ir.StmtCall(vd, p, m, qs) }
+    |   lvdecl~"="~p~"->"~f~";"                 ^^ { case vd~"="~p~"->"~f~_ => ir.StmtGetField(vd, p, f) }
+    |   lvdecl~"="~"new"~t~"("~comma(p)~")"~";" ^^ { case vd~"="~"new"~t~"("~qs~")"~_ => ir.StmtNew(vd, t, qs) }
+    |   lvdecl~"="~"null"~";"                   ^^ { case vd~"="~"null"~";" => ir.StmtNull(vd) }
+    |   p~"->"~f~"="~p~";"                      ^^ { case p~_~f~_~q~_ => ir.StmtSetField(p, f, q) }
     |   p~"hb"~p~";"                            ^^ { case p~_~q~_ => ir.StmtHb(p, q) }
     |   p~"locks"~p~";"                         ^^ { case p~_~q~_ => ir.StmtLocks(p, q) }
     )
@@ -80,20 +76,23 @@ class IrParser extends StandardTokenParsers {
     def req = (
         "requires"~p~"hb"~comma(p)              ^^ { case _~p~_~qs => ir.ReqHb(p, qs) }
     |   "requires"~p~"hbeq"~comma(p)            ^^ { case _~p~_~qs => ir.ReqHbEq(p, qs) }
-    |   "requires"~p~"=="~p                     ^^ { case _~p~_~q => ir.ReqEq(p, q) }
+    |   "requires"~lv~"=="~p                    ^^ { case _~lv~_~p => ir.ReqEq(lv, p) }
     |   "requires"~p~"locks"~comma(p)           ^^ { case _~p~_~qs => ir.ReqLocks(p, qs) }
-    )
-    
+    )    
     def reqs = rep(req)
+    
+    def ret = opt(
+        "return"~p~";"                          ^^ { case _~p~_ => p }
+    )
     
     def methodDecl = (
         wt~m~"("~comma(lvdecl)~")"~reqs~"{"~
             rep(stmt)~
-            "return"~expr~";"~
+            ret~
         "}"
     ) ^^ {
-        case wt_ret~name~"("~args~")"~reqs~"{"~stmts~"return"~ex_ret~";"~"}" =>
-            ir.MethodDecl(wt_ret, name, args, reqs, stmts, ex_ret)
+        case wt_ret~name~"("~args~")"~reqs~"{"~stmts~op_ret~"}" =>
+            ir.MethodDecl(wt_ret, name, args, reqs, stmts, op_ret)
     }
     
     def constructor = (
@@ -102,7 +101,7 @@ class IrParser extends StandardTokenParsers {
         "}"
     ) ^^ {
         case "constructor"~"("~args~")"~reqs~"{"~stmts~"}" =>
-            ir.MethodDecl(ir.t_void, ir.m_ctor, args, reqs, stmts, ir.ExprNull)        
+            ir.MethodDecl(ir.t_void, ir.m_ctor, args, reqs, stmts, None)
     }
     
     def ghostFieldDecl = (

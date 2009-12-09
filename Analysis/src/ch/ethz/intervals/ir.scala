@@ -66,7 +66,7 @@ object ir {
         args: List[LvDecl],
         reqs: List[Req],
         stmts: List[Stmt],
-        ex_ret: Expr
+        p_ret: Option[Path] // if omitted, equiv. to return null
     ) extends Locatable {
         def msig = at(MethodSig(args, reqs, wt_ret), srcLoc)
         
@@ -132,10 +132,19 @@ object ir {
     }
     
     sealed abstract class Stmt extends Locatable
-    sealed case class StmtVarDecl(vd: LvDecl, ex: Expr) extends Stmt {
-        override def toString = "%s = %s;".format(vd, ex)
+    sealed case class StmtCall(vd: LvDecl, p: Path, m: MethodName, qs: List[Path]) extends Stmt {
+        override def toString = "%s = %s->%s(%s)".format(vd, p, m, qs)        
     }
-    sealed case class StmtAssignField(p: Path, f: FieldName, q: Path) extends Stmt {
+    sealed case class StmtGetField(vd: LvDecl, p: Path, f: FieldName) extends Stmt {
+        override def toString = "%s = %s->%s(%s)".format(vd, p, f)
+    }
+    sealed case class StmtNew(vd: LvDecl, t: TypeRef, qs: List[Path]) extends Stmt {
+        override def toString = "%s = new %s(%s);".format(vd, t, ", ".join(qs))
+    }
+    sealed case class StmtNull(vd: LvDecl) extends Stmt {
+        override def toString = "%s = null;".format(vd)
+    }
+    sealed case class StmtSetField(p: Path, f: FieldName, q: Path) extends Stmt {
         override def toString = "%s->%s = %s;".format(p, f, q)
     }
     sealed case class StmtHb(p: Path, q: Path) extends Stmt {
@@ -143,20 +152,6 @@ object ir {
     }
     sealed case class StmtLocks(p: Path, q: Path) extends Stmt {
         override def toString = "%s locks %s;".format(p, q)        
-    }
-    
-    sealed abstract class Expr 
-    sealed case class ExprCall(p: Path, m: MethodName, qs: List[Path]) extends Expr {
-        override def toString = "%s->%s(%s)".format(p, m, qs)
-    }
-    sealed case class ExprField(p: Path, f: FieldName) extends Expr {
-        override def toString = "%s->%s".format(p, f)
-    }
-    sealed case class ExprNew(t: TypeRef, qs: List[Path]) extends Expr {
-        override def toString = "new %s(%s)".format(t, ", ".join(qs))
-    }
-    case object ExprNull extends Expr {
-        override def toString = "null"
     }
     
     sealed case class WcTypeRef(
@@ -206,7 +201,10 @@ object ir {
     sealed case class ReqHbEq(p: Path, qs: List[Path]) extends Req {
         override def toString = "%s hbeq %s".format(p, ", ".join(qs))
     }
-    sealed case class ReqEq(p: Path, q: Path) extends Req {
+    sealed case class ReqEq(lv: VarName, p: Path) extends Req {
+        override def toString = "%s == %s".format(lv, p)
+    }
+    sealed case class ReqEqPath(p: Path, q: Path) extends Req {
         override def toString = "%s == %s".format(p, q)
     }
     sealed case class ReqLocks(p: Path, qs: List[Path]) extends Req {
@@ -261,11 +259,10 @@ object ir {
     }
     
     sealed case class TcEnv(
-        lvs: Map[ir.VarName, ir.WcTypeRef],
+        lvs: Map[ir.VarName, (ir.WcTypeRef, ir.Path)],
         hb: Relation,
         hbeq: Relation,
-        equiv: Relation,
-        locks: Relation
+        locks: Relation        
     )
     
     case class IrError(msg: String, args: Any*) 
@@ -326,7 +323,7 @@ object ir {
                     /* args:   */ List(),
                     /* reqs:   */ List(),
                     /* stmts:  */ List(),
-                    /* ex_ret: */ ir.ExprNull
+                    /* p_ret:  */ None
                     ),
             /* Fields:  */  List(),
             /* Methods: */  List(
@@ -336,7 +333,7 @@ object ir {
                     /* args:   */ List(),
                     /* reqs:   */ List(ir.ReqHbEq(p_cur, List(gfd_creator.thisPath))),
                     /* stmts:  */ List(),
-                    /* ex_ret: */ ir.ExprNull
+                    /* p_ret:  */ None
                     ))                
         ),
         ClassDecl(
@@ -349,7 +346,7 @@ object ir {
                     /* args:   */ List(),
                     /* reqs:   */ List(),
                     /* stmts:  */ List(),
-                    /* ex_ret: */ ir.ExprNull
+                    /* p_ret:  */ None
                     ),
             /* Fields:  */  List(),
             /* Methods: */  List()
@@ -364,7 +361,7 @@ object ir {
                     /* args:   */ List(),
                     /* reqs:   */ List(),
                     /* stmts:  */ List(),
-                    /* ex_ret: */ ir.ExprNull
+                    /* p_ret:  */ None
                     ),
             /* Fields:  */  List(),
             /* Methods: */  List()
@@ -379,7 +376,7 @@ object ir {
                     /* args:   */ List(),
                     /* reqs:   */ List(),
                     /* stmts:  */ List(),
-                    /* ex_ret: */ ir.ExprNull
+                    /* p_ret:  */ None
                     ),
             /* Fields:  */  List(
                 RealFieldDecl(t_point, f_start, p_readOnly),
@@ -389,9 +386,9 @@ object ir {
                     /* wt_ret: */ t_void, 
                     /* name:   */ m_run, 
                     /* args:   */ List(),
-                    /* reqs:   */ List(ir.ReqEq(p_cur, p_this)),
+                    /* reqs:   */ List(ir.ReqEq(lv_cur, p_this)),
                     /* stmts:  */ List(),
-                    /* ex_ret: */ ir.ExprNull
+                    /* p_ret:  */ None
                     ))                
         ),
         ClassDecl(
@@ -404,7 +401,7 @@ object ir {
                     /* args:   */ List(),
                     /* reqs:   */ List(),
                     /* stmts:  */ List(),
-                    /* ex_ret: */ ir.ExprNull
+                    /* p_ret:  */ None
                     ),
             /* Fields:  */  List(),
             /* Methods: */  List()
@@ -419,7 +416,7 @@ object ir {
                     /* args:   */ List(),
                     /* reqs:   */ List(),
                     /* stmts:  */ List(),
-                    /* ex_ret: */ ir.ExprNull
+                    /* p_ret:  */ None
                     ),
             /* Fields:  */  List(),
             /* Methods: */  List()
