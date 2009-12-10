@@ -12,7 +12,7 @@ class IrParser extends StandardTokenParsers {
     )
     lexical.reserved += (
         "class", "new", "constructor", "null", 
-        "return", "Rd", "Wr", "Free", "extends", "guardedBy", 
+        "return", "Rd", "Wr", "Free", "extends", "during", 
         "hb", "hbeq", "requires"
     )
 
@@ -109,7 +109,7 @@ class IrParser extends StandardTokenParsers {
     )
 
     def realFieldDecl = (
-        wt~f~"guardedBy"~p~";"                  ^^ { case wt~f~_~p~_ => ir.RealFieldDecl(wt, f, p) }
+        wt~f~"during"~p~";"                     ^^ { case wt~f~_~p~_ => ir.RealFieldDecl(wt, f, p) }
     )
     
     def classDecl = (

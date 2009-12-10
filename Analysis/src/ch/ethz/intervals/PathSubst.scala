@@ -2,7 +2,10 @@ package ch.ethz.intervals
 
 import scala.collection.immutable.Map
 
-class PathSubst(m: Map[ir.Path, ir.Path]) extends BaseSubst {
+class PathSubst(private val m: Map[ir.Path, ir.Path]) extends BaseSubst {
+    
+    def +(subst: PathSubst) =
+        new PathSubst(m ++ subst.m)
     
     def path(p: ir.Path): ir.Path =
         (m.get(p), p) match {

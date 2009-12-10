@@ -55,6 +55,8 @@ object ir {
     ) extends Locatable {
         def allFields = ghosts ++ fields
         
+        def thisTref = TypeRef(name, ghosts.map(_.thisPath))
+        
         override def toString =
             "class %s<%s> extends %s".format(
                 name, ", ".join(ghosts), superType)
@@ -103,7 +105,6 @@ object ir {
     sealed abstract class FieldDecl extends Locatable {
         val wt: WcTypeRef
         val name: FieldName
-        def isFinal: Boolean
         def isGhost: Boolean
         
         def thisPath = p_this + name
@@ -113,7 +114,6 @@ object ir {
         wt: WcTypeRef,
         name: FieldName
     ) extends FieldDecl {
-        def isFinal = true
         def isGhost = true
         
         override def toString = "%s %s".format(wt, name)
@@ -122,13 +122,12 @@ object ir {
     sealed case class RealFieldDecl(
         wt: WcTypeRef,
         name: FieldName,
-        guard: Path
+        p_guard: Path
     ) extends FieldDecl {
-        def isFinal = (guard == p_readOnly)
         def isGhost = false
         
         override def toString = 
-            "%s %s guardedBy %s".format(wt, name, guard)
+            "%s %s during %s".format(wt, name, p_guard)
     }
     
     sealed abstract class Stmt extends Locatable
@@ -196,10 +195,8 @@ object ir {
     
     /// A TeePee is a typed path.
     sealed case class TeePee(
-        t: ir.TypeRef, p: ir.Path
-    ) {
-        def thisSubst = PathSubst.vp(lv_this, p)
-    }
+        wt: ir.WcTypeRef, p: ir.Path, reified: Boolean
+    )
     
     sealed abstract class Req
     sealed case class ReqHb(p: Path, qs: List[Path]) extends Req {

@@ -53,15 +53,15 @@ class TestAnalysis extends JUnitSuite {
         tc(
             """
             class Data<Interval p> extends Object<this.p> {
-                Object<this.p> o guardedBy this.p;
+                Object<this.p> o during this.p;
                 constructor() {}
             }
             
             class Producer extends Interval {
-                Consumer c guardedBy this.constructor;
+                Consumer c during this.constructor;
                              
-                Producer nextProd guardedBy this;
-                Data<this> data guardedBy this;
+                Producer nextProd during this;
+                Data<this> data during this;
                 
                 constructor(Consumer c)
                 {
@@ -86,13 +86,13 @@ class TestAnalysis extends JUnitSuite {
             }
             
             class Consumer extends Interval {
-                Consumer nextCons guardedBy this;
+                Consumer nextCons during this;
                 constructor() {}
             }
             
             class DummyConsumer<Interval init> extends Consumer 
             {
-                Consumer c guardedBy this.init;
+                Consumer c during this.init;
                 
                 constructor() 
                 requires this.init hb this 
@@ -107,7 +107,7 @@ class TestAnalysis extends JUnitSuite {
             }
 
             class RealConsumer extends Consumer {
-                Producer p guardedBy this.constructor;
+                Producer p during this.constructor;
                 
                 constructor(Producer p)
                 {
@@ -160,30 +160,26 @@ class TestAnalysis extends JUnitSuite {
         tc(
             """
             class Data<Interval p> extends Object<this.p> {
-                Object<this.p> o guardedBy this.p;
+                Object<this.p> o during this.p;
                 constructor() {}
             }
             
-            class ProdData extends Object<this.p> {
-                Producer producer guardedBy this.constructor;
-                Data<this.producer> data guardedBy this.producer;
-                
-                
-                Data<this.p> data guardedBy this.p;                              
-                Interval nextProd guardedBy this.p;
-                ProdData<this.nextProd> nextPdata guardedBy this.p;                
+            class ProdData<Interval p> extends Object<this.p> {
+                Data<this.p> data during this.p;                              
+                Interval nextProd during this.p;
+                ProdData<this.nextProd> nextPdata during this.p;                
                 constructor() {}
             }
             
             class ConsData<Interval c> extends Object<this.c> {
-                Interval nextCons guardedBy this.c;
-                ConsData<this.nextCons> nextCdata guardedBy this.c;
+                Interval nextCons during this.c;
+                ConsData<this.nextCons> nextCdata during this.c;
                 constructor() {}
             }
             
             class Producer extends Interval {
-                ConsData<hb this> cdata guardedBy this.constructor;
-                ProdData<this> pdata guardedBy this.constructor;
+                ConsData<hb this> cdata during this.constructor;
+                ProdData<this> pdata during this.constructor;
                 
                 constructor(Interval c, ConsData<c> cdata)
                 {
@@ -213,8 +209,8 @@ class TestAnalysis extends JUnitSuite {
             }
             
             class Consumer extends Interval {
-                ProdData<hb this> pdata guardedBy this.constructor;
-                ConsData<this> cdata guardedBy this.constructor;
+                ProdData<hb this> pdata during this.constructor;
+                ConsData<this> cdata during this.constructor;
                 
                 constructor(Interval p, ProdData<p> pdata)
                 {

@@ -27,7 +27,7 @@ abstract class BaseSubst {
         ir.GhostFieldDecl(wtref(fd.wt), fd.name)
         
     def realFieldDecl(fd: ir.RealFieldDecl) =
-        ir.RealFieldDecl(wtref(fd.wt), fd.name, path(fd.guard))
+        ir.RealFieldDecl(wtref(fd.wt), fd.name, path(fd.p_guard))
 
     def fieldDecl(fd: ir.FieldDecl): ir.FieldDecl = fd match {
         case gfd: ir.GhostFieldDecl => ghostFieldDecl(gfd)
