@@ -53,8 +53,6 @@ object ir {
         fields: List[RealFieldDecl],
         methods: List[MethodDecl]
     ) extends Locatable {
-        def allFields = ghosts ++ fields
-        
         def thisTref = TypeRef(name, ghosts.map(_.thisPath))
         
         override def toString =
@@ -187,6 +185,10 @@ object ir {
         def fs = rev_fs.reverse
         def +(f: ir.FieldName) = Path(lv, f :: rev_fs)
         def ++(fs: List[ir.FieldName]) = fs.foldLeft(this)(_ + _)
+
+        /// <a.b.c>.hasPrefix(<a.b>) == true
+        def hasPrefix(p: ir.Path) =
+            lv == p.lv && rev_fs.endsWith(p.rev_fs)
         
         def start = this + f_start
         def end = this + f_end        

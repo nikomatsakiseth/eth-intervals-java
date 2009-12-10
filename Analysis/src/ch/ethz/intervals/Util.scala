@@ -77,6 +77,8 @@ object Util {
           }
       }
     }
+    def endsWith(m: List[E]) =
+        l.takeRight(m.length) == m
   }
   implicit def list2UtilList[Q](i: List[Q]) = UtilList(i)
   

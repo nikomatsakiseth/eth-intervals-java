@@ -167,19 +167,19 @@ class TypeCheck(log: Log, prog: Prog) {
                 // we add whatever relations we can to it.
                 def ghost(
                     gfd: ir.GhostFieldDecl,
-                    add: Function2[ir.Path, ir.Path, Unit], 
+                    add: Function2[ir.TeePee, ir.TeePee, Unit], 
                     ps: List[ir.Path], 
                     qs: List[ir.Path]) = 
                 {
                     // Compute final path a.b.c.f:
-                    val p_cap = tp.p + f
-                    
-                    // Add relations from the wildcard:
-                    ps.foreach(add(_, p_cap))
-                    qs.foreach(add(p_cap, _))
-                
                     val wt_cap = ghostSubst(tp).wtref(gfd.wt)
-                    ir.TeePee(wt_cap, p_cap, false)
+                    val tp_cap = ir.TeePee(wt_cap, tp.p + f, false)
+                    
+                    // Add relations from the wildcard:                    
+                    ps.foreach { case p => add(teePee(p), tp_cap) }
+                    qs.foreach { case q => add(tp_cap, teePee(q)) }
+                    
+                    tp_cap
                 }
                    
                 // Look for a ghost field with the name "f".  If it maps
@@ -188,19 +188,31 @@ class TypeCheck(log: Log, prog: Prog) {
                 // appropriate restrictions.
                 val cd = classDecl(tp.wt.c)
                 cd.ghosts.zip(tp.wt.wpaths).find(_._1.name == f) match {
-                    case Some((_, p: ir.Path)) => teePee(p)
+                    case Some((gfd, p: ir.Path)) => 
+                        if(tp.p + f == p)
+                            ir.TeePee(gfd.wt, p, false)
+                        else
+                            teePee(p)
                     case Some((gfd, ir.WcHb(ps, qs))) => ghost(gfd, addHb, ps, qs)
                     case Some((gfd, ir.WcHbEq(ps, qs))) => ghost(gfd, addHbEq, ps, qs)
-                    case None => 
-                    
-                        // Look for a "reliable" real field (not quite the same as "constant").
-                        val rfd = substdRealFieldDecl(tp, f)
-                        checkReqFulfilled(
-                            // XXX Permit locks as well
-                            if(tp.p == ir.p_this) ir.ReqHbEq(rfd.p_guard, List(ir.p_cur))
-                            else ir.ReqHb(rfd.p_guard, List(ir.p_cur))
-                        )
-                        ir.TeePee(rfd.wt, tp.p + f, tp.reified)
+                    case None =>                     
+                        if(f == ir.f_ctor) {
+                            // Hokey special case constructor interval:
+                            //   We assume that x.constructor has always finished
+                            //   if x≠this, because this does not escape the ctor.
+                            val tq = ir.TeePee(ir.t_interval, tp.p + f, false)
+                            addHbEq(tq, tp_mthd)
+                            tq
+                        } else {
+                            // Look for a "reliable" real field (not quite the same as "constant").
+                            val rfd = substdRealFieldDecl(tp, f)
+                            checkReqFulfilled(
+                                // XXX Permit locks as well
+                                if(tp.p == ir.p_this) ir.ReqHbEq(rfd.p_guard, List(ir.p_cur))
+                                else ir.ReqHb(rfd.p_guard, List(ir.p_cur))
+                            )
+                            ir.TeePee(rfd.wt, tp.p + f, tp.reified)                            
+                        }                    
                 }
         }
     }    
@@ -435,6 +447,26 @@ class TypeCheck(log: Log, prog: Prog) {
     def checkCurrentLocks(tp_guard: ir.TeePee) {
         if(!locks(tp_cur, tp_guard))
             throw new ir.IrError("intervals.no.lock", tp_guard.p)
+    }
+    
+    /// Returns true if 'wt' is linked to 'p': that is,
+    /// if it depends on 'p' in some way.  'p' must be
+    /// a canonical path.
+    def isLinkedWt(p: ir.Path, wt: ir.WcTypeRef) =
+        wt.wpaths.exists(_.hasPrefix(p_f))    
+    
+    /// A linked field f_l to p.f is one whose type is invalidated
+    /// if p.f changes.  In general this is because p.f appears
+    /// in the type of f_l.
+    def linkedFields(tp: ir.TeePee, f: ir.FieldName) = {
+        val cd = classDecl(tp.c)
+        val p_f = f.thisPath
+        
+        cd.fields.filter { rfd => isLinkedWt(rfd.wt) }
+    }
+    
+    def linkedVariables(tp: ir.TeePee, f: FieldName) = {
+        
     }
                     
     def checkStatement(stmt: ir.Stmt) = log.indented(stmt) {
