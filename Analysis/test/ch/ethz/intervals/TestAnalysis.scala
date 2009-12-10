@@ -164,7 +164,11 @@ class TestAnalysis extends JUnitSuite {
                 constructor() {}
             }
             
-            class ProdData<Interval p> extends Object<this.p> {
+            class ProdData extends Object<this.p> {
+                Producer producer guardedBy this.constructor;
+                Data<this.producer> data guardedBy this.producer;
+                
+                
                 Data<this.p> data guardedBy this.p;                              
                 Interval nextProd guardedBy this.p;
                 ProdData<this.nextProd> nextPdata guardedBy this.p;                

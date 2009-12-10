@@ -199,7 +199,6 @@ object ir {
         t: ir.TypeRef, p: ir.Path
     ) {
         def thisSubst = PathSubst.vp(lv_this, p)
-        def thisSubst = PathSubst.vp(lv_this, p)
     }
     
     sealed abstract class Req

@@ -79,14 +79,14 @@ class TypeCheck(log: Log, prog: Prog) {
 
     /// Field decl for t0::f 
     def realFieldDecl(t0: ir.TypeRef, f: ir.FieldName): ir.RealFieldDecl = 
-        log.indentedRes("realFieldDecl(%s,%s)", ot, f) {
+        log.indentedRes("realFieldDecl(%s,%s)", t0, f) {
             def search(t: ir.TypeRef): ir.RealFieldDecl = 
                 log.indentedRes("search(%s)", t) {
                     val cd = classDecl(t.c)
-                    cd.allFields.find(_.name == f) match {
+                    cd.fields.find(_.name == f) match {
                         case Some(fd) => fd
                         case None => sup(t) match {
-                            case Some(t_1) => ghostSubst(t_1).fieldDecl(search(t_1))
+                            case Some(t_1) => ghostSubst(t_1).realFieldDecl(search(t_1))
                             case None => throw ir.IrError("intervals.no.such.field", t0, f)
                         }
                     }
@@ -111,7 +111,7 @@ class TypeCheck(log: Log, prog: Prog) {
     
     /// Field decl for tp.f
     def substdRealFieldDecl(tp: ir.TeePee, f: ir.FieldName) = {
-        val rfd = realFieldDecl(tp.t, m)
+        val rfd = realFieldDecl(tp.t, f)
         tp.thisSubst.fieldDecl(rfd)
     }
     
@@ -178,7 +178,7 @@ class TypeCheck(log: Log, prog: Prog) {
                     ps.foreach(add(_, p_cap))
                     qs.foreach(add(p_cap, _))
                 
-                    val wt_cap = tp.thisSubst.wt(gfd.wt)
+                    val wt_cap = tp.thisSubst.wtref(gfd.wt)
                     capWteePee(wt_cap, p_cap)
                 }
                    
@@ -186,6 +186,7 @@ class TypeCheck(log: Log, prog: Prog) {
                 // to a fixed path p, start again from p.  If it
                 // maps to a wildcard, then keep path but use ghost to add
                 // appropriate restrictions.
+                val cd = classDecl(tp.t.c)
                 cd.ghosts.zip(tp.wt.wpaths).find(_._1.name == f) match {
                     case Some((_, p: ir.Path)) => teePee(p)
                     case Some((gfd, ir.WcHb(ps, qs))) => ghost(gfd, addHb, ps, qs)
