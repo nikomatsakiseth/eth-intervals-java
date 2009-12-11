@@ -35,7 +35,7 @@ class TypeCheck(log: Log, prog: Prog) {
             (ir.lv_cur, ir.TeePee(ir.t_interval, ir.p_cur, false))
         ),
         Map(),
-        List(),
+        ListSet.empty,
         ir.Relation.emptyTrans,
         ir.Relation.emptyTransRefl,
         ir.Relation.empty,
@@ -330,6 +330,32 @@ class TypeCheck(log: Log, prog: Prog) {
                 env.owned)
         }        
     }
+    
+    def addInvalidated(p: ir.Path) {
+        log.indented("addInvalidated(%s)", p) {
+            env = ir.TcEnv(
+                env.perm,
+                env.temp,
+                env.fs_invalidated + f,
+                env.hb,
+                env.hbeq,
+                env.locks,
+                env.owned)
+        }        
+    }
+        
+    def removeInvalidated(p: ir.Path) {
+        log.indented("removeInvalidated(%s)", f) {
+            env = ir.TcEnv(
+                env.perm,
+                env.temp,
+                env.fs_invalidated - p,
+                env.hb,
+                env.hbeq,
+                env.locks,
+                env.owned)
+        }        
+    }
         
     def addHb(tp: ir.TeePee, tq: ir.TeePee): Unit = log.indented("addHb(%s,%s)", tp, tq) {
         assert(isSubtype(tp, ir.t_interval))
@@ -537,13 +563,26 @@ class TypeCheck(log: Log, prog: Prog) {
         wt.wpaths.exists(_.dependentOn(p))        
     }
     
-    /// A field f_l is linked to tp.f if its type is invalidated
+    /// A field f_l is linked to tp_o.f if its type is invalidated
     /// when p.f changes.  This occurs when p.f appears in f_l's type.
-    def linkedFields(tp: ir.TeePee, f: ir.FieldName) = preservesEnv {
-        val cd = classDecl(tp.wt.c)
+    /// The rules we enforce when checking field decls. guarantee that
+    /// all linked fields either (a) occur in the same class defn as f
+    /// or (b) are guarded by some interval which has not yet happened.
+    def linkedPaths(tp_o: ir.TeePee, f: ir.FieldName, tp_guard: ir.TeePee) = preservesEnv {
+        val cd = classDecl(tp_o.wt.c)
         val p_f = f.thisPath
         
-        cd.fields.filter { rfd => isLinkedWt(p_f, rfd.wt) }
+        // find fields where tp_o.f appears in the type
+        val fds_maybe_linked = cd.fields.filter { rfd => isLinkedWt(p_f, rfd.wt) }
+        
+        // screen out those which are guarded by future intervals
+        lazy val subst = ghostSubst(tp_o)
+        val fds_linked = fds_maybe_linked.filter { rfd =>
+            !hb(tp_guard, subst.path(rfd.p_guard))
+        }
+        
+        // map to the canonical path for the field
+        fds_linked.map { fd => subst.path(fd.thisPath) }
     }
     
     def checkReadable(tp_guard: ir.TeePee) {
@@ -558,6 +597,19 @@ class TypeCheck(log: Log, prog: Prog) {
             }
         }
     }
+    
+    def checkWritable(tp_guard: ir.TeePee) {
+        if(!owned(tp_guard)) {
+            if(isSubtype(tp_guard, ir.t_interval)) {
+                if(!equiv(tp_guard, tp_cur) && !equiv(tp_guard, tp_mthd))
+                    throw new ir.IrError("intervals.not.current", tp_guard.p)
+            } else if(isSubtype(tp_guard, ir.t_lock)) {
+                checkCurrentLocks(tp_guard)
+            } else {
+                throw new ir.IrError("intervals.not.owned", tp_guard.p)
+            }
+        }
+    }    
     
     def checkStatement(stmt: ir.Stmt) = log.indented(stmt) {
         at(stmt, ()) {
@@ -606,6 +658,20 @@ class TypeCheck(log: Log, prog: Prog) {
             
                     checkLvDecl(vd, Some(fd.wt), op)
                     
+                case ir.StmtSetField(p_o, f, p_v) =>
+                    val tp_o = teePee(ir.noAttrs, p_o)
+                    val tp_v = teePee(ir.noAttrs, p_v)
+                    val fd = substdRealFieldDecl(tp_o, f)
+                    checkIsSubtype(tp_v, fd.wt)
+                    
+                    val tp_guard = teePee(ir.ghostAttrs, fd.p_guard)
+                    checkWritable(tp_guard)
+                    val p_f = tp_o.p + f // Canonical path of f; valid as f is not a ghost.
+                    addTemp(p_f, tp_v)
+                    
+                    env.removeInvalidated(p_f)
+                    linkedPaths(tp_o, f, tp_guard).foreach(addInvalidated)
+                        
                 case ir.StmtNew(vd, t, qs) =>
                     checkWfWt(t)
                     val cd = classDecl(t.c)
@@ -636,24 +702,9 @@ class TypeCheck(log: Log, prog: Prog) {
                 case ir.StmtNull(vd) =>
                     checkLvDecl(vd, None, None)
 
-                case ir.StmtSetField(p, f, q) =>
-                    // XXX Here is where we might incur obligations
-                    // XXX to re-assign other fields that use f!
-                    val tp = teePee(p)
-                    val tq = teePee(q)
-                    val fd = substdRealFieldDecl(tp, f)
-                    checkIsSubtype(tq, fd.wt)
-                    
-                    val tp_guard = teePee(fd.p_guard)
-                    if(isSubtype(cap(tp_guard), ir.t_interval)) {
-                        if(!eq(tp_cur, tp_guard))
-                            throw new ir.IrError("intervals.not.current", tp_guard.p)                        
-                    } else
-                        checkCurrentLocks(tp_guard)
-                        
                 case ir.StmtHb(p, q) =>
-                    val tp = teePee(p)
-                    val tq = teePee(q)
+                    val tp = teePee(ir.noAttrs, p)
+                    val tq = teePee(ir.noAttrs, q)
                     
                     // XXX Rejigger HB to be based on points:
                     //checkIsSubtype(wt_path(p), ir.t_point)
@@ -664,8 +715,8 @@ class TypeCheck(log: Log, prog: Prog) {
                     addHb(tp, tq)
                     
                 case ir.StmtLocks(p, q) =>
-                    val tp = teePee(p)
-                    val tq = teePee(q)
+                    val tp = teePee(ir.noAttrs, p)
+                    val tq = teePee(ir.noAttrs, q)
                     checkIsSubtype(tp, ir.t_interval)
                     checkIsSubtype(tq, ir.t_lock)
                     addLocks(tp, tq)

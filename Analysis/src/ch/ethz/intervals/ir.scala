@@ -345,7 +345,7 @@ object ir {
     sealed case class TcEnv(
         perm: Map[ir.Path, ir.TeePee],
         temp: Map[ir.Path, ir.Path],
-        fs_invalidated: List[ir.FieldName],
+        fs_invalidated: Set[ir.Path],
         hb: Relation,
         hbeq: Relation,
         locks: Relation,
