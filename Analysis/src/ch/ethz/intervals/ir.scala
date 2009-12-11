@@ -262,7 +262,7 @@ object ir {
         
         def start = this + f_start
         def end = this + f_end        
-        override def toString = lv.name + fs.mkString(".", ".", "")
+        override def toString = (lv :: fs).mkString(".")
     }
     
     /// A TeePee is a typed path.
