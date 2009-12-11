@@ -2,6 +2,7 @@ package ch.ethz.intervals
 
 import scala.collection.immutable.Set
 import scala.collection.immutable.ListSet
+import scala.util.parsing.input.Positional
 import Util._
 
 object ir {
@@ -85,17 +86,8 @@ object ir {
     // ______________________________________________________________________
     // Error reporting
     
-    def at[I <: Locatable](i: I, pos: Object): I = {
-      i.srcLoc = pos
-      i
-    }
-    
-    abstract class Locatable {
-        var srcLoc: Object = null
-    }
-        
     sealed case class Error(
-        loc: Locatable,
+        loc: Positional,
         msg: String,
         args: List[String]
     )
@@ -111,7 +103,7 @@ object ir {
         ctor: MethodDecl,
         fields: List[FieldDecl],
         methods: List[MethodDecl]
-    ) extends Locatable {
+    ) extends Positional {
         def thisTref = TypeRef(name, ghosts.map(_.thisPath), noAttrs)
         
         override def toString =
@@ -127,8 +119,8 @@ object ir {
         reqs: List[Req],
         stmts: List[Stmt],
         op_ret: Option[Path] // if omitted, equiv. to return null
-    ) extends Locatable {
-        def msig = at(MethodSig(attrs, args, reqs, wt_ret), srcLoc)
+    ) extends Positional {
+        def msig = MethodSig(attrs, args, reqs, wt_ret)
         
         override def toString =
             "%s %s %s(%s)%s".format(
@@ -140,7 +132,7 @@ object ir {
         args: List[LvDecl],
         reqs: List[Req],
         wt_ret: WcTypeRef
-    ) extends Locatable {
+    ) {
         override def toString = "(%s %s _(%s)%s)".format(
             as, wt_ret, args.mkString(", "), reqs.mkString(""))
     }
@@ -155,7 +147,7 @@ object ir {
     sealed case class GhostDecl(
         wt: WcTypeRef,
         name: FieldName
-    ) extends Locatable {
+    ) extends Positional {
         def thisPath = name.thisPath
         override def toString = "%s %s".format(wt, name)
     }
@@ -165,13 +157,13 @@ object ir {
         wt: WcTypeRef,
         name: FieldName,
         p_guard: Path
-    ) extends Locatable {
+    ) extends Positional {
         def thisPath = name.thisPath
         override def toString = 
             "%s %s %s requires %s".format(as, wt, name, p_guard)
     }
     
-    sealed abstract class Stmt extends Locatable
+    sealed abstract class Stmt extends Positional
     sealed case class StmtCall(vd: LvDecl, p: Path, m: MethodName, qs: List[Path]) extends Stmt {
         override def toString = "%s = %s->%s(%s)".format(vd, p, m, qs)        
     }
@@ -274,7 +266,7 @@ object ir {
         override def toString = "[%s: %s %s]".format(p, wt, as)
     }
     
-    sealed abstract class Req
+    sealed abstract class Req extends Positional
     sealed case class ReqOwned(lp: List[Path]) extends Req {
         override def toString = "requires %s".format(lp.mkString(", "))
     }

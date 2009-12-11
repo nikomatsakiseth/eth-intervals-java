@@ -1,6 +1,7 @@
 package ch.ethz.intervals
 
 import scala.collection.mutable.ListBuffer
+import scala.util.parsing.input.Positional
 
 class Prog(val cds_user: List[ir.ClassDecl]) {
     val classDecls = cds_user ++ ir.cds_default
@@ -28,12 +29,12 @@ class Prog(val cds_user: List[ir.ClassDecl]) {
     // Errors
     
     val errors = new ListBuffer[ir.Error]
-    def report(loc: ir.Locatable, msg: String, args: Any*) {
+    def report(loc: Positional, msg: String, args: Any*) {
         val argList = args.toList.map(_.toString)
         errors += ir.Error(loc, msg, argList)
     }
 
-    def reportError(loc: ir.Locatable, i: ir.IrError) {
+    def reportError(loc: Positional, i: ir.IrError) {
         report(loc, i.msg, i.args: _*)
     }
     

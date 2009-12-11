@@ -30,9 +30,14 @@ class TestAnalysis extends JUnitSuite {
         
             log.indented("Encountered Errors: ") {                
                 for(error <- prog.errors) {
-                    log("ExpError(\"%s\", List(%s))", 
-                        error.msg, ", ".join("\"", error.args, "\""))
-                    log("  at %s", error.loc)                    
+                    log.indented(
+                        "ExpError(\"%s\", List(%s))", 
+                        error.msg, ", ".join("\"", error.args, "\"")
+                    ) {
+                        val pos = error.loc.pos
+                        log("Line %s Column %s", pos.line, pos.column)
+                        log(pos.longString)
+                    }
                 }
             }
 
@@ -156,6 +161,74 @@ class TestAnalysis extends JUnitSuite {
         )
     }
     */
+    
+    @Test
+    def linkedFields() {
+        tc(
+            """
+            class Linked<Interval creator> extends Object<this.creator> {
+                Interval inter requires this.creator;
+                Object<this.inter> obj requires this.creator;
+                
+                constructor() 
+                requires current == this.creator
+                {                   
+                }
+                
+                void setBothOk(Interval inter, Object<p> obj) 
+                requires current == this.creator
+                {
+                    this->inter = p;
+                    this->obj = obj;
+                }
+                
+                void setBothWrongOrder(Interval inter, Object<p> obj) 
+                requires current == this.creator
+                {
+                    this->obj = obj;
+                    this->inter = p;
+                }
+            }
+            """,
+            List(
+            )
+        )
+    }    
+    
+    @Test
+    def extendedInit() {
+        tc(
+            """
+            class ExtendedInit<Interval init> extends Object<this.init> {
+                String f1 requires this.init;
+                String f2 requires this.init;
+                
+                constructor(String f1) 
+                requires current == this.init
+                {
+                    this->f1 = f1;
+                }
+                
+                void additionalInit(String f2)
+                requires current == this.init
+                {
+                    this->f2 = f2;
+                }
+                
+                void afterInit()
+                requires this.init hb method
+                {
+                    String f1 = this->f1; // safe to read both of these...
+                    String f2 = this->f2; // ...because init is complete.
+                    
+                    this->f1 = f2;        // But edits are not permitted.
+                }                
+            }
+            """,
+            List(
+            )
+        )
+    } 
     
     @Test
     def bbpcData() {

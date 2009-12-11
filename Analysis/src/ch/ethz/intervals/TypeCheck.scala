@@ -4,6 +4,7 @@ import scala.collection.immutable.Map
 import scala.collection.immutable.Set
 import scala.collection.immutable.ListSet
 import scala.collection.mutable.ListBuffer
+import scala.util.parsing.input.Positional
 import Util._
 
 /*
@@ -85,7 +86,7 @@ class TypeCheck(log: Log, prog: Prog) {
     // ______________________________________________________________________
     // Errors
 
-    def at[R](loc: ir.Locatable, default: R)(g: => R): R = 
+    def at[R](loc: Positional, default: R)(g: => R): R = 
         try {
             g
         } catch {
