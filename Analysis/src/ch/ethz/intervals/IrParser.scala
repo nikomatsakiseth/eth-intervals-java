@@ -115,7 +115,7 @@ class IrParser extends StandardTokenParsers {
     )
 
     def realFieldDecl = (
-        wt~f~"requires"~p~";"                     ^^ { case wt~f~_~p~_ => ir.RealFieldDecl(wt, f, p) }
+        wt~f~"requires"~p~";"                     ^^ { case wt~f~_~p~_ => ir.FieldDecl(wt, f, p) }
     )
     
     def classDecl = (

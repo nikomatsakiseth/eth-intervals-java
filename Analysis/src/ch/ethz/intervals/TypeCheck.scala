@@ -97,9 +97,9 @@ class TypeCheck(log: Log, prog: Prog) {
     }
 
     /// Field decl for t0::f 
-    def realFieldDecl(c: ir.ClassName, f: ir.FieldName): ir.RealFieldDecl = preservesEnv {
+    def realFieldDecl(c: ir.ClassName, f: ir.FieldName): ir.FieldDecl = preservesEnv {
         log.indentedRes("realFieldDecl(%s,%s)", c, f) {
-            def search(t: ir.TypeRef): ir.RealFieldDecl = 
+            def search(t: ir.TypeRef): ir.FieldDecl = 
                 log.indentedRes("search(%s)", t) {
                     val cd = classDecl(t.c)
                     cd.fields.find(_.name == f) match {
@@ -167,7 +167,7 @@ class TypeCheck(log: Log, prog: Prog) {
     }
     
     /// Field decl for tp.f
-    def substdRealFieldDecl(tp: ir.TeePee, f: ir.FieldName) = preservesEnv {
+    def substdFieldDecl(tp: ir.TeePee, f: ir.FieldName) = preservesEnv {
         val rfd = realFieldDecl(tp.wt.c, f)
         ghostSubst(tp).realFieldDecl(rfd)
     }
@@ -240,7 +240,7 @@ class TypeCheck(log: Log, prog: Prog) {
                         
                     // The path p_0.f names a real field f:
                     case None =>
-                        val rfd_f = substdRealFieldDecl(tp_0, f)
+                        val rfd_f = substdFieldDecl(tp_0, f)
                         val tp_guard = constructTeePee(rfd_f.p_guard)
                         val as_f = // determine if f is immutable in current method:
                             if(!tp_guard.isConstant)
@@ -643,7 +643,7 @@ class TypeCheck(log: Log, prog: Prog) {
         
                 case ir.StmtGetField(vd, p_o, f) =>
                     val tp_o = teePee(ir.noAttrs, p_o)
-                    val fd = substdRealFieldDecl(tp_o, f)
+                    val fd = substdFieldDecl(tp_o, f)
                     val tp_guard = teePee(ir.ghostAttrs, fd.p_guard)                    
                     val p_f = tp_o.p + f // Canonical path of f; valid as f is not a ghost.
 
@@ -661,7 +661,7 @@ class TypeCheck(log: Log, prog: Prog) {
                 case ir.StmtSetField(p_o, f, p_v) =>
                     val tp_o = teePee(ir.noAttrs, p_o)
                     val tp_v = teePee(ir.noAttrs, p_v)
-                    val fd = substdRealFieldDecl(tp_o, f)
+                    val fd = substdFieldDecl(tp_o, f)
                     checkIsSubtype(tp_v, fd.wt)
                     
                     val tp_guard = teePee(ir.ghostAttrs, fd.p_guard)
@@ -724,13 +724,59 @@ class TypeCheck(log: Log, prog: Prog) {
         }
     }
     
-    def checkRealFieldDecl(rfd: ir.RealFieldDecl) = savingEnv {
+    def checkFieldDecl(cd: ir.ClassDecl)(rfd: ir.FieldDecl) = savingEnv {
         log.indented(rfd) {
             at(rfd, ()) {
                 checkWfWt(rfd.wt)
+                
                 val tp_guard = teePee(rfd.p_guard)
+                
+                // Rules:
+                //
+                // The type of a field f in class c may be dependent on a path p_dep if either:
+                // (1) p_dep is constant when p_g is active; or
+                // (2) p_dep = this.f' and f' is declared in class c (not a supertype!)
+                //
+                // Note that a type is dependent on p_dep if p.F appears in the type, so 
+                // we must check all prefixes of each dependent path as well.
+                
+                rfd.wt.dependentPaths.foreach { p_full_dep =>
+                    
+                    def check(p_dep: ir.Path) {
+                        p_dep match {
+                            case ir.Path(lv, List()) => 
+                                // Always permitted.
+
+                            case ir.Path(lv, List(f)) if lv == ir.lv_this => 
+                                val tp_dep = teePee(p_dep)
+                                if(!tp_dep.isConstant && !cd.fields.exists(_.name == f))
+                                    throw new ir.IrError(
+                                        "intervals.illegal.type.dep",
+                                        tp_dep.p, tp_guard.p)
+
+                            case ir.Path(lv, f :: rev_fs) =>
+                                checkDependentPath(ir.Path(l, rev_fs))
+                                val tp_dep = teePee(p_dep)
+                                if(!tp_dep.isConstant)
+                                    throw new ir.IrError(
+                                        "intervals.illegal.type.dep",
+                                        tp_dep.p, tp_guard.p)
+                        }
+                    }
+
+                    savingEnv {                        
+                        // XXX Add some logic regarding this.constructor.  Probably we want
+                        // XXX constructor fields as well?
+                        addPerm(ir.p_cur, tp_guard) // use guard as the current interval
+                        check(p_full_dep)
+                    }                   
+                }
+                
+                // Guards must be of type Interval, Lock, or Object:
+                //   (Object is used to write generic code dependent on either interval or lock)
                 if(!isSubtype(tp_guard, ir.t_interval) &&
-                    !isSubtype(tp_guard, ir.t_lock))
+                    !isSubtype(tp_guard, ir.t_lock) &&
+                    tp_guard.wt.c != ir.c_object)
                     throw new ir.IrError("intervals.invalid.guard", tp_guard.p)
             }
         }
@@ -762,7 +808,7 @@ class TypeCheck(log: Log, prog: Prog) {
         log.indented(cd) {
             at(cd, ()) {
                 addLv(ir.lv_this, ir.TeePee(cd.thisTref, ir.p_this, true)) 
-                cd.fields.foreach(checkRealFieldDecl)
+                cd.fields.foreach(checkFieldDecl)
                 
                 addHb(ir.p_readOnly, ir.p_cur) // HACK
                 

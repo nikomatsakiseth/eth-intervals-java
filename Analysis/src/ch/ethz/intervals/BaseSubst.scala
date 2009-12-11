@@ -26,12 +26,12 @@ abstract class BaseSubst {
     def ghostFieldDecl(fd: ir.GhostFieldDecl) =
         ir.GhostFieldDecl(wtref(fd.wt), fd.name)
         
-    def realFieldDecl(fd: ir.RealFieldDecl) =
-        ir.RealFieldDecl(wtref(fd.wt), fd.name, path(fd.p_guard))
+    def realFieldDecl(fd: ir.FieldDecl) =
+        ir.FieldDecl(wtref(fd.wt), fd.name, path(fd.p_guard))
 
     def fieldDecl(fd: ir.FieldDecl): ir.FieldDecl = fd match {
         case gfd: ir.GhostFieldDecl => ghostFieldDecl(gfd)
-        case rfd: ir.RealFieldDecl => realFieldDecl(rfd)
+        case rfd: ir.FieldDecl => realFieldDecl(rfd)
     }
     
     def lvDecl(lv: ir.LvDecl) = 

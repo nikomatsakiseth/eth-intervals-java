@@ -105,11 +105,11 @@ object ir {
     
     sealed case class ClassDecl(
         name: ClassName,
-        ghosts: List[GhostFieldDecl],
+        ghosts: List[GhostDecl],
         superType: Option[TypeRef],
         reqs: List[Req],
         ctor: MethodDecl,
-        fields: List[RealFieldDecl],
+        fields: List[FieldDecl],
         methods: List[MethodDecl]
     ) extends Locatable {
         def thisTref = TypeRef(name, ghosts.map(_.thisPath))
@@ -152,30 +152,21 @@ object ir {
         override def toString = "%s %s".format(wt, name)
     }
 
-    sealed abstract class FieldDecl extends Locatable {
-        val wt: WcTypeRef
-        val name: FieldName
-        def isGhost: Boolean
-        
-        def thisPath = name.thisPath
-    }
-    
-    sealed case class GhostFieldDecl(
+    sealed case class GhostDecl(
         wt: WcTypeRef,
         name: FieldName
-    ) extends FieldDecl {
-        def isGhost = true
-        
+    ) extends Locatable {
+        def thisPath = name.thisPath
         override def toString = "%s %s".format(wt, name)
     }
     
-    sealed case class RealFieldDecl(
+    sealed case class FieldDecl(
+        attrs: Attrs,       
         wt: WcTypeRef,
         name: FieldName,
         p_guard: Path
-    ) extends FieldDecl {
-        def isGhost = false
-        
+    ) extends Locatable {
+        def thisPath = name.thisPath
         override def toString = 
             "%s %s requires %s".format(wt, name, p_guard)
     }
@@ -210,6 +201,8 @@ object ir {
     ) {
         override def toString = "%s<%s>%s".format(c, wpaths.mkString(", "), attrs)
         def withAttrs(as: Attrs) = ir.WcTypeRef(c, wpaths, as)
+        def dependentPaths =
+            wpaths.foldLeft(Set.empty[Path])(_ addDependentPaths _)
     }
     
     sealed case class TypeRef(
@@ -221,11 +214,13 @@ object ir {
     }
     
     sealed abstract class WcPath {
-        def dependentOn(p: ir.Path): Boolean
+        def addDependentPaths(s: Set[Path]): Set[Path]
+        
+        def dependentOn(p: Path): Boolean =
+            addDependentPaths(Set.empty).exists(_.hasPrefix(p))
     }
     sealed case class WcHb(lp: List[Path], lq: List[Path]) extends WcPath {
-        def dependentOn(p: ir.Path) =
-            ps.exists(_.dependentOn(p)) || qs.exists(_.dependentOn(p))
+        def addDependentPaths(s: Set[Path]) = s ++ lp ++ lq
 
         override def toString = {
             (ps match { case List() => ""; case _ => ps.mkString(", ") + " " }) +
@@ -234,8 +229,7 @@ object ir {
         }
     }
     sealed case class WcHbEq(lp: List[Path], lq: List[Path]) extends WcPath {
-        def dependentOn(p: ir.Path) =
-            ps.exists(_.dependentOn(p)) || qs.exists(_.dependentOn(p))
+        def addDependentPaths(s: Set[Path]) = s ++ lp ++ lq
 
         override def toString = {
             (ps match { case List() => ""; case _ => ps.mkString(", ") + " " }) +
@@ -244,14 +238,12 @@ object ir {
         }
     }
     sealed case class WcLocks(lp: List[Path]) extends WcPath {
-        def dependentOn(p: ir.Path) =
-            lp.exists(_.dependentOn(p))
+        def addDependentPaths(s: Set[Path]) = s ++ lp
 
         override def toString = "locks %s".format(lp.mkString(", "))
     }
     sealed case class WcLockedBy(lp: List[Path]) extends WcPath {
-        def dependentOn(p: ir.Path) =
-            lp.exists(_.dependentOn(p))
+        def addDependentPaths(s: Set[Path]) = s ++ lp
 
         override def toString = "%s locks".format(lp.mkString(", "))
     }
@@ -263,9 +255,11 @@ object ir {
         def +(f: ir.FieldName) = Path(lv, f :: rev_fs)
         def ++(fs: List[ir.FieldName]) = fs.foldLeft(this)(_ + _)
         
-        def dependentOn(p: ir.Path) =
+        def addDependentPaths(s: Set[ir.Path]) = s + this
+        
+        def hasPrefix(p: ir.Path) =
             lv == p.lv && rev_fs.endsWith(p.rev_fs)
-
+        
         def start = this + f_start
         def end = this + f_end        
         override def toString = lv.name + fs.mkString(".", ".", "")
@@ -466,8 +460,8 @@ object ir {
                     /* p_ret:  */ None
                     ),
             /* Fields:  */  List(
-                RealFieldDecl(t_point, f_start, p_readOnly),
-                RealFieldDecl(t_point, f_end, p_readOnly)),
+                FieldDecl(t_point, f_start, p_readOnly),
+                FieldDecl(t_point, f_end, p_readOnly)),
             /* Methods: */  List(
                 MethodDecl(
                     /* wt_ret: */ t_void, 
