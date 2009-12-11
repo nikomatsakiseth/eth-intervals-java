@@ -277,6 +277,7 @@ class TypeCheck(log: Log, prog: Prog) {
     // because the outcome of teePee() depends on the env.
     def tp_cur = teePee(ir.p_cur)
     def tp_mthd = teePee(ir.p_mthd)
+    def tp_ctor = teePee(ir.gd_ctor.thisPath)
     def tp_this = teePee(ir.p_this)
     
     // ______________________________________________________________________
@@ -285,6 +286,7 @@ class TypeCheck(log: Log, prog: Prog) {
     // Very basic sanity checks.
     
     def checkWfReq(req: ir.Req) = preservesEnv { req match {
+        case ir.ReqOwned(ps) => teePee(ps)
         case ir.ReqHb(p, qs) => teePee(p); teePee(qs)
         case ir.ReqHbEq(p, qs) => teePee(p); teePee(qs)
         case ir.ReqEq(p, q) => teePee(p); teePee(q)
@@ -439,6 +441,7 @@ class TypeCheck(log: Log, prog: Prog) {
             tqs.foreach(add(tp, _))
         }
         req match {
+            case ir.ReqOwned(ps) => teePee(ps).foreach(addOwned)
             case ir.ReqHb(p, qs) => teePeeAdd(addHb, p, qs)
             case ir.ReqHbEq(p, qs) => teePeeAdd(addHbEq, p, qs)
             case ir.ReqEq(p, q) => addTemp(p, q) // XXX Check for cycles or something
@@ -502,18 +505,20 @@ class TypeCheck(log: Log, prog: Prog) {
         if(!isSubtype(tp_sub, wt_sup))
             throw new ir.IrError("intervals.expected.subtype", tp_sub.p, tp_sub.wt, wt_sup)
     }
-        
+    
+    def isReqOwned(tp: ir.TeePee) = preservesEnv {
+        owned(tp) || (
+            if(isSubtype(tp, ir.t_interval))
+                equiv(tp_cur, tp) || equiv(tp_mthd, tp)
+            else if(isSubtype(tp, ir.t_lock))
+                locks(tp_cur, tp)
+            else
+                false
+        )
+    }
+    
     def isReqFulfilled(req: ir.Req): Boolean = req match {
-        case ir.ReqOwned(p) =>   
-            val tp = teePee(p)
-            owned(tp) || (
-                if(isSubtype(tp, ir.t_interval))
-                    equiv(tp_cur, tp) || equiv(tp_mthd, tp)
-                else if(isSubtype(tp, ir.t_lock))
-                    locks(tp_cur, tp)
-                else
-                    false
-            )
+        case ir.ReqOwned(ps) => ps.forall { p => isReqOwned(teePee(p)) }
         case ir.ReqHb(p, qs) => qs.map(teePee).forall(hb(teePee(p), _))
         case ir.ReqHbEq(p, qs) => qs.map(teePee).forall(hbeq(teePee(p), _))
         case ir.ReqEq(p, q) => equiv(teePee(p), teePee(q))
@@ -795,6 +800,9 @@ class TypeCheck(log: Log, prog: Prog) {
     def checkMethodDecl(md: ir.MethodDecl) = savingEnv {
         log.indented(md) {
             at(md, ()) {
+                if(!md.attrs.ctor)
+                    addHb(tp_ctor, tp_mthd)                    
+                
                 md.args.foreach { case arg => 
                     checkWfWt(arg.wt) // check type of each arg with only prior args in scope
                     addPerm(arg.name.path, ir.TeePee(arg.wt, arg.name.path, ir.noAttrs))
@@ -825,14 +833,13 @@ class TypeCheck(log: Log, prog: Prog) {
                 // XXX and save them in environment for other
                 // XXX methods.
                 savingEnv {
-                    addLv(ir.lv_mthd, ir.TeePee(ir.t_interval, ir.gd_ctor.thisPath, false))
+                    addPerm(ir.p_mthd, ir.TeePee(ir.t_interval, ir.gd_ctor.thisPath, ir.ghostAttrs))
                     checkMethodDecl(cd.ctor)                    
                 }
                 
                 savingEnv {
-                    addLv(ir.lv_mthd, ir.TeePee(ir.t_interval, ir.p_mthd, false))
+                    addPerm(ir.p_mthd, ir.TeePee(ir.t_interval, ir.p_mthd, ir.ghostAttrs))
                     cd.ctor.reqs.foreach(addReq)
-                    addHb(ir.gd_ctor.thisPath, ir.p_mthd)
                     cd.methods.foreach(checkMethodDecl)                    
                 }
             }

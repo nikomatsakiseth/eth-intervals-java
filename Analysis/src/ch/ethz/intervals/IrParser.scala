@@ -37,7 +37,7 @@ class IrParser extends StandardTokenParsers {
     )
                                                 
     def attr = "constructor"                    ^^ { case _ => ir.AttrCtor }
-    def attrs = rep(attr)                       ^^ { case la => Set(la: _*) }
+    def attrs = rep(attr)                       ^^ { case la => ir.Attrs(Set(la: _*)) }
     
     def m = id                                  ^^ { case i => ir.MethodName(i) }
     def c = id                                  ^^ { case i => ir.ClassName(i) }
@@ -54,8 +54,8 @@ class IrParser extends StandardTokenParsers {
         p
     |   comma(p)~"hb"~comma(p)                  ^^ { case ps~_~qs => ir.WcHb(ps, qs) }
     |   comma(p)~"hbeq"~comma(p)                ^^ { case ps~_~qs => ir.WcHbEq(ps, qs) }
-    |   "locks"~comma(p)                        ^^ { case ps => ir.WcLocks(ps) }
-    |   comma(p)~"locks"                        ^^ { case ps => ir.WcLockedBy(ps) }
+    |   "locks"~comma(p)                        ^^ { case _~ps => ir.WcLocks(ps) }
+    |   comma(p)~"locks"                        ^^ { case ps~_ => ir.WcLockedBy(ps) }
     )
     
     def wt =
@@ -79,10 +79,10 @@ class IrParser extends StandardTokenParsers {
     )
     
     def req = (
-        "requires"~p                            ^^ { case _ => ir.ReqMutable(p) }
+        "requires"~comma(p)                     ^^ { case _~ps => ir.ReqOwned(ps) }
     |   "requires"~p~"hb"~comma(p)              ^^ { case _~p~_~qs => ir.ReqHb(p, qs) }
     |   "requires"~p~"hbeq"~comma(p)            ^^ { case _~p~_~qs => ir.ReqHbEq(p, qs) }
-    |   "requires"~lv~"=="~p                    ^^ { case _~lv~_~p => ir.ReqEq(lv, p) }
+    |   "requires"~p~"=="~p                     ^^ { case _~p~_~q => ir.ReqEq(p, q) }
     |   "requires"~p~"locks"~comma(p)           ^^ { case _~p~_~qs => ir.ReqLocks(p, qs) }
     )    
     def reqs = rep(req)
@@ -107,7 +107,7 @@ class IrParser extends StandardTokenParsers {
         "}"
     ) ^^ {
         case "constructor"~"("~args~")"~reqs~"{"~stmts~"}" =>
-            ir.MethodDecl(ir.t_void, ir.m_ctor, args, reqs, stmts, None)
+            ir.MethodDecl(ir.ctorAttrs, ir.t_void, ir.m_ctor, args, reqs, stmts, None)
     }
     
     def ghostFieldDecl = (
@@ -115,7 +115,7 @@ class IrParser extends StandardTokenParsers {
     )
 
     def realFieldDecl = (
-        wt~f~"requires"~p~";"                     ^^ { case wt~f~_~p~_ => ir.FieldDecl(wt, f, p) }
+        attrs~wt~f~"requires"~p~";"             ^^ { case as~wt~f~_~p~_ => ir.FieldDecl(as, wt, f, p) }
     )
     
     def classDecl = (

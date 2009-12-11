@@ -114,10 +114,9 @@ object Util {
     def cross[J](js: UtilIterable[J]): Iterable.Projection[(I,J)] = 
       for(i <- is.projection; j <- js.is.projection) yield (i,j)
       
-    def mkCommaString = mkString(", ")
+    def mkCommaString = is.mkString(", ")
       
     def mkEnglishString: String = {
-        val sb = new StringBuilder()
         val list = is.toList
         val len = list.length
         if(len == 0) ""

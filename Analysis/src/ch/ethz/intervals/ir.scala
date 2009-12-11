@@ -209,7 +209,7 @@ object ir {
         override val c: ClassName,
         paths: List[Path],
         override val as: Attrs
-    ) extends WcTypeRef(c, paths, attrs) {
+    ) extends WcTypeRef(c, paths, as) {
         override def withAttrs(as: Attrs) = ir.TypeRef(c, paths, as)
     }
     
@@ -269,11 +269,11 @@ object ir {
     sealed case class TeePee(
         wt: ir.WcTypeRef, p: ir.Path, as: Attrs
     ) {
-        def isConstant: Boolean = !la.mutable
+        def isConstant: Boolean = !as.mutable
     }
     
     sealed abstract class Req
-    sealed case class ReqOwned(lp: Path) extends Req {
+    sealed case class ReqOwned(lp: List[Path]) extends Req {
         override def toString = "requires %s".format(lp.mkString(", "))
     }
     sealed case class ReqHb(p: Path, lq: List[Path]) extends Req {
