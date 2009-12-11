@@ -62,6 +62,7 @@ object ir {
     }
     val noAttrs = Attrs(ListSet.empty)
     val ctorAttrs = Attrs(ListSet(AttrCtor))
+    val ghostAttrs = Attrs(ListSet(AttrGhost))
     val allPathAttrs = Attrs(ListSet(AttrGhost, AttrMutable))
     
     // ______________________________________________________________________
@@ -135,7 +136,7 @@ object ir {
     }
     
     sealed case class MethodSig(
-        attrs: Attrs,
+        as: Attrs,
         args: List[LvDecl],
         reqs: List[Req],
         wt_ret: WcTypeRef
@@ -278,7 +279,7 @@ object ir {
     }
     
     sealed abstract class Req
-    sealed case class ReqMutable(lp: Path) extends Req {
+    sealed case class ReqOwned(lp: Path) extends Req {
         override def toString = "requires %s".format(lp.mkString(", "))
     }
     sealed case class ReqHb(p: Path, lq: List[Path]) extends Req {
@@ -342,12 +343,13 @@ object ir {
     }
     
     sealed case class TcEnv(
-        canon: Map[ir.Path, ir.TeePee],
+        perm: Map[ir.Path, ir.TeePee],
+        temp: Map[ir.Path, ir.Path],
         fs_invalidated: List[ir.FieldName],
         hb: Relation,
         hbeq: Relation,
         locks: Relation,
-        mutable: Relation
+        owned: Set[ir.Path]
     )
     
     case class IrError(msg: String, args: Any*) 

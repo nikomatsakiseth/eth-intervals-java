@@ -2,6 +2,7 @@ package ch.ethz.intervals
 
 import scala.collection.immutable.Map
 import scala.collection.immutable.Set
+import scala.collection.immutable.ListSet
 import scala.collection.mutable.ListBuffer
 import Util._
 
@@ -33,9 +34,12 @@ class TypeCheck(log: Log, prog: Prog) {
             (ir.lv_readOnly, ir.TeePee(ir.t_interval, ir.p_readOnly, false)),
             (ir.lv_cur, ir.TeePee(ir.t_interval, ir.p_cur, false))
         ),
+        Map(),
+        List(),
         ir.Relation.emptyTrans,
         ir.Relation.emptyTransRefl,
-        ir.Relation.empty
+        ir.Relation.empty,
+        ListSet.empty
     )
     
     /// Executes g and restores the old environment afterwards:
@@ -50,17 +54,17 @@ class TypeCheck(log: Log, prog: Prog) {
         try { g } finally { assert(env == oldEnv) }
     }
     
-    def addLv(lv: ir.VarName, tp: ir.TeePee): Unit = 
-        log.indented("addLv(%s,%s)", lv, tp) {
-            env.lvs.get(lv) match {
+    def addPerm(p: ir.Path, tq: ir.TeePee): Unit = 
+        log.indented("addPerm(%s,%s)", p, tp) {
+            env.perm.get(p) match {
+                case Some(_) =>
+                    throw new ir.IrError("intervals.shadowed", p)
                 case None =>
                     env = ir.TcEnv(
-                        env.lvs + Pair(lv, tp),
+                        env.lvs + Pair(p, tq),
                         env.hb,
                         env.hbeq,
                         env.locks)
-                case Some(_) =>
-                    throw new ir.IrError("intervals.shadowed.variable", lv)
             }
         }
 
@@ -177,11 +181,13 @@ class TypeCheck(log: Log, prog: Prog) {
     
     /// Constructs a TeePee for p_1 
     def teePee(p_1: ir.Path): ir.TeePee = log.indentedRes("teePee(%s)", p0) {
-        if(env.canon.contains(p_1))
-            env.canon(p_1)
+        if(env.perm.contains(p_1))
+            env.perm(p_1)
+        else if(env.temp.contains(p_1))
+            teePee(env.temp(p_1))
         else p_1 match {
-            case ir.Path(lv, List()) => // lv should be in env.canon
-                throw ir.IrError("intervals.no.such.variable", lv)
+            case ir.Path(lv, List()) => // all local variables should be in env.perm
+                throw new ir.IrError("intervals.no.such.variable", lv)
                 
             case ir.Path(lv, f :: rev_fs) =>
                 val p_0 = ir.Path(lv, rev_fs) // p_1 == p_0.f
@@ -299,37 +305,30 @@ class TypeCheck(log: Log, prog: Prog) {
     // ______________________________________________________________________
     // Env Relations
     
-    def declLv(lv: ir.VarName, tq: ir.TeePee) {
-        log.indented("declLv(%s,%s)", lv, tq) {
-            assert(tq.isConstant)
-            env.canon.get(lv.path) match {
-                case Some(_) =>
-                    throw new ir.IrError("intervals.variable.in.scope", lv)
-                
-                case None =>
-                    env = ir.TcEnv(
-                        env.canon + Pair(lv.path, tq),
-                        env.fs_invalidated,
-                        env.hb,
-                        env.hbeq,
-                        env.locks,
-                        env.mutable)
-            }
-        }
-    }
-    
-    def addCanon(tp: ir.TeePee, tq: ir.TeePee) {
-        log.indented("addCanon(%s,%s)", tp, tq) {
-            assert(isSubtype(tq, tp.wt))
-            assert(tq.isConstant)
+    def addTemp(p: ir.Path, q: ir.Path) {
+        log.indented("addCanon(%s,%s)", p, q) {
             env = ir.TcEnv(
-                env.canon + Pair(tp, tq),
+                env.perm,
+                env.temp + Pair(p, q),
                 env.fs_invalidated,
                 env.hb,
                 env.hbeq,
                 env.locks,
-                env.mutable)
+                env.owned)
         }
+    }
+    
+    def clearTemp() {
+        log.indented("addCanon(%s,%s)", p, q) {
+            env = ir.TcEnv(
+                env.perm,
+                List(),
+                env.fs_invalidated,
+                env.hb,
+                env.hbeq,
+                env.locks,
+                env.owned)
+        }        
     }
         
     def addHb(tp: ir.TeePee, tq: ir.TeePee): Unit = log.indented("addHb(%s,%s)", tp, tq) {
@@ -337,10 +336,13 @@ class TypeCheck(log: Log, prog: Prog) {
         assert(isSubtype(tq, ir.t_interval))
         assert(tp.isConstant && tq.isConstant)
         env = ir.TcEnv(
-            env.lvs,
+            env.perm,
+            env.temp,
+            env.fs_invalidated,
             env.hb + (tp.p, tq.p),
             env.hbeq + (tp.p, tq.p),
-            env.locks)
+            env.locks,
+            env.owned)
     }
     
     def addHbEq(tp: ir.TeePee, tq: ir.TeePee): Unit = log.indented("addHbEq(%s,%s)", tp, tq) {
@@ -348,10 +350,13 @@ class TypeCheck(log: Log, prog: Prog) {
         assert(isSubtype(tq, ir.t_interval))
         assert(tp.isConstant && tq.isConstant)
         env = ir.TcEnv(
-            env.lvs,
+            env.perm,
+            env.temp,
+            env.fs_invalidated,
             env.hb,
             env.hbeq + (tp.p, tq.p),
-            env.locks)
+            env.locks,
+            env.owned)
     }
     
     def addLocks(tp: ir.TeePee, tq: ir.TeePee): Unit = log.indented("addLocks(%s,%s)", tp, tq) {
@@ -359,10 +364,24 @@ class TypeCheck(log: Log, prog: Prog) {
         assert(isSubtype(tq, ir.t_lock))
         assert(tp.isConstant && tq.isConstant)
         env = ir.TcEnv(
-            env.lvs,
+            env.perm,
+            env.temp,
+            env.fs_invalidated,
             env.hb,
             env.hbeq,
-            env.locks + (tp.p, tq.p))
+            env.locks + (tp.p, tq.p),
+            env.owned)
+    }
+    
+    def addOwned(tp: ir.TeePee): Unit = log.indented("addOwned(%s)", tp) {
+        env = ir.TcEnv(
+            env.perm,
+            env.temp,
+            env.fs_invalidated,
+            env.hb,
+            env.hbeq,
+            env.locks,
+            env.owned + tp.p)
     }
     
     def hb(p: ir.TeePee, q: ir.TeePee): Boolean = log.indentedRes("%s hb %s?", p, q) {
@@ -381,6 +400,10 @@ class TypeCheck(log: Log, prog: Prog) {
         env.locks.contains(p.p, q.p)
     }
     
+    def owned(p: ir.TeePee): Boolean = log.indentedRes("%s owned?", p) {
+        env.owned.contains(p.p)
+    }
+    
     def addReq(req: ir.Req) = {
         def teePeeAdd(add: Function2[ir.TeePee, ir.TeePee, Unit], p: ir.Path, qs: List[ir.Path]) = {
             val tp = teePee(p)
@@ -390,7 +413,7 @@ class TypeCheck(log: Log, prog: Prog) {
         req match {
             case ir.ReqHb(p, qs) => teePeeAdd(addHb, p, qs)
             case ir.ReqHbEq(p, qs) => teePeeAdd(addHbEq, p, qs)
-            case ir.ReqEqPath(p, q) => addCanon(teePee(p), teePee(q))
+            case ir.ReqEqPath(p, q) => addTemp(p, q) // XXX Check for cycles or something
             case ir.ReqLocks(p, qs) => teePeeAdd(addLocks, p, qs)
         }   
     } 
@@ -452,11 +475,21 @@ class TypeCheck(log: Log, prog: Prog) {
             throw new ir.IrError("intervals.expected.subtype", tp_sub.p, tp_sub.wt, wt_sup)
     }
         
-    def isReqFulfilled(req: ir.Req) = req match {
+    def isReqFulfilled(req: ir.Req): Boolean = req match {
+        case ir.ReqOwned(p) =>   
+            val tp = teePee(p)
+            owner(tp.p) || (
+                if(isSubtype(tp, ir.t_interval))
+                    isReqFulfilled(ir.ReqEq(ir.p_cur, tp)) ||
+                    isReqFulfilled(ir.ReqEq(ir.p_mthd, tp))
+                else if(isSubtype(tp, ir.t_lock))
+                    isReqFulfilled(ir.ReqLocks(ir.p_cur, tp))
+                else
+                    false
+            )
         case ir.ReqHb(p, qs) => qs.forall(hb(p, _))
         case ir.ReqHbEq(p, qs) => qs.forall(hbeq(p, _))
-        case ir.ReqEq(lv, p) => eq(lv.path, p)
-        case ir.ReqEqPath(p, q) => eq(p, q)
+        case ir.ReqEq(p, q) => equiv(teePee(p), teePee(q))
         case ir.ReqLocks(p, qs) => qs.forall(locks(p, _))
     }
     
@@ -475,23 +508,21 @@ class TypeCheck(log: Log, prog: Prog) {
         foreachzip(tqs, msig.args.map(_.wt))(checkIsSubtype)
     }
     
-    def checkLvDecl(vd: ir.LvDecl, owt: Option[ir.WcTypeRef], op: Option[ir.Path]) = {
-        
-        // XXX make sure vd not already in scope
+    def checkLvDecl(vd: ir.LvDecl, owt: Option[ir.WcTypeRef], op_canon: Option[ir.Path]) = {
         
         checkWfWt(vd.wt)
         
         owt.foreach (savingEnv { case wt =>
             val lv = ir.VarName(fresh("val"))
             val tp = ir.TeePee(wt, lv.path, true)
-            addLv(lv, tp)
+            addPerm(lv.path, tp)
             checkIsSubtype(tp, vd.wt)
         })
         
-        addLv(vd.name, ir.TeePee(
+        addPerm(vd.name.path, ir.TeePee(
             vd.wt, 
-            op.getOrElse(vd.name.path),
-            true))
+            op_canon.getOrElse(vd.name.path), // default canonical path for x is just x
+            ir.noAttrs))                      // all local vars are (a) reified and (b) immutable
     }
     
     def checkCurrentLocks(tp_guard: ir.TeePee) = preservesEnv {
@@ -515,6 +546,19 @@ class TypeCheck(log: Log, prog: Prog) {
         cd.fields.filter { rfd => isLinkedWt(p_f, rfd.wt) }
     }
     
+    def checkReadable(tp_guard: ir.TeePee) {
+        if(!owned(tp_guard)) {
+            if(isSubtype(tp_guard, ir.t_interval)) {
+                if(!hbeq(tp_guard, tp_mthd) && !hbeq(tp_guard, tp_cur))
+                    throw new ir.IrError("intervals.no.hb", tp_guard.p, tp_mthd.p)
+            } else if(isSubtype(tp_guard, ir.t_lock)) {
+                checkCurrentLocks(tp_guard)
+            } else {
+                throw new ir.IrError("intervals.not.owned", tp_guard.p)
+            }
+        }
+    }
+    
     def checkStatement(stmt: ir.Stmt) = log.indented(stmt) {
         at(stmt, ()) {
             stmt match {  
@@ -522,28 +566,42 @@ class TypeCheck(log: Log, prog: Prog) {
                     val tp = teePee(ir.noAttrs)
                     val tqs = teePee(ir.noAttrs, qs)
                     val msig = substdMethodSig(tp, m, tqs)
+                    
+                    // Cannot invoke a method when there are outstanding invalidated fields:
+                    if(!env.fs_invalidated.isEmpty)
+                        throw new ir.IrError(
+                            "intervals.must.assign.first", 
+                            env.fs_invalidated.mkEnglishString)
+                    
+                    // If method is not a constructor method, receiver must be constructed:
+                    if(!msig.as.ctor && tp.wt.as.ctor) 
+                        throw new ir.IrError("intervals.rcvr.must.be.constructed", p)                        
+                        
+                    // Arguments must have correct type and requirements must be fulfilled:
                     checkArgumentTypes(msig, tqs)
-                    checkLvDecl(vd, Some(msig.wt_ret), None)
                     msig.reqs.foreach(checkReqFulfilled)
+                    
+                    // Any method call disrupts potential temporary assocations:
+                    //     We make these disruptions before checking return value, 
+                    //     in case they would affect the type.  Haven't thought through
+                    //     if this can happen or not, but this would be the right time anyhow.
+                    clearTemp()
+                    
+                    checkLvDecl(vd, Some(msig.wt_ret), None)
         
-                case ir.StmtGetField(vd, p, f) =>
-                    val tp = teePee(p)
-                    val fd = substdRealFieldDecl(tp, f)
-                    val tp_guard = teePee(fd.p_guard)
+                case ir.StmtGetField(vd, p_o, f) =>
+                    val tp_o = teePee(ir.noAttrs, p_o)
+                    val fd = substdRealFieldDecl(tp_o, f)
+                    val tp_guard = teePee(ir.ghostAttrs, fd.p_guard)                    
+                    val p_f = tp_o.p + f // Canonical path of f; valid as f is not a ghost.
 
-                    val op = 
-                        if(isSubtype(tp_guard, ir.t_interval)) {
-                            if(hb(tp_guard, tp_mthd))
-                                Some(p + f) // safe, constant
-                            else if(eq(tp_guard, tp_cur))
-                                None // safe, non-constant
-                            else if(eq(tp_guard, tp_mthd))
-                                None // safe, non-constant
-                            else 
-                                throw new ir.IrError("intervals.no.hb", tp_guard.p)
-                        } else {
-                            checkCurrentLocks(tp_guard)
-                            None // safe, non-constant
+                    val op_canon = 
+                        if(hb(tp_guard, tp_mthd)) { // Constant:
+                            Some(p_f)
+                        } else { // Non-constant:
+                            checkReadable(tp_guard)
+                            addTemp(p_f, vd.name.path) // Record that p.f == vd, for now.
+                            None
                         }
             
                     checkLvDecl(vd, Some(fd.wt), op)
