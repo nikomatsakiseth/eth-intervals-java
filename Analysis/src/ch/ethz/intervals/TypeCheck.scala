@@ -38,9 +38,16 @@ class TypeCheck(log: Log, prog: Prog) {
         ir.Relation.empty
     )
     
+    /// Executes g and restores the old environment afterwards:
     def savingEnv[R](g: => R): R = {
         val oldEnv = env
         try { g } finally { env = oldEnv }
+    }
+    
+    /// Checks that this function preserves the environment:
+    def preservesEnv[R](g: => R): R = {
+        val oldEnv = env
+        try { g } finally { assert(env == oldEnv) }
     }
     
     def addLv(lv: ir.VarName, tp: ir.TeePee): Unit = 
@@ -74,19 +81,19 @@ class TypeCheck(log: Log, prog: Prog) {
     // Basic Type Operations: Finding fields, methods, supertypes
         
     /// subst. ghosts of t
-    def ghostSubst(t: ir.TypeRef) = {
+    def ghostSubst(t: ir.TypeRef) = preservesEnv {
         val ghostPaths = classDecl(t.c).ghosts.map(_.thisPath)
         PathSubst.pp(ghostPaths, t.paths)
     }
 
     /// supertype of t
-    def sup(t: ir.TypeRef): Option[ir.TypeRef] = {
+    def sup(t: ir.TypeRef): Option[ir.TypeRef] = preservesEnv {
         val cd = classDecl(t.c)
         cd.superType.map { case t_1 => ghostSubst(t).tref(t_1) }
     }
 
     /// Field decl for t0::f 
-    def realFieldDecl(c: ir.ClassName, f: ir.FieldName): ir.RealFieldDecl = {
+    def realFieldDecl(c: ir.ClassName, f: ir.FieldName): ir.RealFieldDecl = preservesEnv {
         log.indentedRes("realFieldDecl(%s,%s)", c, f) {
             def search(t: ir.TypeRef): ir.RealFieldDecl = 
                 log.indentedRes("search(%s)", t) {
@@ -105,7 +112,7 @@ class TypeCheck(log: Log, prog: Prog) {
     }
 
     /// Method sig for t0::m()
-    def methodSig(c: ir.ClassName, m: ir.MethodName): ir.MethodSig = {
+    def methodSig(c: ir.ClassName, m: ir.MethodName): ir.MethodSig = preservesEnv {
         log.indentedRes("methodSig(%s,%s)", c, m) {
             def search(t: ir.TypeRef): ir.MethodSig = {
                 val cd = classDecl(t.c)
@@ -130,7 +137,10 @@ class TypeCheck(log: Log, prog: Prog) {
     // a TeePee may reference fields of the this object guarded by the
     // current interval or held under lock, which could then be mutated.  
     
-    def ghostPaths(tp: ir.TeePee): List[ir.Path] = {
+    /// Returns a list of paths for the ghosts of tp.wt.
+    /// Any wildcards in tp.wt are replaced with a path based on 'tp'.
+    /// So if tp.wt was Foo<f: ?, g: q>, the result would be List(tp.p + f, q).
+    def ghostPaths(tp: ir.TeePee): List[ir.Path] = preservesEnv {
         val cd = classDecl(tp.wt.c)
         cd.ghosts.zip(tp.wt.wpaths).map {
             case (_, s: ir.Path) => s
@@ -138,9 +148,8 @@ class TypeCheck(log: Log, prog: Prog) {
         }        
     }
     
-    /// Creates a 
-    ///
-    def ghostSubst(tp: ir.TeePee): PathSubst = {
+    /// Creates a subst from 'tp' that replaces 'this' and any of its ghosts.
+    def ghostSubst(tp: ir.TeePee): PathSubst = preservesEnv {
         val cd = classDecl(tp.wt.c)
         PathSubst.pp(
             ir.p_this :: cd.ghosts.map(_.thisPath),
@@ -148,20 +157,19 @@ class TypeCheck(log: Log, prog: Prog) {
         )     
     }
     
-    /// Captures type of tp.  Simply substitutes paths based on
-    /// tp for any wildcards. So if type was Foo<f: ?>, the resulting
-    /// type ref would be Foo<f: tp.f>.
-    def cap(tp: ir.TeePee): ir.TypeRef =
-        ir.TypeRef(tp.wt.c, ghostPaths(tp))        
+    /// Captures tp.wt, using ghostPaths(tp) for the type args.
+    def cap(tp: ir.TeePee): ir.TypeRef = preservesEnv {
+        ir.TypeRef(tp.wt.c, ghostPaths(tp))                
+    }
     
     /// Field decl for tp.f
-    def substdRealFieldDecl(tp: ir.TeePee, f: ir.FieldName) = {
+    def substdRealFieldDecl(tp: ir.TeePee, f: ir.FieldName) = preservesEnv {
         val rfd = realFieldDecl(tp.wt.c, f)
         ghostSubst(tp).realFieldDecl(rfd)
     }
     
     /// Method sig for tp.m(tqs)
-    def substdMethodSig(tp: ir.TeePee, m: ir.MethodName, tqs: List[ir.TeePee]) = {
+    def substdMethodSig(tp: ir.TeePee, m: ir.MethodName, tqs: List[ir.TeePee]) = preservesEnv {
         val msig = methodSig(tp.wt.c, m)
         val subst = ghostSubst(tp) + PathSubst.vp(msig.args.map(_.name), tqs.map(_.p))
         subst.methodSig(msig)        
@@ -184,11 +192,11 @@ class TypeCheck(log: Log, prog: Prog) {
                     ir.TeePee(wt_f, p_0 + f, tp_0.as.withGhost)                    
                 }
 
-                // First look for a ghost field with the name "f", then a real field:
+                // First look for a ghost with the name "f", then a real field:
                 val cd_0 = classDecl(tp_0.wt.c)
                 cd_0.ghosts.zip(tp_0.wt.wpaths).find(_._1.name == f) match {
                     
-                    // Ghost field with precise path specified:
+                    // Ghost with precise path specified:
                     case Some((gfd_f, q: ir.Path)) => 
                         if(q != p_0 + f) 
                             // p_0 had a type like Foo<f: q>, so canonical
@@ -267,15 +275,15 @@ class TypeCheck(log: Log, prog: Prog) {
     //
     // Very basic sanity checks.
     
-    def checkWfReq(req: ir.Req) = req match {
+    def checkWfReq(req: ir.Req) = preservesEnv { req match {
         case ir.ReqHb(p, qs) => teePee(p); teePee(qs)
         case ir.ReqHbEq(p, qs) => teePee(p); teePee(qs)
         case ir.ReqEq(lv, p) => teePee(lv.path); teePee(p)
         case ir.ReqEqPath(p, q) => teePee(p); teePee(q)
         case ir.ReqLocks(p, qs) => teePee(p); teePee(qs)
-    }
+    } }
     
-    def checkWfWt(wt: ir.WcTypeRef) = {
+    def checkWfWt(wt: ir.WcTypeRef) = preservesEnv {
         val cd = classDecl(wt.c)
         
         if(cd.ghosts.length != wt.wpaths.length)
@@ -391,49 +399,52 @@ class TypeCheck(log: Log, prog: Prog) {
     // Subtyping    
     
     /// wp <= wq
-    def isSubpath(p: ir.Path, wq: ir.WcPath) = log.indentedRes("%s <= %s?", wp, wq) {                
-        // Here we just use teePee() without checking that it is 
-        // immutable.  That's safe because we never ADD to the relations
-        // unless the teePee is immutable. 
-        //
-        // XXX Is this REALLY true...?
-        val tp = teePee(p)
-        wq match {
-            case q: ir.Path =>
-                equiv(tp, teePee(q))
-            case ir.WcHb(lq_1, lq_2) =>
-                lq_1.forall { q_1 => hb(teePee(q_1), tp) } &&
-                lq_2.forall { q_2 => hb(tp, teePee(q_2)) }
-            case ir.WcHbEq(lq_1, lq_2) =>
-                lq_1.forall { q_1 => hbeq(teePee(q_1), tp) } &&
-                lq_2.forall { q_2 => hbeq(tp, teePee(q_2)) }
-            case ir.WcLocks(lq) =>
-                lq.forall { q => locks(tp, teePee(q)) }
-            case ir.WcLockedBy(lq) =>
-                lq.forall { q => locks(teePee(q), tp) }
+    def isSubpath(p: ir.Path, wq: ir.WcPath) = preservesEnv {
+        log.indentedRes("%s <= %s?", wp, wq) {                
+            // Here we just use teePee() without checking that it is 
+            // immutable.  That's safe because we never ADD to the relations
+            // unless the teePee is immutable. 
+            //
+            // XXX Is this REALLY true...?
+            val tp = teePee(p)
+            wq match {
+                case q: ir.Path =>
+                    equiv(tp, teePee(q))
+                case ir.WcHb(lq_1, lq_2) =>
+                    lq_1.forall { q_1 => hb(teePee(q_1), tp) } &&
+                    lq_2.forall { q_2 => hb(tp, teePee(q_2)) }
+                case ir.WcHbEq(lq_1, lq_2) =>
+                    lq_1.forall { q_1 => hbeq(teePee(q_1), tp) } &&
+                    lq_2.forall { q_2 => hbeq(tp, teePee(q_2)) }
+                case ir.WcLocks(lq) =>
+                    lq.forall { q => locks(tp, teePee(q)) }
+                case ir.WcLockedBy(lq) =>
+                    lq.forall { q => locks(teePee(q), tp) }
+            }
         }
     }
     
     /// t_sub <: wt_sup
-    def isSubtype(t_sub: ir.TypeRef, wt_sup: ir.WcTypeRef): Boolean =
+    def isSubtype(t_sub: ir.TypeRef, wt_sup: ir.WcTypeRef): Boolean = preservesEnv {
         log.indentedRes("%s <: %s?", t_sub, wt_sup) {
-            
             // (t <: t constructor) but (t constructor not <: t)
             if(wt_sup.as.ctor && !t.as.ctor) 
                 false
             
+            // c<P> <: c<WP> iff P <= WP
             if(t_sub.c == wt_sup.c)
                 forallzip(t_sub.wpaths, wt_sup.wpaths)(isSubpath) 
-            else
+            else // else walk to supertype of t_sub
                 sup(t_sub) match {
                     case None => false
                     case Some(t) => isSubtype(t, wt_sup)
                 }                
-            
-        }
+        }        
+    }
     
-    def isSubtype(tp_sub: ir.TeePee, wt_sup: ir.WcTypeRef): Boolean =
-        isSubtype(cap(tp_sub), wt_sup)
+    def isSubtype(tp_sub: ir.TeePee, wt_sup: ir.WcTypeRef): Boolean = preservesEnv {
+        isSubtype(cap(tp_sub), wt_sup)        
+    }
         
     /// wt_sub <: wt_sup
     def checkIsSubtype(tp_sub: ir.TeePee, wt_sup: ir.WcTypeRef) {
@@ -454,12 +465,12 @@ class TypeCheck(log: Log, prog: Prog) {
             throw new ir.IrError("intervals.requirement.not.met", req)
     }
     
-    def checkLengths(l1: List[_], l2: List[_], msg: String) {
+    def checkLengths(l1: List[_], l2: List[_], msg: String) = preservesEnv {
         if(l1.length != l2.length)
             throw new ir.IrError(msg, l1.length, l2.length)
     }
     
-    def checkArgumentTypes(msig: ir.MethodSig, tqs: List[ir.TeePee]) {
+    def checkArgumentTypes(msig: ir.MethodSig, tqs: List[ir.TeePee]) = preservesEnv {
         checkLengths(msig.args, tqs, "intervals.wrong.number.method.arguments")
         foreachzip(tqs, msig.args.map(_.wt))(checkIsSubtype)
     }
@@ -483,7 +494,7 @@ class TypeCheck(log: Log, prog: Prog) {
             true))
     }
     
-    def checkCurrentLocks(tp_guard: ir.TeePee) {
+    def checkCurrentLocks(tp_guard: ir.TeePee) = preservesEnv {
         if(!locks(tp_cur, tp_guard))
             throw new ir.IrError("intervals.no.lock", tp_guard.p)
     }
@@ -491,32 +502,25 @@ class TypeCheck(log: Log, prog: Prog) {
     /// Returns true if 'wt' is linked to 'p': that is,
     /// if it depends on 'p' in some way.  'p' must be
     /// a canonical path.
-    def isLinkedWt(p: ir.Path, wt: ir.WcTypeRef) =
-        wt.wpaths.exists(_.dependentOn(p))
+    def isLinkedWt(p: ir.Path, wt: ir.WcTypeRef) = preservesEnv {
+        wt.wpaths.exists(_.dependentOn(p))        
+    }
     
-    /// A linked field f_l to p.f is one whose type is invalidated
-    /// if p.f changes.  In general this is because p.f appears
-    /// in the type of f_l.
-    def linkedFields(tp: ir.TeePee, f: ir.FieldName) = {
+    /// A field f_l is linked to tp.f if its type is invalidated
+    /// when p.f changes.  This occurs when p.f appears in f_l's type.
+    def linkedFields(tp: ir.TeePee, f: ir.FieldName) = preservesEnv {
         val cd = classDecl(tp.wt.c)
         val p_f = f.thisPath
         
         cd.fields.filter { rfd => isLinkedWt(p_f, rfd.wt) }
     }
     
-    def linkedVariables(tp: ir.TeePee, f: ir.FieldName): List[ir.VarName] = {
-        val p_f = f.thisPath
-        
-        env.lvs.values.
-        List()
-    }
-                    
     def checkStatement(stmt: ir.Stmt) = log.indented(stmt) {
         at(stmt, ()) {
             stmt match {  
                 case ir.StmtCall(vd, p, m, qs) =>
-                    val tp = teePee(p)
-                    val tqs = teePee(qs)
+                    val tp = teePee(ir.noAttrs)
+                    val tqs = teePee(ir.noAttrs, qs)
                     val msig = substdMethodSig(tp, m, tqs)
                     checkArgumentTypes(msig, tqs)
                     checkLvDecl(vd, Some(msig.wt_ret), None)
