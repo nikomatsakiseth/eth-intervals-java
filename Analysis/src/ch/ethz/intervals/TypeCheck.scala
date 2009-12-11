@@ -41,12 +41,6 @@ class TypeCheck(log: Log, prog: Prog) {
             }
         }
 
-    def tp_lv(lv: ir.VarName) =
-        env.lvs.get(lv) match {
-            case Some(tp) => tp
-            case None => throw ir.IrError("intervals.no.such.variable", lv)
-        }
-    
     // ______________________________________________________________________
     // Errors
 
@@ -152,67 +146,74 @@ class TypeCheck(log: Log, prog: Prog) {
         subst.methodSig(msig)        
     }
     
-    def constructTeePee(p0: ir.Path): ir.TeePee = log.indentedRes("constructTeePee(%s)", p0) {
-        p0 match {
-            case ir.Path(lv, List()) => 
-                tp_lv(lv)
-            case ir.Path(lv, f :: rev_fs) =>
-                val tp = constructTeePee(ir.Path(lv, rev_fs))
+    def constructTeePee(p_1: ir.Path): ir.TeePee = log.indentedRes("constructTeePee(%s)", p0) {
+        if(env.canon.contains(p_1))
+            env.canon(p_1)
+        else p_1 match {
+            case ir.Path(lv, List()) => // lv should be in env.canon
+                throw ir.IrError("intervals.no.such.variable", lv)
                 
-                // Invoked when we have a path like a.b.c.f 
-                // where a.b.c yields a type Foo<f: ps hb/eq qs>.
-                // In other words, the field f is a ghost field
-                // of a.b.c, and the value on a.b.c is a wildcard.
-                // In that case, the final path is a.b.c.p, but
-                // we add whatever relations we can to it.
-                def ghost(
-                    gfd: ir.GhostFieldDecl,
-                    add: Function2[ir.TeePee, ir.TeePee, Unit], 
-                    ps: List[ir.Path], 
-                    qs: List[ir.Path]) = 
-                {
-                    // Compute final path a.b.c.f:
-                    val wt_cap = ghostSubst(tp).wtref(gfd.wt)
-                    val tp_cap = ir.TeePee(wt_cap, tp.p + f, false)
-                    
-                    // Add relations from the wildcard:                    
-                    ps.foreach { case p => add(teePee(p), tp_cap) }
-                    qs.foreach { case q => add(tp_cap, teePee(q)) }
-                    
-                    tp_cap
+            case ir.Path(lv, f :: rev_fs) =>
+                val p_0 = ir.Path(lv, rev_fs) // p_1 == p_0.f
+                val tp_0 = constructTeePee(p_0)
+                
+                def ghostTeePee(gfd_f: ir.GhostFieldDecl) = {
+                    val wt_f = ghostSubst(tp_0).wtref(gfd_f.wt)
+                    ir.TeePee(wt_f, p_0 + f, tp_0.as.withGhost)                    
                 }
-                   
-                // Look for a ghost field with the name "f".  If it maps
-                // to a fixed path p, start again from p.  If it
-                // maps to a wildcard, then keep path but use ghost to add
-                // appropriate restrictions.
-                val cd = classDecl(tp.wt.c)
-                cd.ghosts.zip(tp.wt.wpaths).find(_._1.name == f) match {
-                    case Some((gfd, p: ir.Path)) => 
-                        if(tp.p + f == p) // This is a captured version of the ghost:
-                            ir.TeePee(gfd.wt, p, tp.as.withGhost)
+
+                // First look for a ghost field with the name "f", then a real field:
+                val cd_0 = classDecl(tp_0.wt.c)
+                cd_0.ghosts.zip(tp_0.wt.wpaths).find(_._1.name == f) match {
+                    
+                    // Ghost field with precise path specified:
+                    case Some((gfd_f, q: ir.Path)) => 
+                        if(q != p_0 + f) 
+                            // p_0 had a type like Foo<f: q>, so canonical
+                            // version of p_0.f is canonical version of q:
+                            constructTeePee(q)
                         else
-                            constructTeePee(p)
-                    case Some((gfd, ir.WcHb(ps, qs))) => ghost(gfd, addHb, ps, qs)
-                    case Some((gfd, ir.WcHbEq(ps, qs))) => ghost(gfd, addHbEq, ps, qs)
-                    case None =>                     
-                        if(f == ir.f_ctor) {
-                            // Hokey special case constructor interval:
-                            //   We assume that x.constructor has always finished
-                            //   if x≠this, because this does not escape the ctor.
-                            val tq = ir.TeePee(ir.t_interval, tp.p + f, tp.as.withGhost)
-                            addHbEq(tq, tp_mthd)
-                            tq
-                        } else {
-                            // Look for a "reliable" real field (not quite the same as "constant").
-                            val rfd = substdRealFieldDecl(tp, f)
-                            checkReqFulfilled(
-                                // XXX Permit locks as well
-                                if(tp.p == ir.p_this) ir.ReqHbEq(rfd.p_guard, List(ir.p_cur))
-                                else ir.ReqHb(rfd.p_guard, List(ir.p_cur))
-                            )
-                            ir.TeePee(rfd.wt, tp.p + f, tp.reified)                            
-                        }                    
+                            // p_0 had a type like Foo<f: p_0.f>, which gives us no information:
+                            // It only tells us p_0's shadow argument f is p_0.f.
+                            // This can result from the capturing process, when p_0 had
+                            // a wildcard path (see below).
+                            ghostTeePee(gfd_f)
+                            
+                    // p_0 had a type like Foo<f: ps hb qs>, so canonical
+                    // version is p_0.f but we add relations that ps hb p_0.f hb qs.
+                    case Some((gfd_f, ir.WcHb(ps, qs))) => 
+                        val tp_f = ghostTeePee(gfd_f)
+                        ps.foreach { case p => addHb(teePee(p), tp_f) }
+                        qs.foreach { case p => addHb(tp_f, teePee(q)) }
+                        tp_f
+                    
+                    // p_0 had a type like Foo<f: ps hbeq qs>, so canonical
+                    // version is p_0.f but we add relations that ps hb p_0.f hbeq qs.
+                    case Some((gfd_f, ir.WcHbEq(ps, qs))) => 
+                        val tp_f = ghostTeePee(gfd_f)
+                        ps.foreach { case p => addHbEq(teePee(p), tp_f) }
+                        qs.foreach { case p => addHbEq(tp_f, teePee(q)) }
+                        tp_f
+                        
+                    // The path is p_0.constructor, which we handle specially:
+                    case None if f == ir.f_ctor =>
+                        val tp_f = ir.TeePee(ir.t_interval, p_0 + f, tp.as.withGhost)
+                        if(tp_0.wt.as.ctor) // is tp_0 fully constructed?
+                            addHb(tp_f, tp_mthd) // then we may assume p_0.ctor -> method
+                        tp_f
+                        
+                    // The path p_0.f names a real field f:
+                    case None =>
+                        val rfd_f = substdRealFieldDecl(tp_0, f)
+                        val tp_guard = constructTeePee(rfd_f.p_guard)
+                        val as_f = // determine if f is immutable in current method:
+                            if(!tp_guard.isConstant)
+                                tp_0.as.withMutable // guard not yet constant? mutable
+                            else if(!hb(tp_guard, tp_mthd))
+                                tp_0.as.withMutable // not guarded by closed interval? mutable
+                            else
+                                tp_0.as // p_0 mutable? mutable
+                        ir.TeePee(rfd_f.wt, p_0 + f, as_f)
                 }
         }
     }

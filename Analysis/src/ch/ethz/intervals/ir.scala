@@ -273,7 +273,9 @@ object ir {
     /// A TeePee is a typed path.
     sealed case class TeePee(
         t: ir.TypeRef, p: ir.Path, la: Attrs
-    )
+    ) {
+        def isConstant: Boolean = !la.mutable
+    }
     
     sealed abstract class Req
     sealed case class ReqMutable(lp: Path) extends Req {
