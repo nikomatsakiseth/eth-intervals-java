@@ -5,6 +5,22 @@ import scala.collection.immutable.Set
 import scala.collection.mutable.ListBuffer
 import Util._
 
+/*
+Notes of Notation:
+
+Foo<f: p>
+---------
+
+We often use the notation Foo<f: p> to mean a type Foo 
+value p for its ghost parameter f.  This notation combines
+the class declaration, which must have been something like:
+    class Foo<wt f> { ... }
+and the normal reference a user would use:
+    Foo<p>
+into one more concise entity Foo<f: p> that provides both
+the name (but not type) and value of the ghost argument(s).
+*/
+
 class TypeCheck(log: Log, prog: Prog) {    
     import prog.classDecl
     import prog.fresh
@@ -122,6 +138,8 @@ class TypeCheck(log: Log, prog: Prog) {
         }        
     }
     
+    /// Creates a 
+    ///
     def ghostSubst(tp: ir.TeePee): PathSubst = {
         val cd = classDecl(tp.wt.c)
         PathSubst.pp(
@@ -130,6 +148,9 @@ class TypeCheck(log: Log, prog: Prog) {
         )     
     }
     
+    /// Captures type of tp.  Simply substitutes paths based on
+    /// tp for any wildcards. So if type was Foo<f: ?>, the resulting
+    /// type ref would be Foo<f: tp.f>.
     def cap(tp: ir.TeePee): ir.TypeRef =
         ir.TypeRef(tp.wt.c, ghostPaths(tp))        
     
@@ -146,7 +167,8 @@ class TypeCheck(log: Log, prog: Prog) {
         subst.methodSig(msig)        
     }
     
-    def constructTeePee(p_1: ir.Path): ir.TeePee = log.indentedRes("constructTeePee(%s)", p0) {
+    /// Constructs a TeePee for p_1 
+    def teePee(p_1: ir.Path): ir.TeePee = log.indentedRes("teePee(%s)", p0) {
         if(env.canon.contains(p_1))
             env.canon(p_1)
         else p_1 match {
@@ -155,7 +177,7 @@ class TypeCheck(log: Log, prog: Prog) {
                 
             case ir.Path(lv, f :: rev_fs) =>
                 val p_0 = ir.Path(lv, rev_fs) // p_1 == p_0.f
-                val tp_0 = constructTeePee(p_0)
+                val tp_0 = teePee(p_0)
                 
                 def ghostTeePee(gfd_f: ir.GhostFieldDecl) = {
                     val wt_f = ghostSubst(tp_0).wtref(gfd_f.wt)
@@ -171,7 +193,7 @@ class TypeCheck(log: Log, prog: Prog) {
                         if(q != p_0 + f) 
                             // p_0 had a type like Foo<f: q>, so canonical
                             // version of p_0.f is canonical version of q:
-                            constructTeePee(q)
+                            teePee(q)
                         else
                             // p_0 had a type like Foo<f: p_0.f>, which gives us no information:
                             // It only tells us p_0's shadow argument f is p_0.f.
@@ -217,6 +239,10 @@ class TypeCheck(log: Log, prog: Prog) {
                 }
         }
     }
+    
+    /// Constructs TeePees for all of 'ps'
+    def teePee(ps: List[ir.Path]): List[ir.TeePee] = 
+        ps.map(teePee)
 
     /// Constructs a 'tp' for 'p' and checks that it has at most the attributes 'as'
     def teePee(as: ir.Attrs, p: ir.Path): ir.TeePee = {
@@ -228,7 +254,7 @@ class TypeCheck(log: Log, prog: Prog) {
         
     /// Constructs tps for 'ps' and checks that they have at most the attributes 'as'
     def teePee(as: ir.Attrs, ps: List[ir.Path]): List[ir.TeePee] = 
-        ps.map(teePee)
+        ps.map(teePee(as, _))
         
     // Note: these are not vals but defs!  This is important
     // because the outcome of teePee() depends on the env.
@@ -267,6 +293,7 @@ class TypeCheck(log: Log, prog: Prog) {
     
     def declLv(lv: ir.VarName, tq: ir.TeePee) {
         log.indented("declLv(%s,%s)", lv, tq) {
+            assert(tq.isConstant)
             env.canon.get(lv.path) match {
                 case Some(_) =>
                     throw new ir.IrError("intervals.variable.in.scope", lv)
@@ -285,6 +312,8 @@ class TypeCheck(log: Log, prog: Prog) {
     
     def addCanon(tp: ir.TeePee, tq: ir.TeePee) {
         log.indented("addCanon(%s,%s)", tp, tq) {
+            assert(isSubtype(tq, tp.wt))
+            assert(tq.isConstant)
             env = ir.TcEnv(
                 env.canon + Pair(tp, tq),
                 env.fs_invalidated,
@@ -296,8 +325,9 @@ class TypeCheck(log: Log, prog: Prog) {
     }
         
     def addHb(tp: ir.TeePee, tq: ir.TeePee): Unit = log.indented("addHb(%s,%s)", tp, tq) {
-        assert(isSubtype(cap(tp), ir.t_interval))
-        assert(isSubtype(cap(tq), ir.t_interval))
+        assert(isSubtype(tp, ir.t_interval))
+        assert(isSubtype(tq, ir.t_interval))
+        assert(tp.isConstant && tq.isConstant)
         env = ir.TcEnv(
             env.lvs,
             env.hb + (tp.p, tq.p),
@@ -306,8 +336,9 @@ class TypeCheck(log: Log, prog: Prog) {
     }
     
     def addHbEq(tp: ir.TeePee, tq: ir.TeePee): Unit = log.indented("addHbEq(%s,%s)", tp, tq) {
-        assert(isSubtype(cap(tp), ir.t_interval))
-        assert(isSubtype(cap(tq), ir.t_interval))
+        assert(isSubtype(tp, ir.t_interval))
+        assert(isSubtype(tq, ir.t_interval))
+        assert(tp.isConstant && tq.isConstant)
         env = ir.TcEnv(
             env.lvs,
             env.hb,
@@ -316,8 +347,9 @@ class TypeCheck(log: Log, prog: Prog) {
     }
     
     def addLocks(tp: ir.TeePee, tq: ir.TeePee): Unit = log.indented("addLocks(%s,%s)", tp, tq) {
-        assert(isSubtype(cap(tp), ir.t_interval))
-        assert(isSubtype(cap(tq), ir.t_lock))
+        assert(isSubtype(tp, ir.t_interval))
+        assert(isSubtype(tq, ir.t_lock))
+        assert(tp.isConstant && tq.isConstant)
         env = ir.TcEnv(
             env.lvs,
             env.hb,
@@ -359,30 +391,26 @@ class TypeCheck(log: Log, prog: Prog) {
     // Subtyping    
     
     /// wp <= wq
-    def isSubpath(wp: ir.WcPath, wq: ir.WcPath) = log.indentedRes("%s <= %s?", wp, wq) {
-        (wp, wq) match {
-            case (p: ir.Path, q: ir.Path) => 
-                eq(p, q)
-            case (_, q: ir.Path) =>
-                false
-            case (r: ir.Path, ir.WcHb(ps, qs)) => 
-                ps.forall { p => hb(p, r) } &&
-                qs.forall { q => hb(r, q) }
-            case (r: ir.Path, ir.WcHbEq(ps, qs)) => 
-                ps.forall { p => hbeq(p, r) } &&
-                qs.forall { q => hbeq(r, q) }
-            case (ir.WcHb(rs, ss), ir.WcHb(ps, qs)) => 
-                forallcross(ps, rs)(hbeq) &&
-                forallcross(ss, qs)(hbeq)
-            case (ir.WcHbEq(rs, ss), ir.WcHbEq(ps, qs)) => 
-                forallcross(ps, rs)(hbeq) &&
-                forallcross(ss, qs)(hbeq)
-            case (ir.WcHb(rs, ss), ir.WcHbEq(ps, qs)) => 
-                forallcross(ps, rs)(hb) &&
-                forallcross(ss, qs)(hb)
-            case (ir.WcHbEq(rs, ss), ir.WcHb(ps, qs)) => 
-                forallcross(ps, rs)(hb) &&
-                forallcross(ss, qs)(hb)
+    def isSubpath(p: ir.Path, wq: ir.WcPath) = log.indentedRes("%s <= %s?", wp, wq) {                
+        // Here we just use teePee() without checking that it is 
+        // immutable.  That's safe because we never ADD to the relations
+        // unless the teePee is immutable. 
+        //
+        // XXX Is this REALLY true...?
+        val tp = teePee(p)
+        wq match {
+            case q: ir.Path =>
+                equiv(tp, teePee(q))
+            case ir.WcHb(lq_1, lq_2) =>
+                lq_1.forall { q_1 => hb(teePee(q_1), tp) } &&
+                lq_2.forall { q_2 => hb(tp, teePee(q_2)) }
+            case ir.WcHbEq(lq_1, lq_2) =>
+                lq_1.forall { q_1 => hbeq(teePee(q_1), tp) } &&
+                lq_2.forall { q_2 => hbeq(tp, teePee(q_2)) }
+            case ir.WcLocks(lq) =>
+                lq.forall { q => locks(tp, teePee(q)) }
+            case ir.WcLockedBy(lq) =>
+                lq.forall { q => locks(teePee(q), tp) }
         }
     }
     

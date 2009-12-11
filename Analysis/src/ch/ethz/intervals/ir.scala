@@ -272,7 +272,7 @@ object ir {
     
     /// A TeePee is a typed path.
     sealed case class TeePee(
-        t: ir.TypeRef, p: ir.Path, la: Attrs
+        wt: ir.WcTypeRef, p: ir.Path, la: Attrs
     ) {
         def isConstant: Boolean = !la.mutable
     }
