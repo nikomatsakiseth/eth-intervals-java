@@ -53,15 +53,15 @@ class TestAnalysis extends JUnitSuite {
         tc(
             """
             class Data<Interval p> extends Object<this.p> {
-                Object<this.p> o during this.p;
+                Object<this.p> o requires this.p;
                 constructor() {}
             }
             
             class Producer extends Interval {
-                Consumer c during this.constructor;
+                Consumer c requires this.constructor;
                              
-                Producer nextProd during this;
-                Data<this> data during this;
+                Producer nextProd requires this;
+                Data<this> data requires this;
                 
                 constructor(Consumer c)
                 {
@@ -86,13 +86,13 @@ class TestAnalysis extends JUnitSuite {
             }
             
             class Consumer extends Interval {
-                Consumer nextCons during this;
+                Consumer nextCons requires this;
                 constructor() {}
             }
             
             class DummyConsumer<Interval init> extends Consumer 
             {
-                Consumer c during this.init;
+                Consumer c requires this.init;
                 
                 constructor() 
                 requires this.init hb this 
@@ -107,7 +107,7 @@ class TestAnalysis extends JUnitSuite {
             }
 
             class RealConsumer extends Consumer {
-                Producer p during this.constructor;
+                Producer p requires this.constructor;
                 
                 constructor(Producer p)
                 {
@@ -160,26 +160,26 @@ class TestAnalysis extends JUnitSuite {
         tc(
             """
             class Data<Interval p> extends Object<this.p> {
-                Object<this.p> o during this.p;
+                Object<this.p> o requires this.p;
                 constructor() {}
             }
             
             class ProdData<Interval p> extends Object<this.p> {
-                Data<this.p> data during this.p;                              
-                Interval nextProd during this.p;
-                ProdData<this.nextProd> nextPdata during this.p;                
+                Data<this.p> data requires this.p;                              
+                Interval nextProd requires this.p;
+                ProdData<this.nextProd> nextPdata requires this.p;                
                 constructor() {}
             }
             
             class ConsData<Interval c> extends Object<this.c> {
-                Interval nextCons during this.c;
-                ConsData<this.nextCons> nextCdata during this.c;
+                Interval nextCons requires this.c;
+                ConsData<this.nextCons> nextCdata requires this.c;
                 constructor() {}
             }
             
             class Producer extends Interval {
-                ConsData<hb this> cdata during this.constructor;
-                ProdData<this> pdata during this.constructor;
+                ConsData<hb this> cdata requires this.constructor;
+                ProdData<this> pdata requires this.constructor;
                 
                 constructor(Interval c, ConsData<c> cdata)
                 {
@@ -209,8 +209,8 @@ class TestAnalysis extends JUnitSuite {
             }
             
             class Consumer extends Interval {
-                ProdData<hb this> pdata during this.constructor;
-                ConsData<this> cdata during this.constructor;
+                ProdData<hb this> pdata requires this.constructor;
+                ConsData<this> cdata requires this.constructor;
                 
                 constructor(Interval p, ProdData<p> pdata)
                 {
@@ -268,28 +268,28 @@ class TestAnalysis extends JUnitSuite {
         tc(
             """
             class Data<Interval p> extends Object<this.p> {
-                Object<this.p> o during this.p;
+                Object<this.p> o requires this.p;
                 constructor() {}
             }
             
             class ProdData extends Object<this.p> {
                 Producer p requires this.constructor;
                 
-                Data<this.p> data during this.p;                              
-                Interval nextProd during this.p;
-                ProdData<this.nextProd> nextPdata during this.p;                
+                Data<this.p> data requires this.p;                              
+                Interval nextProd requires this.p;
+                ProdData<this.nextProd> nextPdata requires this.p;                
                 constructor() {}
             }
             
             class ConsData<Interval c> extends Object<this.c> {
-                Interval nextCons during this.c;
-                ConsData<this.nextCons> nextCdata during this.c;
+                Interval nextCons requires this.c;
+                ConsData<this.nextCons> nextCdata requires this.c;
                 constructor() {}
             }
             
             class Producer extends Interval {
-                ConsData<hb this> cdata during this.constructor;
-                ProdData<this> pdata during this.constructor;
+                ConsData<hb this> cdata requires this.constructor;
+                ProdData<this> pdata requires this.constructor;
                 
                 constructor(Interval c, ConsData<c> cdata)
                 {
@@ -319,8 +319,8 @@ class TestAnalysis extends JUnitSuite {
             }
             
             class Consumer extends Interval {
-                ProdData<hb this> pdata during this.constructor;
-                ConsData<this> cdata during this.constructor;
+                ProdData<hb this> pdata requires this.constructor;
+                ConsData<this> cdata requires this.constructor;
                 
                 constructor(Interval p, ProdData<p> pdata)
                 {

@@ -79,11 +79,11 @@ class IrParser extends StandardTokenParsers {
     )
     
     def req = (
-        "requires"~comma(p)                     ^^ { case _~ps => ir.ReqOwned(ps) }
-    |   "requires"~p~"hb"~comma(p)              ^^ { case _~p~_~qs => ir.ReqHb(p, qs) }
+        "requires"~p~"hb"~comma(p)              ^^ { case _~p~_~qs => ir.ReqHb(p, qs) }
     |   "requires"~p~"hbeq"~comma(p)            ^^ { case _~p~_~qs => ir.ReqHbEq(p, qs) }
     |   "requires"~p~"=="~p                     ^^ { case _~p~_~q => ir.ReqEq(p, q) }
     |   "requires"~p~"locks"~comma(p)           ^^ { case _~p~_~qs => ir.ReqLocks(p, qs) }
+    |   "requires"~comma(p)                     ^^ { case _~ps => ir.ReqOwned(ps) }
     )    
     def reqs = rep(req)
     
