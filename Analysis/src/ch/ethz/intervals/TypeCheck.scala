@@ -152,12 +152,12 @@ class TypeCheck(log: Log, prog: Prog) {
         subst.methodSig(msig)        
     }
     
-    def teePee(p0: ir.Path): ir.TeePee = log.indentedRes("teePee(%s)", p0) {
+    def constructTeePee(p0: ir.Path): ir.TeePee = log.indentedRes("constructTeePee(%s)", p0) {
         p0 match {
             case ir.Path(lv, List()) => 
                 tp_lv(lv)
             case ir.Path(lv, f :: rev_fs) =>
-                val tp = teePee(ir.Path(lv, rev_fs))
+                val tp = constructTeePee(ir.Path(lv, rev_fs))
                 
                 // Invoked when we have a path like a.b.c.f 
                 // where a.b.c yields a type Foo<f: ps hb/eq qs>.
@@ -189,10 +189,10 @@ class TypeCheck(log: Log, prog: Prog) {
                 val cd = classDecl(tp.wt.c)
                 cd.ghosts.zip(tp.wt.wpaths).find(_._1.name == f) match {
                     case Some((gfd, p: ir.Path)) => 
-                        if(tp.p + f == p)
-                            ir.TeePee(gfd.wt, p, false)
+                        if(tp.p + f == p) // This is a captured version of the ghost:
+                            ir.TeePee(gfd.wt, p, tp.as.withGhost)
                         else
-                            teePee(p)
+                            constructTeePee(p)
                     case Some((gfd, ir.WcHb(ps, qs))) => ghost(gfd, addHb, ps, qs)
                     case Some((gfd, ir.WcHbEq(ps, qs))) => ghost(gfd, addHbEq, ps, qs)
                     case None =>                     
@@ -200,7 +200,7 @@ class TypeCheck(log: Log, prog: Prog) {
                             // Hokey special case constructor interval:
                             //   We assume that x.constructor has always finished
                             //   if x≠this, because this does not escape the ctor.
-                            val tq = ir.TeePee(ir.t_interval, tp.p + f, false)
+                            val tq = ir.TeePee(ir.t_interval, tp.p + f, tp.as.withGhost)
                             addHbEq(tq, tp_mthd)
                             tq
                         } else {
@@ -215,9 +215,18 @@ class TypeCheck(log: Log, prog: Prog) {
                         }                    
                 }
         }
-    }    
-    
-    def teePee(ps: List[ir.Path]): List[ir.TeePee] = 
+    }
+
+    /// Constructs a 'tp' for 'p' and checks that it has at most the attributes 'as'
+    def teePee(as: ir.Attrs, p: ir.Path): ir.TeePee = {
+        val tp = teePeeAny(as)
+        val unwanted = tp.as.diff(as)
+        if(!unwanted.isEmpty)
+            throw new ir.IrError("intervals.illegal.path.attr", p, unwanted.mkEnglishString)
+    }
+        
+    /// Constructs tps for 'ps' and checks that they have at most the attributes 'as'
+    def teePee(as: ir.Attrs, ps: List[ir.Path]): List[ir.TeePee] = 
         ps.map(teePee)
         
     // Note: these are not vals but defs!  This is important
@@ -225,11 +234,6 @@ class TypeCheck(log: Log, prog: Prog) {
     def tp_cur = teePee(ir.p_cur)
     def tp_mthd = teePee(ir.p_mthd)
     def tp_this = teePee(ir.p_this)
-    
-    def checkReified(tp: ir.TeePee) {
-        if(!tp.reified)
-            throw new ir.IrError("intervals.reified.path.required", tp.p)        
-    }
     
     // ______________________________________________________________________
     // Well-formedness
@@ -258,25 +262,38 @@ class TypeCheck(log: Log, prog: Prog) {
     }
 
     // ______________________________________________________________________
-    // Env Relations    
-        
-    def addEq(lv: ir.VarName, tp: ir.TeePee) =
-        log.indented("addEq(%s,%s)", lv, tp) {
-            env.lvs.get(lv) match {
+    // Env Relations
+    
+    def declLv(lv: ir.VarName, tq: ir.TeePee) {
+        log.indented("declLv(%s,%s)", lv, tq) {
+            env.canon.get(lv.path) match {
+                case Some(_) =>
+                    throw new ir.IrError("intervals.variable.in.scope", lv)
+                
                 case None =>
-                    throw new ir.IrError("intervals.no.such.variable", lv)
-                case Some(tq) =>
-                    // Check old type?
                     env = ir.TcEnv(
-                        env.lvs + Pair(lv, tp),
+                        env.canon + Pair(lv.path, tq),
+                        env.fs_invalidated,
                         env.hb,
                         env.hbeq,
-                        env.locks)
+                        env.locks,
+                        env.mutable)
             }
         }
-        
-    def addEq(lv: ir.VarName, p: ir.Path): Unit = addLv(lv, teePee(p))
+    }
     
+    def addCanon(tp: ir.TeePee, tq: ir.TeePee) {
+        log.indented("addCanon(%s,%s)", tp, tq) {
+            env = ir.TcEnv(
+                env.canon + Pair(tp, tq),
+                env.fs_invalidated,
+                env.hb,
+                env.hbeq,
+                env.locks,
+                env.mutable)
+        }
+    }
+        
     def addHb(tp: ir.TeePee, tq: ir.TeePee): Unit = log.indented("addHb(%s,%s)", tp, tq) {
         assert(isSubtype(cap(tp), ir.t_interval))
         assert(isSubtype(cap(tq), ir.t_interval))
@@ -287,8 +304,6 @@ class TypeCheck(log: Log, prog: Prog) {
             env.locks)
     }
     
-    def addHb(p: ir.Path, q: ir.Path): Unit = addHb(teePee(p), teePee(q))
-
     def addHbEq(tp: ir.TeePee, tq: ir.TeePee): Unit = log.indented("addHbEq(%s,%s)", tp, tq) {
         assert(isSubtype(cap(tp), ir.t_interval))
         assert(isSubtype(cap(tq), ir.t_interval))
@@ -298,8 +313,6 @@ class TypeCheck(log: Log, prog: Prog) {
             env.hbeq + (tp.p, tq.p),
             env.locks)
     }
-    
-    def addHbEq(p: ir.Path, q: ir.Path): Unit = addHbEq(teePee(p), teePee(q))
     
     def addLocks(tp: ir.TeePee, tq: ir.TeePee): Unit = log.indented("addLocks(%s,%s)", tp, tq) {
         assert(isSubtype(cap(tp), ir.t_interval))
@@ -311,31 +324,21 @@ class TypeCheck(log: Log, prog: Prog) {
             env.locks + (tp.p, tq.p))
     }
     
-    def addLocks(p: ir.Path, q: ir.Path): Unit = addLocks(teePee(p), teePee(q))
-        
     def hb(p: ir.TeePee, q: ir.TeePee): Boolean = log.indentedRes("%s hb %s?", p, q) {
         env.hb.contains(p.p, q.p)
     }
-    
-    def hb(p: ir.Path, q: ir.Path): Boolean = hb(teePee(p), teePee(q))
     
     def hbeq(p: ir.TeePee, q: ir.TeePee): Boolean = log.indentedRes("%s hbeq %s?", p, q) {
         env.hbeq.contains(p.p, q.p)
     }
     
-    def hbeq(p: ir.Path, q: ir.Path): Boolean = hbeq(teePee(p), teePee(q))
-    
-    def eq(p: ir.TeePee, q: ir.TeePee): Boolean = log.indentedRes("%s eq %s?", p, q) {
+    def equiv(p: ir.TeePee, q: ir.TeePee): Boolean = log.indentedRes("%s eq %s?", p, q) {
         p.p == q.p
     }
-    
-    def eq(p: ir.Path, q: ir.Path): Boolean = eq(teePee(p), teePee(q))
     
     def locks(p: ir.TeePee, q: ir.TeePee): Boolean = log.indentedRes("%s locks %s?", p, q) {
         env.locks.contains(p.p, q.p)
     }
-    
-    def locks(p: ir.Path, q: ir.Path): Boolean = locks(teePee(p), teePee(q))
     
     def addReq(req: ir.Req) = {
         def teePeeAdd(add: Function2[ir.TeePee, ir.TeePee, Unit], p: ir.Path, qs: List[ir.Path]) = {
@@ -346,8 +349,7 @@ class TypeCheck(log: Log, prog: Prog) {
         req match {
             case ir.ReqHb(p, qs) => teePeeAdd(addHb, p, qs)
             case ir.ReqHbEq(p, qs) => teePeeAdd(addHbEq, p, qs)
-            case ir.ReqEq(lv, p) => addEq(lv, teePee(p))
-            case ir.ReqEqPath(lv, p) => /* users can't enter these directly, can't add to env */
+            case ir.ReqEqPath(p, q) => addCanon(teePee(p), teePee(q))
             case ir.ReqLocks(p, qs) => teePeeAdd(addLocks, p, qs)
         }   
     } 
@@ -383,17 +385,22 @@ class TypeCheck(log: Log, prog: Prog) {
         }
     }
     
-    /// wt_sub <: wt_sup
+    /// t_sub <: wt_sup
     def isSubtype(t_sub: ir.TypeRef, wt_sup: ir.WcTypeRef): Boolean =
         log.indentedRes("%s <: %s?", t_sub, wt_sup) {
+            
+            // (t <: t constructor) but (t constructor not <: t)
+            if(wt_sup.as.ctor && !t.as.ctor) 
+                false
+            
             if(t_sub.c == wt_sup.c)
                 forallzip(t_sub.wpaths, wt_sup.wpaths)(isSubpath) 
-            else {
+            else
                 sup(t_sub) match {
                     case None => false
                     case Some(t) => isSubtype(t, wt_sup)
                 }                
-            }
+            
         }
     
     def isSubtype(tp_sub: ir.TeePee, wt_sup: ir.WcTypeRef): Boolean =
@@ -429,6 +436,9 @@ class TypeCheck(log: Log, prog: Prog) {
     }
     
     def checkLvDecl(vd: ir.LvDecl, owt: Option[ir.WcTypeRef], op: Option[ir.Path]) = {
+        
+        // XXX make sure vd not already in scope
+        
         checkWfWt(vd.wt)
         
         owt.foreach (savingEnv { case wt =>

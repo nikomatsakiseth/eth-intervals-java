@@ -32,7 +32,7 @@ class IrParser extends StandardTokenParsers {
     def comma[A](p: Parser[A]): Parser[List[A]] = repsep(p, ",")
                                     
     def id = (
-        "`"~repsep(ident, ".")~"`"              ^^ { case "`"~is~"`" => ".".join(is) }
+        "`"~repsep(ident, ".")~"`"              ^^ { case "`"~is~"`" => is.mkString(".") }
     |   ident
     )
                                                 

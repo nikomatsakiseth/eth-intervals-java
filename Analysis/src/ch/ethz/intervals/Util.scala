@@ -112,7 +112,22 @@ object Util {
   
   case class UtilIterable[I](is: Iterable[I]) {
     def cross[J](js: UtilIterable[J]): Iterable.Projection[(I,J)] = 
-      for(i <- is.projection; j <- js.is.projection) yield (i,j)    
+      for(i <- is.projection; j <- js.is.projection) yield (i,j)
+      
+    def mkCommaString = mkString(", ")
+      
+    def mkEnglishString: String = {
+        val sb = new StringBuilder()
+        val list = is.toList
+        val len = list.length
+        if(len == 0) ""
+        else if(len == 1) list.head.toString
+        else if(len == 2) list.head + " and " + list.last
+        else {
+            val (l, r) = list.splitAt(len - 1)
+            l.mkString(", ") + ", and " + r.head
+        }
+    }
   }
   implicit def iterable2UtilIterable[I](i: Iterable[I]) = UtilIterable(i)
   
@@ -273,7 +288,7 @@ object Util {
     }
     
     override def toString =
-      "/".join(for(k <- keys) yield k + " => " + this(k))
+      (for(k <- keys) yield k + " => " + this(k)).mkString("/")
   }
   
   class MultiMap[K,V](size: Int, _m: Map[K, Set[V]])

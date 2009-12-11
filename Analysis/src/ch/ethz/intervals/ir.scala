@@ -33,26 +33,36 @@ object ir {
     // ______________________________________________________________________
     // Attributes attached to paths, types, methods
     
-    sealed abstract class Attr(pp: String) {
-        override def toString = pp
+    sealed abstract class Attr(c: String, val adj: String) {
+        override def toString = c
     }
-    sealed case object AttrCtor extends Attr("c")
-    sealed case object AttrGhost extends Attr("g")
-    sealed case object AttrAccessible extends Attr("a")
-    sealed case object AttrImmutable extends Attr("i")
-    sealed case object AttrMutable extends Attr("m")
+
+    // Attrs for types:
+    sealed case object AttrCtor extends Attr("c", "constructor")
     
-    sealed case class Attrs(s: Set[Attr]) = {
+    // Attrs for paths:
+    sealed case object AttrGhost extends Attr("g", "ghost")
+    sealed case object AttrMutable extends Attr("m", "mutable")
+    
+    sealed case class Attrs(private val s: Set[Attr]) = {
         def +(a: Attr) = Attrs(s + a)
-        def ctor = s.contains(AttrCtor)
-        def ghost = s.contains(AttrGhost)
-        def accessible = s.contains(AttrAccessible)
-        def immutable = s.contains(AttrImmutable)
-        def mutable = s.contains(AttrMutable)
         
-        override def toString = "{%s}".format("".join(s.toList))
+        def ctor = s.contains(AttrCtor)
+        def withCtor = this + AttrCtor
+        
+        def ghost = s.contains(AttrGhost)
+        def withGhost = this + AttrGhost
+        
+        def mutable = s.contains(AttrMutable)
+        def withMutable = this + AttrMutable
+        
+        def diff(as: Attrs): Set[Attr] = s -- as.s
+        
+        override def toString = "{%s}".format(s.mkString(""))
     }
     val noAttrs = Attrs(ListSet.empty)
+    val ctorAttrs = Attrs(ListSet(AttrCtor))
+    val allPathAttrs = Attrs(ListSet(AttrGhost, AttrMutable))
     
     // ______________________________________________________________________
     // Names of variables, fields, methods, classes
@@ -105,7 +115,7 @@ object ir {
         
         override def toString =
             "class %s<%s>%s extends %s".format(
-                name, ", ".join(ghosts), "".join(" ", reqs), superType)
+                name, ghosts.mkString(", "), "".join(" ", reqs), superType)
     }
     
     sealed case class MethodDecl(
@@ -121,7 +131,7 @@ object ir {
         
         override def toString =
             "%s %s %s(%s)%s".format(
-                attrs, wt_ret, name, ", ".join(args), "".join(" ", reqs))
+                attrs, wt_ret, name, args.mkString(", "), reqs.mkString(" "))
     }
     
     sealed case class MethodSig(
@@ -131,7 +141,7 @@ object ir {
         wt_ret: WcTypeRef
     ) extends Locatable {
         override def toString = "(%s %s _(%s)%s)".format(
-            attrs, wt_ret, ", ".join(args), "".join(" ", reqs))
+            attrs, wt_ret, args.mkString(", "), reqs.mkString(""))
     }
     
     sealed case class LvDecl(
@@ -177,7 +187,7 @@ object ir {
         override def toString = "%s = %s->%s".format(vd, p, f)
     }
     sealed case class StmtNew(vd: LvDecl, t: TypeRef, qs: List[Path]) extends Stmt {
-        override def toString = "%s = new %s(%s);".format(vd, t, ", ".join(qs))
+        override def toString = "%s = new %s(%s);".format(vd, t, qs.mkString(", "))
     }
     sealed case class StmtNull(vd: LvDecl) extends Stmt {
         override def toString = "%s = null;".format(vd)
@@ -195,16 +205,19 @@ object ir {
     sealed case class WcTypeRef(
         c: ClassName,
         wpaths: List[WcPath],
-        attrs: Attrs
+        as: Attrs
     ) {
-        override def toString = "%s<%s>%s".format(c, ", ".join(wpaths), attrs)
+        override def toString = "%s<%s>%s".format(c, wpaths.mkString(", "), attrs)
+        def withAttrs(as: Attrs) = ir.WcTypeRef(c, wpaths, as)
     }
     
     sealed case class TypeRef(
         override val c: ClassName,
         paths: List[Path],
-        override val attrs: Attrs
-    ) extends WcTypeRef(c, paths, attrs)
+        override val as: Attrs
+    ) extends WcTypeRef(c, paths, attrs) {
+        override def withAttrs(as: Attrs) = ir.TypeRef(c, paths, as)
+    }
     
     sealed abstract class WcPath {
         def dependentOn(p: ir.Path): Boolean
@@ -214,9 +227,9 @@ object ir {
             ps.exists(_.dependentOn(p)) || qs.exists(_.dependentOn(p))
 
         override def toString = {
-            (ps match { case List() => ""; case _ => ", ".join(ps) + " " }) +
+            (ps match { case List() => ""; case _ => ps.mkString(", ") + " " }) +
             "hb" + 
-            (qs match { case List() => ""; case _ => " " + ", ".join(qs) })
+            (qs match { case List() => ""; case _ => " " + qs.mkString(", ") })
         }
     }
     sealed case class WcHbEq(lp: List[Path], lq: List[Path]) extends WcPath {
@@ -224,22 +237,22 @@ object ir {
             ps.exists(_.dependentOn(p)) || qs.exists(_.dependentOn(p))
 
         override def toString = {
-            (ps match { case List() => ""; case _ => ", ".join(ps) + " " }) +
+            (ps match { case List() => ""; case _ => ps.mkString(", ") + " " }) +
             "hbeq" + 
-            (qs match { case List() => ""; case _ => " " + ", ".join(qs) })
+            (qs match { case List() => ""; case _ => " " + qs.mkString(", ") })
         }
     }
     sealed case class WcLocks(lp: List[Path]) extends WcPath {
         def dependentOn(p: ir.Path) =
             lp.exists(_.dependentOn(p))
 
-        override def toString = "locks %s".format(", ".join(lp))        
+        override def toString = "locks %s".format(lp.mkString(", "))
     }
     sealed case class WcLockedBy(lp: List[Path]) extends WcPath {
         def dependentOn(p: ir.Path) =
             lp.exists(_.dependentOn(p))
 
-        override def toString = "%s locks".format(", ".join(lp))
+        override def toString = "%s locks".format(lp.mkString(", "))
     }
         
     sealed case class Path(
@@ -254,29 +267,29 @@ object ir {
 
         def start = this + f_start
         def end = this + f_end        
-        override def toString = lv.name + "".join(".", fs)
+        override def toString = lv.name + fs.mkString(".", ".", "")
     }
     
     /// A TeePee is a typed path.
     sealed case class TeePee(
-        wt: ir.WcTypeRef, p: ir.Path, attrs: Attrs
+        t: ir.TypeRef, p: ir.Path, la: Attrs
     )
     
     sealed abstract class Req
     sealed case class ReqMutable(lp: Path) extends Req {
-        override def toString = "requires %s".format(", ".join(lp))
+        override def toString = "requires %s".format(lp.mkString(", "))
     }
     sealed case class ReqHb(p: Path, lq: List[Path]) extends Req {
-        override def toString = "requires %s hb %s".format(p, ", ".join(lq))
+        override def toString = "requires %s hb %s".format(p, lq.mkString(", "))
     }
     sealed case class ReqHbEq(p: Path, lq: List[Path]) extends Req {
-        override def toString = "requires %s hbeq %s".format(p, ", ".join(lq))
+        override def toString = "requires %s hbeq %s".format(p, lq.mkString(", "))
     }
     sealed case class ReqEq(p: Path, q: Path) extends Req {
         override def toString = "requires %s == %s".format(p, q)
     }
     sealed case class ReqLocks(p: Path, lq: List[Path]) extends Req {
-        override def toString = "requires %s locks %s".format(p, ", ".join(lq))
+        override def toString = "requires %s locks %s".format(p, lq.mkString(", "))
     }
     
     sealed class Relation(
@@ -327,8 +340,7 @@ object ir {
     }
     
     sealed case class TcEnv(
-        perm: Map[ir.Path, ir.TeePee],
-        temp: Map[ir.Path, ir.TeePee],
+        canon: Map[ir.Path, ir.TeePee],
         fs_invalidated: List[ir.FieldName],
         hb: Relation,
         hbeq: Relation,
@@ -338,7 +350,7 @@ object ir {
     
     case class IrError(msg: String, args: Any*) 
     extends RuntimeException {
-        override def toString = "%s(%s)".format(msg, ", ".join(args.toList))
+        override def toString = "%s(%s)".format(msg, args.mkString(", "))
     }
     
     val lv_this = ir.VarName("this")
