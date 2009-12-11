@@ -38,13 +38,13 @@ object ir {
     }
 
     // Attrs for types:
-    sealed case object AttrCtor extends Attr("c", "constructor")
+    case object AttrCtor extends Attr("c", "constructor")
     
     // Attrs for paths:
-    sealed case object AttrGhost extends Attr("g", "ghost")
-    sealed case object AttrMutable extends Attr("m", "mutable")
+    case object AttrGhost extends Attr("g", "ghost")
+    case object AttrMutable extends Attr("m", "mutable")
     
-    sealed case class Attrs(private val s: Set[Attr]) = {
+    sealed case class Attrs(private val s: Set[Attr]) {
         def +(a: Attr) = Attrs(s + a)
         
         def ctor = s.contains(AttrCtor)
@@ -112,7 +112,7 @@ object ir {
         fields: List[FieldDecl],
         methods: List[MethodDecl]
     ) extends Locatable {
-        def thisTref = TypeRef(name, ghosts.map(_.thisPath))
+        def thisTref = TypeRef(name, ghosts.map(_.thisPath), noAttrs)
         
         override def toString =
             "class %s<%s>%s extends %s".format(
@@ -128,7 +128,7 @@ object ir {
         stmts: List[Stmt],
         op_ret: Option[Path] // if omitted, equiv. to return null
     ) extends Locatable {
-        def msig = at(MethodSig(args, reqs, wt_ret), srcLoc)
+        def msig = at(MethodSig(attrs, args, reqs, wt_ret), srcLoc)
         
         override def toString =
             "%s %s %s(%s)%s".format(
@@ -142,7 +142,7 @@ object ir {
         wt_ret: WcTypeRef
     ) extends Locatable {
         override def toString = "(%s %s _(%s)%s)".format(
-            attrs, wt_ret, args.mkString(", "), reqs.mkString(""))
+            as, wt_ret, args.mkString(", "), reqs.mkString(""))
     }
     
     sealed case class LvDecl(
@@ -161,14 +161,14 @@ object ir {
     }
     
     sealed case class FieldDecl(
-        attrs: Attrs,       
+        as: Attrs,       
         wt: WcTypeRef,
         name: FieldName,
         p_guard: Path
     ) extends Locatable {
         def thisPath = name.thisPath
         override def toString = 
-            "%s %s requires %s".format(wt, name, p_guard)
+            "%s %s %s requires %s".format(as, wt, name, p_guard)
     }
     
     sealed abstract class Stmt extends Locatable
@@ -199,10 +199,10 @@ object ir {
         wpaths: List[WcPath],
         as: Attrs
     ) {
-        override def toString = "%s<%s>%s".format(c, wpaths.mkString(", "), attrs)
+        override def toString = "%s<%s>%s".format(c, wpaths.mkString(", "), as)
         def withAttrs(as: Attrs) = ir.WcTypeRef(c, wpaths, as)
         def dependentPaths =
-            wpaths.foldLeft(Set.empty[Path])(_ addDependentPaths _)
+            wpaths.foldLeft(Set.empty[Path]) { (s, wp) => wp.addDependentPaths(s) }
     }
     
     sealed case class TypeRef(
@@ -223,18 +223,18 @@ object ir {
         def addDependentPaths(s: Set[Path]) = s ++ lp ++ lq
 
         override def toString = {
-            (ps match { case List() => ""; case _ => ps.mkString(", ") + " " }) +
+            (lp match { case List() => ""; case _ => lp.mkString(", ") + " " }) +
             "hb" + 
-            (qs match { case List() => ""; case _ => " " + qs.mkString(", ") })
+            (lq match { case List() => ""; case _ => " " + lq.mkString(", ") })
         }
     }
     sealed case class WcHbEq(lp: List[Path], lq: List[Path]) extends WcPath {
         def addDependentPaths(s: Set[Path]) = s ++ lp ++ lq
 
         override def toString = {
-            (ps match { case List() => ""; case _ => ps.mkString(", ") + " " }) +
+            (lq match { case List() => ""; case _ => lp.mkString(", ") + " " }) +
             "hbeq" + 
-            (qs match { case List() => ""; case _ => " " + qs.mkString(", ") })
+            (lq match { case List() => ""; case _ => " " + lq.mkString(", ") })
         }
     }
     sealed case class WcLocks(lp: List[Path]) extends WcPath {
@@ -267,7 +267,7 @@ object ir {
     
     /// A TeePee is a typed path.
     sealed case class TeePee(
-        wt: ir.WcTypeRef, p: ir.Path, la: Attrs
+        wt: ir.WcTypeRef, p: ir.Path, as: Attrs
     ) {
         def isConstant: Boolean = !la.mutable
     }
@@ -339,7 +339,7 @@ object ir {
     sealed case class TcEnv(
         perm: Map[ir.Path, ir.TeePee],
         temp: Map[ir.Path, ir.Path],
-        fs_invalidated: Set[ir.Path],
+        lp_invalidated: Set[ir.Path],
         hb: Relation,
         hbeq: Relation,
         locks: Relation,
@@ -357,14 +357,12 @@ object ir {
     val lv_root = ir.VarName("root")
     val lv_mthd = ir.VarName("method")
     val lv_cur = ir.VarName("current")
-    val lv_readOnly = ir.VarName("readOnly")
     
     val p_this = lv_this.path
     val p_new = lv_new.path
     val p_root = lv_root.path
     val p_mthd = lv_mthd.path
     val p_cur = lv_cur.path
-    val p_readOnly = lv_readOnly.path
 
     val f_creator = ir.FieldName("creator")    
     val f_start = ir.FieldName("start")
@@ -382,23 +380,25 @@ object ir {
     val c_lock = ir.ClassName("Lock")    
     val c_string = ir.ClassName("String")
     
-    val t_void = ir.TypeRef(c_void, List())
-    val t_string = ir.TypeRef(c_void, List())
-    val t_interval = ir.TypeRef(c_interval, List())
-    val t_point = ir.TypeRef(c_point, List())
-    val t_lock = ir.TypeRef(c_lock, List())
+    val t_void = ir.TypeRef(c_void, List(), ir.noAttrs)
+    val t_string = ir.TypeRef(c_void, List(), ir.noAttrs)
+    val t_interval = ir.TypeRef(c_interval, List(), ir.noAttrs)
+    val t_point = ir.TypeRef(c_point, List(), ir.noAttrs)
+    val t_lock = ir.TypeRef(c_lock, List(), ir.noAttrs)
     
-    val gfd_creator = GhostFieldDecl(t_interval, f_creator)
-    val gfd_ctor = GhostFieldDecl(t_interval, f_ctor)
-    val t_objectCreator = ir.TypeRef(c_object, List(gfd_creator.thisPath))
-    val t_objectReadOnly = ir.TypeRef(c_object, List(p_readOnly))
+    val gd_creator = GhostDecl(t_interval, f_creator)
+    val gd_ctor = GhostDecl(t_interval, f_ctor)
+    val t_objectCreator = ir.TypeRef(c_object, List(gd_creator.thisPath), ir.noAttrs)
+    val t_objectCtor = ir.TypeRef(c_object, List(gd_ctor.thisPath), ir.noAttrs)
     
     val cds_default = List(
         ClassDecl(
             /* Name:    */  c_object,
-            /* Ghosts:  */  List(gfd_creator),
+            /* Ghosts:  */  List(gd_creator),
             /* Extends: */  None,
+            /* Reqs:    */  List(),
             /* Ctor:    */  MethodDecl(
+                    /* attrs:  */ noAttrs,
                     /* wt_ret: */ t_void, 
                     /* name:   */ m_ctor, 
                     /* args:   */ List(),
@@ -409,10 +409,11 @@ object ir {
             /* Fields:  */  List(),
             /* Methods: */  List(
                 MethodDecl(
+                    /* attrs:  */ noAttrs,
                     /* wt_ret: */ t_void, 
                     /* name:   */ m_toString, 
                     /* args:   */ List(),
-                    /* reqs:   */ List(ir.ReqHbEq(p_cur, List(gfd_creator.thisPath))),
+                    /* reqs:   */ List(ir.ReqHbEq(p_cur, List(gd_creator.thisPath))),
                     /* stmts:  */ List(),
                     /* p_ret:  */ None
                     ))                
@@ -420,8 +421,10 @@ object ir {
         ClassDecl(
             /* Name:    */  c_void,
             /* Ghosts:  */  List(),
-            /* Extends: */  Some(t_objectReadOnly),
+            /* Extends: */  Some(t_objectCtor),
+            /* Reqs:    */  List(),
             /* Ctor:    */  MethodDecl(
+                    /* attrs:  */ noAttrs,
                     /* wt_ret: */ t_void, 
                     /* name:   */ m_ctor, 
                     /* args:   */ List(),
@@ -435,8 +438,10 @@ object ir {
         ClassDecl(
             /* Name:    */  c_string,
             /* Ghosts:  */  List(),
-            /* Extends: */  Some(t_objectReadOnly),
+            /* Extends: */  Some(t_objectCtor),
+            /* Reqs:    */  List(),
             /* Ctor:    */  MethodDecl(
+                    /* attrs:  */ noAttrs,
                     /* wt_ret: */ t_void, 
                     /* name:   */ m_ctor, 
                     /* args:   */ List(),
@@ -450,8 +455,10 @@ object ir {
         ClassDecl(
             /* Name:    */  c_interval,
             /* Ghosts:  */  List(),
-            /* Extends: */  Some(t_objectReadOnly),
+            /* Extends: */  Some(t_objectCtor),
+            /* Reqs:    */  List(),
             /* Ctor:    */  MethodDecl(
+                    /* attrs:  */ noAttrs,
                     /* wt_ret: */ t_void, 
                     /* name:   */ m_ctor, 
                     /* args:   */ List(),
@@ -460,14 +467,15 @@ object ir {
                     /* p_ret:  */ None
                     ),
             /* Fields:  */  List(
-                FieldDecl(t_point, f_start, p_readOnly),
-                FieldDecl(t_point, f_end, p_readOnly)),
+                FieldDecl(noAttrs, t_point, f_start, gd_ctor.thisPath),
+                FieldDecl(noAttrs, t_point, f_end, gd_ctor.thisPath)),
             /* Methods: */  List(
                 MethodDecl(
+                    /* attrs:  */ noAttrs,
                     /* wt_ret: */ t_void, 
                     /* name:   */ m_run, 
                     /* args:   */ List(),
-                    /* reqs:   */ List(ir.ReqEq(lv_cur, p_this)),
+                    /* reqs:   */ List(ir.ReqEq(p_cur, p_this)),
                     /* stmts:  */ List(),
                     /* p_ret:  */ None
                     ))                
@@ -475,8 +483,10 @@ object ir {
         ClassDecl(
             /* Name:    */  c_point,
             /* Ghosts:  */  List(),
-            /* Extends: */  Some(t_objectReadOnly),
+            /* Extends: */  Some(t_objectCtor),
+            /* Reqs:    */  List(),
             /* Ctor:    */  MethodDecl(
+                    /* attrs:  */ noAttrs,
                     /* wt_ret: */ t_void, 
                     /* name:   */ m_ctor, 
                     /* args:   */ List(),
@@ -490,8 +500,10 @@ object ir {
         ClassDecl(
             /* Name:    */  c_lock,
             /* Ghosts:  */  List(),
-            /* Extends: */  Some(t_objectReadOnly),
+            /* Extends: */  Some(t_objectCtor),
+            /* Reqs:    */  List(),
             /* Ctor:    */  MethodDecl(
+                    /* attrs:  */ noAttrs,
                     /* wt_ret: */ t_void, 
                     /* name:   */ m_ctor, 
                     /* args:   */ List(),

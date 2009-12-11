@@ -30,10 +30,7 @@ class TypeCheck(log: Log, prog: Prog) {
     // Environment
     
     var env = ir.TcEnv(
-        Map(
-            (ir.lv_readOnly, ir.TeePee(ir.t_interval, ir.p_readOnly, false)),
-            (ir.lv_cur, ir.TeePee(ir.t_interval, ir.p_cur, false))
-        ),
+        Map(),
         Map(),
         ListSet.empty,
         ir.Relation.emptyTrans,
@@ -54,17 +51,22 @@ class TypeCheck(log: Log, prog: Prog) {
         try { g } finally { assert(env == oldEnv) }
     }
     
+    /// Adds a permanent mapping from p to tq: permanent mappings 
+    /// persist across method calls.
     def addPerm(p: ir.Path, tq: ir.TeePee): Unit = 
-        log.indented("addPerm(%s,%s)", p, tp) {
+        log.indented("addPerm(%s,%s)", p, tq) {
             env.perm.get(p) match {
                 case Some(_) =>
                     throw new ir.IrError("intervals.shadowed", p)
                 case None =>
                     env = ir.TcEnv(
-                        env.lvs + Pair(p, tq),
+                        env.perm + Pair(p, tq),
+                        env.temp,
+                        env.lp_invalidated,
                         env.hb,
                         env.hbeq,
-                        env.locks)
+                        env.locks,
+                        env.owned)
             }
         }
 
@@ -97,15 +99,15 @@ class TypeCheck(log: Log, prog: Prog) {
     }
 
     /// Field decl for t0::f 
-    def realFieldDecl(c: ir.ClassName, f: ir.FieldName): ir.FieldDecl = preservesEnv {
-        log.indentedRes("realFieldDecl(%s,%s)", c, f) {
+    def fieldDecl(c: ir.ClassName, f: ir.FieldName): ir.FieldDecl = preservesEnv {
+        log.indentedRes("fieldDecl(%s,%s)", c, f) {
             def search(t: ir.TypeRef): ir.FieldDecl = 
                 log.indentedRes("search(%s)", t) {
                     val cd = classDecl(t.c)
                     cd.fields.find(_.name == f) match {
                         case Some(fd) => fd
                         case None => sup(t) match {
-                            case Some(t_1) => ghostSubst(t_1).realFieldDecl(search(t_1))
+                            case Some(t_1) => ghostSubst(t_1).fieldDecl(search(t_1))
                             case None => throw ir.IrError("intervals.no.such.field", c, f)
                         }
                     }
@@ -163,13 +165,13 @@ class TypeCheck(log: Log, prog: Prog) {
     
     /// Captures tp.wt, using ghostPaths(tp) for the type args.
     def cap(tp: ir.TeePee): ir.TypeRef = preservesEnv {
-        ir.TypeRef(tp.wt.c, ghostPaths(tp))                
+        ir.TypeRef(tp.wt.c, ghostPaths(tp), tp.wt.as)
     }
     
     /// Field decl for tp.f
     def substdFieldDecl(tp: ir.TeePee, f: ir.FieldName) = preservesEnv {
-        val rfd = realFieldDecl(tp.wt.c, f)
-        ghostSubst(tp).realFieldDecl(rfd)
+        val rfd = fieldDecl(tp.wt.c, f)
+        ghostSubst(tp).fieldDecl(rfd)
     }
     
     /// Method sig for tp.m(tqs)
@@ -180,7 +182,7 @@ class TypeCheck(log: Log, prog: Prog) {
     }
     
     /// Constructs a TeePee for p_1 
-    def teePee(p_1: ir.Path): ir.TeePee = log.indentedRes("teePee(%s)", p0) {
+    def teePee(p_1: ir.Path): ir.TeePee = log.indentedRes("teePee(%s)", p_1) {
         if(env.perm.contains(p_1))
             env.perm(p_1)
         else if(env.temp.contains(p_1))
@@ -193,8 +195,8 @@ class TypeCheck(log: Log, prog: Prog) {
                 val p_0 = ir.Path(lv, rev_fs) // p_1 == p_0.f
                 val tp_0 = teePee(p_0)
                 
-                def ghostTeePee(gfd_f: ir.GhostFieldDecl) = {
-                    val wt_f = ghostSubst(tp_0).wtref(gfd_f.wt)
+                def ghostTeePee(gd_f: ir.GhostDecl) = {
+                    val wt_f = ghostSubst(tp_0).wtref(gd_f.wt)
                     ir.TeePee(wt_f, p_0 + f, tp_0.as.withGhost)                    
                 }
 
@@ -203,7 +205,7 @@ class TypeCheck(log: Log, prog: Prog) {
                 cd_0.ghosts.zip(tp_0.wt.wpaths).find(_._1.name == f) match {
                     
                     // Ghost with precise path specified:
-                    case Some((gfd_f, q: ir.Path)) => 
+                    case Some((gd_f, q: ir.Path)) => 
                         if(q != p_0 + f) 
                             // p_0 had a type like Foo<f: q>, so canonical
                             // version of p_0.f is canonical version of q:
@@ -213,27 +215,27 @@ class TypeCheck(log: Log, prog: Prog) {
                             // It only tells us p_0's shadow argument f is p_0.f.
                             // This can result from the capturing process, when p_0 had
                             // a wildcard path (see below).
-                            ghostTeePee(gfd_f)
+                            ghostTeePee(gd_f)
                             
                     // p_0 had a type like Foo<f: ps hb qs>, so canonical
                     // version is p_0.f but we add relations that ps hb p_0.f hb qs.
-                    case Some((gfd_f, ir.WcHb(ps, qs))) => 
-                        val tp_f = ghostTeePee(gfd_f)
+                    case Some((gd_f, ir.WcHb(ps, qs))) => 
+                        val tp_f = ghostTeePee(gd_f)
                         ps.foreach { case p => addHb(teePee(p), tp_f) }
-                        qs.foreach { case p => addHb(tp_f, teePee(q)) }
+                        qs.foreach { case q => addHb(tp_f, teePee(q)) }
                         tp_f
                     
                     // p_0 had a type like Foo<f: ps hbeq qs>, so canonical
                     // version is p_0.f but we add relations that ps hb p_0.f hbeq qs.
-                    case Some((gfd_f, ir.WcHbEq(ps, qs))) => 
-                        val tp_f = ghostTeePee(gfd_f)
+                    case Some((gd_f, ir.WcHbEq(ps, qs))) => 
+                        val tp_f = ghostTeePee(gd_f)
                         ps.foreach { case p => addHbEq(teePee(p), tp_f) }
-                        qs.foreach { case p => addHbEq(tp_f, teePee(q)) }
+                        qs.foreach { case q => addHbEq(tp_f, teePee(q)) }
                         tp_f
                         
                     // The path is p_0.constructor, which we handle specially:
                     case None if f == ir.f_ctor =>
-                        val tp_f = ir.TeePee(ir.t_interval, p_0 + f, tp.as.withGhost)
+                        val tp_f = ir.TeePee(ir.t_interval, p_0 + f, tp_0.as.withGhost)
                         if(tp_0.wt.as.ctor) // is tp_0 fully constructed?
                             addHb(tp_f, tp_mthd) // then we may assume p_0.ctor -> method
                         tp_f
@@ -241,7 +243,7 @@ class TypeCheck(log: Log, prog: Prog) {
                     // The path p_0.f names a real field f:
                     case None =>
                         val rfd_f = substdFieldDecl(tp_0, f)
-                        val tp_guard = constructTeePee(rfd_f.p_guard)
+                        val tp_guard = teePee(rfd_f.p_guard)
                         val as_f = // determine if f is immutable in current method:
                             if(!tp_guard.isConstant)
                                 tp_0.as.withMutable // guard not yet constant? mutable
@@ -260,10 +262,11 @@ class TypeCheck(log: Log, prog: Prog) {
 
     /// Constructs a 'tp' for 'p' and checks that it has at most the attributes 'as'
     def teePee(as: ir.Attrs, p: ir.Path): ir.TeePee = {
-        val tp = teePeeAny(as)
+        val tp = teePee(p)
         val unwanted = tp.as.diff(as)
         if(!unwanted.isEmpty)
             throw new ir.IrError("intervals.illegal.path.attr", p, unwanted.mkEnglishString)
+        tp
     }
         
     /// Constructs tps for 'ps' and checks that they have at most the attributes 'as'
@@ -284,8 +287,7 @@ class TypeCheck(log: Log, prog: Prog) {
     def checkWfReq(req: ir.Req) = preservesEnv { req match {
         case ir.ReqHb(p, qs) => teePee(p); teePee(qs)
         case ir.ReqHbEq(p, qs) => teePee(p); teePee(qs)
-        case ir.ReqEq(lv, p) => teePee(lv.path); teePee(p)
-        case ir.ReqEqPath(p, q) => teePee(p); teePee(q)
+        case ir.ReqEq(p, q) => teePee(p); teePee(q)
         case ir.ReqLocks(p, qs) => teePee(p); teePee(qs)
     } }
     
@@ -310,7 +312,7 @@ class TypeCheck(log: Log, prog: Prog) {
             env = ir.TcEnv(
                 env.perm,
                 env.temp + Pair(p, q),
-                env.fs_invalidated,
+                env.lp_invalidated,
                 env.hb,
                 env.hbeq,
                 env.locks,
@@ -319,11 +321,11 @@ class TypeCheck(log: Log, prog: Prog) {
     }
     
     def clearTemp() {
-        log.indented("addCanon(%s,%s)", p, q) {
+        log.indented("clearTemp()") {
             env = ir.TcEnv(
                 env.perm,
-                List(),
-                env.fs_invalidated,
+                Map(),
+                env.lp_invalidated,
                 env.hb,
                 env.hbeq,
                 env.locks,
@@ -336,7 +338,7 @@ class TypeCheck(log: Log, prog: Prog) {
             env = ir.TcEnv(
                 env.perm,
                 env.temp,
-                env.fs_invalidated + f,
+                env.lp_invalidated + p,
                 env.hb,
                 env.hbeq,
                 env.locks,
@@ -345,11 +347,11 @@ class TypeCheck(log: Log, prog: Prog) {
     }
         
     def removeInvalidated(p: ir.Path) {
-        log.indented("removeInvalidated(%s)", f) {
+        log.indented("removeInvalidated(%s)", p) {
             env = ir.TcEnv(
                 env.perm,
                 env.temp,
-                env.fs_invalidated - p,
+                env.lp_invalidated - p,
                 env.hb,
                 env.hbeq,
                 env.locks,
@@ -364,7 +366,7 @@ class TypeCheck(log: Log, prog: Prog) {
         env = ir.TcEnv(
             env.perm,
             env.temp,
-            env.fs_invalidated,
+            env.lp_invalidated,
             env.hb + (tp.p, tq.p),
             env.hbeq + (tp.p, tq.p),
             env.locks,
@@ -378,7 +380,7 @@ class TypeCheck(log: Log, prog: Prog) {
         env = ir.TcEnv(
             env.perm,
             env.temp,
-            env.fs_invalidated,
+            env.lp_invalidated,
             env.hb,
             env.hbeq + (tp.p, tq.p),
             env.locks,
@@ -392,7 +394,7 @@ class TypeCheck(log: Log, prog: Prog) {
         env = ir.TcEnv(
             env.perm,
             env.temp,
-            env.fs_invalidated,
+            env.lp_invalidated,
             env.hb,
             env.hbeq,
             env.locks + (tp.p, tq.p),
@@ -403,7 +405,7 @@ class TypeCheck(log: Log, prog: Prog) {
         env = ir.TcEnv(
             env.perm,
             env.temp,
-            env.fs_invalidated,
+            env.lp_invalidated,
             env.hb,
             env.hbeq,
             env.locks,
@@ -439,7 +441,7 @@ class TypeCheck(log: Log, prog: Prog) {
         req match {
             case ir.ReqHb(p, qs) => teePeeAdd(addHb, p, qs)
             case ir.ReqHbEq(p, qs) => teePeeAdd(addHbEq, p, qs)
-            case ir.ReqEqPath(p, q) => addTemp(p, q) // XXX Check for cycles or something
+            case ir.ReqEq(p, q) => addTemp(p, q) // XXX Check for cycles or something
             case ir.ReqLocks(p, qs) => teePeeAdd(addLocks, p, qs)
         }   
     } 
@@ -449,7 +451,7 @@ class TypeCheck(log: Log, prog: Prog) {
     
     /// wp <= wq
     def isSubpath(p: ir.Path, wq: ir.WcPath) = preservesEnv {
-        log.indentedRes("%s <= %s?", wp, wq) {                
+        log.indentedRes("%s <= %s?", p, wq) {                
             // Here we just use teePee() without checking that it is 
             // immutable.  That's safe because we never ADD to the relations
             // unless the teePee is immutable. 
@@ -477,12 +479,12 @@ class TypeCheck(log: Log, prog: Prog) {
     def isSubtype(t_sub: ir.TypeRef, wt_sup: ir.WcTypeRef): Boolean = preservesEnv {
         log.indentedRes("%s <: %s?", t_sub, wt_sup) {
             // (t <: t constructor) but (t constructor not <: t)
-            if(wt_sup.as.ctor && !t.as.ctor) 
+            if(wt_sup.as.ctor && !t_sub.as.ctor) 
                 false
             
             // c<P> <: c<WP> iff P <= WP
             if(t_sub.c == wt_sup.c)
-                forallzip(t_sub.wpaths, wt_sup.wpaths)(isSubpath) 
+                forallzip(t_sub.paths, wt_sup.wpaths)(isSubpath) 
             else // else walk to supertype of t_sub
                 sup(t_sub) match {
                     case None => false
@@ -504,19 +506,18 @@ class TypeCheck(log: Log, prog: Prog) {
     def isReqFulfilled(req: ir.Req): Boolean = req match {
         case ir.ReqOwned(p) =>   
             val tp = teePee(p)
-            owner(tp.p) || (
+            owned(tp) || (
                 if(isSubtype(tp, ir.t_interval))
-                    isReqFulfilled(ir.ReqEq(ir.p_cur, tp)) ||
-                    isReqFulfilled(ir.ReqEq(ir.p_mthd, tp))
+                    equiv(tp_cur, tp) || equiv(tp_mthd, tp)
                 else if(isSubtype(tp, ir.t_lock))
-                    isReqFulfilled(ir.ReqLocks(ir.p_cur, tp))
+                    locks(tp_cur, tp)
                 else
                     false
             )
-        case ir.ReqHb(p, qs) => qs.forall(hb(p, _))
-        case ir.ReqHbEq(p, qs) => qs.forall(hbeq(p, _))
+        case ir.ReqHb(p, qs) => qs.map(teePee).forall(hb(teePee(p), _))
+        case ir.ReqHbEq(p, qs) => qs.map(teePee).forall(hbeq(teePee(p), _))
         case ir.ReqEq(p, q) => equiv(teePee(p), teePee(q))
-        case ir.ReqLocks(p, qs) => qs.forall(locks(p, _))
+        case ir.ReqLocks(p, qs) => qs.map(teePee).forall(locks(teePee(p), _))
     }
     
     def checkReqFulfilled(req: ir.Req) {
@@ -540,7 +541,7 @@ class TypeCheck(log: Log, prog: Prog) {
         
         owt.foreach (savingEnv { case wt =>
             val lv = ir.VarName(fresh("val"))
-            val tp = ir.TeePee(wt, lv.path, true)
+            val tp = ir.TeePee(wt, lv.path, ir.noAttrs)
             addPerm(lv.path, tp)
             checkIsSubtype(tp, vd.wt)
         })
@@ -578,7 +579,7 @@ class TypeCheck(log: Log, prog: Prog) {
         // screen out those which are guarded by future intervals
         lazy val subst = ghostSubst(tp_o)
         val fds_linked = fds_maybe_linked.filter { rfd =>
-            !hb(tp_guard, subst.path(rfd.p_guard))
+            !hb(tp_guard, teePee(subst.path(rfd.p_guard)))
         }
         
         // map to the canonical path for the field
@@ -612,10 +613,10 @@ class TypeCheck(log: Log, prog: Prog) {
     }    
         
     def checkNoInvalidated() {
-        if(!env.fs_invalidated.isEmpty)
+        if(!env.lp_invalidated.isEmpty)
             throw new ir.IrError(
                 "intervals.must.assign.first", 
-                env.fs_invalidated.mkEnglishString)        
+                env.lp_invalidated.mkEnglishString)        
     }
     
     def checkStatement(stmt: ir.Stmt) = log.indented(stmt) {
@@ -639,7 +640,7 @@ class TypeCheck(log: Log, prog: Prog) {
                             None
                         }
             
-                    checkLvDecl(vd, Some(fd.wt), op)
+                    checkLvDecl(vd, Some(fd.wt), op_canon)
                     
                 case ir.StmtSetField(p_o, f, p_v) =>
                     val tp_o = teePee(ir.noAttrs, p_o)
@@ -650,13 +651,13 @@ class TypeCheck(log: Log, prog: Prog) {
                     val tp_guard = teePee(ir.ghostAttrs, fd.p_guard)
                     checkWritable(tp_guard)
                     val p_f = tp_o.p + f // Canonical path of f; valid as f is not a ghost.
-                    addTemp(p_f, tp_v)
+                    addTemp(p_f, tp_v.p)
                     
-                    env.removeInvalidated(p_f)
+                    removeInvalidated(p_f)
                     linkedPaths(tp_o, f, tp_guard).foreach(addInvalidated)
                         
                 case ir.StmtCall(vd, p, m, qs) =>
-                    val tp = teePee(ir.noAttrs)
+                    val tp = teePee(ir.noAttrs, p)
                     val tqs = teePee(ir.noAttrs, qs)
                     val msig = substdMethodSig(tp, m, tqs)
                     
@@ -699,7 +700,7 @@ class TypeCheck(log: Log, prog: Prog) {
                     // Check Argument Types:
                     val ctor = cd.ctor
                     val tqs = teePee(qs)
-                    val subst = substGhosts + PathSubst.pp(ctor.args.map(_.name), tqs.map(_.p))
+                    val subst = substGhosts + PathSubst.vp(ctor.args.map(_.name), tqs.map(_.p))
                     val msig = subst.methodSig(ctor.msig)
                     checkArgumentTypes(msig, tqs)
 
@@ -733,7 +734,7 @@ class TypeCheck(log: Log, prog: Prog) {
         }
     }
     
-    def checkFieldDecl(cd: ir.ClassDecl)(rfd: ir.FieldDecl) = savingEnv {
+    def checkFieldDecl(cd: ir.ClassDecl, rfd: ir.FieldDecl) = savingEnv {
         log.indented(rfd) {
             at(rfd, ()) {
                 checkWfWt(rfd.wt)
@@ -764,7 +765,7 @@ class TypeCheck(log: Log, prog: Prog) {
                                         tp_dep.p, tp_guard.p)
 
                             case ir.Path(lv, f :: rev_fs) =>
-                                checkDependentPath(ir.Path(l, rev_fs))
+                                check(ir.Path(lv, rev_fs))
                                 val tp_dep = teePee(p_dep)
                                 if(!tp_dep.isConstant)
                                     throw new ir.IrError(
@@ -795,8 +796,8 @@ class TypeCheck(log: Log, prog: Prog) {
         log.indented(md) {
             at(md, ()) {
                 md.args.foreach { case arg => 
-                    checkWfWt(arg.wt)
-                    addLv(arg.name, ir.TeePee(arg.wt, arg.name.path, true))
+                    checkWfWt(arg.wt) // check type of each arg with only prior args in scope
+                    addPerm(arg.name.path, ir.TeePee(arg.wt, arg.name.path, ir.noAttrs))
                 }
                 
                 md.reqs.foreach(checkWfReq)
@@ -804,9 +805,8 @@ class TypeCheck(log: Log, prog: Prog) {
                 
                 md.stmts.foreach(checkStatement)
                 
-                md.p_ret.foreach { p_ret =>
-                    val tp_ret = teePee(p_ret)
-                    checkReified(tp_ret)
+                md.op_ret.foreach { p_ret =>
+                    val tp_ret = teePee(ir.noAttrs, p_ret)
                     checkIsSubtype(tp_ret, md.wt_ret)
                 }
             }         
@@ -816,23 +816,23 @@ class TypeCheck(log: Log, prog: Prog) {
     def checkClassDecl(cd: ir.ClassDecl) = savingEnv {
         log.indented(cd) {
             at(cd, ()) {
-                addLv(ir.lv_this, ir.TeePee(cd.thisTref, ir.p_this, true)) 
-                cd.fields.foreach(checkFieldDecl)
-                
-                addHb(ir.p_readOnly, ir.p_cur) // HACK
+                // XXX Need to slowly phase in ghosts, etc, so that we can be sure of no cyclic
+                // XXX references.
+                addPerm(ir.p_this, ir.TeePee(cd.thisTref, ir.p_this, ir.noAttrs)) 
+                cd.fields.foreach(checkFieldDecl(cd, _))
                 
                 // XXX Need to extract visible effects of ctor
                 // XXX and save them in environment for other
                 // XXX methods.
                 savingEnv {
-                    addLv(ir.lv_mthd, ir.TeePee(ir.t_interval, ir.gfd_ctor.thisPath, false))
+                    addLv(ir.lv_mthd, ir.TeePee(ir.t_interval, ir.gd_ctor.thisPath, false))
                     checkMethodDecl(cd.ctor)                    
                 }
                 
                 savingEnv {
                     addLv(ir.lv_mthd, ir.TeePee(ir.t_interval, ir.p_mthd, false))
                     cd.ctor.reqs.foreach(addReq)
-                    addHb(ir.gfd_ctor.thisPath, ir.p_mthd)
+                    addHb(ir.gd_ctor.thisPath, ir.p_mthd)
                     cd.methods.foreach(checkMethodDecl)                    
                 }
             }

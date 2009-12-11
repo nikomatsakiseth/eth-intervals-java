@@ -10,35 +10,30 @@ abstract class BaseSubst {
     }
     
     def wtref(wt: ir.WcTypeRef) =
-        ir.WcTypeRef(wt.c, wt.wpaths.map(wpath))
+        ir.WcTypeRef(wt.c, wt.wpaths.map(wpath), wt.as)
     
     def tref(t: ir.TypeRef) = 
-        ir.TypeRef(t.c, t.paths.map(path))
+        ir.TypeRef(t.c, t.paths.map(path), t.as)
         
     def req(r: ir.Req) = r match {
         case ir.ReqHb(p, qs) => ir.ReqHb(path(p), qs.map(path))
         case ir.ReqHbEq(p, qs) => ir.ReqHbEq(path(p), qs.map(path))
-        case ir.ReqEq(lv, q) => ir.ReqEqPath(path(lv.path), path(q))
-        case ir.ReqEqPath(p, q) => ir.ReqEqPath(path(p), path(q))
+        case ir.ReqEq(p, q) => ir.ReqEq(path(p), path(q))
         case ir.ReqLocks(p, qs) => ir.ReqLocks(path(p), qs.map(path))
     }
         
-    def ghostFieldDecl(fd: ir.GhostFieldDecl) =
-        ir.GhostFieldDecl(wtref(fd.wt), fd.name)
+    def ghostDecl(fd: ir.GhostDecl) =
+        ir.GhostDecl(wtref(fd.wt), fd.name)
         
-    def realFieldDecl(fd: ir.FieldDecl) =
-        ir.FieldDecl(wtref(fd.wt), fd.name, path(fd.p_guard))
+    def fieldDecl(fd: ir.FieldDecl) =
+        ir.FieldDecl(fd.as, wtref(fd.wt), fd.name, path(fd.p_guard))
 
-    def fieldDecl(fd: ir.FieldDecl): ir.FieldDecl = fd match {
-        case gfd: ir.GhostFieldDecl => ghostFieldDecl(gfd)
-        case rfd: ir.FieldDecl => realFieldDecl(rfd)
-    }
-    
     def lvDecl(lv: ir.LvDecl) = 
         ir.LvDecl(lv.name, wtref(lv.wt))
 
     def methodSig(msig: ir.MethodSig) =
         ir.MethodSig(
+            msig.as,
             msig.args.map(lvDecl), 
             msig.reqs.map(req),
             wtref(msig.wt_ret))

@@ -111,7 +111,7 @@ class IrParser extends StandardTokenParsers {
     }
     
     def ghostFieldDecl = (
-        wt~f                                    ^^ { case wt~f => ir.GhostFieldDecl(wt, f) }
+        wt~f                                    ^^ { case wt~f => ir.GhostDecl(wt, f) }
     )
 
     def realFieldDecl = (
