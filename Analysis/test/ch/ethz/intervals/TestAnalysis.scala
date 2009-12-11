@@ -29,9 +29,11 @@ class TestAnalysis extends JUnitSuite {
             tc.check
         
             log.indented("Encountered Errors: ") {                
-                for(error <- prog.errors)
+                for(error <- prog.errors) {
                     log("ExpError(\"%s\", List(%s))", 
-                        error.msg, ", ".join("\"", error.args, "\""))                    
+                        error.msg, ", ".join("\"", error.args, "\""))
+                    log("  at %s", error.loc)                    
+                }
             }
 
             assertEquals(expErrors.length, prog.errors.length)
@@ -242,8 +244,8 @@ class TestAnalysis extends JUnitSuite {
                 Void run()
                 requires current == this
                 {
-                    ConsumerData<this> d0 = new ConsumerData<this>();
-                    ConsumerData<this> d1 = new ConsumerData<this>();                    
+                    ConsData<this> d0 = new ConsData<this>();
+                    ConsData<this> d1 = new ConsData<this>();                    
                     d0->nextCons = this;
                     d0->nextCdata = d1;
                     
@@ -263,113 +265,4 @@ class TestAnalysis extends JUnitSuite {
         )
     }  
 
-    @Test
-    def bbpcData2() {
-        tc(
-            """
-            class Data<Interval p> extends Object<this.p> {
-                Object<this.p> o requires this.p;
-                constructor() {}
-            }
-            
-            class ProdData extends Object<this.p> {
-                Producer p requires this.constructor;
-                
-                Data<this.p> data requires this.p;                              
-                Interval nextProd requires this.p;
-                ProdData<this.nextProd> nextPdata requires this.p;                
-                constructor() {}
-            }
-            
-            class ConsData<Interval c> extends Object<this.c> {
-                Interval nextCons requires this.c;
-                ConsData<this.nextCons> nextCdata requires this.c;
-                constructor() {}
-            }
-            
-            class Producer extends Interval {
-                ConsData<hb this> cdata requires this.constructor;
-                ProdData<this> pdata requires this.constructor;
-                
-                constructor(Interval c, ConsData<c> cdata)
-                {
-                    c hb this;
-                    this->cdata = cdata;
-                    ProdData<this> pdata = new ProdData<this>();
-                    this->pdata = pdata;
-                }
-
-                Void run()
-                requires current == this
-                {
-                    ProdData<this> pdata = this->pdata;
-                    ConsData<hb this> cdata = this->cdata;
-                    
-                    Data<this> data = new Data<this>(); // "produce"
-                    pdata->data = data;
-                    
-                    // Note: Non-trivial deduction here that equates
-                    // nextCons with cdata.nextCons!
-                    Interval nextCons = cdata->nextCons;
-                    ConsData<nextCons> nextCdata = cdata->nextCdata;                    
-                    
-                    Interval nextProd = new Producer(nextCons, nextCdata);
-                    pdata->nextProd = nextProd;
-                }
-            }
-            
-            class Consumer extends Interval {
-                ProdData<hb this> pdata requires this.constructor;
-                ConsData<this> cdata requires this.constructor;
-                
-                constructor(Interval p, ProdData<p> pdata)
-                {
-                    p hb this;
-                    this->pdata = pdata;
-                    ConsData<this> cdata = new ConsData<this>();
-                    this->cdata = cdata;
-                }
-
-                Void run()
-                requires current == this
-                {
-                    ProdData<hb this> pdata = this->pdata;
-                    ConsData<this> cdata = this->cdata;
-                    
-                    Data<hb this> data = pdata->data; // "consume" 
-                    
-                    Interval nextProd = pdata->nextProd;
-                    ProdData<nextProd> nextPdata = pdata->nextPdata;
-                    
-                    Interval nextCons = new Consumer(nextProd, nextPdata);
-                    cdata->nextCons = nextCons;
-                }
-            }
-            
-            class BBPC extends Interval {
-                constructor() {}
-                
-                Void run()
-                requires current == this
-                {
-                    ConsumerData<this> d0 = new ConsumerData<this>();
-                    ConsumerData<this> d1 = new ConsumerData<this>();                    
-                    d0->nextCons = this;
-                    d0->nextCdata = d1;
-                    
-                    Producer p = new Producer(this, d0);                    
-                    ProdData<p> pdata = p->pdata;
-                    
-                    Consumer c = new Consumer(p, pdata);
-                    d1->nextCons = c; 
-                    ConsData<c> cdata = c->cdata;
-                    d1->nextCdata = cdata;                    
-                }
-            }
-            
-            """,
-            List(
-            )
-        )
-    }                 
 }

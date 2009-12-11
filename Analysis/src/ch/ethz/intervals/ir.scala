@@ -270,6 +270,8 @@ object ir {
         wt: ir.WcTypeRef, p: ir.Path, as: Attrs
     ) {
         def isConstant: Boolean = !as.mutable
+        
+        override def toString = "[%s: %s %s]".format(p, wt, as)
     }
     
     sealed abstract class Req
@@ -388,6 +390,7 @@ object ir {
     
     val gd_creator = GhostDecl(t_interval, f_creator)
     val gd_ctor = GhostDecl(t_interval, f_ctor)
+    val p_ctor = gd_ctor.thisPath
     val t_objectCreator = ir.TypeRef(c_object, List(gd_creator.thisPath), ir.noAttrs)
     val t_objectCtor = ir.TypeRef(c_object, List(gd_ctor.thisPath), ir.noAttrs)
     

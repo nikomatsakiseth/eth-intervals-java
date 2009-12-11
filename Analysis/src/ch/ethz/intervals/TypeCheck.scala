@@ -70,6 +70,18 @@ class TypeCheck(log: Log, prog: Prog) {
             }
         }
 
+    def addPermEquiv(tp: ir.TeePee, tq: ir.TeePee): Unit = 
+        log.indented("addPermEquiv(%s,%s)", tp, tq) {
+            env = ir.TcEnv(
+                env.perm + Pair(tp.p, tq),
+                env.temp,
+                env.lp_invalidated,
+                env.hb,
+                env.hbeq,
+                env.locks,
+                env.owned)
+        }
+
     // ______________________________________________________________________
     // Errors
 
@@ -236,7 +248,7 @@ class TypeCheck(log: Log, prog: Prog) {
                     // The path is p_0.constructor, which we handle specially:
                     case None if f == ir.f_ctor =>
                         val tp_f = ir.TeePee(ir.t_interval, p_0 + f, tp_0.as.withGhost)
-                        if(tp_0.wt.as.ctor) // is tp_0 fully constructed?
+                        if(!tp_0.wt.as.ctor) // is tp_0 fully constructed?
                             addHb(tp_f, tp_mthd) // then we may assume p_0.ctor -> method
                         tp_f
                         
@@ -283,15 +295,8 @@ class TypeCheck(log: Log, prog: Prog) {
     // ______________________________________________________________________
     // Well-formedness
     //
-    // Very basic sanity checks.
-    
-    def checkWfReq(req: ir.Req) = preservesEnv { req match {
-        case ir.ReqOwned(ps) => teePee(ps)
-        case ir.ReqHb(p, qs) => teePee(p); teePee(qs)
-        case ir.ReqHbEq(p, qs) => teePee(p); teePee(qs)
-        case ir.ReqEq(p, q) => teePee(p); teePee(q)
-        case ir.ReqLocks(p, qs) => teePee(p); teePee(qs)
-    } }
+    // Very basic sanity checks.  Most semantic checking, for example that
+    // fields are correctly named, is done when constructing a teePee.
     
     def checkWfWt(wt: ir.WcTypeRef) = preservesEnv {
         val cd = classDecl(wt.c)
@@ -310,7 +315,7 @@ class TypeCheck(log: Log, prog: Prog) {
     // Env Relations
     
     def addTemp(p: ir.Path, q: ir.Path) {
-        log.indented("addCanon(%s,%s)", p, q) {
+        log.indented("addTemp(%s,%s)", p, q) {
             env = ir.TcEnv(
                 env.perm,
                 env.temp + Pair(p, q),
@@ -444,7 +449,7 @@ class TypeCheck(log: Log, prog: Prog) {
             case ir.ReqOwned(ps) => teePee(ps).foreach(addOwned)
             case ir.ReqHb(p, qs) => teePeeAdd(addHb, p, qs)
             case ir.ReqHbEq(p, qs) => teePeeAdd(addHbEq, p, qs)
-            case ir.ReqEq(p, q) => addTemp(p, q) // XXX Check for cycles or something
+            case ir.ReqEq(p, q) => addPermEquiv(teePee(p), teePee(q)) // XXX Cycles?
             case ir.ReqLocks(p, qs) => teePeeAdd(addLocks, p, qs)
         }   
     } 
@@ -453,7 +458,7 @@ class TypeCheck(log: Log, prog: Prog) {
     // Subtyping    
     
     /// wp <= wq
-    def isSubpath(p: ir.Path, wq: ir.WcPath) = preservesEnv {
+    def isSubpath(p: ir.Path, wq: ir.WcPath) = 
         log.indentedRes("%s <= %s?", p, wq) {                
             // Here we just use teePee() without checking that it is 
             // immutable.  That's safe because we never ADD to the relations
@@ -476,10 +481,9 @@ class TypeCheck(log: Log, prog: Prog) {
                     lq.forall { q => locks(teePee(q), tp) }
             }
         }
-    }
     
     /// t_sub <: wt_sup
-    def isSubtype(t_sub: ir.TypeRef, wt_sup: ir.WcTypeRef): Boolean = preservesEnv {
+    def isSubtype(t_sub: ir.TypeRef, wt_sup: ir.WcTypeRef): Boolean = 
         log.indentedRes("%s <: %s?", t_sub, wt_sup) {
             // (t <: t constructor) but (t constructor not <: t)
             if(wt_sup.as.ctor && !t_sub.as.ctor) 
@@ -494,11 +498,9 @@ class TypeCheck(log: Log, prog: Prog) {
                     case Some(t) => isSubtype(t, wt_sup)
                 }                
         }        
-    }
     
-    def isSubtype(tp_sub: ir.TeePee, wt_sup: ir.WcTypeRef): Boolean = preservesEnv {
+    def isSubtype(tp_sub: ir.TeePee, wt_sup: ir.WcTypeRef): Boolean = 
         isSubtype(cap(tp_sub), wt_sup)        
-    }
         
     /// wt_sub <: wt_sup
     def checkIsSubtype(tp_sub: ir.TeePee, wt_sup: ir.WcTypeRef) {
@@ -739,67 +741,11 @@ class TypeCheck(log: Log, prog: Prog) {
         }
     }
     
-    def checkFieldDecl(cd: ir.ClassDecl, rfd: ir.FieldDecl) = savingEnv {
-        log.indented(rfd) {
-            at(rfd, ()) {
-                checkWfWt(rfd.wt)
-                
-                val tp_guard = teePee(rfd.p_guard)
-                
-                // Rules:
-                //
-                // The type of a field f in class c may be dependent on a path p_dep if either:
-                // (1) p_dep is constant when p_g is active; or
-                // (2) p_dep = this.f' and f' is declared in class c (not a supertype!)
-                //
-                // Note that a type is dependent on p_dep if p.F appears in the type, so 
-                // we must check all prefixes of each dependent path as well.
-                
-                rfd.wt.dependentPaths.foreach { p_full_dep =>
-                    
-                    def check(p_dep: ir.Path) {
-                        p_dep match {
-                            case ir.Path(lv, List()) => 
-                                // Always permitted.
-
-                            case ir.Path(lv, List(f)) if lv == ir.lv_this => 
-                                val tp_dep = teePee(p_dep)
-                                if(!tp_dep.isConstant && !cd.fields.exists(_.name == f))
-                                    throw new ir.IrError(
-                                        "intervals.illegal.type.dep",
-                                        tp_dep.p, tp_guard.p)
-
-                            case ir.Path(lv, f :: rev_fs) =>
-                                check(ir.Path(lv, rev_fs))
-                                val tp_dep = teePee(p_dep)
-                                if(!tp_dep.isConstant)
-                                    throw new ir.IrError(
-                                        "intervals.illegal.type.dep",
-                                        tp_dep.p, tp_guard.p)
-                        }
-                    }
-
-                    savingEnv {                        
-                        // XXX Add some logic regarding this.constructor.  Probably we want
-                        // XXX constructor fields as well?
-                        addPerm(ir.p_cur, tp_guard) // use guard as the current interval
-                        check(p_full_dep)
-                    }                   
-                }
-                
-                // Guards must be of type Interval, Lock, or Object:
-                //   (Object is used to write generic code dependent on either interval or lock)
-                if(!isSubtype(tp_guard, ir.t_interval) &&
-                    !isSubtype(tp_guard, ir.t_lock) &&
-                    tp_guard.wt.c != ir.c_object)
-                    throw new ir.IrError("intervals.invalid.guard", tp_guard.p)
-            }
-        }
-    }
-    
     def checkMethodDecl(md: ir.MethodDecl) = savingEnv {
         log.indented(md) {
             at(md, ()) {
+                addPerm(ir.p_cur, ir.TeePee(ir.t_interval, ir.p_cur, ir.ghostAttrs))
+                
                 if(!md.attrs.ctor)
                     addHb(tp_ctor, tp_mthd)                    
                 
@@ -808,7 +754,6 @@ class TypeCheck(log: Log, prog: Prog) {
                     addPerm(arg.name.path, ir.TeePee(arg.wt, arg.name.path, ir.noAttrs))
                 }
                 
-                md.reqs.foreach(checkWfReq)
                 md.reqs.foreach(addReq)
                 
                 md.stmts.foreach(checkStatement)
@@ -821,14 +766,140 @@ class TypeCheck(log: Log, prog: Prog) {
         }
     }
     
+    def checkFieldDecl(cd: ir.ClassDecl, fd: ir.FieldDecl) = savingEnv {
+        log.indented(fd) {
+            at(fd, ()) {
+                // Rules:
+                //
+                // The type of a field f in class c may be dependent on a path p_dep if either:
+                // (1) p_dep is constant when p_g is active; or
+                // (2) p_dep = this.f' and f' is declared in class c (not a supertype!)
+                //
+                // Note that a type is dependent on p_dep if p.F appears in the type, so 
+                // we must check all prefixes of each dependent path as well.
+        
+                fd.wt.dependentPaths.foreach { p_full_dep => 
+                    savingEnv {
+                        // XXX Really need to implement the full logic here.
+                        if(fd.as.ctor)
+                            // Field accessible from constructor.
+                            addPerm(ir.p_mthd, tp_ctor)
+                        else {
+                            // Field inaccessible from constructor.
+                            addPerm(ir.p_mthd, ir.TeePee(ir.t_interval, ir.p_mthd, ir.ghostAttrs))
+                            addHb(tp_ctor, tp_mthd)
+                        }
+                            
+                        val tp_guard = teePee(fd.p_guard)
+                        addPerm(ir.p_cur, tp_guard) // use guard as the current interval
+                        
+                        // Guards must be of type Interval, Lock, or Object:
+                        if(!isSubtype(tp_guard, ir.t_interval) &&
+                            !isSubtype(tp_guard, ir.t_lock) &&
+                            tp_guard.wt.c != ir.c_object)
+                            throw new ir.IrError("intervals.invalid.guard", tp_guard.p)                        
+                        
+                        def check(p_dep: ir.Path) {
+                            p_dep match {
+                                case ir.Path(lv, List()) => 
+                                    // Always permitted.
+
+                                case ir.Path(lv, List(f)) if lv == ir.lv_this => 
+                                    val tp_dep = teePee(p_dep)
+                                    if(!tp_dep.isConstant && !cd.fields.exists(_.name == f))
+                                        throw new ir.IrError(
+                                            "intervals.illegal.type.dep",
+                                            tp_dep.p, tp_guard.p)
+
+                                case ir.Path(lv, f :: rev_fs) =>
+                                    check(ir.Path(lv, rev_fs))
+                                    val tp_dep = teePee(p_dep)
+                                    if(!tp_dep.isConstant)
+                                        throw new ir.IrError(
+                                            "intervals.illegal.type.dep",
+                                            tp_dep.p, tp_guard.p)
+                            }
+                        }                        
+                        check(p_full_dep)
+                    }                   
+                }
+            }
+        }
+    }
+    
+    // ______________________________________________________________________
+    // Permitted Prefixes
+    //
+    // This code prevents cyclic references between ghosts and fields by
+    // requiring that ghosts and fields can only refer to entries that
+    // appear textually earlier in the class definition.  Actually, I'm not
+    // sure if this check is strictly needed: I thought it was needed
+    // to prevent teePee() from looping as it follows one path to the other,
+    // but now I think that won't happen in any case.
+    //
+    // XXX Kill this code?  Probably a good reason for it.    
+    
+    def checkUsePermittedPrefix(
+        perm_prefixes: List[ir.Path],
+        p: ir.Path
+    ) {
+        val perm_prefixes1 = ir.p_ctor :: perm_prefixes
+        if(p != ir.p_this && !perm_prefixes1.exists(p.hasPrefix(_)))
+            throw new ir.IrError("intervals.illegal.path", p)
+    }
+
+    def checkFieldDeclsUsePermittedPrefixes(
+        cd: ir.ClassDecl, 
+        fds_prev: List[ir.FieldDecl],
+        fds_next: List[ir.FieldDecl]
+    ): Unit = preservesEnv {
+        fds_next match {
+            case List() => 
+            case fd :: fds_remaining =>
+                at(fd, ()) {
+                    checkWfWt(fd.wt)
+            
+                    val perm_prefixes = cd.ghosts.map(_.thisPath) ++ fds_prev.map(_.thisPath)
+                    checkUsePermittedPrefix(perm_prefixes, fd.p_guard)
+                    fd.wt.dependentPaths.foreach(checkUsePermittedPrefix(perm_prefixes, _))
+                    
+                    checkFieldDeclsUsePermittedPrefixes(cd, fd :: fds_prev, fds_remaining)
+                }
+        }
+    }
+    
+    def checkGhostDeclsUsePermittedPrefixes(
+        cd: ir.ClassDecl, 
+        prev: List[ir.GhostDecl], 
+        next: List[ir.GhostDecl]
+    ): Unit = preservesEnv {
+        next match {
+            case List() =>
+            case gd :: gds_remaining =>
+                at(gd, ()) {
+                    prev.find(_.name == gd.name) match {
+                        case Some(_) => throw new ir.IrError("intervals.duplicate.ghost", gd.name)
+                        case None =>
+                    }
+                    
+                    checkWfWt(gd.wt)
+                    
+                    val perm_prefixes = prev.map(_.thisPath)
+                    gd.wt.dependentPaths.foreach(checkUsePermittedPrefix(perm_prefixes, _))
+                    
+                    checkGhostDeclsUsePermittedPrefixes(cd, gd :: prev, gds_remaining)
+                }
+        }
+    }
+    
     def checkClassDecl(cd: ir.ClassDecl) = savingEnv {
         log.indented(cd) {
             at(cd, ()) {
-                // XXX Need to slowly phase in ghosts, etc, so that we can be sure of no cyclic
-                // XXX references.
-                addPerm(ir.p_this, ir.TeePee(cd.thisTref, ir.p_this, ir.noAttrs)) 
-                cd.fields.foreach(checkFieldDecl(cd, _))
+                checkGhostDeclsUsePermittedPrefixes(cd, List(), cd.ghosts)                
+                checkFieldDeclsUsePermittedPrefixes(cd, List(), cd.fields)                
                 
+                addPerm(ir.p_this, ir.TeePee(cd.thisTref, ir.p_this, ir.noAttrs)) 
+                                
                 // XXX Need to extract visible effects of ctor
                 // XXX and save them in environment for other
                 // XXX methods.
