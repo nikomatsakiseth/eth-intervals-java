@@ -157,7 +157,7 @@ class TypeCheck(log: Log, prog: Prog) {
         val cd = classDecl(tp.wt.c)
         PathSubst.pp(
             ir.p_this :: cd.ghosts.map(_.thisPath),
-            tp.p :: ghostPaths(tp)
+            tp.p      :: ghostPaths(tp)
         )     
     }
     
@@ -610,6 +610,13 @@ class TypeCheck(log: Log, prog: Prog) {
             }
         }
     }    
+        
+    def checkNoInvalidated() {
+        if(!env.fs_invalidated.isEmpty)
+            throw new ir.IrError(
+                "intervals.must.assign.first", 
+                env.fs_invalidated.mkEnglishString)        
+    }
     
     def checkStatement(stmt: ir.Stmt) = log.indented(stmt) {
         at(stmt, ()) {
@@ -620,10 +627,7 @@ class TypeCheck(log: Log, prog: Prog) {
                     val msig = substdMethodSig(tp, m, tqs)
                     
                     // Cannot invoke a method when there are outstanding invalidated fields:
-                    if(!env.fs_invalidated.isEmpty)
-                        throw new ir.IrError(
-                            "intervals.must.assign.first", 
-                            env.fs_invalidated.mkEnglishString)
+                    checkNoInvalidated()
                     
                     // If method is not a constructor method, receiver must be constructed:
                     if(!msig.as.ctor && tp.wt.as.ctor) 
@@ -675,10 +679,15 @@ class TypeCheck(log: Log, prog: Prog) {
                 case ir.StmtNew(vd, t, qs) =>
                     checkWfWt(t)
                     val cd = classDecl(t.c)
-
+                    
+                    // Cannot invoke a method when there are outstanding invalidated fields:
+                    checkNoInvalidated()
+                    
                     // Check Ghost Types:
                     checkLengths(cd.ghosts, t.paths, "intervals.wrong.number.ghost.arguments")
-                    val substGhosts = PathSubst.pp(cd.ghosts.map(_.thisPath), t.paths)
+                    val substGhosts = PathSubst.pp(
+                        ir.p_this    :: cd.ghosts.map(_.thisPath), 
+                        vd.name.path :: t.paths)
                     foreachzip(cd.ghosts, t.paths) { case (gfd, p) =>
                         val tp = teePee(p)
                         checkIsSubtype(tp, substGhosts.wtref(gfd.wt))
@@ -687,15 +696,15 @@ class TypeCheck(log: Log, prog: Prog) {
                     // Check Argument Types:
                     val ctor = cd.ctor
                     val tqs = teePee(qs)
-                    val subst = PathSubst.vp(
-                        ir.lv_this :: ctor.args.map(_.name),
-                        vd.name.path :: tqs.map(_.p)
-                    )
+                    val subst = substGhosts + PathSubst.pp(ctor.args.map(_.name), tqs.map(_.p))
                     val msig = subst.methodSig(ctor.msig)
                     checkArgumentTypes(msig, tqs)
 
                     // Check Constructor Requirements:
                     msig.reqs.foreach(checkReqFulfilled)
+                    
+                    // Executing constructor code could invalidate our alias assumptions:
+                    clearTemp()                    
                     
                     checkLvDecl(vd, Some(t), None)
                     
