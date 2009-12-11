@@ -1,22 +1,61 @@
 package ch.ethz.intervals
 
 import scala.collection.immutable.Set
+import scala.collection.immutable.ListSet
 import Util._
 
 object ir {
     
     /*
-    Naming Conventions
+    Naming conventions generally follow the formal typing rules,
+    although in some cases I elected to use longer names in the code.
+    Short names begin with a letter indicating the type of the
+    variable or field:
     
-    lv -> variable name
-    p, q, r -> paths
-    i, j -> intervals
-    e, f -> effects
-    f -> field names
-    m -> method names
-    c -> class names
-    ex -> expressions
+    x -> local variable name
+    p,q -> path
+    tp,tq -> typed path (TeePee)
+    wp,wq -> wildcard path
+    f -> field name
+    m -> method name
+    c -> class name
+    cd, md, fd -> class, method, field decl
+    t -> type (TypeRef)
+    wt -> wildcard type (WcTypeRef)
+    
+    The type is then optionally followed by an underscore
+    with a more descriptive tag, like p_r for the receiver path.
+    
+    To indicate lists, options, and sets we mimic the scale
+    syntax and use an "l", "o", or "s" prefix: lp_r, op_r, sp_r.
     */
+    
+    // ______________________________________________________________________
+    // Attributes attached to paths, types, methods
+    
+    sealed abstract class Attr(pp: String) {
+        override def toString = pp
+    }
+    sealed case object AttrCtor extends Attr("c")
+    sealed case object AttrGhost extends Attr("g")
+    sealed case object AttrAccessible extends Attr("a")
+    sealed case object AttrImmutable extends Attr("i")
+    sealed case object AttrMutable extends Attr("m")
+    
+    sealed case class Attrs(s: Set[Attr]) = {
+        def +(a: Attr) = Attrs(s + a)
+        def ctor = s.contains(AttrCtor)
+        def ghost = s.contains(AttrGhost)
+        def accessible = s.contains(AttrAccessible)
+        def immutable = s.contains(AttrImmutable)
+        def mutable = s.contains(AttrMutable)
+        
+        override def toString = "{%s}".format("".join(s.toList))
+    }
+    val noAttrs = Attrs(ListSet.empty)
+    
+    // ______________________________________________________________________
+    // Names of variables, fields, methods, classes
     
     sealed abstract class Name(name: String) {
         override def toString = name
@@ -26,29 +65,38 @@ object ir {
         def +(f: FieldName) = path + f
         def ++(fs: List[FieldName]) = path ++ fs
     }
-    case class FieldName(name: String) extends Name(name)
+    case class FieldName(name: String) extends Name(name) {
+        def thisPath = p_this + this
+    }
     case class MethodName(name: String) extends Name(name)
     case class ClassName(name: String) extends Name(name)
     
-    abstract class Locatable {
-        var srcLoc: Object = null
-    }
+    // ______________________________________________________________________
+    // Error reporting
     
     def at[I <: Locatable](i: I, pos: Object): I = {
       i.srcLoc = pos
       i
     }
     
+    abstract class Locatable {
+        var srcLoc: Object = null
+    }
+        
     sealed case class Error(
         loc: Locatable,
         msg: String,
         args: List[String]
     )
     
+    // ______________________________________________________________________
+    // Abstract syntax tree
+    
     sealed case class ClassDecl(
         name: ClassName,
         ghosts: List[GhostFieldDecl],
         superType: Option[TypeRef],
+        reqs: List[Req],
         ctor: MethodDecl,
         fields: List[RealFieldDecl],
         methods: List[MethodDecl]
@@ -56,41 +104,34 @@ object ir {
         def thisTref = TypeRef(name, ghosts.map(_.thisPath))
         
         override def toString =
-            "class %s<%s> extends %s".format(
-                name, ", ".join(ghosts), superType)
+            "class %s<%s>%s extends %s".format(
+                name, ", ".join(ghosts), "".join(" ", reqs), superType)
     }
     
     sealed case class MethodDecl(
-        wt_ret: WcTypeRef,
+        attrs: Attrs,       
+        wt_ret: WcTypeRef,  // 
         name: MethodName,
         args: List[LvDecl],
         reqs: List[Req],
         stmts: List[Stmt],
-        p_ret: Option[Path] // if omitted, equiv. to return null
+        op_ret: Option[Path] // if omitted, equiv. to return null
     ) extends Locatable {
         def msig = at(MethodSig(args, reqs, wt_ret), srcLoc)
         
         override def toString =
-            "%s %s(%s)%s".format(
-                wt_ret, name, ", ".join(args), 
-                "".join(" ", reqs))
+            "%s %s %s(%s)%s".format(
+                attrs, wt_ret, name, ", ".join(args), "".join(" ", reqs))
     }
     
     sealed case class MethodSig(
+        attrs: Attrs,
         args: List[LvDecl],
         reqs: List[Req],
         wt_ret: WcTypeRef
     ) extends Locatable {
-        override def toString = "(%s _(%s) %s)".format(
-            wt_ret, ", ".join(args), "".join("requires ", reqs))
-    }
-    
-    sealed case class HbDecl(p: ir.Path, q: ir.Path) extends Locatable {
-        override def toString = "%s hb %s".format(p, q)
-    }
-    
-    sealed case class LockDecl(p: ir.Path) extends Locatable {
-        override def toString = "locks %s".format(p)
+        override def toString = "(%s %s _(%s)%s)".format(
+            attrs, wt_ret, ", ".join(args), "".join(" ", reqs))
     }
     
     sealed case class LvDecl(
@@ -105,7 +146,7 @@ object ir {
         val name: FieldName
         def isGhost: Boolean
         
-        def thisPath = p_this + name
+        def thisPath = name.thisPath
     }
     
     sealed case class GhostFieldDecl(
@@ -125,7 +166,7 @@ object ir {
         def isGhost = false
         
         override def toString = 
-            "%s %s during %s".format(wt, name, p_guard)
+            "%s %s requires %s".format(wt, name, p_guard)
     }
     
     sealed abstract class Stmt extends Locatable
@@ -153,30 +194,52 @@ object ir {
     
     sealed case class WcTypeRef(
         c: ClassName,
-        wpaths: List[WcPath]
+        wpaths: List[WcPath],
+        attrs: Attrs
     ) {
-        override def toString = "%s<%s>".format(c, ", ".join(wpaths))
+        override def toString = "%s<%s>%s".format(c, ", ".join(wpaths), attrs)
     }
     
     sealed case class TypeRef(
         override val c: ClassName,
-        paths: List[Path]
-    ) extends WcTypeRef(c, paths)
+        paths: List[Path],
+        override val attrs: Attrs
+    ) extends WcTypeRef(c, paths, attrs)
     
-    sealed abstract class WcPath
-    sealed case class WcHb(ps: List[Path], qs: List[Path]) extends WcPath {
+    sealed abstract class WcPath {
+        def dependentOn(p: ir.Path): Boolean
+    }
+    sealed case class WcHb(lp: List[Path], lq: List[Path]) extends WcPath {
+        def dependentOn(p: ir.Path) =
+            ps.exists(_.dependentOn(p)) || qs.exists(_.dependentOn(p))
+
         override def toString = {
             (ps match { case List() => ""; case _ => ", ".join(ps) + " " }) +
             "hb" + 
             (qs match { case List() => ""; case _ => " " + ", ".join(qs) })
         }
     }
-    sealed case class WcHbEq(ps: List[Path], qs: List[Path]) extends WcPath {
+    sealed case class WcHbEq(lp: List[Path], lq: List[Path]) extends WcPath {
+        def dependentOn(p: ir.Path) =
+            ps.exists(_.dependentOn(p)) || qs.exists(_.dependentOn(p))
+
         override def toString = {
             (ps match { case List() => ""; case _ => ", ".join(ps) + " " }) +
             "hbeq" + 
             (qs match { case List() => ""; case _ => " " + ", ".join(qs) })
         }
+    }
+    sealed case class WcLocks(lp: List[Path]) extends WcPath {
+        def dependentOn(p: ir.Path) =
+            lp.exists(_.dependentOn(p))
+
+        override def toString = "locks %s".format(", ".join(lp))        
+    }
+    sealed case class WcLockedBy(lp: List[Path]) extends WcPath {
+        def dependentOn(p: ir.Path) =
+            lp.exists(_.dependentOn(p))
+
+        override def toString = "%s locks".format(", ".join(lp))
     }
         
     sealed case class Path(
@@ -185,11 +248,10 @@ object ir {
         def fs = rev_fs.reverse
         def +(f: ir.FieldName) = Path(lv, f :: rev_fs)
         def ++(fs: List[ir.FieldName]) = fs.foldLeft(this)(_ + _)
-
-        /// <a.b.c>.hasPrefix(<a.b>) == true
-        def hasPrefix(p: ir.Path) =
-            lv == p.lv && rev_fs.endsWith(p.rev_fs)
         
+        def dependentOn(p: ir.Path) =
+            lv == p.lv && rev_fs.endsWith(p.rev_fs)
+
         def start = this + f_start
         def end = this + f_end        
         override def toString = lv.name + "".join(".", fs)
@@ -197,24 +259,24 @@ object ir {
     
     /// A TeePee is a typed path.
     sealed case class TeePee(
-        wt: ir.WcTypeRef, p: ir.Path, reified: Boolean
+        wt: ir.WcTypeRef, p: ir.Path, attrs: Attrs
     )
     
     sealed abstract class Req
-    sealed case class ReqHb(p: Path, qs: List[Path]) extends Req {
-        override def toString = "%s hb %s".format(p, ", ".join(qs))
+    sealed case class ReqMutable(lp: Path) extends Req {
+        override def toString = "requires %s".format(", ".join(lp))
     }
-    sealed case class ReqHbEq(p: Path, qs: List[Path]) extends Req {
-        override def toString = "%s hbeq %s".format(p, ", ".join(qs))
+    sealed case class ReqHb(p: Path, lq: List[Path]) extends Req {
+        override def toString = "requires %s hb %s".format(p, ", ".join(lq))
     }
-    sealed case class ReqEq(lv: VarName, p: Path) extends Req {
-        override def toString = "%s == %s".format(lv, p)
+    sealed case class ReqHbEq(p: Path, lq: List[Path]) extends Req {
+        override def toString = "requires %s hbeq %s".format(p, ", ".join(lq))
     }
-    sealed case class ReqEqPath(p: Path, q: Path) extends Req {
-        override def toString = "%s == %s".format(p, q)
+    sealed case class ReqEq(p: Path, q: Path) extends Req {
+        override def toString = "requires %s == %s".format(p, q)
     }
-    sealed case class ReqLocks(p: Path, qs: List[Path]) extends Req {
-        override def toString = "%s locks %s".format(p, ", ".join(qs))
+    sealed case class ReqLocks(p: Path, lq: List[Path]) extends Req {
+        override def toString = "requires %s locks %s".format(p, ", ".join(lq))
     }
     
     sealed class Relation(
@@ -265,10 +327,13 @@ object ir {
     }
     
     sealed case class TcEnv(
-        lvs: Map[ir.VarName, ir.TeePee],
+        perm: Map[ir.Path, ir.TeePee],
+        temp: Map[ir.Path, ir.TeePee],
+        fs_invalidated: List[ir.FieldName],
         hb: Relation,
         hbeq: Relation,
-        locks: Relation        
+        locks: Relation,
+        mutable: Relation
     )
     
     case class IrError(msg: String, args: Any*) 

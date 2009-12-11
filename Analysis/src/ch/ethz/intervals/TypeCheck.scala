@@ -453,20 +453,23 @@ class TypeCheck(log: Log, prog: Prog) {
     /// if it depends on 'p' in some way.  'p' must be
     /// a canonical path.
     def isLinkedWt(p: ir.Path, wt: ir.WcTypeRef) =
-        wt.wpaths.exists(_.hasPrefix(p_f))    
+        wt.wpaths.exists(_.dependentOn(p))
     
     /// A linked field f_l to p.f is one whose type is invalidated
     /// if p.f changes.  In general this is because p.f appears
     /// in the type of f_l.
     def linkedFields(tp: ir.TeePee, f: ir.FieldName) = {
-        val cd = classDecl(tp.c)
+        val cd = classDecl(tp.wt.c)
         val p_f = f.thisPath
         
-        cd.fields.filter { rfd => isLinkedWt(rfd.wt) }
+        cd.fields.filter { rfd => isLinkedWt(p_f, rfd.wt) }
     }
     
-    def linkedVariables(tp: ir.TeePee, f: FieldName) = {
+    def linkedVariables(tp: ir.TeePee, f: ir.FieldName): List[ir.VarName] = {
+        val p_f = f.thisPath
         
+        env.lvs.values.
+        List()
     }
                     
     def checkStatement(stmt: ir.Stmt) = log.indented(stmt) {

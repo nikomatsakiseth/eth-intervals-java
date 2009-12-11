@@ -12,7 +12,7 @@ class IrParser extends StandardTokenParsers {
     )
     lexical.reserved += (
         "class", "new", "constructor", "null", 
-        "return", "Rd", "Wr", "Free", "extends", "during", 
+        "return", "Rd", "Wr", "Free", "extends", 
         "hb", "hbeq", "requires"
     )
 
@@ -36,6 +36,9 @@ class IrParser extends StandardTokenParsers {
     |   ident
     )
                                                 
+    def attr = "constructor"                    ^^ { case _ => ir.AttrCtor }
+    def attrs = rep(attr)                       ^^ { case la => Set(la: _*) }
+    
     def m = id                                  ^^ { case i => ir.MethodName(i) }
     def c = id                                  ^^ { case i => ir.ClassName(i) }
     def lv = id                                 ^^ { case i => ir.VarName(i) }
@@ -48,16 +51,18 @@ class IrParser extends StandardTokenParsers {
     def p = lv~rep(dotf)                        ^^ { case lv~fs => lv ++ fs }
     
     def wp = (
-        comma(p)~"hb"~comma(p)                  ^^ { case ps~_~qs => ir.WcHb(ps, qs) }
+        p
+    |   comma(p)~"hb"~comma(p)                  ^^ { case ps~_~qs => ir.WcHb(ps, qs) }
     |   comma(p)~"hbeq"~comma(p)                ^^ { case ps~_~qs => ir.WcHbEq(ps, qs) }
-    |   p
+    |   "locks"~comma(p)                        ^^ { case ps => ir.WcLocks(ps) }
+    |   comma(p)~"locks"                        ^^ { case ps => ir.WcLockedBy(ps) }
     )
     
     def wt =
-        c~optl3("<",comma(wp),">")              ^^ { case c~wps => ir.WcTypeRef(c, wps) }
+        c~optl3("<",comma(wp),">")~attrs        ^^ { case c~wps~la => ir.WcTypeRef(c, wps, la) }
     
     def t =
-        c~optl3("<",comma(p),">")               ^^ { case c~ps => ir.TypeRef(c, ps) }
+        c~optl3("<",comma(p),">")               ^^ { case c~ps => ir.TypeRef(c, ps, ir.noAttrs) }
     
     def lvdecl = (
         wt~lv                                   ^^ { case wt~lv => ir.LvDecl(lv, wt) }
@@ -74,7 +79,8 @@ class IrParser extends StandardTokenParsers {
     )
     
     def req = (
-        "requires"~p~"hb"~comma(p)              ^^ { case _~p~_~qs => ir.ReqHb(p, qs) }
+        "requires"~p                            ^^ { case _ => ir.ReqMutable(p) }
+    |   "requires"~p~"hb"~comma(p)              ^^ { case _~p~_~qs => ir.ReqHb(p, qs) }
     |   "requires"~p~"hbeq"~comma(p)            ^^ { case _~p~_~qs => ir.ReqHbEq(p, qs) }
     |   "requires"~lv~"=="~p                    ^^ { case _~lv~_~p => ir.ReqEq(lv, p) }
     |   "requires"~p~"locks"~comma(p)           ^^ { case _~p~_~qs => ir.ReqLocks(p, qs) }
@@ -86,13 +92,13 @@ class IrParser extends StandardTokenParsers {
     )
     
     def methodDecl = (
-        wt~m~"("~comma(lvdecl)~")"~reqs~"{"~
+        attrs~wt~m~"("~comma(lvdecl)~")"~reqs~"{"~
             rep(stmt)~
             ret~
         "}"
     ) ^^ {
-        case wt_ret~name~"("~args~")"~reqs~"{"~stmts~op_ret~"}" =>
-            ir.MethodDecl(wt_ret, name, args, reqs, stmts, op_ret)
+        case attrs~wt_ret~name~"("~args~")"~reqs~"{"~stmts~op_ret~"}" =>
+            ir.MethodDecl(attrs, wt_ret, name, args, reqs, stmts, op_ret)
     }
     
     def constructor = (
@@ -109,20 +115,20 @@ class IrParser extends StandardTokenParsers {
     )
 
     def realFieldDecl = (
-        wt~f~"during"~p~";"                     ^^ { case wt~f~_~p~_ => ir.RealFieldDecl(wt, f, p) }
+        wt~f~"requires"~p~";"                     ^^ { case wt~f~_~p~_ => ir.RealFieldDecl(wt, f, p) }
     )
     
     def classDecl = (
         "class"~c~optl3("<",
             comma(ghostFieldDecl),
-        ">")~"extends"~t~"{"~
+        ">")~"extends"~t~reqs~"{"~
             rep(realFieldDecl)~
             constructor~
             rep(methodDecl)~
         "}"
     ) ^^ {
-        case "class"~name~ghosts~"extends"~superType~"{"~fields~ctor~methods~"}" =>
-            ir.ClassDecl(name, ghosts, Some(superType), ctor, fields, methods)
+        case "class"~name~ghosts~"extends"~superType~reqs~"{"~fields~ctor~methods~"}" =>
+            ir.ClassDecl(name, ghosts, Some(superType), reqs, ctor, fields, methods)
     }
     
     def classDecls = rep(classDecl)
