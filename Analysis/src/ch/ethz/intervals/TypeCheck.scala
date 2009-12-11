@@ -621,30 +621,9 @@ class TypeCheck(log: Log, prog: Prog) {
     def checkStatement(stmt: ir.Stmt) = log.indented(stmt) {
         at(stmt, ()) {
             stmt match {  
-                case ir.StmtCall(vd, p, m, qs) =>
-                    val tp = teePee(ir.noAttrs)
-                    val tqs = teePee(ir.noAttrs, qs)
-                    val msig = substdMethodSig(tp, m, tqs)
-                    
-                    // Cannot invoke a method when there are outstanding invalidated fields:
-                    checkNoInvalidated()
-                    
-                    // If method is not a constructor method, receiver must be constructed:
-                    if(!msig.as.ctor && tp.wt.as.ctor) 
-                        throw new ir.IrError("intervals.rcvr.must.be.constructed", p)                        
-                        
-                    // Arguments must have correct type and requirements must be fulfilled:
-                    checkArgumentTypes(msig, tqs)
-                    msig.reqs.foreach(checkReqFulfilled)
-                    
-                    // Any method call disrupts potential temporary assocations:
-                    //     We make these disruptions before checking return value, 
-                    //     in case they would affect the type.  Haven't thought through
-                    //     if this can happen or not, but this would be the right time anyhow.
-                    clearTemp()
-                    
-                    checkLvDecl(vd, Some(msig.wt_ret), None)
-        
+                case ir.StmtNull(vd) =>
+                    checkLvDecl(vd, None, None)
+
                 case ir.StmtGetField(vd, p_o, f) =>
                     val tp_o = teePee(ir.noAttrs, p_o)
                     val fd = substdFieldDecl(tp_o, f)
@@ -676,6 +655,30 @@ class TypeCheck(log: Log, prog: Prog) {
                     env.removeInvalidated(p_f)
                     linkedPaths(tp_o, f, tp_guard).foreach(addInvalidated)
                         
+                case ir.StmtCall(vd, p, m, qs) =>
+                    val tp = teePee(ir.noAttrs)
+                    val tqs = teePee(ir.noAttrs, qs)
+                    val msig = substdMethodSig(tp, m, tqs)
+                    
+                    // Cannot invoke a method when there are outstanding invalidated fields:
+                    checkNoInvalidated()
+                    
+                    // If method is not a constructor method, receiver must be constructed:
+                    if(!msig.as.ctor && tp.wt.as.ctor) 
+                        throw new ir.IrError("intervals.rcvr.must.be.constructed", p)                        
+                        
+                    // Arguments must have correct type and requirements must be fulfilled:
+                    checkArgumentTypes(msig, tqs)
+                    msig.reqs.foreach(checkReqFulfilled)
+                    
+                    // Any method call disrupts potential temporary assocations:
+                    //     We make these disruptions before checking return value, 
+                    //     in case they would affect the type.  Haven't thought through
+                    //     if this can happen or not, but this would be the right time anyhow.
+                    clearTemp()
+                    
+                    checkLvDecl(vd, Some(msig.wt_ret), None)
+        
                 case ir.StmtNew(vd, t, qs) =>
                     checkWfWt(t)
                     val cd = classDecl(t.c)
@@ -708,9 +711,6 @@ class TypeCheck(log: Log, prog: Prog) {
                     
                     checkLvDecl(vd, Some(t), None)
                     
-                case ir.StmtNull(vd) =>
-                    checkLvDecl(vd, None, None)
-
                 case ir.StmtHb(p, q) =>
                     val tp = teePee(ir.noAttrs, p)
                     val tq = teePee(ir.noAttrs, q)
