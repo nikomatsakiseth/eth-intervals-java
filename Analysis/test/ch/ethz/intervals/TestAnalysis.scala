@@ -16,8 +16,9 @@ class TestAnalysis extends JUnitSuite {
         val log = new Log.TmpHtmlLog()
         try {
             // Extract errors:
-            val expErrors = text.lines.zipWithIndex.filter(_._1.contains("// ERROR")).map { 
-                case ((line, idx)) => (line.substring(line.indexOf("// ERROR ")), idx)
+            val tag = "// ERROR "
+            val expErrors = text.lines.zipWithIndex.filter(_._1.contains(tag)).map { 
+                case ((line, idx)) => (line.substring(line.indexOf(tag) + tag.length), idx+1)
             }.toList
             
             val text1 = text.replaceAll("//[^\n]*", "")
@@ -33,7 +34,10 @@ class TestAnalysis extends JUnitSuite {
             val tc = new TypeCheck(log, prog)
             tc.check
         
-            var unexpected = false
+            var matched = 0
+            log.indented("Expected Errors:") {
+                expErrors.foreach { case ((error, idx)) => log("Line %s: %s", idx, error) }
+            }
             log.indented("Encountered Errors: ") {                
                 for(error <- prog.errors) {
                     log.indented(
@@ -44,20 +48,20 @@ class TestAnalysis extends JUnitSuite {
                         log("Line %s Column %s", pos.line, pos.column)
                         log(pos.longString)
                         
-                        expErrors.find(_._2 == pos.line) match {
+                        expErrors.find(_._2.toInt == pos.line.toInt) match {
                             case None => 
                                 log("Unexpected Error!")
-                            case Some(msg) if error.toString != msg =>
+                            case Some((msg, _)) if error.toString != msg =>
                                 log("Unexpected Message (not '%s')!", msg)
                             case Some(_) =>
-                                unexpected = true
+                                matched = matched + 1
                         }
                     }
                 }
             }
 
-            assertEquals(expErrors.length, prog.errors.length)
-            assertEquals(false, unexpected)
+            assertEquals(matched, prog.errors.length)          // All errors were matched.
+            assertEquals(expErrors.length, prog.errors.length) // Correct number of exp. errors.
         } catch {
             case t: Throwable => // only print log if test fails:
                 System.out.println("Debugging output for failed test:")
@@ -89,7 +93,7 @@ class TestAnalysis extends JUnitSuite {
                 void setBothWrongOrder(Interval inter, Object<inter> obj) 
                 requires subinterval this.creator
                 {
-                    this->obj = obj; // ERROR ExpError("intervals.expected.subtype", List("obj", "Object<inter>{}", "Object<this.inter>{}"))
+                    this->obj = obj; // ERROR intervals.expected.subtype(obj, Object<inter>{}, Object<this.inter>{})
                     this->inter = inter;
                 }
             }
@@ -123,7 +127,8 @@ class TestAnalysis extends JUnitSuite {
                     String f1 = this->f1; // safe to read both of these...
                     String f2 = this->f2; // ...because init is complete.
                     
-                    this->f1 = f2;        // But edits are not permitted.
+                    // But edits are not permitted.
+                    this->f1 = f2;        // ERROR intervals.not.writable(this.init)
                 }                
             }
             """

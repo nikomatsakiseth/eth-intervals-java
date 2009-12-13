@@ -803,8 +803,13 @@ class TypeCheck(log: Log, prog: Prog) {
         log.indented(md) {
             at(md, ()) {
                 if(!md.attrs.ctor) { // No ctor flag: only invokable after ctor
-                    addHb(tp_ctor, tp_cur)                    
-                    cd.ctor.reqs.foreach(addReq)
+                    addHb(tp_ctor, tp_cur)     
+                      
+                    // XXX This is not safe for reqs that mention             
+                    // XXX "method", which refers to the constructor.  
+                    // XXX We need to be smarter here as sketched out in our
+                    // XXX notes.
+                    //cd.ctor.reqs.foreach(addReq)
                 }
                 
                 md.args.foreach { case arg => 
