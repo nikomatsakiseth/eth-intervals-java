@@ -211,21 +211,22 @@ object ir {
         def dependentOn(p: Path): Boolean =
             addDependentPaths(Set.empty).exists(_.hasPrefix(p))
     }
+    sealed case class WcReadable(lp: List[Path]) extends WcPath {
+        def addDependentPaths(s: Set[Path]) = s ++ lp
+
+        override def toString = lp.mkString(", ") + " readable"
+    }
+    sealed case class WcWritable(lp: List[Path]) extends WcPath {
+        def addDependentPaths(s: Set[Path]) = s ++ lp
+
+        override def toString = lp.mkString(", ") + " writable"
+    }
     sealed case class WcHb(lp: List[Path], lq: List[Path]) extends WcPath {
         def addDependentPaths(s: Set[Path]) = s ++ lp ++ lq
 
         override def toString = {
             (lp match { case List() => ""; case _ => lp.mkString(", ") + " " }) +
             "hb" + 
-            (lq match { case List() => ""; case _ => " " + lq.mkString(", ") })
-        }
-    }
-    sealed case class WcHbEq(lp: List[Path], lq: List[Path]) extends WcPath {
-        def addDependentPaths(s: Set[Path]) = s ++ lp ++ lq
-
-        override def toString = {
-            (lq match { case List() => ""; case _ => lp.mkString(", ") + " " }) +
-            "hbeq" + 
             (lq match { case List() => ""; case _ => " " + lq.mkString(", ") })
         }
     }
@@ -267,30 +268,25 @@ object ir {
     }
     
     sealed abstract class Req extends Positional
-    sealed case class ReqOwned(lp: List[Path]) extends Req {
-        override def toString = "requires %s".format(lp.mkString(", "))
+    sealed case class ReqWritableBy(lp: List[Path], lq: List[Path]) extends Req {
+        override def toString = "requires %s writable by %s".format(lp.mkString(", "), lq.mkString(", "))
     }
-    sealed case class ReqHb(p: Path, lq: List[Path]) extends Req {
-        override def toString = "requires %s hb %s".format(p, lq.mkString(", "))
+    sealed case class ReqReadableBy(lp: List[Path], lq: List[Path]) extends Req {
+        override def toString = "requires %s readable by %s".format(lp.mkString(", "), lq.mkString(", "))
     }
-    sealed case class ReqHbEq(p: Path, lq: List[Path]) extends Req {
-        override def toString = "requires %s hbeq %s".format(p, lq.mkString(", "))
+    sealed case class ReqSubintervalOf(lp: List[Path], lq: List[Path]) extends Req {
+        override def toString = "requires %s subinterval of %s".format(lp.mkString(", "), lq.mkString(", "))
     }
-    sealed case class ReqEq(p: Path, q: Path) extends Req {
-        override def toString = "requires %s == %s".format(p, q)
-    }
-    sealed case class ReqLocks(p: Path, lq: List[Path]) extends Req {
-        override def toString = "requires %s locks %s".format(p, lq.mkString(", "))
+    sealed case class ReqHb(lp: List[Path], lq: List[Path]) extends Req {
+        override def toString = "requires %s hb %s".format(lp.mkString(", "), lq.mkString(", "))
     }
     
     sealed class Relation(
         rels: Util.MultiMap[Path, Path],
-        transitive: Boolean,
-        reflexive: Boolean
+        transitive: Boolean
     ) {
-        private var cachedTc: Option[Util.MultiMap[Path, Path]] = 
-            None        
-        private def tc = {
+        private var cachedTc: Option[Util.MultiMap[Path, Path]] = None        
+        private def tc =
             cachedTc match {
                 case Some(t) => t
                 case None =>
@@ -298,46 +294,33 @@ object ir {
                     cachedTc = Some(t)
                     t
             }
-        }
         
         def +(p: Path, q: Path) =
-            new Relation(rels + Pair(p, q), transitive, reflexive)
+            new Relation(rels + Pair(p, q), transitive)
             
-        def apply(p: Path): Set[Path] = {
-            val base =
-                if(transitive)
-                    tc(p)
-                else
-                    rels(p)
-            if(reflexive)
-                base + p
-            else
-                base
-        }
+        def apply(p: Path): Set[Path] =
+            if(transitive) tc(p)
+            else rels(p)
         
         def contains(p: Path, q: Path) =
-            if(reflexive && p == q)
-                true
-            else if(transitive)
-                tc.contains(p, q)
-            else
-                rels.contains(p, q)
+            if(transitive) tc.contains(p, q)
+            else rels.contains(p, q)
     }
     object Relation {
         private val emptyMap = Util.MultiMap.empty[Path, Path]
-        val empty = new Relation(emptyMap, false, false)
-        val emptyTrans = new Relation(emptyMap, true, false)
-        val emptyTransRefl = new Relation(emptyMap, true, true)
+        val empty = new Relation(emptyMap, false)
+        val emptyTrans = new Relation(emptyMap, true)
     }
     
     sealed case class TcEnv(
-        perm: Map[ir.Path, ir.TeePee],
-        temp: Map[ir.Path, ir.Path],
-        lp_invalidated: Set[ir.Path],
-        hb: Relation,
-        hbeq: Relation,
-        locks: Relation,
-        owned: Set[ir.Path]
+        perm: Map[ir.Path, ir.TeePee],  // permanent equivalences, hold for duration of method
+        temp: Map[ir.Path, ir.Path],    // temporary equivalences, cleared on method call
+        lp_invalidated: Set[ir.Path],   // p is current invalid and must be reassigned        
+        readable: Relation,             // (p, q) means guard p is readable by interval q
+        writable: Relation,             // (p, q) means guard p is writable by interval q
+        hb: Relation,                   // (p, q) means interval p hb interval q
+        subinterval: Relation,          // (p, q) means interval p is a subinterval of interval q
+        locks: Relation                 // (p, q) means interval p locks lock q
     )
     
     case class IrError(msg: String, args: Any*) 
@@ -408,7 +391,7 @@ object ir {
                     /* wt_ret: */ t_void, 
                     /* name:   */ m_toString, 
                     /* args:   */ List(),
-                    /* reqs:   */ List(ir.ReqHbEq(p_cur, List(gd_creator.thisPath))),
+                    /* reqs:   */ List(ir.ReqSubintervalOf(List(p_mthd), List(gd_creator.thisPath))),
                     /* stmts:  */ List(),
                     /* p_ret:  */ None
                     ))                
@@ -470,10 +453,11 @@ object ir {
                     /* wt_ret: */ t_void, 
                     /* name:   */ m_run, 
                     /* args:   */ List(),
-                    /* reqs:   */ List(ir.ReqEq(p_cur, p_this)),
+                    /* reqs:   */ List(ir.ReqSubintervalOf(List(p_mthd), List(p_this))),
                     /* stmts:  */ List(),
                     /* p_ret:  */ None
-                    ))                
+                    )
+                )
         ),
         ClassDecl(
             /* Name:    */  c_point,

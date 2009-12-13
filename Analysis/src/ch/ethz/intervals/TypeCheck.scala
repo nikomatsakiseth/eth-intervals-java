@@ -35,9 +35,10 @@ class TypeCheck(log: Log, prog: Prog) {
         Map(),
         ListSet.empty,
         ir.Relation.emptyTrans,
-        ir.Relation.emptyTransRefl,
-        ir.Relation.empty,
-        ListSet.empty
+        ir.Relation.emptyTrans,
+        ir.Relation.emptyTrans,
+        ir.Relation.emptyTrans,
+        ir.Relation.empty
     )
     
     /// Executes g and restores the old environment afterwards:
@@ -64,10 +65,11 @@ class TypeCheck(log: Log, prog: Prog) {
                         env.perm + Pair(p, tq),
                         env.temp,
                         env.lp_invalidated,
+                        env.readable,
+                        env.writable,
                         env.hb,
-                        env.hbeq,
-                        env.locks,
-                        env.owned)
+                        env.subinterval,
+                        env.locks)
             }
         }
 
@@ -77,10 +79,11 @@ class TypeCheck(log: Log, prog: Prog) {
                 env.perm + Pair(tp.p, tq),
                 env.temp,
                 env.lp_invalidated,
+                env.readable,
+                env.writable,
                 env.hb,
-                env.hbeq,
-                env.locks,
-                env.owned)
+                env.subinterval,
+                env.locks)
         }
 
     // ______________________________________________________________________
@@ -238,14 +241,20 @@ class TypeCheck(log: Log, prog: Prog) {
                         qs.foreach { case q => addHb(tp_f, teePee(q)) }
                         tp_f
                     
-                    // p_0 had a type like Foo<f: ps hbeq qs>, so canonical
-                    // version is p_0.f but we add relations that ps hb p_0.f hbeq qs.
-                    case Some((gd_f, ir.WcHbEq(ps, qs))) => 
+                    // p_0 had a type like Foo<f: ps hb qs>, so canonical
+                    // version is p_0.f but we add relations that ps hb p_0.f hb qs.
+                    case Some((gd_f, ir.WcReadable(ps))) => 
                         val tp_f = ghostTeePee(gd_f)
-                        ps.foreach { case p => addHbEq(teePee(p), tp_f) }
-                        qs.foreach { case q => addHbEq(tp_f, teePee(q)) }
+                        ps.foreach { p => addDeclaredReadableBy(tp_f, teePee(p)) }
                         tp_f
-                        
+                    
+                    // p_0 had a type like Foo<f: ps hb qs>, so canonical
+                    // version is p_0.f but we add relations that ps hb p_0.f hb qs.
+                    case Some((gd_f, ir.WcWritable(ps))) => 
+                        val tp_f = ghostTeePee(gd_f)
+                        ps.foreach { p => addDeclaredWritableBy(tp_f, teePee(p)) }
+                        tp_f
+                    
                     // The path is p_0.constructor, which we handle specially:
                     case None if f == ir.f_ctor =>
                         val tp_f = ir.TeePee(ir.t_interval, p_0 + f, tp_0.as.withGhost)
@@ -304,7 +313,7 @@ class TypeCheck(log: Log, prog: Prog) {
         
         if(cd.ghosts.length != wt.wpaths.length)
             throw new ir.IrError(
-                "intervals.wrong.number.of.ghosts", 
+                "intervals.wrong.number.of.ghosts",
                 cd.ghosts.length, wt.wpaths.length)
                 
         // Note: we don't check that the arguments
@@ -315,143 +324,182 @@ class TypeCheck(log: Log, prog: Prog) {
     // ______________________________________________________________________
     // Env Relations
     
-    def addTemp(p: ir.Path, q: ir.Path) {
+    def addTemp(p: ir.Path, q: ir.Path) =
         log.indented("addTemp(%s,%s)", p, q) {
             env = ir.TcEnv(
                 env.perm,
                 env.temp + Pair(p, q),
                 env.lp_invalidated,
+                env.readable,
+                env.writable,
                 env.hb,
-                env.hbeq,
-                env.locks,
-                env.owned)
+                env.subinterval,
+                env.locks)
         }
-    }
     
-    def clearTemp() {
+    def clearTemp() =
         log.indented("clearTemp()") {
             env = ir.TcEnv(
                 env.perm,
                 Map(),
                 env.lp_invalidated,
+                env.readable,
+                env.writable,
                 env.hb,
-                env.hbeq,
-                env.locks,
-                env.owned)
+                env.subinterval,
+                env.locks)
         }        
-    }
     
-    def addInvalidated(p: ir.Path) {
+    def addInvalidated(p: ir.Path) =
         log.indented("addInvalidated(%s)", p) {
             env = ir.TcEnv(
                 env.perm,
                 env.temp,
                 env.lp_invalidated + p,
+                env.readable,
+                env.writable,
                 env.hb,
-                env.hbeq,
-                env.locks,
-                env.owned)
+                env.subinterval,
+                env.locks)
         }        
-    }
         
-    def removeInvalidated(p: ir.Path) {
+    def removeInvalidated(p: ir.Path) =
         log.indented("removeInvalidated(%s)", p) {
             env = ir.TcEnv(
                 env.perm,
                 env.temp,
                 env.lp_invalidated - p,
+                env.readable,
+                env.writable,
                 env.hb,
-                env.hbeq,
-                env.locks,
-                env.owned)
-        }        
-    }
+                env.subinterval,
+                env.locks)
+        }
         
-    def addHb(tp: ir.TeePee, tq: ir.TeePee): Unit = log.indented("addHb(%s,%s)", tp, tq) {
-        assert(isSubtype(tp, ir.t_interval))
-        assert(isSubtype(tq, ir.t_interval))
-        assert(tp.isConstant && tq.isConstant)
-        env = ir.TcEnv(
-            env.perm,
-            env.temp,
-            env.lp_invalidated,
-            env.hb + (tp.p, tq.p),
-            env.hbeq + (tp.p, tq.p),
-            env.locks,
-            env.owned)
-    }
+    def addHb(tp: ir.TeePee, tq: ir.TeePee): Unit = 
+        log.indented("addHb(%s,%s)", tp, tq) {
+            assert(isSubtype(tp, ir.t_interval))
+            assert(isSubtype(tq, ir.t_interval))
+            assert(tp.isConstant && tq.isConstant)
+            env = ir.TcEnv(
+                env.perm,
+                env.temp,
+                env.lp_invalidated,            
+                env.readable,
+                env.writable,
+                env.hb + (tp.p, tq.p),
+                env.subinterval,
+                env.locks)
+        }
     
-    def addHbEq(tp: ir.TeePee, tq: ir.TeePee): Unit = log.indented("addHbEq(%s,%s)", tp, tq) {
-        assert(isSubtype(tp, ir.t_interval))
-        assert(isSubtype(tq, ir.t_interval))
-        assert(tp.isConstant && tq.isConstant)
-        env = ir.TcEnv(
-            env.perm,
-            env.temp,
-            env.lp_invalidated,
-            env.hb,
-            env.hbeq + (tp.p, tq.p),
-            env.locks,
-            env.owned)
-    }
+    def addDeclaredReadableBy(tp: ir.TeePee, tq: ir.TeePee): Unit = 
+        log.indented("addDeclaredReadableBy(%s, %s)", tp, tq) {
+            assert(tp.isConstant && tq.isConstant)
+            env = ir.TcEnv(
+                env.perm,
+                env.temp,
+                env.lp_invalidated,            
+                env.readable + (tp.p, tq.p),
+                env.writable,
+                env.hb,
+                env.subinterval,
+                env.locks)
+        }
     
-    def addLocks(tp: ir.TeePee, tq: ir.TeePee): Unit = log.indented("addLocks(%s,%s)", tp, tq) {
-        assert(isSubtype(tp, ir.t_interval))
-        assert(isSubtype(tq, ir.t_lock))
-        assert(tp.isConstant && tq.isConstant)
-        env = ir.TcEnv(
-            env.perm,
-            env.temp,
-            env.lp_invalidated,
-            env.hb,
-            env.hbeq,
-            env.locks + (tp.p, tq.p),
-            env.owned)
-    }
+    def addDeclaredWritableBy(tp: ir.TeePee, tq: ir.TeePee): Unit = 
+        log.indented("addDeclaredWritableBy(%s, %s)", tp, tq) {
+            assert(tp.isConstant && tq.isConstant)
+            env = ir.TcEnv(
+                env.perm,
+                env.temp,
+                env.lp_invalidated,            
+                env.readable,
+                env.writable + (tp.p, tq.p),
+                env.hb,
+                env.subinterval,
+                env.locks)
+        }
     
-    def addOwned(tp: ir.TeePee): Unit = log.indented("addOwned(%s)", tp) {
-        env = ir.TcEnv(
-            env.perm,
-            env.temp,
-            env.lp_invalidated,
-            env.hb,
-            env.hbeq,
-            env.locks,
-            env.owned + tp.p)
-    }
+    def addSubintervalOf(tp: ir.TeePee, tq: ir.TeePee): Unit = 
+        log.indented("addSubintervalOf(%s, %s)", tp, tq) {
+            assert(tp.isConstant && tq.isConstant)
+            env = ir.TcEnv(
+                env.perm,
+                env.temp,
+                env.lp_invalidated,            
+                env.readable,
+                env.writable,
+                env.hb,
+                env.subinterval + (tp.p, tq.p),
+                env.locks)
+        }
+        
+    def addLocks(tp: ir.TeePee, tq: ir.TeePee): Unit =
+        log.indented("addLocks(%s, %s)", tp, tq) {
+            assert(tp.isConstant && tq.isConstant)
+            env = ir.TcEnv(
+                env.perm,
+                env.temp,
+                env.lp_invalidated,            
+                env.readable,
+                env.writable,
+                env.hb,
+                env.subinterval,
+                env.locks)
+        }
+        
+    def equiv(tp: ir.TeePee, tq: ir.TeePee): Boolean = 
+        log.indentedRes("%s equiv %s?", tp, tq) {
+            tp.p == tq.p
+        }
     
-    def hb(p: ir.TeePee, q: ir.TeePee): Boolean = log.indentedRes("%s hb %s?", p, q) {
-        env.hb.contains(p.p, q.p)
-    }
+    def hb(tp: ir.TeePee, tq: ir.TeePee): Boolean = 
+        log.indentedRes("%s hb %s?", tp, tq) {
+            env.hb.contains(tp.p, tq.p)
+        }
     
-    def hbeq(p: ir.TeePee, q: ir.TeePee): Boolean = log.indentedRes("%s hbeq %s?", p, q) {
-        env.hbeq.contains(p.p, q.p)
-    }
+    def isSubintervalOf(tp: ir.TeePee, tq: ir.TeePee): Boolean = 
+        log.indentedRes("%s subinterval of %s?", tp, tq) {
+            env.subinterval.contains(tp.p, tq.p)
+        }
     
-    def equiv(p: ir.TeePee, q: ir.TeePee): Boolean = log.indentedRes("%s eq %s?", p, q) {
-        p.p == q.p
-    }
+    def declaredReadableBy(tp: ir.TeePee, tq: ir.TeePee): Boolean = 
+        log.indentedRes("%s readable by %s?", tp, tq) {
+            env.readable.contains(tp.p, tq.p)
+        }
     
-    def locks(p: ir.TeePee, q: ir.TeePee): Boolean = log.indentedRes("%s locks %s?", p, q) {
-        env.locks.contains(p.p, q.p)
-    }
-    
-    def owned(p: ir.TeePee): Boolean = log.indentedRes("%s owned?", p) {
-        env.owned.contains(p.p)
-    }
+    def declaredWritableBy(tp: ir.TeePee, tq: ir.TeePee): Boolean = 
+        log.indentedRes("%s writable by %s?", tp, tq) {
+            env.writable.contains(tp.p, tq.p)
+        }
+        
+    def locks(tp: ir.TeePee, tq: ir.TeePee): Boolean = 
+        log.indentedRes("%s locks %s?", tp, tq) {
+            env.locks.contains(tp.p, tq.p)
+        }        
+        
+    def isWritableBy(tp: ir.TeePee, tq: ir.TeePee): Boolean =
+        declaredWritableBy(tp, tq) ||
+        locks(tq, tp) || // note: lock tp writable by ltq if interval tq locks tp
+        equiv(tp, tq) ||
+        isSubintervalOf(tp, tq)
+        
+    def isReadableBy(tp: ir.TeePee, tq: ir.TeePee): Boolean =
+        declaredReadableBy(tp, tq) ||
+        hb(tp, tq) ||
+        isWritableBy(tp, tq)
     
     def addReq(req: ir.Req) = {
-        def teePeeAdd(add: Function2[ir.TeePee, ir.TeePee, Unit], p: ir.Path, qs: List[ir.Path]) = {
-            val tp = teePee(p)
-            val tqs = teePee(qs)
-            tqs.foreach(add(tp, _))
+        def teePeeAdd(add: Function2[ir.TeePee, ir.TeePee, Unit], ps: List[ir.Path], qs: List[ir.Path]) = {
+            val tps = teePee(ir.ghostAttrs, ps)
+            val tqs = teePee(ir.ghostAttrs, qs)
+            foreachcross(tps, tqs)(add)
         }
         req match {
-            case ir.ReqOwned(ps) => teePee(ps).foreach(addOwned)
-            case ir.ReqHb(p, qs) => teePeeAdd(addHb, p, qs)
-            case ir.ReqHbEq(p, qs) => teePeeAdd(addHbEq, p, qs)
-            case ir.ReqEq(p, q) => addPermEquiv(teePee(p), teePee(q)) // XXX Cycles?
-            case ir.ReqLocks(p, qs) => teePeeAdd(addLocks, p, qs)
+            case ir.ReqWritableBy(ps, qs) => teePeeAdd(addDeclaredWritableBy, ps, qs)
+            case ir.ReqReadableBy(ps, qs) => teePeeAdd(addDeclaredReadableBy, ps, qs)
+            case ir.ReqHb(ps, qs) => teePeeAdd(addHb, ps, qs)
+            case ir.ReqSubintervalOf(ps, qs) => teePeeAdd(addSubintervalOf, ps, qs)
         }   
     } 
     
@@ -473,9 +521,10 @@ class TypeCheck(log: Log, prog: Prog) {
                 case ir.WcHb(lq_1, lq_2) =>
                     lq_1.forall { q_1 => hb(teePee(q_1), tp) } &&
                     lq_2.forall { q_2 => hb(tp, teePee(q_2)) }
-                case ir.WcHbEq(lq_1, lq_2) =>
-                    lq_1.forall { q_1 => hbeq(teePee(q_1), tp) } &&
-                    lq_2.forall { q_2 => hbeq(tp, teePee(q_2)) }
+                case ir.WcReadable(lq) =>
+                    lq.forall { q => isReadableBy(tp, teePee(q)) }
+                case ir.WcWritable(lq) =>
+                    lq.forall { q => isWritableBy(tp, teePee(q)) }
                 case ir.WcLocks(lq) =>
                     lq.forall { q => locks(tp, teePee(q)) }
                 case ir.WcLockedBy(lq) =>
@@ -509,23 +558,18 @@ class TypeCheck(log: Log, prog: Prog) {
             throw new ir.IrError("intervals.expected.subtype", tp_sub.p, tp_sub.wt, wt_sup)
     }
     
-    def isReqOwned(tp: ir.TeePee) = preservesEnv {
-        owned(tp) || (
-            if(isSubtype(tp, ir.t_interval))
-                equiv(tp_cur, tp) || equiv(tp_mthd, tp)
-            else if(isSubtype(tp, ir.t_lock))
-                locks(tp_cur, tp)
-            else
-                false
-        )
-    }
-    
-    def isReqFulfilled(req: ir.Req): Boolean = req match {
-        case ir.ReqOwned(ps) => ps.forall { p => isReqOwned(teePee(p)) }
-        case ir.ReqHb(p, qs) => qs.map(teePee).forall(hb(teePee(p), _))
-        case ir.ReqHbEq(p, qs) => qs.map(teePee).forall(hbeq(teePee(p), _))
-        case ir.ReqEq(p, q) => equiv(teePee(p), teePee(q))
-        case ir.ReqLocks(p, qs) => qs.map(teePee).forall(locks(teePee(p), _))
+    def isReqFulfilled(req: ir.Req): Boolean = log.indentedRes("isReqFulfilled(%s)", req) {
+        def is(func: Function2[ir.TeePee, ir.TeePee, Boolean], ps: List[ir.Path], qs: List[ir.Path]) = {
+            val tps = teePee(ir.ghostAttrs, ps)
+            val tqs = teePee(ir.ghostAttrs, qs)
+            forallcross(tps, tqs)(func)
+        }
+        req match {
+            case ir.ReqWritableBy(ps, qs) => is(isWritableBy, ps, qs)
+            case ir.ReqReadableBy(ps, qs) => is(isReadableBy, ps, qs)
+            case ir.ReqSubintervalOf(ps, qs) => is(isSubintervalOf, ps, qs)
+            case ir.ReqHb(ps, qs) => is(hb, ps, qs)
+        }
     }
     
     def checkReqFulfilled(req: ir.Req) {
@@ -560,11 +604,6 @@ class TypeCheck(log: Log, prog: Prog) {
             ir.noAttrs))                      // all local vars are (a) reified and (b) immutable
     }
     
-    def checkCurrentLocks(tp_guard: ir.TeePee) = preservesEnv {
-        if(!locks(tp_cur, tp_guard))
-            throw new ir.IrError("intervals.no.lock", tp_guard.p)
-    }
-    
     /// Returns true if 'wt' is linked to 'p': that is,
     /// if it depends on 'p' in some way.  'p' must be
     /// a canonical path.
@@ -595,29 +634,13 @@ class TypeCheck(log: Log, prog: Prog) {
     }
     
     def checkReadable(tp_guard: ir.TeePee) {
-        if(!owned(tp_guard)) {
-            if(isSubtype(tp_guard, ir.t_interval)) {
-                if(!hbeq(tp_guard, tp_mthd) && !hbeq(tp_guard, tp_cur))
-                    throw new ir.IrError("intervals.no.hb", tp_guard.p, tp_mthd.p)
-            } else if(isSubtype(tp_guard, ir.t_lock)) {
-                checkCurrentLocks(tp_guard)
-            } else {
-                throw new ir.IrError("intervals.not.owned", tp_guard.p)
-            }
-        }
+        if(!isReadableBy(tp_guard, tp_mthd))
+            throw new ir.IrError("intervals.not.readable", tp_guard.p)
     }
     
     def checkWritable(tp_guard: ir.TeePee) {
-        if(!owned(tp_guard)) {
-            if(isSubtype(tp_guard, ir.t_interval)) {
-                if(!equiv(tp_guard, tp_cur) && !equiv(tp_guard, tp_mthd))
-                    throw new ir.IrError("intervals.not.current", tp_guard.p)
-            } else if(isSubtype(tp_guard, ir.t_lock)) {
-                checkCurrentLocks(tp_guard)
-            } else {
-                throw new ir.IrError("intervals.not.owned", tp_guard.p)
-            }
-        }
+        if(!isWritableBy(tp_guard, tp_mthd))
+            throw new ir.IrError("intervals.not.writable", tp_guard.p)
     }    
         
     def checkNoInvalidated() {

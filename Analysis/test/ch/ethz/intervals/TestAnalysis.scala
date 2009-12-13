@@ -54,114 +54,6 @@ class TestAnalysis extends JUnitSuite {
         }
     }
 
-    /*
-    @Test 
-    def bbpc() {
-        tc(
-            """
-            class Data<Interval p> extends Object<this.p> {
-                Object<this.p> o requires this.p;
-                constructor() {}
-            }
-            
-            class Producer extends Interval {
-                Consumer c requires this.constructor;
-                             
-                Producer nextProd requires this;
-                Data<this> data requires this;
-                
-                constructor(Consumer c)
-                {
-                    this->c = c;
-                }
-
-                Void addDependencies()
-                {
-                    this.c hb start; 
-                }
-                
-                Void run()
-                requires current == this
-                {
-                    Data<this> data = new Data<this>();
-                    this->data = data; // "produce"
-                    
-                    Interval nextCons = c->nextCons;                    
-                    Interval nextProd = new Producer(nextCons);
-                    this->nextProd = nextProd;
-                }
-            }
-            
-            class Consumer extends Interval {
-                Consumer nextCons requires this;
-                constructor() {}
-            }
-            
-            class DummyConsumer<Interval init> extends Consumer 
-            {
-                Consumer c requires this.init;
-                
-                constructor() 
-                requires this.init hb this 
-                {                    
-                }
-                
-                Void run()
-                {
-                    Consumer c = this->c;
-                    this->nextCons = c;
-                }
-            }
-
-            class RealConsumer extends Consumer {
-                Producer p requires this.constructor;
-                
-                constructor(Producer p)
-                {
-                    this->p = p;                    
-                }
-                
-                Void addDependencies()
-                {
-                    this.p hb start;                    
-                }
-
-                Void run()
-                requires current == this
-                {
-                    Data<hb current> data = p->data; // "consume" 
-                    Object<hb current> o = data->o;  // "consume"
-                    
-                    Interval nextProd = p->nextProd;
-                    Interval nextCons = new Consumer(nextProd);
-                    this->nextCons = nextCons;
-                }
-            }
-            
-            class BBPC extends Interval {
-                constructor() {}
-                
-                Void run()
-                requires current == this
-                {
-                    DummyConsumer<this> d0 = new DummyConsumer<this>();
-                    Producer p = new Producer(d0);
-
-                    DummyConsumer<this> d1 = new DummyConsumer<this>();                    
-                    d0->c = d1;
-
-                    Consumer c = new Consumer(p);
-                    d1->c = c;                        
-                }
-            }
-            
-            """,
-            List(
-            )
-        )
-    }
-    */
-    
     @Test
     def linkedFields() {
         tc(
@@ -171,19 +63,19 @@ class TestAnalysis extends JUnitSuite {
                 Object<this.inter> obj requires this.creator;
                 
                 constructor() 
-                requires current == this.creator
+                requires subinterval this.creator
                 {                   
                 }
                 
                 void setBothOk(Interval inter, Object<p> obj) 
-                requires current == this.creator
+                requires subinterval this.creator
                 {
                     this->inter = p;
                     this->obj = obj;
                 }
                 
                 void setBothWrongOrder(Interval inter, Object<p> obj) 
-                requires current == this.creator
+                requires subinterval this.creator
                 {
                     this->obj = obj;
                     this->inter = p;
@@ -204,13 +96,13 @@ class TestAnalysis extends JUnitSuite {
                 String f2 requires this.init;
                 
                 constructor(String f1) 
-                requires current == this.init
+                requires subinterval this.init
                 {
                     this->f1 = f1;
                 }
                 
                 void additionalInit(String f2)
-                requires current == this.init
+                requires subinterval this.init
                 {
                     this->f2 = f2;
                 }
@@ -265,7 +157,7 @@ class TestAnalysis extends JUnitSuite {
                 }
 
                 Void run()
-                requires current == this
+                requires subinterval this
                 {
                     ProdData<this> pdata = this->pdata;
                     ConsData<hb this> cdata = this->cdata;
@@ -296,7 +188,7 @@ class TestAnalysis extends JUnitSuite {
                 }
 
                 Void run()
-                requires current == this
+                requires subinterval this
                 {
                     ProdData<hb this> pdata = this->pdata;
                     ConsData<this> cdata = this->cdata;
@@ -315,7 +207,7 @@ class TestAnalysis extends JUnitSuite {
                 constructor() {}
                 
                 Void run()
-                requires current == this
+                requires subinterval this
                 {
                     ConsData<this> d0 = new ConsData<this>();
                     ConsData<this> d1 = new ConsData<this>();                    

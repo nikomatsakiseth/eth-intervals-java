@@ -5,7 +5,8 @@ abstract class BaseSubst {
     
     def wpath(wp: ir.WcPath) = wp match {
         case ir.WcHb(ps, qs) => ir.WcHb(ps.map(path), qs.map(path))
-        case ir.WcHbEq(ps, qs) => ir.WcHbEq(ps.map(path), qs.map(path))
+        case ir.WcReadable(ps) => ir.WcReadable(ps.map(path))
+        case ir.WcWritable(ps) => ir.WcWritable(ps.map(path))
         case ir.WcLocks(ps) => ir.WcLocks(ps.map(path))
         case ir.WcLockedBy(ps) => ir.WcLockedBy(ps.map(path))
         case p: ir.Path => path(p)
@@ -18,11 +19,10 @@ abstract class BaseSubst {
         ir.TypeRef(t.c, t.paths.map(path), t.as)
         
     def req(r: ir.Req) = r match {
-        case ir.ReqOwned(ps) => ir.ReqOwned(ps.map(path))
-        case ir.ReqHb(p, qs) => ir.ReqHb(path(p), qs.map(path))
-        case ir.ReqHbEq(p, qs) => ir.ReqHbEq(path(p), qs.map(path))
-        case ir.ReqEq(p, q) => ir.ReqEq(path(p), path(q))
-        case ir.ReqLocks(p, qs) => ir.ReqLocks(path(p), qs.map(path))
+        case ir.ReqWritableBy(lp, lq) => ir.ReqWritableBy(lp.map(path), lq.map(path))
+        case ir.ReqReadableBy(lp, lq) => ir.ReqReadableBy(lp.map(path), lq.map(path))
+        case ir.ReqSubintervalOf(lp, lq) => ir.ReqSubintervalOf(lp.map(path), lq.map(path))
+        case ir.ReqHb(lp, lq) => ir.ReqHb(lp.map(path), lq.map(path))
     }
         
     def ghostDecl(fd: ir.GhostDecl) =

@@ -13,7 +13,8 @@ class IrParser extends StandardTokenParsers {
     lexical.reserved += (
         "class", "new", "constructor", "null", 
         "return", "Rd", "Wr", "Free", "extends", 
-        "hb", "hbeq", "requires"
+        "hb", "requires", 
+        "subinterval", "readable", "writable"
     )
 
     def parse[A](p: Parser[A])(text: String) = {
@@ -52,8 +53,9 @@ class IrParser extends StandardTokenParsers {
     
     def wp = (
         p
+    |   comma(p)~"readable"                     ^^ { case ps~_ => ir.WcReadable(ps) }
+    |   comma(p)~"writable"                     ^^ { case ps~_ => ir.WcWritable(ps) }
     |   comma(p)~"hb"~comma(p)                  ^^ { case ps~_~qs => ir.WcHb(ps, qs) }
-    |   comma(p)~"hbeq"~comma(p)                ^^ { case ps~_~qs => ir.WcHbEq(ps, qs) }
     |   "locks"~comma(p)                        ^^ { case _~ps => ir.WcLocks(ps) }
     |   comma(p)~"locks"                        ^^ { case ps~_ => ir.WcLockedBy(ps) }
     )
@@ -79,11 +81,10 @@ class IrParser extends StandardTokenParsers {
     )
     
     def req = positioned(
-        "requires"~p~"hb"~comma(p)              ^^ { case _~p~_~qs => ir.ReqHb(p, qs) }
-    |   "requires"~p~"hbeq"~comma(p)            ^^ { case _~p~_~qs => ir.ReqHbEq(p, qs) }
-    |   "requires"~p~"=="~p                     ^^ { case _~p~_~q => ir.ReqEq(p, q) }
-    |   "requires"~p~"locks"~comma(p)           ^^ { case _~p~_~qs => ir.ReqLocks(p, qs) }
-    |   "requires"~comma(p)                     ^^ { case _~ps => ir.ReqOwned(ps) }
+        "requires"~comma(p)~"readable"          ^^ { case _~lp~_ => ir.ReqReadableBy(lp, List(ir.p_mthd)) }
+    |   "requires"~comma(p)~"writable"          ^^ { case _~lp~_ => ir.ReqWritableBy(lp, List(ir.p_mthd)) }
+    |   "requires"~"subinterval"~comma(p)       ^^ { case _~_~lp => ir.ReqSubintervalOf(List(ir.p_mthd), lp) }
+    |   "requires"~comma(p)~"hb"~comma(p)       ^^ { case _~lp~_~lq => ir.ReqHb(lp, lq) }
     )    
     def reqs = rep(req)
     
