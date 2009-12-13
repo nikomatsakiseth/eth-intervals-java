@@ -12,9 +12,14 @@ case class ExpError(msg: String, args: List[String])
 
 class TestAnalysis extends JUnitSuite { 
     
-    def tc(text: String, expErrors: List[ExpError]) = {
+    def tc(text: String) {
         val log = new Log.TmpHtmlLog()
         try {
+            // Extract errors:
+            val expErrors = text.lines.zipWithIndex.filter(_._1.contains("// ERROR")).map { 
+                case ((line, idx)) => (line.substring(line.indexOf("// ERROR ")), idx)
+            }.toList
+            
             val text1 = text.replaceAll("//[^\n]*", "")
             val parser = new IrParser()
             val cds = 
@@ -28,24 +33,31 @@ class TestAnalysis extends JUnitSuite {
             val tc = new TypeCheck(log, prog)
             tc.check
         
+            var unexpected = false
             log.indented("Encountered Errors: ") {                
                 for(error <- prog.errors) {
                     log.indented(
-                        "ExpError(\"%s\", List(%s))", 
-                        error.msg, ", ".join("\"", error.args, "\"")
+                        error
                     ) {
                         val pos = error.loc.pos
+                        
                         log("Line %s Column %s", pos.line, pos.column)
                         log(pos.longString)
+                        
+                        expErrors.find(_._2 == pos.line) match {
+                            case None => 
+                                log("Unexpected Error!")
+                            case Some(msg) if error.toString != msg =>
+                                log("Unexpected Message (not '%s')!", msg)
+                            case Some(_) =>
+                                unexpected = true
+                        }
                     }
                 }
             }
 
             assertEquals(expErrors.length, prog.errors.length)
-            for((expError, error) <- expErrors.zip(prog.errors.toList)) {
-                assertEquals(expError.msg, error.msg)
-                assertEquals(expError.args, error.args)
-            }            
+            assertEquals(false, unexpected)
         } catch {
             case t: Throwable => // only print log if test fails:
                 System.out.println("Debugging output for failed test:")
@@ -67,23 +79,21 @@ class TestAnalysis extends JUnitSuite {
                 {                   
                 }
                 
-                void setBothOk(Interval inter, Object<p> obj) 
+                void setBothOk(Interval inter, Object<inter> obj) 
                 requires subinterval this.creator
                 {
-                    this->inter = p;
+                    this->inter = inter;
                     this->obj = obj;
                 }
                 
-                void setBothWrongOrder(Interval inter, Object<p> obj) 
+                void setBothWrongOrder(Interval inter, Object<inter> obj) 
                 requires subinterval this.creator
                 {
-                    this->obj = obj;
-                    this->inter = p;
+                    this->obj = obj; // ERROR ExpError("intervals.expected.subtype", List("obj", "Object<inter>{}", "Object<this.inter>{}"))
+                    this->inter = inter;
                 }
             }
-            """,
-            List(
-            )
+            """
         )
     }    
     
@@ -116,9 +126,7 @@ class TestAnalysis extends JUnitSuite {
                     this->f1 = f2;        // But edits are not permitted.
                 }                
             }
-            """,
-            List(
-            )
+            """
         )
     } 
     
@@ -224,9 +232,7 @@ class TestAnalysis extends JUnitSuite {
                 }
             }
             
-            """,
-            List(
-            )
+            """
         )
     }  
 

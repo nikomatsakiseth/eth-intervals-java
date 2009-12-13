@@ -480,7 +480,7 @@ class TypeCheck(log: Log, prog: Prog) {
     
     def hb(tp: ir.TeePee, tq: ir.TeePee): Boolean = 
         log.indentedRes("%s hb %s?", tp, tq) {
-            env.hb.contains(tp.p, tq.p)
+            env.hb.contains(tp.p, tq.p) || superintervals(tq).exists(env.hb.contains(tp.p, _))
         }
         
     def superintervals(tp: ir.TeePee): Set[ir.Path] = {
@@ -508,29 +508,34 @@ class TypeCheck(log: Log, prog: Prog) {
         }        
         
     def isWritableBy(tp: ir.TeePee, tq: ir.TeePee): Boolean =
-        declaredWritableBy(tp, tq) ||
-        locks(tq, tp) || // note: lock tp writable by ltq if interval tq locks tp
-        equiv(tp, tq) ||
-        isSubintervalOf(tp, tq)
-        
-    def isReadableBy(tp: ir.TeePee, tq: ir.TeePee): Boolean =
-        declaredReadableBy(tp, tq) ||
-        hb(tp, tq) ||
-        isWritableBy(tp, tq)
-    
-    def addReq(req: ir.Req) = {
-        def teePeeAdd(add: Function2[ir.TeePee, ir.TeePee, Unit], ps: List[ir.Path], qs: List[ir.Path]) = {
-            val tps = teePee(ir.ghostAttrs, ps)
-            val tqs = teePee(ir.ghostAttrs, qs)
-            foreachcross(tps, tqs)(add)
+        log.indentedRes("%s isWritableBy %s?", tp, tq) {
+            declaredWritableBy(tp, tq) ||
+            equiv(tp, tq) || // interval tp writable by itself
+            locks(tq, tp) || // lock tp writable by an interval tq which locks tp
+            isSubintervalOf(tq, tp) // interval tp writable by any subinterval tq 
         }
-        req match {
-            case ir.ReqWritableBy(ps, qs) => teePeeAdd(addDeclaredWritableBy, ps, qs)
-            case ir.ReqReadableBy(ps, qs) => teePeeAdd(addDeclaredReadableBy, ps, qs)
-            case ir.ReqHb(ps, qs) => teePeeAdd(addHb, ps, qs)
-            case ir.ReqSubintervalOf(ps, qs) => teePeeAdd(addSubintervalOf, ps, qs)
-        }   
-    } 
+        
+    def isReadableBy(tp: ir.TeePee, tq: ir.TeePee): Boolean = 
+        log.indentedRes("%s isReadableBy %s?", tp, tq) {
+            declaredReadableBy(tp, tq) ||
+            hb(tp, tq) ||
+            isWritableBy(tp, tq)            
+        }
+    
+    def addReq(req: ir.Req) = 
+        log.indented("addReq(%s)", req) {
+            def teePeeAdd(add: Function2[ir.TeePee, ir.TeePee, Unit], ps: List[ir.Path], qs: List[ir.Path]) = {
+                val tps = teePee(ir.ghostAttrs, ps)
+                val tqs = teePee(ir.ghostAttrs, qs)
+                foreachcross(tps, tqs)(add)
+            }
+            req match {
+                case ir.ReqWritableBy(ps, qs) => teePeeAdd(addDeclaredWritableBy, ps, qs)
+                case ir.ReqReadableBy(ps, qs) => teePeeAdd(addDeclaredReadableBy, ps, qs)
+                case ir.ReqHb(ps, qs) => teePeeAdd(addHb, ps, qs)
+                case ir.ReqSubintervalOf(ps, qs) => teePeeAdd(addSubintervalOf, ps, qs)
+            }   
+        } 
     
     // ______________________________________________________________________
     // Subtyping    
@@ -611,7 +616,7 @@ class TypeCheck(log: Log, prog: Prog) {
             throw new ir.IrError(msg, l1.length, l2.length)
     }
     
-    def checkArgumentTypes(msig: ir.MethodSig, tqs: List[ir.TeePee]) = preservesEnv {
+    def checkArgumentTypes(msig: ir.MethodSig, tqs: List[ir.TeePee]) = {
         checkLengths(msig.args, tqs, "intervals.wrong.number.method.arguments")
         foreachzip(tqs, msig.args.map(_.wt))(checkIsSubtype)
     }
@@ -797,8 +802,6 @@ class TypeCheck(log: Log, prog: Prog) {
     def checkMethodDecl(cd: ir.ClassDecl, md: ir.MethodDecl) = savingEnv {
         log.indented(md) {
             at(md, ()) {
-                addPerm(ir.p_mthd, ir.TeePee(ir.t_interval, ir.p_cur, ir.ghostAttrs))
-                
                 if(!md.attrs.ctor) { // No ctor flag: only invokable after ctor
                     addHb(tp_ctor, tp_cur)                    
                     cd.ctor.reqs.foreach(addReq)

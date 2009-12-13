@@ -90,7 +90,9 @@ object ir {
         loc: Positional,
         msg: String,
         args: List[String]
-    )
+    ) {
+        override def toString = "%s(%s)".format(msg, args.mkString(", "))
+    }
     
     // ______________________________________________________________________
     // Abstract syntax tree
@@ -326,7 +328,7 @@ object ir {
     
     case class IrError(msg: String, args: Any*) 
     extends RuntimeException {
-        override def toString = "%s(%s)".format(msg, args.mkString(", "))
+        override def toString = "%s(%s)".format(msg, args.mkString(", "))        
     }
     
     val lv_this = ir.VarName("this")
