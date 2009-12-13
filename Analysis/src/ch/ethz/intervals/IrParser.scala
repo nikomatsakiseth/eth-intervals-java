@@ -14,7 +14,7 @@ class IrParser extends StandardTokenParsers {
         "class", "new", "constructor", "null", 
         "return", "Rd", "Wr", "Free", "extends", 
         "hb", "requires", 
-        "subinterval", "readable", "writable"
+        "subinterval", "readableBy", "writableBy"
     )
 
     def parse[A](p: Parser[A])(text: String) = {
@@ -53,8 +53,8 @@ class IrParser extends StandardTokenParsers {
     
     def wp = (
         p
-    |   comma(p)~"readable"                     ^^ { case ps~_ => ir.WcReadable(ps) }
-    |   comma(p)~"writable"                     ^^ { case ps~_ => ir.WcWritable(ps) }
+    |   "readableBy"~comma(p)                   ^^ { case _~ps => ir.WcReadableBy(ps) }
+    |   "writableBy"~comma(p)                   ^^ { case _~ps => ir.WcWritableBy(ps) }
     |   comma(p)~"hb"~comma(p)                  ^^ { case ps~_~qs => ir.WcHb(ps, qs) }
     |   "locks"~comma(p)                        ^^ { case _~ps => ir.WcLocks(ps) }
     |   comma(p)~"locks"                        ^^ { case ps~_ => ir.WcLockedBy(ps) }
@@ -81,10 +81,13 @@ class IrParser extends StandardTokenParsers {
     )
     
     def req = positioned(
-        "requires"~comma(p)~"readable"          ^^ { case _~lp~_ => ir.ReqReadableBy(lp, List(ir.p_mthd)) }
-    |   "requires"~comma(p)~"writable"          ^^ { case _~lp~_ => ir.ReqWritableBy(lp, List(ir.p_mthd)) }
-    |   "requires"~"subinterval"~comma(p)       ^^ { case _~_~lp => ir.ReqSubintervalOf(List(ir.p_mthd), lp) }
-    |   "requires"~comma(p)~"hb"~comma(p)       ^^ { case _~lp~_~lq => ir.ReqHb(lp, lq) }
+        "requires"~comma(p)~"readableBy"~comma(p)   ^^ { case _~lp~_~List() => ir.ReqReadableBy(lp, List(ir.p_mthd))
+                                                         case _~lp~_~lq => ir.ReqReadableBy(lp, lq) }
+    |   "requires"~comma(p)~"writableBy"~comma(p)   ^^ { case _~lp~_~List() => ir.ReqWritableBy(lp, List(ir.p_mthd))
+                                                         case _~lp~_~lq => ir.ReqWritableBy(lp, lq) }
+    |   "requires"~comma(p)~"subinterval"~comma(p)  ^^ { case _~List()~_~lq => ir.ReqSubintervalOf(List(ir.p_mthd), lq)
+                                                         case _~lp~_~lq => ir.ReqSubintervalOf(lp, lq) }
+    |   "requires"~comma(p)~"hb"~comma(p)           ^^ { case _~lp~_~lq => ir.ReqHb(lp, lq) }
     )    
     def reqs = rep(req)
     

@@ -31,6 +31,7 @@ class TypeCheck(log: Log, prog: Prog) {
     // Environment
     
     var env = ir.TcEnv(
+        ir.p_mthd,
         Map(),
         Map(),
         ListSet.empty,
@@ -52,6 +53,20 @@ class TypeCheck(log: Log, prog: Prog) {
         val oldEnv = env
         try { g } finally { assert(env == oldEnv) }
     }
+
+    def setCurrent(tp: ir.TeePee): Unit =
+        log.indented("setCurrent(%s)", tp) {
+            env = ir.TcEnv(
+                tp.p,
+                env.perm,
+                env.temp,
+                env.lp_invalidated,
+                env.readable,
+                env.writable,
+                env.hb,
+                env.subinterval,
+                env.locks)
+        }
     
     /// Adds a permanent mapping from p to tq: permanent mappings 
     /// persist across method calls.
@@ -62,6 +77,7 @@ class TypeCheck(log: Log, prog: Prog) {
                     throw new ir.IrError("intervals.shadowed", p)
                 case None =>
                     env = ir.TcEnv(
+                        env.p_cur,
                         env.perm + Pair(p, tq),
                         env.temp,
                         env.lp_invalidated,
@@ -76,6 +92,7 @@ class TypeCheck(log: Log, prog: Prog) {
     def addPermEquiv(tp: ir.TeePee, tq: ir.TeePee): Unit = 
         log.indented("addPermEquiv(%s,%s)", tp, tq) {
             env = ir.TcEnv(
+                env.p_cur,
                 env.perm + Pair(tp.p, tq),
                 env.temp,
                 env.lp_invalidated,
@@ -243,14 +260,14 @@ class TypeCheck(log: Log, prog: Prog) {
                     
                     // p_0 had a type like Foo<f: ps hb qs>, so canonical
                     // version is p_0.f but we add relations that ps hb p_0.f hb qs.
-                    case Some((gd_f, ir.WcReadable(ps))) => 
+                    case Some((gd_f, ir.WcReadableBy(ps))) => 
                         val tp_f = ghostTeePee(gd_f)
                         ps.foreach { p => addDeclaredReadableBy(tp_f, teePee(p)) }
                         tp_f
                     
                     // p_0 had a type like Foo<f: ps hb qs>, so canonical
                     // version is p_0.f but we add relations that ps hb p_0.f hb qs.
-                    case Some((gd_f, ir.WcWritable(ps))) => 
+                    case Some((gd_f, ir.WcWritableBy(ps))) => 
                         val tp_f = ghostTeePee(gd_f)
                         ps.foreach { p => addDeclaredWritableBy(tp_f, teePee(p)) }
                         tp_f
@@ -259,7 +276,7 @@ class TypeCheck(log: Log, prog: Prog) {
                     case None if f == ir.f_ctor =>
                         val tp_f = ir.TeePee(ir.t_interval, p_0 + f, tp_0.as.withGhost)
                         if(!tp_0.wt.as.ctor) // is tp_0 fully constructed?
-                            addHb(tp_f, tp_mthd) // then we may assume p_0.ctor -> method
+                            addHb(tp_f, tp_cur) // then we may assume p_0.ctor -> method
                         tp_f
                         
                     // The path p_0.f names a real field f:
@@ -269,7 +286,7 @@ class TypeCheck(log: Log, prog: Prog) {
                         val as_f = // determine if f is immutable in current method:
                             if(!tp_guard.isConstant)
                                 tp_0.as.withMutable // guard not yet constant? mutable
-                            else if(!hb(tp_guard, tp_mthd))
+                            else if(!hb(tp_guard, tp_cur))
                                 tp_0.as.withMutable // not guarded by closed interval? mutable
                             else
                                 tp_0.as // p_0 mutable? mutable
@@ -297,8 +314,7 @@ class TypeCheck(log: Log, prog: Prog) {
         
     // Note: these are not vals but defs!  This is important
     // because the outcome of teePee() depends on the env.
-    def tp_cur = teePee(ir.p_cur)
-    def tp_mthd = teePee(ir.p_mthd)
+    def tp_cur = teePee(env.p_cur)
     def tp_ctor = teePee(ir.gd_ctor.thisPath)
     def tp_this = teePee(ir.p_this)
     
@@ -327,6 +343,7 @@ class TypeCheck(log: Log, prog: Prog) {
     def addTemp(p: ir.Path, q: ir.Path) =
         log.indented("addTemp(%s,%s)", p, q) {
             env = ir.TcEnv(
+                env.p_cur,
                 env.perm,
                 env.temp + Pair(p, q),
                 env.lp_invalidated,
@@ -340,6 +357,7 @@ class TypeCheck(log: Log, prog: Prog) {
     def clearTemp() =
         log.indented("clearTemp()") {
             env = ir.TcEnv(
+                env.p_cur,
                 env.perm,
                 Map(),
                 env.lp_invalidated,
@@ -353,6 +371,7 @@ class TypeCheck(log: Log, prog: Prog) {
     def addInvalidated(p: ir.Path) =
         log.indented("addInvalidated(%s)", p) {
             env = ir.TcEnv(
+                env.p_cur,
                 env.perm,
                 env.temp,
                 env.lp_invalidated + p,
@@ -366,6 +385,7 @@ class TypeCheck(log: Log, prog: Prog) {
     def removeInvalidated(p: ir.Path) =
         log.indented("removeInvalidated(%s)", p) {
             env = ir.TcEnv(
+                env.p_cur,
                 env.perm,
                 env.temp,
                 env.lp_invalidated - p,
@@ -382,6 +402,7 @@ class TypeCheck(log: Log, prog: Prog) {
             assert(isSubtype(tq, ir.t_interval))
             assert(tp.isConstant && tq.isConstant)
             env = ir.TcEnv(
+                env.p_cur,
                 env.perm,
                 env.temp,
                 env.lp_invalidated,            
@@ -396,6 +417,7 @@ class TypeCheck(log: Log, prog: Prog) {
         log.indented("addDeclaredReadableBy(%s, %s)", tp, tq) {
             assert(tp.isConstant && tq.isConstant)
             env = ir.TcEnv(
+                env.p_cur,
                 env.perm,
                 env.temp,
                 env.lp_invalidated,            
@@ -410,6 +432,7 @@ class TypeCheck(log: Log, prog: Prog) {
         log.indented("addDeclaredWritableBy(%s, %s)", tp, tq) {
             assert(tp.isConstant && tq.isConstant)
             env = ir.TcEnv(
+                env.p_cur,
                 env.perm,
                 env.temp,
                 env.lp_invalidated,            
@@ -424,6 +447,7 @@ class TypeCheck(log: Log, prog: Prog) {
         log.indented("addSubintervalOf(%s, %s)", tp, tq) {
             assert(tp.isConstant && tq.isConstant)
             env = ir.TcEnv(
+                env.p_cur,
                 env.perm,
                 env.temp,
                 env.lp_invalidated,            
@@ -438,6 +462,7 @@ class TypeCheck(log: Log, prog: Prog) {
         log.indented("addLocks(%s, %s)", tp, tq) {
             assert(tp.isConstant && tq.isConstant)
             env = ir.TcEnv(
+                env.p_cur,
                 env.perm,
                 env.temp,
                 env.lp_invalidated,            
@@ -457,6 +482,10 @@ class TypeCheck(log: Log, prog: Prog) {
         log.indentedRes("%s hb %s?", tp, tq) {
             env.hb.contains(tp.p, tq.p)
         }
+        
+    def superintervals(tp: ir.TeePee): Set[ir.Path] = {
+        env.subinterval(tp.p)
+    }
     
     def isSubintervalOf(tp: ir.TeePee, tq: ir.TeePee): Boolean = 
         log.indentedRes("%s subinterval of %s?", tp, tq) {
@@ -475,7 +504,7 @@ class TypeCheck(log: Log, prog: Prog) {
         
     def locks(tp: ir.TeePee, tq: ir.TeePee): Boolean = 
         log.indentedRes("%s locks %s?", tp, tq) {
-            env.locks.contains(tp.p, tq.p)
+            env.locks.contains(tp.p, tq.p) || superintervals(tp).exists(env.locks.contains(_, tq.p))
         }        
         
     def isWritableBy(tp: ir.TeePee, tq: ir.TeePee): Boolean =
@@ -521,9 +550,9 @@ class TypeCheck(log: Log, prog: Prog) {
                 case ir.WcHb(lq_1, lq_2) =>
                     lq_1.forall { q_1 => hb(teePee(q_1), tp) } &&
                     lq_2.forall { q_2 => hb(tp, teePee(q_2)) }
-                case ir.WcReadable(lq) =>
+                case ir.WcReadableBy(lq) =>
                     lq.forall { q => isReadableBy(tp, teePee(q)) }
-                case ir.WcWritable(lq) =>
+                case ir.WcWritableBy(lq) =>
                     lq.forall { q => isWritableBy(tp, teePee(q)) }
                 case ir.WcLocks(lq) =>
                     lq.forall { q => locks(tp, teePee(q)) }
@@ -634,12 +663,12 @@ class TypeCheck(log: Log, prog: Prog) {
     }
     
     def checkReadable(tp_guard: ir.TeePee) {
-        if(!isReadableBy(tp_guard, tp_mthd))
+        if(!isReadableBy(tp_guard, tp_cur))
             throw new ir.IrError("intervals.not.readable", tp_guard.p)
     }
     
     def checkWritable(tp_guard: ir.TeePee) {
-        if(!isWritableBy(tp_guard, tp_mthd))
+        if(!isWritableBy(tp_guard, tp_cur))
             throw new ir.IrError("intervals.not.writable", tp_guard.p)
     }    
         
@@ -663,7 +692,7 @@ class TypeCheck(log: Log, prog: Prog) {
                     val p_f = tp_o.p + f // Canonical path of f; valid as f is not a ghost.
 
                     val op_canon = 
-                        if(hb(tp_guard, tp_mthd)) { // Constant:
+                        if(hb(tp_guard, tp_cur)) { // Constant:
                             Some(p_f)
                         } else { // Non-constant:
                             checkReadable(tp_guard)
@@ -765,16 +794,18 @@ class TypeCheck(log: Log, prog: Prog) {
         }
     }
     
-    def checkMethodDecl(md: ir.MethodDecl) = savingEnv {
+    def checkMethodDecl(cd: ir.ClassDecl, md: ir.MethodDecl) = savingEnv {
         log.indented(md) {
             at(md, ()) {
-                addPerm(ir.p_cur, ir.TeePee(ir.t_interval, ir.p_cur, ir.ghostAttrs))
+                addPerm(ir.p_mthd, ir.TeePee(ir.t_interval, ir.p_cur, ir.ghostAttrs))
                 
-                if(!md.attrs.ctor)
-                    addHb(tp_ctor, tp_mthd)                    
+                if(!md.attrs.ctor) { // No ctor flag: only invokable after ctor
+                    addHb(tp_ctor, tp_cur)                    
+                    cd.ctor.reqs.foreach(addReq)
+                }
                 
                 md.args.foreach { case arg => 
-                    checkWfWt(arg.wt) // check type of each arg with only prior args in scope
+                    checkWfWt(arg.wt) 
                     addPerm(arg.name.path, ir.TeePee(arg.wt, arg.name.path, ir.noAttrs))
                 }
                 
@@ -811,11 +842,11 @@ class TypeCheck(log: Log, prog: Prog) {
                         else {
                             // Field inaccessible from constructor.
                             addPerm(ir.p_mthd, ir.TeePee(ir.t_interval, ir.p_mthd, ir.ghostAttrs))
-                            addHb(tp_ctor, tp_mthd)
+                            addHb(tp_ctor, tp_cur)
                         }
                             
                         val tp_guard = teePee(fd.p_guard)
-                        addPerm(ir.p_cur, tp_guard) // use guard as the current interval
+                        setCurrent(tp_guard) // use guard as the current interval
                         
                         // Guards must be of type Interval, Lock, or Object:
                         if(!isSubtype(tp_guard, ir.t_interval) &&
@@ -929,13 +960,12 @@ class TypeCheck(log: Log, prog: Prog) {
                 // XXX methods.
                 savingEnv {
                     addPerm(ir.p_mthd, ir.TeePee(ir.t_interval, ir.gd_ctor.thisPath, ir.ghostAttrs))
-                    checkMethodDecl(cd.ctor)                    
+                    checkMethodDecl(cd, cd.ctor)                    
                 }
                 
                 savingEnv {
                     addPerm(ir.p_mthd, ir.TeePee(ir.t_interval, ir.p_mthd, ir.ghostAttrs))
-                    cd.ctor.reqs.foreach(addReq)
-                    cd.methods.foreach(checkMethodDecl)                    
+                    cd.methods.foreach(checkMethodDecl(cd, _))                    
                 }
             }
         }

@@ -211,12 +211,12 @@ object ir {
         def dependentOn(p: Path): Boolean =
             addDependentPaths(Set.empty).exists(_.hasPrefix(p))
     }
-    sealed case class WcReadable(lp: List[Path]) extends WcPath {
+    sealed case class WcReadableBy(lp: List[Path]) extends WcPath {
         def addDependentPaths(s: Set[Path]) = s ++ lp
 
         override def toString = lp.mkString(", ") + " readable"
     }
-    sealed case class WcWritable(lp: List[Path]) extends WcPath {
+    sealed case class WcWritableBy(lp: List[Path]) extends WcPath {
         def addDependentPaths(s: Set[Path]) = s ++ lp
 
         override def toString = lp.mkString(", ") + " writable"
@@ -313,6 +313,7 @@ object ir {
     }
     
     sealed case class TcEnv(
+        p_cur: ir.Path,                 // current interval
         perm: Map[ir.Path, ir.TeePee],  // permanent equivalences, hold for duration of method
         temp: Map[ir.Path, ir.Path],    // temporary equivalences, cleared on method call
         lp_invalidated: Set[ir.Path],   // p is current invalid and must be reassigned        
