@@ -805,13 +805,16 @@ class TypeCheck(log: Log, prog: Prog) {
         log.indented(md) {
             at(md, ()) {
                 if(!md.attrs.ctor) { // No ctor flag: only invokable after ctor
-                    addHb(tp_ctor, tp_cur)     
+                    addPerm(ir.p_this, ir.TeePee(cd.thisTref, ir.p_this, ir.noAttrs))                     
+                    addHb(tp_ctor, tp_cur)                    
                       
                     // XXX This is not safe for reqs that mention             
                     // XXX "method", which refers to the constructor.  
                     // XXX We need to be smarter here as sketched out in our
                     // XXX notes.
                     //cd.ctor.reqs.foreach(addReq)
+                } else {
+                    addPerm(ir.p_this, ir.TeePee(cd.thisTref(ir.ctorAttrs), ir.p_this, ir.noAttrs))
                 }
                 
                 md.args.foreach { case arg => 
@@ -842,6 +845,7 @@ class TypeCheck(log: Log, prog: Prog) {
                 //
                 // Note that a type is dependent on p_dep if p.F appears in the type, so 
                 // we must check all prefixes of each dependent path as well.
+                addPerm(ir.p_this, ir.TeePee(cd.thisTref, ir.p_this, ir.noAttrs))                     
         
                 fd.wt.dependentPaths.foreach { p_full_dep => 
                     savingEnv {
@@ -963,8 +967,6 @@ class TypeCheck(log: Log, prog: Prog) {
                 checkGhostDeclsUsePermittedPrefixes(cd, List(), cd.ghosts)                
                 checkFieldDeclsUsePermittedPrefixes(cd, List(), cd.fields)                
                 
-                addPerm(ir.p_this, ir.TeePee(cd.thisTref, ir.p_this, ir.noAttrs)) 
-                                
                 // XXX Need to extract visible effects of ctor
                 // XXX and save them in environment for other
                 // XXX methods.

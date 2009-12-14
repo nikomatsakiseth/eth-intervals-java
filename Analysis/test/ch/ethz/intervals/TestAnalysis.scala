@@ -113,6 +113,21 @@ class TestAnalysis extends JUnitSuite {
                 {                   
                 }
                 
+                // This method is invokable from both within and without the
+                // constructor.  It cannot read fields like 'c' because that
+                // might permit a data race if the 'this' pointer were shared
+                // during the constructor.  (We could loosen this rule for this.constructor)
+                constructor void ctorMethod1() 
+                {
+                    String c = this->c; // ERROR intervals.not.readable(this.constructor)
+                }
+                
+                constructor void ctorMethod2() 
+                requires subinterval this.constructor
+                {
+                    String c = this->c; 
+                }
+                
                 void method(Ctor constructor unconstructed, Ctor constructed)
                 {
                     String a1 = constructed->toString();                    

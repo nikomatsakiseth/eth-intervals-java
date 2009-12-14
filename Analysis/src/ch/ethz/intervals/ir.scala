@@ -106,7 +106,8 @@ object ir {
         fields: List[FieldDecl],
         methods: List[MethodDecl]
     ) extends Positional {
-        def thisTref = TypeRef(name, ghosts.map(_.thisPath), noAttrs)
+        def thisTref: ir.TypeRef = thisTref(noAttrs)
+        def thisTref(as: Attrs): ir.TypeRef = TypeRef(name, ghosts.map(_.thisPath), as)
         
         override def toString =
             "class %s<%s>%s extends %s".format(
@@ -379,7 +380,7 @@ object ir {
             /* Extends: */  None,
             /* Reqs:    */  List(),
             /* Ctor:    */  MethodDecl(
-                    /* attrs:  */ noAttrs,
+                    /* attrs:  */ ctorAttrs,
                     /* wt_ret: */ t_void, 
                     /* name:   */ m_ctor, 
                     /* args:   */ List(),
@@ -405,7 +406,7 @@ object ir {
             /* Extends: */  Some(t_objectCtor),
             /* Reqs:    */  List(),
             /* Ctor:    */  MethodDecl(
-                    /* attrs:  */ noAttrs,
+                    /* attrs:  */ ctorAttrs,
                     /* wt_ret: */ t_void, 
                     /* name:   */ m_ctor, 
                     /* args:   */ List(),
@@ -422,7 +423,7 @@ object ir {
             /* Extends: */  Some(t_objectCtor),
             /* Reqs:    */  List(),
             /* Ctor:    */  MethodDecl(
-                    /* attrs:  */ noAttrs,
+                    /* attrs:  */ ctorAttrs,
                     /* wt_ret: */ t_void, 
                     /* name:   */ m_ctor, 
                     /* args:   */ List(),
@@ -439,7 +440,7 @@ object ir {
             /* Extends: */  Some(t_objectCtor),
             /* Reqs:    */  List(),
             /* Ctor:    */  MethodDecl(
-                    /* attrs:  */ noAttrs,
+                    /* attrs:  */ ctorAttrs,
                     /* wt_ret: */ t_void, 
                     /* name:   */ m_ctor, 
                     /* args:   */ List(),
@@ -468,7 +469,7 @@ object ir {
             /* Extends: */  Some(t_objectCtor),
             /* Reqs:    */  List(),
             /* Ctor:    */  MethodDecl(
-                    /* attrs:  */ noAttrs,
+                    /* attrs:  */ ctorAttrs,
                     /* wt_ret: */ t_void, 
                     /* name:   */ m_ctor, 
                     /* args:   */ List(),
@@ -485,7 +486,7 @@ object ir {
             /* Extends: */  Some(t_objectCtor),
             /* Reqs:    */  List(),
             /* Ctor:    */  MethodDecl(
-                    /* attrs:  */ noAttrs,
+                    /* attrs:  */ ctorAttrs,
                     /* wt_ret: */ t_void, 
                     /* name:   */ m_ctor, 
                     /* args:   */ List(),
