@@ -102,6 +102,31 @@ class TestAnalysis extends JUnitSuite {
     }    
     
     @Test
+    def constructorTypes() {
+        tc(
+            """
+            class Ctor extends Object<this.constructor> {
+                
+                String c requires this.constructor;
+                
+                constructor() 
+                {                   
+                }
+                
+                void method(Ctor constructor unconstructed, Ctor constructed)
+                {
+                    String a1 = constructed->toString();                    
+                    String a2 = constructed->c;
+                    
+                    String b1 = unconstructed->toString(); // ERROR intervals.rcvr.must.be.constructed(unconstructed)
+                    String b2 = unconstructed->c; // ERROR intervals.not.readable(unconstructed.constructor)
+                }
+            }
+            """
+        )
+    }    
+    
+    @Test
     def extendedInit() {
         tc(
             """

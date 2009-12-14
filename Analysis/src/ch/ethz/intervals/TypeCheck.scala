@@ -156,7 +156,9 @@ class TypeCheck(log: Log, prog: Prog) {
             def search(t: ir.TypeRef): ir.MethodSig = {
                 val cd = classDecl(t.c)
                 cd.methods.find(_.name == m) match {
-                    case Some(md) => md.msig
+                    case Some(md) => 
+                        log("Found in type %s: %s", t, md)
+                        md.msig
                     case None => sup(t) match {
                         case Some(t_1) => ghostSubst(t_1).methodSig(search(t_1))
                         case None => throw ir.IrError("intervals.no.such.method", c, m)
@@ -276,7 +278,7 @@ class TypeCheck(log: Log, prog: Prog) {
                     case None if f == ir.f_ctor =>
                         val tp_f = ir.TeePee(ir.t_interval, p_0 + f, tp_0.as.withGhost)
                         if(!tp_0.wt.as.ctor) // is tp_0 fully constructed?
-                            addHb(tp_f, tp_cur) // then we may assume p_0.ctor -> method
+                            addDeclaredReadableBy(tp_f, tp_cur) // then .constructor is readable
                         tp_f
                         
                     // The path p_0.f names a real field f:

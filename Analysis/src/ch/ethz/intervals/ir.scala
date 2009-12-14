@@ -361,7 +361,7 @@ object ir {
     val c_string = ir.ClassName("String")
     
     val t_void = ir.TypeRef(c_void, List(), ir.noAttrs)
-    val t_string = ir.TypeRef(c_void, List(), ir.noAttrs)
+    val t_string = ir.TypeRef(c_string, List(), ir.noAttrs)
     val t_interval = ir.TypeRef(c_interval, List(), ir.noAttrs)
     val t_point = ir.TypeRef(c_point, List(), ir.noAttrs)
     val t_lock = ir.TypeRef(c_lock, List(), ir.noAttrs)
@@ -391,10 +391,10 @@ object ir {
             /* Methods: */  List(
                 MethodDecl(
                     /* attrs:  */ noAttrs,
-                    /* wt_ret: */ t_void, 
+                    /* wt_ret: */ t_string, 
                     /* name:   */ m_toString, 
                     /* args:   */ List(),
-                    /* reqs:   */ List(ir.ReqSubintervalOf(List(p_mthd), List(gd_creator.thisPath))),
+                    /* reqs:   */ List(ir.ReqReadableBy(List(gd_creator.thisPath), List(p_mthd))),
                     /* stmts:  */ List(),
                     /* p_ret:  */ None
                     ))                
