@@ -158,6 +158,137 @@ class TestAnalysis extends JUnitSuite {
     def overriddenMethodsCannotAddRequirements() {
         tc(
             """
+            class A<Interval a, Interval b> extends Object<this.constructor> 
+            {
+                constructor() {
+                    super();
+                }
+                
+                Void aHbB() 
+                requires this.a hb this.b
+                {                    
+                }
+            }
+            
+            class FewerReqs<Interval a, Interval b> extends A<this.a, this.b> 
+            {
+                constructor() {
+                    super();
+                }
+                
+                Void aHbB() // ok to have fewer reqs...
+                {                    
+                    // ...but then invoking super is not necessarily safe:
+                    Void v1 = super->aHbB(); // ERROR intervals.requirement.not.met(requires this.a hb this.b)
+                }
+            }
+            
+            class SameReqs<Interval a, Interval b> extends A<this.a, this.b> 
+            {
+                constructor() {
+                    super();
+                }
+                
+                Void aHbB() // ok to have same reqs...
+                requires this.a hb this.b 
+                {
+                    // ...and in that case, super can be safely invoked:
+                    Void v1 = super->aHbB();
+                }
+            }
+            
+            class ImpliedReqs<Interval a, Interval b> extends A<this.a, this.b> 
+            {
+                constructor() {
+                    super();
+                }
+                
+                Void aHbB() // ok to have different reqs where super => sub...
+                requires this.a readableBy this.b 
+                {
+                    // ...but then invoking super is not necessarily safe:
+                    Void v1 = super->aHbB(); // ERROR intervals.requirement.not.met(requires this.a hb this.b)
+                }
+            }
+            
+            class UnsupportedReqs1<Interval a, Interval b> extends A<this.a, this.b> 
+            {
+                constructor() {
+                    super();
+                }
+                
+                Void aHbB() // ERROR intervals.override.adds.req(requires method subinterval of this.constructor)
+                requires method subinterval this.constructor 
+                {                    
+                }
+            }
+            
+            class UnsupportedReqs2<Interval a, Interval b> extends A<this.a, this.b>
+            {
+                constructor() {
+                    super();
+                }
+                
+                Void aHbB() // ERROR intervals.override.adds.req(requires this.b hb this.a)
+                requires this.b hb this.a 
+                {                    
+                }
+            }
+            
+            class UnsupportedReqs3<Interval a, Interval b> extends A<this.a, this.b>
+            {
+                constructor() {
+                    super();
+                }
+                
+                Void aHbB() // ERROR intervals.override.adds.req(requires this.b readable by this.a)
+                requires this.b readableBy this.a
+                {                    
+                }
+            }
+            """
+        )
+    }
+    
+    @Test 
+    def thisBeforeSuperCtor() {
+        tc(
+            """
+            class SetField extends Object<this.constructor> {
+                String s requires this.constructor;
+                
+                constructor(String s) {
+                    this->s = s; // ERROR intervals.illegal.path.attr(this, g)
+                    super();
+                }                
+            }
+            
+            class GetField extends Object<this.constructor> {
+                String s requires this.constructor;
+                
+                constructor() {
+                    String s = this->s; // ERROR intervals.illegal.path.attr(this, g)
+                    super();
+                }                
+            }
+            
+            class Y extends Object<this.constructor> {
+                constructor() { super(); }
+                
+                Void m1() {                
+                }
+                
+                Void m2(Z constructor z) {
+                }
+            }
+            
+            class Z extends Object<this.constructor> {
+                constructor(Y y) {
+                    Void v1 = y->m1(); // Ok to do stuff here that doesn't touch this.
+                    Void v2 = y->m2(this); // ERROR intervals.illegal.path.attr(this, g)
+                    super();
+                }        
+            }
             """
         )
     }
@@ -177,6 +308,7 @@ class TestAnalysis extends JUnitSuite {
                 
                 constructor(String s) {
                     super();
+                    this->s = s;
                 }
             }
             
