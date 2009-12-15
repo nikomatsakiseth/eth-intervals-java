@@ -196,7 +196,7 @@ class TestAnalysis extends JUnitSuite {
                 constructor(String t) {
                     super(t);
                     
-                    this->s = t; // ERROR foo
+                    this->s = t; // ERROR intervals.not.writable(this.super)
                 }
             }     
                    
@@ -210,7 +210,17 @@ class TestAnalysis extends JUnitSuite {
                 String toString() {
                     return this.t;
                 }
-            }            
+            }       
+                 
+            class B5 extends A {
+                String t requires this.constructor;
+                constructor(String t) {
+                    super(t);
+                    
+                    String s = this->s; // this.super is readable
+                    this->t = s; 
+                }
+            }     
             """
         )
     }

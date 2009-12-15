@@ -357,6 +357,7 @@ object ir {
     val f_start = ir.FieldName("start")
     val f_ctor = ir.FieldName("constructor")
     val f_end = ir.FieldName("end")
+    val f_super = ir.FieldName("super")
     
     val m_ctor = ir.MethodName("constructor")
     val m_toString = ir.MethodName("toString")
@@ -378,6 +379,8 @@ object ir {
     val gd_creator = GhostDecl(t_interval, f_creator)
     val gd_ctor = GhostDecl(t_interval, f_ctor)
     val p_ctor = gd_ctor.thisPath
+    val gd_super = GhostDecl(t_interval, f_super)
+    val p_super = gd_super.thisPath
     val t_objectCreator = ir.TypeRef(c_object, List(gd_creator.thisPath), ir.noAttrs)
     val t_objectCtor = ir.TypeRef(c_object, List(gd_ctor.thisPath), ir.noAttrs)
     

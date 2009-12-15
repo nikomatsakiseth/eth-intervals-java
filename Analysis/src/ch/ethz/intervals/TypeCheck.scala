@@ -112,16 +112,20 @@ class TypeCheck(log: Log, prog: Prog) {
     // ______________________________________________________________________
     // Basic Type Operations: Finding fields, methods, supertypes
         
-    /// subst. ghosts of t
-    def ghostSubst(t: ir.TypeRef) = preservesEnv {
+    /// Creates a substitution to the supertype 'tp' that replaces ghosts 
+    /// with their definitions, including the implicit ghost this.constructor
+    def superSubst(t: ir.TypeRef) = preservesEnv {
         val ghostPaths = classDecl(t.c).ghosts.map(_.thisPath)
-        PathSubst.pp(ghostPaths, t.paths)
+        PathSubst.pp(
+            ir.p_ctor  :: ghostPaths,
+            ir.p_super :: t.paths
+        )     
     }
 
     /// supertype of t
     def sup(t: ir.TypeRef): Option[ir.TypeRef] = preservesEnv {
         val cd = classDecl(t.c)
-        cd.superType.map { case t_1 => ghostSubst(t).tref(t_1) }
+        cd.superType.map { case t_1 => superSubst(t).tref(t_1) }
     }
 
     /// Field decl for t0::f 
@@ -133,7 +137,7 @@ class TypeCheck(log: Log, prog: Prog) {
                     cd.fields.find(_.name == f) match {
                         case Some(fd) => fd
                         case None => sup(t) match {
-                            case Some(t_1) => ghostSubst(t_1).fieldDecl(search(t_1))
+                            case Some(t_1) => superSubst(t_1).fieldDecl(search(t_1))
                             case None => throw ir.IrError("intervals.no.such.field", c, f)
                         }
                     }
@@ -152,7 +156,7 @@ class TypeCheck(log: Log, prog: Prog) {
                     case Some(md) => 
                         Some(md.msig(cd.thisTref))
                     case None => cd.superType match {
-                        case Some(t) => search(t.c).map(ghostSubst(t).methodSig)
+                        case Some(t) => search(t.c).map(superSubst(t).methodSig)
                         case None => None
                     }
                 }
@@ -161,13 +165,14 @@ class TypeCheck(log: Log, prog: Prog) {
         }
     }
     
-    /// Returns the signature of 'c::m' in the upper-most type where 'm' is defined.
-    def originalMethodSig(c: ir.ClassName, m: ir.MethodName): Option[ir.MethodSig] = {
+    /// Returns the (potentially super-)type that defined the method 'm' in the class 'c'
+    def typeOriginallyDefiningMethod(c: ir.ClassName, m: ir.MethodName): Option[ir.TypeRef] = {
         val cd = classDecl(c)
         cd.superType.mapToOption(t_sup => 
-            originalMethodSig(t_sup.c, m).map(ghostSubst(t_sup).methodSig)
+            typeOriginallyDefiningMethod(t_sup.c, m).map(superSubst(t_sup).tref)
         ).orElse(
-            cd.methods.find(_.name == m).map(_.msig(cd.thisTref))
+            if(cd.methods.exists(_.name == m)) Some(cd.thisTref)
+            else None
         )
     }    
     
@@ -175,7 +180,7 @@ class TypeCheck(log: Log, prog: Prog) {
     def overriddenMethodSig(c: ir.ClassName, m: ir.MethodName): Option[ir.MethodSig] = {
         val cd = classDecl(c)
         cd.superType.mapToOption(t_sup => 
-            methodSig(t_sup.c, m).map(ghostSubst(t_sup).methodSig)
+            methodSig(t_sup.c, m).map(superSubst(t_sup).methodSig)
         )
     }
     
@@ -292,6 +297,12 @@ class TypeCheck(log: Log, prog: Prog) {
                         val tp_f = ir.TeePee(ir.t_interval, p_0 + f, tp_0.as.withGhost)
                         if(!tp_0.wt.as.ctor) // is tp_0 fully constructed?
                             addDeclaredReadableBy(tp_f, tp_cur) // then .constructor is readable
+                        tp_f
+                        
+                    // The path is p_0.super, which we handle specially:
+                    case None if f == ir.f_super =>
+                        val tp_f = ir.TeePee(ir.t_interval, p_0 + f, tp_0.as.withGhost)
+                        addDeclaredReadableBy(tp_f, tp_cur) // x.super is always readable
                         tp_f
                         
                     // The path p_0.f names a real field f:
@@ -883,8 +894,8 @@ class TypeCheck(log: Log, prog: Prog) {
                     addHb(tp_ctor, tp_cur)                    
                 } else {
                     // For constructor methods, type of this is the type that originally defined it
-                    val msig_orig = originalMethodSig(cd.name, md.name).get
-                    addPerm(ir.p_this, ir.TeePee(msig_orig.t_rcvr.ctor, ir.p_this, ir.noAttrs))
+                    val t_rcvr = typeOriginallyDefiningMethod(cd.name, md.name).get
+                    addPerm(ir.p_this, ir.TeePee(t_rcvr.ctor, ir.p_this, ir.noAttrs))
                 }  
                 
                 md.args.foreach { case arg => 
