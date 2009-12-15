@@ -190,6 +190,21 @@ class TestAnalysis extends JUnitSuite {
                 constructor(Void v) {
                     super(v); // ERROR intervals.expected.subtype(v, Void<>{}, String<>{})
                 }                
+            }            
+            """
+        )
+    }
+    
+    @Test
+    def superInterval() {
+        tc(
+            """
+            class A extends Object<this.constructor> {
+                String s requires this.constructor;
+                
+                constructor(String s) {
+                    super();
+                }
             }
             
             class B3 extends A {
@@ -221,6 +236,20 @@ class TestAnalysis extends JUnitSuite {
                     this->t = s; 
                 }
             }     
+            
+            class C extends Object<this.constructor> {
+                constructor() { 
+                    super();
+                }
+                
+                Void mthdReadA(B5 constructor b) {
+                    String s = b->s; // No error, b.super readable.                    
+                }
+                
+                Void mthdReadB(B5 constructor b) {
+                    String s = b->t; // ERROR intervals.not.readable(b.constructor)
+                }
+            }
             """
         )
     }
