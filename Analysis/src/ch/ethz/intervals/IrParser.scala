@@ -16,13 +16,13 @@ class IrParser extends StandardTokenParsers {
         "hb", "requires", "super",
         "subinterval", "readableBy", "writableBy"
     )
-
+    
     def parse[A](p: Parser[A])(text: String) = {
       val tokens = new lexical.Scanner(text)
       phrase(p)(tokens)
     }
 
-    def optd[A](p: Parser[A], d: A) = 
+    def optd[A](p: Parser[A], d: => A) = 
         opt(p)                                  ^^ { case None => d
                                                      case Some(l) => l }
     def optl[A](p: Parser[List[A]]) = optd(p, List())
@@ -70,10 +70,22 @@ class IrParser extends StandardTokenParsers {
         wt~lv                                   ^^ { case wt~lv => ir.LvDecl(lv, wt) }
     )
     
+    private var counter = 0
+    def anonLvDecl = {
+        val ctr = counter
+        counter = counter + 1
+        ir.LvDecl(ir.VarName("parser[%s]".format(ctr)), ir.t_void)
+    }
+    
+    def optLvDecl = optd(
+        lvdecl~"="                              ^^ { case vd~_ => vd },
+        anonLvDecl
+    )
+
     def stmt = positioned(
-        lvdecl~"="~p~"->"~m~"("~comma(p)~")"~";"        ^^ { case vd~"="~p~"->"~m~"("~qs~")"~_ => ir.StmtCall(vd, p, m, qs) }
-    |   lvdecl~"="~"super"~"->"~m~"("~comma(p)~")"~";"  ^^ { case vd~"="~_~"->"~m~"("~qs~")"~_ => ir.StmtSuperCall(vd, m, qs) }
-    |   "super"~"("~comma(p)~")"~";"                    ^^ { case _~_~ps~_~_ => ir.StmtSuperCtor(ps) }
+       "super"~"("~comma(p)~")"~";"                     ^^ { case _~_~ps~_~_ => ir.StmtSuperCtor(ps) }
+    |   optLvDecl~p~"->"~m~"("~comma(p)~")"~";"         ^^ { case vd~p~"->"~m~"("~qs~")"~_ => ir.StmtCall(vd, p, m, qs) }
+    |   optLvDecl~"super"~"->"~m~"("~comma(p)~")"~";"   ^^ { case vd~_~"->"~m~"("~qs~")"~_ => ir.StmtSuperCall(vd, m, qs) }
     |   lvdecl~"="~p~"->"~f~";"                         ^^ { case vd~"="~p~"->"~f~_ => ir.StmtGetField(vd, p, f) }
     |   t~lv~"="~"new"~"("~comma(p)~")"~";"             ^^ { case t~x~"="~"new"~"("~qs~")"~_ => ir.StmtNew(x, t, qs) }
     |   lvdecl~"="~"null"~";"                           ^^ { case vd~"="~"null"~";" => ir.StmtNull(vd) }

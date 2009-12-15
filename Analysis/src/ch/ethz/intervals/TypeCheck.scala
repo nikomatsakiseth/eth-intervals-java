@@ -812,13 +812,10 @@ class TypeCheck(log: Log, prog: Prog) {
                     }
                     
                     checkLvDecl(ir.LvDecl(x, t), Some(t), None)
-
+                    
                     val subst = substGhosts + PathSubst.vp(cd.ctor.args.map(_.name), tqs.map(_.p))
                     val msig = subst.methodSig(cd.ctor.msig(t))
-                    checkArgumentTypes(msig, tqs)
-                    msig.reqs.foreach(checkReqFulfilled)
-                    clearTemp()                    
-                    
+                    checkCallMsig(teePee(x.path), msig, tqs)
                     
                 case ir.StmtHb(p, q) =>
                     val tp = teePee(ir.noAttrs, p)
@@ -840,6 +837,11 @@ class TypeCheck(log: Log, prog: Prog) {
                     addLocks(tp, tq)
             }
         }
+    
+    def checkStatements(stmts: List[ir.Stmt]) {
+        stmts.foreach(checkStatement)
+        checkNoInvalidated()
+    }
     
     def isSuperCtor(s: ir.Stmt) = s match {
         case ir.StmtSuperCtor(_) => true
@@ -902,6 +904,7 @@ class TypeCheck(log: Log, prog: Prog) {
                     checkWfWt(arg.wt) 
                     addPerm(arg.name.path, ir.TeePee(arg.wt, arg.name.path, ir.noAttrs))
                 }
+                checkWfWt(md.wt_ret)
                 
                 savingEnv {
                     overriddenMethodSig(cd.name, md.name) foreach { msig_sup_0 => 
@@ -917,7 +920,7 @@ class TypeCheck(log: Log, prog: Prog) {
                 if(md.stmts.exists(isSuperCtor)) // super(...) only permitted in constructors
                     throw new ir.IrError("intervals.super.ctor.in.mthd")
                     
-                md.stmts.foreach(checkStatement)
+                checkStatements(md.stmts)
                 
                 md.op_ret.foreach { p_ret =>
                     val tp_ret = teePee(ir.noAttrs, p_ret)
@@ -952,7 +955,7 @@ class TypeCheck(log: Log, prog: Prog) {
 
                 // After invoking super, 'this' becomes reified:
                 setPerm(ir.p_this, ir.TeePee(cd.thisTref(ir.ctorAttrs), ir.p_this, ir.noAttrs))
-                postSuper.tail.foreach(checkStatement)  
+                checkStatements(postSuper.tail)
 
                 md.op_ret.foreach { _ => throw new ir.IrError("intervals.ctor.with.ret") }                
             }          

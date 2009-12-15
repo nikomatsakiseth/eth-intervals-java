@@ -84,18 +84,69 @@ class TestAnalysis extends JUnitSuite {
                     super();                    
                 }
                 
-                void setBothOk(Interval inter, Object<inter> obj) 
+                Void setBothOkWhenGivenAsParameters(Interval inter, Object<inter> obj) 
                 requires subinterval this.creator
                 {
                     this->inter = inter;
                     this->obj = obj;
                 }
                 
-                void setBothWrongOrder(Interval inter, Object<inter> obj) 
+                Void setBothOkWhenOneIsCreated(Interval inter)
+                requires subinterval this.creator
+                {
+                    Object<inter> obj = new();
+                    
+                    this->inter = inter;
+                    this->obj = obj;
+                }
+                
+                Void setBothWrongOrder(Interval inter, Object<inter> obj) // ERROR intervals.must.assign.first(this.obj)
                 requires subinterval this.creator
                 {
                     this->obj = obj; // ERROR intervals.expected.subtype(obj, Object<inter>{}, Object<this.inter>{})
                     this->inter = inter;
+                }
+                
+                Void setOneNotOk(Interval inter) // ERROR intervals.must.assign.first(this.obj)
+                requires subinterval this.creator
+                {
+                    this->inter = inter;
+                }
+                
+                Void anotherMethod()
+                {
+                }
+                
+                Void invokingAnotherMethodInBetweenNotOk(Interval inter, Object<inter> obj) 
+                requires subinterval this.creator
+                {
+                    this->inter = inter;
+                    this->anotherMethod(); // ERROR intervals.must.assign.first(this.obj)
+                    this->obj = obj;
+                }
+                
+                Void invokingAnotherMethodAfterIsOk(Interval inter, Object<inter> obj) 
+                requires subinterval this.creator
+                {
+                    this->inter = inter;
+                    this->obj = obj;                    
+                    this->anotherMethod();
+                }
+                
+                Void creatingObjectsInBetweenNotOk(Interval inter, Object<inter> obj) 
+                requires subinterval this.creator
+                {
+                    this->inter = inter;
+                    Object<inter> obj2 = new(); // ERROR intervals.must.assign.first(this.obj)
+                    this->obj = obj;
+                }
+                
+                Void creatingObjectsAfterIsOk(Interval inter, Object<inter> obj) 
+                requires subinterval this.creator
+                {
+                    this->inter = inter;
+                    this->obj = obj;
+                    Object<inter> obj2 = new();
                 }
             }
             """
@@ -124,7 +175,7 @@ class TestAnalysis extends JUnitSuite {
                 // constructor.  It cannot read fields like 'c' because that
                 // might permit a data race if the 'this' pointer were shared
                 // during the constructor.  (We could perhaps loosen this rule for this.constructor)
-                constructor void ctorMethod1() 
+                constructor Void ctorMethod1() 
                 {
                     String c = this->c; // ERROR intervals.not.readable(this.constructor)
                     
@@ -132,7 +183,7 @@ class TestAnalysis extends JUnitSuite {
                     this->ctor = this; // ERROR intervals.not.writable(this.constructor)
                 }
                 
-                constructor void ctorMethod2() 
+                constructor Void ctorMethod2() 
                 requires subinterval this.constructor
                 {
                     String c = this->c; 
@@ -141,7 +192,7 @@ class TestAnalysis extends JUnitSuite {
                     this->ctor = this; // ERROR intervals.expected.subtype(this, Ctor<>{c}, Ctor<>{})
                 }
                 
-                void method(Ctor constructor unconstructed, Ctor constructed)
+                Void method(Ctor constructor unconstructed, Ctor constructed)
                 {
                     String a1 = constructed->toString();                    
                     String a2 = constructed->c;
@@ -179,7 +230,7 @@ class TestAnalysis extends JUnitSuite {
                 Void aHbB() // ok to have fewer reqs...
                 {                    
                     // ...but then invoking super is not necessarily safe:
-                    Void v1 = super->aHbB(); // ERROR intervals.requirement.not.met(requires this.a hb this.b)
+                    super->aHbB(); // ERROR intervals.requirement.not.met(requires this.a hb this.b)
                 }
             }
             
@@ -193,7 +244,7 @@ class TestAnalysis extends JUnitSuite {
                 requires this.a hb this.b 
                 {
                     // ...and in that case, super can be safely invoked:
-                    Void v1 = super->aHbB();
+                    super->aHbB();
                 }
             }
             
@@ -207,7 +258,7 @@ class TestAnalysis extends JUnitSuite {
                 requires this.a readableBy this.b 
                 {
                     // ...but then invoking super is not necessarily safe:
-                    Void v1 = super->aHbB(); // ERROR intervals.requirement.not.met(requires this.a hb this.b)
+                    super->aHbB(); // ERROR intervals.requirement.not.met(requires this.a hb this.b)
                 }
             }
             
@@ -284,8 +335,8 @@ class TestAnalysis extends JUnitSuite {
             
             class Z extends Object<this.constructor> {
                 constructor(Y y) {
-                    Void v1 = y->m1(); // Ok to do stuff here that doesn't touch this.
-                    Void v2 = y->m2(this); // ERROR intervals.illegal.path.attr(this, g)
+                    y->m1(); // Ok to do stuff here that doesn't touch this.
+                    y->m2(this); // ERROR intervals.illegal.path.attr(this, g)
                     super();
                 }        
             }
@@ -429,7 +480,7 @@ class TestAnalysis extends JUnitSuite {
                 // constructor.  It cannot read fields like 'c' because that
                 // might permit a data race if the 'this' pointer were shared
                 // during the constructor.  (We could perhaps loosen this rule for this.constructor)
-                constructor void ctorMethod1() 
+                constructor Void ctorMethod1() 
                 {
                     String c = this->c; // ERROR intervals.not.readable(this.constructor)
                     
@@ -437,7 +488,7 @@ class TestAnalysis extends JUnitSuite {
                     this->ctor = this; // ERROR intervals.not.writable(this.constructor)
                 }
                 
-                constructor void ctorMethod2() 
+                constructor Void ctorMethod2() 
                 requires subinterval this.constructor
                 {
                     String c = this->c; 
@@ -446,7 +497,7 @@ class TestAnalysis extends JUnitSuite {
                     this->ctor = this; // ERROR intervals.expected.subtype(this, Ctor<>{c}, Ctor<>{})
                 }
                 
-                void method(Ctor constructor unconstructed, Ctor constructed)
+                Void method(Ctor constructor unconstructed, Ctor constructed)
                 {
                     String a1 = constructed->toString();                    
                     String a2 = constructed->c;
@@ -474,13 +525,13 @@ class TestAnalysis extends JUnitSuite {
                     this->f1 = f1;
                 }
                 
-                void additionalInit(String f2)
+                Void additionalInit(String f2)
                 requires subinterval this.init
                 {
                     this->f2 = f2;
                 }
                 
-                void afterInit()
+                Void afterInit()
                 requires this.init hb method
                 {
                     String f1 = this->f1; // safe to read both of these...
@@ -551,6 +602,8 @@ class TestAnalysis extends JUnitSuite {
                     
                     Producer nextProd = new(nextCons, nextCdata);
                     pdata->nextProd = nextProd;
+                    ProdData<nextProd> nextPdata = nextProd->pdata;
+                    pdata->nextPdata = nextPdata;
                 }
             }
             
@@ -580,6 +633,8 @@ class TestAnalysis extends JUnitSuite {
                     
                     Consumer nextCons = new(nextProd, nextPdata);
                     cdata->nextCons = nextCons;
+                    ConsData<nextCons> nextCdata = nextCons->cdata;
+                    cdata->nextCdata = nextCdata;
                 }
             }
             
