@@ -372,7 +372,6 @@ object ir {
     val t_void = ir.TypeRef(c_void, List(), ir.noAttrs)
     val t_string = ir.TypeRef(c_string, List(), ir.noAttrs)
     val t_interval = ir.TypeRef(c_interval, List(), ir.noAttrs)
-    val t_interval_c = ir.TypeRef(c_interval, List(), ir.ctorAttrs)
     val t_point = ir.TypeRef(c_point, List(), ir.noAttrs)
     val t_lock = ir.TypeRef(c_lock, List(), ir.noAttrs)
     

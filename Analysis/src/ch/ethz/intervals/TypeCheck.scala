@@ -418,8 +418,8 @@ class TypeCheck(log: Log, prog: Prog) {
         
     def addHb(tp: ir.TeePee, tq: ir.TeePee): Unit = 
         log.indented("addHb(%s,%s)", tp, tq) {
-            assert(isSubtype(tp, ir.t_interval_c))
-            assert(isSubtype(tq, ir.t_interval_c))
+            assert(isSubtype(tp, ir.t_interval))
+            assert(isSubtype(tq, ir.t_interval))
             assert(tp.isConstant && tq.isConstant)
             env = ir.TcEnv(
                 env.p_cur,
@@ -817,14 +817,14 @@ class TypeCheck(log: Log, prog: Prog) {
                     //checkIsSubtype(wt_path(p), ir.t_point)
                     //checkIsSubtype(wt_path(q), ir.t_point)
                     
-                    checkIsSubtype(tp, ir.t_interval_c)
-                    checkIsSubtype(tq, ir.t_interval_c)
+                    checkIsSubtype(tp, ir.t_interval)
+                    checkIsSubtype(tq, ir.t_interval)
                     addHb(tp, tq)
                     
                 case ir.StmtLocks(p, q) =>
                     val tp = teePee(ir.noAttrs, p)
                     val tq = teePee(ir.noAttrs, q)
-                    checkIsSubtype(tp, ir.t_interval_c)
+                    checkIsSubtype(tp, ir.t_interval)
                     checkIsSubtype(tq, ir.t_lock)
                     addLocks(tp, tq)
             }
@@ -973,7 +973,7 @@ class TypeCheck(log: Log, prog: Prog) {
                         setCurrent(tp_guard) // use guard as the current interval
                         
                         // Guards must be of type Interval, Lock, or Object:
-                        if(!isSubtype(tp_guard, ir.t_interval_c) &&
+                        if(!isSubtype(tp_guard, ir.t_interval) &&
                             !isSubtype(tp_guard, ir.t_lock) &&
                             tp_guard.wt.c != ir.c_object)
                             throw new ir.IrError("intervals.invalid.guard", tp_guard.p)                        
