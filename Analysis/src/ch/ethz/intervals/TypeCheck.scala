@@ -875,6 +875,8 @@ class TypeCheck(log: Log, prog: Prog) {
     def checkMethodDecl(cd: ir.ClassDecl, md: ir.MethodDecl) = 
         at(md, ()) {
             savingEnv {
+                // Define special vars "method" and "this":
+                addPerm(ir.p_mthd, ir.TeePee(ir.t_interval, ir.p_mthd, ir.ghostAttrs))
                 if(!md.attrs.ctor) { 
                     // For normal methods, type of this is the defining class
                     addPerm(ir.p_this, ir.TeePee(cd.thisTref, ir.p_this, ir.noAttrs))                     
@@ -883,7 +885,7 @@ class TypeCheck(log: Log, prog: Prog) {
                     // For constructor methods, type of this is the type that originally defined it
                     val msig_orig = originalMethodSig(cd.name, md.name).get
                     addPerm(ir.p_this, ir.TeePee(msig_orig.t_rcvr.ctor, ir.p_this, ir.noAttrs))
-                }
+                }  
                 
                 md.args.foreach { case arg => 
                     checkWfWt(arg.wt) 
@@ -916,7 +918,8 @@ class TypeCheck(log: Log, prog: Prog) {
     def checkConstructorDecl(cd: ir.ClassDecl, md: ir.MethodDecl) = 
         at(md, ()) {
             savingEnv {
-                // Initially, add 'this' as a ghost reference so its fields are inaccessible:
+                // Define special vars "method" (== this.constructor) and "this":
+                addPerm(ir.p_mthd, ir.TeePee(ir.t_interval, ir.gd_ctor.thisPath, ir.ghostAttrs))
                 addPerm(ir.p_this, ir.TeePee(cd.thisTref(ir.ctorAttrs), ir.p_this, ir.ghostAttrs))
 
                 md.args.foreach { case arg => 
@@ -1082,15 +1085,8 @@ class TypeCheck(log: Log, prog: Prog) {
                 // XXX Need to extract visible effects of ctor
                 // XXX and save them in environment for other
                 // XXX methods.
-                savingEnv {
-                    addPerm(ir.p_mthd, ir.TeePee(ir.t_interval, ir.gd_ctor.thisPath, ir.ghostAttrs))
-                    checkConstructorDecl(cd, cd.ctor)                    
-                }
-                
-                savingEnv {
-                    addPerm(ir.p_mthd, ir.TeePee(ir.t_interval, ir.p_mthd, ir.ghostAttrs))
-                    cd.methods.foreach(checkMethodDecl(cd, _))                    
-                }
+                checkConstructorDecl(cd, cd.ctor)                    
+                cd.methods.foreach(checkMethodDecl(cd, _))                    
             }
         }
     

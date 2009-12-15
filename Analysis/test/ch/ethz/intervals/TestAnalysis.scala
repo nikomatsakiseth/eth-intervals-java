@@ -51,8 +51,8 @@ class TestAnalysis extends JUnitSuite {
                         expErrors.find(_._2.toInt == pos.line.toInt) match {
                             case None => 
                                 log("Unexpected Error!")
-                            case Some((msg, _)) if error.toString != msg =>
-                                log("Unexpected Message (not '%s')!", msg)
+                            case Some((msg, _)) if error.toString != msg.trim =>
+                                log("Unexpected Message (not '%s')!", msg.trim)
                             case Some(_) =>
                                 matched = matched + 1
                         }
@@ -153,6 +153,140 @@ class TestAnalysis extends JUnitSuite {
             """
         )
     }    
+
+    @Test
+    def overriddenMethodsCannotAddRequirements() {
+        tc(
+            """
+            """
+        )
+    }
+
+    @Test
+    def superCtors() {
+        tc(
+            """
+            class Z extends Object<this.constructor> {
+                constructor(String s) {
+                    super(s); // ERROR intervals.wrong.number.method.arguments(0, 1) 
+                }
+            }
+            
+            class A extends Object<this.constructor> {
+                String s requires this.constructor;
+                
+                constructor(String s) {
+                    super();
+                }
+            }
+            
+            class B1 extends A {
+                constructor(String t, String w) {
+                    super(t, w); // ERROR intervals.wrong.number.method.arguments(1, 2)
+                }
+            }
+            
+            class B2 extends A {
+                constructor(Void v) {
+                    super(v); // ERROR intervals.expected.subtype(v, Void<>{}, String<>{})
+                }                
+            }
+            
+            class B3 extends A {
+                constructor(String t) {
+                    super(t);
+                    
+                    this->s = t; // ERROR foo
+                }
+            }     
+                   
+            class B4 extends A {
+                String t requires this.constructor;
+                constructor(String s, String t) {
+                    super(s);
+                    this->t = t;
+                }
+                
+                String toString() {
+                    return this.t;
+                }
+            }            
+            """
+        )
+    }
+    
+    @Test
+    def constructorTypesAndSubtypes() {
+        tc(
+            """
+            class A extends Object<this.constructor> {
+                
+                constructor() {
+                    super();
+                }
+                
+            }
+            
+            class B extends A {
+                
+                constructor() {
+                    super();
+                }
+            }
+            
+            class C extends B {
+                
+                constructor() {
+                    super();
+                }
+            }
+            class Ctor extends Object<this.constructor> {
+                
+                String c requires this.constructor;
+                
+                Ctor constructor unctor requires this.constructor;
+                Ctor ctor requires this.constructor;
+                
+                constructor() 
+                {         
+                    super();                    
+                    this->unctor = this;
+                    this->ctor = this; // ERROR intervals.expected.subtype(this, Ctor<>{c}, Ctor<>{})
+                }
+                
+                // This method is invokable from both within and without the
+                // constructor.  It cannot read fields like 'c' because that
+                // might permit a data race if the 'this' pointer were shared
+                // during the constructor.  (We could perhaps loosen this rule for this.constructor)
+                constructor void ctorMethod1() 
+                {
+                    String c = this->c; // ERROR intervals.not.readable(this.constructor)
+                    
+                    this->unctor = this; // ERROR intervals.not.writable(this.constructor)
+                    this->ctor = this; // ERROR intervals.not.writable(this.constructor)
+                }
+                
+                constructor void ctorMethod2() 
+                requires subinterval this.constructor
+                {
+                    String c = this->c; 
+                    
+                    this->unctor = this;
+                    this->ctor = this; // ERROR intervals.expected.subtype(this, Ctor<>{c}, Ctor<>{})
+                }
+                
+                void method(Ctor constructor unconstructed, Ctor constructed)
+                {
+                    String a1 = constructed->toString();                    
+                    String a2 = constructed->c;
+                    
+                    String b1 = unconstructed->toString(); // ERROR intervals.rcvr.must.be.constructed(unconstructed)
+                    String b2 = unconstructed->c; // ERROR intervals.not.readable(unconstructed.constructor)
+                }
+            }
+            """
+        )
+    }
     
     @Test
     def extendedInit() {
