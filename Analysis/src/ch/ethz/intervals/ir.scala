@@ -167,6 +167,12 @@ object ir {
     }
     
     sealed abstract class Stmt extends Positional
+    sealed case class StmtSuperCall(m: MethodName, qs: List[Path]) extends Stmt {
+        override def toString = "%s->%s(%s)".format(vd, p, m, qs)        
+    }
+    sealed case class StmtSuperCtor(qs: List[Path]) extends Stmt {
+        override def toString = "%s(%s)".format(vd, p, m, qs)        
+    }
     sealed case class StmtCall(vd: LvDecl, p: Path, m: MethodName, qs: List[Path]) extends Stmt {
         override def toString = "%s = %s->%s(%s)".format(vd, p, m, qs)        
     }
@@ -364,6 +370,7 @@ object ir {
     val t_void = ir.TypeRef(c_void, List(), ir.noAttrs)
     val t_string = ir.TypeRef(c_string, List(), ir.noAttrs)
     val t_interval = ir.TypeRef(c_interval, List(), ir.noAttrs)
+    val t_interval_c = ir.TypeRef(c_interval, List(), ir.ctorAttrs)
     val t_point = ir.TypeRef(c_point, List(), ir.noAttrs)
     val t_lock = ir.TypeRef(c_lock, List(), ir.noAttrs)
     

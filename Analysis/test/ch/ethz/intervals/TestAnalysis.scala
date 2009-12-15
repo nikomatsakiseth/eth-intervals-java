@@ -109,8 +109,13 @@ class TestAnalysis extends JUnitSuite {
                 
                 String c requires this.constructor;
                 
+                Ctor constructor unctor requires this.constructor;
+                Ctor ctor requires this.constructor;
+                
                 constructor() 
-                {                   
+                {         
+                    this->unctor = this;
+                    this->ctor = this; // ERROR intervals.expected.subtype(this, Ctor<>{c}, Ctor<>{})
                 }
                 
                 // This method is invokable from both within and without the
@@ -120,12 +125,18 @@ class TestAnalysis extends JUnitSuite {
                 constructor void ctorMethod1() 
                 {
                     String c = this->c; // ERROR intervals.not.readable(this.constructor)
+                    
+                    this->unctor = this; // ERROR intervals.not.writable(this.constructor)
+                    this->ctor = this; // ERROR intervals.not.writable(this.constructor)
                 }
                 
                 constructor void ctorMethod2() 
                 requires subinterval this.constructor
                 {
                     String c = this->c; 
+                    
+                    this->unctor = this;
+                    this->ctor = this; // ERROR intervals.expected.subtype(this, Ctor<>{c}, Ctor<>{})
                 }
                 
                 void method(Ctor constructor unconstructed, Ctor constructed)

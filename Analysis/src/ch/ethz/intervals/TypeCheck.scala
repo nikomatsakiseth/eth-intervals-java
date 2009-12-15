@@ -400,8 +400,8 @@ class TypeCheck(log: Log, prog: Prog) {
         
     def addHb(tp: ir.TeePee, tq: ir.TeePee): Unit = 
         log.indented("addHb(%s,%s)", tp, tq) {
-            assert(isSubtype(tp, ir.t_interval))
-            assert(isSubtype(tq, ir.t_interval))
+            assert(isSubtype(tp, ir.t_interval_c))
+            assert(isSubtype(tq, ir.t_interval_c))
             assert(tp.isConstant && tq.isConstant)
             env = ir.TcEnv(
                 env.p_cur,
@@ -570,19 +570,17 @@ class TypeCheck(log: Log, prog: Prog) {
     
     /// t_sub <: wt_sup
     def isSubtype(t_sub: ir.TypeRef, wt_sup: ir.WcTypeRef): Boolean = 
-        log.indentedRes("%s <: %s?", t_sub, wt_sup) {
-            // (t <: t constructor) but (t constructor not <: t)
-            if(wt_sup.as.ctor && !t_sub.as.ctor) 
-                false
-            
-            // c<P> <: c<WP> iff P <= WP
-            if(t_sub.c == wt_sup.c)
-                forallzip(t_sub.paths, wt_sup.wpaths)(isSubpath) 
+        log.indentedRes("%s <: %s?", t_sub, wt_sup) {            
+            log("t_sub.ctor=%s wt_sup.as.ctor=%s", t_sub.as.ctor, wt_sup.as.ctor)
+            if(t_sub.as.ctor && !wt_sup.as.ctor)                
+                false // (t <: t constructor) but (t constructor not <: t)
+            else if(t_sub.c == wt_sup.c)                
+                forallzip(t_sub.paths, wt_sup.wpaths)(isSubpath) // c<P> <: c<WP> iff P <= WP
             else // else walk to supertype of t_sub
                 sup(t_sub) match {
                     case None => false
                     case Some(t) => isSubtype(t, wt_sup)
-                }                
+                }            
         }        
     
     def isSubtype(tp_sub: ir.TeePee, wt_sup: ir.WcTypeRef): Boolean = 
@@ -787,14 +785,14 @@ class TypeCheck(log: Log, prog: Prog) {
                     //checkIsSubtype(wt_path(p), ir.t_point)
                     //checkIsSubtype(wt_path(q), ir.t_point)
                     
-                    checkIsSubtype(tp, ir.t_interval)
-                    checkIsSubtype(tq, ir.t_interval)
+                    checkIsSubtype(tp, ir.t_interval_c)
+                    checkIsSubtype(tq, ir.t_interval_c)
                     addHb(tp, tq)
                     
                 case ir.StmtLocks(p, q) =>
                     val tp = teePee(ir.noAttrs, p)
                     val tq = teePee(ir.noAttrs, q)
-                    checkIsSubtype(tp, ir.t_interval)
+                    checkIsSubtype(tp, ir.t_interval_c)
                     checkIsSubtype(tq, ir.t_lock)
                     addLocks(tp, tq)
             }
@@ -863,7 +861,7 @@ class TypeCheck(log: Log, prog: Prog) {
                         setCurrent(tp_guard) // use guard as the current interval
                         
                         // Guards must be of type Interval, Lock, or Object:
-                        if(!isSubtype(tp_guard, ir.t_interval) &&
+                        if(!isSubtype(tp_guard, ir.t_interval_c) &&
                             !isSubtype(tp_guard, ir.t_lock) &&
                             tp_guard.wt.c != ir.c_object)
                             throw new ir.IrError("intervals.invalid.guard", tp_guard.p)                        
