@@ -34,10 +34,12 @@ abstract class BaseSubst {
     def lvDecl(lv: ir.LvDecl) = 
         ir.LvDecl(lv.name, wtref(lv.wt))
 
+    // XXX Respect potential capture
     def methodSig(msig: ir.MethodSig) =
         ir.MethodSig(
+            tref(msig.t_rcvr),
             msig.as,
             msig.args.map(lvDecl), 
             msig.reqs.map(req),
-            wtref(msig.wt_ret))
+            wtref(msig.wt_ret))        
 }

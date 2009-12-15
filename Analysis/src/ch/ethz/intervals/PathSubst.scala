@@ -27,4 +27,6 @@ object PathSubst {
         pp(lv.map(_.path), q)
     def vv(lv1: ir.VarName, lv2: ir.VarName): PathSubst =
         pp(lv1.path, lv2.path)
+    def vv(lv1: List[ir.VarName], lv2: List[ir.VarName]): PathSubst =
+        pp(lv1.map(_.path), lv2.map(_.path))
 }

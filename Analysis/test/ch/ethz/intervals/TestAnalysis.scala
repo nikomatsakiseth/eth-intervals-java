@@ -81,6 +81,7 @@ class TestAnalysis extends JUnitSuite {
                 constructor() 
                 requires subinterval this.creator
                 {                   
+                    super();                    
                 }
                 
                 void setBothOk(Interval inter, Object<inter> obj) 
@@ -114,6 +115,7 @@ class TestAnalysis extends JUnitSuite {
                 
                 constructor() 
                 {         
+                    super();                    
                     this->unctor = this;
                     this->ctor = this; // ERROR intervals.expected.subtype(this, Ctor<>{c}, Ctor<>{})
                 }
@@ -121,7 +123,7 @@ class TestAnalysis extends JUnitSuite {
                 // This method is invokable from both within and without the
                 // constructor.  It cannot read fields like 'c' because that
                 // might permit a data race if the 'this' pointer were shared
-                // during the constructor.  (We could loosen this rule for this.constructor)
+                // during the constructor.  (We could perhaps loosen this rule for this.constructor)
                 constructor void ctorMethod1() 
                 {
                     String c = this->c; // ERROR intervals.not.readable(this.constructor)
@@ -163,6 +165,7 @@ class TestAnalysis extends JUnitSuite {
                 constructor(String f1) 
                 requires subinterval this.init
                 {
+                    super();
                     this->f1 = f1;
                 }
                 
@@ -192,20 +195,26 @@ class TestAnalysis extends JUnitSuite {
             """
             class Data<Interval p> extends Object<this.p> {
                 Object<this.p> o requires this.p;
-                constructor() {}
+                constructor() {
+                    super();                    
+                }
             }
             
             class ProdData<Interval p> extends Object<this.p> {
                 Data<this.p> data requires this.p;                              
                 Interval nextProd requires this.p;
                 ProdData<this.nextProd> nextPdata requires this.p;                
-                constructor() {}
+                constructor() {
+                    super();                    
+                }
             }
             
             class ConsData<Interval c> extends Object<this.c> {
                 Interval nextCons requires this.c;
                 ConsData<this.nextCons> nextCdata requires this.c;
-                constructor() {}
+                constructor() {
+                    super();                    
+                }
             }
             
             class Producer extends Interval {
@@ -214,9 +223,10 @@ class TestAnalysis extends JUnitSuite {
                 
                 constructor(Interval c, ConsData<c> cdata)
                 {
+                    super();
                     c hb this;
                     this->cdata = cdata;
-                    ProdData<this> pdata = new ProdData<this>();
+                    ProdData<this> pdata = new();
                     this->pdata = pdata;
                 }
 
@@ -226,7 +236,7 @@ class TestAnalysis extends JUnitSuite {
                     ProdData<this> pdata = this->pdata;
                     ConsData<hb this> cdata = this->cdata;
                     
-                    Data<this> data = new Data<this>(); // "produce"
+                    Data<this> data = new(); // "produce"
                     pdata->data = data;
                     
                     // Note: Non-trivial deduction here that equates
@@ -234,7 +244,7 @@ class TestAnalysis extends JUnitSuite {
                     Interval nextCons = cdata->nextCons;
                     ConsData<nextCons> nextCdata = cdata->nextCdata;                    
                     
-                    Interval nextProd = new Producer(nextCons, nextCdata);
+                    Producer nextProd = new(nextCons, nextCdata);
                     pdata->nextProd = nextProd;
                 }
             }
@@ -245,9 +255,10 @@ class TestAnalysis extends JUnitSuite {
                 
                 constructor(Interval p, ProdData<p> pdata)
                 {
+                    super();
                     p hb this;
                     this->pdata = pdata;
-                    ConsData<this> cdata = new ConsData<this>();
+                    ConsData<this> cdata = new();
                     this->cdata = cdata;
                 }
 
@@ -262,26 +273,28 @@ class TestAnalysis extends JUnitSuite {
                     Interval nextProd = pdata->nextProd;
                     ProdData<nextProd> nextPdata = pdata->nextPdata;
                     
-                    Interval nextCons = new Consumer(nextProd, nextPdata);
+                    Consumer nextCons = new(nextProd, nextPdata);
                     cdata->nextCons = nextCons;
                 }
             }
             
             class BBPC extends Interval {
-                constructor() {}
+                constructor() {
+                    super();                    
+                }
                 
                 Void run()
                 requires subinterval this
                 {
-                    ConsData<this> d0 = new ConsData<this>();
-                    ConsData<this> d1 = new ConsData<this>();                    
+                    ConsData<this> d0 = new();
+                    ConsData<this> d1 = new();                    
                     d0->nextCons = this;
                     d0->nextCdata = d1;
                     
-                    Producer p = new Producer(this, d0);                    
+                    Producer p = new(this, d0);                    
                     ProdData<p> pdata = p->pdata;
                     
-                    Consumer c = new Consumer(p, pdata);
+                    Consumer c = new(p, pdata);
                     d1->nextCons = c; 
                     ConsData<c> cdata = c->cdata;
                     d1->nextCdata = cdata;                    

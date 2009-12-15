@@ -123,21 +123,22 @@ object ir {
         stmts: List[Stmt],
         op_ret: Option[Path] // if omitted, equiv. to return null
     ) extends Positional {
-        def msig = MethodSig(attrs, args, reqs, wt_ret)
+        def msig(t_rcvr: TypeRef) = MethodSig(t_rcvr, attrs, args, reqs, wt_ret)
         
         override def toString =
             "%s %s %s(%s)%s".format(
-                attrs, wt_ret, name, args.mkString(", "), reqs.mkString(" "))
+                attrs, wt_ret, name, args.mkString(", "), "".join(" ", reqs))
     }
     
     sealed case class MethodSig(
+        t_rcvr: TypeRef,
         as: Attrs,
         args: List[LvDecl],
         reqs: List[Req],
         wt_ret: WcTypeRef
     ) {
-        override def toString = "(%s %s _(%s)%s)".format(
-            as, wt_ret, args.mkString(", "), reqs.mkString(""))
+        override def toString = "(%s %s (%s)::_(%s)%s)".format(
+            as, wt_ret, t_rcvr, args.mkString(", "), reqs.mkString(""))            
     }
     
     sealed case class LvDecl(
@@ -167,11 +168,11 @@ object ir {
     }
     
     sealed abstract class Stmt extends Positional
-    sealed case class StmtSuperCall(m: MethodName, qs: List[Path]) extends Stmt {
-        override def toString = "%s->%s(%s)".format(vd, p, m, qs)        
+    sealed case class StmtSuperCall(vd: LvDecl, m: MethodName, qs: List[Path]) extends Stmt {
+        override def toString = "%s = super->%s(%s)".format(vd, m, qs)
     }
     sealed case class StmtSuperCtor(qs: List[Path]) extends Stmt {
-        override def toString = "%s(%s)".format(vd, p, m, qs)        
+        override def toString = "super(%s)".format(qs)
     }
     sealed case class StmtCall(vd: LvDecl, p: Path, m: MethodName, qs: List[Path]) extends Stmt {
         override def toString = "%s = %s->%s(%s)".format(vd, p, m, qs)        
@@ -179,8 +180,8 @@ object ir {
     sealed case class StmtGetField(vd: LvDecl, p: Path, f: FieldName) extends Stmt {
         override def toString = "%s = %s->%s".format(vd, p, f)
     }
-    sealed case class StmtNew(vd: LvDecl, t: TypeRef, qs: List[Path]) extends Stmt {
-        override def toString = "%s = new %s(%s);".format(vd, t, qs.mkString(", "))
+    sealed case class StmtNew(x: VarName, t: TypeRef, qs: List[Path]) extends Stmt {
+        override def toString = "%s = new %s(%s);".format(x, t, qs.mkString(", "))
     }
     sealed case class StmtNull(vd: LvDecl) extends Stmt {
         override def toString = "%s = null;".format(vd)
@@ -212,6 +213,7 @@ object ir {
         override val as: Attrs
     ) extends WcTypeRef(c, paths, as) {
         override def withAttrs(as: Attrs) = ir.TypeRef(c, paths, as)
+        def ctor = TypeRef(c, paths, as.withCtor)
     }
     
     sealed abstract class WcPath {

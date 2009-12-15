@@ -25,7 +25,8 @@ the name (but not type) and value of the ghost argument(s).
 
 class TypeCheck(log: Log, prog: Prog) {    
     import prog.classDecl
-    import prog.fresh
+
+    def freshVarName = ir.VarName(prog.fresh("tmp"))
 
     // ______________________________________________________________________
     // Environment
@@ -67,33 +68,14 @@ class TypeCheck(log: Log, prog: Prog) {
                 env.subinterval,
                 env.locks)
         }
-    
-    /// Adds a permanent mapping from p to tq: permanent mappings 
-    /// persist across method calls.
-    def addPerm(p: ir.Path, tq: ir.TeePee): Unit = 
-        log.indented("addPerm(%s,%s)", p, tq) {
-            env.perm.get(p) match {
-                case Some(_) =>
-                    throw new ir.IrError("intervals.shadowed", p)
-                case None =>
-                    env = ir.TcEnv(
-                        env.p_cur,
-                        env.perm + Pair(p, tq),
-                        env.temp,
-                        env.lp_invalidated,
-                        env.readable,
-                        env.writable,
-                        env.hb,
-                        env.subinterval,
-                        env.locks)
-            }
-        }
 
-    def addPermEquiv(tp: ir.TeePee, tq: ir.TeePee): Unit = 
-        log.indented("addPermEquiv(%s,%s)", tp, tq) {
+    /// Add or overwrite a permanent mapping.
+    /// Permanent mappings persist across function calls.
+    def setPerm(p: ir.Path, tq: ir.TeePee): Unit = 
+        log.indented("addPerm(%s,%s)", p, tq) {
             env = ir.TcEnv(
                 env.p_cur,
-                env.perm + Pair(tp.p, tq),
+                env.perm + Pair(p, tq),
                 env.temp,
                 env.lp_invalidated,
                 env.readable,
@@ -102,18 +84,29 @@ class TypeCheck(log: Log, prog: Prog) {
                 env.subinterval,
                 env.locks)
         }
+        
+    
+    /// Add but not overwrite a permanent mapping.
+    /// \see setPerm()
+    def addPerm(p: ir.Path, tq: ir.TeePee): Unit =
+        env.perm.get(p) match {
+            case Some(_) => throw new ir.IrError("intervals.shadowed", p)
+            case None => setPerm(p, tq)
+        }
 
     // ______________________________________________________________________
     // Errors
 
     def at[R](loc: Positional, default: R)(g: => R): R = 
-        try {
-            g
-        } catch {
-            case err: ir.IrError =>
-                prog.reportError(loc, err)
-                log("Error: %s", err)
-                default           
+        log.indentedRes(loc) {
+            try {
+                g
+            } catch {
+                case err: ir.IrError =>
+                    prog.reportError(loc, err)
+                    log("Error: %s", err)
+                    default           
+            }            
         }
     
     // ______________________________________________________________________
@@ -150,24 +143,40 @@ class TypeCheck(log: Log, prog: Prog) {
         }            
     }
 
-    /// Method sig for t0::m()
-    def methodSig(c: ir.ClassName, m: ir.MethodName): ir.MethodSig = preservesEnv {
-        log.indentedRes("methodSig(%s,%s)", c, m) {
-            def search(t: ir.TypeRef): ir.MethodSig = {
-                val cd = classDecl(t.c)
+    /// Method sig for c0::m()
+    def methodSig(c0: ir.ClassName, m: ir.MethodName): Option[ir.MethodSig] = preservesEnv {
+        log.indentedRes("methodSig(%s,%s)", c0, m) {
+            def search(c: ir.ClassName): Option[ir.MethodSig] = {
+                val cd = classDecl(c)
                 cd.methods.find(_.name == m) match {
                     case Some(md) => 
-                        log("Found in type %s: %s", t, md)
-                        md.msig
-                    case None => sup(t) match {
-                        case Some(t_1) => ghostSubst(t_1).methodSig(search(t_1))
-                        case None => throw ir.IrError("intervals.no.such.method", c, m)
+                        Some(md.msig(cd.thisTref))
+                    case None => cd.superType match {
+                        case Some(t) => search(t.c).map(ghostSubst(t).methodSig)
+                        case None => None
                     }
                 }
             }
-            val cd = classDecl(c)
-            search(cd.thisTref)
+            search(c0)
         }
+    }
+    
+    /// Returns the signature of 'c::m' in the upper-most type where 'm' is defined.
+    def originalMethodSig(c: ir.ClassName, m: ir.MethodName): Option[ir.MethodSig] = {
+        val cd = classDecl(c)
+        cd.superType.mapToOption(t_sup => 
+            originalMethodSig(t_sup.c, m).map(ghostSubst(t_sup).methodSig)
+        ).orElse(
+            cd.methods.find(_.name == m).map(_.msig(cd.thisTref))
+        )
+    }    
+    
+    /// Returns the signature of 'md' in the supertype, if any.
+    def overriddenMethodSig(c: ir.ClassName, m: ir.MethodName): Option[ir.MethodSig] = {
+        val cd = classDecl(c)
+        cd.superType.mapToOption(t_sup => 
+            methodSig(t_sup.c, m).map(ghostSubst(t_sup).methodSig)
+        )
     }
     
     // ______________________________________________________________________
@@ -211,9 +220,13 @@ class TypeCheck(log: Log, prog: Prog) {
     
     /// Method sig for tp.m(tqs)
     def substdMethodSig(tp: ir.TeePee, m: ir.MethodName, tqs: List[ir.TeePee]) = preservesEnv {
-        val msig = methodSig(tp.wt.c, m)
-        val subst = ghostSubst(tp) + PathSubst.vp(msig.args.map(_.name), tqs.map(_.p))
-        subst.methodSig(msig)        
+        methodSig(tp.wt.c, m) match {
+            case Some(msig) =>
+                val subst = ghostSubst(tp) + PathSubst.vp(msig.args.map(_.name), tqs.map(_.p))
+                subst.methodSig(msig)        
+            case None =>
+                throw ir.IrError("intervals.no.such.method", tp.wt.c, m)
+        }
     }
     
     /// Constructs a TeePee for p_1 
@@ -318,7 +331,12 @@ class TypeCheck(log: Log, prog: Prog) {
     // because the outcome of teePee() depends on the env.
     def tp_cur = teePee(env.p_cur)
     def tp_ctor = teePee(ir.gd_ctor.thisPath)
-    def tp_this = teePee(ir.p_this)
+    def tp_this = teePee(ir.p_this)    
+    def tp_super =
+        sup(cap(tp_this)) match {
+            case None => throw new ir.IrError("intervals.no.supertype", tp_this.wt)
+            case Some(t_super) => ir.TeePee(t_super, ir.p_this, tp_this.as)
+        }
     
     // ______________________________________________________________________
     // Well-formedness
@@ -572,11 +590,10 @@ class TypeCheck(log: Log, prog: Prog) {
     def isSubtype(t_sub: ir.TypeRef, wt_sup: ir.WcTypeRef): Boolean = 
         log.indentedRes("%s <: %s?", t_sub, wt_sup) {            
             log("t_sub.ctor=%s wt_sup.as.ctor=%s", t_sub.as.ctor, wt_sup.as.ctor)
-            if(t_sub.as.ctor && !wt_sup.as.ctor)                
-                false // (t <: t constructor) but (t constructor not <: t)
-            else if(t_sub.c == wt_sup.c)                
+            if(t_sub.c == wt_sup.c) {
+                (!t_sub.as.ctor || wt_sup.as.ctor) && // (t <: t ctor) but (t ctor not <: t)
                 forallzip(t_sub.paths, wt_sup.wpaths)(isSubpath) // c<P> <: c<WP> iff P <= WP
-            else // else walk to supertype of t_sub
+            } else // else walk to supertype of t_sub
                 sup(t_sub) match {
                     case None => false
                     case Some(t) => isSubtype(t, wt_sup)
@@ -584,9 +601,16 @@ class TypeCheck(log: Log, prog: Prog) {
         }        
     
     def isSubtype(tp_sub: ir.TeePee, wt_sup: ir.WcTypeRef): Boolean = 
-        isSubtype(cap(tp_sub), wt_sup)        
+        isSubtype(cap(tp_sub), wt_sup)
         
-    /// wt_sub <: wt_sup
+    def freshTp(wt: ir.WcTypeRef) = {
+        val lv = freshVarName
+        val tp = ir.TeePee(wt, lv.path, ir.ghostAttrs)
+        addPerm(lv.path, tp)
+        tp
+    }
+        
+    /// wt(tp_sub) <: wt_sup
     def checkIsSubtype(tp_sub: ir.TeePee, wt_sup: ir.WcTypeRef) {
         if(!isSubtype(tp_sub, wt_sup))
             throw new ir.IrError("intervals.expected.subtype", tp_sub.p, tp_sub.wt, wt_sup)
@@ -626,12 +650,9 @@ class TypeCheck(log: Log, prog: Prog) {
         checkWfWt(vd.wt)
         
         owt.foreach (savingEnv { case wt =>
-            val lv = ir.VarName(fresh("val"))
-            val tp = ir.TeePee(wt, lv.path, ir.noAttrs)
-            addPerm(lv.path, tp)
-            checkIsSubtype(tp, vd.wt)
+            checkIsSubtype(freshTp(wt), vd.wt)
         })
-        
+
         addPerm(vd.name.path, ir.TeePee(
             vd.wt, 
             op_canon.getOrElse(vd.name.path), // default canonical path for x is just x
@@ -675,7 +696,7 @@ class TypeCheck(log: Log, prog: Prog) {
     def checkWritable(tp_guard: ir.TeePee) {
         if(!isWritableBy(tp_guard, tp_cur))
             throw new ir.IrError("intervals.not.writable", tp_guard.p)
-    }    
+    }
         
     def checkNoInvalidated() {
         if(!env.lp_invalidated.isEmpty)
@@ -683,13 +704,38 @@ class TypeCheck(log: Log, prog: Prog) {
                 "intervals.must.assign.first", 
                 env.lp_invalidated.mkEnglishString)        
     }
+
+    def checkCallMsig(tp: ir.TeePee, msig: ir.MethodSig, tqs: List[ir.TeePee]) {
+        // Cannot invoke a method when there are outstanding invalidated fields:
+        checkNoInvalidated()
+        
+        // If method is not a constructor method, receiver must be constructed:
+        if(!msig.as.ctor && tp.wt.as.ctor) 
+            throw new ir.IrError("intervals.rcvr.must.be.constructed", tp.p)
+            
+        // Arguments must have correct type and requirements must be fulfilled:
+        checkArgumentTypes(msig, tqs)
+        msig.reqs.foreach(checkReqFulfilled)
+        
+        // Any method call disrupts potential temporary assocations:
+        //     We make these disruptions before checking return value, 
+        //     in case they would affect the type.  Haven't thought through
+        //     if this can happen or not, but this would be the right time anyhow.
+        clearTemp()        
+    }
     
-    def checkStatement(stmt: ir.Stmt) = log.indented(stmt) {
+    def checkCall(vd: ir.LvDecl, tp: ir.TeePee, m: ir.MethodName, tqs: List[ir.TeePee]) {
+        val msig = substdMethodSig(tp, m, tqs)
+        checkCallMsig(tp, msig, tqs)
+        checkLvDecl(vd, Some(msig.wt_ret), None)                        
+    }
+    
+    def checkStatement(stmt: ir.Stmt) = 
         at(stmt, ()) {
             stmt match {  
                 case ir.StmtNull(vd) =>
                     checkLvDecl(vd, None, None)
-
+                    
                 case ir.StmtGetField(vd, p_o, f) =>
                     val tp_o = teePee(ir.noAttrs, p_o)
                     val fd = substdFieldDecl(tp_o, f)
@@ -711,10 +757,12 @@ class TypeCheck(log: Log, prog: Prog) {
                     val tp_o = teePee(ir.noAttrs, p_o)
                     val tp_v = teePee(ir.noAttrs, p_v)
                     val fd = substdFieldDecl(tp_o, f)
-                    checkIsSubtype(tp_v, fd.wt)
                     
                     val tp_guard = teePee(ir.ghostAttrs, fd.p_guard)
                     checkWritable(tp_guard)
+                    
+                    checkIsSubtype(tp_v, fd.wt)
+                    
                     val p_f = tp_o.p + f // Canonical path of f; valid as f is not a ghost.
                     addTemp(p_f, tp_v.p)
                     
@@ -724,58 +772,42 @@ class TypeCheck(log: Log, prog: Prog) {
                 case ir.StmtCall(vd, p, m, qs) =>
                     val tp = teePee(ir.noAttrs, p)
                     val tqs = teePee(ir.noAttrs, qs)
-                    val msig = substdMethodSig(tp, m, tqs)
-                    
-                    // Cannot invoke a method when there are outstanding invalidated fields:
-                    checkNoInvalidated()
-                    
-                    // If method is not a constructor method, receiver must be constructed:
-                    if(!msig.as.ctor && tp.wt.as.ctor) 
-                        throw new ir.IrError("intervals.rcvr.must.be.constructed", p)                        
-                        
-                    // Arguments must have correct type and requirements must be fulfilled:
-                    checkArgumentTypes(msig, tqs)
-                    msig.reqs.foreach(checkReqFulfilled)
-                    
-                    // Any method call disrupts potential temporary assocations:
-                    //     We make these disruptions before checking return value, 
-                    //     in case they would affect the type.  Haven't thought through
-                    //     if this can happen or not, but this would be the right time anyhow.
-                    clearTemp()
-                    
-                    checkLvDecl(vd, Some(msig.wt_ret), None)
+                    checkCall(vd, tp, m, tqs)
         
-                case ir.StmtNew(vd, t, qs) =>
+                case ir.StmtSuperCall(vd, m, qs) =>
+                    val tqs = teePee(ir.noAttrs, qs)
+                    checkCall(vd, tp_super, m, tqs)
+                
+                case ir.StmtSuperCtor(qs) =>
+                    val tp = tp_super
+                    val tqs = teePee(ir.noAttrs, qs)
+                    val msig_ctor0 = classDecl(tp.wt.c).ctor.msig(cap(tp))
+                    val msig_ctor = ghostSubst(tp).methodSig(msig_ctor0)
+                    checkCallMsig(tp_super, msig_ctor, tqs)
+                
+                case ir.StmtNew(x, t, qs) =>
                     checkWfWt(t)
                     val cd = classDecl(t.c)
-                    
-                    // Cannot invoke a method when there are outstanding invalidated fields:
-                    checkNoInvalidated()
+                    val tqs = teePee(ir.noAttrs, qs)
                     
                     // Check Ghost Types:
                     checkLengths(cd.ghosts, t.paths, "intervals.wrong.number.ghost.arguments")
                     val substGhosts = PathSubst.pp(
-                        ir.p_this    :: cd.ghosts.map(_.thisPath), 
-                        vd.name.path :: t.paths)
+                        ir.p_this   :: cd.ghosts.map(_.thisPath), 
+                        x.path      :: t.paths)
                     foreachzip(cd.ghosts, t.paths) { case (gfd, p) =>
                         val tp = teePee(p)
                         checkIsSubtype(tp, substGhosts.wtref(gfd.wt))
                     }
-
-                    // Check Argument Types:
-                    val ctor = cd.ctor
-                    val tqs = teePee(qs)
-                    val subst = substGhosts + PathSubst.vp(ctor.args.map(_.name), tqs.map(_.p))
-                    val msig = subst.methodSig(ctor.msig)
-                    checkArgumentTypes(msig, tqs)
-
-                    // Check Constructor Requirements:
-                    msig.reqs.foreach(checkReqFulfilled)
                     
-                    // Executing constructor code could invalidate our alias assumptions:
+                    checkLvDecl(ir.LvDecl(x, t), Some(t), None)
+
+                    val subst = substGhosts + PathSubst.vp(cd.ctor.args.map(_.name), tqs.map(_.p))
+                    val msig = subst.methodSig(cd.ctor.msig(t))
+                    checkArgumentTypes(msig, tqs)
+                    msig.reqs.foreach(checkReqFulfilled)
                     clearTemp()                    
                     
-                    checkLvDecl(vd, Some(t), None)
                     
                 case ir.StmtHb(p, q) =>
                     val tp = teePee(ir.noAttrs, p)
@@ -797,22 +829,60 @@ class TypeCheck(log: Log, prog: Prog) {
                     addLocks(tp, tq)
             }
         }
+    
+    def isSuperCtor(s: ir.Stmt) = s match {
+        case ir.StmtSuperCtor(_) => true
+        case _ => false
     }
     
-    def checkMethodDecl(cd: ir.ClassDecl, md: ir.MethodDecl) = savingEnv {
-        log.indented(md) {
-            at(md, ()) {
-                if(!md.attrs.ctor) { // No ctor flag: only invokable after ctor
+    def checkArgumentTypesNonvariant(args_sub: List[ir.LvDecl], args_sup: List[ir.LvDecl]) {
+        foreachzip(args_sub, args_sup) { case (arg_sub, arg_sup) =>
+            if(arg_sub.wt != arg_sup.wt)
+                throw new ir.IrError(
+                    "intervals.override.param.type.changed", 
+                    arg_sub.name, arg_sub.wt, arg_sup.wt)
+        }        
+    }
+    
+    def checkReturnTypeCovariant(wt_sub: ir.WcTypeRef, wt_sup: ir.WcTypeRef) {
+        if(!isSubtype(freshTp(wt_sub), wt_sup))
+            throw new ir.IrError(
+                "intervals.override.ret.type.changed", wt_sub, wt_sup)
+    }
+    
+    def checkOverridenReqsImplyOurReqs(reqs_sub: List[ir.Req], reqs_sup: List[ir.Req]) {
+        reqs_sup.foreach(addReq)
+        reqs_sub.foreach { req_sub =>
+            if(!isReqFulfilled(req_sub))
+                throw new ir.IrError("intervals.override.adds.req", req_sub)
+        }        
+    }
+    
+    /// Changes the names of the arguments in 'msig' to 'lvn'.
+    def substArgsInMethodSig(msig: ir.MethodSig, lvn: List[ir.VarName]) = {
+        val lvn_msig = msig.args.map(_.name)
+        val nameMap = Map(lvn_msig.zip(lvn): _*)
+        val subst = PathSubst.vv(lvn_msig, lvn)
+        ir.MethodSig(
+            subst.tref(msig.t_rcvr),
+            msig.as,
+            msig.args.map { lv => ir.LvDecl(nameMap(lv.name), subst.wtref(lv.wt)) },
+            msig.reqs.map(subst.req),
+            subst.wtref(msig.wt_ret)
+        )                
+    }
+    
+    def checkMethodDecl(cd: ir.ClassDecl, md: ir.MethodDecl) = 
+        at(md, ()) {
+            savingEnv {
+                if(!md.attrs.ctor) { 
+                    // For normal methods, type of this is the defining class
                     addPerm(ir.p_this, ir.TeePee(cd.thisTref, ir.p_this, ir.noAttrs))                     
                     addHb(tp_ctor, tp_cur)                    
-                      
-                    // XXX This is not safe for reqs that mention             
-                    // XXX "method", which refers to the constructor.  
-                    // XXX We need to be smarter here as sketched out in our
-                    // XXX notes.
-                    //cd.ctor.reqs.foreach(addReq)
                 } else {
-                    addPerm(ir.p_this, ir.TeePee(cd.thisTref(ir.ctorAttrs), ir.p_this, ir.noAttrs))
+                    // For constructor methods, type of this is the type that originally defined it
+                    val msig_orig = originalMethodSig(cd.name, md.name).get
+                    addPerm(ir.p_this, ir.TeePee(msig_orig.t_rcvr.ctor, ir.p_this, ir.noAttrs))
                 }
                 
                 md.args.foreach { case arg => 
@@ -820,8 +890,20 @@ class TypeCheck(log: Log, prog: Prog) {
                     addPerm(arg.name.path, ir.TeePee(arg.wt, arg.name.path, ir.noAttrs))
                 }
                 
+                savingEnv {
+                    overriddenMethodSig(cd.name, md.name) foreach { msig_sup_0 => 
+                        val msig_sup = substArgsInMethodSig(msig_sup_0, md.args.map(_.name))
+                        checkArgumentTypesNonvariant(md.args, msig_sup.args)
+                        checkReturnTypeCovariant(md.wt_ret, msig_sup.wt_ret)
+                        checkOverridenReqsImplyOurReqs(md.reqs, msig_sup.reqs)
+                    }                    
+                }
+                
                 md.reqs.foreach(addReq)
                 
+                if(md.stmts.exists(isSuperCtor)) // super(...) only permitted in constructors
+                    throw new ir.IrError("intervals.super.ctor.in.mthd")
+                    
                 md.stmts.foreach(checkStatement)
                 
                 md.op_ret.foreach { p_ret =>
@@ -830,11 +912,41 @@ class TypeCheck(log: Log, prog: Prog) {
                 }
             }         
         }
-    }
     
-    def checkFieldDecl(cd: ir.ClassDecl, fd: ir.FieldDecl) = savingEnv {
-        log.indented(fd) {
-            at(fd, ()) {
+    def checkConstructorDecl(cd: ir.ClassDecl, md: ir.MethodDecl) = 
+        at(md, ()) {
+            savingEnv {
+                // Initially, add 'this' as a ghost reference so its fields are inaccessible:
+                addPerm(ir.p_this, ir.TeePee(cd.thisTref(ir.ctorAttrs), ir.p_this, ir.ghostAttrs))
+
+                md.args.foreach { case arg => 
+                    checkWfWt(arg.wt) 
+                    addPerm(arg.name.path, ir.TeePee(arg.wt, arg.name.path, ir.noAttrs))
+                }            
+                md.reqs.foreach(addReq)
+
+                val preSuper = md.stmts.takeWhile(!isSuperCtor(_))
+                val postSuper = md.stmts.dropWhile(!isSuperCtor(_))
+                if(postSuper.isEmpty)
+                    throw new ir.IrError("intervals.super.ctor.zero")
+                if(postSuper.tail.exists(isSuperCtor))
+                    throw new ir.IrError("intervals.super.ctor.twice")
+
+                // Check statements up until the super() invocation with ghost 'this':
+                preSuper.foreach(checkStatement)
+                checkStatement(postSuper.head)
+
+                // After invoking super, 'this' becomes reified:
+                setPerm(ir.p_this, ir.TeePee(cd.thisTref(ir.ctorAttrs), ir.p_this, ir.noAttrs))
+                postSuper.tail.foreach(checkStatement)  
+
+                md.op_ret.foreach { _ => throw new ir.IrError("intervals.ctor.with.ret") }                
+            }          
+        }
+    
+    def checkFieldDecl(cd: ir.ClassDecl, fd: ir.FieldDecl) = 
+        at(fd, ()) {
+            savingEnv {
                 // Rules:
                 //
                 // The type of a field f in class c may be dependent on a path p_dep if either:
@@ -892,7 +1004,6 @@ class TypeCheck(log: Log, prog: Prog) {
                 }
             }
         }
-    }
     
     // ______________________________________________________________________
     // Permitted Prefixes
@@ -959,9 +1070,12 @@ class TypeCheck(log: Log, prog: Prog) {
         }
     }
     
-    def checkClassDecl(cd: ir.ClassDecl) = savingEnv {
-        log.indented(cd) {
-            at(cd, ()) {
+    def checkClassDecl(cd: ir.ClassDecl) = 
+        at(cd, ()) {
+            savingEnv {
+                cd.superType.foreach { t =>
+                    if(t.as.ctor) throw new ir.IrError("intervals.superType.with.ctor.attr") 
+                }
                 checkGhostDeclsUsePermittedPrefixes(cd, List(), cd.ghosts)                
                 checkFieldDeclsUsePermittedPrefixes(cd, List(), cd.fields)                
                 
@@ -970,7 +1084,7 @@ class TypeCheck(log: Log, prog: Prog) {
                 // XXX methods.
                 savingEnv {
                     addPerm(ir.p_mthd, ir.TeePee(ir.t_interval, ir.gd_ctor.thisPath, ir.ghostAttrs))
-                    checkMethodDecl(cd, cd.ctor)                    
+                    checkConstructorDecl(cd, cd.ctor)                    
                 }
                 
                 savingEnv {
@@ -979,7 +1093,6 @@ class TypeCheck(log: Log, prog: Prog) {
                 }
             }
         }
-    }
     
     def check = prog.cds_user.foreach(checkClassDecl)
 }

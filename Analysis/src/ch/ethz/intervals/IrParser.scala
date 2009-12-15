@@ -13,7 +13,7 @@ class IrParser extends StandardTokenParsers {
     lexical.reserved += (
         "class", "new", "constructor", "null", 
         "return", "Rd", "Wr", "Free", "extends", 
-        "hb", "requires", 
+        "hb", "requires", "super",
         "subinterval", "readableBy", "writableBy"
     )
 
@@ -71,13 +71,15 @@ class IrParser extends StandardTokenParsers {
     )
     
     def stmt = positioned(
-        lvdecl~"="~p~"->"~m~"("~comma(p)~")"~";"^^ { case vd~"="~p~"->"~m~"("~qs~")"~_ => ir.StmtCall(vd, p, m, qs) }
-    |   lvdecl~"="~p~"->"~f~";"                 ^^ { case vd~"="~p~"->"~f~_ => ir.StmtGetField(vd, p, f) }
-    |   lvdecl~"="~"new"~t~"("~comma(p)~")"~";" ^^ { case vd~"="~"new"~t~"("~qs~")"~_ => ir.StmtNew(vd, t, qs) }
-    |   lvdecl~"="~"null"~";"                   ^^ { case vd~"="~"null"~";" => ir.StmtNull(vd) }
-    |   p~"->"~f~"="~p~";"                      ^^ { case p~_~f~_~q~_ => ir.StmtSetField(p, f, q) }
-    |   p~"hb"~p~";"                            ^^ { case p~_~q~_ => ir.StmtHb(p, q) }
-    |   p~"locks"~p~";"                         ^^ { case p~_~q~_ => ir.StmtLocks(p, q) }
+        lvdecl~"="~p~"->"~m~"("~comma(p)~")"~";"        ^^ { case vd~"="~p~"->"~m~"("~qs~")"~_ => ir.StmtCall(vd, p, m, qs) }
+    |   lvdecl~"="~"super"~"->"~m~"("~comma(p)~")"~";"  ^^ { case vd~"="~_~"->"~m~"("~qs~")"~_ => ir.StmtSuperCall(vd, m, qs) }
+    |   "super"~"("~comma(p)~")"~";"                    ^^ { case _~_~ps~_~_ => ir.StmtSuperCtor(ps) }
+    |   lvdecl~"="~p~"->"~f~";"                         ^^ { case vd~"="~p~"->"~f~_ => ir.StmtGetField(vd, p, f) }
+    |   t~lv~"="~"new"~"("~comma(p)~")"~";"             ^^ { case t~x~"="~"new"~"("~qs~")"~_ => ir.StmtNew(x, t, qs) }
+    |   lvdecl~"="~"null"~";"                           ^^ { case vd~"="~"null"~";" => ir.StmtNull(vd) }
+    |   p~"->"~f~"="~p~";"                              ^^ { case p~_~f~_~q~_ => ir.StmtSetField(p, f, q) }
+    |   p~"hb"~p~";"                                    ^^ { case p~_~q~_ => ir.StmtHb(p, q) }
+    |   p~"locks"~p~";"                                 ^^ { case p~_~q~_ => ir.StmtLocks(p, q) }
     )
     
     def req = positioned(
@@ -111,7 +113,8 @@ class IrParser extends StandardTokenParsers {
         "}"
     ^^ {
         case "constructor"~"("~args~")"~reqs~"{"~stmts~"}" =>
-            ir.MethodDecl(ir.ctorAttrs, ir.t_void, ir.m_ctor, args, reqs, stmts, None)
+            ir.MethodDecl(
+                ir.ctorAttrs, ir.t_void, ir.m_ctor, args, reqs, stmts, None)
     })
     
     def ghostFieldDecl = positioned(

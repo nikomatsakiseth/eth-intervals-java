@@ -83,6 +83,17 @@ object Util {
   implicit def list2UtilList[Q](i: List[Q]) = UtilList(i)
   
   // ____________________________________________________________
+  // Extensions to Option
+  
+  case class UtilOption[X](o: Option[X]) {
+      def mapToOption[Y](f: (X => Option[Y])) = o match {
+          case None => None
+          case Some(x) => f(x)
+      }
+  }
+  implicit def option2UtilOption[X](o: Option[X]) = UtilOption(o)
+  
+  // ____________________________________________________________
   // Extensions to Iterator and Iterable
   
   case class UtilIterator[Q](i: Iterator[Q]) {
