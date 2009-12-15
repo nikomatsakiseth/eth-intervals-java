@@ -572,11 +572,11 @@ class TypeCheck(log: Log, prog: Prog) {
     // Subtyping    
     
     /// wp <= wq
-    def isSubpath(p: ir.Path, wq: ir.WcPath) = 
+    def isSubpath(p: ir.Path, wq: ir.WcPath) = savingEnv {
         log.indentedRes("%s <= %s?", p, wq) {                
-            // Here we just use teePee() without checking that it is 
-            // immutable.  That's safe because we never ADD to the relations
-            // unless the teePee is immutable. 
+            // Here we just use teePee() without checking that the resulting
+            // paths are immutable.  That's safe because we never ADD to the 
+            // relations unless the teePee is immutable. 
             //
             // XXX Is this REALLY true...?
             val tp = teePee(p)
@@ -595,10 +595,11 @@ class TypeCheck(log: Log, prog: Prog) {
                 case ir.WcLockedBy(lq) =>
                     lq.forall { q => locks(teePee(q), tp) }
             }
-        }
+        }        
+    }
     
     /// t_sub <: wt_sup
-    def isSubtype(t_sub: ir.TypeRef, wt_sup: ir.WcTypeRef): Boolean = 
+    def isSubtype(t_sub: ir.TypeRef, wt_sup: ir.WcTypeRef): Boolean = preservesEnv {
         log.indentedRes("%s <: %s?", t_sub, wt_sup) {            
             log("t_sub.ctor=%s wt_sup.as.ctor=%s", t_sub.as.ctor, wt_sup.as.ctor)
             if(t_sub.c == wt_sup.c) {
@@ -609,7 +610,8 @@ class TypeCheck(log: Log, prog: Prog) {
                     case None => false
                     case Some(t) => isSubtype(t, wt_sup)
                 }            
-        }        
+        }                
+    }
     
     def isSubtype(tp_sub: ir.TeePee, wt_sup: ir.WcTypeRef): Boolean = 
         isSubtype(cap(tp_sub), wt_sup)
