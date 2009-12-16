@@ -8,6 +8,32 @@ import scala.util.parsing.input.Positional
 import Util._
 
 /*
+
+TODO LIST
+---------
+
+(*) Implement subinterval with grammar: 
+        subinterval x [locks comma(p)] { ... }
+    It should be possible to use a subinterval in the constructor 
+    to acquire a (newly created, and hence private) lock.
+     
+(*) Implement logic which states that any lock field which is currently writable
+    is also considered to be held.  This makes sense because no other interval
+    could be holding the lock, so we can say that the current interval holds it.    
+    XXX --- Is this true?  What if the lock is aliased?
+        
+(*) Implement "inter-method" assumptions, particularly those which allow us to 
+    derive relations from constructor
+    
+(*) Cleanup linked field logic as relates to guards.  A field should not be linked
+    to its guard, nor to intervals that HB its guard, nor should it be considered
+    linked when the current method HB the guard, I guess.
+    
+(*) Whatever else is needed to make HOH work?
+
+*/
+
+/*
 Notes of Notation:
 
 Foo<f: p>

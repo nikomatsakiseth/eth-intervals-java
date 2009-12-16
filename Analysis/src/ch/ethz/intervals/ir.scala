@@ -189,6 +189,11 @@ object ir {
     sealed case class StmtSetField(p: Path, f: FieldName, q: Path) extends Stmt {
         override def toString = "%s->%s = %s;".format(p, f, q)
     }
+    /*
+    sealed case class StmtSubinterval(x: VarName, lp_locks: List[Path], stmts: List[Stmt]) {
+        override def toString = "subinterval %s locks %s {...}".format(x, lp_locks.mkString(", "))
+    }
+    */
     sealed case class StmtHb(p: Path, q: Path) extends Stmt {
         override def toString = "%s hb %s;".format(p, q)        
     }

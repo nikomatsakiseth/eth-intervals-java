@@ -154,6 +154,38 @@ class TestAnalysis extends JUnitSuite {
     }    
     
     @Test
+    def neverLinkedToLockWhichGuardsYou() {
+        tc(
+            """
+            class Data<Lock lock> extends Object<this.lock> {                
+                constructor() {
+                    super();
+                }
+            }
+            
+            class Link extends Object<this.constructor> {
+                Lock lock requires this.constructor;
+                
+                // Although this.data's type mentions this.lock,
+                // the two fields are not linked, because
+                // updates to data can only occur when 
+                // this.lock is constant.
+                Data<this.lock> data requires this.lock;
+                
+                // XXX This error is currently thrown.  I am re-thinking
+                // XXX whether we should be linked to such fields: I now
+                // XXX think that if the guard of a field is writable by
+                // XXX you, then the field itself is writable, and hence linked!
+                constructor(Lock lock) { // ERROR intervals.must.assign.first(this.data)
+                    super();
+                    this->lock = lock; // n.b.: if lock/data WERE linked, would make data invalid
+                }
+            }
+            """
+        )
+    }
+    
+    @Test
     def constructorTypes() {
         tc(
             """
@@ -545,7 +577,7 @@ class TestAnalysis extends JUnitSuite {
         )
     } 
 
-    @Test
+    // XXX Have to fix various problems first: @Test
     def hoh() {
         tc(
             """
@@ -568,8 +600,11 @@ class TestAnalysis extends JUnitSuite {
                     Lock lock = new();
                     this->lock = lock;
                     
-                    // XXX Have to fix it so that data is not linked
-                    // XXX to this->lock!
+                    Data<this.lock> data = null;
+                    this->data = data;
+                    
+                    Link nextLink = null
+                    this->nextLink = nextLink;
                 }
             }
             
