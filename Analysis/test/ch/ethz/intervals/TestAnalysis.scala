@@ -544,6 +544,68 @@ class TestAnalysis extends JUnitSuite {
             """
         )
     } 
+
+    @Test
+    def hoh() {
+        tc(
+            """
+            class Data<Lock lock> extends Object<this.lock> {
+                String fld requires this.lock;
+                
+                constructor() {
+                    super();
+                }                
+            }
+            
+            class Link extends Object<this.constructor> {
+                Lock lock requires this.constructor;
+                
+                Data<this.lock> data requires this.lock;
+                Link nextLink requires this.lock;
+                
+                constructor() {
+                    super();
+                    Lock lock = new();
+                    this->lock = lock;
+                    
+                    // XXX Have to fix it so that data is not linked
+                    // XXX to this->lock!
+                }
+            }
+            
+            class HohLink extends Interval {
+                Link link requires this.constructor;
+                
+                constructor(Link link) {
+                    super();
+                    this->link = link;                 
+                    this locks link.lock; // XXX have to convey this information to methods
+                }
+                
+                Data<this.link.lock> transform(Data<this.link.lock> inData) 
+                requires this.link.lock writableBy method
+                {
+                    Data<this.link.lock> outData = new();
+                    String fld = inData->fld;
+                    outData->fld = fld;
+                    return outData;
+                }
+                
+                Void run() {
+                    // Update data:
+                    Data<this.link.lock> oldData = this.link->data;
+                    Data<this.link.lock> newData = this->transform(oldData);
+                    this.link->data = newData;
+                    
+                    // Start next link:
+                    Link nextLink = this.link->nextLink;
+                    HohLink nextInter = new(nextLink);
+                    //XXX nextInter.start hb this.end;
+                }                
+            }
+            """
+        )
+    }
     
     @Test
     def bbpcData() {

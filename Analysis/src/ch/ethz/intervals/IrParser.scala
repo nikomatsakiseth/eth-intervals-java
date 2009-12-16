@@ -13,7 +13,7 @@ class IrParser extends StandardTokenParsers {
     lexical.reserved += (
         "class", "new", "constructor", "null", 
         "return", "Rd", "Wr", "Free", "extends", 
-        "hb", "requires", "super",
+        "hb", "requires", "super", "locks",
         "subinterval", "readableBy", "writableBy"
     )
     

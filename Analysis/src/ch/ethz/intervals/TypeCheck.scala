@@ -296,13 +296,13 @@ class TypeCheck(log: Log, prog: Prog) {
                     case None if f == ir.f_ctor =>
                         val tp_f = ir.TeePee(ir.t_interval, p_0 + f, tp_0.as.withGhost)
                         if(!tp_0.wt.as.ctor) // is tp_0 fully constructed?
-                            addDeclaredReadableBy(tp_f, tp_cur) // then .constructor is readable
+                            addHb(tp_f, tp_cur) // then .constructor happened before (now constant)
                         tp_f
                         
                     // The path is p_0.super, which we handle specially:
                     case None if f == ir.f_super =>
                         val tp_f = ir.TeePee(ir.t_interval, p_0 + f, tp_0.as.withGhost)
-                        addDeclaredReadableBy(tp_f, tp_cur) // x.super is always readable
+                        addHb(tp_f, tp_cur) // x.super always happened before (now constant)
                         tp_f
                         
                     // The path p_0.f names a real field f:
