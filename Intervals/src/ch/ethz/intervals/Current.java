@@ -18,7 +18,7 @@ class Current {
 		return local.get();
 	}
 	
-	static Current push(PointImpl start, PointImpl end) {
+	static Current push(Point start, Point end) {
 		Current c = get();
 		Current n = new Current(c, start, end);
 		local.set(n);
@@ -26,27 +26,27 @@ class Current {
 	}
 	
 	public Current prev;
-	public PointImpl start;
-	public PointImpl end;
-	public IntervalImpl unscheduled;
+	public Point start;
+	public Point end;
+	public Interval unscheduled;
 
-	Current(Current prev, PointImpl start, PointImpl end) {
+	Current(Current prev, Point start, Point end) {
 		this.prev = prev;
 		this.start = start;
 		this.end = end;
 	}
 	
-	void addUnscheduled(IntervalImpl interval) {
+	void addUnscheduled(Interval interval) {
 		interval.nextUnscheduled = unscheduled;
 		unscheduled = interval;
 	}
 	
-	boolean isUnscheduled(PointImpl pnt) {
+	boolean isUnscheduled(Point pnt) {
 		return pnt.isUnscheduled(this);
 	}
 
-	void schedule(IntervalImpl interval) {
-		IntervalImpl p = unscheduled;
+	void schedule(Interval interval) {
+		Interval p = unscheduled;
 		
 		if(p == interval) {
 			unscheduled = interval.nextUnscheduled;
@@ -65,25 +65,25 @@ class Current {
 	}
 
 	void schedule() {
-		IntervalImpl p = unscheduled;
+		Interval p = unscheduled;
 		while(p != null) {
 			scheduleUnchecked(p);
 			
-			IntervalImpl n = p.nextUnscheduled;
+			Interval n = p.nextUnscheduled;
 			p.nextUnscheduled = null;
 			p = n;
 		}
 		unscheduled = null;
 	}
 
-	private void scheduleUnchecked(IntervalImpl p) {
+	private void scheduleUnchecked(Interval p) {
 		assert p.start.isUnscheduled(this);
 		assert p.end.isUnscheduled(this);
 		
 		// Add dependencies is user-provided code,
 		// so it could fail in any which way:
 		try {
-			p.task.addDependencies(p);
+			p.addDependencies();
 		} catch(Throwable t) {
 			end.addPendingException(t);
 		}
@@ -102,7 +102,7 @@ class Current {
 		if(SAFETY_CHECKS) {
 			if(end == to)
 				return;
-			if(isUnscheduled((PointImpl) to))
+			if(isUnscheduled((Point) to))
 				return;
 			if(end.hb(to))
 				return;

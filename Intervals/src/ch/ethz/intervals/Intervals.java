@@ -11,19 +11,11 @@ public class Intervals {
 	 */
 	public static final boolean SAFETY_CHECKS = true;	
 
-	/** Convenient task that does nothing. */
-	public static final Task emptyTask = new NamedTask("emptyTask");
-
 	/** Final point of the program.  Never occurs until program ends. */
-	static final PointImpl ROOT_END = new PointImpl(1); 
+	static final Point ROOT_END = new Point(1); 
 	
 	/** Shared thread pool that executes tasks. */
 	static final ThreadPool POOL = new ThreadPool();
-	
-	/** Creates a task with a given name that does nothing. */
-	public static Task namedTask(String name) {
-		return new NamedTask(name);
-	}
 	
 	/** 
 	 * Returns {@code i.start()} unless {@code i} is null, 
@@ -42,166 +34,34 @@ public class Intervals {
 			return null;
 		return i.end();
 	}
-
-	/** 
-	 * Creates and returns a new unscheduled interval with no bound.
-	 * You can add additional dependencies by invoking methods on the
-	 * {@code UnscheduledInterval} object.  To obtain the new interval,
-	 * it must be scheduled using {@link UnscheduledInterval#schedule(Task)}.
-	 * 
-	 * Once scheduled, the resulting interval will execute in 
-	 * parallel with the caller.  To create a blocking interval, use
-	 * {@link #blockingInterval(Task)}.
-	 * 
-	 * @see #intervalWithBound(Point)
-	 * @see #blockingInterval(Task)
-	 */
-	public static Interval interval(Task task) {
-		return intervalWithBound(ROOT_END, task);
+	
+	public static Dependency child() {
+		final Current current = Current.get();
+		return new Dependency() {			
+			@Override
+			public Point bound() {
+				return current.end;
+			}
+			
+			@Override
+			public void addHb(Interval inter) {				
+			}
+		};
 	}
 	
-	/**
-	 * Returns an interval whose bound is the end of the current interval.
-	 * @see #intervalWithBound(Point, Task)
-	 */
-	public static Interval childInterval(Task task) {
-		// No need for safety checks, it's always legal to create a child interval.
-		// The only path it creates is current.start ~~> current.end,
-		// which already exists.
-		Current current = Current.get();
-		return intervalWithBoundUnchecked(current.end, task, current);
-	}
-
-	/**
-	 * Returns an interval whose bound is the same as the bound of the current interval.
-	 * @throws CycleException if invoked when the current interval is the root interval.
-	 */
-	public static Interval siblingInterval(Task task) {
-		Current current = Current.get();
-		return siblingInterval(current, task);
-	}
-
-	static IntervalImpl siblingInterval(Current current, Task task) {
-		// Cannot be invoked on the root interval:
-		if(current.end == ROOT_END)
-			throw new CycleException(ROOT_END, ROOT_END);
-		
-		// No need for safety checks, it's always legal to create a sibling interval:
-		// The only path it creates is current.start ~~> current.end.bound,
-		// which already exists.
-		return intervalWithBoundUnchecked(current.end.bound, task, current);
-	}
-	
-	/**
-	 * Like {@link #siblingInterval(Task)}, but adds an edge
-	 * {@code current.end -> result.start} so that the returned 
-	 * interval does not begin until the current interval has completed.
-	 */
-	public static Interval successorInterval(Task task) {
-		Current current = Current.get();
-		
-		IntervalImpl result = siblingInterval(current, task);
-		
-		// No need for safety checks when adding the successor edge.
-		// The only points reachable from result.start are result.end (freshly 
-		// created) and current.end.bound (already reachable from current.end).
-		current.end.addEdgeAndAdjust(result.start, NORMAL);
-		
-		return result;
-	}
-	
-	/** 
-	 * Creates and returns a new unscheduled interval with a bound
-	 * {@code bnd}.  A bound is effectively a dependency {@code endBefore(bnd)},
-	 * but has additional ramifications when doing dynamic race detection.
-	 * 
-	 * You can add additional dependencies by invoking methods on the
-	 * {@code UnscheduledInterval} object.  To obtain the new interval,
-	 * it must be scheduled using {@link UnscheduledInterval#schedule(Task)}.
-	 *  
-	 * Once scheduled, the resulting interval will execute in 
-	 * parallel with the caller.  To create a blocking interval, use
-	 * {@link #blockingInterval(Task)}.
-	 * 
-	 * @see #interval()
-	 * @see #intervalDuring(Interval)
-	 * @see #blockingInterval(Task)
-	 */
-	public static Interval intervalWithBound(Point bnd, Task task) {
-		Current current = Current.get();
-		return intervalWithBound(current, bnd, task);
-	}
-
-	static IntervalImpl intervalWithBound(Current current, Point bnd, Task task) {
-		// Note: if this check passes, then no need to check for cycles 
-		// for the path from current.start->bnd.  This is because we require
-		// one of the following three conditions to be true, and in all three
-		// cases a path current.start->bnd must already exist:
-		// (1) Bound was created by us and is unscheduled.  Then a
-		//     path current.start->bnd was already added.
-		// (2) Bound is current.end.  current.start->current.end.
-		// (3) A path exists from current.end -> bnd.  Same as (2).
-		current.checkCanAddDep(bnd);
-		
-		IntervalImpl result = intervalWithBoundUnchecked(bnd, task, current);		
-		return result;
-	}
-	
-	static IntervalImpl intervalWithBoundUnchecked(
-			Point bnd,
-			Task task, 
-			Current current) 
-	{
-		// Create new points:
-		PointImpl bndImpl = (PointImpl) bnd;
-		PointImpl end = new PointImpl(current, bndImpl, 2); // waiting for task, start 
-		PointImpl start = new PointImpl(current, end, 1);   // waiting to be scheduled
-		
-		// Create interval and add to unscheduled list:
-		IntervalImpl result = new IntervalImpl(task, start, end);		
-		start.setWorkItemBeforeScheduling(result);
-		current.addUnscheduled(result);
-		
-		// Add edge current.start -> start, end -> bnd:
-		bndImpl.addWaitCount(); 
-		if(current.start != null) 
-			current.start.addEdgeAfterOccurredWithoutException(start, NORMAL);
-		
-		ExecutionLog.logNewInterval(current.start, start, end);
-		ExecutionLog.logScheduleInterval(start, task); // XXX this event is no longer logically separate
-		return result;
-	}
-	
-	/** 
-	 * Creates and returns a new unscheduled interval with a bound
-	 * {@code interval.end()} and which always starts after
-	 * {@code interval.start()}.
-	 * 
-	 * You can add additional dependencies by invoking methods on the
-	 * {@code UnscheduledInterval} object.  To obtain the new interval,
-	 * it must be scheduled using {@link UnscheduledInterval#schedule(Task)}.
-	 *  
-	 * Once scheduled, the resulting interval will execute in 
-	 * parallel with the caller.  To create a blocking interval, use
-	 * {@link #blockingInterval(Task)}.
-	 * 
-	 * @see #interval()
-	 * @see #intervalWithBound(Point) 
-	 * @see #blockingInterval(Task)
-	 */
-	public static Interval intervalDuring(Interval interval, Task task) {		
-		Interval result = intervalWithBound(interval.end(), task);
-		
-		PointImpl intervalStart = (PointImpl) interval.start();
-		PointImpl resultStart = (PointImpl) result.start();
-		
-		// No need to check for cycle or other safety conditions.  
-		// We already created a path result.start->interval.end, and 
-		// result has no other outgoing edges.  Therefore, adding a path 
-		// interval.start->result.start does not cause any paths which do 
-		// not already exist.
-		intervalStart.addEdgeAndAdjust(resultStart, NORMAL);
-		return result;
+	public static Dependency sibling() {
+		final Current current = Current.get();
+		return new Dependency() {			
+			@Override
+			public Point bound() {
+				return current.end.bound;
+			}
+			
+			@Override
+			public void addHb(Interval inter) {	
+				Intervals.addHb(current.end, inter.start);
+			}
+		};		
 	}
 	
 	/** 
@@ -293,8 +153,8 @@ public class Intervals {
 		//   If safety checks are enabled, then we initially record
 		//   the edge as non-deterministic until we have confirmed
 		//   that it causes no problems.
-		PointImpl fromImpl = (PointImpl) from;
-		PointImpl toImpl = (PointImpl) to;
+		Point fromImpl = (Point) from;
+		Point toImpl = (Point) to;
 		
 		if(!SAFETY_CHECKS) {
 			fromImpl.addEdgeAndAdjust(toImpl, NORMAL);
@@ -311,8 +171,8 @@ public class Intervals {
 	/** Helper method of {@link #addHb(Point, Point)}.
 	 *  Pulled apart for use with testing. */
 	static void optimisticallyAddEdge(
-			PointImpl fromImpl,
-			PointImpl toImpl) 
+			Point fromImpl,
+			Point toImpl) 
 	{
 		// Note: the edge is considered speculative until we have
 		// verified that the resulting graph is acyclic.
@@ -322,8 +182,8 @@ public class Intervals {
 	/** Helper method of {@link #addHb(Point, Point)}.
 	 *  Pulled apart for use with testing. */
 	static void checkForCycleAndRecover(
-			PointImpl fromImpl,
-			PointImpl toImpl) 
+			Point fromImpl,
+			Point toImpl) 
 	{
 		if(toImpl.hb(fromImpl, 0)) {
 			recoverFromCycle(fromImpl, toImpl);
@@ -335,7 +195,7 @@ public class Intervals {
 
 	/** Helper method of {@link #addHb(Point, Point)}.
 	 *  Pulled apart for use with testing. */
-	static void recoverFromCycle(PointImpl fromImpl, PointImpl toImpl) {
+	static void recoverFromCycle(Point fromImpl, Point toImpl) {
 		// Uh-oh, error, go into damage control.
 		fromImpl.unAddEdge(toImpl);
 	}
@@ -347,7 +207,7 @@ public class Intervals {
 	public static void exclusiveLock(Interval interval, Guard guard) {
 		if(interval != null && guard != null) {
 			Current current = Current.get();
-			PointImpl start = (PointImpl) interval.start();
+			Point start = (Point) interval.start();
 			current.checkCanAddDep(start);
 			start.addPendingLock((GuardImpl) guard, true);
 		}
@@ -361,23 +221,10 @@ public class Intervals {
 	public static void schedule() {
 		Current.get().schedule();
 	}
-	
-	/**
-	 * Creates an asynchronous point.
-	 * 
-	 * @see AsyncPoint
-	 */
-	public static AsyncPoint asyncPoint(Point bound, int cnt) {
-		Current current = Current.get();
-		current.checkCanAddDep(bound);
-		PointImpl boundImpl = (PointImpl) bound;
-		boundImpl.addWaitCount();
-		return new AsyncPointImpl(null, boundImpl, cnt);
-	}
 
 	/** Waits for {@code ep} to complete and returns its result.
 	 *  Resets the currentInterval afterwards. */
-	static void join(PointImpl pnt) {
+	static void join(Point pnt) {
 		if(Debug.ENABLED)
 			Debug.join(pnt);
 		pnt.join();
@@ -393,14 +240,29 @@ public class Intervals {
 	 * wrapped in {@link RethrownException} and rethrown immediately.
 	 * Exceptions never propagate to the current interval.
 	 */
-	public static void blockingInterval(Task task) 
+	public static <R> R blockingInterval(final Subinterval<R> task) 
 	{		
+		class Box {
+			R result;
+		}
+		final Box box = new Box();
+		
 		// This could be made more optimized, but it will do for now:
 		Current current = Current.get();
-		IntervalImpl subinterval = intervalWithBoundUnchecked(current.end, task, current);
-		subinterval.end.addFlagBeforeScheduling(PointImpl.FLAG_MASK_EXC);
+		Interval subinterval = new Interval(current.end) {			
+			protected void run() {
+				box.result = task.run(this);
+			}
+			
+			public String toString() {
+				return task.toString();
+			}
+		}; 
+		
+		subinterval.end.addFlagBeforeScheduling(Point.FLAG_MASK_EXC);
 		current.schedule(subinterval);
-		join(subinterval.end); // may well throw an exception
+		join(subinterval.end); // may throw an exception
+		return box.result;
 	}
 	
 	/** 

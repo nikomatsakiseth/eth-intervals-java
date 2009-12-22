@@ -27,18 +27,18 @@ class EdgeList implements Cloneable {
 	static private final int SHIFT2 = CNT_FLAGS*2;
 	
 	private int flags;
-	private PointImpl toPoint0;
-	private PointImpl toPoint1;
-	private PointImpl toPoint2;
+	private Point toPoint0;
+	private Point toPoint1;
+	private Point toPoint2;
 	private EdgeList next;
 	
-	private EdgeList(PointImpl pnt0, int flags, EdgeList next) {
+	private EdgeList(Point pnt0, int flags, EdgeList next) {
 		this.flags = flags;
 		this.toPoint0 = pnt0;
 		this.next = next;
 	}
 	
-	private boolean add(PointImpl toPoint, int toFlags) {
+	private boolean add(Point toPoint, int toFlags) {
 		if(toPoint0 == null) {
 			toPoint0 = toPoint;
 			flags |= toFlags << SHIFT0;
@@ -56,14 +56,14 @@ class EdgeList implements Cloneable {
 		}
 	}
 	
-	public static EdgeList add(EdgeList list, PointImpl toPoint, int toFlags) {
+	public static EdgeList add(EdgeList list, Point toPoint, int toFlags) {
 		assert (toFlags & ALL_FLAGS) == toFlags; // No extra bits.
 		if(list != null && list.add(toPoint, toFlags))
 			return list;
 		return new EdgeList(toPoint, toFlags, list);		
 	}
 
-	public static void remove(EdgeList list, PointImpl toImpl) {
+	public static void remove(EdgeList list, Point toImpl) {
 		for(; list != null; list = list.next) {
 			if(list.toPoint0 == toImpl) {
 				list.toPoint0 = null;
@@ -85,7 +85,7 @@ class EdgeList implements Cloneable {
 	 *  also adding the flags in {@code addFlags}. */
 	public static void removeSpeculativeFlagAndAdd(
 			EdgeList list, 
-			PointImpl toImpl, 
+			Point toImpl, 
 			int addFlags) 
 	{
 		assert (addFlags & ~ALL_FLAGS) == 0;
@@ -137,7 +137,7 @@ class EdgeList implements Cloneable {
 		 * {@link EdgeList#ALL_FLAGS} so be sure to mask if needed.
 		 * @return true if we should break out of the loop
 		 */
-		public abstract boolean forEach(PointImpl toPoint, int flags);
+		public abstract boolean forEach(Point toPoint, int flags);
 		
 	}
 
@@ -147,12 +147,12 @@ class EdgeList implements Cloneable {
 			super(list);
 		}
 
-		/** Like {@link Iterator#forEach(PointImpl, int)} but with
+		/** Like {@link Iterator#forEach(Point, int)} but with
 		 *  no possibility to break out of the loop. */
-		public abstract void doForEach(PointImpl toPoint, int flags);
+		public abstract void doForEach(Point toPoint, int flags);
 
 		@Override
-		public final boolean forEach(PointImpl toPoint, int flags) {
+		public final boolean forEach(Point toPoint, int flags) {
 			doForEach(toPoint, flags);
 			return false;
 		}

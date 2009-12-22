@@ -2,25 +2,42 @@ package ch.ethz.intervals;
 
 /** Base class for tasks with an extended setup period.  
  *  @see {@link #setup(Point, Interval)}.  */
-public abstract class SetupTask extends AbstractTask {
+public abstract class SetupInterval extends Interval {
+
+	public SetupInterval(Dependency dep) {
+		super(dep);
+	}
 
 	@Override
-	public void run(final Point parentEnd) {
-		Intervals.intervalWithBound(parentEnd, new AbstractTask() {
-			
-			@Override
-			public String toString() {
-				return "Setup";
-			}
-			
-			@Override
-			public void run(Point setupEnd) {
-				Interval worker = Intervals.intervalWithBound(parentEnd, Intervals.namedTask("worker"));
-				Intervals.addHb(setupEnd, worker.start());
+	public void run() {
+		final Point parentEnd = end;
+		new Interval(parentEnd) {
+			protected void run() {				
+				final Point setupEnd = end;
+				Interval worker = new Interval(parentEnd) {
+					@Override
+					protected void addDependencies() {
+						super.addDependencies();
+						Intervals.addHb(setupEnd, start());
+					}
+
+					@Override
+					protected void run() {						
+					}
+					
+					@Override
+					public String toString() {
+						return "worker";
+					}
+				};
 				setup(setupEnd, worker);
 			}
 			
-		});
+			@Override
+			public String toString() {
+				return "setup";
+			}
+		};
 	}
 	
 	/**

@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import ch.ethz.intervals.IndexedTask.Subtask;
+import ch.ethz.intervals.IndexedInterval.Subtask;
 import ch.ethz.intervals.ThreadPool.WorkItem;
 import ch.ethz.intervals.ThreadPool.Worker;
 
@@ -43,11 +43,11 @@ class Debug {
 	static abstract class Event {}
 
 	static class ArriveEvent extends Event {
-		public final PointImpl point;
+		public final Point point;
 		public final int count;
 		public final int newCount;
 		
-		public ArriveEvent(PointImpl point, int count, int newCount) {
+		public ArriveEvent(Point point, int count, int newCount) {
 			this.point = point;
 			this.count = count;
 			this.newCount = newCount;
@@ -58,16 +58,16 @@ class Debug {
 		}
 	}
 	
-	public static void arrive(PointImpl point, int count, int newCount) {
+	public static void arrive(Point point, int count, int newCount) {
 		if(ENABLED_WAIT_COUNTS)
 			addEvent(new ArriveEvent(point, count, newCount));
 	}
 
 	static class OccurEvent extends Event {
-		public final PointImpl point;
+		public final Point point;
 		public final EdgeList list;
 		
-		public OccurEvent(PointImpl point, EdgeList list) {
+		public OccurEvent(Point point, EdgeList list) {
 			this.point = point;
 			this.list = list;
 		}				
@@ -77,7 +77,7 @@ class Debug {
 			sb.append(String.format("OCCUR %s bound %s succs", point, point.bound()));
 			
 			new EdgeList.Iterator(list) {
-				public void doForEach(PointImpl toPoint, int flags) {
+				public void doForEach(Point toPoint, int flags) {
 					if(EdgeList.waiting(flags))
 						sb.append(String.format(" %s(%x)", toPoint, flags & EdgeList.ALL_FLAGS));					
 				}
@@ -87,15 +87,15 @@ class Debug {
 		}
 	}
 	
-	public static void occur(PointImpl point, EdgeList list) {
+	public static void occur(Point point, EdgeList list) {
 		if(ENABLED_WAIT_COUNTS)
 			addEvent(new OccurEvent(point, list));
 	}
 	
 	static class JoinEvent extends Event {
-		public final PointImpl joinedPnt;
+		public final Point joinedPnt;
 		
-		public JoinEvent(PointImpl joinedPnt) {
+		public JoinEvent(Point joinedPnt) {
 			this.joinedPnt = joinedPnt;
 		}
 		
@@ -104,15 +104,15 @@ class Debug {
 		}
 	}
 	
-	public static void join(PointImpl joinedPnt) {
+	public static void join(Point joinedPnt) {
 		addEvent(new JoinEvent(joinedPnt));
 	}
 
 	static class NewIntervalEvent extends Event {
-		public final IntervalImpl inter;
+		public final Interval inter;
 		public final String description;
 
-		public NewIntervalEvent(IntervalImpl inter, String description) {
+		public NewIntervalEvent(Interval inter, String description) {
 			this.inter = inter;
 			this.description = description;
 		}
@@ -122,16 +122,16 @@ class Debug {
 		}
 	}
 	
-	public static void newInterval(IntervalImpl inter, String description) {
+	public static void newInterval(Interval inter, String description) {
 		if(ENABLED_INTER)
 			addEvent(new NewIntervalEvent(inter, description));
 	}
 
 	static class AddWaitCountEvent extends Event {
-		public final PointImpl point;		
+		public final Point point;		
 		public final int newCount;
 		
-		public AddWaitCountEvent(PointImpl point, int newCount) {
+		public AddWaitCountEvent(Point point, int newCount) {
 			this.point = point;
 			this.newCount = newCount;
 		}
@@ -141,7 +141,7 @@ class Debug {
 		}
 	}
 	
-	public static void addWaitCount(PointImpl point, int newCount) {
+	public static void addWaitCount(Point point, int newCount) {
 		if(ENABLED_WAIT_COUNTS)
 			addEvent(new AddWaitCountEvent(point, newCount));
 	}
@@ -310,9 +310,9 @@ class Debug {
 	static class MapForkEvent extends Event {
 		public final Subtask mapBase, mapFork;
 		public final int b;
-		public final IndexedTask mapTask;
+		public final IndexedInterval mapTask;
 		
-		public MapForkEvent(IndexedTask mapTask, Subtask mapBase, Subtask mapFork, int b) {
+		public MapForkEvent(IndexedInterval mapTask, Subtask mapBase, Subtask mapFork, int b) {
 			this.mapTask = mapTask;
 			this.mapBase = mapBase;
 			this.mapFork = mapFork;
@@ -325,18 +325,18 @@ class Debug {
 		}
 	}
 
-	public static void mapFork(IndexedTask mapTask, Subtask mapBase, Subtask mapFork, int b) {
+	public static void mapFork(IndexedInterval mapTask, Subtask mapBase, Subtask mapFork, int b) {
 		if(ENABLED_WORK_STEAL)
 			addEvent(new MapForkEvent(mapTask, mapBase, mapFork, b));
 	}
 
 	static class MapCompleteEvent extends Event {
-		public final IndexedTask mapTask;
+		public final IndexedInterval mapTask;
 		public final Subtask mapBase;
 		public final int b;
 		public final Point whenDone;
 		
-		public MapCompleteEvent(IndexedTask mapTask, Subtask mapBase, int b, Point whenDone) {
+		public MapCompleteEvent(IndexedInterval mapTask, Subtask mapBase, int b, Point whenDone) {
 			this.mapTask = mapTask;
 			this.mapBase = mapBase;
 			this.b = b;
@@ -349,17 +349,17 @@ class Debug {
 		}
 	}
 
-	public static void mapComplete(IndexedTask mapTask, Subtask mapBase, int b, Point whenDone) {
+	public static void mapComplete(IndexedInterval mapTask, Subtask mapBase, int b, Point whenDone) {
 		if(ENABLED_WORK_STEAL)
 			addEvent(new MapCompleteEvent(mapTask, mapBase, b, whenDone));
 	}
 
 	static class MapRunEvent extends Event {
-		public final IndexedTask mapTask;
+		public final IndexedInterval mapTask;
 		public final Subtask mapBase;
 		public final int l, h;
 		
-		public MapRunEvent(IndexedTask mapTask, Subtask mapBase, int l, int h) {
+		public MapRunEvent(IndexedInterval mapTask, Subtask mapBase, int l, int h) {
 			this.mapTask = mapTask;
 			this.mapBase = mapBase;
 			this.l = l;
@@ -372,7 +372,7 @@ class Debug {
 		}
 	}
 	
-	public static void mapRun(IndexedTask mapTask, Subtask mapBase, int l, int h) {
+	public static void mapRun(IndexedInterval mapTask, Subtask mapBase, int l, int h) {
 		if(ENABLED_WORK_STEAL)
 			addEvent(new MapRunEvent(mapTask, mapBase, l, h));
 	}
@@ -400,13 +400,13 @@ class Debug {
 
 	static class AddExclusiveEvent extends Event {
 		public final GuardImpl guard;
-		public final PointImpl prevOwner;
-		public final PointImpl newOwner;
+		public final Point prevOwner;
+		public final Point newOwner;
 		
 		public AddExclusiveEvent(
 				GuardImpl guard, 
-				PointImpl prevOwner,
-				PointImpl newOwner) 
+				Point prevOwner,
+				Point newOwner) 
 		{
 			super();
 			this.guard = guard;
@@ -419,19 +419,19 @@ class Debug {
 		}
 	}
 	
-	public static void exclusiveLock(GuardImpl guardImpl, PointImpl prevOwner, PointImpl newOwner) {
+	public static void exclusiveLock(GuardImpl guardImpl, Point prevOwner, Point newOwner) {
 		if(ENABLED_LOCK)
 			addEvent(new AddExclusiveEvent(guardImpl, prevOwner, newOwner));
 	}
 
 	static class AddSharedEvent extends Event {
 		public final GuardImpl guard;
-		public final PointImpl prevOwner;
-		public final PointImpl readInterval;
-		public final PointImpl inter;
+		public final Point prevOwner;
+		public final Point readInterval;
+		public final Point inter;
 		
-		public AddSharedEvent(GuardImpl guard, PointImpl prevOwner,
-				PointImpl readInterval, PointImpl inter) {
+		public AddSharedEvent(GuardImpl guard, Point prevOwner,
+				Point readInterval, Point inter) {
 			super();
 			this.guard = guard;
 			this.prevOwner = prevOwner;
@@ -446,9 +446,9 @@ class Debug {
 	
 	public static void sharedLock(
 			GuardImpl guardImpl, 
-			PointImpl prevOwner,
-			PointImpl readInterval, 
-			PointImpl inter) {
+			Point prevOwner,
+			Point readInterval, 
+			Point inter) {
 		if(ENABLED_LOCK)
 			addEvent(new AddSharedEvent(guardImpl, prevOwner, readInterval, inter));
 	}

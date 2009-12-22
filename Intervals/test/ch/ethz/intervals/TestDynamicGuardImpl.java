@@ -7,13 +7,13 @@ import org.junit.Test;
 
 public class TestDynamicGuardImpl {
 	
-	IntervalImpl a;
-	IntervalImpl b;
-	IntervalImpl b1, b11;
-	IntervalImpl b2;
-	IntervalImpl c;
+	Interval a;
+	Interval b;
+	Interval b1, b11;
+	Interval b2;
+	Interval c;
 	
-	IntervalImpl l1, l2;
+	Interval l1, l2;
 	
 	DynamicGuardImpl dg;
 	
@@ -41,19 +41,19 @@ public class TestDynamicGuardImpl {
 		Intervals.blockingInterval(new SetupTask() {
 			@Override
 			public void setup(Point currentEnd, Interval worker) {
-				a = (IntervalImpl) intervalDuring(worker, debugTask("a"));
-				b = (IntervalImpl) intervalDuring(worker, debugTask("b"));
-				c = (IntervalImpl) intervalDuring(worker, debugTask("c"));
-				b1 = (IntervalImpl) intervalDuring(b, debugTask("b1"));
-				b11 = (IntervalImpl) intervalDuring(b, debugTask("b11"));
-				b2 = (IntervalImpl) intervalDuring(b, debugTask("b2"));
+				a = (Interval) intervalDuring(worker, debugTask("a"));
+				b = (Interval) intervalDuring(worker, debugTask("b"));
+				c = (Interval) intervalDuring(worker, debugTask("c"));
+				b1 = (Interval) intervalDuring(b, debugTask("b1"));
+				b11 = (Interval) intervalDuring(b, debugTask("b11"));
+				b2 = (Interval) intervalDuring(b, debugTask("b2"));
 				
 				Intervals.addHb(a.end(), b.start());
 				Intervals.addHb(b.end(), c.start());
 				Intervals.addHb(b1.end(), b11.start());
 				
-				l1 = (IntervalImpl) intervalDuring(b, debugTask("l1"));
-				l2 = (IntervalImpl) intervalDuring(b, debugTask("l2"));
+				l1 = (Interval) intervalDuring(b, debugTask("l1"));
+				l2 = (Interval) intervalDuring(b, debugTask("l2"));
 				
 				Intervals.exclusiveLock(l1, dg);
 				Intervals.exclusiveLock(l2, dg);

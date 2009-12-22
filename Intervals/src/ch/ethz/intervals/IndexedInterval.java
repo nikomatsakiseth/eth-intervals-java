@@ -23,18 +23,19 @@ import static ch.ethz.intervals.Intervals.POOL;
  * @param count the number of times to invoke {@code task}
  * @param task the task to invoke
  */
-public abstract class IndexedTask extends AbstractTask {
+public abstract class IndexedInterval extends Interval {
 	private final int lo0, hi0;
 	private final int threshold;
 	private Point parentEnd;
 
 	/** {@link #run(Point, int, int)} will be invoked from all indices i where {@code 0 <= i < count} */
-	protected IndexedTask(int count) {
-		this(0, count);
+	public IndexedInterval(Point bound, int count) {
+		this(bound, 0, count);
 	}
 	
 	/** {@link #run(Point, int, int)} will be invoked from all indices i where {@code lo <= i < hi} */
-	protected IndexedTask(int lo, int hi) {
+	public IndexedInterval(Point bound, int lo, int hi) {
+		super(bound);
 		this.lo0 = lo;
 		this.hi0 = hi;
 		
@@ -51,17 +52,17 @@ public abstract class IndexedTask extends AbstractTask {
 	abstract public void run(Point parentEnd, int fromIndex, int toIndex);
 
 	@Override
-	public final void run(Point currentEnd) {
-		parentEnd = currentEnd;
-    	Subtask mt = new Subtask(lo0, hi0);
-		mt.run(currentEnd);
+	public final void run() {
+		parentEnd = end();
+    	new Subtask(parentEnd, lo0, hi0);
 	}
 	
-	final class Subtask extends AbstractTask {
+	final class Subtask extends Interval {
         final int lo;
         final int hi;
 		
-        Subtask(int lo, int hi) {
+        Subtask(Point bound, int lo, int hi) {
+        	super(bound);
             this.lo = lo;
             this.hi = hi;
         }
@@ -71,27 +72,23 @@ public abstract class IndexedTask extends AbstractTask {
         }
 
 		@Override
-		public void run(Point _) {
+		public void run() {
             int l = lo;
             int h = hi;
             if (h - l > threshold) {
             	// Divvy up l-h into chunks smaller than threshold:
-            	Current current = Current.get();
             	final int g = threshold;
                 do {
                     int rh = h;
                     h = (l + h) >>> 1;
-                    Intervals.intervalWithBoundUnchecked(
-                    		parentEnd, 
-                    		new Subtask(h, rh), 
-                    		current);
-                    current.schedule();
+                    Subtask t = new Subtask(bound(), h, rh);
+                    t.schedule();
                 } while (h - l > g);
                 
             }
             
             // Run what's left:
-            IndexedTask.this.run(parentEnd, l, h);            	
+            IndexedInterval.this.run(parentEnd, l, h);            	
 		}		
 	}
 

@@ -169,14 +169,14 @@ public class TestInterval {
 		Intervals.blockingInterval(new AbstractTask() {
 			@Override
 			public void run(Point end) {
-				IntervalImpl worker = (IntervalImpl) intervalWithBound(end, emptyTask);
-				IntervalImpl d = (IntervalImpl) intervalDuring(worker, emptyTask);
-				IntervalImpl k = (IntervalImpl) intervalDuring(d, emptyTask);
-				IntervalImpl n = (IntervalImpl) intervalDuring(d, emptyTask);
-				IntervalImpl a = (IntervalImpl) intervalDuring(worker, emptyTask);
-				IntervalImpl m = (IntervalImpl) intervalDuring(a, emptyTask);
-				IntervalImpl t = (IntervalImpl) intervalDuring(a, emptyTask);
-				IntervalImpl s = (IntervalImpl) intervalDuring(t, emptyTask);
+				Interval worker = (Interval) intervalWithBound(end, emptyTask);
+				Interval d = (Interval) intervalDuring(worker, emptyTask);
+				Interval k = (Interval) intervalDuring(d, emptyTask);
+				Interval n = (Interval) intervalDuring(d, emptyTask);
+				Interval a = (Interval) intervalDuring(worker, emptyTask);
+				Interval m = (Interval) intervalDuring(a, emptyTask);
+				Interval t = (Interval) intervalDuring(a, emptyTask);
+				Interval s = (Interval) intervalDuring(t, emptyTask);
 				
 				Assert.assertEquals(d.end, d.end.mutualBound(d.end));
 				Assert.assertEquals(d.end, k.end.mutualBound(n.end));
@@ -713,10 +713,10 @@ public class TestInterval {
 			@Override
 			public void run(Point currentEnd) {
 				IncTask task = new IncTask(cnt);
-				IntervalImpl a = (IntervalImpl) Intervals.childInterval(task);
-				IntervalImpl b = (IntervalImpl) Intervals.childInterval(task);
-				IntervalImpl c = (IntervalImpl) Intervals.childInterval(task);
-				IntervalImpl d = (IntervalImpl) Intervals.childInterval(task);
+				Interval a = (Interval) Intervals.childInterval(task);
+				Interval b = (Interval) Intervals.childInterval(task);
+				Interval c = (Interval) Intervals.childInterval(task);
+				Interval d = (Interval) Intervals.childInterval(task);
 				
 				Intervals.addHb(a.end, c.start);
 				Intervals.addHb(d.end, b.start);
@@ -743,10 +743,10 @@ public class TestInterval {
 			@Override
 			public void run(Point currentEnd) {
 				IncTask task = new IncTask(cnt);
-				IntervalImpl a = (IntervalImpl) Intervals.childInterval(task);
-				IntervalImpl b = (IntervalImpl) Intervals.childInterval(task);
-				IntervalImpl c = (IntervalImpl) Intervals.childInterval(task);
-				IntervalImpl d = (IntervalImpl) Intervals.childInterval(task);
+				Interval a = (Interval) Intervals.childInterval(task);
+				Interval b = (Interval) Intervals.childInterval(task);
+				Interval c = (Interval) Intervals.childInterval(task);
+				Interval d = (Interval) Intervals.childInterval(task);
 				
 				Intervals.addHb(a.end, c.start);
 				Intervals.addHb(d.end, b.start);

@@ -5,8 +5,8 @@ import ch.ethz.intervals.DataRaceException.Role;
 
 class DynamicGuardImpl extends GuardImpl implements DynamicGuard {
 	
-	PointImpl readInterval;
-	PointImpl writeInterval;
+	Point readInterval;
+	Point writeInterval;
 	
 	@Override
 	public void checkRead() throws DataRaceException {
@@ -14,11 +14,11 @@ class DynamicGuardImpl extends GuardImpl implements DynamicGuard {
 		checkRead(current.start, current.end);
 	}
 
-	void checkRead(IntervalImpl b) {
+	void checkRead(Interval b) {
 		checkRead(b.start, b.end);
 	}
 
-	void checkRead(PointImpl start, PointImpl end) {
+	void checkRead(Point start, Point end) {
 		synchronized(this) {
 			checkHb(Role.WRITE, writeInterval, Role.READ, start);
 			
@@ -35,12 +35,12 @@ class DynamicGuardImpl extends GuardImpl implements DynamicGuard {
 		checkWrite(current.start, current.end);
 	}
 
-	void checkWrite(IntervalImpl b) {
+	void checkWrite(Interval b) {
 		checkWrite(b.start, b.end);
 	}
 
-	void checkWrite(PointImpl start, PointImpl end) {
-		PointImpl w, r;
+	void checkWrite(Point start, Point end) {
+		Point w, r;
 		synchronized(this) {
 			r = readInterval;
 			w = writeInterval;
@@ -54,9 +54,9 @@ class DynamicGuardImpl extends GuardImpl implements DynamicGuard {
 	
 	private void checkHb(
 			Role fromRole,
-			PointImpl fromPoint,
+			Point fromPoint,
 			Role toRole,
-			PointImpl toPoint)
+			Point toPoint)
 	{
 		if(fromPoint != null)
 			if(!fromPoint.hb(toPoint, SPECULATIVE))
