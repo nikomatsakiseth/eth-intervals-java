@@ -20,9 +20,11 @@
 
 package jgfmt.section2.lufact;
 
-import ch.ethz.intervals.IndexedTask;
+import ch.ethz.intervals.IndexedInterval;
+import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.Point;
+import ch.ethz.intervals.VoidSubinterval;
 
 class LinpackInterval {
 
@@ -111,23 +113,26 @@ class LinpackInterval {
 
 					// row elimination with column indexing
 					final int k0 = k;
-					IndexedTask it = new IndexedTask(kp1, n) {						
-						@Override
-						public void run(Point parentEnd, int fromIndex, int toIndex) {
-							for(int j = fromIndex; j < toIndex; j++) {
-								double[] col_j = a[j];
-								double t = col_j[l];
-	
-								if (l != k0) {
-									col_j[l] = col_j[k0];
-									col_j[k0] = t;
+					Intervals.blockingInterval(new VoidSubinterval() {						
+						@Override public void run(Interval subinterval) {
+							new IndexedInterval(subinterval, kp1, n) {						
+								@Override
+								public void run(Point parentEnd, int fromIndex, int toIndex) {
+									for(int j = fromIndex; j < toIndex; j++) {
+										double[] col_j = a[j];
+										double t = col_j[l];
+			
+										if (l != k0) {
+											col_j[l] = col_j[k0];
+											col_j[k0] = t;
+										}
+			
+										daxpy(n - (kp1), t, col_k, kp1, 1, col_j, kp1, 1);
+									}
 								}
-	
-								daxpy(n - (kp1), t, col_k, kp1, 1, col_j, kp1, 1);
-							}
+							};
 						}
-					};
-					Intervals.blockingInterval(it);
+					});
 				} 
 			}
 		}

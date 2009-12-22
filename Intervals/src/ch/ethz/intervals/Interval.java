@@ -3,7 +3,7 @@ package ch.ethz.intervals;
 import static ch.ethz.intervals.EdgeList.NORMAL;
 import ch.ethz.intervals.ThreadPool.Worker;
 
-abstract class Interval 
+public abstract class Interval 
 extends ThreadPool.WorkItem 
 implements Dependency
 {	

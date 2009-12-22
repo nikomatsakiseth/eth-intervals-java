@@ -29,13 +29,13 @@ public abstract class IndexedInterval extends Interval {
 	private Point parentEnd;
 
 	/** {@link #run(Point, int, int)} will be invoked from all indices i where {@code 0 <= i < count} */
-	public IndexedInterval(Point bound, int count) {
-		this(bound, 0, count);
+	public IndexedInterval(Dependency dep, int count) {
+		this(dep, 0, count);
 	}
 	
 	/** {@link #run(Point, int, int)} will be invoked from all indices i where {@code lo <= i < hi} */
-	public IndexedInterval(Point bound, int lo, int hi) {
-		super(bound);
+	public IndexedInterval(Dependency dep, int lo, int hi) {
+		super(dep);
 		this.lo0 = lo;
 		this.hi0 = hi;
 		

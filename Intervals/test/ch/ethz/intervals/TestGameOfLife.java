@@ -210,40 +210,45 @@ public class TestGameOfLife {
 		}
 
 		void switchGens(Point endOfThisGen) {
-			Interval switchInterval = Intervals.intervalWithBound(endOfThisGen.bound(), switchGenTask);
-			Intervals.addHb(endOfThisGen, switchInterval.start());
+			Interval switchInterval = new SwitchGenTask(endOfThisGen.bound());
+			Intervals.addHb(endOfThisGen, switchInterval.start);
 			
-			nextGen = Intervals.intervalWithBound(endOfThisGen.bound(), Intervals.emptyTask);
-			Intervals.addHb(switchInterval.end(), nextGen.start());
+			nextGen = new EmptyInterval(endOfThisGen.bound(), "gen");
+			Intervals.addHb(switchInterval.end, nextGen.start);
 			
 			Intervals.schedule();
 		}
 		
-		class SwitchGenTask extends AbstractTask {
+		class SwitchGenTask extends Interval {
 			
+			public SwitchGenTask(Dependency dep) {
+				super(dep);
+			}
+
 			@Override
-			public void run(Point currentEnd) {
+			public void run() {
 				if(gensRemaining-- > 0)
-					switchGens(nextGen.end());
+					switchGens(nextGen.end);
 			}
 			
 		}
-		final SwitchGenTask switchGenTask = new SwitchGenTask();
 		
 		public void startTile(Tile tile, byte[][] inBoard, byte[][] outBoard) {
-			Intervals.intervalDuring(nextGen, new TileTask(tile, inBoard, outBoard));
+			new TileTask(nextGen, tile, inBoard, outBoard);
 		}
 
-		class TileTask extends AbstractTask {
+		class TileTask extends Interval {
 			public final Tile tile;
 			public final byte[][] inBoard;
 			public final byte[][] outBoard;
 			
 			public TileTask(
+					Dependency dep,
 					Tile tile,
 					byte[][] inBoard,
 					byte[][] outBoard) 
 			{
+				super(dep);
 				this.tile = tile;
 				this.inBoard = inBoard;
 				this.outBoard = outBoard;
@@ -255,7 +260,7 @@ public class TestGameOfLife {
 			}			
 			
 			@Override
-			public void run(Point currentEnd) {
+			public void run() {
 				tile.run(inBoard, outBoard);
 				if(gensRemaining > 0)
 					startTile(tile, outBoard, inBoard);					
@@ -266,21 +271,21 @@ public class TestGameOfLife {
 		byte[][] execute() {
 			gensRemaining = numGens;
 			
-			Intervals.blockingInterval(new SubintervalTask(new AbstractTask() {
-				
-				@Override
-				public void run(Point currentEnd) {
-					switchGens(currentEnd);
-					
-					subdivide(rs, cs, w, h, new InvokableWithTile() {					
-						@Override
-						public void run(Tile t) {
-							startTile(t, data[0], data[1]);
+			Intervals.blockingInterval(new VoidSubinterval() {
+				@Override public void run(Interval _) {
+					Intervals.blockingInterval(new VoidSubinterval() {
+						@Override public void run(Interval inner) {
+							switchGens(inner.end);
+							
+							subdivide(rs, cs, w, h, new InvokableWithTile() {					
+								@Override public void run(Tile t) {
+									startTile(t, data[0], data[1]);
+								}
+							});
 						}
 					});
 				}
-				
-			}));
+			});
 
 			return data[numGens % 2];
 		}
@@ -321,12 +326,12 @@ public class TestGameOfLife {
 			super(initialConfiguration, rs, cs, numGens);
 		}
 
-		class ColTask extends IndexedTask {
+		class ColTask extends IndexedInterval {
 			
 			final int row, gen;
 
-			protected ColTask(int gen, int row) {
-				super(1, cs+1);
+			protected ColTask(Dependency dep, int gen, int row) {
+				super(dep, 1, cs+1);
 				this.gen = gen;
 				this.row = row;
 			}
@@ -341,19 +346,19 @@ public class TestGameOfLife {
 			
 		}
 
-		class GenTask extends IndexedTask {
+		class GenTask extends IndexedInterval {
 
 			final int gen;
 
-			protected GenTask(int gen) {
-				super(1, rs+1);
+			protected GenTask(Dependency dep, int gen) {
+				super(dep, 1, rs+1);
 				this.gen = gen;
 			}
 
 			@Override
 			public void run(Point parentEnd, int fromIndex, int toIndex) {
 				for(int r = fromIndex; r < toIndex; r++) {
-					Intervals.childInterval(new ColTask(gen, r));
+					new ColTask(Intervals.child(), gen, r);
 					Intervals.schedule();
 				}
 			}
@@ -362,16 +367,14 @@ public class TestGameOfLife {
 
 		@Override
 		byte[][] execute() {
-			Intervals.blockingInterval(new AbstractTask() {
-				
-				@Override
-				public void run(Point currentEnd) {
+			Intervals.blockingInterval(new VoidSubinterval() {
+				@Override public void run(Interval subinterval) {
 					Point prevGen = null;
 					for(int gen = 0; gen < numGens; gen++) {
-						Interval thisGen = Intervals.childInterval(new GenTask(gen));
-						Intervals.addHb(prevGen, thisGen.start());
+						Interval thisGen = new GenTask(Intervals.child(), gen);
+						Intervals.addHb(prevGen, thisGen.start);
 						Intervals.schedule();
-						prevGen = thisGen.end();
+						prevGen = thisGen.end;
 					}
 				}
 				
@@ -494,21 +497,20 @@ public class TestGameOfLife {
 				final byte[][] inBoard = data[gen % 2];
 				final byte[][] outBoard = data[(gen + 1) % 2];
 				
-				Intervals.blockingInterval(new AbstractTask() {
-					public void run(final Point currentEnd) {
+				Intervals.blockingInterval(new VoidSubinterval() {
+					@Override public void run(final Interval subinterval) {
 						subdivide(rs, cs, w, h, new InvokableWithTile() {
 							public void run(final Tile t) {
-								Intervals.intervalWithBound(currentEnd, new AbstractTask() {
+								new Interval(subinterval.end) {
 									public String toString() 
 									{
 										return "Tile("+t.tr+","+t.tc+")";
 									}
 
-									public void run(Point currentEnd) {
+									public void run() {
 										t.run(inBoard, outBoard);
 									}
-								});
-								
+								};								
 							}
 						});
 					}
@@ -551,34 +553,32 @@ public class TestGameOfLife {
 			points = new Point[2][rs+2][cs+2];
 		}
 
-		class TileTask implements Task {
+		class TileTask extends Interval {
 			public final Tile tile;
 			public final int gen;
 			
-			public TileTask(Tile tile, int gen) {
+			public TileTask(Dependency dep, Tile tile, int gen) {
+				super(dep);
 				this.tile = tile;
 				this.gen = gen;
+				
+				if(gen > 0) {
+					// n.b.: The points array is padded with nulls.
+					Point[][] prevGen = points[(gen - 1) % 2];					
+					for(int r = -1; r <= 1; r++)
+						for(int c = -1; c <= 1; c++) {
+							Intervals.addHb(prevGen[tile.tr+r][tile.tc+c], start);
+						}
+				}
 			}
 
 			public String toString() 
 			{
 				return "Tile("+gen+","+tile.tr+","+tile.tc+")";
 			}
-
-			@Override
-			public void addDependencies(Interval inter) {
-				if(gen > 0) {
-					// n.b.: The points array is padded with nulls.
-					Point[][] prevGen = points[(gen - 1) % 2];					
-					for(int r = -1; r <= 1; r++)
-						for(int c = -1; c <= 1; c++) {
-							Intervals.addHb(prevGen[tile.tr+r][tile.tc+c], inter.start());
-						}
-				}
-			}
 			
 			@Override
-			public void run(Point _) {				
+			public void run() {				
 				final int nextGen = gen + 1;
 				byte[][] inBoard = data[gen % 2];
 				byte[][] outBoard = data[nextGen % 2];
@@ -587,7 +587,7 @@ public class TestGameOfLife {
 				
 				if(nextGen < numGens) {
 					points[nextGen % 2][tile.tr][tile.tc] =
-						Intervals.siblingInterval(new TileTask(tile, nextGen)).end();
+						new TileTask(Intervals.successor(), tile, nextGen).end;
 				}
 			}
 
@@ -596,16 +596,14 @@ public class TestGameOfLife {
 		@Override
 		byte[][] execute() {
 			
-			Intervals.blockingInterval(new AbstractTask() {
-				public void run(Point _) {
-					
+			Intervals.blockingInterval(new VoidSubinterval() {				
+				@Override public void run(Interval subinterval) {
 					subdivide(rs, cs, w, h, new InvokableWithTile() {
 						public void run(Tile t) {
 							points[0][t.tr][t.tc] = 
-								Intervals.childInterval(new TileTask(t, 0)).end();								
+								new TileTask(Intervals.child(), t, 0).end;								
 						}
 					});
-					
 				}
 			});
 			

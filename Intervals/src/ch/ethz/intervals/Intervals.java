@@ -49,7 +49,7 @@ public class Intervals {
 		};
 	}
 	
-	public static Dependency sibling() {
+	public static Dependency successor() {
 		final Current current = Current.get();
 		return new Dependency() {			
 			@Override

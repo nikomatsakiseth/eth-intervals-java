@@ -1,6 +1,8 @@
 package ch.ethz.intervals;
 
 import static ch.ethz.intervals.Intervals.blockingInterval;
+import static ch.ethz.intervals.Intervals.child;
+import static ch.ethz.intervals.Intervals.successor;
 
 import org.junit.Assert;
 
@@ -35,8 +37,8 @@ public class TestPCAgentBB extends TestPCAgent {
 		
 		private final ConsumerData cdataMN; /** Data for consumer #(index-BBSIZE) */
 
-		public ProducerBB(int index, ProducerData producerData, ConsumerData cdataMN) {
-			super(index, producerData);
+		public ProducerBB(Dependency dep, int index, ProducerData producerData, ConsumerData cdataMN) {
+			super(dep, index, producerData);
 			assert cdataMN != null;
 			this.cdataMN = cdataMN;
 		}
@@ -44,11 +46,12 @@ public class TestPCAgentBB extends TestPCAgent {
 		@Override
 		protected Interval nextProducer(ProducerData dataForNextProducer) {	
 			assert cdataMN.dataForNextConsumer != null;
-			Interval inter = Intervals.successorInterval(new ProducerBB(
+			Interval inter = new ProducerBB(
+					successor(),
 					index + 1, 
 					dataForNextProducer, 
-					cdataMN.dataForNextConsumer));
-			Intervals.addHb(cdataMN.endOfNextConsumer, inter.start());
+					cdataMN.dataForNextConsumer);
+			Intervals.addHb(cdataMN.endOfNextConsumer, inter.start);
 			return inter;
 		}
 		
@@ -58,20 +61,21 @@ public class TestPCAgentBB extends TestPCAgent {
 
 		private final ConsumerData cdata; /** Data for consumer #(index-BBSIZE) */
 		
-		public ConsumerBB(int index, Point endOfProducer, ProducerData pdata, ConsumerData cdata) {
-			super(index, endOfProducer, pdata);
+		public ConsumerBB(Dependency dep, int index, Point endOfProducer, ProducerData pdata, ConsumerData cdata) {
+			super(dep, index, endOfProducer, pdata);
 			this.cdata = cdata;
 		}
 		
 		@Override
 		protected void nextConsumer() {
 			cdata.dataForNextConsumer = new ConsumerData(null, null);
-			Interval inter = Intervals.successorInterval(new ConsumerBB(
+			Interval inter = new ConsumerBB(
+					successor(),
 					index + 1,
 					pdata.endOfNextProducer,
 					pdata.dataForNextProducer,
-					cdata.dataForNextConsumer));
-			cdata.endOfNextConsumer = inter.end();
+					cdata.dataForNextConsumer);
+			cdata.endOfNextConsumer = inter.end;
 		}
 
 		
@@ -79,10 +83,8 @@ public class TestPCAgentBB extends TestPCAgent {
 	
 	@Override 
 	protected void runProducerConsumer() {
-		blockingInterval(new AbstractTask() {
-			
-			@Override
-			public void run(Point _) {
+		blockingInterval(new VoidSubinterval() {			
+			@Override public void run(Interval subinterval) {
 				// Data for the 0th producer and consumer:
 				ProducerData pdata0 = new ProducerData();				
 				ConsumerData cdata0 = new ConsumerData(null, null);
@@ -94,9 +96,9 @@ public class TestPCAgentBB extends TestPCAgent {
 				for(int i = -2; i >= -BBSIZE; i--)
 					cdataMN = new ConsumerData(null, cdataMN); // create cdata -i
 				
-				Interval p0 = Intervals.childInterval(new ProducerBB(0, pdata0, cdataMN));
-				Interval c0 = Intervals.childInterval(new ConsumerBB(0, p0.end(), pdata0, cdata0));
-				cdataM1.endOfNextConsumer = c0.end();
+				Interval p0 = new ProducerBB(child(), 0, pdata0, cdataMN);
+				Interval c0 = new ConsumerBB(child(), 0, p0.end, pdata0, cdata0);
+				cdataM1.endOfNextConsumer = c0.end;
 			}
 		});
 	}

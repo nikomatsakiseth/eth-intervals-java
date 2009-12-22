@@ -1,6 +1,7 @@
 package ch.ethz.intervals;
 
 import static ch.ethz.intervals.Intervals.blockingInterval;
+import static ch.ethz.intervals.Intervals.child;
 import static org.junit.Assert.assertEquals;
 
 import java.util.ArrayList;
@@ -27,29 +28,29 @@ public class TestPC {
 	
 	List<Integer> consumed = new ArrayList<Integer>();
 	
-	class Consumer extends AbstractTask {
+	class Consumer extends Interval {
 		public Integer i;
 		
-		private Consumer(Integer i) {
+		public Consumer(Dependency dep, Point endOfPrevConsumer, Integer i) {			
+			super(dep);
+			Intervals.addHb(endOfPrevConsumer, start);
 			this.i = i;
 		}
 
-		public void run(Point currentEnd) {
+		public void run() {
 			consumed.add(i);
 		}
 	}
 	
 	@Test public void test() {
 		final int MAX = 100;
-		blockingInterval(new AbstractTask() {
-			public void run(Point _) {				
+		blockingInterval(new VoidSubinterval() {
+			public void run(Interval subinterval) {
 				Point endOfPrevConsumer = null;
 				for(int i = 0; i < MAX; i++) {
-					Interval cons = Intervals.childInterval(new Consumer(i));
-					Intervals.addHb(endOfPrevConsumer, cons.start());
-					endOfPrevConsumer = cons.end();
+					endOfPrevConsumer = new Consumer(child(), endOfPrevConsumer, i).end;
 				}
-			}			
+			}
 		});
 		for(int i = 0; i < MAX; i++)
 			assertEquals(i, consumed.get(i).intValue());

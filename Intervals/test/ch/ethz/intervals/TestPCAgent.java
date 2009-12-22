@@ -1,6 +1,8 @@
 package ch.ethz.intervals;
 
 import static ch.ethz.intervals.Intervals.blockingInterval;
+import static ch.ethz.intervals.Intervals.child;
+import static ch.ethz.intervals.Intervals.successor;
 import static org.junit.Assert.assertEquals;
 
 import java.util.ArrayList;
@@ -51,54 +53,57 @@ public class TestPCAgent {
 		public ProducerData dataForNextProducer;		
 	}
 	
-	class Producer extends AbstractTask {
+	class Producer extends Interval {
 		protected final ProducerData pdata;
 		protected final int index;
 		
-		public Producer(int index, ProducerData producerData) {
+		public Producer(
+				Dependency dep, 
+				int index, 
+				ProducerData producerData) 
+		{
+			super(dep);
 			this.pdata = producerData;
 			this.index = index;
 		}
 
-		public void run(Point currentEnd) {
+		public void run() {
 			pdata.produced = index;
 			producerTimes.add(stamp.getAndIncrement());
 			
 			if(index + 1 < MAX) { 
 				// Create next producer, if any.  Publish its data and endpoint.
 				pdata.dataForNextProducer = new ProducerData();
-				pdata.endOfNextProducer = nextProducer(pdata.dataForNextProducer).end(); 
+				pdata.endOfNextProducer = nextProducer(pdata.dataForNextProducer).end; 
 			} 
 		}
 		
 		protected Interval nextProducer(ProducerData dataForNextProducer) {
-			return Intervals.successorInterval(
-					new Producer(index + 1, dataForNextProducer));			
+			return new Producer(Intervals.successor(), index + 1, dataForNextProducer);			
 		}
 	}
 	
-	class Consumer extends AbstractTask {
+	class Consumer extends Interval {
 		protected final int index;
-		protected final Point endOfProducer;
 		protected final ProducerData pdata;
 
-		public Consumer(int index, Point endOfProducer, ProducerData pdata) {
+		public Consumer(
+				Dependency dep, 
+				int index, 
+				Point endOfProducer, 
+				ProducerData pdata) 
+		{
+			super(dep);
 			this.index = index;
-			this.endOfProducer = endOfProducer;
 			this.pdata = pdata;
+			Intervals.addHb(endOfProducer, start);
 		}
 		
 		public String toString() {
 			return "Consumer["+index+"]";
 		}
 		
-		@Override
-		public void addDependencies(Interval inter) {
-			super.addDependencies(inter);
-			Intervals.addHb(endOfProducer, inter.start());
-		}
-
-		public void run(Point _) {
+		@Override public void run() {
 			consumed.add(pdata.produced); // "Consume" the data.
 			consumerTimes.add(stamp.getAndIncrement());			
 			
@@ -109,8 +114,7 @@ public class TestPCAgent {
 		}
 		
 		protected void nextConsumer() {
-			Intervals.successorInterval(
-					new Consumer(index + 1, pdata.endOfNextProducer, pdata.dataForNextProducer));
+			new Consumer(successor(), index + 1, pdata.endOfNextProducer, pdata.dataForNextProducer);
 		}
 	}
 	
@@ -120,11 +124,11 @@ public class TestPCAgent {
 	}
 
 	protected void runProducerConsumer() {
-		blockingInterval(new AbstractTask() {
-			public void run(Point _) {
+		blockingInterval(new VoidSubinterval() {
+			@Override public void run(Interval subinterval) {
 				ProducerData data0 = new ProducerData();
-				Interval prod0 = Intervals.childInterval(new Producer(0, data0));
-				Intervals.childInterval(new Consumer(0, prod0.end(), data0));
+				Interval prod0 = new Producer(child(), 0, data0);
+				new Consumer(child(), 0, prod0.end, data0);
 			}			
 		});
 	}

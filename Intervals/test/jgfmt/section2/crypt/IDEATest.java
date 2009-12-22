@@ -36,9 +36,12 @@ package jgfmt.section2.crypt;
 import java.util.Random;
 
 import jgfmt.jgfutil.JGFInstrumentor;
-import ch.ethz.intervals.IndexedTask;
+import ch.ethz.intervals.Dependency;
+import ch.ethz.intervals.IndexedInterval;
 import ch.ethz.intervals.Intervals;
+import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Point;
+import ch.ethz.intervals.VoidSubinterval;
 
 class IDEATest {
 
@@ -64,8 +67,17 @@ class IDEATest {
 		
 		// Encrypt plain1.
 		if(JGFCryptBench.nthreads == -1) {
-			Intervals.blockingInterval(new IDEARunnerTask(plain1.length / 8, plain1, crypt1, Z));
-			Intervals.blockingInterval(new IDEARunnerTask(crypt1.length / 8, crypt1, plain2, DK));
+			Intervals.blockingInterval(new VoidSubinterval() {
+				@Override public void run(Interval subinterval) {
+					new IDEARunnerTask(subinterval, plain1.length / 8, plain1, crypt1, Z);
+				}
+			});
+			
+			Intervals.blockingInterval(new VoidSubinterval() {
+				@Override public void run(Interval subinterval) {
+					new IDEARunnerTask(subinterval, crypt1.length / 8, crypt1, plain2, DK);
+				}
+			});
 		} else {
 			Runnable thobjects[] = new Runnable[JGFCryptBench.nthreads];
 			Thread th[] = new Thread[JGFCryptBench.nthreads];
@@ -658,11 +670,11 @@ class IDEARunner implements Runnable {
 
 } // End of class
 
-class IDEARunnerTask extends IndexedTask {
+class IDEARunnerTask extends IndexedInterval {
 	public final IDEARunner runner;
 	
-	public IDEARunnerTask(int size, byte[] text1, byte[] text2, int[] key) {
-		super(size);
+	public IDEARunnerTask(Dependency dep, int size, byte[] text1, byte[] text2, int[] key) {
+		super(dep, size);
 		runner = new IDEARunner(-1, text1, text2, key);
 	}
 

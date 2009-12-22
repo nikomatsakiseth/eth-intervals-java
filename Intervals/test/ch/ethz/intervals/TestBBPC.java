@@ -3,7 +3,7 @@ package ch.ethz.intervals;
 import static ch.ethz.intervals.Intervals.addHb;
 import static ch.ethz.intervals.Intervals.blockingInterval;
 import static ch.ethz.intervals.Intervals.child;
-import static ch.ethz.intervals.Intervals.sibling;
+import static ch.ethz.intervals.Intervals.successor;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -61,7 +61,7 @@ public class TestBBPC {
 			public void run() {
 				produced[index] = (index * 2);
 				if(index + 1 < M)
-					producers[(index + 1) % N] = new Producer(sibling(), index + 1);
+					producers[(index + 1) % N] = new Producer(successor(), index + 1);
 				else
 					producers[(index + 1) % N] = null;
 			}
@@ -89,7 +89,7 @@ public class TestBBPC {
 			public void run() {
 				consumed[index] = produced[index];
 				if(producers[(index + 1) % N] != null)
-					consumers[(index + 1) % N] = new Consumer(sibling(), index + 1);
+					consumers[(index + 1) % N] = new Consumer(successor(), index + 1);
 			}
 		}
 
