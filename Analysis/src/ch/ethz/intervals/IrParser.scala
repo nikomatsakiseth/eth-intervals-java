@@ -81,8 +81,12 @@ class IrParser extends StandardTokenParsers {
         lvdecl~"="                              ^^ { case vd~_ => vd },
         anonLvDecl
     )
-
-    def stmt = positioned(
+    
+    def optLocks = optl(
+        "locks"~comma(p)                        ^^ { case _~l => l }
+    )
+    
+    def stmt: Parser[ir.Stmt] = positioned(
        "super"~"("~comma(p)~")"~";"                     ^^ { case _~_~ps~_~_ => ir.StmtSuperCtor(ps) }
     |   optLvDecl~p~"->"~m~"("~comma(p)~")"~";"         ^^ { case vd~p~"->"~m~"("~qs~")"~_ => ir.StmtCall(vd, p, m, qs) }
     |   optLvDecl~"super"~"->"~m~"("~comma(p)~")"~";"   ^^ { case vd~_~"->"~m~"("~qs~")"~_ => ir.StmtSuperCall(vd, m, qs) }
@@ -92,6 +96,7 @@ class IrParser extends StandardTokenParsers {
     |   p~"->"~f~"="~p~";"                              ^^ { case p~_~f~_~q~_ => ir.StmtSetField(p, f, q) }
     |   p~"hb"~p~";"                                    ^^ { case p~_~q~_ => ir.StmtHb(p, q) }
     |   p~"locks"~p~";"                                 ^^ { case p~_~q~_ => ir.StmtLocks(p, q) }
+    |   "subinterval"~lv~optLocks~"{"~rep(stmt)~"}"     ^^ { case _~x~ps~"{"~stmts~"}" => ir.StmtSubinterval(x, ps, stmts) }
     )
     
     def req = positioned(

@@ -17,17 +17,14 @@ TODO LIST
     It should be possible to use a subinterval in the constructor 
     to acquire a (newly created, and hence private) lock.
      
-(*) Implement logic which states that any lock field which is currently writable
-    is also considered to be held.  This makes sense because no other interval
-    could be holding the lock, so we can say that the current interval holds it.    
-    XXX --- Is this true?  What if the lock is aliased?
-        
 (*) Implement "inter-method" assumptions, particularly those which allow us to 
     derive relations from constructor
     
-(*) Cleanup linked field logic as relates to guards.  A field should not be linked
-    to its guard, nor to intervals that HB its guard, nor should it be considered
-    linked when the current method HB the guard, I guess.
+(*) Cleanup linked field logic as relates to guards.  Right now, a
+    field F is not linked to G if guard(G) hb guard(F).  The reasoning
+    is that then guard(F) could not yet have occurred, and so F could
+    not be initialized.  What would prob. make more sense is to say tht
+    F is not linked to G if current hb F.
     
 (*) Whatever else is needed to make HOH work?
 
@@ -80,11 +77,26 @@ class TypeCheck(log: Log, prog: Prog) {
         val oldEnv = env
         try { g } finally { assert(env == oldEnv) }
     }
-
-    def setCurrent(tp: ir.TeePee): Unit =
-        log.indented("setCurrent(%s)", tp) {
+    
+    def withCurrent[R](tp: ir.TeePee)(g: => R): R = {
+        val p_old = env.p_cur
+        try {
+            log.indented("withCurrent(%s)", tp) {
+                env = ir.TcEnv(
+                    tp.p,
+                    env.perm,
+                    env.temp,
+                    env.lp_invalidated,
+                    env.readable,
+                    env.writable,
+                    env.hb,
+                    env.subinterval,
+                    env.locks)
+                g
+            }            
+        } finally {
             env = ir.TcEnv(
-                tp.p,
+                p_old,
                 env.perm,
                 env.temp,
                 env.lp_invalidated,
@@ -92,8 +104,9 @@ class TypeCheck(log: Log, prog: Prog) {
                 env.writable,
                 env.hb,
                 env.subinterval,
-                env.locks)
+                env.locks)            
         }
+    }
 
     /// Add or overwrite a permanent mapping.
     /// Permanent mappings persist across function calls.
@@ -527,7 +540,7 @@ class TypeCheck(log: Log, prog: Prog) {
                 env.writable,
                 env.hb,
                 env.subinterval,
-                env.locks)
+                env.locks + (tp.p, tq.p))
         }
         
     def equiv(tp: ir.TeePee, tq: ir.TeePee): Boolean = 
@@ -537,7 +550,11 @@ class TypeCheck(log: Log, prog: Prog) {
     
     def hb(tp: ir.TeePee, tq: ir.TeePee): Boolean = 
         log.indentedRes("%s hb %s?", tp, tq) {
-            env.hb.contains(tp.p, tq.p) || superintervals(tq).exists(env.hb.contains(tp.p, _))
+            // this logic would not be needed if env.hb was based on points,
+            // because then the subinterval relation could affect env.hb as well:
+            val lp_anc = superintervals(tp) + tp.p
+            val lq_anc = superintervals(tq) + tq.p
+            existscross(lp_anc, lq_anc)(env.hb.contains)
         }
         
     def superintervals(tp: ir.TeePee): Set[ir.Path] = {
@@ -769,7 +786,7 @@ class TypeCheck(log: Log, prog: Prog) {
         checkLvDecl(vd, Some(msig.wt_ret), None)                        
     }
     
-    def checkStatement(stmt: ir.Stmt) = 
+    def checkStatement(stmt: ir.Stmt): Unit = 
         at(stmt, ()) {
             stmt match {  
                 case ir.StmtNull(vd) =>
@@ -863,6 +880,18 @@ class TypeCheck(log: Log, prog: Prog) {
                     checkIsSubtype(tp, ir.t_interval)
                     checkIsSubtype(tq, ir.t_lock)
                     addLocks(tp, tq)
+                    
+                case ir.StmtSubinterval(x, lp_locks, stmts) =>
+                    val ltp_locks = teePee(ir.noAttrs, lp_locks)
+                    checkLvDecl(ir.LvDecl(x, ir.t_interval), None, None)
+                    
+                    val tp_x = teePee(x.path)
+                    addSubintervalOf(tp_x, tp_cur)
+                    ltp_locks.foreach(addLocks(tp_x, _))
+                    
+                    withCurrent(tp_x) {
+                        stmts.foreach(checkStatement)                        
+                    }
             }
         }
     
@@ -1015,36 +1044,36 @@ class TypeCheck(log: Log, prog: Prog) {
                         }
                             
                         val tp_guard = teePee(fd.p_guard)
-                        setCurrent(tp_guard) // use guard as the current interval
-                        
-                        // Guards must be of type Interval, Lock, or Object:
-                        if(!isSubtype(tp_guard, ir.t_interval) &&
-                            !isSubtype(tp_guard, ir.t_lock) &&
-                            tp_guard.wt.c != ir.c_object)
-                            throw new ir.IrError("intervals.invalid.guard", tp_guard.p)                        
-                        
-                        def check(p_dep: ir.Path) {
-                            p_dep match {
-                                case ir.Path(lv, List()) => 
-                                    // Always permitted.
+                        withCurrent(tp_guard) { // use guard as the current interval
+                            // Guards must be of type Interval, Lock, or Object:
+                            if(!isSubtype(tp_guard, ir.t_interval) &&
+                                !isSubtype(tp_guard, ir.t_lock) &&
+                                tp_guard.wt.c != ir.c_object)
+                                throw new ir.IrError("intervals.invalid.guard", tp_guard.p)                        
 
-                                case ir.Path(lv, List(f)) if lv == ir.lv_this => 
-                                    val tp_dep = teePee(p_dep)
-                                    if(!tp_dep.isConstant && !cd.fields.exists(_.name == f))
-                                        throw new ir.IrError(
-                                            "intervals.illegal.type.dep",
-                                            tp_dep.p, tp_guard.p)
+                            def check(p_dep: ir.Path) {
+                                p_dep match {
+                                    case ir.Path(lv, List()) => 
+                                        // Always permitted.
 
-                                case ir.Path(lv, f :: rev_fs) =>
-                                    check(ir.Path(lv, rev_fs))
-                                    val tp_dep = teePee(p_dep)
-                                    if(!tp_dep.isConstant)
-                                        throw new ir.IrError(
-                                            "intervals.illegal.type.dep",
-                                            tp_dep.p, tp_guard.p)
-                            }
-                        }                        
-                        check(p_full_dep)
+                                    case ir.Path(lv, List(f)) if lv == ir.lv_this => 
+                                        val tp_dep = teePee(p_dep)
+                                        if(!tp_dep.isConstant && !cd.fields.exists(_.name == f))
+                                            throw new ir.IrError(
+                                                "intervals.illegal.type.dep",
+                                                tp_dep.p, tp_guard.p)
+
+                                    case ir.Path(lv, f :: rev_fs) =>
+                                        check(ir.Path(lv, rev_fs))
+                                        val tp_dep = teePee(p_dep)
+                                        if(!tp_dep.isConstant)
+                                            throw new ir.IrError(
+                                                "intervals.illegal.type.dep",
+                                                tp_dep.p, tp_guard.p)
+                                }
+                            }                        
+                            check(p_full_dep)                            
+                        }
                     }                   
                 }
             }
@@ -1121,9 +1150,10 @@ class TypeCheck(log: Log, prog: Prog) {
                 cd.superType.foreach { t =>
                     if(t.as.ctor) throw new ir.IrError("intervals.superType.with.ctor.attr") 
                 }
+/*                
                 checkGhostDeclsUsePermittedPrefixes(cd, List(), cd.ghosts)                
                 checkFieldDeclsUsePermittedPrefixes(cd, List(), cd.fields)                
-                
+*/                
                 // XXX Need to extract visible effects of ctor
                 // XXX and save them in environment for other
                 // XXX methods.

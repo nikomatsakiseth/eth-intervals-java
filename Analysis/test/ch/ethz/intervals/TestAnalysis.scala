@@ -551,14 +551,14 @@ class TestAnalysis extends JUnitSuite {
                 String f2 requires this.init;
                 
                 constructor(String f1) 
-                requires subinterval this.init
+                requires method subinterval this.init
                 {
                     super();
                     this->f1 = f1;
                 }
                 
                 Void additionalInit(String f2)
-                requires subinterval this.init
+                requires method subinterval this.init
                 {
                     this->f2 = f2;
                 }
@@ -576,6 +576,64 @@ class TestAnalysis extends JUnitSuite {
             """
         )
     } 
+    
+    @Test
+    def subinterval() {
+        tc(
+            """
+            class Monitor extends Object<this.constructor> {
+                Lock lock requires this.constructor;
+                
+                constructor() {
+                    super();
+                    Lock lock = new();
+                    this->lock = lock;
+                }
+            }
+            
+            class StringRegister extends Monitor {
+                String value requires this.lock;
+                
+                constructor() {
+                    super();
+                }
+
+                String brokenGet() 
+                {
+                    String v = this->value; // ERROR intervals.not.readable(this.lock)
+                    // return v; /* commented out due to error above */
+                }
+
+                Void brokenSet(String v) 
+                {
+                    this->value = v; // ERROR intervals.not.writable(this.lock)
+                }
+                
+                String get() 
+                {
+                    subinterval x locks this.lock {
+                        String v = this->value;
+                    }
+                    return v;
+                }
+                
+                Void set(String v) 
+                {
+                    subinterval x locks this.lock {
+                        this->value = v;
+                    }
+                }
+                
+                String toString() 
+                {
+                    String s = this->get();
+                    return s;
+                }
+                
+            }
+            """
+        )
+    }
 
     // XXX Have to fix various problems first: @Test
     def hoh() {
