@@ -1,7 +1,5 @@
 package ch.ethz.intervals;
 
-import static ch.ethz.intervals.Intervals.intervalDuring;
-
 import org.junit.Before;
 import org.junit.Test;
 
@@ -17,13 +15,18 @@ public class TestDynamicGuardImpl {
 	
 	DynamicGuardImpl dg;
 	
-	public static Task debugTask(String name) {
-		return new NamedTask(name) {
-			public void run(Point currentEnd) {
-				System.out.printf("%s: currentEnd=%s\n", name, currentEnd);
-			}
-		};
-	};
+	public static class DebugInterval extends EmptyInterval {
+
+		public DebugInterval(Dependency dep, String name) {
+			super(dep, name);
+		}
+		
+		@Override
+		public void run() {
+			System.err.printf("Executing: %s (%s-%s)\n", this, start, end);
+		}
+		
+	}
 	
 	
 	@Before public void before() {
@@ -38,31 +41,42 @@ public class TestDynamicGuardImpl {
 		
 		dg = (DynamicGuardImpl) Guards.newDynamicGuard();
 		
-		Intervals.blockingInterval(new SetupTask() {
+		class SetupIntervals extends SetupInterval {
+			
+			public SetupIntervals(Dependency dep) {
+				super(dep);
+			}
+
 			@Override
-			public void setup(Point currentEnd, Interval worker) {
-				a = (Interval) intervalDuring(worker, debugTask("a"));
-				b = (Interval) intervalDuring(worker, debugTask("b"));
-				c = (Interval) intervalDuring(worker, debugTask("c"));
-				b1 = (Interval) intervalDuring(b, debugTask("b1"));
-				b11 = (Interval) intervalDuring(b, debugTask("b11"));
-				b2 = (Interval) intervalDuring(b, debugTask("b2"));
+			protected void setup(Point setupEnd, Interval worker) {
+				a = new DebugInterval(worker, ("a"));
+				b = new DebugInterval(worker, ("b"));
+				c = new DebugInterval(worker, ("c"));
+				b1 = new DebugInterval(b, ("b1"));
+				b11 = new DebugInterval(b, ("b11"));
+				b2 = new DebugInterval(b, ("b2"));
 				
-				Intervals.addHb(a.end(), b.start());
-				Intervals.addHb(b.end(), c.start());
-				Intervals.addHb(b1.end(), b11.start());
+				Intervals.addHb(a.end, b.start);
+				Intervals.addHb(b.end, c.start);
+				Intervals.addHb(b1.end, b11.start);
 				
-				l1 = (Interval) intervalDuring(b, debugTask("l1"));
-				l2 = (Interval) intervalDuring(b, debugTask("l2"));
+				l1 = (Interval) new DebugInterval(b, ("l1"));
+				l2 = (Interval) new DebugInterval(b, ("l2"));
 				
 				Intervals.exclusiveLock(l1, dg);
 				Intervals.exclusiveLock(l2, dg);
 				
 				System.out.printf("a=%s b=%s c=%s b1=%s b11=%s b2=%s l1=%s l2=%s setup.end=%s, worker=%s\n", 
-						a, b, c, b1, b11, b2, l1, l2, currentEnd, worker);
+						a, b, c, b1, b11, b2, l1, l2, setupEnd, worker);
 			}
-		});
-				
+			
+		}
+		
+		Intervals.blockingInterval(new VoidSubinterval() {
+			public void run(Interval subinterval) {
+				new SetupIntervals(subinterval);
+			}
+		});				
 	}
 	
 	@Test

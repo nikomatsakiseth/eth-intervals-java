@@ -1,7 +1,5 @@
 package ch.ethz.intervals;
 
-import static ch.ethz.intervals.Intervals.intervalDuring;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -21,8 +19,12 @@ public class TestP2P {
 		return n | (m << 16);
 	}
 	
-	class P2P extends SetupTask {
+	class P2P extends SetupInterval {
 		final List<Integer> list = Collections.synchronizedList(new ArrayList<Integer>());
+		
+		public P2P(Dependency dep) {
+			super(dep);
+		}
 		
 	    @Override
 		public void setup(Point _, Interval parent) {        
@@ -31,27 +33,28 @@ public class TestP2P {
 	        for(int n = 0; n < N; n++) {
 	            int bit = n % 2, prevBit = 1 - bit;
 	            for(int m = 1; m < M+1; m++) {
-	            	Interval i = intervalDuring(parent, new AddTask(n, m-1));
-	                intervals[bit][m] = i.end(); 
-	                Intervals.addHb(intervals[prevBit][m-1], i.start());
-	                Intervals.addHb(intervals[prevBit][m], i.start());
-	                Intervals.addHb(intervals[prevBit][m+1], i.start());
+	            	Interval i = new AddTask(parent, n, m-1);
+	                intervals[bit][m] = i.end; 
+	                Intervals.addHb(intervals[prevBit][m-1], i.start);
+	                Intervals.addHb(intervals[prevBit][m], i.start);
+	                Intervals.addHb(intervals[prevBit][m+1], i.start);
 	                Intervals.schedule();
 	            }
 	        }   
 	    }
 
-		class AddTask extends AbstractTask {
+		class AddTask extends Interval {
 			
 			final int n, m;
 			
-			public AddTask(int n, int m) {
+			public AddTask(Dependency dep, int n, int m) {
+				super(dep);
 				this.n = n;
 				this.m = m;
 			}
 
 			@Override
-			public void run(Point currentEnd) {
+			public void run() {
 				list.add(c(n, m));
 			}
 			
@@ -61,8 +64,11 @@ public class TestP2P {
 	}
 	
 	@Test public void testP2P() {
-		P2P p2p = new P2P();		
-		Intervals.blockingInterval(p2p);
+		P2P p2p = Intervals.blockingInterval(new Subinterval<P2P>() {
+			public P2P run(Interval subinterval) {
+				return new P2P(subinterval.end);
+			}
+		});
 		
 		Set<Integer> finished = new HashSet<Integer>();
 		for(Integer i : p2p.list) {

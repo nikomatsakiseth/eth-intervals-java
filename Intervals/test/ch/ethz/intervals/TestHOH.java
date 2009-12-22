@@ -1,7 +1,6 @@
 package ch.ethz.intervals;
 
 import static ch.ethz.intervals.Intervals.blockingInterval;
-import static ch.ethz.intervals.Intervals.intervalWithBound;
 import static java.lang.String.format;
 
 import org.junit.Assert;
@@ -20,10 +19,9 @@ import ch.ethz.intervals.quals.ObjectParameter;
 
 public class TestHOH {
     
-	@HOHList
 	static class Link 
-	extends /*@Identity("HOHList")*/ Object {
-		@New final @Parent("HOHList") Guard guard;
+	extends Object {
+		final Guard guard;
 		@GuardedBy("part") int data;
 		@GuardedBy("part") Link next;
 		
@@ -68,30 +66,27 @@ public class TestHOH {
 	}
 	
 	interface Transform {
-		@Effects("Ex(l.guard)")
 		void transform(Link l);
 	}
 
-	class MapWalk extends AbstractTask {
+	class MapWalk extends Interval {
 	    final Link link;
 	    final Transform transform;
 
-		public MapWalk(Link link, Transform transform) {
+		public MapWalk(Dependency dep, Link link, Transform transform) {
+			super(dep);
 			this.link = link;
 			this.transform = transform;
+			
+        	Intervals.exclusiveLock(this, link.guard);
 		}
 		
 		@Override
-		public void addDependencies(Interval inter) {
-        	Intervals.exclusiveLock(inter, link.guard);
-		}
-
-		@Override @Effects("(mthd-):Ex(link.guard)")
-	    public void run(Point currentEnd) {
+	    public void run() {
 	        transform.transform(link);
 	        if(link.next != null) {
-	        	Interval next = intervalWithBound(currentEnd.bound(), new MapWalk(link.next, transform));
-	        	Intervals.addHb(next.start(), currentEnd);
+	        	Interval next = new MapWalk(end.bound, link.next, transform);
+	        	Intervals.addHb(next.start, end);
             }
 	    } 
 		
@@ -107,22 +102,21 @@ public class TestHOH {
 		}		
 	}
 	
-	@HOHList("listGuard") Link buildList(int... data) {
-		@HOHList("listGuard") Link list = null;
+	Link buildList(int... data) {
+		Link list = null;
 		for(int i = data.length - 1; i >= 0; i--)
-			list = new /*@HOHList("listGuard")*/ Link(data[i], list);
+			list = new Link(data[i], list);
 		return list;
 	}
 	
 	public @Test void testDouble() {
-	    Guard listGuard = Guards.newGuard();
-		final @HOHList("listGuard") Link list = buildList(5, 10, 25);
-		blockingInterval(new AbstractTask() {
-			public void run(Point currentEnd) {
-				intervalWithBound(currentEnd, new MapWalk(list, new DoubleTransform()));		
+		final Link list = buildList(5, 10, 25);
+		blockingInterval(new VoidSubinterval() {
+			public void run(Interval subinterval) {
+				new MapWalk(subinterval.end, list, new DoubleTransform());		
 			}
 		});
-		@HOHList("listGuard") Link expList = buildList(10, 20, 50);
+		Link expList = buildList(10, 20, 50);
 		Assert.assertEquals(expList, list);
 	}
 }

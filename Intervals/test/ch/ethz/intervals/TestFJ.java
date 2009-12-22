@@ -22,14 +22,15 @@ public class TestFJ {
 		// Interval task instance: defines the behavior of an interval,
 		// like a Runnable.  This particular instance just adds the number
 		// "i" to "list".
-		class AddTask extends AbstractTask {
+		class AddTask extends Interval {
 			final int i;
 			
-			public AddTask(int i) {
+			public AddTask(Dependency dep, int i) {
+				super(dep);
 				this.i = i;
 			}
 			
-			public void run(Point currentEnd) {
+			public void run() {
 				list.add(i);
 			}
 		}
@@ -40,10 +41,10 @@ public class TestFJ {
 		// are children of the current interval and the current
 		// interval always waits for them to finish before 
 		// proceeding.
-		Intervals.blockingInterval(new AbstractTask() {
-			public void run(Point parentEnd) {
+		Intervals.blockingInterval(new VoidSubinterval() {
+			public void run(Interval subinterval) {
 				for(int i = 0; i < N; i++)
-					Intervals.intervalWithBound(parentEnd, new AddTask(i));				
+					new AddTask(subinterval, i);				
 			}			
 		});
 		

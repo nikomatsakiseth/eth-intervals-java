@@ -80,13 +80,7 @@ class Current {
 		assert p.start.isUnscheduled(this);
 		assert p.end.isUnscheduled(this);
 		
-		// Add dependencies is user-provided code,
-		// so it could fail in any which way:
-		try {
-			p.addDependencies();
-		} catch(Throwable t) {
-			end.addPendingException(t);
-		}
+		ExecutionLog.logScheduleInterval(start, p);
 		
 		p.start.clearUnscheduled();
 		p.end.clearUnscheduled();

@@ -1,5 +1,7 @@
 package ch.ethz.intervals;
 
+import static ch.ethz.intervals.Intervals.addHb;
+
 /** Base class for tasks with an extended setup period.  
  *  @see {@link #setup(Point, Interval)}.  */
 public abstract class SetupInterval extends Interval {
@@ -14,22 +16,28 @@ public abstract class SetupInterval extends Interval {
 		new Interval(parentEnd) {
 			protected void run() {				
 				final Point setupEnd = end;
-				Interval worker = new Interval(parentEnd) {
-					@Override
-					protected void addDependencies() {
-						super.addDependencies();
-						Intervals.addHb(setupEnd, start());
+				
+				class WorkerInterval extends Interval {
+					
+					public WorkerInterval() {
+						super(parentEnd);
+						addHb(setupEnd, start);
 					}
 
 					@Override
-					protected void run() {						
+					protected void run() {
 					}
 					
 					@Override
 					public String toString() {
 						return "worker";
 					}
-				};
+					
+				}
+				
+				WorkerInterval worker = new WorkerInterval();
+				worker.schedule();
+				
 				setup(setupEnd, worker);
 			}
 			

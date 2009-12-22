@@ -2,7 +2,7 @@ package ch.ethz.intervals;
 
 public interface Dependency {
 	
-	public Point bound();
-	public void addHb(Interval inter);
+	public Point boundForNewInterval();
+	public void addHbToNewInterval(Interval inter);
 
 }

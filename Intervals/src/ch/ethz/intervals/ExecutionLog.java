@@ -97,7 +97,7 @@ public class ExecutionLog {
 		return System.identityHashCode(i);
 	}
 	
-	static void logNewInterval(Point current, Interval i, Point sp, Point ep) {
+	static void logNewInterval(Point current, Point sp, Point ep) {
 		ExecutionLog l = log;
 		if(l != null) {
 			l.events.add(new EventLog.NewInterval(
@@ -105,9 +105,15 @@ public class ExecutionLog {
 					l.identity(sp),
 					l.identity(ep),
 					l.identity(ep.bound())));
+		}
+	}
+	
+	static void logScheduleInterval(Point current, Interval i) {
+		ExecutionLog l = log;
+		if(l != null) {
 			l.events.add(new EventLog.Schedule(
-					l.identity(sp), 
-					i.toString().replace('\n', ' ')));			
+				l.identity(i.start), 
+				i.toString().replace('\n', ' ')));
 		}
 	}
 	

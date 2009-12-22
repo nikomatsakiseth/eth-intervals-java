@@ -26,6 +26,10 @@ public class TestBarrier {
 		public Barrier(Dependency dep) {
 			super(dep);
 		}
+		
+		public String toString() {
+			return "Barrier";
+		}
 
 		@Override
 		public void setup(Point currentEnd, Interval worker) {
@@ -41,8 +45,8 @@ public class TestBarrier {
 	        nextRound = new EmptyInterval(parent, "round");
 	       
 	        // thisRound.end -> barrier -> nextRound.start
-	        Intervals.addHb(thisRound.end(), barrier.start());
-	        Intervals.addHb(barrier.end(), nextRound.start());
+	        Intervals.addHb(thisRound.end, barrier.start);
+	        Intervals.addHb(barrier.end, nextRound.start);
 	    }
 	    
 	    class BarrierTask extends Interval {
@@ -83,12 +87,18 @@ public class TestBarrier {
 	}
 	
 	@Test public void doTest() {
-		Barrier b = 
-			Intervals.blockingInterval(new Subinterval<Barrier>() {			
-				public Barrier run(Interval subinterval) {
-					return new Barrier(subinterval);
-				}
-			});
+		//ExecutionLog.enableGui();
+		Barrier b;
+		try {
+			b = 
+				Intervals.blockingInterval(new Subinterval<Barrier>() {			
+					public Barrier run(Interval subinterval) {
+						return new Barrier(subinterval);
+					}
+				});
+		} finally {
+			//ExecutionLog.disable();
+		}
 		
 		Set<Integer> expected = new HashSet<Integer>();
 		for(int n = 0; n < N; n++) expected.add(n);

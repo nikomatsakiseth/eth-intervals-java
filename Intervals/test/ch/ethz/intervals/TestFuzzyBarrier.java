@@ -1,8 +1,5 @@
 package ch.ethz.intervals;
 
-import static ch.ethz.intervals.Intervals.emptyTask;
-import static ch.ethz.intervals.Intervals.intervalDuring;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -18,35 +15,44 @@ public class TestFuzzyBarrier {
 	final int N = 22; // number of workers
 	final int MAX_COUNTER = 44;
 	final Random R = new Random(66L);
-
-	class Barrier extends SetupTask {
+	
+	class Barrier extends SetupInterval {
 		private Interval parent;
 		private Interval thisRound;
 		private Interval nextRound;
 		final List<Integer> list = Collections.synchronizedList(new ArrayList<Integer>());
 		int prevListSize = 0;
 		
+		public Barrier(Dependency dep) {
+			super(dep);
+		}
+
 		@Override
 		public void setup(Point currentEnd, Interval worker) {
 			this.parent = worker;			
-			startRound(intervalDuring(worker, emptyTask));			
+			startRound(new EmptyInterval(parent, "round"));			
 			for(int id = 0; id < N; id++)
-				intervalDuring(thisRound, new WorkerTask(id, R.nextInt(MAX_COUNTER)));
+				new WorkerTask(thisRound, id, R.nextInt(MAX_COUNTER));
 		}
 		
 	    private void startRound(Interval inter) {
 	        thisRound = inter;
-	        Interval barrier = intervalDuring(parent, new BarrierTask());
-	        nextRound = intervalDuring(parent, emptyTask);
+	        Interval barrier = new BarrierTask(parent);
+	        nextRound = new EmptyInterval(parent, "round");
 	       
 	        // thisRound.end -> barrier -> nextRound.start
-	        Intervals.addHb(thisRound.end(), barrier.start());
-	        Intervals.addHb(barrier.end(), nextRound.start());
+	        Intervals.addHb(thisRound.end, barrier.start);
+	        Intervals.addHb(barrier.end, nextRound.start);
 	    }
 	    
-	    class BarrierTask extends AbstractTask {
+	    class BarrierTask extends Interval {
+
+			public BarrierTask(Dependency dep) {
+				super(dep);
+			}
+
 			@Override
-			public void run(Point currentEnd) {
+			public void run() {
 				System.err.println("Barrier");
 				list.add(-1);
 				if(list.size() > prevListSize + 1) {
@@ -55,46 +61,51 @@ public class TestFuzzyBarrier {
 				}
 			}
 	    }
-	    final BarrierTask barrierTask = new BarrierTask();
 	    
-	    void barrier(Task untilBarrier, Task afterBarrier) {
-	    	Interval fuzzy = intervalDuring(parent, untilBarrier); // overlaps with barrier!
-	    	Interval strict = intervalDuring(nextRound, afterBarrier);
-	    	Intervals.addHb(fuzzy.end(), strict.start());
-	    }
-	    
-	    class WorkerTask extends AbstractTask {
+	    class WorkerTask extends Interval {
 	    	public final int id;
 	    	public final int counter;
 	    	
-	    	class FuzzyTask extends AbstractTask {
+			public WorkerTask(Interval during, int id, int counter) {
+				super(during);
+				this.id = id;
+				this.counter = counter;
+			}
+
+	    	class FuzzyTask extends Interval {
+	    		
+				public FuzzyTask(Dependency dep, WorkerTask nextWorker) {
+					super(dep);
+					Intervals.addHb(end, nextWorker.start);
+				}
 
 				@Override
-				public void run(Point currentEnd) {
+				public void run() {
 					System.err.println("Fuzzy Worker: "+id+" counter="+counter);
 					list.add(0x80000000 | (id | (counter << 16)));
 				}
 	    		
 	    	}
 	    	
-			public WorkerTask(int id, int counter) {
-				this.id = id;
-				this.counter = counter;
-			}
-
-			@Override
-			public void run(Point currentEnd) {
+	    	@Override
+			public void run() {
 				System.err.println("Worker: "+id+" counter="+counter);
 				list.add(id | (counter << 16));
-				if(counter > 0)
-					barrier(new FuzzyTask(), new WorkerTask(id, counter-1));
+				if(counter > 0) {
+					new FuzzyTask(
+							parent, 
+							new WorkerTask(nextRound, id, counter-1));
+				}
 			}
 	    }
 	}
 	
 	@Test public void doTest() {
-		Barrier b = new Barrier();
-		Intervals.blockingInterval(b);
+		Barrier b = Intervals.blockingInterval(new Subinterval<Barrier>() {
+			public Barrier run(Interval subinterval) {
+				return new Barrier(subinterval);
+			}
+		});
 		System.err.println();
 		System.err.println();
 		System.err.println();

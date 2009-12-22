@@ -9,12 +9,12 @@ implements Dependency
 {	
 	private static final long serialVersionUID = 8105268455633202522L;
 	
-	final Point start;
-	final Point end;
+	public final Point start;
+	public final Point end;
 	Interval nextUnscheduled; /** @see Current#unscheduled */
 	
 	public Interval(Dependency dep) {
-		Point bound = dep.bound();
+		Point bound = dep.boundForNewInterval();
 		Current current = Current.get();
 		
 		// Note: if this check passes, then no need to check for cycles 
@@ -27,22 +27,23 @@ implements Dependency
 		// (3) A path exists from current.end -> bnd.  Same as (2).
 		current.checkCanAddDep(bound);		
 		
-		this.end = new Point(current, bound, 2, this);
+		this.end = new Point(current, bound, 2, null);
 		this.start = new Point(current, this.end, 1, this);		
 		current.addUnscheduled(this);
 		
 		bound.addWaitCount();
 		if(current.start != null) 
 			current.start.addEdgeAfterOccurredWithoutException(start, NORMAL);		
-		ExecutionLog.logNewInterval(current.start, this, start, end);
+		ExecutionLog.logNewInterval(current.start, start, end);
 		
-		dep.addHb(this);		
+		dep.addHbToNewInterval(this);		
 	}
-	
-	protected void addDependencies() {
-		
-	}
-	
+
+	/**
+	 * Defines the behavior of the interval.  Must be
+	 * overridden.  Executed by the scheduler when {@code this}
+	 * is the current interval.  Do not invoke manually.
+	 */
 	protected abstract void run();
 	
 	/**
@@ -83,26 +84,19 @@ implements Dependency
 	public String toString() {
 		return String.format("Interval(%s-%s)", start, end);
 	}
-
-	public final Point end() {
-		return end;
-	}
-
-	public final Point start() {
-		return start;
-	}
-
-	public final Point bound() {
-		return end.bound;
-	}
 	
 	public final void schedule() throws AlreadyScheduledException {
 		Current current = Current.get();
 		current.schedule(this);
 	}
+	
+	@Override
+	public Point boundForNewInterval() {
+		return end;
+	}
 
 	@Override
-	public final void addHb(Interval inter) {
+	public final void addHbToNewInterval(Interval inter) {
 		start.addEdgeAndAdjust(inter.start, EdgeList.NORMAL);
 	}
 

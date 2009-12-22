@@ -27,8 +27,8 @@ final public class Point implements Dependency {
 	 *  interval are NOT propagated to its parent. */
 	protected static final int FLAG_MASK_EXC = 1;
 	
-	final Point bound;                    /** Bound of this point (this->bound). */
-	final int depth;                          /** Depth in point bound tree. */
+	public final Point bound;                 /** Bound of this point (this->bound). */
+	private final int depth;                  /** Depth in point bound tree. */
 	private EdgeList outEdges;                /** Linked list of outgoing edges from this point. */
 	private volatile int waitCount;           /** Number of preceding points that have not arrived.  
 	                                              Set to {@link #OCCURRED} when this has occurred. 
@@ -75,9 +75,8 @@ final public class Point implements Dependency {
 	public String toString() {
 		return "Point("+System.identityHashCode(this)+")";
 	}
-
-	@Override
-	public Point bound() {
+	
+	public final Point bound() {
 		return bound;
 	}
 
@@ -487,7 +486,12 @@ final public class Point implements Dependency {
 	}
 
 	@Override
-	public void addHb(Interval inter) {
+	public void addHbToNewInterval(Interval inter) {
+	}
+
+	@Override
+	public Point boundForNewInterval() {
+		return this;
 	}
 	
 }

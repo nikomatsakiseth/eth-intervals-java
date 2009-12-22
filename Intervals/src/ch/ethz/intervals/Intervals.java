@@ -18,33 +18,33 @@ public class Intervals {
 	static final ThreadPool POOL = new ThreadPool();
 	
 	/** 
-	 * Returns {@code i.start()} unless {@code i} is null, 
+	 * Returns {@link Interval#start} unless {@code i} is null, 
 	 * in which case just returns {@code null}. */
 	public static Point start(Interval i) {
 		if(i == null)
 			return null;
-		return i.start();
+		return i.start;
 	}
 	
 	/** 
-	 * Returns {@code i.end()} unless {@code i} is null, 
+	 * Returns {@link Interval#end} unless {@code i} is null, 
 	 * in which case just returns {@code null}. */
 	public static Point end(Interval i) {
 		if(i == null)
 			return null;
-		return i.end();
+		return i.end;
 	}
 	
 	public static Dependency child() {
 		final Current current = Current.get();
 		return new Dependency() {			
 			@Override
-			public Point bound() {
+			public Point boundForNewInterval() {
 				return current.end;
 			}
 			
 			@Override
-			public void addHb(Interval inter) {				
+			public void addHbToNewInterval(Interval inter) {				
 			}
 		};
 	}
@@ -53,12 +53,12 @@ public class Intervals {
 		final Current current = Current.get();
 		return new Dependency() {			
 			@Override
-			public Point bound() {
+			public Point boundForNewInterval() {
 				return current.end.bound;
 			}
-			
+						
 			@Override
-			public void addHb(Interval inter) {	
+			public void addHbToNewInterval(Interval inter) {	
 				Intervals.addHb(current.end, inter.start);
 			}
 		};		
@@ -207,9 +207,8 @@ public class Intervals {
 	public static void exclusiveLock(Interval interval, Guard guard) {
 		if(interval != null && guard != null) {
 			Current current = Current.get();
-			Point start = (Point) interval.start();
-			current.checkCanAddDep(start);
-			start.addPendingLock((GuardImpl) guard, true);
+			current.checkCanAddDep(interval.start);
+			interval.start.addPendingLock((GuardImpl) guard, true);
 		}
 	}
 
@@ -265,6 +264,19 @@ public class Intervals {
 		return box.result;
 	}
 	
+	/**
+	 * Variant of {@link #blockingInterval(Subinterval)} for
+	 * subintervals that do not return a value. */
+	public static void blockingInterval(final VoidSubinterval task)
+	{
+		blockingInterval(new Subinterval<Void>() {
+			public Void run(Interval subinterval) {
+				task.run(subinterval);
+				return null;
+			}
+		});
+	}
+
 	/** 
 	 * Returns the point which represents the end of the entire
 	 * computation.  This point will not occur until all other
