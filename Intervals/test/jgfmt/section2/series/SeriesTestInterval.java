@@ -38,12 +38,12 @@
 
 package jgfmt.section2.series;
 
-import static ch.ethz.intervals.Intervals.intervalWithBound;
 import static jgfmt.section2.series.SeriesTest.array_rows;
 import jgfmt.jgfutil.JGFInstrumentor;
-import ch.ethz.intervals.AbstractTask;
+import ch.ethz.intervals.Dependency;
+import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
-import ch.ethz.intervals.Point;
+import ch.ethz.intervals.VoidSubinterval;
 
 public class SeriesTestInterval {
 
@@ -69,10 +69,10 @@ public class SeriesTestInterval {
 		
 		//Thread debugThread = Debug.dumpDebugStateAfterTimeElapsed(8);
 
-		Intervals.blockingInterval(new AbstractTask() {
-			public void run(Point end) {
+		Intervals.blockingInterval(new VoidSubinterval() {
+			@Override public void run(Interval subinterval) {
 				for (int i = 0; i < array_rows; i++)
-					intervalWithBound(end, new SeriesRunnerInterval(i));
+					new SeriesRunnerInterval(subinterval, i);
 				//Intervals.forkJoinIndexed(array_rows, new SeriesRunnerInterval());				
 			}			
 		});
@@ -92,15 +92,16 @@ public class SeriesTestInterval {
 
 // This is the Thread
 
-class SeriesRunnerInterval extends AbstractTask {
+class SeriesRunnerInterval extends Interval {
 	
 	final int id;
 	
-	public SeriesRunnerInterval(int id) {
+	public SeriesRunnerInterval(Dependency dep, int id) {
+		super(dep);
 		this.id = id;
 	}
 
-	public void run(Point _) {
+	public void run() {
 
 		// int array_rows=SeriesTest.array_rows;
 

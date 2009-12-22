@@ -20,10 +20,14 @@
 
 package jgfmt.section3.raytracer;
 
+import static ch.ethz.intervals.Intervals.child;
 import jgfmt.jgfutil.JGFInstrumentor;
 import jgfmt.jgfutil.JGFSection3;
+import ch.ethz.intervals.IndexedInterval;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.LongReduction;
+import ch.ethz.intervals.Point;
+import ch.ethz.intervals.VoidSubinterval;
 
 public class JGFRayTracerBench extends RayTracer implements JGFSection3 {
 
@@ -53,13 +57,22 @@ public class JGFRayTracerBench extends RayTracer implements JGFSection3 {
 			LongReduction checksumRed = new LongReduction(0);
 			
 			JGFInstrumentor.startTimer("Section3:RayTracer:Init");
-			Interval interval = new Interval(0, width, height, 0, height, 1, 0);
-			IntervalRayTracer rayTracer = new IntervalRayTracer(checksumRed, createScene(), interval);
+			final Interval interval = new Interval(0, width, height, 0, height, 1, 0);
+			final IntervalRayTracer rayTracer = new IntervalRayTracer(child(), checksumRed, createScene(), interval);
 			JGFRayTracerBench.staticnumobjects = rayTracer.scene.getObjects();
 			JGFInstrumentor.stopTimer("Section3:RayTracer:Init");
 			
 			JGFInstrumentor.startTimer("Section3:RayTracer:Run");
-			Intervals.blockingInterval(rayTracer);
+			Intervals.blockingInterval(new VoidSubinterval() {				
+				@Override
+				public void run(ch.ethz.intervals.Interval subinterval) {
+					new IndexedInterval(subinterval.end, interval.height) {						
+						@Override public void run(Point parentEnd, int fromIndex, int toIndex) {
+							rayTracer.run(fromIndex, toIndex);
+						}
+					};
+				}
+			});
 			checksum1 = checksumRed.reduce();
 			JGFInstrumentor.stopTimer("Section3:RayTracer:Run");			
 		} else {		

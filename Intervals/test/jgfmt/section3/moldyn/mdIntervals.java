@@ -27,10 +27,12 @@ package jgfmt.section3.moldyn;
 
 import jgfmt.jgfutil.JGFInstrumentor;
 import ch.ethz.intervals.DoubleReduction;
-import ch.ethz.intervals.IndexedTask;
+import ch.ethz.intervals.IndexedInterval;
 import ch.ethz.intervals.IntReduction;
+import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.Point;
+import ch.ethz.intervals.VoidSubinterval;
 
 public class mdIntervals extends mdBase {
 	
@@ -219,11 +221,15 @@ public class mdIntervals extends mdBase {
 			/* move the particles and update velocities */
 			
 			// use accumulate shared force to update position of all particles
-			Intervals.blockingInterval(new IndexedTask(mdsize) {
-				public void run(Point _, int start, int stop) {
-					for(int i = start; i < stop; i++)
-						one[i].domove(side, i);
-				}				
+			Intervals.blockingInterval(new VoidSubinterval() {				
+				@Override public void run(Interval subinterval) {
+					new IndexedInterval(subinterval, mdsize) {
+						public void run(Point _, int start, int stop) {
+							for(int i = start; i < stop; i++)
+								one[i].domove(side, i);
+						}				
+					};
+				}
 			});
 
 			// reset accumulate shared force for all particles
@@ -239,11 +245,15 @@ public class mdIntervals extends mdBase {
 			interacts.resetAccumulators();
 
 			/* compute forces */
-			Intervals.blockingInterval(new IndexedTask(mdsize) {
-				public void run(Point _, int start, int stop) {
-					for(int i = start; i < stop; i++)
-						one[i].force(side, rcoff, mdsize, i);
-				}				
+			Intervals.blockingInterval(new VoidSubinterval() {				
+				@Override public void run(Interval subinterval) {
+					new IndexedInterval(subinterval, mdsize) {
+						public void run(Point _, int start, int stop) {
+							for(int i = start; i < stop; i++)
+								one[i].force(side, rcoff, mdsize, i);
+						}				
+					};
+				}
 			});
 
 			/* reduce accumulated calculations */

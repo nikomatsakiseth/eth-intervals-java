@@ -21,12 +21,12 @@
 
 package jgfmt.section2.sor;
 
-import static ch.ethz.intervals.Intervals.intervalWithBound;
 import jgfmt.jgfutil.JGFInstrumentor;
-import ch.ethz.intervals.AbstractTask;
+import ch.ethz.intervals.Dependency;
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.Point;
+import ch.ethz.intervals.VoidSubinterval;
 
 //class RowRecord {
 //	private final static boolean DEBUG = false;
@@ -127,8 +127,9 @@ public class SORIntervals {
 				
 		JGFInstrumentor.startTimer("Section2:SOR:Kernel");
 		
-		Intervals.blockingInterval(new AbstractTask() {						
-			public void run(Point parentEnd) {
+		Intervals.blockingInterval(new VoidSubinterval() {			
+			@Override public void run(Interval subinterval) {
+				Point parentEnd = subinterval.end;
 				
 				// Intervals from previous iteration:
 				//   (note that null just means "no wait")
@@ -142,34 +143,35 @@ public class SORIntervals {
 					int prevBit = (bit + 1) % 2;
 					
 					int i = 1 + (p % 2);
-					Interval inter = intervalWithBound(parentEnd, new Row(i));
-					intervals[bit][1] = inter.end();
-					Intervals.addHb(intervals[prevBit][1], inter.start());
-					Intervals.addHb(intervals[prevBit][2], inter.start());
+					Interval inter = new Row(parentEnd, i);
+					intervals[bit][1] = inter.end;
+					Intervals.addHb(intervals[prevBit][1], inter.start);
+					Intervals.addHb(intervals[prevBit][2], inter.start);
 					
 					i += 2;
 					for(int j = 2; i < M; i += 2, j++) {
-						inter = intervalWithBound(parentEnd, new Row(i));
-						intervals[bit][j] = inter.end();
-						Intervals.addHb(intervals[prevBit][j-2], inter.start());
-						Intervals.addHb(intervals[prevBit][j-1], inter.start());
-						Intervals.addHb(intervals[prevBit][j-0], inter.start());
-						Intervals.addHb(intervals[prevBit][j+1], inter.start());
+						inter = new Row(parentEnd, i);
+						intervals[bit][j] = inter.end;
+						Intervals.addHb(intervals[prevBit][j-2], inter.start);
+						Intervals.addHb(intervals[prevBit][j-1], inter.start);
+						Intervals.addHb(intervals[prevBit][j-0], inter.start);
+						Intervals.addHb(intervals[prevBit][j+1], inter.start);
 					}
 				}
 				
 				//System.err.println("Created all intervals");
 			}	
 			
-			class Row extends AbstractTask {
+			class Row extends Interval {
 				
 				final int i;
 
-				public Row(int _i) {
+				public Row(Dependency dep, int _i) {
+					super(dep);
 					i = _i;
 				}
 
-				public void run(Point _) {
+				@Override public void run() {
 					double[] Gi = G[i];
 					double[] Gim1 = G[i - 1];
 					
