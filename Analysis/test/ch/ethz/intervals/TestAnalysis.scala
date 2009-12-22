@@ -612,7 +612,7 @@ class TestAnalysis extends JUnitSuite {
                 String get() 
                 {
                     subinterval x locks this.lock {
-                        String v = this->value;
+                        String v = this->value; // Note: variables are all METHOD-SCOPE
                     }
                     return v;
                 }
