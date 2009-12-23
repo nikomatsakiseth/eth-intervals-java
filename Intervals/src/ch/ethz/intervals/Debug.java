@@ -399,58 +399,58 @@ class Debug {
 	}
 
 	static class AddExclusiveEvent extends Event {
-		public final GuardImpl guard;
+		public final Lock lock;
 		public final Point prevOwner;
 		public final Point newOwner;
 		
 		public AddExclusiveEvent(
-				GuardImpl guard, 
+				Lock lock, 
 				Point prevOwner,
 				Point newOwner) 
 		{
 			super();
-			this.guard = guard;
+			this.lock = lock;
 			this.prevOwner = prevOwner;
 			this.newOwner = newOwner;
 		}
 
 		public String toString() {
-			return String.format("LOCK_EXCLUSIVE %s prevOwner=%s newOwner=%s-%s", guard, prevOwner, newOwner, newOwner.bound);
+			return String.format("LOCK_EXCLUSIVE %s prevOwner=%s newOwner=%s-%s", lock, prevOwner, newOwner, newOwner.bound);
 		}
 	}
 	
-	public static void exclusiveLock(GuardImpl guardImpl, Point prevOwner, Point newOwner) {
+	public static void exclusiveLock(Lock lock, Point prevOwner, Point newOwner) {
 		if(ENABLED_LOCK)
-			addEvent(new AddExclusiveEvent(guardImpl, prevOwner, newOwner));
+			addEvent(new AddExclusiveEvent(lock, prevOwner, newOwner));
 	}
 
 	static class AddSharedEvent extends Event {
-		public final GuardImpl guard;
+		public final Lock lock;
 		public final Point prevOwner;
 		public final Point readInterval;
 		public final Point inter;
 		
-		public AddSharedEvent(GuardImpl guard, Point prevOwner,
+		public AddSharedEvent(Lock lock, Point prevOwner,
 				Point readInterval, Point inter) {
 			super();
-			this.guard = guard;
+			this.lock = lock;
 			this.prevOwner = prevOwner;
 			this.readInterval = readInterval;
 			this.inter = inter;
 		}
 
 		public String toString() {
-			return String.format("LOCK_SHARED %s prevOwner=%s readInterval=%s inter=%s", guard, prevOwner, readInterval, inter);
+			return String.format("LOCK_SHARED %s prevOwner=%s readInterval=%s inter=%s", lock, prevOwner, readInterval, inter);
 		}
 	}
 	
 	public static void sharedLock(
-			GuardImpl guardImpl, 
+			Lock lock, 
 			Point prevOwner,
 			Point readInterval, 
 			Point inter) {
 		if(ENABLED_LOCK)
-			addEvent(new AddSharedEvent(guardImpl, prevOwner, readInterval, inter));
+			addEvent(new AddSharedEvent(lock, prevOwner, readInterval, inter));
 	}
 
 }

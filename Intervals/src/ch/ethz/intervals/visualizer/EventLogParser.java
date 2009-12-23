@@ -15,7 +15,7 @@ import javax.swing.SwingWorker;
 
 import ch.ethz.intervals.visualizer.EventLog.Arrive;
 import ch.ethz.intervals.visualizer.EventLog.Edge;
-import ch.ethz.intervals.visualizer.EventLog.Lock;
+import ch.ethz.intervals.visualizer.EventLog.AddLock;
 import ch.ethz.intervals.visualizer.EventLog.NewInterval;
 import ch.ethz.intervals.visualizer.EventLog.Schedule;
 
@@ -79,7 +79,7 @@ public class EventLogParser extends EventProducerThread {
 				} else if(tag.equals("LOCK")) {
 					int iid = shorten.shorten(scan.next());
 					int gid = shorten.shorten(scan.next());
-					publish(new Lock(iid, gid));
+					publish(new AddLock(iid, gid));
 				} else {
 					warnings.add(String.format(
 							"%s:%d: unrecognized tag '%s'", 

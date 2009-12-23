@@ -15,7 +15,7 @@ import org.junit.Test;
 /**
  * Agent Producer-Consumer Example 
  *
- * Similar to {@link TestPC}, except that each consumer
+ * Similar to {@link TestPCLoop}, except that each consumer
  * creates the next consumer, and each producer creates the
  * next producer. 
  * 
@@ -29,7 +29,7 @@ import org.junit.Test;
  * {@link Producer} and {@link Consumer}, so that the implementation of
  * either could be changed with affecting the other.
  */
-public class TestPCAgent {
+public class TestPCLinks {
 	
 	final int MAX = 100;
 	List<Integer> consumed = new ArrayList<Integer>();

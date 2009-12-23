@@ -230,7 +230,7 @@ final public class Point implements Dependency {
 		waitCount = 1; // Wait for us to finish iterating through the list of locks.
 			
 		for(LockList lock = this.pendingLocks; lock != null; lock = lock.next)
-			lock.guard.addExclusive(this);
+			lock.lock.addExclusive(this);
 		this.pendingLocks = null;
 		
 		arrive(1);
@@ -379,8 +379,8 @@ final public class Point implements Dependency {
 		this.flags = this.flags & (~flag);
 	}
 
-	void addPendingLock(GuardImpl guard, boolean exclusive) {
-		LockList list = new LockList(guard, exclusive, null);
+	void addPendingLock(Lock lock, boolean exclusive) {
+		LockList list = new LockList(lock, exclusive, null);
 		synchronized(this) {
 			list.next = pendingLocks;
 			pendingLocks = list;

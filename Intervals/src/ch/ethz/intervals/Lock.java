@@ -1,20 +1,19 @@
 package ch.ethz.intervals;
 
 import static ch.ethz.intervals.EdgeList.NONDETERMINISTIC;
-import ch.ethz.intervals.params.Parent;
 
-@Parent
-class GuardImpl // Would be final, but for Mockito 
-extends /*@Identity("RO")*/ Object implements Guard
+final class Lock
+extends /*@Writer("this.constructor")*/ Object 
 {
 	private Point latestOwner;
 
 	/**
-	 * Adds dependencies to {@code inter} so that it will wait
+	 * Adds dependencies to {@code startPnt} so that it will wait
 	 * to execute until the previous exclusive owner has finished.
-	 * @return 1 if inter needs to wait, 0 otherwise  
+	 * The next owner may acquire the lock once {@code startPnt.bound}
+	 * has occurred.
 	 */
-	protected void addExclusive(Point startPnt) {
+	final void addExclusive(Point startPnt) {
 		Point prevOwner;
 		synchronized(this) {
 			prevOwner = latestOwner;
@@ -24,9 +23,8 @@ extends /*@Identity("RO")*/ Object implements Guard
 		if(Debug.ENABLED)
 			Debug.exclusiveLock(this, prevOwner, startPnt);
 		
-		if(prevOwner != null) {
+		if(prevOwner != null)
 			prevOwner.addEdgeAndAdjust(startPnt, NONDETERMINISTIC);
-		}
 	}
 
 }

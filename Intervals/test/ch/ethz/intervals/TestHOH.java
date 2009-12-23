@@ -6,13 +6,9 @@ import static java.lang.String.format;
 import org.junit.Assert;
 import org.junit.Test;
 
-import ch.ethz.intervals.params.Parent;
-import ch.ethz.intervals.quals.Effects;
-import ch.ethz.intervals.quals.GuardedBy;
-import ch.ethz.intervals.quals.New;
-import ch.ethz.intervals.quals.ObjectParameter;
+import ch.ethz.intervals.quals.DefinesGhost;
 
-@ObjectParameter
+@DefinesGhost
 @interface HOHList {
     public String value() default "HOHList";
 }
@@ -21,12 +17,12 @@ public class TestHOH {
     
 	static class Link 
 	extends Object {
-		final Guard guard;
-		@GuardedBy("part") int data;
-		@GuardedBy("part") Link next;
+		final Lock lock;
+		int data;
+		Link next;
 		
 		public Link(int data, Link next) {
-			this.guard = Guards.newGuard();
+			this.lock = new Lock();
 			this.data = data;
 			this.next = next;
 		}
@@ -78,7 +74,7 @@ public class TestHOH {
 			this.link = link;
 			this.transform = transform;
 			
-        	Intervals.exclusiveLock(this, link.guard);
+        	Intervals.exclusiveLock(this, link.lock);
 		}
 		
 		@Override

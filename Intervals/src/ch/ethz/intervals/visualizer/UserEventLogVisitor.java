@@ -4,7 +4,7 @@ import javax.swing.DefaultListModel;
 
 import ch.ethz.intervals.visualizer.EventLog.Arrive;
 import ch.ethz.intervals.visualizer.EventLog.Edge;
-import ch.ethz.intervals.visualizer.EventLog.Lock;
+import ch.ethz.intervals.visualizer.EventLog.AddLock;
 import ch.ethz.intervals.visualizer.EventLog.NewInterval;
 import ch.ethz.intervals.visualizer.EventLog.Schedule;
 
@@ -46,7 +46,7 @@ public class UserEventLogVisitor implements EventLogVisitor {
 	}
 
 	@Override
-	public void visitLock(Lock event, int index)
+	public void visitLock(AddLock event, int index)
 	{
 	}
 

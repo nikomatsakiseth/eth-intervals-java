@@ -19,7 +19,7 @@ import ch.ethz.intervals.visualizer.VisualizerWindow;
 import ch.ethz.intervals.visualizer.EventLog.Arrive;
 import ch.ethz.intervals.visualizer.EventLog.Edge;
 import ch.ethz.intervals.visualizer.EventLog.Event;
-import ch.ethz.intervals.visualizer.EventLog.Lock;
+import ch.ethz.intervals.visualizer.EventLog.AddLock;
 import ch.ethz.intervals.visualizer.EventLog.NewInterval;
 import ch.ethz.intervals.visualizer.EventLog.Schedule;
 
@@ -131,10 +131,10 @@ public class ExecutionLog {
 		}
 	}
 	
-	static void logLock(Point i, Guard g) {
+	static void logLock(Point i, Lock g) {
 		ExecutionLog l = log;
 		if(l != null) {
-			l.events.add(new EventLog.Lock(l.identity(i), l.identity(g)));
+			l.events.add(new EventLog.AddLock(l.identity(i), l.identity(g)));
 		}
 	}
 	
@@ -308,8 +308,8 @@ public class ExecutionLog {
 		}
 
 		@Override
-		public void visitLock(Lock event, int index) {
-			publish(new Lock(
+		public void visitLock(AddLock event, int index) {
+			publish(new AddLock(
 					shortenMap.shorten(event.startPointId),
 					shortenMap.shorten(event.lockId)));
 		}

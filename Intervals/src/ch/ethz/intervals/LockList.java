@@ -6,12 +6,12 @@ package ch.ethz.intervals;
  * and those that are still pending.
  */
 class LockList {
-	final GuardImpl guard;
+	final Lock lock;
 	final boolean exclusive;
 	LockList next;
 	
-	LockList(GuardImpl guard, boolean exclusive, LockList next) {
-		this.guard = guard;
+	LockList(Lock lock, boolean exclusive, LockList next) {
+		this.lock = lock;
 		this.exclusive = exclusive;
 		this.next = next;
 	}

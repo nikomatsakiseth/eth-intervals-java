@@ -6,20 +6,20 @@ public class DataRaceException extends RuntimeException {
 
 	enum Role { READ, WRITE, LOCK };
 	
-	public final Guard guard;
+	public final Lock lock;
 	public final Role beforeRole;
 	public final Point before;
 	public final Role afterRole;
 	public final Point after;
 	
 	public DataRaceException(
-			Guard guard,
+			Lock lock,
 			Role beforeRole,
 			Point before,
 			Role afterRole,
 			Point after)
 	{
-		this.guard = guard;
+		this.lock = lock;
 		this.beforeRole = beforeRole;
 		this.before = before;
 		this.afterRole = afterRole;

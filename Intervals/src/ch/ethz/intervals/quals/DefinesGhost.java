@@ -5,6 +5,5 @@ package ch.ethz.intervals.quals;
     Can only be applied to annotations with a single
     field, <code>String value();</code>
 */
-public @interface ObjectParameter {
-	public boolean covariant() default false;
+public @interface DefinesGhost {
 }

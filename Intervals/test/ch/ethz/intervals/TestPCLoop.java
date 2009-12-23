@@ -19,7 +19,7 @@ import org.junit.Test;
  * and arranges that the consumers always consume each item 
  * in the order produced.
  */
-public class TestPC {
+public class TestPCLoop {
 	
 	static AtomicInteger stamp = new AtomicInteger(1);
 	public int stamp() {

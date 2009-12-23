@@ -204,11 +204,11 @@ public class Intervals {
 	 *  an exclusive lock on {@code guard}.  The lock will be automatically
 	 *  acquired sometime before {@code interval.start} and release
 	 *  sometime after {@code interval.end}. */
-	public static void exclusiveLock(Interval interval, Guard guard) {
-		if(interval != null && guard != null) {
+	public static void exclusiveLock(Interval interval, Lock lock) {
+		if(interval != null && lock != null) {
 			Current current = Current.get();
 			current.checkCanAddDep(interval.start);
-			interval.start.addPendingLock((GuardImpl) guard, true);
+			interval.start.addPendingLock((Lock) lock, true);
 		}
 	}
 

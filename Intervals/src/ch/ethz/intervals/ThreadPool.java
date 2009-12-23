@@ -6,8 +6,6 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-import ch.ethz.intervals.quals.GuardedBy;
-
 class ThreadPool {
 	
 	class KeepAliveThread extends Thread {		
@@ -292,8 +290,8 @@ class ThreadPool {
 	final static ThreadLocal<Worker> currentWorker = new ThreadLocal<Worker>();
 	
 	final Lock idleLock = new ReentrantLock();
-	@GuardedBy("idleLock") final ArrayList<WorkItem> pendingWorkItems = new ArrayList<WorkItem>();
-	@GuardedBy("idleLock") final ArrayList<Worker> idleWorkers = new ArrayList<Worker>();
+	final ArrayList<WorkItem> pendingWorkItems = new ArrayList<WorkItem>(); // guarded by idleLock
+	final ArrayList<Worker> idleWorkers = new ArrayList<Worker>(); // guarded by idleLock
 	volatile boolean idleWorkersExist;
 	
 	ThreadPool() {

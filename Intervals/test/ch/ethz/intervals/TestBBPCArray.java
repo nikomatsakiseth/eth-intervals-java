@@ -11,10 +11,9 @@ import org.junit.Assert;
 import org.junit.Test;
 
 /**
- * Bounded-Buffer Producer Consumer example
- * using arrays.
+ * Bounded-Buffer Producer Consumer example using arrays.
  */
-public class TestBBPC {
+public class TestBBPCArray {
 
 	public final int N = 3;
 	public final int M = 100;

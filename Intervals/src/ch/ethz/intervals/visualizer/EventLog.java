@@ -55,11 +55,11 @@ public class EventLog {
 		}
 	}
 
-	public static class Lock extends Event {
+	public static class AddLock extends Event {
 		public final int startPointId;
 		public final int lockId;
 		
-		public Lock(int startPointId, int lockId) {
+		public AddLock(int startPointId, int lockId) {
 			this.startPointId = startPointId;
 			this.lockId = lockId;
 		}
