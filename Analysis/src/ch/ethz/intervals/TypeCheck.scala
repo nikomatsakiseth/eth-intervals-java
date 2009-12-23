@@ -29,6 +29,10 @@ TODO LIST
 
 (*) @Is annotations on methods and variable declarations
 
+(*) Inherit assumptions from supertype constructors as well!
+
+(*) Assertions
+
 (*) Javac plugin
 
 */
@@ -1119,30 +1123,34 @@ class TypeCheck(log: Log, prog: Prog) {
     def extractAssumptions(
         tp_mthd: ir.TeePee, 
         lvs_shared: Set[ir.VarName]
-    ): ir.TcEnv = savingEnv {
-        
-        withCurrent(freshTp(ir.t_interval)) {
-            addHb(tp_mthd, tp_cur)
-            
-            val identityMap = Map.empty[ir.Path, ir.Path].withDefault(p => p)
-            val mapFunc = env.temp.foldLeft(identityMap) { case (m, (k, v)) => m + Pair(v, k) }        
-            
-            def filterFunc(p: ir.Path): Boolean = 
-                lvs_shared(p.lv) && !teePee(p).as.mutable
-                
-            ir.TcEnv(
-                env.p_cur,
-                env.perm,
-                env.temp,
-                env.lp_invalidated,
-                env.readable.mapFilter(mapFunc, filterFunc),
-                env.writable.mapFilter(mapFunc, filterFunc),
-                env.hb.mapFilter(mapFunc, filterFunc),
-                env.subinterval.mapFilter(mapFunc, filterFunc),
-                env.locks.mapFilter(mapFunc, filterFunc)
-            )
-        }
+    ): ir.TcEnv = savingEnv {        
+        log.indented("extractAssumptions(%s,%s)", tp_mthd, lvs_shared) {
+            withCurrent(freshTp(ir.t_interval)) {
+                addHb(tp_mthd, tp_cur)
 
+                log("temp=%s", env.temp)
+                val tempKeys = env.temp.map(_._1).toList
+                val tempValues = env.temp.map(_._2).toList
+                val mapFunc = PathSubst.pp(tempValues, tempKeys).path(_)
+                
+                def filterFunc(p: ir.Path): Boolean = 
+                    log.indentedRes("filterFunc(%s)", p) {
+                        lvs_shared(p.lv) && !teePee(p).as.mutable                
+                    }
+
+                ir.TcEnv(
+                    env.p_cur,
+                    env.perm,
+                    env.temp,
+                    env.lp_invalidated,
+                    env.readable.mapFilter(mapFunc, filterFunc),
+                    env.writable.mapFilter(mapFunc, filterFunc),
+                    env.hb.mapFilter(mapFunc, filterFunc),
+                    env.subinterval.mapFilter(mapFunc, filterFunc),
+                    env.locks.mapFilter(mapFunc, filterFunc)
+                )
+            }            
+        }
     }
     
     // ______________________________________________________________________

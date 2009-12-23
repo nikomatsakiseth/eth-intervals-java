@@ -712,7 +712,7 @@ class TestAnalysis extends JUnitSuite {
         )
     }
 
-    //@Test
+    @Test
     def hoh() {
         tc(
             """
