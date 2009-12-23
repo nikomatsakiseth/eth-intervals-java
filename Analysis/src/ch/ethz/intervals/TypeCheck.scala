@@ -31,9 +31,22 @@ TODO LIST
 
 (*) Inherit assumptions from supertype constructors as well!
 
+(*) Ensures declarations--
+
+    In place of the current inference, we should add ensures declarations on constructors
+    (or potentially other methods).  These ensures declarations could be inferred by the
+    compiler for constructors as we do today, but could also be manually specified to support
+    virtual methods and helpers for constructors.
+
 (*) Assertions
 
 (*) Javac plugin
+
+(*) Requires in class bodies, declarations--
+
+    If a class declared, for example, that two of its fields f and g have a HB relationship,
+    then this would link f and g.  We can use the existing linked fields mechanisms to ensure
+    that they are written together.
 
 */
 
