@@ -296,7 +296,7 @@ object ir {
     }
     
     sealed class Relation(
-        rels: Util.MultiMap[Path, Path],
+        private val rels: Util.MultiMap[Path, Path],
         transitive: Boolean
     ) {
         private var cachedTc: Option[Util.MultiMap[Path, Path]] = None        
@@ -308,8 +308,11 @@ object ir {
                     cachedTc = Some(t)
                     t
             }
+            
+        def +(r: Relation): Relation =
+            new Relation(rels ++ r.rels, transitive)
         
-        def +(p: Path, q: Path) =
+        def +(p: Path, q: Path): Relation =
             new Relation(rels + Pair(p, q), transitive)
             
         def apply(p: Path): Set[Path] =
@@ -319,6 +322,21 @@ object ir {
         def contains(p: Path, q: Path) =
             if(transitive) tc.contains(p, q)
             else rels.contains(p, q)
+            
+        def allPairs: Collection[(ir.Path, ir.Path)] =
+            if(transitive) tc
+            else rels
+            
+        def mapFilter(m: (Path => Path), f: (Path => Boolean)) = {
+            val rels1 = allPairs.foldLeft(Relation.emptyMap) { case (r, (p, q)) => 
+                val p1 = m(p)
+                val q1 = m(q)
+                if(f(p1) && f(q1)) r + Pair(p1, q1)
+                else r
+            }
+            new Relation(rels1, transitive)            
+        }
+            
     }
     object Relation {
         private val emptyMap = Util.MultiMap.empty[Path, Path]
@@ -336,7 +354,21 @@ object ir {
         hb: Relation,                   // (p, q) means interval p hb interval q
         subinterval: Relation,          // (p, q) means interval p is a subinterval of interval q
         locks: Relation                 // (p, q) means interval p locks lock q
-    )
+    ) {
+        def +(env: TcEnv) = {
+            TcEnv(
+                p_cur,
+                perm,
+                temp,
+                lp_invalidated,
+                readable + env.readable,
+                writable + env.writable,
+                hb + env.hb,
+                subinterval + env.subinterval,
+                locks + env.locks
+            )
+        }
+    }
     
     case class IrError(msg: String, args: Any*) 
     extends RuntimeException {

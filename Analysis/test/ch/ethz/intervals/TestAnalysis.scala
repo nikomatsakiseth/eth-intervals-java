@@ -238,6 +238,83 @@ class TestAnalysis extends JUnitSuite {
     }    
 
     @Test
+    def inheritedAssumptionsFromCtor() {
+        tc(
+            """
+            class Foo<Interval inter, Lock lock> extends Interval {
+                Interval final requires this.constructor;
+                
+                constructor(Interval f) 
+                {
+                    super();
+                    this->final = f;
+                    
+                    // Establish that this.final hb this:
+                    //    This relation will be inherited by other methods.
+                    f hb this;
+                }
+                
+                Void readFinal(Object<this.final> o) 
+                requires method subinterval this
+                {
+                    // this.final hb this, and method is a subinterval of this,
+                    // so this.final hb method:
+                    String s1 = o->toString();
+                }
+                
+                Void readFinal1(Object<this.final> o) 
+                {
+                    // Here we do not require this method be
+                    // invoked with method a subinterval of this,
+                    // so we don't know that this.final is readable.
+                    String s1 = o->toString(); // ERROR intervals.requirement.not.met(requires this.final readable by method)
+                }
+                
+                constructor Void readFinal2(Object<this.final> o) 
+                requires method subinterval this
+                {
+                    // This method could be invoked in the constructor,
+                    // so we can't even use this.final in an attribute.
+                    String s1 = o->toString(); // ERROR intervals.illegal.path.attr(this.final, m)
+                }
+            }
+            """
+        )
+    }
+    
+    @Test
+    def inheritedAssumptionsOnlyIncludeTemporarilyAliasedFields() {
+        tc(
+            """
+            class Foo<Interval inter, Lock lock> extends Interval {
+                Interval final requires this.constructor;
+                
+                constructor(Interval f) 
+                {
+                    super();
+                    this->final = f;
+                    
+                    this->emptyMethod();
+                    
+                    // Analysis is not smart enough to realize that this->final still equals f:
+                    f hb this;
+                }
+                
+                constructor Void emptyMethod()
+                {                    
+                }
+                
+                Void readFinal(Object<this.final> o) 
+                requires method subinterval this
+                {
+                    String s1 = o->toString(); // ERROR intervals.requirement.not.met(requires this.final readable by method)
+                }                
+            }
+            """
+        )
+    }    
+
+    @Test
     def overriddenMethodsCannotAddRequirements() {
         tc(
             """
@@ -635,7 +712,7 @@ class TestAnalysis extends JUnitSuite {
         )
     }
 
-    // XXX Have to fix various problems first: @Test
+    //@Test
     def hoh() {
         tc(
             """
@@ -658,11 +735,13 @@ class TestAnalysis extends JUnitSuite {
                     Lock lock = new();
                     this->lock = lock;
                     
-                    Data<this.lock> data = null;
-                    this->data = data;
-                    
-                    Link nextLink = null
-                    this->nextLink = nextLink;
+                    subinterval x locks lock {
+                        Data<this.lock> data = null;
+                        this->data = data;
+
+                        Link nextLink = null;
+                        this->nextLink = nextLink;                        
+                    }
                 }
             }
             

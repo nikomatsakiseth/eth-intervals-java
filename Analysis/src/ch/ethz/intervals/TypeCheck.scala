@@ -12,11 +12,6 @@ import Util._
 TODO LIST
 ---------
 
-(*) Implement subinterval with grammar: 
-        subinterval x [locks comma(p)] { ... }
-    It should be possible to use a subinterval in the constructor 
-    to acquire a (newly created, and hence private) lock.
-     
 (*) Implement "inter-method" assumptions, particularly those which allow us to 
     derive relations from constructor
     
@@ -27,6 +22,14 @@ TODO LIST
     F is not linked to G if current hb F.
     
 (*) Whatever else is needed to make HOH work?
+
+(*) Control-flow: convert to SSA or SSI form.
+
+(*) Make HB relations operate on points
+
+(*) @Is annotations on methods and variable declarations
+
+(*) Javac plugin
 
 */
 
@@ -40,10 +43,12 @@ We often use the notation Foo<f: p> to mean a type Foo
 value p for its ghost parameter f.  This notation combines
 the class declaration, which must have been something like:
     class Foo<wt f> { ... }
-and the normal reference a user would use:
+and the type reference:
     Foo<p>
 into one more concise entity Foo<f: p> that provides both
 the name (but not type) and value of the ghost argument(s).
+It's also close to the Java annotation syntax, which 
+would be @f(p) Foo.
 */
 
 class TypeCheck(log: Log, prog: Prog) {    
@@ -54,7 +59,7 @@ class TypeCheck(log: Log, prog: Prog) {
     // ______________________________________________________________________
     // Environment
     
-    var env = ir.TcEnv(
+    val emptyEnv = ir.TcEnv(
         ir.p_mthd,
         Map(),
         Map(),
@@ -65,6 +70,7 @@ class TypeCheck(log: Log, prog: Prog) {
         ir.Relation.emptyTrans,
         ir.Relation.empty
     )
+    var env = emptyEnv
     
     /// Executes g and restores the old environment afterwards:
     def savingEnv[R](g: => R): R = {
@@ -942,7 +948,11 @@ class TypeCheck(log: Log, prog: Prog) {
         )                
     }
     
-    def checkMethodDecl(cd: ir.ClassDecl, md: ir.MethodDecl) = 
+    def checkMethodDecl(
+        cd: ir.ClassDecl,          // class in which the method is declared
+        env_ctor_assum: ir.TcEnv,  // relations established by the ctor
+        md: ir.MethodDecl          // method to check
+    ) = 
         at(md, ()) {
             savingEnv {
                 // Define special vars "method" and "this":
@@ -950,7 +960,8 @@ class TypeCheck(log: Log, prog: Prog) {
                 if(!md.attrs.ctor) { 
                     // For normal methods, type of this is the defining class
                     addPerm(ir.p_this, ir.TeePee(cd.thisTref, ir.p_this, ir.noAttrs))                     
-                    addHb(tp_ctor, tp_cur)                    
+                    addHb(tp_ctor, tp_cur)      // ... constructor already happened
+                    env = env + env_ctor_assum  // ... add its effects on environment
                 } else {
                     // For constructor methods, type of this is the type that originally defined it
                     val t_rcvr = typeOriginallyDefiningMethod(cd.name, md.name).get
@@ -987,7 +998,7 @@ class TypeCheck(log: Log, prog: Prog) {
         }
     
     def checkConstructorDecl(cd: ir.ClassDecl, md: ir.MethodDecl) = 
-        at(md, ()) {
+        at(md, emptyEnv) {
             savingEnv {
                 // Define special vars "method" (== this.constructor) and "this":
                 addPerm(ir.p_mthd, ir.TeePee(ir.t_interval, ir.gd_ctor.thisPath, ir.ghostAttrs))
@@ -1014,7 +1025,9 @@ class TypeCheck(log: Log, prog: Prog) {
                 setPerm(ir.p_this, ir.TeePee(cd.thisTref(ir.ctorAttrs), ir.p_this, ir.noAttrs))
                 checkStatements(postSuper.tail)
 
-                md.op_ret.foreach { _ => throw new ir.IrError("intervals.ctor.with.ret") }                
+                md.op_ret.foreach { _ => throw new ir.IrError("intervals.ctor.with.ret") }
+                
+                extractAssumptions(tp_ctor, Set(ir.lv_this))
             }          
         }
     
@@ -1071,13 +1084,66 @@ class TypeCheck(log: Log, prog: Prog) {
                                                 "intervals.illegal.type.dep",
                                                 tp_dep.p, tp_guard.p)
                                 }
-                            }                        
+                            }
                             check(p_full_dep)                            
                         }
                     }                   
                 }
             }
         }
+        
+    // ______________________________________________________________________
+    // Inter-method Assumptions
+    //
+    // When we know that method A must complete before method B is invoked,
+    // we can move any relations known at the end of A into B.  In particular, 
+    // we can move relations from the constructor to any non-constructor method.
+    // There are some complications, however.  We need to ensure we only move
+    // a relation (p, q) if the paths p and q refer to the same objects in method B.
+    // This basically restricts us to paths beginning with "this".  The next complication
+    // is that the interesting relations tend to be between fields that which are being
+    // actively modified by method A, which means that these relations will actually be
+    // recorded as between fields that are temporarily aliased to local variables.
+    //
+    // Therefore, what we do is as follows:
+    //
+    // (1) At the end of the method A, we create a reverse mapping for all temporary
+    //     aliases p->lv iff the path p is declared as being written by A (i.e., this.constructor).
+    //     This is sound because if it has not changed by the end of A, then
+    //     it will never change.
+    //
+    // (2) We apply this reverse mapping to all relations and then take the subset of
+    //     those which involve paths beginning with shared local variables (only "this" right
+    //     now).
+        
+    def extractAssumptions(
+        tp_mthd: ir.TeePee, 
+        lvs_shared: Set[ir.VarName]
+    ): ir.TcEnv = savingEnv {
+        
+        withCurrent(freshTp(ir.t_interval)) {
+            addHb(tp_mthd, tp_cur)
+            
+            val identityMap = Map.empty[ir.Path, ir.Path].withDefault(p => p)
+            val mapFunc = env.temp.foldLeft(identityMap) { case (m, (k, v)) => m + Pair(v, k) }        
+            
+            def filterFunc(p: ir.Path): Boolean = 
+                lvs_shared(p.lv) && !teePee(p).as.mutable
+                
+            ir.TcEnv(
+                env.p_cur,
+                env.perm,
+                env.temp,
+                env.lp_invalidated,
+                env.readable.mapFilter(mapFunc, filterFunc),
+                env.writable.mapFilter(mapFunc, filterFunc),
+                env.hb.mapFilter(mapFunc, filterFunc),
+                env.subinterval.mapFilter(mapFunc, filterFunc),
+                env.locks.mapFilter(mapFunc, filterFunc)
+            )
+        }
+
+    }
     
     // ______________________________________________________________________
     // Permitted Prefixes
@@ -1157,8 +1223,8 @@ class TypeCheck(log: Log, prog: Prog) {
                 // XXX Need to extract visible effects of ctor
                 // XXX and save them in environment for other
                 // XXX methods.
-                checkConstructorDecl(cd, cd.ctor)                    
-                cd.methods.foreach(checkMethodDecl(cd, _))                    
+                val env_ctor_assum = checkConstructorDecl(cd, cd.ctor)                    
+                cd.methods.foreach(checkMethodDecl(cd, env_ctor_assum, _))                    
             }
         }
     

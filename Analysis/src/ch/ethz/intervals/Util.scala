@@ -271,7 +271,7 @@ object Util {
       newMultiMap(size, m1)
     }
       
-    def mapValueSets(f: (K, Set[V]) => Set[V]) = {
+    def mapValueSets(f: ((K, Set[V]) => Set[V])) = {
       val m1 = _m.transform((k,v) => f(k, v))
       val size = m1.values.map(_.size).foldLeft(0)(_ + _) // faster way?
       newMultiMap(size, m1)      
