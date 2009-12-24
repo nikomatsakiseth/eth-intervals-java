@@ -1,0 +1,39 @@
+TODO LIST
+---------
+
+(*) Cleanup linked field logic as relates to guards.  Right now, a
+    field F is not linked to G if guard(G) hb guard(F).  The reasoning
+    is that then guard(F) could not yet have occurred, and so F could
+    not be initialized.  What would prob. make more sense is to say tht
+    F is not linked to G if current hb F.
+    
+(*) Whatever else is needed to make HOH work?
+
+(*) Control-flow: convert to SSA or SSI form.
+
+(*) Make HB relations operate on points
+
+(*) @Is annotations on methods and variable declarations
+
+(*) Inherit assumptions from supertype constructors as well!
+
+(*) Ensures declarations--
+
+    In place of the current inference, we should add ensures declarations on constructors
+    (or potentially other methods).  These ensures declarations could be inferred by the
+    compiler for constructors as we do today, but could also be manually specified to support
+    virtual methods and helpers for constructors.
+
+(*) Assertions
+
+(*) Javac plugin
+
+(*) Multiple inheritance
+
+(*) Multiple constructors
+
+(*) Requires in class bodies, declarations--
+
+    If a class declared, for example, that two of its fields f and g have a HB relationship,
+    then this would link f and g.  We can use the existing linked fields mechanisms to ensure
+    that they are written together.
