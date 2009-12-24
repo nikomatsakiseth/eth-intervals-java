@@ -751,7 +751,7 @@ class TestAnalysis extends JUnitSuite {
                 constructor(Link link) {
                     super();
                     this->link = link;                 
-                    this locks link.lock; // XXX have to convey this information to methods
+                    this locks link.lock; 
                 }
                 
                 Data<this.link.lock> transform(Data<this.link.lock> inData) 
@@ -763,7 +763,9 @@ class TestAnalysis extends JUnitSuite {
                     return outData;
                 }
                 
-                Void run() {
+                Void run() 
+                requires method subinterval this
+                {
                     // Update data:
                     Data<this.link.lock> oldData = this.link->data;
                     Data<this.link.lock> newData = this->transform(oldData);
