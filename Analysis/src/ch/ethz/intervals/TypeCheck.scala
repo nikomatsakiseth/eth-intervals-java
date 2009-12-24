@@ -35,6 +35,7 @@ class TypeCheck(log: Log, prog: Prog) {
     
     val emptyEnv = ir.TcEnv(
         ir.p_mthd,
+        ir.t_void,
         Map(),
         Map(),
         ListSet.empty,
@@ -64,6 +65,7 @@ class TypeCheck(log: Log, prog: Prog) {
             log.indented("withCurrent(%s)", tp) {
                 env = ir.TcEnv(
                     tp.p,
+                    env.wt_ret,
                     env.perm,
                     env.temp,
                     env.lp_invalidated,
@@ -71,12 +73,14 @@ class TypeCheck(log: Log, prog: Prog) {
                     env.writable,
                     env.hb,
                     env.subinterval,
-                    env.locks)
+                    env.locks
+                )
                 g
             }            
         } finally {
             env = ir.TcEnv(
                 p_old,
+                env.wt_ret,
                 env.perm,
                 env.temp,
                 env.lp_invalidated,
@@ -84,8 +88,24 @@ class TypeCheck(log: Log, prog: Prog) {
                 env.writable,
                 env.hb,
                 env.subinterval,
-                env.locks)            
+                env.locks
+            )            
         }
+    }
+    
+    def setWtRet(wt_ret: ir.WcTypeRef) = {
+        env = ir.TcEnv(
+            env.p_cur,
+            wt_ret,
+            env.perm,
+            env.temp,
+            env.lp_invalidated,
+            env.readable,
+            env.writable,
+            env.hb,
+            env.subinterval,
+            env.locks            
+        )
     }
 
     /// Add or overwrite a permanent mapping.
@@ -94,6 +114,7 @@ class TypeCheck(log: Log, prog: Prog) {
         log.indented("addPerm(%s,%s)", p, tq) {
             env = ir.TcEnv(
                 env.p_cur,
+                env.wt_ret,
                 env.perm + Pair(p, tq),
                 env.temp,
                 env.lp_invalidated,
@@ -101,7 +122,8 @@ class TypeCheck(log: Log, prog: Prog) {
                 env.writable,
                 env.hb,
                 env.subinterval,
-                env.locks)
+                env.locks
+            )
         }
         
     
@@ -401,6 +423,7 @@ class TypeCheck(log: Log, prog: Prog) {
         log.indented("addTemp(%s,%s)", p, q) {
             env = ir.TcEnv(
                 env.p_cur,
+                env.wt_ret,
                 env.perm,
                 env.temp + Pair(p, q),
                 env.lp_invalidated,
@@ -415,6 +438,7 @@ class TypeCheck(log: Log, prog: Prog) {
         log.indented("clearTemp()") {
             env = ir.TcEnv(
                 env.p_cur,
+                env.wt_ret,
                 env.perm,
                 Map(),
                 env.lp_invalidated,
@@ -429,6 +453,7 @@ class TypeCheck(log: Log, prog: Prog) {
         log.indented("addInvalidated(%s)", p) {
             env = ir.TcEnv(
                 env.p_cur,
+                env.wt_ret,
                 env.perm,
                 env.temp,
                 env.lp_invalidated + p,
@@ -443,6 +468,7 @@ class TypeCheck(log: Log, prog: Prog) {
         log.indented("removeInvalidated(%s)", p) {
             env = ir.TcEnv(
                 env.p_cur,
+                env.wt_ret,
                 env.perm,
                 env.temp,
                 env.lp_invalidated - p,
@@ -460,6 +486,7 @@ class TypeCheck(log: Log, prog: Prog) {
             assert(tp.isConstant && tq.isConstant)
             env = ir.TcEnv(
                 env.p_cur,
+                env.wt_ret,
                 env.perm,
                 env.temp,
                 env.lp_invalidated,            
@@ -475,6 +502,7 @@ class TypeCheck(log: Log, prog: Prog) {
             assert(tp.isConstant && tq.isConstant)
             env = ir.TcEnv(
                 env.p_cur,
+                env.wt_ret,
                 env.perm,
                 env.temp,
                 env.lp_invalidated,            
@@ -490,6 +518,7 @@ class TypeCheck(log: Log, prog: Prog) {
             assert(tp.isConstant && tq.isConstant)
             env = ir.TcEnv(
                 env.p_cur,
+                env.wt_ret,
                 env.perm,
                 env.temp,
                 env.lp_invalidated,            
@@ -505,6 +534,7 @@ class TypeCheck(log: Log, prog: Prog) {
             assert(tp.isConstant && tq.isConstant)
             env = ir.TcEnv(
                 env.p_cur,
+                env.wt_ret,
                 env.perm,
                 env.temp,
                 env.lp_invalidated,            
@@ -520,6 +550,7 @@ class TypeCheck(log: Log, prog: Prog) {
             assert(tp.isConstant && tq.isConstant)
             env = ir.TcEnv(
                 env.p_cur,
+                env.wt_ret,
                 env.perm,
                 env.temp,
                 env.lp_invalidated,            
@@ -786,6 +817,16 @@ class TypeCheck(log: Log, prog: Prog) {
                 env.lp_invalidated.mkEnglishString)        
     }
 
+    def checkSucc(blks: Array[ir.Block], succ: ir.Succ) {
+        val blk_tar = blks(succ.b)
+        checkLengths(blk_tar.args, succ.ps, "intervals.succ.args")
+        val lvs_tar = blk_tar.args.map(_.name)
+        val tps = teePee(ir.noAttrs, succ.ps)
+        val subst = PathSubst.vp(lvs_tar, tps.map(_.p))
+        val wts_tar = blk_tar.args.map(arg => subst.wtref(arg.wt))
+        foreachzip(tps, wts_tar)(checkIsSubtype)
+    }
+    
     def checkCallMsig(tp: ir.TeePee, msig: ir.MethodSig, tqs: List[ir.TeePee]) {
         // Cannot invoke a method when there are outstanding invalidated fields:
         checkNoInvalidated()
@@ -860,6 +901,8 @@ class TypeCheck(log: Log, prog: Prog) {
                     checkCall(vd, tp_super, m, tqs)
                 
                 case ir.StmtSuperCtor(qs) =>
+                    if(!tp_this.as.ghost)
+                        throw new ir.IrError("intervals.super.ctor.not.permitted.here")
                     val tp = tp_super
                     val tqs = teePee(ir.noAttrs, qs)
                     val msig_ctor0 = classDecl(tp.wt.c).ctor.msig(cap(tp))
@@ -889,6 +932,10 @@ class TypeCheck(log: Log, prog: Prog) {
                     val subst = substGhosts + PathSubst.vp(cd.ctor.args.map(_.name), tqs.map(_.p))
                     val msig = subst.methodSig(cd.ctor.msig(t))
                     checkCallMsig(teePee(x.path), msig, tqs)
+                    
+                case ir.StmtReturn(p) =>
+                    val tp = teePee(ir.noAttrs, p)
+                    checkIsSubtype(tp, env.wt_ret)
                     
                 case ir.StmtHb(p, q) =>
                     val tp = teePee(ir.noAttrs, p)
@@ -963,6 +1010,20 @@ class TypeCheck(log: Log, prog: Prog) {
         )                
     }
     
+    def introduceArg(arg: ir.LvDecl) {
+        checkWfWt(arg.wt) 
+        addPerm(arg.name.path, ir.TeePee(arg.wt, arg.name.path, ir.noAttrs))        
+    }
+    
+    def checkBlock(blks: Array[ir.Block], b: Int, blk: ir.Block) = 
+        log.indented("%s: %s", b, blk) {
+            savingEnv {
+                blk.args.foreach(introduceArg)                
+                checkStatements(blk.stmts)
+                blk.succs.foreach(checkSucc(blks, _))
+            }
+        }
+        
     def checkNoninterfaceMethodDecl(
         cd: ir.ClassDecl,          // class in which the method is declared
         env_ctor_assum: ir.TcEnv,  // relations established by the ctor
@@ -983,11 +1044,9 @@ class TypeCheck(log: Log, prog: Prog) {
                     addPerm(ir.p_this, ir.TeePee(t_rcvr.ctor, ir.p_this, ir.noAttrs))
                 }  
                 
-                md.args.foreach { case arg => 
-                    checkWfWt(arg.wt) 
-                    addPerm(arg.name.path, ir.TeePee(arg.wt, arg.name.path, ir.noAttrs))
-                }
+                md.args.foreach(introduceArg)
                 checkWfWt(md.wt_ret)
+                setWtRet(md.wt_ret)
                 
                 savingEnv {
                     overriddenMethodSigs(cd.name, md.name) foreach { msig_sup_0 => 
@@ -1000,14 +1059,8 @@ class TypeCheck(log: Log, prog: Prog) {
                 
                 md.reqs.foreach(addReq)
                 
-                if(md.stmts.exists(isSuperCtor)) // super(...) only permitted in constructors
-                    throw new ir.IrError("intervals.super.ctor.in.mthd")
-                    
-                checkStatements(md.stmts)
-                
-                md.op_ret.foreach { p_ret =>
-                    val tp_ret = teePee(ir.noAttrs, p_ret)
-                    checkIsSubtype(tp_ret, md.wt_ret)
+                md.blocks.zipWithIndex.foreach { case (blk, idx) =>
+                    checkBlock(md.blocks, idx, blk)
                 }
             }         
         }
@@ -1024,14 +1077,17 @@ class TypeCheck(log: Log, prog: Prog) {
                     addPerm(arg.name.path, ir.TeePee(arg.wt, arg.name.path, ir.noAttrs))
                 }            
                 md.reqs.foreach(addReq)
-
-                val preSuper = md.stmts.takeWhile(!isSuperCtor(_))
-                val postSuper = md.stmts.dropWhile(!isSuperCtor(_))
+                
+                val blk0 = md.blocks(0)
+                val preSuper = blk0.stmts.takeWhile(!isSuperCtor(_))
+                val postSuper = blk0.stmts.dropWhile(!isSuperCtor(_))
                 if(postSuper.isEmpty)
                     throw new ir.IrError("intervals.super.ctor.zero")
-                if(postSuper.tail.exists(isSuperCtor))
-                    throw new ir.IrError("intervals.super.ctor.twice")
-
+                    
+                // TODO -- Have the checking of super() verify that p_this is a ghost
+                // and reify it, and thus permit control-flow.  We then have to propagate
+                // p_this between blocks though (yuck).
+                    
                 // Check statements up until the super() invocation with ghost 'this':
                 preSuper.foreach(checkStatement)
                 checkStatement(postSuper.head)
@@ -1040,8 +1096,6 @@ class TypeCheck(log: Log, prog: Prog) {
                 setPerm(ir.p_this, ir.TeePee(cd.thisTref(ir.ctorAttrs), ir.p_this, ir.noAttrs))
                 checkStatements(postSuper.tail)
 
-                md.op_ret.foreach { _ => throw new ir.IrError("intervals.ctor.with.ret") }
-                
                 extractAssumptions(tp_ctor_end, Set(ir.lv_this))
             }          
         }
@@ -1151,6 +1205,7 @@ class TypeCheck(log: Log, prog: Prog) {
 
                 ir.TcEnv(
                     env.p_cur,
+                    env.wt_ret,
                     env.perm,
                     env.temp,
                     env.lp_invalidated,
@@ -1185,8 +1240,9 @@ class TypeCheck(log: Log, prog: Prog) {
     
     def checkInterfaceConstructorDecl(cd: ir.ClassDecl, md: ir.MethodDecl) =
         at(md, ()) {
-            if(md != ir.md_ctor_interface)
+            if(!md.blocks.deepEquals(ir.md_ctor_interface.blocks))
                 throw new ir.IrError("intervals.invalid.ctor.in.interface")
+            // TODO Check other parts of constructor signature. (Very low priority)
         }
     
     def checkInterfaceMethodDecl(cd: ir.ClassDecl, md: ir.MethodDecl) =

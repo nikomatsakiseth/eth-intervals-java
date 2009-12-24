@@ -79,20 +79,20 @@ class TestAnalysis extends JUnitSuite {
                 Object<this.inter> obj requires this.creator;
                 
                 constructor() 
-                requires subinterval this.creator
+                requires method subinterval this.creator
                 {                   
                     super();                    
                 }
                 
                 Void setBothOkWhenGivenAsParameters(Interval inter, Object<inter> obj) 
-                requires subinterval this.creator
+                requires method subinterval this.creator
                 {
                     this->inter = inter;
                     this->obj = obj;
                 }
                 
                 Void setBothOkWhenOneIsCreated(Interval inter)
-                requires subinterval this.creator
+                requires method subinterval this.creator
                 {
                     Object<inter> obj = new();
                     
@@ -101,14 +101,14 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 Void setBothWrongOrder(Interval inter, Object<inter> obj) // ERROR intervals.must.assign.first(this.obj)
-                requires subinterval this.creator
+                requires method subinterval this.creator
                 {
                     this->obj = obj; // ERROR intervals.expected.subtype(obj, Object<inter>{}, Object<this.inter>{})
                     this->inter = inter;
                 }
                 
                 Void setOneNotOk(Interval inter) // ERROR intervals.must.assign.first(this.obj)
-                requires subinterval this.creator
+                requires method subinterval this.creator
                 {
                     this->inter = inter;
                 }
@@ -118,7 +118,7 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 Void invokingAnotherMethodInBetweenNotOk(Interval inter, Object<inter> obj) 
-                requires subinterval this.creator
+                requires method subinterval this.creator
                 {
                     this->inter = inter;
                     this->anotherMethod(); // ERROR intervals.must.assign.first(this.obj)
@@ -126,7 +126,7 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 Void invokingAnotherMethodAfterIsOk(Interval inter, Object<inter> obj) 
-                requires subinterval this.creator
+                requires method subinterval this.creator
                 {
                     this->inter = inter;
                     this->obj = obj;                    
@@ -134,7 +134,7 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 Void creatingObjectsInBetweenNotOk(Interval inter, Object<inter> obj) 
-                requires subinterval this.creator
+                requires method subinterval this.creator
                 {
                     this->inter = inter;
                     Object<inter> obj2 = new(); // ERROR intervals.must.assign.first(this.obj)
@@ -142,7 +142,7 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 Void creatingObjectsAfterIsOk(Interval inter, Object<inter> obj) 
-                requires subinterval this.creator
+                requires method subinterval this.creator
                 {
                     this->inter = inter;
                     this->obj = obj;
@@ -216,7 +216,7 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 constructor Void ctorMethod2() 
-                requires subinterval this.constructor
+                requires method subinterval this.constructor
                 {
                     String c = this->c; 
                     
@@ -598,7 +598,7 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 constructor Void ctorMethod2() 
-                requires subinterval this.constructor
+                requires method subinterval this.constructor
                 {
                     String c = this->c; 
                     
@@ -938,7 +938,7 @@ class TestAnalysis extends JUnitSuite {
                 }
 
                 Void run()
-                requires subinterval this
+                requires method subinterval this
                 {
                     ProdData<this> pdata = this->pdata;
                     ConsData<hb this> cdata = this->cdata;
@@ -972,7 +972,7 @@ class TestAnalysis extends JUnitSuite {
                 }
 
                 Void run()
-                requires subinterval this
+                requires method subinterval this
                 {
                     ProdData<hb this> pdata = this->pdata;
                     ConsData<this> cdata = this->cdata;
@@ -995,7 +995,7 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 Void run()
-                requires subinterval this
+                requires method subinterval this
                 {
                     ConsData<this> d0 = new();
                     ConsData<this> d1 = new();                    

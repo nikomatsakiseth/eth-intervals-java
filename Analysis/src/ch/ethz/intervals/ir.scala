@@ -5,31 +5,51 @@ import scala.collection.immutable.ListSet
 import scala.util.parsing.input.Positional
 import Util._
 
+    
+/*
+
+______________________________________________________________________
+Naming Conventions
+
+Naming conventions generally follow the formal typing rules,
+although in some cases I elected to use longer names in the code.
+Short names begin with a letter indicating the type of the
+variable or field:
+
+b -> block id
+x -> local variable name
+p,q -> path
+tp,tq -> typed path (TeePee)
+wp,wq -> wildcard path
+f -> field name
+m -> method name
+c -> class name
+cd, md, fd -> class, method, field decl
+blk -> block definition
+t -> type (TypeRef)
+wt -> wildcard type (WcTypeRef)
+
+The type is then optionally followed by an underscore
+with a more descriptive tag, like p_r for the receiver path.
+
+To indicate lists, options, and sets we mimic the scale
+syntax and use an "l", "o", or "s" prefix: lp_r, op_r, sp_r.
+In practice, however, lists and sets are often denoted using an "s" suffix
+instead: "ps", "qs", although that convention probably ought to be deprecated.
+
+______________________________________________________________________
+Control-Flow Graph Assumptions
+
+We assumed that the method control-flow graph is dominated by block 0
+and post-dominated by block n-1.  We further assume that every path
+leads to a return or throw statement (unless the method is void in the Java code); 
+we do not treat return statements specially with respect to control-flow.  
+Instead, we assume that blocks with returns or throws end immediately with an
+edge to block n-1.  These assumptions are currently not verified.
+
+*/
+
 object ir {
-    
-    /*
-    Naming conventions generally follow the formal typing rules,
-    although in some cases I elected to use longer names in the code.
-    Short names begin with a letter indicating the type of the
-    variable or field:
-    
-    x -> local variable name
-    p,q -> path
-    tp,tq -> typed path (TeePee)
-    wp,wq -> wildcard path
-    f -> field name
-    m -> method name
-    c -> class name
-    cd, md, fd -> class, method, field decl
-    t -> type (TypeRef)
-    wt -> wildcard type (WcTypeRef)
-    
-    The type is then optionally followed by an underscore
-    with a more descriptive tag, like p_r for the receiver path.
-    
-    To indicate lists, options, and sets we mimic the scale
-    syntax and use an "l", "o", or "s" prefix: lp_r, op_r, sp_r.
-    */
     
     // ______________________________________________________________________
     // Attributes attached to paths, types, methods
@@ -123,12 +143,11 @@ object ir {
     
     sealed case class MethodDecl(
         attrs: Attrs,       
-        wt_ret: WcTypeRef,  // 
+        wt_ret: WcTypeRef,
         name: MethodName,
         args: List[LvDecl],
         reqs: List[Req],
-        stmts: List[Stmt],
-        op_ret: Option[Path] // if omitted, equiv. to return null
+        blocks: Array[Block] // See notes on CFG structure at the top of this file.
     ) extends Positional {
         def msig(t_rcvr: TypeRef) = MethodSig(t_rcvr, attrs, args, reqs, wt_ret)
         
@@ -174,6 +193,21 @@ object ir {
             "%s %s %s requires %s".format(as, wt, name, p_guard)
     }
     
+    sealed case class Block(
+        args: List[LvDecl],
+        stmts: List[Stmt],
+        succs: List[Succ]
+    ) {
+        override def toString = "block(%s)".format(args.mkString(", "))
+    }
+    
+    sealed case class Succ(
+        b: Int,
+        ps: List[ir.Path]
+    ) {
+        override def toString = "succ %s(%s);".format(b, ps)
+    }
+    
     sealed abstract class Stmt extends Positional
     sealed case class StmtSuperCall(vd: LvDecl, m: MethodName, qs: List[Path]) extends Stmt {
         override def toString = "%s = super->%s(%s)".format(vd, m, qs)
@@ -192,6 +226,9 @@ object ir {
     }
     sealed case class StmtNull(vd: LvDecl) extends Stmt {
         override def toString = "%s = null;".format(vd)
+    }
+    sealed case class StmtReturn(p: Path) extends Stmt {
+        override def toString = "return %s;".format(p)        
     }
     sealed case class StmtSetField(p: Path, f: FieldName, q: Path) extends Stmt {
         override def toString = "%s->%s = %s;".format(p, f, q)
@@ -353,6 +390,7 @@ object ir {
     
     sealed case class TcEnv(
         p_cur: ir.Path,                 // current interval
+        wt_ret: ir.WcTypeRef,           // return type of current method
         perm: Map[ir.Path, ir.TeePee],  // permanent equivalences, hold for duration of method
         temp: Map[ir.Path, ir.Path],    // temporary equivalences, cleared on method call
         lp_invalidated: Set[ir.Path],   // p is current invalid and must be reassigned        
@@ -365,6 +403,7 @@ object ir {
         def +(env: TcEnv) = {
             TcEnv(
                 p_cur,
+                wt_ret,
                 perm,
                 temp,
                 lp_invalidated,
@@ -433,8 +472,13 @@ object ir {
             /* name:   */ m_ctor, 
             /* args:   */ List(),
             /* reqs:   */ List(),
-            /* stmts:  */ List(ir.StmtSuperCtor(List())),
-            /* p_ret:  */ None
+            /* blocks: */ Array(
+                Block(
+                    /* args:  */ List(),
+                    /* stmts: */ List(ir.StmtSuperCtor(List())),
+                    /* succ:  */ List()
+                )
+            )
         )
     
     val cds_default = List(
@@ -450,9 +494,14 @@ object ir {
                     /* name:   */ m_ctor, 
                     /* args:   */ List(),
                     /* reqs:   */ List(),
-                    /* stmts:  */ List(),
-                    /* p_ret:  */ None
-                    ),
+                    /* blocks: */ Array(
+                        Block(
+                            /* args:  */ List(),
+                            /* stmts: */ List(ir.StmtSuperCtor(List())),
+                            /* succ:  */ List()
+                        )
+                    )
+                ),
             /* Fields:  */  List(),
             /* Methods: */  List(
                 MethodDecl(
@@ -461,9 +510,15 @@ object ir {
                     /* name:   */ m_toString, 
                     /* args:   */ List(),
                     /* reqs:   */ List(ir.ReqReadableBy(List(gd_creator.thisPath), List(p_mthd))),
-                    /* stmts:  */ List(),
-                    /* p_ret:  */ None
-                    ))                
+                    /* blocks: */ Array(
+                        Block(
+                            /* args:  */ List(),
+                            /* stmts: */ List(),
+                            /* succ:  */ List()
+                        )
+                    )
+                )
+            )
         ),
         ClassDecl(
             /* Attrs:   */  noAttrs,
@@ -477,9 +532,14 @@ object ir {
                     /* name:   */ m_ctor, 
                     /* args:   */ List(),
                     /* reqs:   */ List(),
-                    /* stmts:  */ List(),
-                    /* p_ret:  */ None
-                    ),
+                    /* blocks: */ Array(
+                        Block(
+                            /* args:  */ List(),
+                            /* stmts: */ List(ir.StmtSuperCtor(List())),
+                            /* succ:  */ List()
+                        )
+                    )
+                ),
             /* Fields:  */  List(),
             /* Methods: */  List()
         ),
@@ -495,9 +555,14 @@ object ir {
                     /* name:   */ m_ctor, 
                     /* args:   */ List(),
                     /* reqs:   */ List(),
-                    /* stmts:  */ List(),
-                    /* p_ret:  */ None
-                    ),
+                    /* blocks: */ Array(
+                        Block(
+                            /* args:  */ List(),
+                            /* stmts: */ List(ir.StmtSuperCtor(List())),
+                            /* succ:  */ List()
+                        )
+                    )
+                ),
             /* Fields:  */  List(),
             /* Methods: */  List()
         ),
@@ -513,9 +578,14 @@ object ir {
                     /* name:   */ m_ctor, 
                     /* args:   */ List(),
                     /* reqs:   */ List(),
-                    /* stmts:  */ List(),
-                    /* p_ret:  */ None
-                    ),
+                    /* blocks: */ Array(
+                        Block(
+                            /* args:  */ List(),
+                            /* stmts: */ List(ir.StmtSuperCtor(List())),
+                            /* succ:  */ List()
+                        )
+                    )
+                ),
             /* Fields:  */  List(
                 FieldDecl(noAttrs, t_point, f_start, gd_ctor.thisPath),
                 FieldDecl(noAttrs, t_point, f_end, gd_ctor.thisPath)),
@@ -526,10 +596,15 @@ object ir {
                     /* name:   */ m_run, 
                     /* args:   */ List(),
                     /* reqs:   */ List(ir.ReqSubintervalOf(List(p_mthd), List(p_this))),
-                    /* stmts:  */ List(),
-                    /* p_ret:  */ None
+                    /* blocks: */ Array(
+                        Block(
+                            /* args:  */ List(),
+                            /* stmts: */ List(),
+                            /* succ:  */ List()
+                        )
                     )
                 )
+            )
         ),
         ClassDecl(
             /* Attrs:   */  noAttrs,
@@ -543,9 +618,14 @@ object ir {
                     /* name:   */ m_ctor, 
                     /* args:   */ List(),
                     /* reqs:   */ List(),
-                    /* stmts:  */ List(),
-                    /* p_ret:  */ None
-                    ),
+                    /* blocks: */ Array(
+                        Block(
+                            /* args:  */ List(),
+                            /* stmts: */ List(ir.StmtSuperCtor(List())),
+                            /* succ:  */ List()
+                        )
+                    )
+                ),
             /* Fields:  */  List(),
             /* Methods: */  List()
         ),
@@ -561,9 +641,14 @@ object ir {
                     /* name:   */ m_ctor, 
                     /* args:   */ List(),
                     /* reqs:   */ List(),
-                    /* stmts:  */ List(),
-                    /* p_ret:  */ None
-                    ),
+                    /* blocks: */ Array(
+                        Block(
+                            /* args:  */ List(),
+                            /* stmts: */ List(ir.StmtSuperCtor(List())),
+                            /* succ:  */ List()
+                        )
+                    )
+                ),
             /* Fields:  */  List(),
             /* Methods: */  List()
         )

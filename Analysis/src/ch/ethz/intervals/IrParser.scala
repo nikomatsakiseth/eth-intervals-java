@@ -15,7 +15,7 @@ class IrParser extends StandardTokenParsers {
         "return", "Rd", "Wr", "Free", "extends", 
         "hb", "requires", "super", "locks",
         "subinterval", "readableBy", "writableBy",
-        "interface"
+        "interface", "succ"
     )
     
     def parse[A](p: Parser[A])(text: String) = {
@@ -26,7 +26,10 @@ class IrParser extends StandardTokenParsers {
     def optd[A](p: Parser[A], d: => A) = 
         opt(p)                                  ^^ { case None => d
                                                      case Some(l) => l }
-    def optl[A](p: Parser[List[A]]) = optd(p, List())
+    
+    def optl2[A](k: String, p: Parser[List[A]]) = opt(
+        k~p                                     ^^ { case _~r => r }
+    ) ^^ { case None => List(); case Some(l) => l }
 
     def optl3[A](a: String, p: Parser[List[A]], b: String) =
         opt(a~p~b)                              ^^ { case Some(_~l~_) => l; case None => List() }
@@ -37,6 +40,8 @@ class IrParser extends StandardTokenParsers {
         "`"~repsep(ident, ".")~"`"              ^^ { case "`"~is~"`" => is.mkString(".") }
     |   ident
     )
+    
+    def integer = numericLit                    ^^ { case s => s.toInt }
     
     // Not all attributes are suitable in all contexts, but as this is an
     // internal IR we don't prevent irrelevant attributes from being added:
@@ -85,13 +90,11 @@ class IrParser extends StandardTokenParsers {
     }
     
     def optLvDecl = optd(
-        lvdecl~"="                              ^^ { case vd~_ => vd },
+        lvdecl~"="                                      ^^ { case vd~_ => vd },
         anonLvDecl
     )
     
-    def optLocks = optl(
-        "locks"~comma(p)                        ^^ { case _~l => l }
-    )
+    def optLocks = optl2("locks", comma(p))
     
     def stmt: Parser[ir.Stmt] = positioned(
        "super"~"("~comma(p)~")"~";"                     ^^ { case _~_~ps~_~_ => ir.StmtSuperCtor(ps) }
@@ -104,41 +107,44 @@ class IrParser extends StandardTokenParsers {
     |   p~"hb"~p~";"                                    ^^ { case p~_~q~_ => ir.StmtHb(p, q) }
     |   p~"locks"~p~";"                                 ^^ { case p~_~q~_ => ir.StmtLocks(p, q) }
     |   "subinterval"~lv~optLocks~"{"~rep(stmt)~"}"     ^^ { case _~x~ps~"{"~stmts~"}" => ir.StmtSubinterval(x, ps, stmts) }
+    |   "return"~p~";"                                  ^^ { case _~p~_ => ir.StmtReturn(p) }
     )
     
     def req = positioned(
-        "requires"~comma(p)~"readableBy"~comma(p)   ^^ { case _~lp~_~List() => ir.ReqReadableBy(lp, List(ir.p_mthd))
-                                                         case _~lp~_~lq => ir.ReqReadableBy(lp, lq) }
-    |   "requires"~comma(p)~"writableBy"~comma(p)   ^^ { case _~lp~_~List() => ir.ReqWritableBy(lp, List(ir.p_mthd))
-                                                         case _~lp~_~lq => ir.ReqWritableBy(lp, lq) }
-    |   "requires"~comma(p)~"subinterval"~comma(p)  ^^ { case _~List()~_~lq => ir.ReqSubintervalOf(List(ir.p_mthd), lq)
-                                                         case _~lp~_~lq => ir.ReqSubintervalOf(lp, lq) }
-    |   "requires"~comma(p)~"hb"~comma(p)           ^^ { case _~lp~_~lq => ir.ReqHb(lp, lq) }
+        "requires"~comma(p)~"readableBy"~comma(p)       ^^ { case _~lp~_~lq => ir.ReqReadableBy(lp, lq) }
+    |   "requires"~comma(p)~"writableBy"~comma(p)       ^^ { case _~lp~_~lq => ir.ReqWritableBy(lp, lq) }
+    |   "requires"~comma(p)~"subinterval"~comma(p)      ^^ { case _~lp~_~lq => ir.ReqSubintervalOf(lp, lq) }
+    |   "requires"~comma(p)~"hb"~comma(p)               ^^ { case _~lp~_~lq => ir.ReqHb(lp, lq) }
     )    
     def reqs = rep(req)
     
-    def ret = opt(
-        "return"~p~";"                          ^^ { case _~p~_ => p }
-    )
+    def succ = "succ"~integer~"("~comma(p)~")"~";"      ^^ { case _~b~"("~ps~")"~";" => ir.Succ(b, ps) }
+    
+    def block = (
+        "("~comma(lvdecl)~")"~"{"~rep(stmt)~rep(succ)~"}" 
+    ) ^^ { 
+        case "("~args~")"~"{"~stmts~succs~"}" => ir.Block(args, stmts, succs)
+    }
+    
+    def methodBody = (
+        "{"~rep(stmt)~rep(succ)~"}"~rep(block)
+    ) ^^ {
+        case _~stmts~succs~_~blocks =>
+            Array((ir.Block(List(), stmts, succs) :: blocks): _*)
+    }
     
     def methodDecl = positioned(
-        attrs~wt~m~"("~comma(lvdecl)~")"~reqs~"{"~
-            rep(stmt)~
-            ret~
-        "}"
+        attrs~wt~m~"("~comma(lvdecl)~")"~reqs~methodBody        
     ^^ {
-        case attrs~wt_ret~name~"("~args~")"~reqs~"{"~stmts~op_ret~"}" =>
-            ir.MethodDecl(attrs, wt_ret, name, args, reqs, stmts, op_ret)
+        case attrs~wt_ret~name~"("~args~")"~reqs~blocks =>
+            ir.MethodDecl(attrs, wt_ret, name, args, reqs, blocks)
     })
     
     def constructor = positioned(
-        "constructor"~"("~comma(lvdecl)~")"~reqs~"{"~
-            rep(stmt)~
-        "}"
+        "constructor"~"("~comma(lvdecl)~")"~reqs~methodBody
     ^^ {
-        case "constructor"~"("~args~")"~reqs~"{"~stmts~"}" =>
-            ir.MethodDecl(
-                ir.ctorAttrs, ir.t_void, ir.m_ctor, args, reqs, stmts, None)
+        case "constructor"~"("~args~")"~reqs~blocks =>
+            ir.MethodDecl(ir.ctorAttrs, ir.t_void, ir.m_ctor, args, reqs, blocks)
     })
     
     def ghostFieldDecl = positioned(
@@ -152,13 +158,16 @@ class IrParser extends StandardTokenParsers {
     def classDecl = positioned(
         attrs~"class"~c~optl3("<",
             comma(ghostFieldDecl),
-        ">")~"extends"~comma(t)~reqs~"{"~
+        ">")~
+        optl2("extends", comma(t))~
+        reqs~
+        "{"~
             rep(realFieldDecl)~
             constructor~
             rep(methodDecl)~
         "}"
     ^^ {
-        case attrs~"class"~name~ghosts~"extends"~superTypes~reqs~"{"~fields~ctor~methods~"}" =>
+        case attrs~"class"~name~ghosts~superTypes~reqs~"{"~fields~ctor~methods~"}" =>
             ir.ClassDecl(attrs, name, ghosts, superTypes, reqs, ctor, fields, methods)
     })
     
