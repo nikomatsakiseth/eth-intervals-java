@@ -37,6 +37,9 @@ object ir {
     sealed abstract class Attr(c: String, val adj: String) {
         override def toString = c
     }
+    
+    // Attrs for class definitions:
+    case object AttrInterface extends Attr("i", "interface")
 
     // Attrs for types:
     case object AttrCtor extends Attr("c", "constructor")
@@ -47,6 +50,9 @@ object ir {
     
     sealed case class Attrs(private val s: Set[Attr]) {
         def +(a: Attr) = Attrs(s + a)
+        
+        def interface = s.contains(AttrInterface)
+        def withInterface = this + AttrInterface
         
         def ctor = s.contains(AttrCtor)
         def withCtor = this + AttrCtor
@@ -98,9 +104,10 @@ object ir {
     // Abstract syntax tree
     
     sealed case class ClassDecl(
+        attrs: Attrs,       
         name: ClassName,
         ghosts: List[GhostDecl],
-        superType: Option[TypeRef],
+        superTypes: List[TypeRef],
         reqs: List[Req],
         ctor: MethodDecl,
         fields: List[FieldDecl],
@@ -111,7 +118,7 @@ object ir {
         
         override def toString =
             "class %s<%s>%s extends %s".format(
-                name, ghosts.mkString(", "), "".join(" ", reqs), superType)
+                name, ghosts.mkString(", "), "".join(" ", reqs), superTypes.mkString(", "))
     }
     
     sealed case class MethodDecl(
@@ -419,11 +426,23 @@ object ir {
     val t_objectCreator = ir.TypeRef(c_object, List(gd_creator.thisPath), ir.noAttrs)
     val t_objectCtor = ir.TypeRef(c_object, List(gd_ctor.thisPath), ir.noAttrs)
     
+    val md_ctor_interface = 
+        MethodDecl(
+            /* attrs:  */ ctorAttrs,
+            /* wt_ret: */ t_void, 
+            /* name:   */ m_ctor, 
+            /* args:   */ List(),
+            /* reqs:   */ List(),
+            /* stmts:  */ List(ir.StmtSuperCtor(List())),
+            /* p_ret:  */ None
+        )
+    
     val cds_default = List(
         ClassDecl(
+            /* Attrs:   */  noAttrs,
             /* Name:    */  c_object,
             /* Ghosts:  */  List(gd_creator),
-            /* Extends: */  None,
+            /* Extends: */  List(),
             /* Reqs:    */  List(),
             /* Ctor:    */  MethodDecl(
                     /* attrs:  */ ctorAttrs,
@@ -447,9 +466,10 @@ object ir {
                     ))                
         ),
         ClassDecl(
+            /* Attrs:   */  noAttrs,
             /* Name:    */  c_void,
             /* Ghosts:  */  List(),
-            /* Extends: */  Some(t_objectCtor),
+            /* Extends: */  List(t_objectCtor),
             /* Reqs:    */  List(),
             /* Ctor:    */  MethodDecl(
                     /* attrs:  */ ctorAttrs,
@@ -464,9 +484,10 @@ object ir {
             /* Methods: */  List()
         ),
         ClassDecl(
+            /* Attrs:   */  noAttrs,
             /* Name:    */  c_string,
             /* Ghosts:  */  List(),
-            /* Extends: */  Some(t_objectCtor),
+            /* Extends: */  List(t_objectCtor),
             /* Reqs:    */  List(),
             /* Ctor:    */  MethodDecl(
                     /* attrs:  */ ctorAttrs,
@@ -481,9 +502,10 @@ object ir {
             /* Methods: */  List()
         ),
         ClassDecl(
+            /* Attrs:   */  noAttrs,
             /* Name:    */  c_interval,
             /* Ghosts:  */  List(),
-            /* Extends: */  Some(t_objectCtor),
+            /* Extends: */  List(t_objectCtor),
             /* Reqs:    */  List(),
             /* Ctor:    */  MethodDecl(
                     /* attrs:  */ ctorAttrs,
@@ -510,9 +532,10 @@ object ir {
                 )
         ),
         ClassDecl(
+            /* Attrs:   */  noAttrs,
             /* Name:    */  c_point,
             /* Ghosts:  */  List(),
-            /* Extends: */  Some(t_objectCtor),
+            /* Extends: */  List(t_objectCtor),
             /* Reqs:    */  List(),
             /* Ctor:    */  MethodDecl(
                     /* attrs:  */ ctorAttrs,
@@ -527,9 +550,10 @@ object ir {
             /* Methods: */  List()
         ),
         ClassDecl(
+            /* Attrs:   */  noAttrs,
             /* Name:    */  c_lock,
             /* Ghosts:  */  List(),
-            /* Extends: */  Some(t_objectCtor),
+            /* Extends: */  List(t_objectCtor),
             /* Reqs:    */  List(),
             /* Ctor:    */  MethodDecl(
                     /* attrs:  */ ctorAttrs,

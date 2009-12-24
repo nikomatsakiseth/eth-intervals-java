@@ -7,8 +7,6 @@ TODO LIST
     not be initialized.  What would prob. make more sense is to say tht
     F is not linked to G if current hb F.
     
-(*) Whatever else is needed to make HOH work?
-
 (*) Control-flow: convert to SSA or SSI form.
 
 (*) Make HB relations operate on points
@@ -29,6 +27,11 @@ TODO LIST
 (*) Javac plugin
 
 (*) Multiple inheritance
+
+    We may need to add some notion of interfaces to make our constructor logic work out
+    soundly.  In particular, all supertypes after the first should really be interfaces
+    and thus have empty-constructors.  Let's just use an attribute "interface" on the
+    class.
 
 (*) Multiple constructors
 

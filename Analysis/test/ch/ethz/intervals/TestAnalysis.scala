@@ -712,6 +712,46 @@ class TestAnalysis extends JUnitSuite {
         )
     }
 
+    // Checks the basic rules for interface inheritance.  We should
+    // add more complete tests, but since these are enforced by javac
+    // anyway they are hardly high priority.
+    @Test
+    def interfaceInheritance() {
+        tc(
+            """
+            interface class IFoo<Interval i> extends Object<this.i> {
+                constructor() {
+                    super();
+                }
+            }
+            
+            interface class IBar extends Ok { // ERROR intervals.superType.not.interface(Ok)
+                constructor() {
+                    super();
+                }
+            }
+            
+            class Ok extends Object<this.constructor>, IFoo<this.constructor> {
+                constructor() {
+                    super();
+                }                
+            }
+            
+            class BadExtendsInter extends IFoo<this.constructor>, Object<this.constructor> { // ERROR intervals.superType.interface(IFoo)
+                constructor() {
+                    super();
+                }                
+            }
+            
+            class BadExtendsClass extends Ok<this.constructor>, Object<this.constructor> { // ERROR intervals.superType.not.interface(Object)
+                constructor() {
+                    super();
+                }                
+            }
+            """
+        )
+    }
+
     @Test
     def hoh() {
         tc(

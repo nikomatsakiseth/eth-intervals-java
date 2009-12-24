@@ -141,28 +141,29 @@ class TypeCheck(log: Log, prog: Prog) {
         )     
     }
 
-    /// supertype of t
-    def sup(t: ir.TypeRef): Option[ir.TypeRef] = preservesEnv {
+    /// supertypes of t
+    def sups(t: ir.TypeRef): List[ir.TypeRef] = preservesEnv {
         val cd = classDecl(t.c)
-        cd.superType.map { case t_1 => superSubst(t).tref(t_1) }
+        cd.superTypes.map { case t_1 => superSubst(t).tref(t_1) }
     }
 
     /// Field decl for t0::f 
-    def fieldDecl(c: ir.ClassName, f: ir.FieldName): ir.FieldDecl = preservesEnv {
-        log.indentedRes("fieldDecl(%s,%s)", c, f) {
-            def search(t: ir.TypeRef): ir.FieldDecl = 
-                log.indentedRes("search(%s)", t) {
-                    val cd = classDecl(t.c)
+    def fieldDecl(c0: ir.ClassName, f: ir.FieldName): ir.FieldDecl = preservesEnv {
+        log.indentedRes("fieldDecl(%s,%s)", c0, f) {
+            def search(c: ir.ClassName): Option[ir.FieldDecl] = 
+                log.indentedRes("search(%s)", c) {
+                    val cd = classDecl(c)
                     cd.fields.find(_.name == f) match {
-                        case Some(fd) => fd
-                        case None => sup(t) match {
-                            case Some(t_1) => superSubst(t_1).fieldDecl(search(t_1))
-                            case None => throw ir.IrError("intervals.no.such.field", c, f)
+                        case Some(fd) => Some(fd)
+                        case None => cd.superTypes.firstSomeReturned { t =>
+                            search(t.c).map(superSubst(t).fieldDecl)
                         }
                     }
                 }
-            val cd = classDecl(c)
-            search(cd.thisTref)
+            search(c0) match {
+                case None => throw ir.IrError("intervals.no.such.field", c0, f)
+                case Some(fd) => fd
+            }
         }            
     }
 
@@ -174,9 +175,8 @@ class TypeCheck(log: Log, prog: Prog) {
                 cd.methods.find(_.name == m) match {
                     case Some(md) => 
                         Some(md.msig(cd.thisTref))
-                    case None => cd.superType match {
-                        case Some(t) => search(t.c).map(superSubst(t).methodSig)
-                        case None => None
+                    case None => cd.superTypes.firstSomeReturned { t =>
+                        search(t.c).map(superSubst(t).methodSig)
                     }
                 }
             }
@@ -187,7 +187,7 @@ class TypeCheck(log: Log, prog: Prog) {
     /// Returns the (potentially super-)type that defined the method 'm' in the class 'c'
     def typeOriginallyDefiningMethod(c: ir.ClassName, m: ir.MethodName): Option[ir.TypeRef] = {
         val cd = classDecl(c)
-        cd.superType.mapToOption(t_sup => 
+        cd.superTypes.firstSomeReturned(t_sup => 
             typeOriginallyDefiningMethod(t_sup.c, m).map(superSubst(t_sup).tref)
         ).orElse(
             if(cd.methods.exists(_.name == m)) Some(cd.thisTref)
@@ -195,12 +195,15 @@ class TypeCheck(log: Log, prog: Prog) {
         )
     }    
     
-    /// Returns the signature of 'md' in the supertype, if any.
-    def overriddenMethodSig(c: ir.ClassName, m: ir.MethodName): Option[ir.MethodSig] = {
+    /// Returns the signatures for any methods 'm' defined in the supertypes of 'c'.
+    def overriddenMethodSigs(c: ir.ClassName, m: ir.MethodName): List[ir.MethodSig] = {
         val cd = classDecl(c)
-        cd.superType.mapToOption(t_sup => 
-            methodSig(t_sup.c, m).map(superSubst(t_sup).methodSig)
-        )
+        cd.superTypes.foldRight(List[ir.MethodSig]()) { case (t, l) =>
+            methodSig(t.c, m).map(superSubst(t).methodSig) match {
+                case None => l
+                case Some(msig) => msig :: l
+            }
+        }
     }
     
     // ______________________________________________________________________
@@ -362,10 +365,10 @@ class TypeCheck(log: Log, prog: Prog) {
     def tp_cur = teePee(env.p_cur)
     def tp_ctor = teePee(ir.gd_ctor.thisPath)
     def tp_this = teePee(ir.p_this)    
-    def tp_super =
-        sup(cap(tp_this)) match {
-            case None => throw new ir.IrError("intervals.no.supertype", tp_this.wt)
-            case Some(t_super) => ir.TeePee(t_super, ir.p_this, tp_this.as)
+    def tp_super = // tp_super always refers to the FIRST supertype
+        sups(cap(tp_this)) match {
+            case List() => throw new ir.IrError("intervals.no.supertype", tp_this.wt)
+            case t_super :: _ => ir.TeePee(t_super, ir.p_this, tp_this.as)
         }
     
     // ______________________________________________________________________
@@ -628,11 +631,8 @@ class TypeCheck(log: Log, prog: Prog) {
             if(t_sub.c == wt_sup.c) {
                 (!t_sub.as.ctor || wt_sup.as.ctor) && // (t <: t ctor) but (t ctor not <: t)
                 forallzip(t_sub.paths, wt_sup.wpaths)(isSubpath) // c<P> <: c<WP> iff P <= WP
-            } else // else walk to supertype of t_sub
-                sup(t_sub) match {
-                    case None => false
-                    case Some(t) => isSubtype(t, wt_sup)
-                }            
+            } else // else walk to supertype(s) of t_sub
+                sups(t_sub).exists(isSubtype(_, wt_sup))
         }                
     }
     
@@ -826,6 +826,9 @@ class TypeCheck(log: Log, prog: Prog) {
                     val cd = classDecl(t.c)
                     val tqs = teePee(ir.noAttrs, qs)
                     
+                    if(cd.attrs.interface)
+                        throw new ir.IrError("intervals.new.interface", t.c)
+                    
                     // Check Ghost Types:
                     checkLengths(cd.ghosts, t.paths, "intervals.wrong.number.ghost.arguments")
                     val substGhosts = PathSubst.pp(
@@ -922,7 +925,7 @@ class TypeCheck(log: Log, prog: Prog) {
         )                
     }
     
-    def checkMethodDecl(
+    def checkNoninterfaceMethodDecl(
         cd: ir.ClassDecl,          // class in which the method is declared
         env_ctor_assum: ir.TcEnv,  // relations established by the ctor
         md: ir.MethodDecl          // method to check
@@ -949,7 +952,7 @@ class TypeCheck(log: Log, prog: Prog) {
                 checkWfWt(md.wt_ret)
                 
                 savingEnv {
-                    overriddenMethodSig(cd.name, md.name) foreach { msig_sup_0 => 
+                    overriddenMethodSigs(cd.name, md.name) foreach { msig_sup_0 => 
                         val msig_sup = substArgsInMethodSig(msig_sup_0, md.args.map(_.name))
                         checkArgumentTypesNonvariant(md.args, msig_sup.args)
                         checkReturnTypeCovariant(md.wt_ret, msig_sup.wt_ret)
@@ -970,8 +973,8 @@ class TypeCheck(log: Log, prog: Prog) {
                 }
             }         
         }
-    
-    def checkConstructorDecl(cd: ir.ClassDecl, md: ir.MethodDecl) = 
+        
+    def checkNoninterfaceConstructorDecl(cd: ir.ClassDecl, md: ir.MethodDecl) = 
         at(md, emptyEnv) {
             savingEnv {
                 // Define special vars "method" (== this.constructor) and "this":
@@ -1122,7 +1125,48 @@ class TypeCheck(log: Log, prog: Prog) {
             }            
         }
     }
+
+    // ______________________________________________________________________
+    // Interfaces
     
+    def checkNotCtor(t: ir.TypeRef) {
+        if(t.as.ctor) throw new ir.IrError("intervals.superType.with.ctor.attr") 
+    }
+    
+    def checkIsInterface(t: ir.TypeRef) {
+        val cd_super = classDecl(t.c)
+        if(!cd_super.attrs.interface) 
+            throw new ir.IrError("intervals.superType.not.interface", t.c)        
+    }
+    
+    def checkInterfaceSupertype(t: ir.TypeRef) {
+        checkNotCtor(t)
+        if(t.c != ir.c_object)
+            checkIsInterface(t)
+    }
+    
+    def checkInterfaceConstructorDecl(cd: ir.ClassDecl, md: ir.MethodDecl) =
+        at(md, emptyEnv) {
+            if(md != ir.md_ctor_interface)
+                throw new ir.IrError("intervals.invalid.ctor.in.interface")
+            emptyEnv
+        }
+    
+    def checkInterfaceMethodDecl(cd: ir.ClassDecl, md: ir.MethodDecl) =
+        () // TODO Check well-formed signature (shared with checkNoninterfaceMethodDecl)
+    
+    def checkInterfaceClassDecl(cd: ir.ClassDecl) =
+        at(cd, ()) {
+            savingEnv {
+                // TODO Is this everything?
+                cd.superTypes.foreach(checkInterfaceSupertype)
+                if(!cd.fields.isEmpty)
+                    throw new ir.IrError("intervals.interface.with.fields")
+                checkInterfaceConstructorDecl(cd, cd.ctor)
+                cd.methods.foreach(checkInterfaceMethodDecl(cd, _))
+            }
+        }
+        
     // ______________________________________________________________________
     // Permitted Prefixes
     //
@@ -1188,23 +1232,32 @@ class TypeCheck(log: Log, prog: Prog) {
         }
     }
     
-    def checkClassDecl(cd: ir.ClassDecl) = 
+    def checkIsNotInterface(t: ir.TypeRef) {
+        val cd_super = classDecl(t.c)
+        if(cd_super.attrs.interface) 
+            throw new ir.IrError("intervals.superType.interface", t.c)        
+    }
+    
+    def checkNoninterfaceClassDecl(cd: ir.ClassDecl) = 
         at(cd, ()) {
             savingEnv {
-                cd.superType.foreach { t =>
-                    if(t.as.ctor) throw new ir.IrError("intervals.superType.with.ctor.attr") 
-                }
+                cd.superTypes.foreach(checkNotCtor)
+                cd.superTypes.take(1).foreach(checkIsNotInterface)
+                cd.superTypes.drop(1).foreach(checkIsInterface)
 /*                
                 checkGhostDeclsUsePermittedPrefixes(cd, List(), cd.ghosts)                
                 checkFieldDeclsUsePermittedPrefixes(cd, List(), cd.fields)                
 */                
-                // XXX Need to extract visible effects of ctor
-                // XXX and save them in environment for other
-                // XXX methods.
-                val env_ctor_assum = checkConstructorDecl(cd, cd.ctor)                    
-                cd.methods.foreach(checkMethodDecl(cd, env_ctor_assum, _))                    
+                val env_ctor_assum = 
+                    if(cd.attrs.interface) checkInterfaceConstructorDecl(cd, cd.ctor)
+                    else checkNoninterfaceConstructorDecl(cd, cd.ctor)                    
+                cd.methods.foreach(checkNoninterfaceMethodDecl(cd, env_ctor_assum, _))                    
             }
         }
-    
+        
+    def checkClassDecl(cd: ir.ClassDecl) =
+        if(cd.attrs.interface) checkInterfaceClassDecl(cd)
+        else checkNoninterfaceClassDecl(cd)
+        
     def check = prog.cds_user.foreach(checkClassDecl)
 }

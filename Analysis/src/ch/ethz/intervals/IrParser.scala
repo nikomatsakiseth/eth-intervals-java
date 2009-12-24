@@ -14,7 +14,8 @@ class IrParser extends StandardTokenParsers {
         "class", "new", "constructor", "null", 
         "return", "Rd", "Wr", "Free", "extends", 
         "hb", "requires", "super", "locks",
-        "subinterval", "readableBy", "writableBy"
+        "subinterval", "readableBy", "writableBy",
+        "interface"
     )
     
     def parse[A](p: Parser[A])(text: String) = {
@@ -36,8 +37,13 @@ class IrParser extends StandardTokenParsers {
         "`"~repsep(ident, ".")~"`"              ^^ { case "`"~is~"`" => is.mkString(".") }
     |   ident
     )
-                                                
-    def attr = "constructor"                    ^^ { case _ => ir.AttrCtor }
+    
+    // Not all attributes are suitable in all contexts, but as this is an
+    // internal IR we don't prevent irrelevant attributes from being added:
+    def attr = (
+        "constructor"                           ^^ { case _ => ir.AttrCtor }    
+    |   "interface"                             ^^ { case _ => ir.AttrInterface }
+    )
     def attrs = rep(attr)                       ^^ { case la => ir.Attrs(Set(la: _*)) }
     
     def m = id                                  ^^ { case i => ir.MethodName(i) }
@@ -143,16 +149,16 @@ class IrParser extends StandardTokenParsers {
     )
     
     def classDecl = positioned(
-        "class"~c~optl3("<",
+        attrs~"class"~c~optl3("<",
             comma(ghostFieldDecl),
-        ">")~"extends"~t~reqs~"{"~
+        ">")~"extends"~comma(t)~reqs~"{"~
             rep(realFieldDecl)~
             constructor~
             rep(methodDecl)~
         "}"
     ^^ {
-        case "class"~name~ghosts~"extends"~superType~reqs~"{"~fields~ctor~methods~"}" =>
-            ir.ClassDecl(name, ghosts, Some(superType), reqs, ctor, fields, methods)
+        case attrs~"class"~name~ghosts~"extends"~superTypes~reqs~"{"~fields~ctor~methods~"}" =>
+            ir.ClassDecl(attrs, name, ghosts, superTypes, reqs, ctor, fields, methods)
     })
     
     def classDecls = rep(classDecl)
