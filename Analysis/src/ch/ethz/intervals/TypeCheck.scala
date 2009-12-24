@@ -818,13 +818,17 @@ class TypeCheck(log: Log, prog: Prog) {
     }
 
     def checkSucc(blks: Array[ir.Block], succ: ir.Succ) {
-        val blk_tar = blks(succ.b)
-        checkLengths(blk_tar.args, succ.ps, "intervals.succ.args")
-        val lvs_tar = blk_tar.args.map(_.name)
-        val tps = teePee(ir.noAttrs, succ.ps)
-        val subst = PathSubst.vp(lvs_tar, tps.map(_.p))
-        val wts_tar = blk_tar.args.map(arg => subst.wtref(arg.wt))
-        foreachzip(tps, wts_tar)(checkIsSubtype)
+        at(succ, ()) {
+            log.indented(succ) {
+                val blk_tar = blks(succ.b)
+                checkLengths(blk_tar.args, succ.ps, "intervals.succ.args")
+                val lvs_tar = blk_tar.args.map(_.name)
+                val tps = teePee(ir.noAttrs, succ.ps)
+                val subst = PathSubst.vp(lvs_tar, tps.map(_.p))
+                val wts_tar = blk_tar.args.map(arg => subst.wtref(arg.wt))
+                foreachzip(tps, wts_tar)(checkIsSubtype)                
+            }
+        }
     }
     
     def checkCallMsig(tp: ir.TeePee, msig: ir.MethodSig, tqs: List[ir.TeePee]) {

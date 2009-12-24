@@ -895,6 +895,60 @@ class TestAnalysis extends JUnitSuite {
             """
         )
     }
+
+    @Test
+    def blockSuccCheckTypes() {
+        tc(
+            """
+            class Class<Interval i> extends Object<this.i> {
+                constructor() {
+                    super();
+                }
+                
+                // ______________________________________________________________________
+                Object<this.i> ok(Object<this.i> a)                                 
+                {
+                    // Presumably some test would be used to choose
+                    // between succ 1 and 2:
+                    succ 1();
+                    succ 2();
+                }
+                () // Block 1
+                {
+                    Object<this.i> b1 = null;
+                    succ 3(b1);
+                }
+                () // Block 2
+                {
+                    succ 3(a); // method parameters are in-scope here
+                }
+                (Object<this.i> b3) // Block 3
+                {
+                    return b3;
+                }
+
+                // ______________________________________________________________________
+                Object<this.i> bad()
+                {
+                    // Presumably some test would be used to choose
+                    // between succ 1 and 2:
+                    Object<this> b2 = null;
+                    succ 1();
+                    succ 2(b2); // ERROR intervals.expected.subtype(b2, Object<this>{}, Object<this.i>{})
+                }
+                () // Block 1
+                {
+                    Object<this> b1 = null;
+                    succ 2(b1); // ERROR intervals.expected.subtype(b1, Object<this>{}, Object<this.i>{})
+                }
+                (Object<this.i> b3) // Block 2
+                {
+                    return b3;
+                }
+            }
+            """
+        )
+    }
     
     @Test
     def bbpcData() {

@@ -204,7 +204,7 @@ object ir {
     sealed case class Succ(
         b: Int,
         ps: List[ir.Path]
-    ) {
+    ) extends Positional {
         override def toString = "succ %s(%s);".format(b, ps)
     }
     

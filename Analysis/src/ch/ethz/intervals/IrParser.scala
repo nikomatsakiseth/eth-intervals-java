@@ -118,7 +118,9 @@ class IrParser extends StandardTokenParsers {
     )    
     def reqs = rep(req)
     
-    def succ = "succ"~integer~"("~comma(p)~")"~";"      ^^ { case _~b~"("~ps~")"~";" => ir.Succ(b, ps) }
+    def succ = positioned(
+        "succ"~integer~"("~comma(p)~")"~";"      ^^ { case _~b~"("~ps~")"~";" => ir.Succ(b, ps) }
+    )
     
     def block = (
         "("~comma(lvdecl)~")"~"{"~rep(stmt)~rep(succ)~"}" 
