@@ -42,6 +42,10 @@ TODO LIST
 
 (*) Javac plugin
 
+(*) Multiple inheritance
+
+(*) Multiple constructors
+
 (*) Requires in class bodies, declarations--
 
     If a class declared, for example, that two of its fields f and g have a HB relationship,

@@ -14,7 +14,7 @@ class Prog(val cds_user: List[ir.ClassDecl]) {
         case Some(cd) => cd
         case None => throw ir.IrError("intervals.no.such.class", c)
     }
-        
+    
     // ______________________________________________________________________
     // Fresh Variables
     
