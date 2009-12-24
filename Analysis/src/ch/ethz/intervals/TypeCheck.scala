@@ -12,9 +12,6 @@ import Util._
 TODO LIST
 ---------
 
-(*) Implement "inter-method" assumptions, particularly those which allow us to 
-    derive relations from constructor
-    
 (*) Cleanup linked field logic as relates to guards.  Right now, a
     field F is not linked to G if guard(G) hb guard(F).  The reasoning
     is that then guard(F) could not yet have occurred, and so F could
