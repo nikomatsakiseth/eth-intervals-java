@@ -711,6 +711,81 @@ class TestAnalysis extends JUnitSuite {
             """
         )
     }
+    
+    @Test
+    def multipleInheritance() {
+        tc(
+            """
+            interface class IFoo<Interval i> extends Object<this.i> {
+                constructor() {
+                    super();
+                }
+                
+                Object<?> m1()
+                requires this.i readableBy method
+                {                    
+                }
+            }
+            
+            class Foo1<Interval i> extends Object<this.i>, IFoo<this.i> {
+                Object<?> f requires this.i;
+                
+                constructor() {
+                    super();
+                }
+                
+                Object<?> m1() // n.b.: same requirements as IFoo
+                requires this.i readableBy method
+                {
+                    Object<?> f = this->f;
+                    return f;
+                }
+            } 
+            
+            class Foo2<Interval i> extends Object<this.i>, IFoo<this.i> {
+                Object<?> f requires this.i;
+                
+                constructor() {
+                    super();
+                }
+                
+                Object<?> m1() // n.b.: fewer requirements than IFoo
+                {
+                }
+            }
+            
+            class Bar<Interval i> extends Object<this.i> {
+                Foo1<this.i> foo1 requires this.constructor;
+                Foo2<this.i> foo2 requires this.constructor;
+                
+                constructor() {
+                    super();
+                }
+                
+                Void assign() {
+                    IFoo<this.i> ifoo1 = this->foo1;
+                    IFoo<this.i> ifoo2 = this->foo2;                    
+                }
+                
+                Void invokeThroughInterface() {
+                    IFoo<this.i> ifoo2 = this->foo2;
+                    Object<?> o = ifoo2->m1(); // ERROR intervals.requirement.not.met(requires this.i readable by method)
+                }
+                
+                Void invokeThroughFoo1() {
+                    Foo1<this.i> foo1 = this->foo1;
+                    Object<?> o = foo1->m1(); // ERROR intervals.requirement.not.met(requires this.i readable by method)
+                }
+                
+                Void invokeThroughFoo2() {
+                    Foo2<this.i> foo2 = this->foo2;
+                    Object<?> o = foo2->m1();
+                }
+            }
+            """
+        )
+    }
+    
 
     // Checks the basic rules for interface inheritance.  We should
     // add more complete tests, but since these are enforced by javac

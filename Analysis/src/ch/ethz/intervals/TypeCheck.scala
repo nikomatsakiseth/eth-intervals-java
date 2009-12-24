@@ -1146,14 +1146,13 @@ class TypeCheck(log: Log, prog: Prog) {
     }
     
     def checkInterfaceConstructorDecl(cd: ir.ClassDecl, md: ir.MethodDecl) =
-        at(md, emptyEnv) {
+        at(md, ()) {
             if(md != ir.md_ctor_interface)
                 throw new ir.IrError("intervals.invalid.ctor.in.interface")
-            emptyEnv
         }
     
     def checkInterfaceMethodDecl(cd: ir.ClassDecl, md: ir.MethodDecl) =
-        () // TODO Check well-formed signature (shared with checkNoninterfaceMethodDecl)
+        checkNoninterfaceMethodDecl(cd, emptyEnv, md)
     
     def checkInterfaceClassDecl(cd: ir.ClassDecl) =
         at(cd, ()) {
@@ -1248,9 +1247,7 @@ class TypeCheck(log: Log, prog: Prog) {
                 checkGhostDeclsUsePermittedPrefixes(cd, List(), cd.ghosts)                
                 checkFieldDeclsUsePermittedPrefixes(cd, List(), cd.fields)                
 */                
-                val env_ctor_assum = 
-                    if(cd.attrs.interface) checkInterfaceConstructorDecl(cd, cd.ctor)
-                    else checkNoninterfaceConstructorDecl(cd, cd.ctor)                    
+                val env_ctor_assum = checkNoninterfaceConstructorDecl(cd, cd.ctor)                    
                 cd.methods.foreach(checkNoninterfaceMethodDecl(cd, env_ctor_assum, _))                    
             }
         }

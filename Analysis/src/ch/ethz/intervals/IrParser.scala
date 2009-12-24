@@ -59,6 +59,7 @@ class IrParser extends StandardTokenParsers {
     
     def wp = (
         p
+    |   "?"                                     ^^ { case _ => ir.WcHb(List(), List()) }
     |   "readableBy"~comma(p)                   ^^ { case _~ps => ir.WcReadableBy(ps) }
     |   "writableBy"~comma(p)                   ^^ { case _~ps => ir.WcWritableBy(ps) }
     |   comma(p)~"hb"~comma(p)                  ^^ { case ps~_~qs => ir.WcHb(ps, qs) }
