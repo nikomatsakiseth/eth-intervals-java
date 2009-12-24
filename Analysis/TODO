@@ -26,9 +26,15 @@ TODO LIST
 
 (*) Multiple constructors
 
-(*) Allow fields to be guarded by a point--
+(*) Allow multiple guards (or a guard predicate of some kind)
+
+    For example, lock AND written during.  This way, you could have shared data accessed by
+    locks up to a point, where it becomes read-only without locks.
+
+(*) Allow fields to be guarded by a point?
 
     In this case, would be write-only before the point, but read-only after the point.
+    Clearly racy.
 
 (*) Requires in class bodies, declarations--
 
