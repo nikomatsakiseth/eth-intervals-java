@@ -296,8 +296,8 @@ class TypeCheck(log: Log, prog: Prog) {
                     // version is p_0.f but we add relations that ps hb p_0.f hb qs.
                     case Some((gd_f, ir.WcHb(ps, qs))) => 
                         val tp_f = ghostTeePee(gd_f)
-                        ps.foreach { case p => addHb(teePee(p), tp_f) }
-                        qs.foreach { case q => addHb(tp_f, teePee(q)) }
+                        ps.foreach { case p => checkAndAddHb(teePee(p), tp_f) }
+                        qs.foreach { case q => checkAndAddHb(tp_f, teePee(q)) }
                         tp_f
                     
                     // p_0 had a type like Foo<f: ps hb qs>, so canonical
@@ -318,13 +318,13 @@ class TypeCheck(log: Log, prog: Prog) {
                     case None if f == ir.f_ctor =>
                         val tp_f = ir.TeePee(ir.t_interval, p_0 + f, tp_0.as.withGhost)
                         if(!tp_0.wt.as.ctor) // is tp_0 fully constructed?
-                            addHb(tp_f, tp_cur) // then .constructor happened before (now constant)
+                            checkAndAddHb(tp_f, tp_cur) // then .constructor happened before (now constant)
                         tp_f
                         
                     // The path is p_0.super, which we handle specially:
                     case None if f == ir.f_super =>
                         val tp_f = ir.TeePee(ir.t_interval, p_0 + f, tp_0.as.withGhost)
-                        addHb(tp_f, tp_cur) // x.super always happened before (now constant)
+                        checkAndAddHb(tp_f, tp_cur) // x.super always happened before (now constant)
                         tp_f
                         
                     // The path p_0.f names a real field f:
@@ -334,7 +334,7 @@ class TypeCheck(log: Log, prog: Prog) {
                         val as_f = // determine if f is immutable in current method:
                             if(!tp_guard.isConstant)
                                 tp_0.as.withMutable // guard not yet constant? mutable
-                            else if(!hb(tp_guard, tp_cur))
+                            else if(!hbInter(tp_guard, tp_cur))
                                 tp_0.as.withMutable // not guarded by closed interval? mutable
                             else
                                 tp_0.as // p_0 mutable? mutable
@@ -363,7 +363,11 @@ class TypeCheck(log: Log, prog: Prog) {
     // Note: these are not vals but defs!  This is important
     // because the outcome of teePee() depends on the env.
     def tp_cur = teePee(env.p_cur)
+    def tp_cur_start = teePee(env.p_cur.start)
+    def tp_cur_end = teePee(env.p_cur.end)
     def tp_ctor = teePee(ir.gd_ctor.thisPath)
+    def tp_ctor_start = teePee(ir.gd_ctor.thisPath.start)
+    def tp_ctor_end = teePee(ir.gd_ctor.thisPath.end)
     def tp_this = teePee(ir.p_this)    
     def tp_super = // tp_super always refers to the FIRST supertype
         sups(cap(tp_this)) match {
@@ -449,10 +453,10 @@ class TypeCheck(log: Log, prog: Prog) {
                 env.locks)
         }
         
-    def addHb(tp: ir.TeePee, tq: ir.TeePee): Unit = 
+    def addHbPnt(tp: ir.TeePee, tq: ir.TeePee): Unit = 
         log.indented("addHb(%s,%s)", tp, tq) {
-            assert(isSubtype(tp, ir.t_interval))
-            assert(isSubtype(tq, ir.t_interval))
+            assert(isSubtype(tp, ir.t_point))
+            assert(isSubtype(tq, ir.t_point))
             assert(tp.isConstant && tq.isConstant)
             env = ir.TcEnv(
                 env.p_cur,
@@ -465,7 +469,7 @@ class TypeCheck(log: Log, prog: Prog) {
                 env.subinterval,
                 env.locks)
         }
-    
+        
     def addDeclaredReadableBy(tp: ir.TeePee, tq: ir.TeePee): Unit = 
         log.indented("addDeclaredReadableBy(%s, %s)", tp, tq) {
             assert(tp.isConstant && tq.isConstant)
@@ -506,7 +510,7 @@ class TypeCheck(log: Log, prog: Prog) {
                 env.lp_invalidated,            
                 env.readable,
                 env.writable,
-                env.hb,
+                env.hb + (tq.p.start, tp.p.start) + (tp.p.end, tq.p.end),
                 env.subinterval + (tp.p, tq.p),
                 env.locks)
         }
@@ -530,14 +534,27 @@ class TypeCheck(log: Log, prog: Prog) {
         log.indentedRes("%s equiv %s?", tp, tq) {
             tp.p == tq.p
         }
+  
+    // Only enabled when needed:
+    def logHb() = ()
+//        log.indented("HB") {
+//            for((p, q) <- env.hb.allPairs)
+//                log("%s hb %s", p, q)            
+//        }
     
-    def hb(tp: ir.TeePee, tq: ir.TeePee): Boolean = 
-        log.indentedRes("%s hb %s?", tp, tq) {
-            // this logic would not be needed if env.hb was based on points,
-            // because then the subinterval relation could affect env.hb as well:
-            val lp_anc = superintervals(tp) + tp.p
-            val lq_anc = superintervals(tq) + tq.p
-            existscross(lp_anc, lq_anc)(env.hb.contains)
+    // Note: we don't check that tp, tq are points, although
+    // they should be, because we sometimes permit Locks for convenience.
+    def hbPnt(tp: ir.TeePee, tq: ir.TeePee): Boolean = 
+        log.indentedRes("%s hb[point] %s?", tp, tq) {
+            env.hb.contains(tp.p, tq.p)
+        }
+        
+    // Note: we don't check that tp, tq are intervals, although
+    // they should be, because we sometimes permit Locks for convenience.
+    def hbInter(tp: ir.TeePee, tq: ir.TeePee): Boolean = 
+        log.indentedRes("%s hb[inter] %s?", tp, tq) {
+            logHb()
+            env.hb.contains(tp.p.end, tq.p.start)
         }
         
     def superintervals(tp: ir.TeePee): Set[ir.Path] = {
@@ -575,8 +592,36 @@ class TypeCheck(log: Log, prog: Prog) {
     def isReadableBy(tp: ir.TeePee, tq: ir.TeePee): Boolean = 
         log.indentedRes("%s isReadableBy %s?", tp, tq) {
             declaredReadableBy(tp, tq) ||
-            hb(tp, tq) ||
+            hbInter(tp, tq) ||
             isWritableBy(tp, tq)            
+        }
+    
+    def checkedHbPair(tp: ir.TeePee, tq: ir.TeePee): (ir.TeePee, ir.TeePee) =
+        log.indentedRes("checkedHbPair(%s,%s)", tp, tq) {
+            (
+                if(tp.wt.c == ir.c_point) tp
+                else {
+                    checkIsSubtype(tp, ir.t_interval)
+                    ir.TeePee(ir.t_point, tp.p.end, tp.as) // Assumes that field .end exists
+                },
+                if(tq.wt.c == ir.c_point) tq
+                else {
+                    checkIsSubtype(tq, ir.t_interval)
+                    ir.TeePee(ir.t_point, tq.p.start, tq.as) // Assumes that field .start exists
+                }
+            )
+        }
+        
+    def checkedHb(tp: ir.TeePee, tq: ir.TeePee) = 
+        log.indentedRes("checkedHb(%s,%s)", tp, tq) {
+            val (tp1, tq1) = checkedHbPair(tp, tq)
+            hbPnt(tp1, tq1)
+        }
+    
+    def checkAndAddHb(tp: ir.TeePee, tq: ir.TeePee) = 
+        log.indented("checkAndAddHb(%s,%s)", tp, tq) {
+            val (tp1, tq1) = checkedHbPair(tp, tq)
+            addHbPnt(tp1, tq1)
         }
     
     def addReq(req: ir.Req) = 
@@ -589,7 +634,7 @@ class TypeCheck(log: Log, prog: Prog) {
             req match {
                 case ir.ReqWritableBy(ps, qs) => teePeeAdd(addDeclaredWritableBy, ps, qs)
                 case ir.ReqReadableBy(ps, qs) => teePeeAdd(addDeclaredReadableBy, ps, qs)
-                case ir.ReqHb(ps, qs) => teePeeAdd(addHb, ps, qs)
+                case ir.ReqHb(ps, qs) => teePeeAdd(checkAndAddHb, ps, qs)
                 case ir.ReqSubintervalOf(ps, qs) => teePeeAdd(addSubintervalOf, ps, qs)
             }   
         } 
@@ -610,8 +655,8 @@ class TypeCheck(log: Log, prog: Prog) {
                 case q: ir.Path =>
                     equiv(tp, teePee(q))
                 case ir.WcHb(lq_1, lq_2) =>
-                    lq_1.forall { q_1 => hb(teePee(q_1), tp) } &&
-                    lq_2.forall { q_2 => hb(tp, teePee(q_2)) }
+                    lq_1.forall { q_1 => checkedHb(teePee(q_1), tp) } &&
+                    lq_2.forall { q_2 => checkedHb(tp, teePee(q_2)) }
                 case ir.WcReadableBy(lq) =>
                     lq.forall { q => isReadableBy(tp, teePee(q)) }
                 case ir.WcWritableBy(lq) =>
@@ -662,7 +707,7 @@ class TypeCheck(log: Log, prog: Prog) {
             case ir.ReqWritableBy(ps, qs) => is(isWritableBy, ps, qs)
             case ir.ReqReadableBy(ps, qs) => is(isReadableBy, ps, qs)
             case ir.ReqSubintervalOf(ps, qs) => is(isSubintervalOf, ps, qs)
-            case ir.ReqHb(ps, qs) => is(hb, ps, qs)
+            case ir.ReqHb(ps, qs) => is(checkedHb, ps, qs)
         }
     }
     
@@ -717,7 +762,7 @@ class TypeCheck(log: Log, prog: Prog) {
         // screen out those which are guarded by future intervals
         lazy val subst = ghostSubst(tp_o)
         val fds_linked = fds_maybe_linked.filter { rfd =>
-            !hb(tp_guard, teePee(subst.path(rfd.p_guard)))
+            !hbInter(tp_guard, teePee(subst.path(rfd.p_guard)))
         }
         
         // map to the canonical path for the field
@@ -779,7 +824,7 @@ class TypeCheck(log: Log, prog: Prog) {
                     val p_f = tp_o.p + f // Canonical path of f; valid as f is not a ghost.
 
                     val op_canon = 
-                        if(hb(tp_guard, tp_cur)) { // Constant:
+                        if(hbInter(tp_guard, tp_cur)) { // Constant:
                             Some(p_f)
                         } else { // Non-constant:
                             checkReadable(tp_guard)
@@ -848,14 +893,7 @@ class TypeCheck(log: Log, prog: Prog) {
                 case ir.StmtHb(p, q) =>
                     val tp = teePee(ir.noAttrs, p)
                     val tq = teePee(ir.noAttrs, q)
-                    
-                    // XXX Rejigger HB to be based on points:
-                    //checkIsSubtype(wt_path(p), ir.t_point)
-                    //checkIsSubtype(wt_path(q), ir.t_point)
-                    
-                    checkIsSubtype(tp, ir.t_interval)
-                    checkIsSubtype(tq, ir.t_interval)
-                    addHb(tp, tq)
+                    checkAndAddHb(tp, tq)
                     
                 case ir.StmtLocks(p, q) =>
                     val tp = teePee(ir.noAttrs, p)
@@ -937,8 +975,8 @@ class TypeCheck(log: Log, prog: Prog) {
                 if(!md.attrs.ctor) { 
                     // For normal methods, type of this is the defining class
                     addPerm(ir.p_this, ir.TeePee(cd.thisTref, ir.p_this, ir.noAttrs))                     
-                    addHb(tp_ctor, tp_cur)      // ... constructor already happened
-                    env = env + env_ctor_assum  // ... add its effects on environment
+                    addHbPnt(tp_ctor_end, tp_cur_start) // ... constructor already happened
+                    env = env + env_ctor_assum          // ... add its effects on environment
                 } else {
                     // For constructor methods, type of this is the type that originally defined it
                     val t_rcvr = typeOriginallyDefiningMethod(cd.name, md.name).get
@@ -1004,7 +1042,7 @@ class TypeCheck(log: Log, prog: Prog) {
 
                 md.op_ret.foreach { _ => throw new ir.IrError("intervals.ctor.with.ret") }
                 
-                extractAssumptions(tp_ctor, Set(ir.lv_this))
+                extractAssumptions(tp_ctor_end, Set(ir.lv_this))
             }          
         }
     
@@ -1030,7 +1068,7 @@ class TypeCheck(log: Log, prog: Prog) {
                         else {
                             // Field inaccessible from constructor.
                             addPerm(ir.p_mthd, ir.TeePee(ir.t_interval, ir.p_mthd, ir.ghostAttrs))
-                            addHb(tp_ctor, tp_cur)
+                            addHbPnt(tp_ctor_end, tp_cur_start)
                         }
                             
                         val tp_guard = teePee(fd.p_guard)
@@ -1094,12 +1132,12 @@ class TypeCheck(log: Log, prog: Prog) {
     //     now).
         
     def extractAssumptions(
-        tp_mthd: ir.TeePee, 
+        tp_mthd_end: ir.TeePee, 
         lvs_shared: Set[ir.VarName]
     ): ir.TcEnv = savingEnv {        
-        log.indented("extractAssumptions(%s,%s)", tp_mthd, lvs_shared) {
+        log.indented("extractAssumptions(%s,%s)", tp_mthd_end, lvs_shared) {
             withCurrent(freshTp(ir.t_interval)) {
-                addHb(tp_mthd, tp_cur)
+                addHbPnt(tp_mthd_end, tp_cur_start)
 
                 log("temp=%s", env.temp)
                 val tempKeys = env.temp.map(_._1).toList

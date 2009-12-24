@@ -9,8 +9,6 @@ TODO LIST
     
 (*) Control-flow: convert to SSA or SSI form.
 
-(*) Make HB relations operate on points
-
 (*) @Is annotations on methods and variable declarations
 
 (*) Inherit assumptions from supertype constructors as well!
@@ -26,14 +24,11 @@ TODO LIST
 
 (*) Javac plugin
 
-(*) Multiple inheritance
-
-    We may need to add some notion of interfaces to make our constructor logic work out
-    soundly.  In particular, all supertypes after the first should really be interfaces
-    and thus have empty-constructors.  Let's just use an attribute "interface" on the
-    class.
-
 (*) Multiple constructors
+
+(*) Allow fields to be guarded by a point--
+
+    In this case, would be write-only before the point, but read-only after the point.
 
 (*) Requires in class bodies, declarations--
 
