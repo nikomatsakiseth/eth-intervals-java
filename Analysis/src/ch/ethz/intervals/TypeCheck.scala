@@ -757,18 +757,11 @@ class TypeCheck(log: Log, prog: Prog) {
         foreachzip(tqs, msig.args.map(_.wt))(checkIsSubtype)
     }
     
-    def checkLvDecl(vd: ir.LvDecl, owt: Option[ir.WcTypeRef], op_canon: Option[ir.Path]) = {
-        
-        checkWfWt(vd.wt)
-        
-        owt.foreach (savingEnv { case wt =>
-            checkIsSubtype(freshTp(wt), vd.wt)
-        })
-
-        addPerm(vd.name.path, ir.TeePee(
-            vd.wt, 
-            op_canon.getOrElse(vd.name.path), // default canonical path for x is just x
-            ir.noAttrs))                      // all local vars are (a) reified and (b) immutable
+    def checkLvDecl(x: ir.VarName, wt: ir.WcTypeRef, op_canon: Option[ir.Path]) = {        
+        addPerm(x.path, ir.TeePee(
+            wt,
+            op_canon.getOrElse(x.path), // default canonical path for x is just x
+            ir.noAttrs))                // all local vars are (a) reified and (b) immutable
     }
     
     /// Returns true if 'wt' is linked to 'p': that is,
@@ -850,19 +843,25 @@ class TypeCheck(log: Log, prog: Prog) {
         clearTemp()        
     }
     
-    def checkCall(vd: ir.LvDecl, tp: ir.TeePee, m: ir.MethodName, tqs: List[ir.TeePee]) {
+    def checkCall(x: ir.VarName, tp: ir.TeePee, m: ir.MethodName, tqs: List[ir.TeePee]) {
         val msig = substdMethodSig(tp, m, tqs)
         checkCallMsig(tp, msig, tqs)
-        checkLvDecl(vd, Some(msig.wt_ret), None)                        
+        checkLvDecl(x, msig.wt_ret, None)                        
     }
     
     def checkStatement(stmt: ir.Stmt): Unit = 
         at(stmt, ()) {
-            stmt match {  
-                case ir.StmtNull(vd) =>
-                    checkLvDecl(vd, None, None)
+            stmt match {                  
+                case ir.StmtSuperCtor(qs) =>
+                    if(!tp_this.as.ghost)
+                        throw new ir.IrError("intervals.super.ctor.not.permitted.here")
+                    val tp = tp_super
+                    val tqs = teePee(ir.noAttrs, qs)
+                    val msig_ctor0 = classDecl(tp.wt.c).ctor.msig(cap(tp))
+                    val msig_ctor = ghostSubst(tp).methodSig(msig_ctor0)
+                    checkCallMsig(tp_super, msig_ctor, tqs)
                     
-                case ir.StmtGetField(vd, p_o, f) =>
+                case ir.StmtGetField(x, p_o, f) =>
                     val tp_o = teePee(ir.noAttrs, p_o)
                     val fd = substdFieldDecl(tp_o, f)
                     val tp_guard = teePee(ir.ghostAttrs, fd.p_guard)                    
@@ -873,11 +872,11 @@ class TypeCheck(log: Log, prog: Prog) {
                             Some(p_f)
                         } else { // Non-constant:
                             checkReadable(tp_guard)
-                            addTemp(p_f, vd.name.path) // Record that p.f == vd, for now.
+                            addTemp(p_f, x.path) // Record that p.f == vd, for now.
                             None
                         }
             
-                    checkLvDecl(vd, Some(fd.wt), op_canon)
+                    checkLvDecl(x, fd.wt, op_canon)
                     
                 case ir.StmtSetField(p_o, f, p_v) =>
                     val tp_o = teePee(ir.noAttrs, p_o)
@@ -895,23 +894,14 @@ class TypeCheck(log: Log, prog: Prog) {
                     removeInvalidated(p_f)
                     linkedPaths(tp_o, f, tp_guard).foreach(addInvalidated)
                         
-                case ir.StmtCall(vd, p, m, qs) =>
+                case ir.StmtCall(x, p, m, qs) =>
                     val tp = teePee(ir.noAttrs, p)
                     val tqs = teePee(ir.noAttrs, qs)
-                    checkCall(vd, tp, m, tqs)
+                    checkCall(x, tp, m, tqs)
         
-                case ir.StmtSuperCall(vd, m, qs) =>
+                case ir.StmtSuperCall(x, m, qs) =>
                     val tqs = teePee(ir.noAttrs, qs)
-                    checkCall(vd, tp_super, m, tqs)
-                
-                case ir.StmtSuperCtor(qs) =>
-                    if(!tp_this.as.ghost)
-                        throw new ir.IrError("intervals.super.ctor.not.permitted.here")
-                    val tp = tp_super
-                    val tqs = teePee(ir.noAttrs, qs)
-                    val msig_ctor0 = classDecl(tp.wt.c).ctor.msig(cap(tp))
-                    val msig_ctor = ghostSubst(tp).methodSig(msig_ctor0)
-                    checkCallMsig(tp_super, msig_ctor, tqs)
+                    checkCall(x, tp_super, m, tqs)
                 
                 case ir.StmtNew(x, t, qs) =>
                     checkWfWt(t)
@@ -931,11 +921,23 @@ class TypeCheck(log: Log, prog: Prog) {
                         checkIsSubtype(tp, substGhosts.wtref(gfd.wt))
                     }
                     
-                    checkLvDecl(ir.LvDecl(x, t), Some(t), None)
+                    checkLvDecl(x, t, None)
                     
                     val subst = substGhosts + PathSubst.vp(cd.ctor.args.map(_.name), tqs.map(_.p))
                     val msig = subst.methodSig(cd.ctor.msig(t))
                     checkCallMsig(teePee(x.path), msig, tqs)
+                    
+                case ir.StmtCast(x, wt, p) => 
+                    checkWfWt(wt)
+                    val tp = teePee(ir.noAttrs, p)
+                    
+                    // TODO Validate casts?  Issue warnings at least?
+                    
+                    checkLvDecl(x, wt, None)
+                    
+                case ir.StmtNull(x, wt) => 
+                    checkWfWt(wt)
+                    checkLvDecl(x, wt, None)
                     
                 case ir.StmtReturn(p) =>
                     val tp = teePee(ir.noAttrs, p)
@@ -955,7 +957,7 @@ class TypeCheck(log: Log, prog: Prog) {
                     
                 case ir.StmtSubinterval(x, lp_locks, stmts) =>
                     val ltp_locks = teePee(ir.noAttrs, lp_locks)
-                    checkLvDecl(ir.LvDecl(x, ir.t_interval), None, None)
+                    checkLvDecl(x, ir.t_interval, None)
                     
                     val tp_x = teePee(x.path)
                     addSubintervalOf(tp_x, tp_cur)

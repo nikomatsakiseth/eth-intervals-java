@@ -83,43 +83,44 @@ class IrParser extends StandardTokenParsers {
     )
     
     private var counter = 0
-    def anonLvDecl = {
+    def anonLv = {
         val ctr = counter
         counter = counter + 1
-        ir.LvDecl(ir.VarName("parser[%s]".format(ctr)), ir.t_void)
+        ir.VarName("parser[%s]".format(ctr))
     }
     
-    def optLvDecl = optd(
-        lvdecl~"="                                      ^^ { case vd~_ => vd },
-        anonLvDecl
+    def optLv = optd(
+        lv~"="                                      ^^ { case x~_ => x },
+        anonLv
     )
     
     def optLocks = optl2("locks", comma(p))
     
     def stmt: Parser[ir.Stmt] = positioned(
-       "super"~"("~comma(p)~")"~";"                     ^^ { case _~_~ps~_~_ => ir.StmtSuperCtor(ps) }
-    |   optLvDecl~p~"->"~m~"("~comma(p)~")"~";"         ^^ { case vd~p~"->"~m~"("~qs~")"~_ => ir.StmtCall(vd, p, m, qs) }
-    |   optLvDecl~"super"~"->"~m~"("~comma(p)~")"~";"   ^^ { case vd~_~"->"~m~"("~qs~")"~_ => ir.StmtSuperCall(vd, m, qs) }
-    |   lvdecl~"="~p~"->"~f~";"                         ^^ { case vd~"="~p~"->"~f~_ => ir.StmtGetField(vd, p, f) }
-    |   t~lv~"="~"new"~"("~comma(p)~")"~";"             ^^ { case t~x~"="~"new"~"("~qs~")"~_ => ir.StmtNew(x, t, qs) }
-    |   lvdecl~"="~"null"~";"                           ^^ { case vd~"="~"null"~";" => ir.StmtNull(vd) }
-    |   p~"->"~f~"="~p~";"                              ^^ { case p~_~f~_~q~_ => ir.StmtSetField(p, f, q) }
-    |   p~"hb"~p~";"                                    ^^ { case p~_~q~_ => ir.StmtHb(p, q) }
-    |   p~"locks"~p~";"                                 ^^ { case p~_~q~_ => ir.StmtLocks(p, q) }
-    |   "subinterval"~lv~optLocks~"{"~rep(stmt)~"}"     ^^ { case _~x~ps~"{"~stmts~"}" => ir.StmtSubinterval(x, ps, stmts) }
-    |   "return"~p~";"                                  ^^ { case _~p~_ => ir.StmtReturn(p) }
+       "super"~"("~comma(p)~")"~";"                 ^^ { case _~_~ps~_~_ => ir.StmtSuperCtor(ps) }
+    |   optLv~p~"->"~m~"("~comma(p)~")"~";"         ^^ { case x~p~"->"~m~"("~qs~")"~_ => ir.StmtCall(x, p, m, qs) }
+    |   optLv~"super"~"->"~m~"("~comma(p)~")"~";"   ^^ { case x~_~"->"~m~"("~qs~")"~_ => ir.StmtSuperCall(x, m, qs) }
+    |   lv~"="~p~"->"~f~";"                         ^^ { case x~"="~p~"->"~f~_ => ir.StmtGetField(x, p, f) }
+    |   lv~"="~"new"~t~"("~comma(p)~")"~";"         ^^ { case x~"="~"new"~t~"("~qs~")"~_ => ir.StmtNew(x, t, qs) }
+    |   lv~"="~"("~wt~")"~p~";"                     ^^ { case x~"="~"("~wt~")"~p~";" => ir.StmtCast(x, wt, p) }
+    |   lv~"="~"("~wt~")"~"null"~";"                ^^ { case x~"="~"("~wt~")"~"null"~";" => ir.StmtNull(x, wt) }
+    |   p~"->"~f~"="~p~";"                          ^^ { case p~_~f~_~q~_ => ir.StmtSetField(p, f, q) }
+    |   p~"hb"~p~";"                                ^^ { case p~_~q~_ => ir.StmtHb(p, q) }
+    |   p~"locks"~p~";"                             ^^ { case p~_~q~_ => ir.StmtLocks(p, q) }
+    |   "subinterval"~lv~optLocks~"{"~rep(stmt)~"}" ^^ { case _~x~ps~"{"~stmts~"}" => ir.StmtSubinterval(x, ps, stmts) }
+    |   "return"~p~";"                              ^^ { case _~p~_ => ir.StmtReturn(p) }
     )
     
     def req = positioned(
-        "requires"~comma(p)~"readableBy"~comma(p)       ^^ { case _~lp~_~lq => ir.ReqReadableBy(lp, lq) }
-    |   "requires"~comma(p)~"writableBy"~comma(p)       ^^ { case _~lp~_~lq => ir.ReqWritableBy(lp, lq) }
-    |   "requires"~comma(p)~"subinterval"~comma(p)      ^^ { case _~lp~_~lq => ir.ReqSubintervalOf(lp, lq) }
-    |   "requires"~comma(p)~"hb"~comma(p)               ^^ { case _~lp~_~lq => ir.ReqHb(lp, lq) }
+        "requires"~comma(p)~"readableBy"~comma(p)   ^^ { case _~lp~_~lq => ir.ReqReadableBy(lp, lq) }
+    |   "requires"~comma(p)~"writableBy"~comma(p)   ^^ { case _~lp~_~lq => ir.ReqWritableBy(lp, lq) }
+    |   "requires"~comma(p)~"subinterval"~comma(p)  ^^ { case _~lp~_~lq => ir.ReqSubintervalOf(lp, lq) }
+    |   "requires"~comma(p)~"hb"~comma(p)           ^^ { case _~lp~_~lq => ir.ReqHb(lp, lq) }
     )    
     def reqs = rep(req)
     
     def succ = positioned(
-        "succ"~integer~"("~comma(p)~")"~";"      ^^ { case _~b~"("~ps~")"~";" => ir.Succ(b, ps) }
+        "succ"~integer~"("~comma(p)~")"~";"         ^^ { case _~b~"("~ps~")"~";" => ir.Succ(b, ps) }
     )
     
     def block = (

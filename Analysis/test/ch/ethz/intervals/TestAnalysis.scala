@@ -94,7 +94,7 @@ class TestAnalysis extends JUnitSuite {
                 Void setBothOkWhenOneIsCreated(Interval inter)
                 requires method subinterval this.creator
                 {
-                    Object<inter> obj = new();
+                    obj = new Object<inter>();
                     
                     this->inter = inter;
                     this->obj = obj;
@@ -137,7 +137,7 @@ class TestAnalysis extends JUnitSuite {
                 requires method subinterval this.creator
                 {
                     this->inter = inter;
-                    Object<inter> obj2 = new(); // ERROR intervals.must.assign.first(this.obj)
+                    obj2 = new Object<inter>(); // ERROR intervals.must.assign.first(this.obj)
                     this->obj = obj;
                 }
                 
@@ -146,7 +146,7 @@ class TestAnalysis extends JUnitSuite {
                 {
                     this->inter = inter;
                     this->obj = obj;
-                    Object<inter> obj2 = new();
+                    obj2 = new Object<inter>();
                 }
             }
             """
@@ -209,7 +209,7 @@ class TestAnalysis extends JUnitSuite {
                 // during the constructor.  (We could perhaps loosen this rule for this.constructor)
                 constructor Void ctorMethod1() 
                 {
-                    String c = this->c; // ERROR intervals.not.readable(this.constructor)
+                    c = this->c; // ERROR intervals.not.readable(this.constructor)
                     
                     this->unctor = this; // ERROR intervals.not.writable(this.constructor)
                     this->ctor = this; // ERROR intervals.not.writable(this.constructor)
@@ -218,7 +218,7 @@ class TestAnalysis extends JUnitSuite {
                 constructor Void ctorMethod2() 
                 requires method subinterval this.constructor
                 {
-                    String c = this->c; 
+                    c = this->c; 
                     
                     this->unctor = this;
                     this->ctor = this; // ERROR intervals.expected.subtype(this, Ctor<>{c}, Ctor<>{})
@@ -226,11 +226,11 @@ class TestAnalysis extends JUnitSuite {
                 
                 Void method(Ctor constructor unconstructed, Ctor constructed)
                 {
-                    String a1 = constructed->toString();                    
-                    String a2 = constructed->c;
+                    a1 = constructed->toString();                    
+                    a2 = constructed->c;
                     
-                    String b1 = unconstructed->toString(); // ERROR intervals.rcvr.must.be.constructed(unconstructed)
-                    String b2 = unconstructed->c; // ERROR intervals.not.readable(unconstructed.constructor)
+                    b1 = unconstructed->toString(); // ERROR intervals.rcvr.must.be.constructed(unconstructed)
+                    b2 = unconstructed->c; // ERROR intervals.not.readable(unconstructed.constructor)
                 }
             }
             """
@@ -259,7 +259,7 @@ class TestAnalysis extends JUnitSuite {
                 {
                     // this.final hb this, and method is a subinterval of this,
                     // so this.final hb method:
-                    String s1 = o->toString();
+                    o->toString();
                 }
                 
                 Void readFinal1(Object<this.final> o) 
@@ -267,7 +267,7 @@ class TestAnalysis extends JUnitSuite {
                     // Here we do not require this method be
                     // invoked with method a subinterval of this,
                     // so we don't know that this.final is readable.
-                    String s1 = o->toString(); // ERROR intervals.requirement.not.met(requires this.final readable by method)
+                    o->toString(); // ERROR intervals.requirement.not.met(requires this.final readable by method)
                 }
                 
                 constructor Void readFinal2(Object<this.final> o) 
@@ -275,7 +275,7 @@ class TestAnalysis extends JUnitSuite {
                 {
                     // This method could be invoked in the constructor,
                     // so we can't even use this.final in an attribute.
-                    String s1 = o->toString(); // ERROR intervals.illegal.path.attr(this.final, m)
+                    o->toString(); // ERROR intervals.illegal.path.attr(this.final, m)
                 }
             }
             """
@@ -307,7 +307,7 @@ class TestAnalysis extends JUnitSuite {
                 Void readFinal(Object<this.final> o) 
                 requires method subinterval this
                 {
-                    String s1 = o->toString(); // ERROR intervals.requirement.not.met(requires this.final readable by method)
+                    o->toString(); // ERROR intervals.requirement.not.met(requires this.final readable by method)
                 }                
             }
             """
@@ -427,7 +427,7 @@ class TestAnalysis extends JUnitSuite {
                 String s requires this.constructor;
                 
                 constructor() {
-                    String s = this->s; // ERROR intervals.illegal.path.attr(this, g)
+                    s = this->s; // ERROR intervals.illegal.path.attr(this, g)
                     super();
                 }                
             }
@@ -524,7 +524,7 @@ class TestAnalysis extends JUnitSuite {
                 constructor(String t) {
                     super(t);
                     
-                    String s = this->s; // this.super is readable
+                    s = this->s; // this.super is readable
                     this->t = s; 
                 }
             }     
@@ -535,11 +535,11 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 Void mthdReadA(B5 constructor b) {
-                    String s = b->s; // No error, b.super readable.                    
+                    s = b->s; // No error, b.super readable.                    
                 }
                 
                 Void mthdReadB(B5 constructor b) {
-                    String s = b->t; // ERROR intervals.not.readable(b.constructor)
+                    s = b->t; // ERROR intervals.not.readable(b.constructor)
                 }
             }
             """
@@ -591,7 +591,7 @@ class TestAnalysis extends JUnitSuite {
                 // during the constructor.  (We could perhaps loosen this rule for this.constructor)
                 constructor Void ctorMethod1() 
                 {
-                    String c = this->c; // ERROR intervals.not.readable(this.constructor)
+                    c = this->c; // ERROR intervals.not.readable(this.constructor)
                     
                     this->unctor = this; // ERROR intervals.not.writable(this.constructor)
                     this->ctor = this; // ERROR intervals.not.writable(this.constructor)
@@ -600,7 +600,7 @@ class TestAnalysis extends JUnitSuite {
                 constructor Void ctorMethod2() 
                 requires method subinterval this.constructor
                 {
-                    String c = this->c; 
+                    c = this->c; 
                     
                     this->unctor = this;
                     this->ctor = this; // ERROR intervals.expected.subtype(this, Ctor<>{c}, Ctor<>{})
@@ -608,11 +608,11 @@ class TestAnalysis extends JUnitSuite {
                 
                 Void method(Ctor constructor unconstructed, Ctor constructed)
                 {
-                    String a1 = constructed->toString();                    
-                    String a2 = constructed->c;
+                    a1 = constructed->toString();                    
+                    a2 = constructed->c;
                     
-                    String b1 = unconstructed->toString(); // ERROR intervals.rcvr.must.be.constructed(unconstructed)
-                    String b2 = unconstructed->c; // ERROR intervals.not.readable(unconstructed.constructor)
+                    b1 = unconstructed->toString(); // ERROR intervals.rcvr.must.be.constructed(unconstructed)
+                    b2 = unconstructed->c; // ERROR intervals.not.readable(unconstructed.constructor)
                 }
             }
             """
@@ -643,8 +643,8 @@ class TestAnalysis extends JUnitSuite {
                 Void afterInit()
                 requires this.init hb method
                 {
-                    String f1 = this->f1; // safe to read both of these...
-                    String f2 = this->f2; // ...because init is complete.
+                    f1 = this->f1; // safe to read both of these...
+                    f2 = this->f2; // ...because init is complete.
                     
                     // But edits are not permitted.
                     this->f1 = f2;        // ERROR intervals.not.writable(this.init)
@@ -663,7 +663,7 @@ class TestAnalysis extends JUnitSuite {
                 
                 constructor() {
                     super();
-                    Lock lock = new();
+                    lock = new Lock();
                     this->lock = lock;
                 }
             }
@@ -677,7 +677,7 @@ class TestAnalysis extends JUnitSuite {
 
                 String brokenGet() 
                 {
-                    String v = this->value; // ERROR intervals.not.readable(this.lock)
+                    v = this->value; // ERROR intervals.not.readable(this.lock)
                     // return v; /* commented out due to error above */
                 }
 
@@ -689,7 +689,7 @@ class TestAnalysis extends JUnitSuite {
                 String get() 
                 {
                     subinterval x locks this.lock {
-                        String v = this->value; // Note: variables are all METHOD-SCOPE
+                        v = this->value; // Note: variables are all METHOD-SCOPE
                     }
                     return v;
                 }
@@ -703,7 +703,7 @@ class TestAnalysis extends JUnitSuite {
                 
                 String toString() 
                 {
-                    String s = this->get();
+                    s = this->get();
                     return s;
                 }
                 
@@ -737,7 +737,7 @@ class TestAnalysis extends JUnitSuite {
                 Object<?> m1() // n.b.: same requirements as IFoo
                 requires this.i readableBy method
                 {
-                    Object<?> f = this->f;
+                    f = this->f;
                     return f;
                 }
             } 
@@ -763,23 +763,24 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 Void assign() {
-                    IFoo<this.i> ifoo1 = this->foo1;
-                    IFoo<this.i> ifoo2 = this->foo2;                    
+                    ifoo1 = this->foo1;
+                    ifoo2 = this->foo2;                    
                 }
                 
                 Void invokeThroughInterface() {
-                    IFoo<this.i> ifoo2 = this->foo2;
-                    Object<?> o = ifoo2->m1(); // ERROR intervals.requirement.not.met(requires this.i readable by method)
+                    foo2 = this->foo2;
+                    ifoo2 = (IFoo<this.i>)foo2;
+                    ifoo2->m1(); // ERROR intervals.requirement.not.met(requires this.i readable by method)
                 }
                 
                 Void invokeThroughFoo1() {
-                    Foo1<this.i> foo1 = this->foo1;
-                    Object<?> o = foo1->m1(); // ERROR intervals.requirement.not.met(requires this.i readable by method)
+                    foo1 = this->foo1;
+                    foo1->m1(); // ERROR intervals.requirement.not.met(requires this.i readable by method)
                 }
                 
                 Void invokeThroughFoo2() {
-                    Foo2<this.i> foo2 = this->foo2;
-                    Object<?> o = foo2->m1();
+                    foo2 = this->foo2;
+                    foo2->m1();
                 }
             }
             """
@@ -847,14 +848,14 @@ class TestAnalysis extends JUnitSuite {
                 
                 constructor() {
                     super();
-                    Lock lock = new();
+                    lock = new Lock();
                     this->lock = lock;
                     
                     subinterval x locks lock {
-                        Data<this.lock> data = null;
+                        data = (Data<this.lock>)null;
                         this->data = data;
 
-                        Link nextLink = null;
+                        nextLink = (Link)null;
                         this->nextLink = nextLink;                        
                     }
                 }
@@ -872,8 +873,8 @@ class TestAnalysis extends JUnitSuite {
                 Data<this.link.lock> transform(Data<this.link.lock> inData) 
                 requires this.link.lock writableBy method
                 {
-                    Data<this.link.lock> outData = new();
-                    String fld = inData->fld;
+                    outData = new Data<this.link.lock>();
+                    fld = inData->fld;
                     outData->fld = fld;
                     return outData;
                 }
@@ -882,13 +883,13 @@ class TestAnalysis extends JUnitSuite {
                 requires method subinterval this
                 {
                     // Update data:
-                    Data<this.link.lock> oldData = this.link->data;
-                    Data<this.link.lock> newData = this->transform(oldData);
+                    oldData = this.link->data;
+                    newData = this->transform(oldData);
                     this.link->data = newData;
                     
                     // Start next link:
-                    Link nextLink = this.link->nextLink;
-                    HohLink nextInter = new(nextLink);
+                    nextLink = this.link->nextLink;
+                    nextInter = new HohLink(nextLink);
                     //XXX nextInter.start hb this.end;
                 }                
             }
@@ -915,7 +916,7 @@ class TestAnalysis extends JUnitSuite {
                 }
                 () // Block 1
                 {
-                    Object<this.i> b1 = null;
+                    b1 = (Object<this.i>)null;
                     succ 3(b1);
                 }
                 () // Block 2
@@ -932,13 +933,13 @@ class TestAnalysis extends JUnitSuite {
                 {
                     // Presumably some test would be used to choose
                     // between succ 1 and 2:
-                    Object<this> b2 = null;
+                    b2 = (Object<this>)null;
                     succ 1();
                     succ 2(b2); // ERROR intervals.expected.subtype(b2, Object<this>{}, Object<this.i>{})
                 }
                 () // Block 1
                 {
-                    Object<this> b1 = null;
+                    b1 = (Object<this>)null;
                     succ 2(b1); // ERROR intervals.expected.subtype(b1, Object<this>{}, Object<this.i>{})
                 }
                 (Object<this.i> b3) // Block 2
@@ -987,27 +988,27 @@ class TestAnalysis extends JUnitSuite {
                     super();
                     c hb this;
                     this->cdata = cdata;
-                    ProdData<this> pdata = new();
+                    pdata = new ProdData<this>();
                     this->pdata = pdata;
                 }
 
                 Void run()
                 requires method subinterval this
                 {
-                    ProdData<this> pdata = this->pdata;
-                    ConsData<hb this> cdata = this->cdata;
+                    pdata = this->pdata;
+                    cdata = this->cdata;
                     
-                    Data<this> data = new(); // "produce"
+                    data = new Data<this>(); // "produce"
                     pdata->data = data;
                     
                     // Note: Non-trivial deduction here that equates
                     // nextCons with cdata.nextCons!
-                    Interval nextCons = cdata->nextCons;
-                    ConsData<nextCons> nextCdata = cdata->nextCdata;                    
+                    nextCons = cdata->nextCons;
+                    nextCdata = cdata->nextCdata;                    
                     
-                    Producer nextProd = new(nextCons, nextCdata);
+                    nextProd = new Producer(nextCons, nextCdata);
                     pdata->nextProd = nextProd;
-                    ProdData<nextProd> nextPdata = nextProd->pdata;
+                    nextPdata = nextProd->pdata;
                     pdata->nextPdata = nextPdata;
                 }
             }
@@ -1021,24 +1022,24 @@ class TestAnalysis extends JUnitSuite {
                     super();
                     p hb this;
                     this->pdata = pdata;
-                    ConsData<this> cdata = new();
+                    cdata = new ConsData<this>();
                     this->cdata = cdata;
                 }
 
                 Void run()
                 requires method subinterval this
                 {
-                    ProdData<hb this> pdata = this->pdata;
-                    ConsData<this> cdata = this->cdata;
+                    pdata = this->pdata;
+                    cdata = this->cdata;
                     
-                    Data<hb this> data = pdata->data; // "consume" 
+                    data = pdata->data; // "consume" 
                     
-                    Interval nextProd = pdata->nextProd;
-                    ProdData<nextProd> nextPdata = pdata->nextPdata;
+                    nextProd = pdata->nextProd;
+                    nextPdata = pdata->nextPdata;
                     
-                    Consumer nextCons = new(nextProd, nextPdata);
+                    nextCons = new Consumer(nextProd, nextPdata);
                     cdata->nextCons = nextCons;
-                    ConsData<nextCons> nextCdata = nextCons->cdata;
+                    nextCdata = nextCons->cdata;
                     cdata->nextCdata = nextCdata;
                 }
             }
@@ -1051,17 +1052,17 @@ class TestAnalysis extends JUnitSuite {
                 Void run()
                 requires method subinterval this
                 {
-                    ConsData<this> d0 = new();
-                    ConsData<this> d1 = new();                    
+                    d0 = new ConsData<this>();
+                    d1 = new ConsData<this>();
                     d0->nextCons = this;
                     d0->nextCdata = d1;
                     
-                    Producer p = new(this, d0);                    
-                    ProdData<p> pdata = p->pdata;
+                    p = new Producer(this, d0);                    
+                    pdata = p->pdata;
                     
-                    Consumer c = new(p, pdata);
+                    c = new Consumer(p, pdata);
                     d1->nextCons = c; 
-                    ConsData<c> cdata = c->cdata;
+                    cdata = c->cdata;
                     d1->nextCdata = cdata;                    
                 }
             }
