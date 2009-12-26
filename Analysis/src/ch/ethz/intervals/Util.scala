@@ -220,18 +220,23 @@ object Util {
     def inv(v: V) = _m.keys.filter(k => contains(k, v))
       
     def contains(k: K, v: V) = this(k).contains(v)
-      
-    def ++*(pairs: Iterable[(K, Iterable[V])]) =
-      pairs.foldLeft(this) { case (m, (k, v)) => m.plusMany(k, v) }
-
-    def plusMany(k: K, v: Iterable[V]) = {
+    
+    def mapKey(k: K, f: (Set[V] => Set[V])) = {
       val kset0 = this(k)
-      val kset1 = kset0 ++ v
+      val kset1 = f(kset0)
       newMultiMap(
         size - kset0.size + kset1.size,
         _m + Pair(k, kset1)
       )
     }
+              
+    def ++*(pairs: Iterable[(K, Iterable[V])]) =
+      pairs.foldLeft(this) { case (m, (k, v)) => m.plusMany(k, v) }
+    def --*(pairs: Iterable[(K, Iterable[V])]) =
+      pairs.foldLeft(this) { case (m, (k, v)) => m.subMany(k, v) }
+
+    def plusMany(k: K, v: Iterable[V]) = mapKey(k, _ ++ v)
+    def subMany(k: K, v: Iterable[V]) = mapKey(k, _ -- v)
     
     def +(pair: (K, V)): S = {
       val (k, v) = pair
