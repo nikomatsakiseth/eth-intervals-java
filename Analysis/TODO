@@ -1,25 +1,58 @@
 TODO LIST
----------
+=========
 
-(*) Cleanup linked field logic as relates to guards.  Right now, a
-    field F is not linked to G if guard(G) hb guard(F).  The reasoning
-    is that then guard(F) could not yet have occurred, and so F could
-    not be initialized.  What would prob. make more sense is to say tht
-    F is not linked to G if current hb F.
+Bugs
+----
+
+(*) Add assumption (and validate) that all field and ghost names are GLOBALLY unique
+    (in other words, prefix them with the class in the preprocessor).  Alternatively,
+    make substitution smarter.  Trying to avoid this kind of problem:
     
+        class Type2<Interval g> 
+        extends Type1<this.constructor> {
+            ...
+        }
+        
+        class Type1<Interval g> ...
+    
+        void mthd1(Type1 arg)
+        requires arg.g subinterval this
+        {...}
+        
+        {
+            ...
+            Type2<y> x;
+            mthd1(x);
+            ...
+        }
+        
+    mthd1 is referring to Type1::g (i.e., x.constructor), but if we're not careful when
+    we substitute arg for x in the call, we might end up referring to Type2::g (i.e., y)!
+    To make this sound, we really need to upcast the type of arg to its static type and 
+    substitute both arg→x and arg.g→x.constructor; alternatively, if ghost names were
+    unique, we could resolve ghost names more like fields.  The latter solution seems a bit
+    more robust to me.  Although, if we always built substitutions by giving a pair like
+        Wt_x x → Wt_y y
+    where (Wt_x <: Wt_y) we could encapsulate the "best practices" in one method.
+    
+(*) Sanity check casts or otherwise restrict them?
+
+Features
+--------
+
 (*) Control-flow: convert to SSA or SSI form.
 
 (*) @Is annotations on methods and variable declarations
 
 (*) Inherit assumptions from supertype constructors as well!
 
-(*) Ensures declarations--
+(*) Ensures declarations-- (?)
 
     In place of the current inference, we should add ensures declarations on constructors
     (or potentially other methods).  These ensures declarations could be inferred by the
     compiler for constructors as we do today, but could also be manually specified to support
     virtual methods and helpers for constructors.
-
+    
 (*) Assertions
 
 (*) Javac plugin
@@ -41,5 +74,13 @@ TODO LIST
     If a class declared, for example, that two of its fields f and g have a HB relationship,
     then this would link f and g.  We can use the existing linked fields mechanisms to ensure
     that they are written together.
-    
-(*) Sanity check casts or otherwise restrict them?
+        
+Things to Think About
+---------------------
+
+(*) Cleanup linked field logic as relates to guards.  Right now, a
+    field F is not linked to G if guard(G) hb guard(F).  The reasoning
+    is that then guard(F) could not yet have occurred, and so F could
+    not be initialized.  What would prob. make more sense is to say tht
+    F is not linked to G if current hb F.
+
