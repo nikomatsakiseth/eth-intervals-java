@@ -35,6 +35,22 @@ Bugs
         Wt_x x → Wt_y y
     where (Wt_x <: Wt_y) we could encapsulate the "best practices" in one method.
     
+    Note that making building ghost fields into the inheritance hierarchy is actually 
+    the model I intend to present to the user.  There is therefore a strong case that
+    it will make it easier to report errors if the model of the type checker precisely
+    matches the user model, rather than merely being equivalent to.  Think how confusing
+    it could be to report errors...
+    
+    In that case, types would change from having a fixed list of parameters to a map
+    (just like is being presented to the user).  When a ghost field is found, we would
+    check the type to see if there are any mappings for that field defined.  If not,
+    then foo.g is used (ie, defaults to completely unknown).  Actually seems quite nice!
+    
+(*) Check in multiple inheritance that all paths lead to the same set of ghost 
+    parameters.  Alternatively, make sure that we all paths are fulfilled.
+    Latter technique is "cooler" (then, for ex., a class modelling an empty set
+    can fulfill virtually any type, etc)
+    
 (*) Sanity check casts or otherwise restrict them?
 
 Features
