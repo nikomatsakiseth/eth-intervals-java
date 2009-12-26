@@ -22,7 +22,7 @@ and the type reference:
 into one more concise entity Foo<f: p> that provides both
 the name (but not type) and value of the ghost argument(s).
 It's also close to the Java annotation syntax, which 
-would be @f(p) Foo.
+would be @f("p") Foo.
 */
 
 class TypeCheck(log: Log, prog: Prog) {    
@@ -39,11 +39,11 @@ class TypeCheck(log: Log, prog: Prog) {
         Map(),
         Map(),
         ListSet.empty,
-        ir.Relation.emptyTrans,
-        ir.Relation.emptyTrans,
-        ir.Relation.emptyTrans,
-        ir.Relation.emptyTrans,
-        ir.Relation.empty
+        IntransitiveRelation.empty,
+        IntransitiveRelation.empty,
+        TransitiveRelation.empty,
+        TransitiveRelation.empty,
+        IntransitiveRelation.empty
     )
     var env = emptyEnv
     
@@ -1188,6 +1188,20 @@ class TypeCheck(log: Log, prog: Prog) {
     // (2) We apply this reverse mapping to all relations and then take the subset of
     //     those which involve paths beginning with shared local variables (only "this" right
     //     now).
+    
+    def mapFilter[R <: Relation[ir.Path,R]](
+        rel: R,
+        mapFunc: (ir.Path => ir.Path), 
+        filterFunc: (ir.Path => Boolean)
+    ): R =
+        rel.all.foldLeft(rel.empty) { case (r, (p, q)) =>
+            val p1 = mapFunc(p)
+            val q1 = mapFunc(q)
+            if(filterFunc(p1) && filterFunc(q1))
+                r + (p1, q1)
+            else
+                r
+        }
         
     def extractAssumptions(
         tp_mthd_end: ir.TeePee, 
@@ -1206,6 +1220,7 @@ class TypeCheck(log: Log, prog: Prog) {
                     log.indentedRes("filterFunc(%s)", p) {
                         lvs_shared(p.lv) && !teePee(p).as.mutable                
                     }
+                    
 
                 ir.TcEnv(
                     env.p_cur,
@@ -1213,11 +1228,11 @@ class TypeCheck(log: Log, prog: Prog) {
                     env.perm,
                     env.temp,
                     env.lp_invalidated,
-                    env.readable.mapFilter(mapFunc, filterFunc),
-                    env.writable.mapFilter(mapFunc, filterFunc),
-                    env.hb.mapFilter(mapFunc, filterFunc),
-                    env.subinterval.mapFilter(mapFunc, filterFunc),
-                    env.locks.mapFilter(mapFunc, filterFunc)
+                    mapFilter(env.readable, mapFunc, filterFunc),
+                    mapFilter(env.writable, mapFunc, filterFunc),
+                    mapFilter(env.hb, mapFunc, filterFunc),
+                    mapFilter(env.subinterval, mapFunc, filterFunc),
+                    mapFilter(env.locks, mapFunc, filterFunc)
                 )
             }            
         }

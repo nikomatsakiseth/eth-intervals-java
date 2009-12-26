@@ -178,7 +178,7 @@ object Util {
   }  
   implicit def map2UtilMap[K, V](m: Map[K, V]): UtilMap[K, V] = UtilMap(m)
   
-  // ____________________________________________________________
+  // ______________________________________________________________________
   // A subst is a map from T->T, where the default action is identity.
 
   type Subst[T] = Map[T,T]
@@ -342,6 +342,8 @@ object Util {
     else transitiveClosure(out)
   }
 
+  // ______________________________________________________________________
+  
   def forallzip[A,B](as: List[A], bs: List[B])(f: Function2[A, B, Boolean]) =
     as.zip(bs).forall(p => f(p._1, p._2))
   def forallcross[A,B](as: Iterable[A], bs: Iterable[B])(f: Function2[A, B, Boolean]) =
@@ -353,6 +355,8 @@ object Util {
   def foreachcross[A,B](as: List[A], bs: List[B])(f: Function2[A, B, Unit]) =
     as.foreach(a => bs.foreach(b => f(a, b)))
     
+  // ______________________________________________________________________
+
   def intersect[A](sets: Iterable[Set[A]]): Set[A] = {
     val iter = sets.elements
     if(iter.hasNext) {

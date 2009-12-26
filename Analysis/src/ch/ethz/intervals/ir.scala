@@ -339,66 +339,17 @@ object ir {
         override def toString = "requires %s hb %s".format(lp.mkString(", "), lq.mkString(", "))
     }
     
-    sealed class Relation(
-        private val rels: Util.MultiMap[Path, Path],
-        transitive: Boolean
-    ) {
-        private var cachedTc: Option[Util.MultiMap[Path, Path]] = None        
-        private def tc =
-            cachedTc match {
-                case Some(t) => t
-                case None =>
-                    val t = Util.transitiveClosure(rels)
-                    cachedTc = Some(t)
-                    t
-            }
-            
-        def +(r: Relation): Relation =
-            new Relation(rels ++ r.rels, transitive)
-        
-        def +(p: Path, q: Path): Relation =
-            new Relation(rels + Pair(p, q), transitive)
-            
-        def apply(p: Path): Set[Path] =
-            if(transitive) tc(p)
-            else rels(p)
-        
-        def contains(p: Path, q: Path) =
-            if(transitive) tc.contains(p, q)
-            else rels.contains(p, q)
-            
-        def allPairs: Collection[(ir.Path, ir.Path)] =
-            if(transitive) tc
-            else rels
-            
-        def mapFilter(m: (Path => Path), f: (Path => Boolean)) = {
-            val rels1 = allPairs.foldLeft(Relation.emptyMap) { case (r, (p, q)) => 
-                val p1 = m(p)
-                val q1 = m(q)
-                if(f(p1) && f(q1)) r + Pair(p1, q1)
-                else r
-            }
-            new Relation(rels1, transitive)            
-        }
-            
-    }
-    object Relation {
-        private val emptyMap = Util.MultiMap.empty[Path, Path]
-        val empty = new Relation(emptyMap, false)
-        val emptyTrans = new Relation(emptyMap, true)
-    }
-    
     sealed case class TcEnv(
-        p_cur: ir.Path,                 // current interval
-        wt_ret: ir.WcTypeRef,           // return type of current method
-        perm: Map[ir.Path, ir.TeePee],  // permanent equivalences, hold for duration of method
-        temp: Map[ir.Path, ir.Path],    // temporary equivalences, cleared on method call
-        lp_invalidated: Set[ir.Path],   // p is current invalid and must be reassigned        
-        readable: Relation,             // (p, q) means guard p is readable by interval q
-        writable: Relation,             // (p, q) means guard p is writable by interval q
-        hb: Relation,                   // (p, q) means interval p hb interval q
-        subinterval: Relation,          // (p, q) means interval p is a subinterval of interval q
-        locks: Relation                 // (p, q) means interval p locks lock q
+        p_cur: ir.Path,                        // current interval
+        wt_ret: ir.WcTypeRef,                  // return type of current method
+        perm: Map[ir.Path, ir.TeePee],         // permanent equivalences, hold for duration of method
+        temp: Map[ir.Path, ir.Path],           // temporary equivalences, cleared on method call
+        lp_invalidated: Set[ir.Path],          // p is current invalid and must be reassigned        
+        readable: IntransitiveRelation[Path],  // (p, q) means guard p is readable by interval q
+        writable: IntransitiveRelation[Path],  // (p, q) means guard p is writable by interval q
+        hb: TransitiveRelation[Path],          // (p, q) means interval p hb interval q
+        subinterval: TransitiveRelation[Path], // (p, q) means interval p is a subinterval of interval q
+        locks: IntransitiveRelation[Path]      // (p, q) means interval p locks lock q
     ) {
         def +(env: TcEnv) = {
             TcEnv(
