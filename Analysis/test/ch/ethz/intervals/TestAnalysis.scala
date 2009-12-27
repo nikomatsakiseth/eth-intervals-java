@@ -893,7 +893,14 @@ class TestAnalysis extends JUnitSuite {
                 constructor() { super(); }
             }
 
-
+            class Indirect4 extends Object {
+                // Not safe: Constructor could load up data1 where this.data.i is the current
+                // method, store data2, then call a method on data1 which changes this.data1.i,
+                // making data2 invalid.
+                Data1<creator: this.constructor> data1 requires this.constructor;
+                Data2<creator: this.data1.i> data2 requires this.data1.i; // ERROR intervals.illegal.type.dep(this.data1.i, this.data1.i)
+                constructor() { super(); }
+            }
             """
         )
     }

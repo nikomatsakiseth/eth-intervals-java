@@ -574,7 +574,8 @@ class TypeCheck(log: Log, prog: Prog) {
     
     def addDeclaredWritableBy(tp: ir.TeePee, tq: ir.TeePee): Unit = 
         log.indented("addDeclaredWritableBy(%s, %s)", tp, tq) {
-            assert(tp.isConstant && tq.isConstant)
+            // This assertion is not valid during checkReifiedFieldDecl():
+            //assert(tp.isConstant && tq.isConstant)
             assert(isSubclass(tp.wt, ir.c_guard))
             assert(isSubclass(tq.wt, ir.c_interval))
             env = ir.TcEnv(
@@ -592,7 +593,8 @@ class TypeCheck(log: Log, prog: Prog) {
     
     def addSubintervalOf(tp: ir.TeePee, tq: ir.TeePee): Unit = 
         log.indented("addSubintervalOf(%s, %s)", tp, tq) {
-            assert(tp.isConstant && tq.isConstant)
+            // This assertion is not valid during checkReifiedFieldDecl():
+            //assert(tp.isConstant && tq.isConstant)
             assert(isSubclass(tp.wt, ir.c_interval))
             assert(isSubclass(tq.wt, ir.c_interval))
             env = ir.TcEnv(
@@ -610,7 +612,8 @@ class TypeCheck(log: Log, prog: Prog) {
         
     def addLocks(tp: ir.TeePee, tq: ir.TeePee): Unit =
         log.indented("addLocks(%s, %s)", tp, tq) {
-            assert(tp.isConstant && tq.isConstant)
+            // This assertion is not valid during checkReifiedFieldDecl:
+            //assert(tp.isConstant && tq.isConstant)
             assert(isSubclass(tp.wt, ir.c_interval))
             assert(isSubclass(tq.wt, ir.c_lock))
             env = ir.TcEnv(
@@ -1395,10 +1398,6 @@ class TypeCheck(log: Log, prog: Prog) {
                 cd.superTypes.foreach(checkNotCtor)
                 cd.superTypes.take(1).foreach(checkIsNotInterface)
                 cd.superTypes.drop(1).foreach(checkIsInterface)
-/*                
-                checkGhostDeclsUsePermittedPrefixes(cd, List(), cd.ghosts)                
-                checkFieldDeclsUsePermittedPrefixes(cd, List(), cd.fields)                
-*/                
                 cd.fields.foreach(checkFieldDecl(cd, _))
                 val env_ctor_assum = checkNoninterfaceConstructorDecl(cd, cd.ctor)                    
                 cd.methods.foreach(checkNoninterfaceMethodDecl(cd, env_ctor_assum, _))                    
