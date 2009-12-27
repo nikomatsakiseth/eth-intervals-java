@@ -861,11 +861,11 @@ class TypeCheck(log: Log, prog: Prog) {
     /// The rules we enforce when checking field decls. guarantee that
     /// all linked fields either (a) occur in the same class defn as f
     /// or (b) are guarded by some interval which has not yet happened.
-    def linkedPaths(tp_o: ir.TeePee, f: ir.FieldName, tp_guard: ir.TeePee) = preservesEnv {
+    def linkedPaths(tp_o: ir.TeePee, f: ir.FieldName) = preservesEnv {
         val cd = classDecl(tp_o.wt.c)
         val p_f = f.thisPath
         
-        // 
+        // only reified fields can be linked to another field
         val lrfd = cd.fields.foldLeft(List[ir.ReifiedFieldDecl]()) {
             case (l, rfd: ir.ReifiedFieldDecl) => rfd :: l
             case (l, _) => l
@@ -874,10 +874,10 @@ class TypeCheck(log: Log, prog: Prog) {
         // find fields where tp_o.f appears in the type
         val fds_maybe_linked = lrfd.filter { rfd => isLinkedWt(p_f, rfd.wt) }
         
-        // screen out those which are guarded by future intervals
+        // screen out those which cannot have been written yet
         lazy val subst = ghostSubstOfTeePee(tp_o)
         val fds_linked = fds_maybe_linked.filter { rfd =>
-            !hbInter(tp_guard, teePee(subst.path(rfd.p_guard)))
+            !hbInter(tp_cur, teePee(subst.path(rfd.p_guard)))
         }
         
         // map to the canonical path for the field
@@ -992,7 +992,7 @@ class TypeCheck(log: Log, prog: Prog) {
                             addTemp(p_f, tp_v.p)
                     
                             removeInvalidated(p_f)
-                            linkedPaths(tp_o, f, tp_guard).foreach(addInvalidated)
+                            linkedPaths(tp_o, f).foreach(addInvalidated)
                     }
                         
                 case ir.StmtCall(x, p, m, qs) =>
