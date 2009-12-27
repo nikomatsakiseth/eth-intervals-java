@@ -3,6 +3,12 @@ package ch.ethz.intervals
 abstract class BaseSubst {
     def path(p: ir.Path): ir.Path
     
+    def ghost(g: ir.Ghost) =
+        ir.Ghost(g.f, path(g.p))
+    
+    def tref(t: ir.TypeRef) = 
+        ir.TypeRef(t.c, t.ghosts.map(ghost), t.as)
+        
     def wpath(wp: ir.WcPath) = wp match {
         case ir.WcHb(ps, qs) => ir.WcHb(ps.map(path), qs.map(path))
         case ir.WcReadableBy(ps) => ir.WcReadableBy(ps.map(path))
@@ -12,11 +18,11 @@ abstract class BaseSubst {
         case p: ir.Path => path(p)
     }
     
-    def wtref(wt: ir.WcTypeRef) =
-        ir.WcTypeRef(wt.c, wt.wpaths.map(wpath), wt.as)
+    def wghost(g: ir.WcGhost) =
+        ir.WcGhost(g.f, wpath(g.wp))
     
-    def tref(t: ir.TypeRef) = 
-        ir.TypeRef(t.c, t.paths.map(path), t.as)
+    def wtref(wt: ir.WcTypeRef) =
+        ir.WcTypeRef(wt.c, wt.wghosts.map(wghost), wt.as)
         
     def req(r: ir.Req) = r match {
         case ir.ReqWritableBy(lp, lq) => ir.ReqWritableBy(lp.map(path), lq.map(path))
@@ -25,11 +31,16 @@ abstract class BaseSubst {
         case ir.ReqHb(lp, lq) => ir.ReqHb(lp.map(path), lq.map(path))
     }
         
-    def ghostDecl(fd: ir.GhostDecl) =
-        ir.GhostDecl(wtref(fd.wt), fd.name)
+    def ghostFieldDecl(fd: ir.GhostFieldDecl) =
+        ir.GhostFieldDecl(wtref(fd.wt), fd.name)
         
-    def fieldDecl(fd: ir.FieldDecl) =
-        ir.FieldDecl(fd.as, wtref(fd.wt), fd.name, path(fd.p_guard))
+    def reifiedFieldDecl(fd: ir.ReifiedFieldDecl) =
+        ir.ReifiedFieldDecl(fd.as, wtref(fd.wt), fd.name, path(fd.p_guard))
+        
+    def fieldDecl(fd: ir.FieldDecl) = fd match {
+        case gfd: ir.GhostFieldDecl => ghostFieldDecl(gfd)
+        case rfd: ir.ReifiedFieldDecl => reifiedFieldDecl(rfd)
+    }    
 
     def lvDecl(lv: ir.LvDecl) = 
         ir.LvDecl(lv.name, wtref(lv.wt))

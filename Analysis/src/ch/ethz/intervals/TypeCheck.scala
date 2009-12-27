@@ -152,14 +152,13 @@ class TypeCheck(log: Log, prog: Prog) {
     
     // ______________________________________________________________________
     // Basic Type Operations: Finding fields, methods, supertypes
-        
-    /// Creates a substitution to the supertype 'tp' that replaces ghosts 
+    
+    /// Creates a substitution to the supertype 't' that replaces ghosts 
     /// with their definitions, including the implicit ghost this.constructor
     def superSubst(t: ir.TypeRef) = preservesEnv {
-        val ghostPaths = classDecl(t.c).ghosts.map(_.thisPath)
         PathSubst.pp(
-            ir.p_ctor  :: ghostPaths,
-            ir.p_super :: t.paths
+            ir.p_ctor  :: t.ghosts.map(g => ir.p_this + g.f),
+            ir.p_super :: t.ghosts.map(g => g.p)
         )     
     }
 
@@ -169,6 +168,31 @@ class TypeCheck(log: Log, prog: Prog) {
         cd.superTypes.map { case t_1 => superSubst(t).tref(t_1) }
     }
 
+    // Collection of all ghost fields declared on type 'c_0'.
+    // A ghost field from a supertype c_1 is included so long as there is path
+    // from c_0 to c_1 that does not define the value of the ghost.
+    def ghostFieldDecls(c_0: ir.ClassName): List[ir.GhostFieldDecl] = preservesEnv {
+        def lgfd(c: ir.ClassName, suppress: Set[ir.FieldName]): List[ir.GhostFieldDecl] = {
+            val cd = classDecl(c)
+            val lgfd_super = cd.superTypes.flatMap { t =>
+                lgfd(t.c, suppress ++ t.ghosts.map(_.f))
+            }            
+            cd.fields.foldLeft(lgfd_super) {
+                case (l, gfd: ir.GhostFieldDecl) if !suppress(gfd.name) => gfd :: l
+                case (l, _) => l
+            }
+        }
+        lgfd(c_0, ListSet.empty)
+    }
+    
+    def thisTref(cd: ir.ClassDecl, as: ir.Attrs): ir.TypeRef = {
+        val lgfds = ghostFieldDecls(cd.name)
+        ir.TypeRef(cd.name, lgfds.map(_.ghost), as)
+    }    
+
+    def thisTref(cd: ir.ClassDecl): ir.TypeRef =
+        thisTref(cd, ir.noAttrs)
+    
     /// Field decl for t0::f 
     def fieldDecl(c0: ir.ClassName, f: ir.FieldName): ir.FieldDecl = preservesEnv {
         log.indentedRes("fieldDecl(%s,%s)", c0, f) {
@@ -196,7 +220,7 @@ class TypeCheck(log: Log, prog: Prog) {
                 val cd = classDecl(c)
                 cd.methods.find(_.name == m) match {
                     case Some(md) => 
-                        Some(md.msig(cd.thisTref))
+                        Some(md.msig(thisTref(cd)))
                     case None => cd.superTypes.firstSomeReturned { t =>
                         search(t.c).map(superSubst(t).methodSig)
                     }
@@ -212,7 +236,7 @@ class TypeCheck(log: Log, prog: Prog) {
         cd.superTypes.firstSomeReturned(t_sup => 
             typeOriginallyDefiningMethod(t_sup.c, m).map(superSubst(t_sup).tref)
         ).orElse(
-            if(cd.methods.exists(_.name == m)) Some(cd.thisTref)
+            if(cd.methods.exists(_.name == m)) Some(thisTref(cd))
             else None
         )
     }    
@@ -236,29 +260,31 @@ class TypeCheck(log: Log, prog: Prog) {
     // a TeePee may reference fields of the this object guarded by the
     // current interval or held under lock, which could then be mutated.  
     
-    /// Returns a list of paths for the ghosts of tp.wt.
-    /// Any wildcards in tp.wt are replaced with a path based on 'tp'.
+    /// Returns a list of ghosts for tp.wt.
+    /// Any wildcards or missing ghosts in tp.wt are replaced with a path based on 'tp'.
     /// So if tp.wt was Foo<f: ?, g: q>, the result would be List(tp.p + f, q).
-    def ghostPaths(tp: ir.TeePee): List[ir.Path] = preservesEnv {
-        val cd = classDecl(tp.wt.c)
-        cd.ghosts.zip(tp.wt.wpaths).map {
-            case (_, s: ir.Path) => s
-            case (gfd, _) => tp.p + gfd.name
-        }        
+    def ghosts(tp: ir.TeePee): List[ir.Ghost] = preservesEnv {
+        ghostFieldDecls(tp.wt.c).map { gfd =>
+            tp.wt.owghost(gfd.name) match {
+                case Some(p: ir.Path) => ir.Ghost(gfd.name, p)
+                case _ => ir.Ghost(gfd.name, tp.p + gfd.name)
+            }
+        }
     }
     
     /// Creates a subst from 'tp' that replaces 'this' and any of its ghosts.
     def ghostSubst(tp: ir.TeePee): PathSubst = preservesEnv {
         val cd = classDecl(tp.wt.c)
+        val lg_tp = ghosts(tp)
         PathSubst.pp(
-            ir.p_this :: cd.ghosts.map(_.thisPath),
-            tp.p      :: ghostPaths(tp)
+            ir.p_this :: lg_tp.map(g => ir.p_this + g.f),
+            tp.p      :: lg_tp.map(g => g.p)
         )     
     }
     
     /// Captures tp.wt, using ghostPaths(tp) for the type args.
     def cap(tp: ir.TeePee): ir.TypeRef = preservesEnv {
-        ir.TypeRef(tp.wt.c, ghostPaths(tp), tp.wt.as)
+        ir.TypeRef(tp.wt.c, ghosts(tp), tp.wt.as)
     }
     
     /// Field decl for tp.f
@@ -278,91 +304,96 @@ class TypeCheck(log: Log, prog: Prog) {
         }
     }
     
+    // Helper for teePee(): Computes the teePee for a path p_0.f where f is 
+    // a ghost field of (post-substitution) type wt_f.
+    def ghostTeePee(tp_0: ir.TeePee, f: ir.FieldName, wt_f: ir.WcTypeRef): ir.TeePee = {
+         // Unless the type of p_0 tells us what f is mapped to,
+         // tp_f = p_0.f will be the resulting path:
+         val tp_f = ir.TeePee(wt_f, tp_0.p + f, tp_0.as.withGhost)                    
+ 
+         // Does p_0's type specify a value for ghost field f?
+         tp_0.wt.owghost(f) match {
+             
+             // p_0 had a type with a precise path like Foo<f: q>
+             // where q != p_0.f.  If q == p_0.f, this gives us no
+             // information: It only tells us p_0's shadow argument f is p_0.f.
+             // This can result from the capturing process.
+             case Some(q: ir.Path) if q != tp_f.p =>
+                 teePee(q)
+             
+             // p_0 had a type like Foo<f: ps hb qs>, so canonical
+             // version is p_0.f but we add relations that ps hb p_0.f hb qs.
+             case Some(ir.WcHb(ps, qs)) => 
+                 ps.foreach { case p => checkAndAddHb(teePee(p), tp_f) }
+                 qs.foreach { case q => checkAndAddHb(tp_f, teePee(q)) }
+                 tp_f
+     
+             // p_0 had a type like Foo<f: ps hb qs>, so canonical
+             // version is p_0.f but we add relations that ps hb p_0.f hb qs.
+             case Some(ir.WcReadableBy(ps)) => 
+                 ps.foreach { p => addDeclaredReadableBy(tp_f, teePee(p)) }
+                 tp_f
+     
+             // p_0 had a type like Foo<f: ps hb qs>, so canonical
+             // version is p_0.f but we add relations that ps hb p_0.f hb qs.
+             case Some(ir.WcWritableBy(ps)) => 
+                 ps.foreach { p => addDeclaredWritableBy(tp_f, teePee(p)) }
+                 tp_f
+                 
+             // Otherwise, just use canonical version of p_0.f with no relations.
+             case _ =>
+                 tp_f
+                 
+        }        
+    }
+    
+    // Helper for teePee(): Computes the teePee for a path p_0.f where f is 
+    // a reified field of (post-substitution) type wt_f and with guard p_guard.
+    def reifiedTeePee(tp_0: ir.TeePee, f: ir.FieldName, wt_f: ir.WcTypeRef, p_guard: ir.Path): ir.TeePee = {
+        val tp_guard = teePee(p_guard)
+        val as_f = // determine if f is immutable in current method:
+            if(!tp_guard.isConstant)
+                tp_0.as.withMutable // guard not yet constant? mutable
+            else if(!hbInter(tp_guard, tp_cur))
+                tp_0.as.withMutable // not guarded by closed interval? mutable
+            else
+                tp_0.as // p_0 mutable? mutable
+        ir.TeePee(wt_f, tp_0.p + f, as_f)        
+    }
+    
     /// Constructs a TeePee for p_1 
     def teePee(p_1: ir.Path): ir.TeePee = log.indentedRes("teePee(%s)", p_1) {
         if(env.perm.contains(p_1))
             env.perm(p_1)
         else if(env.temp.contains(p_1))
             teePee(env.temp(p_1))
-        else p_1 match {
-            case ir.Path(lv, List()) => // all local variables should be in env.perm
-                throw new ir.IrError("intervals.no.such.variable", lv)
+        else 
+            p_1 match {
+                case ir.Path(lv, List()) => // all local variables should be in env.perm
+                    throw new ir.IrError("intervals.no.such.variable", lv)
                 
-            case ir.Path(lv, f :: rev_fs) =>
-                val p_0 = ir.Path(lv, rev_fs) // p_1 == p_0.f
-                val tp_0 = teePee(p_0)
+                case ir.Path(lv, f :: rev_fs) =>
+                    val tp_0 = teePee(ir.Path(lv, rev_fs))
                 
-                def ghostTeePee(gd_f: ir.GhostDecl) = {
-                    val wt_f = ghostSubst(tp_0).wtref(gd_f.wt)
-                    ir.TeePee(wt_f, p_0 + f, tp_0.as.withGhost)                    
-                }
-
-                // First look for a ghost with the name "f", then a real field:
-                val cd_0 = classDecl(tp_0.wt.c)
-                cd_0.ghosts.zip(tp_0.wt.wpaths).find(_._1.name == f) match {
-                    
-                    // Ghost with precise path specified:
-                    case Some((gd_f, q: ir.Path)) => 
-                        if(q != p_0 + f) 
-                            // p_0 had a type like Foo<f: q>, so canonical
-                            // version of p_0.f is canonical version of q:
-                            teePee(q)
-                        else
-                            // p_0 had a type like Foo<f: p_0.f>, which gives us no information:
-                            // It only tells us p_0's shadow argument f is p_0.f.
-                            // This can result from the capturing process, when p_0 had
-                            // a wildcard path (see below).
-                            ghostTeePee(gd_f)
-                            
-                    // p_0 had a type like Foo<f: ps hb qs>, so canonical
-                    // version is p_0.f but we add relations that ps hb p_0.f hb qs.
-                    case Some((gd_f, ir.WcHb(ps, qs))) => 
-                        val tp_f = ghostTeePee(gd_f)
-                        ps.foreach { case p => checkAndAddHb(teePee(p), tp_f) }
-                        qs.foreach { case q => checkAndAddHb(tp_f, teePee(q)) }
-                        tp_f
-                    
-                    // p_0 had a type like Foo<f: ps hb qs>, so canonical
-                    // version is p_0.f but we add relations that ps hb p_0.f hb qs.
-                    case Some((gd_f, ir.WcReadableBy(ps))) => 
-                        val tp_f = ghostTeePee(gd_f)
-                        ps.foreach { p => addDeclaredReadableBy(tp_f, teePee(p)) }
-                        tp_f
-                    
-                    // p_0 had a type like Foo<f: ps hb qs>, so canonical
-                    // version is p_0.f but we add relations that ps hb p_0.f hb qs.
-                    case Some((gd_f, ir.WcWritableBy(ps))) => 
-                        val tp_f = ghostTeePee(gd_f)
-                        ps.foreach { p => addDeclaredWritableBy(tp_f, teePee(p)) }
-                        tp_f
-                    
-                    // The path is p_0.constructor, which we handle specially:
-                    case None if f == ir.f_ctor =>
-                        val tp_f = ir.TeePee(ir.t_interval, p_0 + f, tp_0.as.withGhost)
+                    if(f == ir.f_ctor) {
+                        // The path is p_0.ctor, which we handle specially:
+                        val tp_f = ir.TeePee(ir.t_interval, tp_0.p + f, tp_0.as.withGhost)
                         if(!tp_0.wt.as.ctor) // is tp_0 fully constructed?
-                            checkAndAddHb(tp_f, tp_cur) // then .constructor happened before (now constant)
+                            checkAndAddHb(tp_f, tp_cur) // then .ctor happened before (now constant)
+                        tp_f                    
+                    } else if (f == ir.f_super) {
+                        // The path is p_0.super, which we handle specially:
+                        val tp_f = ir.TeePee(ir.t_interval, tp_0.p + f, tp_0.as.withGhost)
+                        checkAndAddHb(tp_f, tp_cur) // .super always happened before (now constant)
                         tp_f
-                        
-                    // The path is p_0.super, which we handle specially:
-                    case None if f == ir.f_super =>
-                        val tp_f = ir.TeePee(ir.t_interval, p_0 + f, tp_0.as.withGhost)
-                        checkAndAddHb(tp_f, tp_cur) // x.super always happened before (now constant)
-                        tp_f
-                        
-                    // The path p_0.f names a real field f:
-                    case None =>
-                        val rfd_f = substdFieldDecl(tp_0, f)
-                        val tp_guard = teePee(rfd_f.p_guard)
-                        val as_f = // determine if f is immutable in current method:
-                            if(!tp_guard.isConstant)
-                                tp_0.as.withMutable // guard not yet constant? mutable
-                            else if(!hbInter(tp_guard, tp_cur))
-                                tp_0.as.withMutable // not guarded by closed interval? mutable
-                            else
-                                tp_0.as // p_0 mutable? mutable
-                        ir.TeePee(rfd_f.wt, p_0 + f, as_f)
-                }
-        }
+                    } else 
+                        substdFieldDecl(tp_0, f) match {
+                            case ir.GhostFieldDecl(wt_f, _) => 
+                                ghostTeePee(tp_0, f, wt_f)
+                            case ir.ReifiedFieldDecl(_, wt_f, _, p_guard) => 
+                                reifiedTeePee(tp_0, f, wt_f, p_guard)
+                        }
+            }
     }
     
     /// Constructs TeePees for all of 'ps'
@@ -387,9 +418,9 @@ class TypeCheck(log: Log, prog: Prog) {
     def tp_cur = teePee(env.p_cur)
     def tp_cur_start = teePee(env.p_cur.start)
     def tp_cur_end = teePee(env.p_cur.end)
-    def tp_ctor = teePee(ir.gd_ctor.thisPath)
-    def tp_ctor_start = teePee(ir.gd_ctor.thisPath.start)
-    def tp_ctor_end = teePee(ir.gd_ctor.thisPath.end)
+    def tp_ctor = teePee(ir.gfd_ctor.thisPath)
+    def tp_ctor_start = teePee(ir.gfd_ctor.thisPath.start)
+    def tp_ctor_end = teePee(ir.gfd_ctor.thisPath.end)
     def tp_this = teePee(ir.p_this)    
     def tp_super = // tp_super always refers to the FIRST supertype
         sups(cap(tp_this)) match {
@@ -404,12 +435,17 @@ class TypeCheck(log: Log, prog: Prog) {
     // fields are correctly named, is done when constructing a teePee.
     
     def checkWfWt(wt: ir.WcTypeRef) = preservesEnv {
-        val cd = classDecl(wt.c)
+        wt.wghosts.foldLeft(List[ir.FieldName]()) {
+            case (l, wg) if l.contains(wg.f) => throw new ir.IrError("intervals.duplicate.ghost", wg.f)
+            case (l, wg) => wg.f :: l
+        }
         
-        if(cd.ghosts.length != wt.wpaths.length)
-            throw new ir.IrError(
-                "intervals.wrong.number.of.ghosts",
-                cd.ghosts.length, wt.wpaths.length)
+        val lgfd = ghostFieldDecls(wt.c)
+        def notDefined(wg: ir.WcGhost) = !lgfd.exists(_.name == wg.f)        
+        wt.wghosts.find(notDefined) match {
+            case Some(wg) => throw new ir.IrError("intervals.no.such.ghost", wg.f)
+            case None =>
+        }
                 
         // Note: we don't check that the arguments
         // match the various ghost bounds etc.  We just
@@ -700,13 +736,21 @@ class TypeCheck(log: Log, prog: Prog) {
         }        
     }
     
+    /// ∃ g∈t.ghosts . (g.f == f, g.p <= wp)?
+    def isSubghost(t_sub: ir.TypeRef, wt_ghost: ir.WcGhost) = preservesEnv {
+        t_sub.oghost(wt_ghost.f) match {
+            case Some(p) => isSubpath(p, wt_ghost.wp)
+            case None => false
+        }
+    }
+    
     /// t_sub <: wt_sup
     def isSubtype(t_sub: ir.TypeRef, wt_sup: ir.WcTypeRef): Boolean = preservesEnv {
         log.indentedRes("%s <: %s?", t_sub, wt_sup) {            
             log("t_sub.ctor=%s wt_sup.as.ctor=%s", t_sub.as.ctor, wt_sup.as.ctor)
             if(t_sub.c == wt_sup.c) {
                 (!t_sub.as.ctor || wt_sup.as.ctor) && // (t <: t ctor) but (t ctor not <: t)
-                forallzip(t_sub.paths, wt_sup.wpaths)(isSubpath) // c<P> <: c<WP> iff P <= WP
+                wt_sup.wghosts.forall(isSubghost(t_sub, _)) // c<F: P> <: c<F: WP> iff F:P <= F:WP
             } else // else walk to supertype(s) of t_sub
                 sups(t_sub).exists(isSubtype(_, wt_sup))
         }                
@@ -768,7 +812,7 @@ class TypeCheck(log: Log, prog: Prog) {
     /// if it depends on 'p' in some way.  'p' must be
     /// a canonical path.
     def isLinkedWt(p: ir.Path, wt: ir.WcTypeRef) = preservesEnv {
-        wt.wpaths.exists(_.dependentOn(p))        
+        wt.wghosts.exists(_.wp.dependentOn(p))        
     }
     
     /// A field f_l is linked to tp_o.f if its type is invalidated
@@ -780,8 +824,14 @@ class TypeCheck(log: Log, prog: Prog) {
         val cd = classDecl(tp_o.wt.c)
         val p_f = f.thisPath
         
+        // 
+        val lrfd = cd.fields.foldLeft(List[ir.ReifiedFieldDecl]()) {
+            case (l, rfd: ir.ReifiedFieldDecl) => rfd :: l
+            case (l, _) => l
+        }
+        
         // find fields where tp_o.f appears in the type
-        val fds_maybe_linked = cd.fields.filter { rfd => isLinkedWt(p_f, rfd.wt) }
+        val fds_maybe_linked = lrfd.filter { rfd => isLinkedWt(p_f, rfd.wt) }
         
         // screen out those which are guarded by future intervals
         lazy val subst = ghostSubst(tp_o)
@@ -863,36 +913,46 @@ class TypeCheck(log: Log, prog: Prog) {
                     
                 case ir.StmtGetField(x, p_o, f) =>
                     val tp_o = teePee(ir.noAttrs, p_o)
-                    val fd = substdFieldDecl(tp_o, f)
-                    val tp_guard = teePee(ir.ghostAttrs, fd.p_guard)                    
-                    val p_f = tp_o.p + f // Canonical path of f; valid as f is not a ghost.
+                    substdFieldDecl(tp_o, f) match {
+                        case ir.GhostFieldDecl(_, _) =>
+                            throw new ir.IrError("intervals.not.reified", tp_o.wt.c, f)
+                        
+                        case ir.ReifiedFieldDecl(_, wt, _, p_guard) =>
+                            val tp_guard = teePee(ir.ghostAttrs, p_guard)                    
+                            val p_f = tp_o.p + f // Canonical path of f; valid as f is not a ghost.
 
-                    val op_canon = 
-                        if(hbInter(tp_guard, tp_cur)) { // Constant:
-                            Some(p_f)
-                        } else { // Non-constant:
-                            checkReadable(tp_guard)
-                            addTemp(p_f, x.path) // Record that p.f == vd, for now.
-                            None
-                        }
-            
-                    checkLvDecl(x, fd.wt, op_canon)
+                            val op_canon = 
+                                if(hbInter(tp_guard, tp_cur)) { // Constant:
+                                    Some(p_f)
+                                } else { // Non-constant:
+                                    checkReadable(tp_guard)
+                                    addTemp(p_f, x.path) // Record that p.f == vd, for now.
+                                    None
+                                }
+
+                            checkLvDecl(x, wt, op_canon)
+                    }                    
                     
                 case ir.StmtSetField(p_o, f, p_v) =>
                     val tp_o = teePee(ir.noAttrs, p_o)
                     val tp_v = teePee(ir.noAttrs, p_v)
-                    val fd = substdFieldDecl(tp_o, f)
                     
-                    val tp_guard = teePee(ir.ghostAttrs, fd.p_guard)
-                    checkWritable(tp_guard)
+                    substdFieldDecl(tp_o, f) match {
+                        case ir.GhostFieldDecl(_, _) =>
+                            throw new ir.IrError("intervals.not.reified", tp_o.wt.c, f)
+                        
+                        case ir.ReifiedFieldDecl(_, wt, _, p_guard) =>
+                            val tp_guard = teePee(ir.ghostAttrs, p_guard)
+                            checkWritable(tp_guard)
                     
-                    checkIsSubtype(tp_v, fd.wt)
+                            checkIsSubtype(tp_v, wt)
                     
-                    val p_f = tp_o.p + f // Canonical path of f; valid as f is not a ghost.
-                    addTemp(p_f, tp_v.p)
+                            val p_f = tp_o.p + f // Canonical path of f; valid as f is not a ghost.
+                            addTemp(p_f, tp_v.p)
                     
-                    removeInvalidated(p_f)
-                    linkedPaths(tp_o, f, tp_guard).foreach(addInvalidated)
+                            removeInvalidated(p_f)
+                            linkedPaths(tp_o, f, tp_guard).foreach(addInvalidated)
+                    }
                         
                 case ir.StmtCall(x, p, m, qs) =>
                     val tp = teePee(ir.noAttrs, p)
@@ -911,19 +971,16 @@ class TypeCheck(log: Log, prog: Prog) {
                     if(cd.attrs.interface)
                         throw new ir.IrError("intervals.new.interface", t.c)
                     
-                    // Check Ghost Types:
-                    checkLengths(cd.ghosts, t.paths, "intervals.wrong.number.ghost.arguments")
-                    val substGhosts = PathSubst.pp(
-                        ir.p_this   :: cd.ghosts.map(_.thisPath), 
-                        x.path      :: t.paths)
-                    foreachzip(cd.ghosts, t.paths) { case (gfd, p) =>
-                        val tp = teePee(p)
-                        checkIsSubtype(tp, substGhosts.wtref(gfd.wt))
-                    }
-                    
+                    // Check Ghost Types:           
                     checkLvDecl(x, t, None)
-                    
-                    val subst = substGhosts + PathSubst.vp(cd.ctor.args.map(_.name), tqs.map(_.p))
+                    val tp_x = teePee(x.path)
+                    t.ghosts.foreach { g =>
+                        val gfd = substdFieldDecl(tp_x, g.f)
+                        val tp = teePee(g.p)
+                        checkIsSubtype(tp, gfd.wt)
+                    }
+                                        
+                    val subst = ghostSubst(tp_x) + PathSubst.vp(cd.ctor.args.map(_.name), tqs.map(_.p))
                     val msig = subst.methodSig(cd.ctor.msig(t))
                     checkCallMsig(teePee(x.path), msig, tqs)
                     
@@ -1041,7 +1098,7 @@ class TypeCheck(log: Log, prog: Prog) {
                 addPerm(ir.p_mthd, ir.TeePee(ir.t_interval, ir.p_mthd, ir.ghostAttrs))
                 if(!md.attrs.ctor) { 
                     // For normal methods, type of this is the defining class
-                    addPerm(ir.p_this, ir.TeePee(cd.thisTref, ir.p_this, ir.noAttrs))                     
+                    addPerm(ir.p_this, ir.TeePee(thisTref(cd), ir.p_this, ir.noAttrs))                     
                     addHbPnt(tp_ctor_end, tp_cur_start) // ... constructor already happened
                     env = env + env_ctor_assum          // ... add its effects on environment
                 } else {
@@ -1075,8 +1132,8 @@ class TypeCheck(log: Log, prog: Prog) {
         at(md, emptyEnv) {
             savingEnv {
                 // Define special vars "method" (== this.constructor) and "this":
-                addPerm(ir.p_mthd, ir.TeePee(ir.t_interval, ir.gd_ctor.thisPath, ir.ghostAttrs))
-                addPerm(ir.p_this, ir.TeePee(cd.thisTref(ir.ctorAttrs), ir.p_this, ir.ghostAttrs))
+                addPerm(ir.p_mthd, ir.TeePee(ir.t_interval, ir.gfd_ctor.thisPath, ir.ghostAttrs))
+                addPerm(ir.p_this, ir.TeePee(thisTref(cd, ir.ctorAttrs), ir.p_this, ir.ghostAttrs))
 
                 md.args.foreach { case arg => 
                     checkWfWt(arg.wt) 
@@ -1099,14 +1156,14 @@ class TypeCheck(log: Log, prog: Prog) {
                 checkStatement(postSuper.head)
 
                 // After invoking super, 'this' becomes reified:
-                setPerm(ir.p_this, ir.TeePee(cd.thisTref(ir.ctorAttrs), ir.p_this, ir.noAttrs))
+                setPerm(ir.p_this, ir.TeePee(thisTref(cd, ir.ctorAttrs), ir.p_this, ir.noAttrs))
                 checkStatements(postSuper.tail)
 
                 extractAssumptions(tp_ctor_end, Set(ir.lv_this))
             }          
         }
     
-    def checkFieldDecl(cd: ir.ClassDecl, fd: ir.FieldDecl) = 
+    def checkReifiedFieldDecl(cd: ir.ClassDecl, fd: ir.ReifiedFieldDecl) = 
         at(fd, ()) {
             savingEnv {
                 // Rules:
@@ -1117,7 +1174,7 @@ class TypeCheck(log: Log, prog: Prog) {
                 //
                 // Note that a type is dependent on p_dep if p.F appears in the type, so 
                 // we must check all prefixes of each dependent path as well.
-                addPerm(ir.p_this, ir.TeePee(cd.thisTref, ir.p_this, ir.noAttrs))                     
+                addPerm(ir.p_this, ir.TeePee(thisTref(cd), ir.p_this, ir.noAttrs))                     
         
                 fd.wt.dependentPaths.foreach { p_full_dep => 
                     savingEnv {
@@ -1165,6 +1222,12 @@ class TypeCheck(log: Log, prog: Prog) {
                     }                   
                 }
             }
+        }
+        
+    def checkFieldDecl(cd: ir.ClassDecl, fd: ir.FieldDecl) =
+        fd match {
+            case rfd: ir.ReifiedFieldDecl => checkReifiedFieldDecl(cd, rfd)
+            case gfd: ir.GhostFieldDecl => // TODO Check for shadowing, etc
         }
         
     // ______________________________________________________________________
@@ -1241,7 +1304,7 @@ class TypeCheck(log: Log, prog: Prog) {
     }
 
     // ______________________________________________________________________
-    // Interfaces
+    // Classes and Interfaces
     
     def checkNotCtor(t: ir.TypeRef) {
         if(t.as.ctor) throw new ir.IrError("intervals.superType.with.ctor.attr") 
@@ -1281,71 +1344,6 @@ class TypeCheck(log: Log, prog: Prog) {
             }
         }
         
-    // ______________________________________________________________________
-    // Permitted Prefixes
-    //
-    // This code prevents cyclic references between ghosts and fields by
-    // requiring that ghosts and fields can only refer to entries that
-    // appear textually earlier in the class definition.  Actually, I'm not
-    // sure if this check is strictly needed: I thought it was needed
-    // to prevent teePee() from looping as it follows one path to the other,
-    // but now I think that won't happen in any case.
-    //
-    // XXX Kill this code?  Probably a good reason for it.    
-    
-    def checkUsePermittedPrefix(
-        perm_prefixes: List[ir.Path],
-        p: ir.Path
-    ) {
-        val perm_prefixes1 = ir.p_ctor :: perm_prefixes
-        if(p != ir.p_this && !perm_prefixes1.exists(p.hasPrefix(_)))
-            throw new ir.IrError("intervals.illegal.path", p)
-    }
-
-    def checkFieldDeclsUsePermittedPrefixes(
-        cd: ir.ClassDecl, 
-        fds_prev: List[ir.FieldDecl],
-        fds_next: List[ir.FieldDecl]
-    ): Unit = preservesEnv {
-        fds_next match {
-            case List() => 
-            case fd :: fds_remaining =>
-                at(fd, ()) {
-                    checkWfWt(fd.wt)
-            
-                    val perm_prefixes = cd.ghosts.map(_.thisPath) ++ fds_prev.map(_.thisPath)
-                    checkUsePermittedPrefix(perm_prefixes, fd.p_guard)
-                    fd.wt.dependentPaths.foreach(checkUsePermittedPrefix(perm_prefixes, _))
-                    
-                    checkFieldDeclsUsePermittedPrefixes(cd, fd :: fds_prev, fds_remaining)
-                }
-        }
-    }
-    
-    def checkGhostDeclsUsePermittedPrefixes(
-        cd: ir.ClassDecl, 
-        prev: List[ir.GhostDecl], 
-        next: List[ir.GhostDecl]
-    ): Unit = preservesEnv {
-        next match {
-            case List() =>
-            case gd :: gds_remaining =>
-                at(gd, ()) {
-                    prev.find(_.name == gd.name) match {
-                        case Some(_) => throw new ir.IrError("intervals.duplicate.ghost", gd.name)
-                        case None =>
-                    }
-                    
-                    checkWfWt(gd.wt)
-                    
-                    val perm_prefixes = prev.map(_.thisPath)
-                    gd.wt.dependentPaths.foreach(checkUsePermittedPrefix(perm_prefixes, _))
-                    
-                    checkGhostDeclsUsePermittedPrefixes(cd, gd :: prev, gds_remaining)
-                }
-        }
-    }
-    
     def checkIsNotInterface(t: ir.TypeRef) {
         val cd_super = classDecl(t.c)
         if(cd_super.attrs.interface) 

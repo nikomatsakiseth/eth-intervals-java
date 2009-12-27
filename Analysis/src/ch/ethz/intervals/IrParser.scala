@@ -62,6 +62,9 @@ class IrParser extends StandardTokenParsers {
     def dotf = "."~f                            ^^ { case _~f => f }
     def p = lv~rep(dotf)                        ^^ { case lv~fs => lv ++ fs }
     
+    def g = "<"~f~":"~p~">"                     ^^ { case _~f~_~p~_ => ir.Ghost(f, p) }    
+    def t = c~rep(g)                            ^^ { case c~lg => ir.TypeRef(c, lg, ir.noAttrs) }
+    
     def wp = (
         p
     |   "?"                                     ^^ { case _ => ir.WcHb(List(), List()) }
@@ -72,11 +75,8 @@ class IrParser extends StandardTokenParsers {
     |   comma(p)~"locks"                        ^^ { case ps~_ => ir.WcLockedBy(ps) }
     )
     
-    def wt =
-        c~optl3("<",comma(wp),">")~attrs        ^^ { case c~wps~la => ir.WcTypeRef(c, wps, la) }
-    
-    def t =
-        c~optl3("<",comma(p),">")               ^^ { case c~ps => ir.TypeRef(c, ps, ir.noAttrs) }
+    def wg = "<"~f~":"~wp~">"                   ^^ { case _~f~_~wp~_ => ir.WcGhost(f, wp) }    
+    def wt = c~rep(wg)~attrs                    ^^ { case c~lwg~la => ir.WcTypeRef(c, lwg, la) }
     
     def lvdecl = (
         wt~lv                                   ^^ { case wt~lv => ir.LvDecl(lv, wt) }
@@ -150,28 +150,25 @@ class IrParser extends StandardTokenParsers {
             ir.MethodDecl(ir.ctorAttrs, ir.t_void, ir.m_ctor, args, reqs, blocks)
     })
     
-    def ghostFieldDecl = positioned(
-        wt~f                                    ^^ { case wt~f => ir.GhostDecl(wt, f) }
-    )
-
-    def realFieldDecl = positioned(
-        attrs~wt~f~"requires"~p~";"             ^^ { case as~wt~f~_~p~_ => ir.FieldDecl(as, wt, f, p) }
+    def ghostFieldDecl = "<"~wt~f~">"           ^^ { case _~wt~f~_ => ir.GhostFieldDecl(wt, f) }
+    
+    def reifiedFieldDecl = (
+        attrs~wt~f~"requires"~p~";"             ^^ { case as~wt~f~_~p~_ => ir.ReifiedFieldDecl(as, wt, f, p) }
+    |   attrs~wt~f~";"                          ^^ { case as~wt~f~_ => ir.ReifiedFieldDecl(as, wt, f, ir.p_this_creator) }
     )
     
     def classDecl = positioned(
-        attrs~"class"~c~optl3("<",
-            comma(ghostFieldDecl),
-        ">")~
+        attrs~"class"~c~rep(ghostFieldDecl)~
         optl2("extends", comma(t))~
         reqs~
         "{"~
-            rep(realFieldDecl)~
+            rep(reifiedFieldDecl)~
             constructor~
             rep(methodDecl)~
         "}"
     ^^ {
-        case attrs~"class"~name~ghosts~superTypes~reqs~"{"~fields~ctor~methods~"}" =>
-            ir.ClassDecl(attrs, name, ghosts, superTypes, reqs, ctor, fields, methods)
+        case attrs~"class"~name~gfds~superTypes~reqs~"{"~rfds~ctor~methods~"}" =>
+            ir.ClassDecl(attrs, name, superTypes, reqs, ctor, gfds ++ rfds, methods)
     })
     
     def classDecls = rep(classDecl)

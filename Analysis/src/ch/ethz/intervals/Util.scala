@@ -81,8 +81,12 @@ object Util {
           }
       }
     }
+    
     def endsWith(m: List[E]) =
         l.takeRight(m.length) == m
+    
+    def containsAll(m: Iterable[E]) =
+        m.forall(l.contains)
   }
   implicit def list2UtilList[Q](i: List[Q]) = UtilList(i)
   

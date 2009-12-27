@@ -24,7 +24,7 @@ wp,wq -> wildcard path
 f -> field name
 m -> method name
 c -> class name
-cd, md, fd -> class, method, field decl
+cd, md, fd, rfd, gfd -> class, method, field decl, reified field decl, ghost field decl
 blk -> block definition
 t -> type (TypeRef)
 wt -> wildcard type (WcTypeRef)
@@ -126,19 +126,15 @@ object ir {
     sealed case class ClassDecl(
         attrs: Attrs,       
         name: ClassName,
-        ghosts: List[GhostDecl],
         superTypes: List[TypeRef],
         reqs: List[Req],
         ctor: MethodDecl,
         fields: List[FieldDecl],
         methods: List[MethodDecl]
     ) extends Positional {
-        def thisTref: ir.TypeRef = thisTref(noAttrs)
-        def thisTref(as: Attrs): ir.TypeRef = TypeRef(name, ghosts.map(_.thisPath), as)
-        
         override def toString =
-            "class %s<%s>%s extends %s".format(
-                name, ghosts.mkString(", "), "".join(" ", reqs), superTypes.mkString(", "))
+            "class %s%s extends %s".format(
+                name, "".join(" ", reqs), superTypes.mkString(", "))
     }
     
     sealed case class MethodDecl(
@@ -174,23 +170,29 @@ object ir {
         override def toString = "%s %s".format(wt, name)
     }
 
-    sealed case class GhostDecl(
-        wt: WcTypeRef,
-        name: FieldName
-    ) extends Positional {
+    sealed abstract class FieldDecl extends Positional {
+        val wt: WcTypeRef
+        val name: FieldName
+        
         def thisPath = name.thisPath
-        override def toString = "%s %s".format(wt, name)
     }
     
-    sealed case class FieldDecl(
+    sealed case class GhostFieldDecl(
+        wt: WcTypeRef,
+        name: FieldName
+    ) extends FieldDecl {
+        override def toString = "ghost %s %s".format(wt, name)
+        
+        def ghost = Ghost(name, thisPath)
+    }
+    
+    sealed case class ReifiedFieldDecl(
         as: Attrs,       
         wt: WcTypeRef,
         name: FieldName,
         p_guard: Path
-    ) extends Positional {
-        def thisPath = name.thisPath
-        override def toString = 
-            "%s %s %s requires %s".format(as, wt, name, p_guard)
+    ) extends FieldDecl {
+        override def toString = "%s %s %s requires %s".format(as, wt, name, p_guard)
     }
     
     sealed case class Block(
@@ -245,25 +247,35 @@ object ir {
     sealed case class StmtLocks(p: Path, q: Path) extends Stmt {
         override def toString = "%s locks %s;".format(p, q)        
     }
+
+    sealed case class WcGhost(f: FieldName, wp: ir.WcPath) {
+        override def toString = "<%s: %s>".format(f, wp)        
+    }
+    sealed case class Ghost(
+        override val f: FieldName,
+        p: Path
+    ) extends WcGhost(f, p)
     
     sealed case class WcTypeRef(
         c: ClassName,
-        wpaths: List[WcPath],
+        wghosts: List[WcGhost],
         as: Attrs
     ) {
-        override def toString = "%s<%s>%s".format(c, wpaths.mkString(", "), as)
-        def withAttrs(as: Attrs) = ir.WcTypeRef(c, wpaths, as)
+        override def toString = "%s%s%s".format(c, wghosts.mkString(""), as)
+        def withAttrs(as: Attrs) = ir.WcTypeRef(c, wghosts, as)
+        def owghost(f: FieldName) = wghosts.find(_.f == f).map(_.wp)
         def dependentPaths =
-            wpaths.foldLeft(Set.empty[Path]) { (s, wp) => wp.addDependentPaths(s) }
+            wghosts.foldLeft(Set.empty[Path]) { (s, g) => g.wp.addDependentPaths(s) }
     }
     
     sealed case class TypeRef(
         override val c: ClassName,
-        paths: List[Path],
+        val ghosts: List[Ghost],
         override val as: Attrs
-    ) extends WcTypeRef(c, paths, as) {
-        override def withAttrs(as: Attrs) = ir.TypeRef(c, paths, as)
-        def ctor = TypeRef(c, paths, as.withCtor)
+    ) extends WcTypeRef(c, ghosts, as) {
+        override def withAttrs(as: Attrs) = ir.TypeRef(c, ghosts, as)
+        def oghost(f: FieldName) = ghosts.find(_.f == f).map(_.p)
+        def ctor = withAttrs(as.withCtor)
     }
     
     sealed abstract class WcPath {
@@ -381,12 +393,14 @@ object ir {
     val lv_root = ir.VarName("root")
     val lv_mthd = ir.VarName("method")
     val lv_cur = ir.VarName("current")
+    val lv_ghost = ir.VarName("ghost")
     
     val p_this = lv_this.path
     val p_new = lv_new.path
     val p_root = lv_root.path
     val p_mthd = lv_mthd.path
     val p_cur = lv_cur.path
+    val p_ghost = lv_ghost.path
 
     val f_creator = ir.FieldName("creator")    
     val f_start = ir.FieldName("start")
@@ -410,14 +424,18 @@ object ir {
     val t_interval = ir.TypeRef(c_interval, List(), ir.noAttrs)
     val t_point = ir.TypeRef(c_point, List(), ir.noAttrs)
     val t_lock = ir.TypeRef(c_lock, List(), ir.noAttrs)
+
+    // Synthetic ghost fields .ctor and .super:
+    val gfd_ctor = GhostFieldDecl(t_interval, f_ctor)
+    val p_ctor = gfd_ctor.thisPath
+    val gfd_super = GhostFieldDecl(t_interval, f_super)
+    val p_super = gfd_super.thisPath
     
-    val gd_creator = GhostDecl(t_interval, f_creator)
-    val gd_ctor = GhostDecl(t_interval, f_ctor)
-    val p_ctor = gd_ctor.thisPath
-    val gd_super = GhostDecl(t_interval, f_super)
-    val p_super = gd_super.thisPath
-    val t_objectCreator = ir.TypeRef(c_object, List(gd_creator.thisPath), ir.noAttrs)
-    val t_objectCtor = ir.TypeRef(c_object, List(gd_ctor.thisPath), ir.noAttrs)
+    // Ghost field creator, declared on root type Object:
+    val gfd_creator = GhostFieldDecl(t_interval, f_creator)
+    val p_this_creator = gfd_creator.thisPath
+    val t_objectCreator = ir.TypeRef(c_object, List(gfd_creator.ghost), ir.noAttrs)
+    val t_objectCtor = ir.TypeRef(c_object, List(gfd_ctor.ghost), ir.noAttrs)
     
     val md_ctor_interface = 
         MethodDecl(
@@ -439,7 +457,6 @@ object ir {
         ClassDecl(
             /* Attrs:   */  noAttrs,
             /* Name:    */  c_object,
-            /* Ghosts:  */  List(gd_creator),
             /* Extends: */  List(),
             /* Reqs:    */  List(),
             /* Ctor:    */  MethodDecl(
@@ -456,14 +473,16 @@ object ir {
                         )
                     )
                 ),
-            /* Fields:  */  List(),
+            /* Fields:  */  List(
+                    ir.gfd_creator
+                ),
             /* Methods: */  List(
                 MethodDecl(
                     /* attrs:  */ noAttrs,
                     /* wt_ret: */ t_string, 
                     /* name:   */ m_toString, 
                     /* args:   */ List(),
-                    /* reqs:   */ List(ir.ReqReadableBy(List(gd_creator.thisPath), List(p_mthd))),
+                    /* reqs:   */ List(ir.ReqReadableBy(List(gfd_creator.thisPath), List(p_mthd))),
                     /* blocks: */ Array(
                         Block(
                             /* args:  */ List(),
@@ -477,7 +496,6 @@ object ir {
         ClassDecl(
             /* Attrs:   */  noAttrs,
             /* Name:    */  c_void,
-            /* Ghosts:  */  List(),
             /* Extends: */  List(t_objectCtor),
             /* Reqs:    */  List(),
             /* Ctor:    */  MethodDecl(
@@ -500,7 +518,6 @@ object ir {
         ClassDecl(
             /* Attrs:   */  noAttrs,
             /* Name:    */  c_string,
-            /* Ghosts:  */  List(),
             /* Extends: */  List(t_objectCtor),
             /* Reqs:    */  List(),
             /* Ctor:    */  MethodDecl(
@@ -523,7 +540,6 @@ object ir {
         ClassDecl(
             /* Attrs:   */  noAttrs,
             /* Name:    */  c_interval,
-            /* Ghosts:  */  List(),
             /* Extends: */  List(t_objectCtor),
             /* Reqs:    */  List(),
             /* Ctor:    */  MethodDecl(
@@ -541,8 +557,8 @@ object ir {
                     )
                 ),
             /* Fields:  */  List(
-                FieldDecl(noAttrs, t_point, f_start, gd_ctor.thisPath),
-                FieldDecl(noAttrs, t_point, f_end, gd_ctor.thisPath)),
+                ReifiedFieldDecl(noAttrs, t_point, f_start, gfd_ctor.thisPath),
+                ReifiedFieldDecl(noAttrs, t_point, f_end, gfd_ctor.thisPath)),
             /* Methods: */  List(
                 MethodDecl(
                     /* attrs:  */ noAttrs,
@@ -563,7 +579,6 @@ object ir {
         ClassDecl(
             /* Attrs:   */  noAttrs,
             /* Name:    */  c_point,
-            /* Ghosts:  */  List(),
             /* Extends: */  List(t_objectCtor),
             /* Reqs:    */  List(),
             /* Ctor:    */  MethodDecl(
@@ -586,7 +601,6 @@ object ir {
         ClassDecl(
             /* Attrs:   */  noAttrs,
             /* Name:    */  c_lock,
-            /* Ghosts:  */  List(),
             /* Extends: */  List(t_objectCtor),
             /* Reqs:    */  List(),
             /* Ctor:    */  MethodDecl(

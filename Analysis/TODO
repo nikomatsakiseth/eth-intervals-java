@@ -1,8 +1,13 @@
 TODO LIST
 =========
 
-Bugs
-----
+Bugs and ToDos
+--------------
+
+(*) Enforce that ghost fields cannot be shadowed (nor be shadowed by reified fields).
+
+(*) Enforce that if there are not multiple paths with different values for a given ghost field.
+    Or is that ok?
 
 (*) Add assumption (and validate) that all field and ghost names are GLOBALLY unique
     (in other words, prefix them with the class in the preprocessor).  Alternatively,
