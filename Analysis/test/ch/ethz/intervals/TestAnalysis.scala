@@ -788,7 +788,7 @@ class TestAnalysis extends JUnitSuite {
     }
     
     @Test
-    def ghostTypes()
+    def ghostTypesLocals()
     {
         tc(
             """
@@ -818,6 +818,141 @@ class TestAnalysis extends JUnitSuite {
             """
         )
     }
+    
+    // At the moment, we don't validate the types of 
+    // arguments to field types, only in new statements.
+    // See TODO file.
+    // @Test
+    def ghostTypesFields()
+    {
+        tc(
+            """
+            class Foo<String s> extends Object {
+                constructor() {
+                    super();
+                }                
+            }
+            
+            class Bar<String s><Interval i> extends Object {
+                Foo<s: this.s><creator: i> f1; 
+                Foo<s: this.i><creator: i> f2; // ERROR intervals.expected.subtype(this.i, Interval{}, String{})
+                Foo<s: this.s><creator: s> f3; // ERROR intervals.expected.subtype(this.s, String{}, Interval{})
+                
+                constructor() {
+                    super();
+                }
+            }
+            """
+        )
+    }
+    
+    @Test
+    def illegalLinkedFields()
+    {
+        tc(
+            """
+            class Data1 extends Object {
+                Interval i;                
+                constructor() { super(); }
+            }
+            
+            class Data2 extends Object {
+                String s;
+                constructor() { super(); }
+            }
+            
+            class Direct extends Object {
+                Interval i;
+                Data2<creator: this.i> data2; // Safe, because i is in the same class.
+                constructor() { super(); }
+            }
+            
+            class Indirect1 extends Object {
+                Data1 data1;
+                
+                // It's not permitted for data2 depend on this.data1.i because
+                // it is not declared in the same class and it is not constant 
+                // during this.creator (data2's guard).
+                Data2<creator: this.data1.i> data2; // ERROR intervals.illegal.type.dep(this.data1.i, this.creator)
+                constructor() { super(); }
+            }
+                        
+            class Indirect2 extends Object {
+                // It doesn't matter that data1 is only created by the
+                // ctor, because we don't know that data2 is only modified after ctor completes!
+                // See TODO for more thoughts.
+                Data1<creator: this.constructor> data1 requires this.constructor;
+                Data2<creator: this.data1.i> data2; // ERROR intervals.illegal.type.dep(this.data1.i, this.creator)
+                constructor() { super(); }
+            }
+            
+            class Indirect3 extends Interval {
+                // This is safe, because for intervals, we know that this.constructor hb this:
+                Data1<creator: this.constructor> data1 requires this.constructor;
+                Data2<creator: this.data1.i> data2 requires this;
+                constructor() { super(); }
+            }
+
+
+            """
+        )
+    }
+    
+    @Test
+    def mutableHbRelations
+    {
+        tc(
+            """
+            class Data extends Object {
+                Interval i;
+                
+                constructor() { super(); }
+            }
+            
+            class C extends Object {
+                constructor() { super(); }
+                
+                Void mthd(
+                    Data<creator: readableBy method> m1, 
+                    Data<creator: readableBy method> m2, 
+                    Data<creator: hb method> c1,
+                    Data<creator: hb method> c2
+                ) 
+                requires c1 hb c2 // ERROR intervals.expected.subtype(c1, Data<creator: hb method>{}, Interval{})
+                requires c1.i hb c2 // ERROR intervals.expected.subtype(c2, Data<creator: hb method>{}, Interval{})
+                requires c1.i hb c2.i
+                requires m1.i hb m2.i // ERROR intervals.illegal.path.attr(m1.i, m)
+                requires c1.i hb m2.i // ERROR intervals.illegal.path.attr(m2.i, m)
+                {
+                    
+                }
+            }
+            """
+        )
+    }
+    
+    @Test
+    def fieldsTypesWf()
+    {
+        tc(
+            """
+            class Foo<String s> extends Object {
+                constructor() {
+                    super();
+                }                
+            }
+            
+            class Bar<String s><Interval i> extends Object {
+                Foo<s: this.s><creator: i> f1; 
+                Foo<t: this.s><creator: i> f2; // ERROR intervals.no.such.ghost(Foo, t)
+                
+                constructor() {
+                    super();
+                }
+            }
+            """
+        )
+    }    
     
     @Test
     def superTypePreservesGhosts()

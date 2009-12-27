@@ -150,9 +150,11 @@ class IrParser extends StandardTokenParsers {
             ir.MethodDecl(ir.ctorAttrs, ir.t_void, ir.m_ctor, args, reqs, blocks)
     })
     
-    def ghostFieldDecl = "<"~wt~f~">"           ^^ { case _~wt~f~_ => ir.GhostFieldDecl(wt, f) }
+    def ghostFieldDecl = positioned(
+        "<"~wt~f~">"                            ^^ { case _~wt~f~_ => ir.GhostFieldDecl(wt, f) }
+    )
     
-    def reifiedFieldDecl = (
+    def reifiedFieldDecl = positioned(
         attrs~wt~f~"requires"~p~";"             ^^ { case as~wt~f~_~p~_ => ir.ReifiedFieldDecl(as, wt, f, p) }
     |   attrs~wt~f~";"                          ^^ { case as~wt~f~_ => ir.ReifiedFieldDecl(as, wt, f, ir.p_this_creator) }
     )

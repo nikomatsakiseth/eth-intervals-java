@@ -135,18 +135,28 @@ class TypeCheck(log: Log, prog: Prog) {
     // ______________________________________________________________________
     // Basic Type Operations: Finding fields, methods, supertypes
     
+    // Is wt an erased subtype of class c?
+    def isSubclass(wt: ir.WcTypeRef, c: ir.ClassName): Boolean = {
+        (wt.c == c) || {            
+            val cd = classDecl(wt.c)
+            cd.superTypes.exists { t => isSubclass(t, c) }
+        }
+    }
+    
     // Collection of all ghost fields declared on type 'c_0'.
     // A ghost field from a supertype c_1 is included so long as there is path
     // from c_0 to c_1 that does not define the value of the ghost.
     def ghostFieldDecls(c_0: ir.ClassName): List[ir.GhostFieldDecl] = preservesEnv {
         def lgfd(c: ir.ClassName, suppress: Set[ir.FieldName]): List[ir.GhostFieldDecl] = {
-            val cd = classDecl(c)
-            val lgfd_super = cd.superTypes.flatMap { t =>
-                lgfd(t.c, suppress ++ t.ghosts.map(_.f))
-            }            
-            cd.fields.foldLeft(lgfd_super) {
-                case (l, gfd: ir.GhostFieldDecl) if !suppress(gfd.name) => gfd :: l
-                case (l, _) => l
+            log.indentedRes("lgfd(%s)", c) {
+                val cd = classDecl(c)
+                val lgfd_super = cd.superTypes.flatMap { t =>
+                    lgfd(t.c, suppress ++ t.ghosts.map(_.f))
+                }            
+                cd.fields.foldLeft(lgfd_super) {
+                    case (l, gfd: ir.GhostFieldDecl) if !suppress(gfd.name) => gfd :: l
+                    case (l, _) => l
+                }                
             }
         }
         lgfd(c_0, ListSet.empty)
@@ -436,7 +446,7 @@ class TypeCheck(log: Log, prog: Prog) {
         val lgfd = ghostFieldDecls(wt.c)
         def notDefined(wg: ir.WcGhost) = !lgfd.exists(_.name == wg.f)        
         wt.wghosts.find(notDefined) match {
-            case Some(wg) => throw new ir.IrError("intervals.no.such.ghost", wg.f)
+            case Some(wg) => throw new ir.IrError("intervals.no.such.ghost", wt.c, wg.f)
             case None =>
         }
                 
@@ -510,9 +520,9 @@ class TypeCheck(log: Log, prog: Prog) {
         
     def addHbPnt(tp: ir.TeePee, tq: ir.TeePee): Unit = 
         log.indented("addHb(%s,%s)", tp, tq) {
-            assert(isSubtype(tp, ir.t_point))
-            assert(isSubtype(tq, ir.t_point))
             assert(tp.isConstant && tq.isConstant)
+            assert(isSubclass(tp.wt, ir.c_point))
+            assert(isSubclass(tq.wt, ir.c_point))
             env = ir.TcEnv(
                 env.p_cur,
                 env.wt_ret,
@@ -526,9 +536,29 @@ class TypeCheck(log: Log, prog: Prog) {
                 env.locks)
         }
         
+    def addHbInter(tp: ir.TeePee, tq: ir.TeePee): Unit = 
+        log.indented("addHb(%s,%s)", tp, tq) {
+            assert(tp.isConstant && tq.isConstant)
+            assert(isSubclass(tp.wt, ir.c_interval))
+            assert(isSubclass(tq.wt, ir.c_interval))
+            env = ir.TcEnv(
+                env.p_cur,
+                env.wt_ret,
+                env.perm,
+                env.temp,
+                env.lp_invalidated,
+                env.readable,
+                env.writable,
+                env.hb + (tp.p.end, tq.p.start),
+                env.subinterval,
+                env.locks)
+        }
+                
     def addDeclaredReadableBy(tp: ir.TeePee, tq: ir.TeePee): Unit = 
         log.indented("addDeclaredReadableBy(%s, %s)", tp, tq) {
             assert(tp.isConstant && tq.isConstant)
+            assert(isSubclass(tp.wt, ir.c_guard))
+            assert(isSubclass(tq.wt, ir.c_interval))
             env = ir.TcEnv(
                 env.p_cur,
                 env.wt_ret,
@@ -545,6 +575,8 @@ class TypeCheck(log: Log, prog: Prog) {
     def addDeclaredWritableBy(tp: ir.TeePee, tq: ir.TeePee): Unit = 
         log.indented("addDeclaredWritableBy(%s, %s)", tp, tq) {
             assert(tp.isConstant && tq.isConstant)
+            assert(isSubclass(tp.wt, ir.c_guard))
+            assert(isSubclass(tq.wt, ir.c_interval))
             env = ir.TcEnv(
                 env.p_cur,
                 env.wt_ret,
@@ -561,6 +593,8 @@ class TypeCheck(log: Log, prog: Prog) {
     def addSubintervalOf(tp: ir.TeePee, tq: ir.TeePee): Unit = 
         log.indented("addSubintervalOf(%s, %s)", tp, tq) {
             assert(tp.isConstant && tq.isConstant)
+            assert(isSubclass(tp.wt, ir.c_interval))
+            assert(isSubclass(tq.wt, ir.c_interval))
             env = ir.TcEnv(
                 env.p_cur,
                 env.wt_ret,
@@ -577,6 +611,8 @@ class TypeCheck(log: Log, prog: Prog) {
     def addLocks(tp: ir.TeePee, tq: ir.TeePee): Unit =
         log.indented("addLocks(%s, %s)", tp, tq) {
             assert(tp.isConstant && tq.isConstant)
+            assert(isSubclass(tp.wt, ir.c_interval))
+            assert(isSubclass(tq.wt, ir.c_lock))
             env = ir.TcEnv(
                 env.p_cur,
                 env.wt_ret,
@@ -684,20 +720,22 @@ class TypeCheck(log: Log, prog: Prog) {
             addHbPnt(tp1, tq1)
         }
     
-    def addReq(req: ir.Req) = 
-        log.indented("addReq(%s)", req) {
-            def teePeeAdd(add: Function2[ir.TeePee, ir.TeePee, Unit], ps: List[ir.Path], qs: List[ir.Path]) = {
-                val tps = teePee(ir.ghostAttrs, ps)
-                val tqs = teePee(ir.ghostAttrs, qs)
-                foreachcross(tps, tqs)(add)
-            }
-            req match {
-                case ir.ReqWritableBy(ps, qs) => teePeeAdd(addDeclaredWritableBy, ps, qs)
-                case ir.ReqReadableBy(ps, qs) => teePeeAdd(addDeclaredReadableBy, ps, qs)
-                case ir.ReqHb(ps, qs) => teePeeAdd(checkAndAddHb, ps, qs)
-                case ir.ReqSubintervalOf(ps, qs) => teePeeAdd(addSubintervalOf, ps, qs)
-            }   
-        } 
+    def checkAndAddReq(req: ir.Req) = 
+        at(req, ()) {
+            log.indented("checkAndAddReq(%s)", req) {
+                def teePeeAdd(add: Function2[ir.TeePee, ir.TeePee, Unit], ps: List[ir.Path], qs: List[ir.Path]) = {
+                    val tps = teePee(ir.ghostAttrs, ps)
+                    val tqs = teePee(ir.ghostAttrs, qs)
+                    foreachcross(tps, tqs)(add)
+                }
+                req match {
+                    case ir.ReqWritableBy(ps, qs) => teePeeAdd(addDeclaredWritableBy, ps, qs)
+                    case ir.ReqReadableBy(ps, qs) => teePeeAdd(addDeclaredReadableBy, ps, qs)
+                    case ir.ReqHb(ps, qs) => teePeeAdd(checkAndAddHb, ps, qs)
+                    case ir.ReqSubintervalOf(ps, qs) => teePeeAdd(addSubintervalOf, ps, qs)
+                }   
+            }             
+        }
     
     // ______________________________________________________________________
     // Subtyping    
@@ -1048,7 +1086,7 @@ class TypeCheck(log: Log, prog: Prog) {
     }
     
     def checkOverridenReqsImplyOurReqs(reqs_sub: List[ir.Req], reqs_sup: List[ir.Req]) {
-        reqs_sup.foreach(addReq)
+        reqs_sup.foreach(checkAndAddReq)
         reqs_sub.foreach { req_sub =>
             if(!isReqFulfilled(req_sub))
                 throw new ir.IrError("intervals.override.adds.req", req_sub)
@@ -1116,7 +1154,7 @@ class TypeCheck(log: Log, prog: Prog) {
                     }                    
                 }
                 
-                md.reqs.foreach(addReq)
+                md.reqs.foreach(checkAndAddReq)
                 
                 md.blocks.zipWithIndex.foreach { case (blk, idx) =>
                     checkBlock(md.blocks, idx, blk)
@@ -1135,7 +1173,7 @@ class TypeCheck(log: Log, prog: Prog) {
                     checkWfWt(arg.wt) 
                     addPerm(arg.name.path, ir.TeePee(arg.wt, arg.name.path, ir.noAttrs))
                 }            
-                md.reqs.foreach(addReq)
+                md.reqs.foreach(checkAndAddReq)
                 
                 val blk0 = md.blocks(0)
                 val preSuper = blk0.stmts.takeWhile(!isSuperCtor(_))
@@ -1162,61 +1200,66 @@ class TypeCheck(log: Log, prog: Prog) {
     def checkReifiedFieldDecl(cd: ir.ClassDecl, fd: ir.ReifiedFieldDecl) = 
         at(fd, ()) {
             savingEnv {
+                checkWfWt(fd.wt)
+                
                 // Rules:
                 //
-                // The type of a field f in class c may be dependent on a path p_dep if either:
+                // The type of a field f with guard p_g in class c 
+                // may be dependent on a path p_dep if either:
                 // (1) p_dep is constant when p_g is active; or
                 // (2) p_dep = this.f' and f' is declared in class c (not a supertype!)
                 //
                 // Note that a type is dependent on p_dep if p.F appears in the type, so 
                 // we must check all prefixes of each dependent path as well.
-                addPerm(ir.p_this, ir.TeePee(thisTref(cd), ir.p_this, ir.noAttrs))                     
-        
+                val t_this = thisTref(cd, ir.ctorAttrs)
+                val tp_this = ir.TeePee(t_this, ir.p_this, ir.noAttrs)
+                val tp_mthd = ir.TeePee(ir.t_interval, ir.p_mthd, ir.ghostAttrs)
+                addPerm(ir.p_this, tp_this)
+                addPerm(ir.p_mthd, tp_mthd)
+                
+                // If an interval class, then this.ctor hb this:
+                if(isSubclass(t_this, ir.c_interval))
+                    addHbInter(teePee(ir.p_ctor), tp_this)
+                
+                // Add assumptions as though guard were satisfied.
+                // Also check that guards are typed as Interval, Lock, or just Guard
+                val tp_guard = teePee(fd.p_guard)
+                if(isSubclass(tp_guard.wt, ir.c_interval))
+                    addSubintervalOf(tp_cur, tp_guard) 
+                else if(isSubclass(tp_guard.wt, ir.c_lock))
+                    addLocks(tp_cur, tp_guard)
+                else if(tp_guard.wt.c == ir.c_guard)
+                    addDeclaredWritableBy(tp_guard, tp_cur)
+                else
+                    throw new ir.IrError("intervals.invalid.guard.type", tp_guard.wt)                    
+                
+                // Check that each dependent path is legal:
                 fd.wt.dependentPaths.foreach { p_full_dep => 
                     savingEnv {
-                        // XXX Really need to implement the full logic here.
-                        if(fd.as.ctor)
-                            // Field accessible from constructor.
-                            addPerm(ir.p_mthd, tp_ctor)
-                        else {
-                            // Field inaccessible from constructor.
-                            addPerm(ir.p_mthd, ir.TeePee(ir.t_interval, ir.p_mthd, ir.ghostAttrs))
-                            addHbPnt(tp_ctor_end, tp_cur_start)
-                        }
-                            
-                        val tp_guard = teePee(fd.p_guard)
-                        withCurrent(tp_guard) { // use guard as the current interval
-                            // Guards must be of type Interval, Lock, or Object:
-                            if(!isSubtype(tp_guard, ir.t_interval) &&
-                                !isSubtype(tp_guard, ir.t_lock) &&
-                                tp_guard.wt.c != ir.c_object)
-                                throw new ir.IrError("intervals.invalid.guard", tp_guard.p)                        
+                        def check(p_dep: ir.Path) {
+                            p_dep match {
+                                case ir.Path(lv, List()) => 
+                                    // Always permitted.
 
-                            def check(p_dep: ir.Path) {
-                                p_dep match {
-                                    case ir.Path(lv, List()) => 
-                                        // Always permitted.
+                                case ir.Path(lv, List(f)) if lv == ir.lv_this => 
+                                    val tp_dep = teePee(p_dep)
+                                    if(!tp_dep.isConstant && !cd.fields.exists(_.name == f))
+                                        throw new ir.IrError(
+                                            "intervals.illegal.type.dep",
+                                            tp_dep.p, tp_guard.p)
 
-                                    case ir.Path(lv, List(f)) if lv == ir.lv_this => 
-                                        val tp_dep = teePee(p_dep)
-                                        if(!tp_dep.isConstant && !cd.fields.exists(_.name == f))
-                                            throw new ir.IrError(
-                                                "intervals.illegal.type.dep",
-                                                tp_dep.p, tp_guard.p)
-
-                                    case ir.Path(lv, f :: rev_fs) =>
-                                        check(ir.Path(lv, rev_fs))
-                                        val tp_dep = teePee(p_dep)
-                                        if(!tp_dep.isConstant)
-                                            throw new ir.IrError(
-                                                "intervals.illegal.type.dep",
-                                                tp_dep.p, tp_guard.p)
-                                }
+                                case ir.Path(lv, f :: rev_fs) =>
+                                    check(ir.Path(lv, rev_fs))
+                                    val tp_dep = teePee(p_dep)
+                                    if(!tp_dep.isConstant)
+                                        throw new ir.IrError(
+                                            "intervals.illegal.type.dep",
+                                            tp_dep.p, tp_guard.p)
                             }
-                            check(p_full_dep)                            
                         }
+                        check(p_full_dep)                            
                     }                   
-                }
+                }                        
             }
         }
         
@@ -1356,6 +1399,7 @@ class TypeCheck(log: Log, prog: Prog) {
                 checkGhostDeclsUsePermittedPrefixes(cd, List(), cd.ghosts)                
                 checkFieldDeclsUsePermittedPrefixes(cd, List(), cd.fields)                
 */                
+                cd.fields.foreach(checkFieldDecl(cd, _))
                 val env_ctor_assum = checkNoninterfaceConstructorDecl(cd, cd.ctor)                    
                 cd.methods.foreach(checkNoninterfaceMethodDecl(cd, env_ctor_assum, _))                    
             }

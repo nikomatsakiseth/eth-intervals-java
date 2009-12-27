@@ -6,6 +6,10 @@ Bugs and ToDos
 
 (*) Enforce that ghost fields cannot be shadowed (nor be shadowed by reified fields).
 
+(*) Make supertypes ERASED, and add "ghost defns" to the class that apply equally?
+    Or is that a front-end issue?  Not really, because it comes up with interfaces and 
+    the like.
+
 (*) Enforce that if there are not multiple paths with different values for a given ghost field.
     Or is that ok?
 
@@ -99,9 +103,41 @@ Features
 Things to Think About
 ---------------------
 
-(*) Cleanup linked field logic as relates to guards.  Right now, a
-    field F is not linked to G if guard(G) hb guard(F).  The reasoning
-    is that then guard(F) could not yet have occurred, and so F could
-    not be initialized.  What would prob. make more sense is to say tht
-    F is not linked to G if current hb F.
+(*) Cleanup linked field logic as relates to guards.  
 
+    Right now, a field F is not linked to G if guard(G) hb guard(F).  
+    The reasoning is that then guard(F) could not yet have occurred, 
+    and so F must still be nil, which is valid.  What would prob. 
+    make more sense is to say tht F is not linked to G if current hb F.
+    
+(*) Ordering among fields, parameters, ghosts?  
+
+    We used to have some code that prevented the types of ghosts, fields, method
+    parameters, etc from referencing later declarations.  I am not sure
+    if there is any good reason for this code.  It may prevent infinite cycles 
+    in the type check but I'm not sure where.
+
+(*) Check types of arguments to a type when checking for WF?
+    
+    Right now, we only check that the ghost arguments on a type 
+    are well-typed when checking a "new" statement.  This should be
+    sufficient as it would be impossible to ever store a value (other
+    than null) into an ill-typed variable, since you could never 
+    create an object with that type.
+
+(*) Fields that are modified outside of constructor?
+
+    In the classes Indirect2/Indirect3 defined in the test illegalLinkedFields, 
+    we see that indirect dependencies in types are generally disallowed
+    but for when we can guarantee that the dependent field is never modified
+    until the dependee is constant.  Right now that is only permitted in one case:
+    we know that this.constructor hb this if this is an interval.  
+    
+    In some cases, if/when we add the ability to add more complex requirements,
+    we could add have a field f guarded by inter1 and a dependent field g guarded by inter2
+    where inter1 hb inter2.  (inter1 would typically be this.constructor)
+    
+    What might also be desirable, but probably only rarely, would be 
+    some way to indicate that a field is not assigned until outside of the contructor.
+    This would allow us to treat this.ctor fields as constant.  Hmm, when I started
+    writing it, this seemed common, but now I think it probably isn't.

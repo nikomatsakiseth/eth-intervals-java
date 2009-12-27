@@ -90,6 +90,7 @@ object ir {
     val noAttrs = Attrs(ListSet.empty)
     val ctorAttrs = Attrs(ListSet(AttrCtor))
     val ghostAttrs = Attrs(ListSet(AttrGhost))
+    val interfaceAttrs = Attrs(ListSet(AttrInterface))
     val allPathAttrs = Attrs(ListSet(AttrGhost, AttrMutable))
     
     // ______________________________________________________________________
@@ -287,12 +288,12 @@ object ir {
     sealed case class WcReadableBy(lp: List[Path]) extends WcPath {
         def addDependentPaths(s: Set[Path]) = s ++ lp
 
-        override def toString = lp.mkString(", ") + " readable"
+        override def toString = "readableBy " + lp.mkString(", ")
     }
     sealed case class WcWritableBy(lp: List[Path]) extends WcPath {
         def addDependentPaths(s: Set[Path]) = s ++ lp
 
-        override def toString = lp.mkString(", ") + " writable"
+        override def toString = "writableBy " + lp.mkString(", ")
     }
     sealed case class WcHb(lp: List[Path], lq: List[Path]) extends WcPath {
         def addDependentPaths(s: Set[Path]) = s ++ lp ++ lq
@@ -415,6 +416,7 @@ object ir {
     val c_object = ir.ClassName("Object")
     val c_void = ir.ClassName("Void")
     val c_interval = ir.ClassName("Interval")
+    val c_guard = ir.ClassName("Guard")
     val c_point = ir.ClassName("Point")
     val c_lock = ir.ClassName("Lock")    
     val c_string = ir.ClassName("String")
@@ -436,6 +438,8 @@ object ir {
     val p_this_creator = gfd_creator.thisPath
     val t_objectCreator = ir.TypeRef(c_object, List(gfd_creator.ghost), ir.noAttrs)
     val t_objectCtor = ir.TypeRef(c_object, List(gfd_ctor.ghost), ir.noAttrs)
+    val t_object = ir.TypeRef(c_object, List(), ir.noAttrs)
+    val t_guard = ir.TypeRef(c_guard, List(), ir.noAttrs)
     
     val md_ctor_interface = 
         MethodDecl(
@@ -538,8 +542,8 @@ object ir {
             /* Methods: */  List()
         ),
         ClassDecl(
-            /* Attrs:   */  noAttrs,
-            /* Name:    */  c_interval,
+            /* Attrs:   */  interfaceAttrs,
+            /* Name:    */  c_guard,
             /* Extends: */  List(t_objectCtor),
             /* Reqs:    */  List(),
             /* Ctor:    */  MethodDecl(
@@ -574,7 +578,29 @@ object ir {
                         )
                     )
                 )
-            )
+            )            
+        ),
+        ClassDecl(
+            /* Attrs:   */  noAttrs,
+            /* Name:    */  c_interval,
+            /* Extends: */  List(t_object, t_guard),
+            /* Reqs:    */  List(),
+            /* Ctor:    */  MethodDecl(
+                    /* attrs:  */ ctorAttrs,
+                    /* wt_ret: */ t_void, 
+                    /* name:   */ m_ctor, 
+                    /* args:   */ List(),
+                    /* reqs:   */ List(),
+                    /* blocks: */ Array(
+                        Block(
+                            /* args:  */ List(),
+                            /* stmts: */ List(ir.StmtSuperCtor(List())),
+                            /* succ:  */ List()
+                        )
+                    )
+                ),
+            /* Fields:  */  List(),
+            /* Methods: */  List()
         ),
         ClassDecl(
             /* Attrs:   */  noAttrs,
@@ -601,7 +627,7 @@ object ir {
         ClassDecl(
             /* Attrs:   */  noAttrs,
             /* Name:    */  c_lock,
-            /* Extends: */  List(t_objectCtor),
+            /* Extends: */  List(t_objectCtor, t_guard),
             /* Reqs:    */  List(),
             /* Ctor:    */  MethodDecl(
                     /* attrs:  */ ctorAttrs,
