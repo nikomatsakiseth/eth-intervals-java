@@ -874,7 +874,8 @@ class TypeCheck(log: Log, prog: Prog) {
         // find fields where tp_o.f appears in the type
         val fds_maybe_linked = lrfd.filter { rfd => isLinkedWt(p_f, rfd.wt) }
         
-        // screen out those which cannot have been written yet
+        // screen out those which cannot have been written yet (and whose 
+        // value is therefore null, which is valid for any type)
         lazy val subst = ghostSubstOfTeePee(tp_o)
         val fds_linked = fds_maybe_linked.filter { rfd =>
             !hbInter(tp_cur, teePee(subst.path(rfd.p_guard)))
