@@ -7,24 +7,6 @@ import scala.collection.mutable.ListBuffer
 import scala.util.parsing.input.Positional
 import Util._
 
-/*
-Notes of Notation:
-
-Foo<f: p>
----------
-
-We often use the notation Foo<f: p> to mean a type Foo 
-value p for its ghost parameter f.  This notation combines
-the class declaration, which must have been something like:
-    class Foo<wt f> { ... }
-and the type reference:
-    Foo<p>
-into one more concise entity Foo<f: p> that provides both
-the name (but not type) and value of the ghost argument(s).
-It's also close to the Java annotation syntax, which 
-would be @f("p") Foo.
-*/
-
 class TypeCheck(log: Log, prog: Prog) {    
     import prog.classDecl
 
@@ -153,21 +135,6 @@ class TypeCheck(log: Log, prog: Prog) {
     // ______________________________________________________________________
     // Basic Type Operations: Finding fields, methods, supertypes
     
-    /// Creates a substitution to the supertype 't' that replaces ghosts 
-    /// with their definitions, including the implicit ghost this.constructor
-    def superSubst(t: ir.TypeRef) = preservesEnv {
-        PathSubst.pp(
-            ir.p_ctor  :: t.ghosts.map(g => ir.p_this + g.f),
-            ir.p_super :: t.ghosts.map(g => g.p)
-        )     
-    }
-
-    /// supertypes of t
-    def sups(t: ir.TypeRef): List[ir.TypeRef] = preservesEnv {
-        val cd = classDecl(t.c)
-        cd.superTypes.map { case t_1 => superSubst(t).tref(t_1) }
-    }
-
     // Collection of all ghost fields declared on type 'c_0'.
     // A ghost field from a supertype c_1 is included so long as there is path
     // from c_0 to c_1 that does not define the value of the ghost.
@@ -185,13 +152,38 @@ class TypeCheck(log: Log, prog: Prog) {
         lgfd(c_0, ListSet.empty)
     }
     
+    /// For a type 't=c<F: P>' creates a substitution '[this.F→P]'.
+    /// Ghosts F'#F defined on the class c are not substituted.
+    /// @see ghostSubstOfTeePee()
+    def ghostSubstOfType(t: ir.TypeRef): PathSubst = 
+        PathSubst.pp(
+            t.ghosts.map(g => ir.p_this + g.f),
+            t.ghosts.map(g => g.p)
+        )        
+    
+    /// Augments ghostSubstOfType with a mapping 'this.ctor→this.super'
+    def superSubstOfType(t: ir.TypeRef) =
+        PathSubst.pp(ir.p_ctor, ir.p_super) + ghostSubstOfType(t)
+
+    /// For a class c with ghost fields F, yields a type c<F: this.F>{as}
     def thisTref(cd: ir.ClassDecl, as: ir.Attrs): ir.TypeRef = {
         val lgfds = ghostFieldDecls(cd.name)
         ir.TypeRef(cd.name, lgfds.map(_.ghost), as)
     }    
 
+    /// For a class c with ghost fields F, yields a type c<F: this.F>
     def thisTref(cd: ir.ClassDecl): ir.TypeRef =
         thisTref(cd, ir.noAttrs)
+    
+    /// supertypes of t
+    def sups(t: ir.TypeRef): List[ir.TypeRef] = preservesEnv {
+        val cd = classDecl(t.c)
+        lazy val subst_t = ghostSubstOfType(t)        
+        cd.superTypes.map { case t_1 =>
+            val t_extends = ghostSubstOfType(t_1).tref(thisTref(classDecl(t_1.c)))
+            subst_t.tref(t_extends)
+        }
+    }
     
     /// Field decl for t0::f 
     def fieldDecl(c0: ir.ClassName, f: ir.FieldName): ir.FieldDecl = preservesEnv {
@@ -202,7 +194,7 @@ class TypeCheck(log: Log, prog: Prog) {
                     cd.fields.find(_.name == f) match {
                         case Some(fd) => Some(fd)
                         case None => cd.superTypes.firstSomeReturned { t =>
-                            search(t.c).map(superSubst(t).fieldDecl)
+                            search(t.c).map(superSubstOfType(t).fieldDecl)
                         }
                     }
                 }
@@ -222,7 +214,7 @@ class TypeCheck(log: Log, prog: Prog) {
                     case Some(md) => 
                         Some(md.msig(thisTref(cd)))
                     case None => cd.superTypes.firstSomeReturned { t =>
-                        search(t.c).map(superSubst(t).methodSig)
+                        search(t.c).map(superSubstOfType(t).methodSig)
                     }
                 }
             }
@@ -234,7 +226,7 @@ class TypeCheck(log: Log, prog: Prog) {
     def typeOriginallyDefiningMethod(c: ir.ClassName, m: ir.MethodName): Option[ir.TypeRef] = {
         val cd = classDecl(c)
         cd.superTypes.firstSomeReturned(t_sup => 
-            typeOriginallyDefiningMethod(t_sup.c, m).map(superSubst(t_sup).tref)
+            typeOriginallyDefiningMethod(t_sup.c, m).map(superSubstOfType(t_sup).tref)
         ).orElse(
             if(cd.methods.exists(_.name == m)) Some(thisTref(cd))
             else None
@@ -245,7 +237,7 @@ class TypeCheck(log: Log, prog: Prog) {
     def overriddenMethodSigs(c: ir.ClassName, m: ir.MethodName): List[ir.MethodSig] = {
         val cd = classDecl(c)
         cd.superTypes.foldRight(List[ir.MethodSig]()) { case (t, l) =>
-            methodSig(t.c, m).map(superSubst(t).methodSig) match {
+            methodSig(t.c, m).map(superSubstOfType(t).methodSig) match {
                 case None => l
                 case Some(msig) => msig :: l
             }
@@ -262,7 +254,7 @@ class TypeCheck(log: Log, prog: Prog) {
     
     /// Returns a list of ghosts for tp.wt.
     /// Any wildcards or missing ghosts in tp.wt are replaced with a path based on 'tp'.
-    /// So if tp.wt was Foo<f: ?, g: q>, the result would be List(tp.p + f, q).
+    /// So if tp.wt was Foo<f: ?><g: q>, the result would be List(<f: p.f>, <g: q>) where p = tp.p.
     def ghosts(tp: ir.TeePee): List[ir.Ghost] = preservesEnv {
         ghostFieldDecls(tp.wt.c).map { gfd =>
             tp.wt.owghost(gfd.name) match {
@@ -272,8 +264,9 @@ class TypeCheck(log: Log, prog: Prog) {
         }
     }
     
-    /// Creates a subst from 'tp' that replaces 'this' and any of its ghosts.
-    def ghostSubst(tp: ir.TeePee): PathSubst = preservesEnv {
+    /// Creates a subst from 'tp' that includes 'this→tp.p' and also
+    /// substitutes all ghost fields 'this.F' with their correct values.
+    def ghostSubstOfTeePee(tp: ir.TeePee): PathSubst = preservesEnv {
         val cd = classDecl(tp.wt.c)
         val lg_tp = ghosts(tp)
         PathSubst.pp(
@@ -290,14 +283,14 @@ class TypeCheck(log: Log, prog: Prog) {
     /// Field decl for tp.f
     def substdFieldDecl(tp: ir.TeePee, f: ir.FieldName) = preservesEnv {
         val rfd = fieldDecl(tp.wt.c, f)
-        ghostSubst(tp).fieldDecl(rfd)
+        ghostSubstOfTeePee(tp).fieldDecl(rfd)
     }
     
     /// Method sig for tp.m(tqs)
     def substdMethodSig(tp: ir.TeePee, m: ir.MethodName, tqs: List[ir.TeePee]) = preservesEnv {
         methodSig(tp.wt.c, m) match {
             case Some(msig) =>
-                val subst = ghostSubst(tp) + PathSubst.vp(msig.args.map(_.name), tqs.map(_.p))
+                val subst = ghostSubstOfTeePee(tp) + PathSubst.vp(msig.args.map(_.name), tqs.map(_.p))
                 subst.methodSig(msig)        
             case None =>
                 throw ir.IrError("intervals.no.such.method", tp.wt.c, m)
@@ -834,7 +827,7 @@ class TypeCheck(log: Log, prog: Prog) {
         val fds_maybe_linked = lrfd.filter { rfd => isLinkedWt(p_f, rfd.wt) }
         
         // screen out those which are guarded by future intervals
-        lazy val subst = ghostSubst(tp_o)
+        lazy val subst = ghostSubstOfTeePee(tp_o)
         val fds_linked = fds_maybe_linked.filter { rfd =>
             !hbInter(tp_guard, teePee(subst.path(rfd.p_guard)))
         }
@@ -908,7 +901,7 @@ class TypeCheck(log: Log, prog: Prog) {
                     val tp = tp_super
                     val tqs = teePee(ir.noAttrs, qs)
                     val msig_ctor0 = classDecl(tp.wt.c).ctor.msig(cap(tp))
-                    val msig_ctor = ghostSubst(tp).methodSig(msig_ctor0)
+                    val msig_ctor = ghostSubstOfTeePee(tp).methodSig(msig_ctor0)
                     checkCallMsig(tp_super, msig_ctor, tqs)
                     
                 case ir.StmtGetField(x, p_o, f) =>
@@ -980,7 +973,10 @@ class TypeCheck(log: Log, prog: Prog) {
                         checkIsSubtype(tp, gfd.wt)
                     }
                                         
-                    val subst = ghostSubst(tp_x) + PathSubst.vp(cd.ctor.args.map(_.name), tqs.map(_.p))
+                    val subst = (
+                        ghostSubstOfTeePee(tp_x) + 
+                        PathSubst.vp(cd.ctor.args.map(_.name), tqs.map(_.p))
+                    )
                     val msig = subst.methodSig(cd.ctor.msig(t))
                     checkCallMsig(teePee(x.path), msig, tqs)
                     

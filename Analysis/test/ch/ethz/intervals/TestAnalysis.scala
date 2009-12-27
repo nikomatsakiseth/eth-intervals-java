@@ -839,7 +839,7 @@ class TestAnalysis extends JUnitSuite {
             class D<Interval a><Lock b><Lock c><Interval d> extends Object { 
                 Object<creator: this.a> creatorA;
                 C1<l1: this.b> l1B;
-                C1<creator: this.a><l1: this.a> creatorAl1B;
+                C1<creator: this.a><l1: this.b> creatorAl1B;
                 
                 constructor() {
                     super();
@@ -858,9 +858,9 @@ class TestAnalysis extends JUnitSuite {
                 requires this.creator writableBy method
                 {
                     obj = new C2<creator: this.d><l1: this.b><l2: this.c>();
-                    this->creatorA = obj; // ERROR intervals.expected.subtype(obj, C2<creator: this.d><l1: this.b><l2: this.a>{}, Object<creator: this.a>{})
-                    this->l1B = obj; // ERROR intervals.expected.subtype(obj, C2<creator: this.d><l1: this.b><l2: this.a>{}, C1<l1: this.b>{})
-                    this->creatorAl1B = obj; // ERROR intervals.expected.subtype(obj, C2<creator: this.d><l1: this.b><l2: this.a>{}, C1<creator: this.a><l1: this.a>{})
+                    this->creatorA = obj; // ERROR intervals.expected.subtype(obj, C2<creator: this.d><l1: this.b><l2: this.c>{}, Object<creator: this.a>{})
+                    this->l1B = obj; 
+                    this->creatorAl1B = obj; // ERROR intervals.expected.subtype(obj, C2<creator: this.d><l1: this.b><l2: this.c>{}, C1<creator: this.a><l1: this.b>{})
                 } 
                 
                 Void l1Wrong() 
@@ -868,8 +868,8 @@ class TestAnalysis extends JUnitSuite {
                 {
                     obj = new C2<creator: this.a><l1: this.c><l2: this.b>();
                     this->creatorA = obj;
-                    this->l1B = obj; // ERROR intervals.expected.subtype(obj, C2<creator: this.d><l1: this.b><l2: this.a>{}, C1<l1: this.b>{})
-                    this->creatorAl1B = obj; // ERROR intervals.expected.subtype(obj, C2<creator: this.d><l1: this.b><l2: this.a>{}, C1<creator: this.a><l1: this.a>{})
+                    this->l1B = obj; // ERROR intervals.expected.subtype(obj, C2<creator: this.a><l1: this.c><l2: this.b>{}, C1<l1: this.b>{})
+                    this->creatorAl1B = obj; // ERROR intervals.expected.subtype(obj, C2<creator: this.a><l1: this.c><l2: this.b>{}, C1<creator: this.a><l1: this.b>{})
                 }                                         
             }            
             """
