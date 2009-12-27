@@ -1182,6 +1182,45 @@ class TestAnalysis extends JUnitSuite {
     }
     
     @Test
+    def shadowGhostsInSuperType() {
+        tc(
+            """
+            class Super
+                <Interval i> 
+            extends Object {
+                constructor() {
+                    super();
+                }
+            }
+            
+            class Sub
+                <Interval i> // ERROR intervals.shadowed.ghost(Super, i)
+            extends Super {
+                constructor() {
+                    super();
+                }
+            }
+            """            
+        )
+    }
+    
+    @Test
+    def duplicateGhostsInSameType() {
+        tc(
+            """
+            class Sub
+                <Interval i>
+                <Interval i> // ERROR intervals.duplicate.field(i)
+            extends Object {
+                constructor() {
+                    super();
+                }
+            }
+            """            
+        )
+    }
+
+    @Test
     def bbpcData() {
         tc(
             """

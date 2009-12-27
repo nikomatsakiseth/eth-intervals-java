@@ -4,56 +4,12 @@ TODO LIST
 Bugs and ToDos
 --------------
 
-(*) Enforce that ghost fields cannot be shadowed (nor be shadowed by reified fields).
-
 (*) Make supertypes ERASED, and add "ghost defns" to the class that apply equally?
     Or is that a front-end issue?  Not really, because it comes up with interfaces and 
     the like.
 
 (*) Enforce that if there are not multiple paths with different values for a given ghost field.
     Or is that ok?
-
-(*) Add assumption (and validate) that all field and ghost names are GLOBALLY unique
-    (in other words, prefix them with the class in the preprocessor).  Alternatively,
-    make substitution smarter.  Trying to avoid this kind of problem:
-    
-        class Type2<Interval g> 
-        extends Type1<this.constructor> {
-            ...
-        }
-        
-        class Type1<Interval g> ...
-    
-        void mthd1(Type1 arg)
-        requires arg.g subinterval this
-        {...}
-        
-        {
-            ...
-            Type2<y> x;
-            mthd1(x);
-            ...
-        }
-        
-    mthd1 is referring to Type1::g (i.e., x.constructor), but if we're not careful when
-    we substitute arg for x in the call, we might end up referring to Type2::g (i.e., y)!
-    To make this sound, we really need to upcast the type of arg to its static type and 
-    substitute both arg→x and arg.g→x.constructor; alternatively, if ghost names were
-    unique, we could resolve ghost names more like fields.  The latter solution seems a bit
-    more robust to me.  Although, if we always built substitutions by giving a pair like
-        Wt_x x → Wt_y y
-    where (Wt_x <: Wt_y) we could encapsulate the "best practices" in one method.
-    
-    Note that making building ghost fields into the inheritance hierarchy is actually 
-    the model I intend to present to the user.  There is therefore a strong case that
-    it will make it easier to report errors if the model of the type checker precisely
-    matches the user model, rather than merely being equivalent to.  Think how confusing
-    it could be to report errors...
-    
-    In that case, types would change from having a fixed list of parameters to a map
-    (just like is being presented to the user).  When a ghost field is found, we would
-    check the type to see if there are any mappings for that field defined.  If not,
-    then foo.g is used (ie, defaults to completely unknown).  Actually seems quite nice!
     
 (*) Check in multiple inheritance that all paths lead to the same set of ghost 
     parameters.  Alternatively, make sure that we all paths are fulfilled.

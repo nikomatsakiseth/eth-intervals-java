@@ -143,6 +143,13 @@ class TypeCheck(log: Log, prog: Prog) {
         }
     }
     
+    def strictSuperclasses(c0: ir.ClassName): Set[ir.ClassName] = {
+        def accumulate(sc: Set[ir.ClassName], c: ir.ClassName): Set[ir.ClassName] = {
+            classDecl(c).superTypes.map(_.c).foldLeft(sc + c)(accumulate)
+        }
+        accumulate(Set.empty, c0) - c0
+    }
+    
     // Collection of all ghost fields declared on type 'c_0'.
     // A ghost field from a supertype c_1 is included so long as there is path
     // from c_0 to c_1 that does not define the value of the ghost.
@@ -1265,11 +1272,27 @@ class TypeCheck(log: Log, prog: Prog) {
                 }                        
             }
         }
+    
+    def checkGhostFieldDecl(cd: ir.ClassDecl, gfd: ir.GhostFieldDecl) = 
+        at(gfd, ()) {
+            log.indented(gfd) {
+                // Check that ghosts are not shadowed from a super class:
+                strictSuperclasses(cd.name).foreach { c =>
+                    if(classDecl(c).fields.exists(_.name == gfd.name))
+                        throw ir.IrError("intervals.shadowed.ghost", c, gfd.name)
+                }
+            }
+        }
         
-    def checkFieldDecl(cd: ir.ClassDecl, fd: ir.FieldDecl) =
-        fd match {
-            case rfd: ir.ReifiedFieldDecl => checkReifiedFieldDecl(cd, rfd)
-            case gfd: ir.GhostFieldDecl => // TODO Check for shadowing, etc
+    def checkFieldDecl(cd: ir.ClassDecl)(priorNames: Set[ir.FieldName], fd: ir.FieldDecl) = 
+        at(fd, priorNames) {
+            if(priorNames(fd.name))
+                throw new ir.IrError("intervals.duplicate.field", fd.name)
+            fd match {
+                case rfd: ir.ReifiedFieldDecl => checkReifiedFieldDecl(cd, rfd)
+                case gfd: ir.GhostFieldDecl => checkGhostFieldDecl(cd, gfd)
+            }
+            priorNames + fd.name
         }
         
     // ______________________________________________________________________
@@ -1328,7 +1351,6 @@ class TypeCheck(log: Log, prog: Prog) {
                         lvs_shared(p.lv) && !teePee(p).as.mutable                
                     }
                     
-
                 ir.TcEnv(
                     env.p_cur,
                     env.wt_ret,
@@ -1398,7 +1420,7 @@ class TypeCheck(log: Log, prog: Prog) {
                 cd.superTypes.foreach(checkNotCtor)
                 cd.superTypes.take(1).foreach(checkIsNotInterface)
                 cd.superTypes.drop(1).foreach(checkIsInterface)
-                cd.fields.foreach(checkFieldDecl(cd, _))
+                cd.fields.foldLeft(Set.empty[ir.FieldName])(checkFieldDecl(cd))
                 val env_ctor_assum = checkNoninterfaceConstructorDecl(cd, cd.ctor)                    
                 cd.methods.foreach(checkNoninterfaceMethodDecl(cd, env_ctor_assum, _))                    
             }
