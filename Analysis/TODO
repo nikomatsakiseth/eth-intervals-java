@@ -8,11 +8,8 @@ Bugs and ToDos
     Or is that a front-end issue?  Not really, because it comes up with interfaces and 
     the like.
 
-(*) Enforce that if there are not multiple paths with different values for a given ghost field.
-    Or is that ok?
-    
 (*) Check in multiple inheritance that all paths lead to the same set of ghost 
-    parameters.  Alternatively, make sure that we all paths are fulfilled.
+    parameters.  Alternatively, make sure that all paths are fulfilled.
     Latter technique is "cooler" (then, for ex., a class modelling an empty set
     can fulfill virtually any type, etc)
     

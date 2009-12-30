@@ -12,7 +12,10 @@ case class ExpError(msg: String, args: List[String])
 
 class TestAnalysis extends JUnitSuite { 
     
-    def tc(text: String) {
+    // ______________________________________________________________________
+    // Test running infrastructure:
+    
+    def runTest(errorPhase: String, text: String) {
         val log = new Log.TmpHtmlLog()
         try {
             // Extract errors:
@@ -30,9 +33,20 @@ class TestAnalysis extends JUnitSuite {
                     case parser.Success(cds, _) =>
                         cds
                 }            
-            val prog = new Prog(cds)
-            val tc = new TypeCheck(log, prog)
-            tc.check
+            val prog = new Prog(log, cds)
+            
+            val allPhases = List[(String, Check)](
+                ("wf", new WfCheck(prog)),
+                ("cr", new ComputeRelations(prog)),
+                ("tc", new TypeCheck(prog))
+            )
+            def checkPhases(phases: List[(String, Check)]) = phases match {
+                case List() => "success"
+                case (nm, chk) :: tl =>
+                    if(chk.check) checkPhases(tl)
+                    else nm
+            }
+            val failPhase = checkPhases(allPhases)
         
             var matched = 0
             log.indented("Expected Errors:") {
@@ -62,13 +76,35 @@ class TestAnalysis extends JUnitSuite {
 
             assertEquals(matched, prog.errors.length)          // All errors were matched.
             assertEquals(expErrors.length, prog.errors.length) // Correct number of exp. errors.
+            assertEquals(errorPhase, failPhase)
         } catch {
             case t: Throwable => // only print log if test fails:
                 System.out.println("Debugging output for failed test:")
                 System.out.println(log.outURI)
                 throw t
-        }
+        }        
     }
+    
+    // The name of the method indicates the phase in which errors are expected:
+    
+    def wf(text: String) {
+        runTest("wf", text)
+    }
+    
+    def cr(text: String) {
+        runTest("cr", text)        
+    }
+    
+    def tc(text: String) {
+        runTest("tc", text)
+    }
+    
+    def success(text: String) {
+        runTest("success", text)
+    }
+    
+    // ______________________________________________________________________
+    // Tests
 
     @Test
     def linkedFields() {

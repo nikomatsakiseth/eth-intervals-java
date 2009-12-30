@@ -90,6 +90,7 @@ object ir {
     val noAttrs = Attrs(ListSet.empty)
     val ctorAttrs = Attrs(ListSet(AttrCtor))
     val ghostAttrs = Attrs(ListSet(AttrGhost))
+    val mutableAttrs = Attrs(ListSet(AttrMutable))
     val interfaceAttrs = Attrs(ListSet(AttrInterface))
     val allPathAttrs = Attrs(ListSet(AttrGhost, AttrMutable))
     
@@ -249,6 +250,11 @@ object ir {
         override def toString = "%s locks %s;".format(p, q)        
     }
 
+    def isSuperCtor(s: Stmt) = s match {
+        case StmtSuperCtor(_) => true
+        case _ => false
+    }
+    
     sealed case class WcGhost(f: FieldName, wp: ir.WcPath) {
         override def toString = "<%s: %s>".format(f, wp)        
     }
@@ -360,12 +366,12 @@ object ir {
         wt_ret: ir.WcTypeRef,                  // return type of current method
         perm: Map[ir.Path, ir.TeePee],         // permanent equivalences, hold for duration of method
         temp: Map[ir.Path, ir.Path],           // temporary equivalences, cleared on method call
-        lp_invalidated: Set[ir.Path],          // p is current invalid and must be reassigned        
+        lp_invalidated: Set[ir.Path],          // p is current invalid and must be reassigned                
         readable: IntransitiveRelation[Path],  // (p, q) means guard p is readable by interval q
         writable: IntransitiveRelation[Path],  // (p, q) means guard p is writable by interval q
         hb: TransitiveRelation[Path],          // (p, q) means interval p hb interval q
         subinterval: TransitiveRelation[Path], // (p, q) means interval p is a subinterval of interval q
-        locks: IntransitiveRelation[Path]      // (p, q) means interval p locks lock q
+        locks: IntransitiveRelation[Path]      // (p, q) means interval p locks lock q        
     ) {
         def +(env: TcEnv) = {
             TcEnv(
