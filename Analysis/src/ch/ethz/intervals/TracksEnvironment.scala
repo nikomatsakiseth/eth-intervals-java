@@ -20,19 +20,7 @@ extends CheckPhase {
     //
     // We use a mutable field here rather than thread the env through explicitly.
     
-    val emptyEnv = ir.TcEnv(
-        ir.p_mthd,
-        ir.t_void,
-        Map(),
-        Map(),
-        ListSet.empty,
-        IntransitiveRelation.empty,
-        IntransitiveRelation.empty,
-        TransitiveRelation.empty,
-        TransitiveRelation.empty,
-        IntransitiveRelation.empty
-    )
-    var env = emptyEnv
+    var env = ir.Env.empty
 
     /// Executes g and restores the old environment afterwards:
     def savingEnv[R](g: => R): R = {
@@ -46,21 +34,25 @@ extends CheckPhase {
         try { g } finally { assert(env == oldEnv) }
     }
 
-    def withCurrent[R](tp: ir.TeePee)(g: => R): R = {
-        val p_old = env.p_cur
-        try {
-            log.indented("withCurrent(%s)", tp) {
-                env = env.withCur(tp.p)
-                g
-            }            
-        } finally {
-            env = env.withCur(p_old)
-        }
-    }
-
     // ______________________________________________________________________
     // Modifying the Environment
     
+    def pushCurrent(p_cur: ir.Path) =
+        log.indented("pushCurrent(%s)", p_cur) {
+            env = env.withCurrent(env.ps_cur.push(p_cur))            
+        }
+    
+    def popCurrent(p_cur: ir.Path) =
+        log.indented("popCurrent(%s)", p_cur) {
+            assert(env.ps_cur.top == p_cur)
+            env = env.withCurrent(env.ps_cur.pop)
+        }
+        
+    def withCurrent[R](p_cur: ir.Path)(g: => R): R = 
+        log.indented("withCurrent(%s)", p_cur) {
+            try { pushCurrent(p_cur); g } finally { popCurrent(p_cur) }            
+        }
+
     def setWtRet(wt_ret: ir.WcTypeRef) = {
         env = env.withRet(wt_ret)
     }
@@ -86,6 +78,9 @@ extends CheckPhase {
             op_canon.getOrElse(x.path), // default canonical path for x is just x
             ir.noAttrs))                // all local vars are (a) reified and (b) immutable
 
+    def addArg(arg: ir.LvDecl) =
+        addPerm(arg.name, ir.TeePee(arg.wt, arg.name.path, ir.noAttrs))
+        
     def addTemp(p: ir.Path, q: ir.Path) =
         log.indented("addTemp(%s,%s)", p, q) {
             env = env.withTemp(env.temp + Pair(p, q))
@@ -98,12 +93,12 @@ extends CheckPhase {
 
     def addInvalidated(p: ir.Path) =
         log.indented("addInvalidated(%s)", p) {
-            env = env.withInvalidated(env.lp_invalidated + p)
+            env = env.withInvalidated(env.addCheckedArginvalidated + p)
         }        
 
     def removeInvalidated(p: ir.Path) =
         log.indented("removeInvalidated(%s)", p) {
-            env = env.withInvalidated(env.lp_invalidated - p)
+            env = env.withInvalidated(env.addCheckedArginvalidated - p)
         }
 
     def addHbPnt(tp: ir.TeePee, tq: ir.TeePee): Unit = 
@@ -227,6 +222,14 @@ extends CheckPhase {
             (makePoint(tp0, ir.f_end), makePoint(tq0, ir.f_start)) match {
                 case (Some(tp1), Some(tq1)) => Some((tp1, tq1))
                 case _ => None
+            }
+        }
+        
+    def userHb(tp0: ir.TeePee, tq0: ir.TeePee) = 
+        log.indentedRes("userHb(%s,%s)", tp0, tq0) {
+            userHbPair(tp0, tq0) match {
+                case Some((tp1, tq1)) => hbPnt(tp1, tq1)
+                case None => false
             }
         }
         
@@ -442,9 +445,9 @@ extends CheckPhase {
 
     // Note: these are not vals but defs!  This is important
     // because the outcome of teePee() depends on the env.
-    def tp_cur = teePee(env.p_cur)
-    def tp_cur_start = teePee(env.p_cur.start)
-    def tp_cur_end = teePee(env.p_cur.end)
+    def tp_cur = teePee(env.ps_cur.top)
+    def tp_cur_start = teePee(env.ps_cur.top.start)
+    def tp_cur_end = teePee(env.ps_cur.top.end)
     def tp_ctor = teePee(ir.gfd_ctor.thisPath)
     def tp_ctor_start = teePee(ir.gfd_ctor.thisPath.start)
     def tp_ctor_end = teePee(ir.gfd_ctor.thisPath.end)

@@ -22,4 +22,15 @@ extends Iterable[(T,T)] {
             else r
         }
         
+    def mapFilter(
+        mapFunc: (T => T), 
+        filterFunc: (T => Boolean)
+    ): R =
+        elements.foldLeft(empty) { case (r, (a, b)) =>
+            val a1 = mapFunc(a)
+            val b1 = mapFunc(b)
+            if(filterFunc(a1) && filterFunc(b1)) r + (a1, b1)
+            else r
+        }        
+        
 }

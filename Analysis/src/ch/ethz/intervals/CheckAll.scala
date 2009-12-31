@@ -8,7 +8,6 @@ class CheckAll(prog: Prog) {
     def check = {
         val allPhases = List[(String, CheckPhase)](
             ("wf", new WfCheck(prog)),
-            ("cr", new ComputeRelations(prog)),
             ("tc", new TypeCheck(prog))
         )
         def checkPhases(phases: List[(String, CheckPhase)]): String = phases match {

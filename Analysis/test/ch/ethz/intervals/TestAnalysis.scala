@@ -46,7 +46,7 @@ class TestAnalysis extends JUnitSuite {
                     log.indented(
                         error
                     ) {
-                        val pos = error.loc.pos
+                        val pos = error.pos
                         
                         log("Line %s Column %s", pos.line, pos.column)
                         log(pos.longString)
@@ -63,8 +63,8 @@ class TestAnalysis extends JUnitSuite {
                 }
             }
 
-            assertEquals(matched, prog.errors.length)          // All errors were matched.
-            assertEquals(expErrors.length, prog.errors.length) // Correct number of exp. errors.
+            assertEquals(matched, prog.errors.size)          // All errors were matched.
+            assertEquals(expErrors.length, prog.errors.size) // Correct number of exp. errors.
             assertEquals(errorPhase, failPhase)
         } catch {
             case t: Throwable => // only print log if test fails:

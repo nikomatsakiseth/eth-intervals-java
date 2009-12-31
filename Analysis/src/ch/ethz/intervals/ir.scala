@@ -2,7 +2,9 @@ package ch.ethz.intervals
 
 import scala.collection.immutable.Set
 import scala.collection.immutable.ListSet
+import scala.collection.immutable.Stack
 import scala.util.parsing.input.Positional
+import scala.util.parsing.input.Position
 import Util._
 
     
@@ -17,7 +19,7 @@ Short names begin with a letter indicating the type of the
 variable or field:
 
 b -> block id
-x -> local variable name
+lv -> local variable name
 p,q -> path
 tp,tq -> typed path (TeePee)
 wp,wq -> wildcard path
@@ -32,20 +34,21 @@ wt -> wildcard type (WcTypeRef)
 The type is then optionally followed by an underscore
 with a more descriptive tag, like p_r for the receiver path.
 
-To indicate lists, options, and sets we mimic the scale
-syntax and use an "l", "o", or "s" prefix: lp_r, op_r, sp_r.
-In practice, however, lists and sets are often denoted using an "s" suffix
-instead: "ps", "qs", although that convention probably ought to be deprecated.
-
 ______________________________________________________________________
-Control-Flow Graph Assumptions
+Assumptions
 
-We assumed that the method control-flow graph is dominated by block 0
-and post-dominated by block n-1.  We further assume that every path
-leads to a return or throw statement (unless the method is void in the Java code); 
-we do not treat return statements specially with respect to control-flow.  
-Instead, we assume that blocks with returns or throws end immediately with an
-edge to block n-1.  These assumptions are currently not verified.
+We currently assume but do not check:
+
+- The method CFG is dominated by block 0 
+- Every subinterval push dominates and is post dominated by a corresponding subinterval pop
+- Every path through a CFG leads to a return or throw statement (unless the method is void in 
+    the Java code)
+- The fact that return (and to some extent throw) does not have normal successors is encoded in the CFG 
+- Super constructors are invoked exactly once, and from another constructor.  The 'this' pointer
+  is not referenced before the super constructor.
+  
+Note that all of these properties are either enforced by Java or by the CFG construction
+code.
 
 */
 
@@ -115,7 +118,7 @@ object ir {
     // Error reporting
     
     sealed case class Error(
-        loc: Positional,
+        pos: Position,
         msg: String,
         args: List[String]
     ) {
@@ -128,7 +131,8 @@ object ir {
     sealed case class ClassDecl(
         attrs: Attrs,       
         name: ClassName,
-        superTypes: List[TypeRef],
+        superClasses: List[ClassName],
+        ghosts: List[Ghost],
         reqs: List[Req],
         ctor: MethodDecl,
         fields: List[FieldDecl],
@@ -136,7 +140,7 @@ object ir {
     ) extends Positional {
         override def toString =
             "class %s%s extends %s".format(
-                name, "".join(" ", reqs), superTypes.mkString(", "))
+                name, "".join(" ", reqs), superClasses.mkString(", "))
     }
     
     sealed case class MethodDecl(
@@ -240,8 +244,11 @@ object ir {
     sealed case class StmtSetField(p: Path, f: FieldName, q: Path) extends Stmt {
         override def toString = "%s->%s = %s;".format(p, f, q)
     }
-    sealed case class StmtSubinterval(x: VarName, lp_locks: List[Path], stmts: List[Stmt]) extends Stmt {
-        override def toString = "subinterval %s locks %s {...}".format(x, lp_locks.mkString(", "))
+    sealed case class StmtSubintervalPush(x: VarName, addCheckedArglocks: List[Path]) extends Stmt {
+        override def toString = "subinterval push %s locks %s".format(x, addCheckedArglocks.mkString(", "))
+    }
+    sealed case class StmtSubintervalPop(x: VarName) extends Stmt {
+        override def toString = "subinterval pop %s".format(x)
     }
     sealed case class StmtHb(p: Path, q: Path) extends Stmt {
         override def toString = "%s hb %s;".format(p, q)        
@@ -257,7 +264,7 @@ object ir {
     
     sealed case class WcGhost(f: FieldName, wp: ir.WcPath) {
         override def toString = "<%s: %s>".format(f, wp)        
-    }
+    } 
     sealed case class Ghost(
         override val f: FieldName,
         p: Path
@@ -362,27 +369,27 @@ object ir {
     }
     
     sealed case class TcEnv(
-        p_cur: ir.Path,                        // current interval
+        ps_cur: Stack[ir.Path],                // current interval
         wt_ret: ir.WcTypeRef,                  // return type of current method
         perm: Map[ir.VarName, ir.TeePee],      // permanent equivalences, hold for duration of method
         temp: Map[ir.Path, ir.Path],           // temporary equivalences, cleared on method call
-        lp_invalidated: Set[ir.Path],          // p is current invalid and must be reassigned                
+        addCheckedArginvalidated: Set[ir.Path],          // p is current invalid and must be reassigned                
         readable: IntransitiveRelation[Path],  // (p, q) means guard p is readable by interval q
         writable: IntransitiveRelation[Path],  // (p, q) means guard p is writable by interval q
         hb: TransitiveRelation[Path],          // (p, q) means interval p hb interval q
         subinterval: TransitiveRelation[Path], // (p, q) means interval p is a subinterval of interval q
         locks: IntransitiveRelation[Path]      // (p, q) means interval p locks lock q        
     ) {
-        def withCur(p_cur: ir.Path) = TcEnv(p_cur, wt_ret, perm, temp, lp_invalidated, readable, writable, hb, subinterval, locks)
-        def withRet(wt_ret: ir.WcTypeRef) = TcEnv(p_cur, wt_ret, perm, temp, lp_invalidated, readable, writable, hb, subinterval, locks)
-        def withPerm(perm: Map[ir.VarName, ir.TeePee]) = TcEnv(p_cur, wt_ret, perm, temp, lp_invalidated, readable, writable, hb, subinterval, locks)
-        def withTemp(temp: Map[ir.Path, ir.Path]) = TcEnv(p_cur, wt_ret, perm, temp, lp_invalidated, readable, writable, hb, subinterval, locks)
-        def withInvalidated(lp_invalidated: Set[ir.Path]) = TcEnv(p_cur, wt_ret, perm, temp, lp_invalidated, readable, writable, hb, subinterval, locks)
-        def withReadable(readable: IntransitiveRelation[Path]) = TcEnv(p_cur, wt_ret, perm, temp, lp_invalidated, readable, writable, hb, subinterval, locks)
-        def withWritable(writable: IntransitiveRelation[Path]) = TcEnv(p_cur, wt_ret, perm, temp, lp_invalidated, readable, writable, hb, subinterval, locks)
-        def withHb(hb: TransitiveRelation[Path]) = TcEnv(p_cur, wt_ret, perm, temp, lp_invalidated, readable, writable, hb, subinterval, locks)
-        def withSubinterval(subinterval: TransitiveRelation[Path]) = TcEnv(p_cur, wt_ret, perm, temp, lp_invalidated, readable, writable, hb, subinterval, locks)
-        def withLocks(locks: IntransitiveRelation[Path]) = TcEnv(p_cur, wt_ret, perm, temp, lp_invalidated, readable, writable, hb, subinterval, locks)
+        def withCurrent(ps_cur: Stack[ir.Path]) = TcEnv(ps_cur, wt_ret, perm, temp, addCheckedArginvalidated, readable, writable, hb, subinterval, locks)
+        def withRet(wt_ret: ir.WcTypeRef) = TcEnv(ps_cur, wt_ret, perm, temp, addCheckedArginvalidated, readable, writable, hb, subinterval, locks)
+        def withPerm(perm: Map[ir.VarName, ir.TeePee]) = TcEnv(ps_cur, wt_ret, perm, temp, addCheckedArginvalidated, readable, writable, hb, subinterval, locks)
+        def withTemp(temp: Map[ir.Path, ir.Path]) = TcEnv(ps_cur, wt_ret, perm, temp, addCheckedArginvalidated, readable, writable, hb, subinterval, locks)
+        def withInvalidated(addCheckedArginvalidated: Set[ir.Path]) = TcEnv(ps_cur, wt_ret, perm, temp, addCheckedArginvalidated, readable, writable, hb, subinterval, locks)
+        def withReadable(readable: IntransitiveRelation[Path]) = TcEnv(ps_cur, wt_ret, perm, temp, addCheckedArginvalidated, readable, writable, hb, subinterval, locks)
+        def withWritable(writable: IntransitiveRelation[Path]) = TcEnv(ps_cur, wt_ret, perm, temp, addCheckedArginvalidated, readable, writable, hb, subinterval, locks)
+        def withHb(hb: TransitiveRelation[Path]) = TcEnv(ps_cur, wt_ret, perm, temp, addCheckedArginvalidated, readable, writable, hb, subinterval, locks)
+        def withSubinterval(subinterval: TransitiveRelation[Path]) = TcEnv(ps_cur, wt_ret, perm, temp, addCheckedArginvalidated, readable, writable, hb, subinterval, locks)
+        def withLocks(locks: IntransitiveRelation[Path]) = TcEnv(ps_cur, wt_ret, perm, temp, addCheckedArginvalidated, readable, writable, hb, subinterval, locks)
         
         def +(env: TcEnv) =
             withTemp(temp ++ env.temp).
@@ -391,6 +398,38 @@ object ir {
             withHb(hb + env.hb).
             withSubinterval(subinterval + env.subinterval).
             withLocks(locks + env.locks)
+        
+        // Intersecting two environments produces an environment with the
+        // "worst-case" assumptions of both.
+        def **(env2: TcEnv) =
+            this
+                .withTemp(temp ** env2.temp)
+                .withInvalidated(addCheckedArginvalidated ++ env2.addCheckedArginvalidated)
+                .withReadable(readable ** env2.readable)
+                .withWritable(writable ** env2.writable)
+                .withHb(hb ** env2.hb)
+                .withSubinterval(subinterval ** env2.subinterval)
+                .withLocks(locks ** env2.locks)        
+    }
+    
+    object Env {
+        val empty = ir.TcEnv(
+            Stack.Empty,
+            t_void,
+            Map(),
+            Map(),
+            ListSet.empty,
+            IntransitiveRelation.empty,
+            IntransitiveRelation.empty,
+            TransitiveRelation.empty,
+            TransitiveRelation.empty,
+            IntransitiveRelation.empty
+        )
+        
+        def intersect(envs: List[ir.TcEnv]) = envs match {
+            case List() => empty
+            case hd :: tl => tl.foldLeft(hd)(_ ** _)
+        }
     }
     
     case class IrError(msg: String, args: Any*) 
@@ -472,6 +511,7 @@ object ir {
             /* Attrs:   */  noAttrs,
             /* Name:    */  c_object,
             /* Extends: */  List(),
+            /* Ghosts:  */  List(),
             /* Reqs:    */  List(),
             /* Ctor:    */  MethodDecl(
                     /* attrs:  */ ctorAttrs,
@@ -510,7 +550,8 @@ object ir {
         ClassDecl(
             /* Attrs:   */  noAttrs,
             /* Name:    */  c_void,
-            /* Extends: */  List(t_objectCtor),
+            /* Extends: */  List(c_object),
+            /* Ghosts:  */  List(Ghost(f_creator, p_ctor)),
             /* Reqs:    */  List(),
             /* Ctor:    */  MethodDecl(
                     /* attrs:  */ ctorAttrs,
@@ -532,7 +573,8 @@ object ir {
         ClassDecl(
             /* Attrs:   */  noAttrs,
             /* Name:    */  c_string,
-            /* Extends: */  List(t_objectCtor),
+            /* Extends: */  List(c_object),
+            /* Ghosts:  */  List(Ghost(f_creator, p_ctor)),
             /* Reqs:    */  List(),
             /* Ctor:    */  MethodDecl(
                     /* attrs:  */ ctorAttrs,
@@ -554,7 +596,8 @@ object ir {
         ClassDecl(
             /* Attrs:   */  interfaceAttrs,
             /* Name:    */  c_guard,
-            /* Extends: */  List(t_objectCtor),
+            /* Extends: */  List(c_object),
+            /* Ghosts:  */  List(),
             /* Reqs:    */  List(),
             /* Ctor:    */  MethodDecl(
                     /* attrs:  */ ctorAttrs,
@@ -593,7 +636,8 @@ object ir {
         ClassDecl(
             /* Attrs:   */  noAttrs,
             /* Name:    */  c_interval,
-            /* Extends: */  List(t_object, t_guard),
+            /* Extends: */  List(c_object, c_guard),
+            /* Ghosts:  */  List(Ghost(f_creator, p_ctor)),
             /* Reqs:    */  List(),
             /* Ctor:    */  MethodDecl(
                     /* attrs:  */ ctorAttrs,
@@ -615,7 +659,8 @@ object ir {
         ClassDecl(
             /* Attrs:   */  noAttrs,
             /* Name:    */  c_point,
-            /* Extends: */  List(t_objectCtor),
+            /* Extends: */  List(c_object),
+            /* Ghosts:  */  List(Ghost(f_creator, p_ctor)),
             /* Reqs:    */  List(),
             /* Ctor:    */  MethodDecl(
                     /* attrs:  */ ctorAttrs,
@@ -637,7 +682,8 @@ object ir {
         ClassDecl(
             /* Attrs:   */  noAttrs,
             /* Name:    */  c_lock,
-            /* Extends: */  List(t_objectCtor, t_guard),
+            /* Extends: */  List(c_object, c_guard),
+            /* Ghosts:  */  List(Ghost(f_creator, p_ctor)),
             /* Reqs:    */  List(),
             /* Ctor:    */  MethodDecl(
                     /* attrs:  */ ctorAttrs,

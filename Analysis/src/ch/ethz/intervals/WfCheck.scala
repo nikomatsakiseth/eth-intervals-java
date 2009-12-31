@@ -56,6 +56,11 @@ extends TracksEnvironment(prog) {
             case p: ir.Path =>
                 checkPathWf(ghostOk, p)
         }
+        
+    def checkLengths(l1: List[_], l2: List[_], msg: String) = preservesEnv {
+        if(l1.length != l2.length)
+            throw new ir.IrError(msg, l1.length, l2.length)
+    }
     
     def checkWfWt(wt: ir.WcTypeRef) {
         wt.wghosts.foldLeft(List[ir.FieldName]()) {
@@ -81,8 +86,6 @@ extends TracksEnvironment(prog) {
         at(stmt, ()) {
             stmt match {                  
                 case ir.StmtSuperCtor(qs) =>
-                    if(!tp_this.as.ghost)
-                        throw new ir.IrError("intervals.super.ctor.not.permitted.here")
                     checkPathsWf(reified, qs)
                     
                 case ir.StmtGetField(x, p_o, f) =>
@@ -110,6 +113,7 @@ extends TracksEnvironment(prog) {
                     val tp = teePee(reified, p)
                     val tqs = teePee(reified, qs)
                     val msig = substdMethodSig(tp, m, tqs)
+                    checkLengths(msig.args, tqs, "intervals.wrong.number.method.arguments")
                     addLvDecl(x, msig.wt_ret, None)                        
         
                 case ir.StmtSuperCall(x, m, qs) =>
@@ -123,6 +127,13 @@ extends TracksEnvironment(prog) {
                     checkWfWt(t)
                     checkPathsWf(ghostOk, t.ghosts.map(_.p))
                     checkPathsWf(reified, qs)
+                    
+                    // Check that all ghosts on the type C being instantiated are given a value:
+                    prog.ghostFieldDecls(t.c).find(f => t.oghost(f.name).isEmpty) match {
+                        case Some(f) => throw new ir.IrError("intervals.no.value.for.ghost", f)
+                        case None =>
+                    }
+                    
                     addLvDecl(x, t, None)
                     
                 case ir.StmtCast(x, wt, p) => 
@@ -145,19 +156,21 @@ extends TracksEnvironment(prog) {
                     checkPathWfAndSubclass(reified, p, ir.c_interval)
                     checkPathWfAndSubclass(reified, q, ir.c_lock)
                     
-                case ir.StmtSubinterval(x, lp_locks, stmts) =>
-                    checkPathsWfAndSubclass(reified, lp_locks, ir.c_lock)                    
+                case ir.StmtSubintervalPush(x, addCheckedArglocks) =>
+                    checkPathsWfAndSubclass(reified, addCheckedArglocks, ir.c_lock)                    
                     addLvDecl(x, ir.t_interval, None)                    
-                    stmts.foreach(checkStatement)                        
+                    
+                case ir.StmtSubintervalPop(x) =>
+                    checkPathWfAndSubclass(reified, x.path, ir.c_interval)
             }        
         }
     
     def checkStatements(stmts: List[ir.Stmt]): Unit =
         stmts.foreach(checkStatement)
     
-    def introduceArg(arg: ir.LvDecl) {
+    def addCheckedArg(arg: ir.LvDecl) {
         checkWfWt(arg.wt) 
-        addPerm(arg.name, ir.TeePee(arg.wt, arg.name.path, ir.noAttrs))        
+        addArg(arg)
     }
     
     def checkReq(req: ir.Req) =
@@ -182,15 +195,16 @@ extends TracksEnvironment(prog) {
         at(succ, ()) {
             if(succ.b < 0 || succ.b >= blks.length)
                 throw new ir.IrError("intervals.invalid.blk.id", succ.b)
+            checkLengths(blks(succ.b).args, succ.ps, "intervals.succ.args")
             checkPathsWf(reified, succ.ps)        
         }
     
-    def checkBlock(blks: Array[ir.Block], b: Int, blk: ir.Block) = 
-        log.indented("%s: %s", b, blk) {
+    def checkBlock(blks: Array[ir.Block], b: Int) =
+        log.indented("%s: %s", b, blks(b)) {
             savingEnv {
-                blk.args.foreach(introduceArg)                
-                checkStatements(blk.stmts)
-                blk.gotos.foreach(checkGoto(blks, _))
+                blks(b).args.foreach(addCheckedArg)                
+                checkStatements(blks(b).stmts)
+                blks(b).gotos.foreach(checkGoto(blks, _))
             }
         }
         
@@ -210,12 +224,12 @@ extends TracksEnvironment(prog) {
                     val t_rcvr = typeOriginallyDefiningMethod(cd.name, md.name).get
                     addPerm(ir.lv_this, ir.TeePee(t_rcvr.ctor, ir.p_this, ir.noAttrs))
                 }  
-                
-                md.args.foreach(introduceArg)
-                checkWfWt(md.wt_ret)                
-                md.reqs.foreach(checkReq)                
-                md.blocks.zipWithIndex.foreach { case (blk, idx) =>
-                    checkBlock(md.blocks, idx, blk)
+
+                withCurrent(ir.p_mthd) {
+                    md.args.foreach(addCheckedArg)
+                    checkWfWt(md.wt_ret)                
+                    md.reqs.foreach(checkReq)      
+                    md.blocks.indices.foreach(checkBlock(md.blocks, _))                    
                 }
             }         
         }
@@ -225,31 +239,21 @@ extends TracksEnvironment(prog) {
             savingEnv {
                 // Define special vars "method" (== this.constructor) and "this":
                 addPerm(ir.lv_mthd, ir.TeePee(ir.t_interval, ir.gfd_ctor.thisPath, ir.ghostAttrs))
-                addPerm(ir.lv_this, ir.TeePee(thisTref(cd, ir.ctorAttrs), ir.p_this, ir.ghostAttrs))
+                addPerm(ir.lv_this, ir.TeePee(thisTref(cd, ir.ctorAttrs), ir.p_this, ir.noAttrs))
 
-                md.args.foreach { case arg => 
-                    checkWfWt(arg.wt) 
-                    addPerm(arg.name, ir.TeePee(arg.wt, arg.name.path, ir.noAttrs))
-                }            
-                md.reqs.foreach(checkReq)
-                
-                val blk0 = md.blocks(0)
-                val preSuper = blk0.stmts.takeWhile(!ir.isSuperCtor(_))
-                val postSuper = blk0.stmts.dropWhile(!ir.isSuperCtor(_))
-                if(postSuper.isEmpty)
-                    throw new ir.IrError("intervals.super.ctor.zero")
-                    
-                // TODO -- Have the checking of super() verify that p_this is a ghost
-                // and reify it, and thus permit control-flow.  We then have to propagate
-                // p_this between blocks though (yuck).
-                    
-                // Check statements up until the super() invocation with ghost 'this':
-                preSuper.foreach(checkStatement)
-                checkStatement(postSuper.head)
-
-                // After invoking super, 'this' becomes reified:
-                setPerm(ir.lv_this, ir.TeePee(thisTref(cd, ir.ctorAttrs), ir.p_this, ir.noAttrs))
-                checkStatements(postSuper.tail)
+                withCurrent(ir.p_mthd) {
+                    md.args.foreach { case arg => 
+                        checkWfWt(arg.wt) 
+                        addPerm(arg.name, ir.TeePee(arg.wt, arg.name.path, ir.noAttrs))
+                    }            
+                    md.reqs.foreach(checkReq)
+            
+                    // TODO -- Have the checking of super() verify that p_this is a ghost
+                    // and reify it, and thus permit control-flow.  We then have to propagate
+                    // p_this between blocks though (yuck).
+            
+                    md.blocks.indices.foreach(checkBlock(md.blocks, _))
+                }
             }          
         }
         
@@ -298,20 +302,15 @@ extends TracksEnvironment(prog) {
     // ______________________________________________________________________
     // Classes and Interfaces
     
-    def checkNotCtor(t: ir.TypeRef) {
-        if(t.as.ctor) throw new ir.IrError("intervals.superType.with.ctor.attr") 
+    def checkIsInterface(c: ir.ClassName) {
+        val cd = classDecl(c)
+        if(!cd.attrs.interface) 
+            throw new ir.IrError("intervals.superType.not.interface", c)
     }
     
-    def checkIsInterface(t: ir.TypeRef) {
-        val cd_super = classDecl(t.c)
-        if(!cd_super.attrs.interface) 
-            throw new ir.IrError("intervals.superType.not.interface", t.c)        
-    }
-    
-    def checkInterfaceSupertype(t: ir.TypeRef) {
-        checkNotCtor(t)
-        if(t.c != ir.c_object)
-            checkIsInterface(t)
+    def checkInterfaceSuperclass(c: ir.ClassName) {
+        val cd = classDecl(c)
+        if(c != ir.c_object) checkIsInterface(c)
     }
     
     def checkInterfaceConstructorDecl(cd: ir.ClassDecl, md: ir.MethodDecl) =
@@ -328,7 +327,7 @@ extends TracksEnvironment(prog) {
         at(cd, ()) {
             savingEnv {
                 // TODO Is this everything?
-                cd.superTypes.foreach(checkInterfaceSupertype)
+                cd.superClasses.foreach(checkInterfaceSuperclass)
                 if(!cd.fields.isEmpty)
                     throw new ir.IrError("intervals.interface.with.fields")
                 checkInterfaceConstructorDecl(cd, cd.ctor)
@@ -336,27 +335,31 @@ extends TracksEnvironment(prog) {
             }
         }
         
-    def checkIsNotInterface(t: ir.TypeRef) {
-        val cd_super = classDecl(t.c)
+    def checkIsNotInterface(c: ir.ClassName) {
+        val cd_super = classDecl(c)
         if(cd_super.attrs.interface) 
-            throw new ir.IrError("intervals.superType.interface", t.c)        
+            throw new ir.IrError("intervals.superType.interface", c)
     }
-    
+
     def checkNoninterfaceClassDecl(cd: ir.ClassDecl) = 
         at(cd, ()) {
             savingEnv {
-                cd.superTypes.foreach(checkNotCtor)
-                cd.superTypes.take(1).foreach(checkIsNotInterface)
-                cd.superTypes.drop(1).foreach(checkIsInterface)
-                cd.fields.foldLeft(Set.empty[ir.FieldName])(checkFieldDecl(cd))
-                checkNoninterfaceConstructorDecl(cd, cd.ctor)                    
-                cd.methods.foreach(checkNoninterfaceMethodDecl(cd, _))                    
+                withCurrent(ir.p_mthd) {
+                    cd.superClasses.take(1).foreach(checkIsNotInterface)
+                    cd.superClasses.drop(1).foreach(checkIsInterface)
+                    cd.fields.foldLeft(Set.empty[ir.FieldName])(checkFieldDecl(cd))
+                    checkNoninterfaceConstructorDecl(cd, cd.ctor)                    
+                    cd.methods.foreach(checkNoninterfaceMethodDecl(cd, _))                    
+                }
             }
         }
         
-    def checkClassDecl(cd: ir.ClassDecl) =
+    def checkClassDecl(cd: ir.ClassDecl) = log.indented(cd) {        
         if(cd.attrs.interface) checkInterfaceClassDecl(cd)
         else checkNoninterfaceClassDecl(cd)
+    }
         
-    def checkProg = prog.cds_user.foreach(checkClassDecl)    
+    def checkProg = log.indented("WfCheck") {
+        prog.cds_user.foreach(checkClassDecl)            
+    }
 }

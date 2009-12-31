@@ -14,7 +14,7 @@ class IrParser extends StandardTokenParsers {
         "class", "new", "constructor", "null", 
         "return", "Rd", "Wr", "Free", "extends", 
         "hb", "requires", "super", "locks",
-        "subinterval", "readableBy", "writableBy",
+        "subinterval", "push", "pop", "readableBy", "writableBy",
         "interface", "goto"
     )
     
@@ -107,7 +107,8 @@ class IrParser extends StandardTokenParsers {
     |   p~"->"~f~"="~p~";"                          ^^ { case p~_~f~_~q~_ => ir.StmtSetField(p, f, q) }
     |   p~"hb"~p~";"                                ^^ { case p~_~q~_ => ir.StmtHb(p, q) }
     |   p~"locks"~p~";"                             ^^ { case p~_~q~_ => ir.StmtLocks(p, q) }
-    |   "subinterval"~lv~optLocks~"{"~rep(stmt)~"}" ^^ { case _~x~ps~"{"~stmts~"}" => ir.StmtSubinterval(x, ps, stmts) }
+    |   "subinterval"~"push"~lv~optLocks~";"        ^^ { case _~_~x~ps~_ => ir.StmtSubintervalPush(x, ps) }
+    |   "subinterval"~"pop"~lv~";"                  ^^ { case _~_~x~_ => ir.StmtSubintervalPop(x) }
     |   "return"~p~";"                              ^^ { case _~p~_ => ir.StmtReturn(p) }
     )
     
@@ -161,7 +162,8 @@ class IrParser extends StandardTokenParsers {
     
     def classDecl = positioned(
         attrs~"class"~c~rep(ghostFieldDecl)~
-        optl2("extends", comma(t))~
+        optl2("extends", comma(c))~
+        rep(g)~
         reqs~
         "{"~
             rep(reifiedFieldDecl)~
@@ -169,8 +171,8 @@ class IrParser extends StandardTokenParsers {
             rep(methodDecl)~
         "}"
     ^^ {
-        case attrs~"class"~name~gfds~superTypes~reqs~"{"~rfds~ctor~methods~"}" =>
-            ir.ClassDecl(attrs, name, superTypes, reqs, ctor, gfds ++ rfds, methods)
+        case attrs~"class"~name~gfds~superClasses~guards~reqs~"{"~rfds~ctor~methods~"}" =>
+            ir.ClassDecl(attrs, name, superClasses, guards, reqs, ctor, gfds ++ rfds, methods)
     })
     
     def classDecls = rep(classDecl)
