@@ -15,7 +15,7 @@ class IrParser extends StandardTokenParsers {
         "return", "Rd", "Wr", "Free", "extends", 
         "hb", "requires", "super", "locks",
         "subinterval", "readableBy", "writableBy",
-        "interface", "succ"
+        "interface", "goto"
     )
     
     def parse[A](p: Parser[A])(text: String) = {
@@ -119,21 +119,21 @@ class IrParser extends StandardTokenParsers {
     )    
     def reqs = rep(req)
     
-    def succ = positioned(
-        "succ"~integer~"("~comma(p)~")"~";"         ^^ { case _~b~"("~ps~")"~";" => ir.Succ(b, ps) }
+    def goto = positioned(
+        "goto"~integer~"("~comma(p)~")"~";"         ^^ { case _~b~"("~ps~")"~";" => ir.Goto(b, ps) }
     )
     
     def block = (
-        "("~comma(lvdecl)~")"~"{"~rep(stmt)~rep(succ)~"}" 
+        "("~comma(lvdecl)~")"~"{"~rep(stmt)~rep(goto)~"}" 
     ) ^^ { 
-        case "("~args~")"~"{"~stmts~succs~"}" => ir.Block(args, stmts, succs)
+        case "("~args~")"~"{"~stmts~gotos~"}" => ir.Block(args, stmts, gotos)
     }
     
     def methodBody = (
-        "{"~rep(stmt)~rep(succ)~"}"~rep(block)
+        "{"~rep(stmt)~rep(goto)~"}"~rep(block)
     ) ^^ {
-        case _~stmts~succs~_~blocks =>
-            Array((ir.Block(List(), stmts, succs) :: blocks): _*)
+        case _~stmts~gotos~_~blocks =>
+            Array((ir.Block(List(), stmts, gotos) :: blocks): _*)
     }
     
     def methodDecl = positioned(

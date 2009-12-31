@@ -157,7 +157,7 @@ extends TracksEnvironment(prog) {
     
     def introduceArg(arg: ir.LvDecl) {
         checkWfWt(arg.wt) 
-        addPerm(arg.name.path, ir.TeePee(arg.wt, arg.name.path, ir.noAttrs))        
+        addPerm(arg.name, ir.TeePee(arg.wt, arg.name.path, ir.noAttrs))        
     }
     
     def checkReq(req: ir.Req) =
@@ -178,7 +178,7 @@ extends TracksEnvironment(prog) {
             }   
         }
     
-    def checkSucc(blks: Array[ir.Block], succ: ir.Succ) =
+    def checkGoto(blks: Array[ir.Block], succ: ir.Goto) =
         at(succ, ()) {
             if(succ.b < 0 || succ.b >= blks.length)
                 throw new ir.IrError("intervals.invalid.blk.id", succ.b)
@@ -190,7 +190,7 @@ extends TracksEnvironment(prog) {
             savingEnv {
                 blk.args.foreach(introduceArg)                
                 checkStatements(blk.stmts)
-                blk.succs.foreach(checkSucc(blks, _))
+                blk.gotos.foreach(checkGoto(blks, _))
             }
         }
         
@@ -201,14 +201,14 @@ extends TracksEnvironment(prog) {
         at(md, ()) {
             savingEnv {
                 // Define special vars "method" and "this":
-                addPerm(ir.p_mthd, ir.TeePee(ir.t_interval, ir.p_mthd, ir.ghostAttrs))
+                addPerm(ir.lv_mthd, ir.TeePee(ir.t_interval, ir.p_mthd, ir.ghostAttrs))
                 if(!md.attrs.ctor) { 
                     // For normal methods, type of this is the defining class
-                    addPerm(ir.p_this, ir.TeePee(thisTref(cd), ir.p_this, ir.noAttrs))                     
+                    addPerm(ir.lv_this, ir.TeePee(thisTref(cd), ir.p_this, ir.noAttrs))                     
                 } else {
                     // For constructor methods, type of this is the type that originally defined it
                     val t_rcvr = typeOriginallyDefiningMethod(cd.name, md.name).get
-                    addPerm(ir.p_this, ir.TeePee(t_rcvr.ctor, ir.p_this, ir.noAttrs))
+                    addPerm(ir.lv_this, ir.TeePee(t_rcvr.ctor, ir.p_this, ir.noAttrs))
                 }  
                 
                 md.args.foreach(introduceArg)
@@ -224,12 +224,12 @@ extends TracksEnvironment(prog) {
         at(md, ()) {
             savingEnv {
                 // Define special vars "method" (== this.constructor) and "this":
-                addPerm(ir.p_mthd, ir.TeePee(ir.t_interval, ir.gfd_ctor.thisPath, ir.ghostAttrs))
-                addPerm(ir.p_this, ir.TeePee(thisTref(cd, ir.ctorAttrs), ir.p_this, ir.ghostAttrs))
+                addPerm(ir.lv_mthd, ir.TeePee(ir.t_interval, ir.gfd_ctor.thisPath, ir.ghostAttrs))
+                addPerm(ir.lv_this, ir.TeePee(thisTref(cd, ir.ctorAttrs), ir.p_this, ir.ghostAttrs))
 
                 md.args.foreach { case arg => 
                     checkWfWt(arg.wt) 
-                    addPerm(arg.name.path, ir.TeePee(arg.wt, arg.name.path, ir.noAttrs))
+                    addPerm(arg.name, ir.TeePee(arg.wt, arg.name.path, ir.noAttrs))
                 }            
                 md.reqs.foreach(checkReq)
                 
@@ -248,7 +248,7 @@ extends TracksEnvironment(prog) {
                 checkStatement(postSuper.head)
 
                 // After invoking super, 'this' becomes reified:
-                setPerm(ir.p_this, ir.TeePee(thisTref(cd, ir.ctorAttrs), ir.p_this, ir.noAttrs))
+                setPerm(ir.lv_this, ir.TeePee(thisTref(cd, ir.ctorAttrs), ir.p_this, ir.noAttrs))
                 checkStatements(postSuper.tail)
             }          
         }
@@ -256,7 +256,7 @@ extends TracksEnvironment(prog) {
     def addThis(cd: ir.ClassDecl, attrs: ir.Attrs) {
         val t_this = thisTref(cd, attrs)
         val tp_this = ir.TeePee(t_this, ir.p_this, ir.noAttrs)
-        addPerm(ir.p_this, tp_this)        
+        addPerm(ir.lv_this, tp_this)        
     }
     
     def checkReifiedFieldDecl(cd: ir.ClassDecl, fd: ir.ReifiedFieldDecl): Unit = 

@@ -9,6 +9,7 @@ extends TracksEnvironment(prog)
     import prog.classDecl
     import prog.at
     import prog.isSubclass
+    import prog.freshVarName
     
     // ______________________________________________________________________
     // Computing the effects of statements, etc
@@ -27,7 +28,7 @@ extends TracksEnvironment(prog)
         addLvDecl(x, msig.wt_ret, None)
     }
 
-    def addStatement(stmt: ir.Stmt) =
+    def addStatement(stmt: ir.Stmt): Unit =
         at(stmt, ()) {
             stmt match {                  
                 case ir.StmtSuperCtor(qs) =>
@@ -140,5 +141,130 @@ extends TracksEnvironment(prog)
             }
         }
     
+    def addBlock(blk: ir.Block) = {
+        blk.stmts.foreach(addStatement)
+    }
+    
+    def procMethod(md: ir.MethodDecl) {
+        val blks = md.blocks
+        
+        // For each block, a list of the blocks which link to us and the succ they do so with.
+        val preds = Array.make(blks.length, List[(Int, ir.Goto)]())
+        blks.zipWithIndex.foreach { case (blk, b) => 
+            blk.gotos.foreach { succ => preds(succ.b) = (b, succ) :: preds(succ.b) }
+        }
+        
+        // Initial value for each block: method environment
+        val env_mthd = env
+        val outs = Array.make(blks.length, env_mthd)
+        
+        // Computes the "exported" environment of a 
+        def outEnv(b_succ: Int)(pred: (Int, ir.Goto)): ir.TcEnv = at(pred._2, env) {
+            val (b_pred, goto) = pred
+            val env_pred = outs(b_pred)                    
+            
+            // ______________________________________________________________________
+            // Create a substitution which maps:
+            // (1) Method-scope variables to themselves
+            // (2) Arguments to the goto() to their respective parameters
+            // (3) Everything else to "lv_outOfScope"
+            
+            val lv_outOfScope = ir.VarName(prog.fresh("outOfScope"))
+
+            // Map all of pred's vars to outOfScope (unless overridden later)
+            val map0 = env_pred.perm.keys.foldLeft(Map.empty[ir.Path, ir.Path]) { case (m, x) =>
+                m + Pair(x.path, lv_outOfScope.path)
+            }
+                
+            // Map method-scope variables to themselves:            
+            val map1 = env_mthd.perm.keys.foldLeft(map0) { case (m, x) => 
+                m + Pair(x.path, x.path) 
+            }
+            
+            // Map the arguments of the succ() to the arguments of the block:
+            val xs_args = blks(b_succ).args.map(_.name)
+            val ps_goto = goto.ps
+            val map2 = ps_goto.zip(xs_args).foldLeft(map1) { case (m, (p, x)) =>
+                m + Pair(p, x.path)
+            }
+            
+            // Map everything else to lv_outOfScope:
+            val subst = new PathSubst(map2)
+            
+            // ______________________________________________________________________
+            // Apply map to relations and keep only those not affecting lv_outOfScope
+            
+            def mapMap(map: Map[ir.Path, ir.Path]) =
+                map.elements.foldLeft(Map.empty[ir.Path, ir.Path]) { case (r, (p0, q0)) =>
+                    val p1 = subst.path(p0)
+                    val q1 = subst.path(q0)
+                    if(p1.lv != lv_outOfScope && q1.lv != lv_outOfScope) r + Pair(p1, q1)
+                    else r
+                }
+            
+            def mapRelation[R <: Relation[ir.Path, R]](rel: R) =
+                rel.elements.foldLeft(rel.empty) { case (r, (p0, q0)) =>
+                    val p1 = subst.path(p0)
+                    val q1 = subst.path(q0)
+                    if(p1.lv != lv_outOfScope && q1.lv != lv_outOfScope) r + (p1, q1)
+                    else r
+                }                
+                
+            def mapInvalidated(ps: Set[ir.Path]) =
+                ps.map { case p0 =>
+                    val p1 = subst.path(p0)
+                    if(p1.lv == lv_outOfScope)
+                        throw new ir.IrError("intervals.must.assign.first", p0)
+                    p1
+                }
+            
+            env_mthd
+            .withTemp(mapMap(env_pred.temp))
+            .withInvalidated(mapInvalidated(env_pred.lp_invalidated))
+            .withReadable(mapRelation(env_pred.readable))
+            .withWritable(mapRelation(env_pred.writable))
+            .withHb(mapRelation(env_pred.hb))
+            .withSubinterval(mapRelation(env_pred.subinterval))
+            .withLocks(mapRelation(env_pred.locks))
+        }
+        
+        // Intersects the environment of all predecessors:
+        def combinePred(env1: ir.TcEnv, env2: ir.TcEnv) =
+            env1
+                .withTemp(env1.temp ** env2.temp)
+                .withInvalidated(env1.lp_invalidated ++ env2.lp_invalidated)
+                .withReadable(env1.readable ** env2.readable)
+                .withWritable(env1.writable ** env2.writable)
+                .withHb(env1.hb ** env2.hb)
+                .withSubinterval(env1.subinterval ** env2.subinterval)
+                .withLocks(env1.locks ** env2.locks)        
+        def computeIn(b: Int) = {
+            preds(b) match {
+                case List() => env_mthd
+                case hd :: tl => tl.map(outEnv(b)).foldLeft(outEnv(b)(hd))(combinePred)
+            }
+        }
+        
+        // Intersects the environment of all predecessors:
+        def procBlock(b: Int) = savingEnv {
+            val blk = blks(b)
+            env = computeIn(b)
+            addBlock(blk)
+            if(outs(b) != env) {
+                outs(b) = env
+                true
+            } else
+                false
+        }
+
+        // Iterate until a fixed point is reached:
+        var changed = true
+        while(changed)
+            changed = (0 until blks.length).foldLeft(false) { case (c, b) => procBlock(b) || c }            
+    }
+    
+    def checkProg {
+        
+    }
     
 }

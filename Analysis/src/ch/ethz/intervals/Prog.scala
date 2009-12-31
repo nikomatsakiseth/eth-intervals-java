@@ -31,6 +31,8 @@ class Prog(
         "%s[%d]".format(nm, c)
     }    
     
+    def freshVarName = ir.VarName(fresh("tmp"))
+    
     // ______________________________________________________________________
     // Errors
     

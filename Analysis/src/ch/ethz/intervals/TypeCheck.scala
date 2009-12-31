@@ -14,8 +14,6 @@ extends TracksEnvironment(prog)
     import prog.classDecl
     import prog.at
 
-    def freshVarName = ir.VarName(prog.fresh("tmp"))
-    
     /*
     // ______________________________________________________________________
     // Subtyping    
@@ -165,7 +163,7 @@ extends TracksEnvironment(prog)
                 env.lp_invalidated.mkEnglishString)        
     }
 
-    def checkSucc(blks: Array[ir.Block], succ: ir.Succ) {
+    def checkGoto(blks: Array[ir.Block], succ: ir.Goto) {
         at(succ, ()) {
             log.indented(succ) {
                 val blk_tar = blks(succ.b)
@@ -391,7 +389,7 @@ extends TracksEnvironment(prog)
             savingEnv {
                 blk.args.foreach(introduceArg)                
                 checkStatements(blk.stmts)
-                blk.succs.foreach(checkSucc(blks, _))
+                blk.gotos.foreach(checkGoto(blks, _))
             }
         }
         
@@ -696,4 +694,8 @@ extends TracksEnvironment(prog)
         
     def checkProg = prog.cds_user.foreach(checkClassDecl)
     */
+    
+    def checkProg {
+        
+    }
 }

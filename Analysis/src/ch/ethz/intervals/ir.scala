@@ -200,16 +200,16 @@ object ir {
     sealed case class Block(
         args: List[LvDecl],
         stmts: List[Stmt],
-        succs: List[Succ]
+        gotos: List[Goto]
     ) {
         override def toString = "block(%s)".format(args.mkString(", "))
     }
     
-    sealed case class Succ(
+    sealed case class Goto(
         b: Int,
         ps: List[ir.Path]
     ) extends Positional {
-        override def toString = "succ %s(%s);".format(b, ps)
+        override def toString = "goto %s(%s);".format(b, ps)
     }
     
     sealed abstract class Stmt extends Positional
@@ -364,7 +364,7 @@ object ir {
     sealed case class TcEnv(
         p_cur: ir.Path,                        // current interval
         wt_ret: ir.WcTypeRef,                  // return type of current method
-        perm: Map[ir.Path, ir.TeePee],         // permanent equivalences, hold for duration of method
+        perm: Map[ir.VarName, ir.TeePee],      // permanent equivalences, hold for duration of method
         temp: Map[ir.Path, ir.Path],           // temporary equivalences, cleared on method call
         lp_invalidated: Set[ir.Path],          // p is current invalid and must be reassigned                
         readable: IntransitiveRelation[Path],  // (p, q) means guard p is readable by interval q
@@ -373,20 +373,24 @@ object ir {
         subinterval: TransitiveRelation[Path], // (p, q) means interval p is a subinterval of interval q
         locks: IntransitiveRelation[Path]      // (p, q) means interval p locks lock q        
     ) {
-        def +(env: TcEnv) = {
-            TcEnv(
-                p_cur,
-                wt_ret,
-                perm,
-                temp,
-                lp_invalidated,
-                readable + env.readable,
-                writable + env.writable,
-                hb + env.hb,
-                subinterval + env.subinterval,
-                locks + env.locks
-            )
-        }
+        def withCur(p_cur: ir.Path) = TcEnv(p_cur, wt_ret, perm, temp, lp_invalidated, readable, writable, hb, subinterval, locks)
+        def withRet(wt_ret: ir.WcTypeRef) = TcEnv(p_cur, wt_ret, perm, temp, lp_invalidated, readable, writable, hb, subinterval, locks)
+        def withPerm(perm: Map[ir.VarName, ir.TeePee]) = TcEnv(p_cur, wt_ret, perm, temp, lp_invalidated, readable, writable, hb, subinterval, locks)
+        def withTemp(temp: Map[ir.Path, ir.Path]) = TcEnv(p_cur, wt_ret, perm, temp, lp_invalidated, readable, writable, hb, subinterval, locks)
+        def withInvalidated(lp_invalidated: Set[ir.Path]) = TcEnv(p_cur, wt_ret, perm, temp, lp_invalidated, readable, writable, hb, subinterval, locks)
+        def withReadable(readable: IntransitiveRelation[Path]) = TcEnv(p_cur, wt_ret, perm, temp, lp_invalidated, readable, writable, hb, subinterval, locks)
+        def withWritable(writable: IntransitiveRelation[Path]) = TcEnv(p_cur, wt_ret, perm, temp, lp_invalidated, readable, writable, hb, subinterval, locks)
+        def withHb(hb: TransitiveRelation[Path]) = TcEnv(p_cur, wt_ret, perm, temp, lp_invalidated, readable, writable, hb, subinterval, locks)
+        def withSubinterval(subinterval: TransitiveRelation[Path]) = TcEnv(p_cur, wt_ret, perm, temp, lp_invalidated, readable, writable, hb, subinterval, locks)
+        def withLocks(locks: IntransitiveRelation[Path]) = TcEnv(p_cur, wt_ret, perm, temp, lp_invalidated, readable, writable, hb, subinterval, locks)
+        
+        def +(env: TcEnv) =
+            withTemp(temp ++ env.temp).
+            withReadable(readable + env.readable).
+            withWritable(writable + env.writable).
+            withHb(hb + env.hb).
+            withSubinterval(subinterval + env.subinterval).
+            withLocks(locks + env.locks)
     }
     
     case class IrError(msg: String, args: Any*) 
@@ -458,7 +462,7 @@ object ir {
                 Block(
                     /* args:  */ List(),
                     /* stmts: */ List(ir.StmtSuperCtor(List())),
-                    /* succ:  */ List()
+                    /* goto:  */ List()
                 )
             )
         )
@@ -479,7 +483,7 @@ object ir {
                         Block(
                             /* args:  */ List(),
                             /* stmts: */ List(ir.StmtSuperCtor(List())),
-                            /* succ:  */ List()
+                            /* goto:  */ List()
                         )
                     )
                 ),
@@ -497,7 +501,7 @@ object ir {
                         Block(
                             /* args:  */ List(),
                             /* stmts: */ List(),
-                            /* succ:  */ List()
+                            /* goto:  */ List()
                         )
                     )
                 )
@@ -518,7 +522,7 @@ object ir {
                         Block(
                             /* args:  */ List(),
                             /* stmts: */ List(ir.StmtSuperCtor(List())),
-                            /* succ:  */ List()
+                            /* goto:  */ List()
                         )
                     )
                 ),
@@ -540,7 +544,7 @@ object ir {
                         Block(
                             /* args:  */ List(),
                             /* stmts: */ List(ir.StmtSuperCtor(List())),
-                            /* succ:  */ List()
+                            /* goto:  */ List()
                         )
                     )
                 ),
@@ -562,7 +566,7 @@ object ir {
                         Block(
                             /* args:  */ List(),
                             /* stmts: */ List(ir.StmtSuperCtor(List())),
-                            /* succ:  */ List()
+                            /* goto:  */ List()
                         )
                     )
                 ),
@@ -580,7 +584,7 @@ object ir {
                         Block(
                             /* args:  */ List(),
                             /* stmts: */ List(),
-                            /* succ:  */ List()
+                            /* goto:  */ List()
                         )
                     )
                 )
@@ -601,7 +605,7 @@ object ir {
                         Block(
                             /* args:  */ List(),
                             /* stmts: */ List(ir.StmtSuperCtor(List())),
-                            /* succ:  */ List()
+                            /* goto:  */ List()
                         )
                     )
                 ),
@@ -623,7 +627,7 @@ object ir {
                         Block(
                             /* args:  */ List(),
                             /* stmts: */ List(ir.StmtSuperCtor(List())),
-                            /* succ:  */ List()
+                            /* goto:  */ List()
                         )
                     )
                 ),
@@ -645,7 +649,7 @@ object ir {
                         Block(
                             /* args:  */ List(),
                             /* stmts: */ List(ir.StmtSuperCtor(List())),
-                            /* succ:  */ List()
+                            /* goto:  */ List()
                         )
                     )
                 ),

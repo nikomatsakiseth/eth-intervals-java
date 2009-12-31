@@ -35,18 +35,7 @@ class TestAnalysis extends JUnitSuite {
                 }            
             val prog = new Prog(log, cds)
             
-            val allPhases = List[(String, Check)](
-                ("wf", new WfCheck(prog)),
-                ("cr", new ComputeRelations(prog)),
-                ("tc", new TypeCheck(prog))
-            )
-            def checkPhases(phases: List[(String, Check)]) = phases match {
-                case List() => "success"
-                case (nm, chk) :: tl =>
-                    if(chk.check) checkPhases(tl)
-                    else nm
-            }
-            val failPhase = checkPhases(allPhases)
+            val failPhase = new CheckAll(prog).check
         
             var matched = 0
             log.indented("Expected Errors:") {
@@ -1164,7 +1153,7 @@ class TestAnalysis extends JUnitSuite {
     }
 
     @Test
-    def blockSuccCheckTypes() {
+    def blockGotoCheckTypes() {
         tc(
             """
             class Class extends Object {
@@ -1177,17 +1166,17 @@ class TestAnalysis extends JUnitSuite {
                 {
                     // Presumably some test would be used to choose
                     // between succ 1 and 2:
-                    succ 1();
-                    succ 2();
+                    goto 1();
+                    goto 2();
                 }
                 () // Block 1
                 {
                     b1 = (Object<creator: this.creator>)null;
-                    succ 3(b1);
+                    goto 3(b1);
                 }
                 () // Block 2
                 {
-                    succ 3(a); // method parameters are in-scope here
+                    goto 3(a); // method parameters are in-scope here
                 }
                 (Object<creator: this.creator> b3) // Block 3
                 {
@@ -1200,13 +1189,13 @@ class TestAnalysis extends JUnitSuite {
                     // Presumably some test would be used to choose
                     // between succ 1 and 2:
                     b2 = (Object<creator: this>)null;
-                    succ 1();
-                    succ 2(b2); // ERROR intervals.expected.subtype(b2, Object<creator: this>{}, Object<creator: this.creator>{})
+                    goto 1();
+                    goto 2(b2); // ERROR intervals.expected.subtype(b2, Object<creator: this>{}, Object<creator: this.creator>{})
                 }
                 () // Block 1
                 {
                     b1 = (Object<creator: this>)null;
-                    succ 2(b1); // ERROR intervals.expected.subtype(b1, Object<creator: this>{}, Object<creator: this.creator>{})
+                    goto 2(b1); // ERROR intervals.expected.subtype(b1, Object<creator: this>{}, Object<creator: this.creator>{})
                 }
                 (Object<creator: this.creator> b3) // Block 2
                 {

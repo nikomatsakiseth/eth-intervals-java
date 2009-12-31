@@ -1,6 +1,6 @@
 package ch.ethz.intervals
 
-class CheckAll(prog: ir.Prog) {
+class CheckAll(prog: Prog) {
     
     // Checks the prog, adding any errors to prog.errors.  Also
     // returns a string describing the phase in which we failed.
@@ -11,7 +11,7 @@ class CheckAll(prog: ir.Prog) {
             ("cr", new ComputeRelations(prog)),
             ("tc", new TypeCheck(prog))
         )
-        def checkPhases(phases: List[(String, CheckPhase)]) = phases match {
+        def checkPhases(phases: List[(String, CheckPhase)]): String = phases match {
             case List() => "success"
             case (nm, chk) :: tl =>
                 chk.checkProg

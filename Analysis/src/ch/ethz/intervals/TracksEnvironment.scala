@@ -50,33 +50,11 @@ extends CheckPhase {
         val p_old = env.p_cur
         try {
             log.indented("withCurrent(%s)", tp) {
-                env = ir.TcEnv(
-                    tp.p,
-                    env.wt_ret,
-                    env.perm,
-                    env.temp,
-                    env.lp_invalidated,
-                    env.readable,
-                    env.writable,
-                    env.hb,
-                    env.subinterval,
-                    env.locks
-                )
+                env = env.withCur(tp.p)
                 g
             }            
         } finally {
-            env = ir.TcEnv(
-                p_old,
-                env.wt_ret,
-                env.perm,
-                env.temp,
-                env.lp_invalidated,
-                env.readable,
-                env.writable,
-                env.hb,
-                env.subinterval,
-                env.locks
-            )            
+            env = env.withCur(p_old)
         }
     }
 
@@ -84,110 +62,48 @@ extends CheckPhase {
     // Modifying the Environment
     
     def setWtRet(wt_ret: ir.WcTypeRef) = {
-        env = ir.TcEnv(
-            env.p_cur,
-            wt_ret,
-            env.perm,
-            env.temp,
-            env.lp_invalidated,
-            env.readable,
-            env.writable,
-            env.hb,
-            env.subinterval,
-            env.locks            
-        )
+        env = env.withRet(wt_ret)
     }
 
     /// Add or overwrite a permanent mapping.
     /// Permanent mappings persist across function calls.
-    def setPerm(p: ir.Path, tq: ir.TeePee): Unit = 
-        log.indented("addPerm(%s,%s)", p, tq) {
-            env = ir.TcEnv(
-                env.p_cur,
-                env.wt_ret,
-                env.perm + Pair(p, tq),
-                env.temp,
-                env.lp_invalidated,
-                env.readable,
-                env.writable,
-                env.hb,
-                env.subinterval,
-                env.locks
-            )
+    def setPerm(x: ir.VarName, tq: ir.TeePee): Unit = 
+        log.indented("addPerm(%s,%s)", x, tq) {
+            env = env.withPerm(env.perm + Pair(x, tq))
         }        
 
     /// Add but not overwrite a permanent mapping.
     /// \see setPerm()
-    def addPerm(p: ir.Path, tq: ir.TeePee): Unit =
-        env.perm.get(p) match {
-            case Some(_) => throw new ir.IrError("intervals.shadowed", p)
-            case None => setPerm(p, tq)
+    def addPerm(x: ir.VarName, tq: ir.TeePee): Unit =
+        env.perm.get(x) match {
+            case Some(_) => throw new ir.IrError("intervals.shadowed", x)
+            case None => setPerm(x, tq)
         }    
 
     def addLvDecl(x: ir.VarName, wt: ir.WcTypeRef, op_canon: Option[ir.Path]) =
-        addPerm(x.path, ir.TeePee(
+        addPerm(x, ir.TeePee(
             wt,
             op_canon.getOrElse(x.path), // default canonical path for x is just x
             ir.noAttrs))                // all local vars are (a) reified and (b) immutable
 
     def addTemp(p: ir.Path, q: ir.Path) =
         log.indented("addTemp(%s,%s)", p, q) {
-            env = ir.TcEnv(
-                env.p_cur,
-                env.wt_ret,
-                env.perm,
-                env.temp + Pair(p, q),
-                env.lp_invalidated,
-                env.readable,
-                env.writable,
-                env.hb,
-                env.subinterval,
-                env.locks)
+            env = env.withTemp(env.temp + Pair(p, q))
         }
 
     def clearTemp() =
         log.indented("clearTemp()") {
-            env = ir.TcEnv(
-                env.p_cur,
-                env.wt_ret,
-                env.perm,
-                Map(),
-                env.lp_invalidated,
-                env.readable,
-                env.writable,
-                env.hb,
-                env.subinterval,
-                env.locks)
+            env = env.withTemp(Map())
         }        
 
     def addInvalidated(p: ir.Path) =
         log.indented("addInvalidated(%s)", p) {
-            env = ir.TcEnv(
-                env.p_cur,
-                env.wt_ret,
-                env.perm,
-                env.temp,
-                env.lp_invalidated + p,
-                env.readable,
-                env.writable,
-                env.hb,
-                env.subinterval,
-                env.locks)
+            env = env.withInvalidated(env.lp_invalidated + p)
         }        
 
     def removeInvalidated(p: ir.Path) =
         log.indented("removeInvalidated(%s)", p) {
-            env = ir.TcEnv(
-                env.p_cur,
-                env.wt_ret,
-                env.perm,
-                env.temp,
-                env.lp_invalidated - p,
-                env.readable,
-                env.writable,
-                env.hb,
-                env.subinterval,
-                env.locks)
+            env = env.withInvalidated(env.lp_invalidated - p)
         }
 
     def addHbPnt(tp: ir.TeePee, tq: ir.TeePee): Unit = 
@@ -195,17 +111,7 @@ extends CheckPhase {
             assert(tp.isConstant && tq.isConstant)
             assert(isSubclass(tp.wt, ir.c_point))
             assert(isSubclass(tq.wt, ir.c_point))
-            env = ir.TcEnv(
-                env.p_cur,
-                env.wt_ret,
-                env.perm,
-                env.temp,
-                env.lp_invalidated,            
-                env.readable,
-                env.writable,
-                env.hb + (tp.p, tq.p),
-                env.subinterval,
-                env.locks)
+            env = env.withHb(env.hb + (tp.p, tq.p))
         }
 
     def addHbInter(tp: ir.TeePee, tq: ir.TeePee): Unit = 
@@ -213,17 +119,7 @@ extends CheckPhase {
             assert(tp.isConstant && tq.isConstant)
             assert(isSubclass(tp.wt, ir.c_interval))
             assert(isSubclass(tq.wt, ir.c_interval))
-            env = ir.TcEnv(
-                env.p_cur,
-                env.wt_ret,
-                env.perm,
-                env.temp,
-                env.lp_invalidated,
-                env.readable,
-                env.writable,
-                env.hb + (tp.p.end, tq.p.start),
-                env.subinterval,
-                env.locks)
+            env = env.withHb(env.hb + (tp.p.end, tq.p.start))
         }
 
     def addDeclaredReadableBy(tp: ir.TeePee, tq: ir.TeePee): Unit = 
@@ -231,17 +127,7 @@ extends CheckPhase {
             assert(tp.isConstant && tq.isConstant)
             assert(isSubclass(tp.wt, ir.c_guard))
             assert(isSubclass(tq.wt, ir.c_interval))
-            env = ir.TcEnv(
-                env.p_cur,
-                env.wt_ret,
-                env.perm,
-                env.temp,
-                env.lp_invalidated,            
-                env.readable + (tp.p, tq.p),
-                env.writable,
-                env.hb,
-                env.subinterval,
-                env.locks)
+            env = env.withReadable(env.readable + (tp.p, tq.p))
         }
 
     def addDeclaredWritableBy(tp: ir.TeePee, tq: ir.TeePee): Unit = 
@@ -250,17 +136,7 @@ extends CheckPhase {
             //assert(tp.isConstant && tq.isConstant)
             assert(isSubclass(tp.wt, ir.c_guard))
             assert(isSubclass(tq.wt, ir.c_interval))
-            env = ir.TcEnv(
-                env.p_cur,
-                env.wt_ret,
-                env.perm,
-                env.temp,
-                env.lp_invalidated,            
-                env.readable,
-                env.writable + (tp.p, tq.p),
-                env.hb,
-                env.subinterval,
-                env.locks)
+            env = env.withWritable(env.writable + (tp.p, tq.p))
         }
 
     def addSubintervalOf(tp: ir.TeePee, tq: ir.TeePee): Unit = 
@@ -269,17 +145,8 @@ extends CheckPhase {
             //assert(tp.isConstant && tq.isConstant)
             assert(isSubclass(tp.wt, ir.c_interval))
             assert(isSubclass(tq.wt, ir.c_interval))
-            env = ir.TcEnv(
-                env.p_cur,
-                env.wt_ret,
-                env.perm,
-                env.temp,
-                env.lp_invalidated,            
-                env.readable,
-                env.writable,
-                env.hb + (tq.p.start, tp.p.start) + (tp.p.end, tq.p.end),
-                env.subinterval + (tp.p, tq.p),
-                env.locks)
+            env = env.withHb(env.hb + (tq.p.start, tp.p.start) + (tp.p.end, tq.p.end))
+            env = env.withSubinterval(env.subinterval + (tp.p, tq.p))
         }
 
     def addLocks(tp: ir.TeePee, tq: ir.TeePee): Unit =
@@ -288,17 +155,7 @@ extends CheckPhase {
             //assert(tp.isConstant && tq.isConstant)
             assert(isSubclass(tp.wt, ir.c_interval))
             assert(isSubclass(tq.wt, ir.c_lock))
-            env = ir.TcEnv(
-                env.p_cur,
-                env.wt_ret,
-                env.perm,
-                env.temp,
-                env.lp_invalidated,            
-                env.readable,
-                env.writable,
-                env.hb,
-                env.subinterval,
-                env.locks + (tp.p, tq.p))
+            env = env.withLocks(env.locks + (tp.p, tq.p))
         }
 
     def equiv(tp: ir.TeePee, tq: ir.TeePee): Boolean = 
@@ -532,14 +389,15 @@ extends CheckPhase {
 
     /// Constructs a TeePee for p_1 
     def teePee(p_1: ir.Path): ir.TeePee = log.indentedRes("teePee(%s)", p_1) {
-        if(env.perm.contains(p_1))
-            env.perm(p_1)
-        else if(env.temp.contains(p_1))
+        if(env.temp.contains(p_1))
             teePee(env.temp(p_1))
         else 
             p_1 match {
                 case ir.Path(lv, List()) => // all local variables should be in env.perm
-                    throw new ir.IrError("intervals.no.such.variable", lv)
+                    env.perm.get(lv) match {
+                        case Some(tp) => tp
+                        case None => throw new ir.IrError("intervals.no.such.variable", lv)
+                    }
 
                 case ir.Path(lv, f :: rev_fs) =>
                     val tp_0 = teePee(ir.Path(lv, rev_fs))

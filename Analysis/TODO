@@ -15,6 +15,20 @@ Bugs and ToDos
     
 (*) Sanity check casts or otherwise restrict them?
 
+(*) More sophisticated merging with respect to temp/perm
+
+    If all preds have the same effective mapping, but some in temp and some in pred,
+    the succ should have the mapping in temp.  for example:
+    
+    if(...) {
+        b = ...; // immutable object
+        a = b.f; // permanent!
+    } else {
+        b = ...; // mutable object
+        a = b.f; // temporary
+    }
+    // safe if b.f→a temporarily
+ 
 Features
 --------
 
