@@ -902,6 +902,37 @@ class TestAnalysis extends JUnitSuite {
     }
     
     @Test
+    def illegalClassInReq
+    {
+        wf(
+            """
+            class Data extends Object {
+                Interval i;
+                
+                constructor() { super(); }
+            }
+            
+            class C extends Object {
+                constructor() { super(); }
+                
+                Void mthd(
+                    Data<creator: readableBy method> m1, 
+                    Data<creator: readableBy method> m2, 
+                    Data<creator: hb method> c1,
+                    Data<creator: hb method> c2
+                ) 
+                requires c1.i hb c2.i
+                requires c1 hb c2 // ERROR intervals.expected.subclass.of.any(Data, Array(Point, Interval))
+                requires c1.i hb c2 // ERROR intervals.expected.subclass.of.any(Data, Array(Point, Interval))
+                {
+                    
+                }
+            }
+            """
+        )    
+    }
+    
+    @Test
     def mutableHbRelations
     {
         tc(
@@ -921,8 +952,6 @@ class TestAnalysis extends JUnitSuite {
                     Data<creator: hb method> c1,
                     Data<creator: hb method> c2
                 ) 
-                requires c1 hb c2 // ERROR intervals.expected.subtype(c1, Data<creator: hb method>{}, Interval{})
-                requires c1.i hb c2 // ERROR intervals.expected.subtype(c2, Data<creator: hb method>{}, Interval{})
                 requires c1.i hb c2.i
                 requires m1.i hb m2.i // ERROR intervals.illegal.path.attr(m1.i, m)
                 requires c1.i hb m2.i // ERROR intervals.illegal.path.attr(m2.i, m)
@@ -931,7 +960,7 @@ class TestAnalysis extends JUnitSuite {
                 }
             }
             """
-        )
+        )   
     }
     
     @Test
