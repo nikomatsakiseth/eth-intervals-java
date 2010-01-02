@@ -49,8 +49,6 @@ Features
 
 (*) Javac plugin
 
-(*) Multiple constructors
-
 (*) Allow multiple guards (or a guard predicate of some kind)
 
     For example, lock AND written during.  This way, you could have shared data accessed by
