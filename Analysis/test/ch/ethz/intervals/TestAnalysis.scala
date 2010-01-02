@@ -306,6 +306,61 @@ class TestAnalysis extends JUnitSuite {
             """
         )
     }
+
+    @Test
+    def inheritedAssumptionsFromSupertypes() {
+        tc(
+            """
+            class Super extends Interval 
+            {
+                Interval inter requires this.constructor;
+                
+                constructor before(Interval inter)
+                {
+                    this->inter = inter;
+                    inter hb this;
+                }
+                
+                constructor unrelated(Interval inter)
+                {
+                    this->inter = inter;
+                }
+            }
+            
+            class Sub1 extends Super
+            {     
+                Object<creator: this.inter> obj requires this.constructor;
+                
+                constructor(Interval inter)
+                {
+                    super before(inter);
+                }
+                
+                Void run() 
+                requires method subinterval this
+                {
+                    this.obj->toString();
+                }
+            }
+            
+            class Sub2 extends Super
+            {     
+                Object<creator: this.inter> obj requires this.constructor;
+                
+                constructor(Interval inter)
+                {
+                    super unrelated(inter);
+                }
+                
+                Void run() 
+                requires method subinterval this
+                {
+                    this.obj->toString(); // ERROR intervals.requirement.not.met(requires this.inter readable by method)
+                }
+            }           
+            """
+        )
+    }
     
     @Test
     def inheritedAssumptionsFromMultipleCtors() {

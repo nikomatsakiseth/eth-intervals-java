@@ -343,7 +343,8 @@ extends ComputeRelations(prog)
                     log.env("Initial environment:", env)
                     blks(b).stmts.foreach { stmt =>
                         checkStatement(stmt)
-                        addStatement(stmt)                                
+                        addStatement(stmt)
+                        log.env("Environment:", env)
                     }
                     blks(b).gotos.foreach(checkGoto(blks, _))
                 }

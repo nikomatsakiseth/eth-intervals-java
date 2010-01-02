@@ -41,7 +41,7 @@ extends TracksEnvironment(prog)
                     
                     // Supertype must have been processed first:
                     log("Supertype: %s", tp)
-                    env = env + prog.exportedCtorEnvs((tp.wt.c, ir.m_init))
+                    env = env + prog.exportedCtorEnvs((tp.wt.c, m))
                     
                 case ir.StmtGetField(x, p_o, f) =>
                     val tp_o = teePee(ir.noAttrs, p_o)
