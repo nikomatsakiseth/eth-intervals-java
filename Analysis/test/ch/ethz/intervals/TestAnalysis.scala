@@ -435,49 +435,6 @@ class TestAnalysis extends JUnitSuite {
         )
     }
     
-    @Test 
-    def thisBeforeSuperCtor() {
-        tc(
-            """
-            class SetField extends Object<creator: this.constructor> {
-                String s requires this.constructor;
-                
-                constructor(String s) {
-                    this->s = s; // ERROR intervals.illegal.path.attr(this, g)
-                    super();
-                }                
-            }
-            
-            class GetField extends Object<creator: this.constructor> {
-                String s requires this.constructor;
-                
-                constructor() {
-                    s = this->s; // ERROR intervals.illegal.path.attr(this, g)
-                    super();
-                }                
-            }
-            
-            class Y extends Object<creator: this.constructor> {
-                constructor() { super(); }
-                
-                Void m1() {                
-                }
-                
-                Void m2(Z constructor z) {
-                }
-            }
-            
-            class Z extends Object<creator: this.constructor> {
-                constructor(Y y) {
-                    y->m1(); // Ok to do stuff here that doesn't touch this.
-                    y->m2(this); // ERROR intervals.illegal.path.attr(this, g)
-                    super();
-                }        
-            }
-            """
-        )
-    }
-
     @Test
     def superCtors() {
         wf(
