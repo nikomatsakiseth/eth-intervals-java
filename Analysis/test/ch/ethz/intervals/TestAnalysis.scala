@@ -534,6 +534,7 @@ class TestAnalysis extends JUnitSuite {
                    
             class B4 extends A {
                 String t requires this.constructor;
+                
                 constructor(String s, String t) {
                     super(s);
                     this->t = t;
@@ -713,17 +714,17 @@ class TestAnalysis extends JUnitSuite {
                 
                 String get() 
                 {
-                    subinterval x locks this.lock {
-                        v = this->value; // Note: variables are all METHOD-SCOPE
-                    }
+                    subinterval push x locks this.lock;
+                    v = this->value; 
+                    subinterval pop x;
                     return v;
                 }
                 
                 Void set(String v) 
                 {
-                    subinterval x locks this.lock {
-                        this->value = v;
-                    }
+                    subinterval push x locks this.lock;
+                    this->value = v;
+                    subinterval pop x;
                 }
                 
                 String toString() 
@@ -966,7 +967,7 @@ class TestAnalysis extends JUnitSuite {
     @Test
     def fieldsTypesWf()
     {
-        tc(
+        wf(
             """
             class Foo<String s> extends Object {
                 constructor() {
@@ -975,8 +976,10 @@ class TestAnalysis extends JUnitSuite {
             }
             
             class Bar<String s><Interval i> extends Object {
-                Foo<s: this.s><creator: i> f1; 
-                Foo<t: this.s><creator: i> f2; // ERROR intervals.no.such.ghost(Foo, t)
+                Foo<s: this.s><creator: this.i> f1; 
+                Foo<t: this.s><creator: this.i> f2; // ERROR intervals.no.such.ghost(Foo, t)
+                Foo<t: this.s><creator: i> f3; // ERROR intervals.no.such.variable(i)
+                Foo<t: this.s><creator: method> f4; // ERROR intervals.no.such.variable(method)
                 
                 constructor() {
                     super();
@@ -1048,7 +1051,7 @@ class TestAnalysis extends JUnitSuite {
     // anyway they are hardly high priority.
     @Test
     def interfaceInheritance() {
-        tc(
+        wf(
             """
             interface class IFoo extends Object {
                 constructor() {
@@ -1085,7 +1088,7 @@ class TestAnalysis extends JUnitSuite {
 
     @Test
     def hoh() {
-        tc(
+        success(
             """
             class Data<Lock lock> extends Object<creator: this.lock> {
                 String fld requires this.lock;
@@ -1106,13 +1109,13 @@ class TestAnalysis extends JUnitSuite {
                     lock = new Lock();
                     this->lock = lock;
                     
-                    subinterval x locks lock {
-                        data = (Data<lock: this.lock>)null;
-                        this->data = data;
+                    subinterval push x locks lock;
+                    data = (Data<lock: this.lock>)null;
+                    this->data = data;
 
-                        nextLink = (Link)null;
-                        this->nextLink = nextLink;                        
-                    }
+                    nextLink = (Link)null;
+                    this->nextLink = nextLink;                        
+                    subinterval pop x;
                 }
             }
             
@@ -1208,7 +1211,7 @@ class TestAnalysis extends JUnitSuite {
     
     @Test
     def shadowGhostsInSuperType() {
-        tc(
+        wf(
             """
             class Super
                 <Interval i> 
@@ -1231,7 +1234,7 @@ class TestAnalysis extends JUnitSuite {
     
     @Test
     def duplicateGhostsInSameType() {
-        tc(
+        wf(
             """
             class Sub
                 <Interval i>
@@ -1247,7 +1250,7 @@ class TestAnalysis extends JUnitSuite {
 
     @Test
     def bbpcData() {
-        tc(
+        success(
             """
             class Data extends Object {
                 Object<creator: this.creator> o;

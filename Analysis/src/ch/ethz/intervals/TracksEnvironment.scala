@@ -39,13 +39,13 @@ extends CheckPhase {
     
     def pushCurrent(p_cur: ir.Path) =
         log.indented("pushCurrent(%s)", p_cur) {
-            env = env.withCurrent(env.ps_cur.push(p_cur))            
+            env = env.withCurrent(p_cur :: env.ps_cur)
         }
     
     def popCurrent(p_cur: ir.Path) =
         log.indented("popCurrent(%s)", p_cur) {
-            assert(env.ps_cur.top == p_cur)
-            env = env.withCurrent(env.ps_cur.pop)
+            assert(env.ps_cur.head == p_cur)
+            env = env.withCurrent(env.ps_cur.tail)
         }
         
     def withCurrent[R](p_cur: ir.Path)(g: => R): R = 
@@ -93,12 +93,12 @@ extends CheckPhase {
 
     def addInvalidated(p: ir.Path) =
         log.indented("addInvalidated(%s)", p) {
-            env = env.withInvalidated(env.addCheckedArginvalidated + p)
+            env = env.withInvalidated(env.ps_invalidated + p)
         }        
 
     def removeInvalidated(p: ir.Path) =
         log.indented("removeInvalidated(%s)", p) {
-            env = env.withInvalidated(env.addCheckedArginvalidated - p)
+            env = env.withInvalidated(env.ps_invalidated - p)
         }
 
     def addHbPnt(tp: ir.TeePee, tq: ir.TeePee): Unit = 
@@ -322,6 +322,13 @@ extends CheckPhase {
         ghostSubstOfTeePee(tp).fieldDecl(rfd)
     }
 
+    /// Method sig for constructor tp(tqs)
+    def substdCtorSig(tp: ir.TeePee, tqs: List[ir.TeePee]) = preservesEnv {
+        val msig = classDecl(tp.wt.c).ctor.msig(cap(tp))
+        val subst = ghostSubstOfTeePee(tp) + PathSubst.vp(msig.args.map(_.name), tqs.map(_.p))
+        subst.methodSig(msig)
+    }
+
     /// Method sig for tp.m(tqs)
     def substdMethodSig(tp: ir.TeePee, m: ir.MethodName, tqs: List[ir.TeePee]) = preservesEnv {
         prog.methodSig(tp.wt.c, m) match {
@@ -383,10 +390,13 @@ extends CheckPhase {
         val as_f = // determine if f is immutable in current method:
             if(!tp_guard.isConstant)
                 tp_0.as.withMutable // guard not yet constant? mutable
-            else if(!hbInter(tp_guard, tp_cur))
-                tp_0.as.withMutable // not guarded by closed interval? mutable
-            else
-                tp_0.as // p_0 mutable? mutable
+            else 
+                otp_cur match {
+                    case Some(tp_cur) if hbInter(tp_guard, tp_cur) => 
+                        tp_0.as
+                    case _ => // not guarded by closed interval? mutable
+                        tp_0.as.withMutable
+                }
         ir.TeePee(wt_f, tp_0.p + f, as_f)        
     }
 
@@ -409,12 +419,14 @@ extends CheckPhase {
                         // The path is p_0.ctor, which we handle specially:
                         val tp_f = ir.TeePee(ir.t_interval, tp_0.p + f, tp_0.as.withGhost)
                         if(!tp_0.wt.as.ctor) // is tp_0 fully constructed?
-                            addUserHb(tp_f, tp_cur) // then .ctor happened before (now constant)
+                            otp_cur.foreach(tp_cur =>
+                                addUserHb(tp_f, tp_cur)) // then .ctor happened before (now constant)
                         tp_f                    
                     } else if (f == ir.f_super) {
                         // The path is p_0.super, which we handle specially:
                         val tp_f = ir.TeePee(ir.t_interval, tp_0.p + f, tp_0.as.withGhost)
-                        addUserHb(tp_f, tp_cur) // .super always happened before (now constant)
+                        otp_cur.foreach(tp_cur =>
+                            addUserHb(tp_f, tp_cur)) // .super always happened before (now constant)
                         tp_f
                     } else 
                         substdFieldDecl(tp_0, f) match {
@@ -445,12 +457,8 @@ extends CheckPhase {
 
     // Note: these are not vals but defs!  This is important
     // because the outcome of teePee() depends on the env.
-    def tp_cur = teePee(env.ps_cur.top)
-    def tp_cur_start = teePee(env.ps_cur.top.start)
-    def tp_cur_end = teePee(env.ps_cur.top.end)
+    def otp_cur = if(env.ps_cur.isEmpty) None else Some(teePee(env.ps_cur.head))
     def tp_ctor = teePee(ir.gfd_ctor.thisPath)
-    def tp_ctor_start = teePee(ir.gfd_ctor.thisPath.start)
-    def tp_ctor_end = teePee(ir.gfd_ctor.thisPath.end)
     def tp_this = teePee(ir.p_this)    
     def tp_super = // tp_super always refers to the FIRST supertype
         prog.sups(cap(tp_this)) match {
@@ -490,7 +498,8 @@ extends CheckPhase {
         // value is therefore null, which is valid for any type)
         lazy val subst = ghostSubstOfTeePee(tp_o)
         val fds_linked = fds_maybe_linked.filter { rfd =>
-            !hbInter(tp_cur, teePee(subst.path(rfd.p_guard)))
+            !otp_cur.exists(tp_cur =>
+                hbInter(tp_cur, teePee(subst.path(rfd.p_guard))))
         }
         
         // map to the canonical path for the field

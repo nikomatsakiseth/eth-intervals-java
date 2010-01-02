@@ -46,6 +46,7 @@ We currently assume but do not check:
 - The fact that return (and to some extent throw) does not have normal successors is encoded in the CFG 
 - Super constructors are invoked exactly once, and from another constructor.  The 'this' pointer
   is not referenced before the super constructor.
+- Acyclic supertypes
   
 Note that all of these properties are either enforced by Java or by the CFG construction
 code.
@@ -369,27 +370,27 @@ object ir {
     }
     
     sealed case class TcEnv(
-        ps_cur: Stack[ir.Path],                // current interval
-        wt_ret: ir.WcTypeRef,                  // return type of current method
-        perm: Map[ir.VarName, ir.TeePee],      // permanent equivalences, hold for duration of method
-        temp: Map[ir.Path, ir.Path],           // temporary equivalences, cleared on method call
-        addCheckedArginvalidated: Set[ir.Path],          // p is current invalid and must be reassigned                
-        readable: IntransitiveRelation[Path],  // (p, q) means guard p is readable by interval q
-        writable: IntransitiveRelation[Path],  // (p, q) means guard p is writable by interval q
-        hb: TransitiveRelation[Path],          // (p, q) means interval p hb interval q
-        subinterval: TransitiveRelation[Path], // (p, q) means interval p is a subinterval of interval q
-        locks: IntransitiveRelation[Path]      // (p, q) means interval p locks lock q        
+        ps_cur: List[ir.Path],                  // current interval
+        wt_ret: ir.WcTypeRef,                   // return type of current method
+        perm: Map[ir.VarName, ir.TeePee],       // permanent equivalences, hold for duration of method
+        temp: Map[ir.Path, ir.Path],            // temporary equivalences, cleared on method call
+        ps_invalidated: Set[ir.Path],           // p is current invalid and must be reassigned                
+        readable: IntransitiveRelation[Path],   // (p, q) means guard p is readable by interval q
+        writable: IntransitiveRelation[Path],   // (p, q) means guard p is writable by interval q
+        hb: TransitiveRelation[Path],           // (p, q) means interval p hb interval q
+        subinterval: TransitiveRelation[Path],  // (p, q) means interval p is a subinterval of interval q
+        locks: IntransitiveRelation[Path]       // (p, q) means interval p locks lock q        
     ) {
-        def withCurrent(ps_cur: Stack[ir.Path]) = TcEnv(ps_cur, wt_ret, perm, temp, addCheckedArginvalidated, readable, writable, hb, subinterval, locks)
-        def withRet(wt_ret: ir.WcTypeRef) = TcEnv(ps_cur, wt_ret, perm, temp, addCheckedArginvalidated, readable, writable, hb, subinterval, locks)
-        def withPerm(perm: Map[ir.VarName, ir.TeePee]) = TcEnv(ps_cur, wt_ret, perm, temp, addCheckedArginvalidated, readable, writable, hb, subinterval, locks)
-        def withTemp(temp: Map[ir.Path, ir.Path]) = TcEnv(ps_cur, wt_ret, perm, temp, addCheckedArginvalidated, readable, writable, hb, subinterval, locks)
-        def withInvalidated(addCheckedArginvalidated: Set[ir.Path]) = TcEnv(ps_cur, wt_ret, perm, temp, addCheckedArginvalidated, readable, writable, hb, subinterval, locks)
-        def withReadable(readable: IntransitiveRelation[Path]) = TcEnv(ps_cur, wt_ret, perm, temp, addCheckedArginvalidated, readable, writable, hb, subinterval, locks)
-        def withWritable(writable: IntransitiveRelation[Path]) = TcEnv(ps_cur, wt_ret, perm, temp, addCheckedArginvalidated, readable, writable, hb, subinterval, locks)
-        def withHb(hb: TransitiveRelation[Path]) = TcEnv(ps_cur, wt_ret, perm, temp, addCheckedArginvalidated, readable, writable, hb, subinterval, locks)
-        def withSubinterval(subinterval: TransitiveRelation[Path]) = TcEnv(ps_cur, wt_ret, perm, temp, addCheckedArginvalidated, readable, writable, hb, subinterval, locks)
-        def withLocks(locks: IntransitiveRelation[Path]) = TcEnv(ps_cur, wt_ret, perm, temp, addCheckedArginvalidated, readable, writable, hb, subinterval, locks)
+        def withCurrent(ps_cur: List[ir.Path]) = TcEnv(ps_cur, wt_ret, perm, temp, ps_invalidated, readable, writable, hb, subinterval, locks)
+        def withRet(wt_ret: ir.WcTypeRef) = TcEnv(ps_cur, wt_ret, perm, temp, ps_invalidated, readable, writable, hb, subinterval, locks)
+        def withPerm(perm: Map[ir.VarName, ir.TeePee]) = TcEnv(ps_cur, wt_ret, perm, temp, ps_invalidated, readable, writable, hb, subinterval, locks)
+        def withTemp(temp: Map[ir.Path, ir.Path]) = TcEnv(ps_cur, wt_ret, perm, temp, ps_invalidated, readable, writable, hb, subinterval, locks)
+        def withInvalidated(ps_invalidated: Set[ir.Path]) = TcEnv(ps_cur, wt_ret, perm, temp, ps_invalidated, readable, writable, hb, subinterval, locks)
+        def withReadable(readable: IntransitiveRelation[Path]) = TcEnv(ps_cur, wt_ret, perm, temp, ps_invalidated, readable, writable, hb, subinterval, locks)
+        def withWritable(writable: IntransitiveRelation[Path]) = TcEnv(ps_cur, wt_ret, perm, temp, ps_invalidated, readable, writable, hb, subinterval, locks)
+        def withHb(hb: TransitiveRelation[Path]) = TcEnv(ps_cur, wt_ret, perm, temp, ps_invalidated, readable, writable, hb, subinterval, locks)
+        def withSubinterval(subinterval: TransitiveRelation[Path]) = TcEnv(ps_cur, wt_ret, perm, temp, ps_invalidated, readable, writable, hb, subinterval, locks)
+        def withLocks(locks: IntransitiveRelation[Path]) = TcEnv(ps_cur, wt_ret, perm, temp, ps_invalidated, readable, writable, hb, subinterval, locks)
         
         def +(env: TcEnv) =
             withTemp(temp ++ env.temp).
@@ -404,7 +405,7 @@ object ir {
         def **(env2: TcEnv) =
             this
                 .withTemp(temp ** env2.temp)
-                .withInvalidated(addCheckedArginvalidated ++ env2.addCheckedArginvalidated)
+                .withInvalidated(ps_invalidated ++ env2.ps_invalidated)
                 .withReadable(readable ** env2.readable)
                 .withWritable(writable ** env2.writable)
                 .withHb(hb ** env2.hb)
@@ -414,7 +415,7 @@ object ir {
     
     object Env {
         val empty = ir.TcEnv(
-            Stack.Empty,
+            List(),
             t_void,
             Map(),
             Map(),

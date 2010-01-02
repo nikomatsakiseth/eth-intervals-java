@@ -1,7 +1,7 @@
 package ch.ethz.intervals
 
 // First pass-- basic sanity checks.
-class WfCheck(prog: Prog) 
+class WfCheck(val prog: Prog) 
 extends TracksEnvironment(prog) {
     import prog.log
     import prog.classDecl
@@ -81,12 +81,19 @@ extends TracksEnvironment(prog) {
         // match the various ghost bounds etc.  We just
         // check that when the type is constructed.
     }
+    
+    def checkCall(tp: ir.TeePee, msig: ir.MethodSig, tqs: List[ir.TeePee]) {
+        checkLengths(msig.args, tqs, "intervals.wrong.number.method.arguments")        
+    }
 
     def checkStatement(stmt: ir.Stmt): Unit =
         at(stmt, ()) {
             stmt match {                  
                 case ir.StmtSuperCtor(qs) =>
-                    checkPathsWf(reified, qs)
+                    val tp = tp_super
+                    val tqs = teePee(ir.noAttrs, qs)
+                    val msig_ctor = substdCtorSig(tp, tqs)
+                    checkCall(tp, msig_ctor, tqs)
                     
                 case ir.StmtGetField(x, p_o, f) =>
                     val tp_o = teePee(reified, p_o)
@@ -113,12 +120,14 @@ extends TracksEnvironment(prog) {
                     val tp = teePee(reified, p)
                     val tqs = teePee(reified, qs)
                     val msig = substdMethodSig(tp, m, tqs)
-                    checkLengths(msig.args, tqs, "intervals.wrong.number.method.arguments")
+                    checkCall(tp, msig, tqs)
                     addLvDecl(x, msig.wt_ret, None)                        
         
                 case ir.StmtSuperCall(x, m, qs) =>
+                    val tp = tp_super
                     val tqs = teePee(reified, qs)
-                    val msig = substdMethodSig(tp_super, m, tqs)
+                    val msig = substdMethodSig(tp, m, tqs)
+                    checkCall(tp, msig, tqs)
                     addLvDecl(x, msig.wt_ret, None)                        
                 
                 case ir.StmtNew(x, t, qs) =>
@@ -275,7 +284,7 @@ extends TracksEnvironment(prog) {
     
     def checkGhostFieldDecl(cd: ir.ClassDecl, gfd: ir.GhostFieldDecl): Unit = 
         at(gfd, ()) {
-            log.indented(gfd) {
+            savingEnv {
                 addThis(cd, ir.ctorAttrs)
 
                 // Check that ghosts are not shadowed from a super class:                
@@ -344,22 +353,16 @@ extends TracksEnvironment(prog) {
     def checkNoninterfaceClassDecl(cd: ir.ClassDecl) = 
         at(cd, ()) {
             savingEnv {
-                withCurrent(ir.p_mthd) {
-                    cd.superClasses.take(1).foreach(checkIsNotInterface)
-                    cd.superClasses.drop(1).foreach(checkIsInterface)
-                    cd.fields.foldLeft(Set.empty[ir.FieldName])(checkFieldDecl(cd))
-                    checkNoninterfaceConstructorDecl(cd, cd.ctor)                    
-                    cd.methods.foreach(checkNoninterfaceMethodDecl(cd, _))                    
-                }
+                cd.superClasses.take(1).foreach(checkIsNotInterface)
+                cd.superClasses.drop(1).foreach(checkIsInterface)
+                cd.fields.foldLeft(Set.empty[ir.FieldName])(checkFieldDecl(cd))
+                checkNoninterfaceConstructorDecl(cd, cd.ctor)
+                cd.methods.foreach(checkNoninterfaceMethodDecl(cd, _))                    
             }
         }
         
     def checkClassDecl(cd: ir.ClassDecl) = log.indented(cd) {        
         if(cd.attrs.interface) checkInterfaceClassDecl(cd)
         else checkNoninterfaceClassDecl(cd)
-    }
-        
-    def checkProg = log.indented("WfCheck") {
-        prog.cds_user.foreach(checkClassDecl)            
-    }
+    }        
 }

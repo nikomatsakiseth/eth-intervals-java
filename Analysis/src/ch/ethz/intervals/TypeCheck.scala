@@ -7,7 +7,7 @@ import scala.collection.mutable.ListBuffer
 import scala.util.parsing.input.Positional
 import Util._
 
-class TypeCheck(prog: Prog) 
+class TypeCheck(val prog: Prog) 
 extends ComputeRelations(prog)
 {    
     import prog.log
@@ -18,7 +18,7 @@ extends ComputeRelations(prog)
     import prog.overriddenMethodSigs
     import prog.isSubclass
     import prog.strictSuperclasses
-
+    
     // ______________________________________________________________________
     // Subtyping    
     
@@ -121,10 +121,10 @@ extends ComputeRelations(prog)
     }
         
     def checkNoInvalidated() {
-        if(!env.addCheckedArginvalidated.isEmpty)
+        if(!env.ps_invalidated.isEmpty)
             throw new ir.IrError(
                 "intervals.must.assign.first", 
-                env.addCheckedArginvalidated.mkEnglishString)        
+                env.ps_invalidated.mkEnglishString)        
     }
 
     def checkGoto(blks: Array[ir.Block], succ: ir.Goto) {
@@ -162,12 +162,9 @@ extends ComputeRelations(prog)
         at(stmt, ()) {
             stmt match {                  
                 case ir.StmtSuperCtor(qs) =>
-                    if(!tp_this.as.ghost)
-                        throw new ir.IrError("intervals.super.ctor.not.permitted.here")
                     val tp = tp_super
                     val tqs = teePee(ir.noAttrs, qs)
-                    val msig_ctor0 = classDecl(tp.wt.c).ctor.msig(cap(tp))
-                    val msig_ctor = ghostSubstOfTeePee(tp).methodSig(msig_ctor0)
+                    val msig_ctor = substdCtorSig(tp, tqs)
                     checkCallMsig(tp_super, msig_ctor, tqs)
                     
                 case ir.StmtGetField(_, p_o, f) =>
@@ -279,12 +276,12 @@ extends ComputeRelations(prog)
     //     now).
     
     def extractAssumptions(
-        tp_mthd_end: ir.TeePee, 
+        tp_mthd: ir.TeePee, 
         lvs_shared: Set[ir.VarName]
     ): ir.TcEnv = savingEnv {        
-        log.indented("extractAssumptions(%s,%s)", tp_mthd_end, lvs_shared) {
+        log.indented("extractAssumptions(%s,%s)", tp_mthd, lvs_shared) {
             withCurrent(freshTp(ir.t_interval).p) {
-                addHbPnt(tp_mthd_end, tp_cur_start)
+                addHbInter(tp_mthd, tp_cur)
 
                 log("temp=%s", env.temp)
                 val tempKeys = env.temp.map(_._1).toList
@@ -352,7 +349,7 @@ extends ComputeRelations(prog)
             log.indented("%s: %s", b, blks(b)) {
                 savingEnv {
                     env = ins(b)
-                    blks(b).args.foreach(addArg)           
+                    log.env("Initial environment:", env)
                     blks(b).stmts.foreach { stmt =>
                         checkStatement(stmt)
                         addStatement(stmt)                                
@@ -377,10 +374,12 @@ extends ComputeRelations(prog)
             savingEnv {
                 // Define special vars "method" and "this":
                 addPerm(ir.lv_mthd, ir.TeePee(ir.t_interval, ir.p_mthd, ir.ghostAttrs))
+                pushCurrent(ir.p_mthd)
+                
                 if(!md.attrs.ctor) { 
                     // For normal methods, type of this is the defining class
                     addPerm(ir.lv_this, ir.TeePee(thisTref(cd), ir.p_this, ir.noAttrs))                     
-                    addHbPnt(tp_ctor_end, tp_cur_start) // ... constructor already happened
+                    addHbInter(tp_ctor, tp_cur) // ... constructor already happened
                     env = env + env_ctor_assum          // ... add its effects on environment
                 } else {
                     // For constructor methods, type of this is the type that originally defined it
@@ -412,7 +411,8 @@ extends ComputeRelations(prog)
             savingEnv {
                 // Define special vars "method" (== this.constructor) and "this":
                 addPerm(ir.lv_mthd, ir.TeePee(ir.t_interval, ir.gfd_ctor.thisPath, ir.ghostAttrs))
-                addPerm(ir.lv_this, ir.TeePee(thisTref(cd, ir.ctorAttrs), ir.p_this, ir.ghostAttrs))
+                pushCurrent(ir.p_mthd)
+                addPerm(ir.lv_this, ir.TeePee(thisTref(cd, ir.ctorAttrs), ir.p_this, ir.noAttrs))
 
                 // Check method body:
                 md.args.foreach(addArg)
@@ -421,7 +421,7 @@ extends ComputeRelations(prog)
                 checkBlocks(md.blocks, ins, outs)
                 
                 // Compute exit assumptions and store in prog.exportedCtorEnvs:
-                extractAssumptions(tp_ctor_end, Set(ir.lv_this)) // Globally valid assums
+                env = extractAssumptions(tp_ctor, Set(ir.lv_this)) // Globally valid assums
                 prog.exportedCtorEnvs += Pair((cd.name, md.name), env) // Store
                 env
             }
@@ -444,6 +444,7 @@ extends ComputeRelations(prog)
                 val tp_mthd = ir.TeePee(ir.t_interval, ir.p_mthd, ir.ghostAttrs)
                 addPerm(ir.lv_this, tp_this)
                 addPerm(ir.lv_mthd, tp_mthd)
+                pushCurrent(tp_mthd.p)
                 
                 // If an interval class, then this.ctor hb this:
                 if(isSubclass(t_this, ir.c_interval))
@@ -530,13 +531,10 @@ extends ComputeRelations(prog)
                 cd.methods.foreach(checkMethodDecl(cd, env_ctor_assum, _))                    
             }
         }
-        
-    def checkClassDecl(cd: ir.ClassDecl) =
+            
+    def checkClassDecl(cd: ir.ClassDecl) = {
         if(cd.attrs.interface) checkInterfaceClassDecl(cd)
-        else checkNoninterfaceClassDecl(cd)
-        
-    def checkProg =  log.indented("TypeCheck") {
-        prog.cds_user.foreach(checkClassDecl)
+        else checkNoninterfaceClassDecl(cd)        
     }
-    
+        
 }

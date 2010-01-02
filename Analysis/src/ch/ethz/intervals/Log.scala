@@ -25,6 +25,38 @@ abstract class Log {
   }
   
   // ______________________________________________________________________
+  // Special Log Methods
+  
+  def env(lbl: Any, env: ir.TcEnv) = {
+      indented("%s", lbl) {
+          apply("ps_cur: %s", env.ps_cur)
+          apply("wt_ret: %s", env.wt_ret)
+          map("perm:", env.perm)
+          map("temp:", env.temp)
+          apply("invalidated: %s", env.ps_invalidated)
+          rel("readable:", "readable by", env.readable)
+          rel("writable:", "writable by", env.writable)
+          rel("hb:", "hb", env.hb)
+          rel("subinterval:", "subinterval of", env.subinterval)
+          rel("locks:", "locks", env.locks)          
+      }
+  }
+  
+  def map(lbl: Any, m: Iterable[(Any, Any)]) = {
+      indented("%s", lbl) {
+          for((k, v) <- m)
+            apply("%s: %s", k, v)
+      }
+  }
+  
+  def rel(lbl: Any, n: String, r: Relation[ir.Path, _]) = {
+      indented("%s", lbl) {
+          for((k, v) <- r.elements)
+            apply("%s %s %s", k, n, v)
+      }
+  }
+  
+  // ______________________________________________________________________
   // Indentation
 
   def indented[R](fmt: String, arg0: Any, args: Any*)(f: => R): R = {

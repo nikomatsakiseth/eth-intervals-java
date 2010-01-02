@@ -11,6 +11,8 @@ extends TracksEnvironment(prog)
     import prog.isSubclass
     import prog.freshVarName
     
+    def tp_cur = otp_cur.get
+
     // ______________________________________________________________________
     // Computing the effects of statements, etc
     
@@ -32,8 +34,6 @@ extends TracksEnvironment(prog)
         at(stmt, ()) {
             stmt match {                  
                 case ir.StmtSuperCtor(qs) =>
-                    if(!tp_this.as.ghost)
-                        throw new ir.IrError("intervals.super.ctor.not.permitted.here")
                     val tp = tp_super
                     val tqs = teePee(ir.noAttrs, qs)
                     val msig_ctor0 = classDecl(tp.wt.c).ctor.msig(cap(tp))
@@ -41,6 +41,7 @@ extends TracksEnvironment(prog)
                     addCallMsig(tp_super, msig_ctor, tqs)
                     
                     // Supertype must have been processed first:
+                    log("Supertype: %s", tp)
                     env = env + prog.exportedCtorEnvs((tp.wt.c, ir.m_ctor))
                     
                 case ir.StmtGetField(x, p_o, f) =>
@@ -216,7 +217,7 @@ extends TracksEnvironment(prog)
             
                 env_mthd
                 .withTemp(mapMap(env_pred.temp))
-                .withInvalidated(mapInvalidated(env_pred.addCheckedArginvalidated))
+                .withInvalidated(mapInvalidated(env_pred.ps_invalidated))
                 .withReadable(mapRelation(env_pred.readable))
                 .withWritable(mapRelation(env_pred.writable))
                 .withHb(mapRelation(env_pred.hb))
@@ -235,23 +236,29 @@ extends TracksEnvironment(prog)
             // Intersects the environment of all predecessors:
             def procBlock(b: Int) = savingEnv {
                 val blk = blks(b)
-                log.indentedRes("procBlock(%d): %s", b, blk) {
+                log.indentedRes("procBlock(%s): %s", b, blk) {
                     env = combinePreds(b)
                     blk.args.foreach(addArg)
                     ins(b) = env
                     addBlock(blk)
-                    if(outs(b) != env) {
+                    log.env("Final environment", env)
+                    if(outs(b) == env) {
+                        false
+                    } else {
                         outs(b) = env
-                        true
-                    } else
-                        false                    
+                        true                        
+                    }
                 }
             }
 
             // Iterate until a fixed point is reached:
             var changed = true
-            while(changed)
+            var max = 20
+            while(changed && max > 0) {
                 changed = blks.indices.foldLeft(false) { case (c, b) => procBlock(b) || c }
+                max -= 1
+            }
+            assert(max > 0)
             
             (ins, outs)         
         }

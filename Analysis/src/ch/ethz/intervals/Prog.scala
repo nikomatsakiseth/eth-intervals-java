@@ -28,7 +28,10 @@ class Prog(
     // When we check a class, we store the exported environments from each 
     // of its constructors in this table.  These can be used by subclasses.
     
-    var exportedCtorEnvs = Map.empty[(ir.ClassName, ir.MethodName), ir.TcEnv]
+    var exportedCtorEnvs = Map(
+        ((ir.c_object, ir.m_ctor), ir.Env.empty),
+        ((ir.c_interval, ir.m_ctor), ir.Env.empty)
+    )
     
     // ______________________________________________________________________
     // Fresh Variables
@@ -140,15 +143,15 @@ class Prog(
     def thisTref(cd: ir.ClassDecl): ir.TypeRef =
         thisTref(cd, ir.noAttrs)
         
-    def supertypesOfClass(c: ir.ClassName) = {
+    def supertypesOfClass(c: ir.ClassName) = log.indentedRes("supertypesOfClass(%s)", c) {
         val cd = classDecl(c)
         val subst = superSubstOfClass(c)
-        cd.superClasses.map { c => subst.tref(thisTref(cd)) }
+        cd.superClasses.map { c => subst.tref(thisTref(classDecl(c))) }
     }
 
     /// supertypes of t
-    def sups(t: ir.TypeRef): List[ir.TypeRef] = {
-        val subst = ghostSubstOfType(t)        
+    def sups(t: ir.TypeRef): List[ir.TypeRef] = log.indentedRes("sups(%s)", t) {
+        val subst = ghostSubstOfType(t)
         supertypesOfClass(t.c).map(subst.tref)
     }
     

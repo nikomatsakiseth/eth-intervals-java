@@ -3,7 +3,7 @@ package ch.ethz.intervals
 import Util._
 
 abstract class Relation[T, R <: Relation[T, R]] 
-extends Iterable[(T,T)] {
+extends Iterable[(T, T)] {
     def mmap: MultiMap[T, T]
     def +(a: T, b: T): R
     def +(rel: R): R        
@@ -32,5 +32,12 @@ extends Iterable[(T,T)] {
             if(filterFunc(a1) && filterFunc(b1)) r + (a1, b1)
             else r
         }        
+        
+    override def equals(that: Any) = 
+        if(!that.isInstanceOf[Relation[_, _]])
+            false
+        else {
+            Set(elements.toList: _*) == Set(that.asInstanceOf[Relation[_, _]].elements.toList: _*)
+        }
         
 }
