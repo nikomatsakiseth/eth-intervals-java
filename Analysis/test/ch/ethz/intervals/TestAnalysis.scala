@@ -147,7 +147,7 @@ class TestAnalysis extends JUnitSuite {
                 {
                     this->inter = inter;
                     this->anotherMethod(); // ERROR intervals.must.assign.first(this.obj)
-                    this->obj = obj;
+                    this->obj = obj; // ERROR intervals.expected.subtype(obj, Object<creator: inter>{}, Object<creator: this.inter>{})
                 }
                 
                 Void invokingAnotherMethodAfterIsOk(Interval inter, Object<creator: inter> obj) 
@@ -163,7 +163,7 @@ class TestAnalysis extends JUnitSuite {
                 {
                     this->inter = inter;
                     obj2 = new Object<creator: inter>(); // ERROR intervals.must.assign.first(this.obj)
-                    this->obj = obj;
+                    this->obj = obj; // ERROR intervals.expected.subtype(obj, Object<creator: inter>{}, Object<creator: this.inter>{})
                 }
                 
                 Void creatingObjectsAfterIsOk(Interval inter, Object<creator: inter> obj) 
