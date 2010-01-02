@@ -4,6 +4,7 @@ import static ch.ethz.intervals.EdgeList.NONDETERMINISTIC;
 
 final class Lock
 extends /*@Writer("this.constructor")*/ Object 
+implements Guard
 {
 	private Point latestOwner;
 

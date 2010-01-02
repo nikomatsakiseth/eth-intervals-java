@@ -5,7 +5,7 @@ import ch.ethz.intervals.ThreadPool.Worker;
 
 public abstract class Interval 
 extends ThreadPool.WorkItem 
-implements Dependency
+implements Dependency, Guard
 {	
 	private static final long serialVersionUID = 8105268455633202522L;
 	

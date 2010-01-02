@@ -32,22 +32,27 @@ Bugs and ToDos
 Features
 --------
 
-(*) Control-flow: convert to SSA or SSI form.
-
 (*) @Is annotations on methods and variable declarations
 
-(*) Inherit assumptions from supertype constructors as well!
-
-(*) Ensures declarations-- (?)
-
-    In place of the current inference, we should add ensures declarations on constructors
-    (or potentially other methods).  These ensures declarations could be inferred by the
-    compiler for constructors as we do today, but could also be manually specified to support
-    virtual methods and helpers for constructors.
-    
 (*) Assertions
 
+    a hb b
+    a locks b    
+    a readableBy b
+    a writableBy b
+    a == b              creates a temporary alias from b to a?
+    a == b->p           creates a temporary alias from b->p to a
+
 (*) Javac plugin
+
+(*) Requires in class bodies, declarations--
+
+    If a class declared, for example, that two of its fields f and g have a HB relationship,
+    then this would link f and g.  We can use the existing linked fields mechanisms to ensure
+    that they are written together.
+        
+Things to Think About
+---------------------
 
 (*) Allow multiple guards (or a guard predicate of some kind)
 
@@ -59,15 +64,13 @@ Features
     In this case, would be write-only before the point, but read-only after the point.
     Clearly racy.
 
-(*) Requires in class bodies, declarations--
+(*) Ensures declarations-- (?)
 
-    If a class declared, for example, that two of its fields f and g have a HB relationship,
-    then this would link f and g.  We can use the existing linked fields mechanisms to ensure
-    that they are written together.
-        
-Things to Think About
----------------------
-
+    In place of the current inference, we should add ensures declarations on constructors
+    (or potentially other methods).  These ensures declarations could be inferred by the
+    compiler for constructors as we do today, but could also be manually specified to support
+    virtual methods and helpers for constructors.
+    
 (*) Iterated linked fields
 
     Right now we screen out linked fields whose guards are known not to
