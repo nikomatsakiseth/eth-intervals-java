@@ -33,16 +33,15 @@ extends TracksEnvironment(prog)
     def addStatement(stmt: ir.Stmt): Unit =
         at(stmt, ()) {
             stmt match {                  
-                case ir.StmtSuperCtor(qs) =>
+                case ir.StmtSuperCtor(m, qs) =>
                     val tp = tp_super
                     val tqs = teePee(ir.noAttrs, qs)
-                    val msig_ctor0 = classDecl(tp.wt.c).ctor.msig(cap(tp))
-                    val msig_ctor = ghostSubstOfTeePee(tp).methodSig(msig_ctor0)
+                    val msig_ctor = substdCtorSig(tp, m, tqs)
                     addCallMsig(tp_super, msig_ctor, tqs)
                     
                     // Supertype must have been processed first:
                     log("Supertype: %s", tp)
-                    env = env + prog.exportedCtorEnvs((tp.wt.c, ir.m_ctor))
+                    env = env + prog.exportedCtorEnvs((tp.wt.c, ir.m_init))
                     
                 case ir.StmtGetField(x, p_o, f) =>
                     val tp_o = teePee(ir.noAttrs, p_o)
@@ -88,22 +87,17 @@ extends TracksEnvironment(prog)
                     val tqs = teePee(ir.noAttrs, qs)
                     addCall(x, tp_super, m, tqs)
                 
-                case ir.StmtNew(x, t, qs) =>
+                case ir.StmtNew(x, t, m, qs) =>
                     val cd = classDecl(t.c)
                     val tqs = teePee(ir.noAttrs, qs)
                     
                     if(cd.attrs.interface)
                         throw new ir.IrError("intervals.new.interface", t.c)
                     
-                    // Check Ghost Types:           
                     addLvDecl(x, t, None)
                     val tp_x = teePee(x.path)                                        
-                    val subst = (
-                        ghostSubstOfTeePee(tp_x) + 
-                        PathSubst.vp(cd.ctor.args.map(_.name), tqs.map(_.p))
-                    )
-                    val msig = subst.methodSig(cd.ctor.msig(t))
-                    addCallMsig(teePee(x.path), msig, tqs)
+                    val msig_ctor = substdCtorSig(tp_x, m, tqs)
+                    addCallMsig(teePee(x.path), msig_ctor, tqs)
                     
                 case ir.StmtCast(x, wt, p) => 
                     val tp = teePee(ir.noAttrs, p)

@@ -89,10 +89,10 @@ extends TracksEnvironment(prog) {
     def checkStatement(stmt: ir.Stmt): Unit =
         at(stmt, ()) {
             stmt match {                  
-                case ir.StmtSuperCtor(qs) =>
+                case ir.StmtSuperCtor(m, qs) =>
                     val tp = tp_super
                     val tqs = teePee(ir.noAttrs, qs)
-                    val msig_ctor = substdCtorSig(tp, tqs)
+                    val msig_ctor = substdCtorSig(tp, m, tqs)
                     checkCall(tp, msig_ctor, tqs)
                     
                 case ir.StmtGetField(x, p_o, f) =>
@@ -130,12 +130,12 @@ extends TracksEnvironment(prog) {
                     checkCall(tp, msig, tqs)
                     addLvDecl(x, msig.wt_ret, None)                        
                 
-                case ir.StmtNew(x, t, qs) =>
+                case ir.StmtNew(x, t, m, qs) =>
                     if(classDecl(t.c).attrs.interface)
                         throw new ir.IrError("intervals.new.interface", t.c)
                     checkWfWt(t)
                     checkPathsWf(ghostOk, t.ghosts.map(_.p))
-                    checkPathsWf(reified, qs)
+                    val tqs = teePee(reified, qs)
                     
                     // Check that all ghosts on the type C being instantiated are given a value:
                     prog.ghostFieldDecls(t.c).find(f => t.oghost(f.name).isEmpty) match {
@@ -144,6 +144,10 @@ extends TracksEnvironment(prog) {
                     }
                     
                     addLvDecl(x, t, None)
+                    
+                    val tp_x = teePee(x.path)
+                    val msig_ctor = substdCtorSig(tp_x, m, tqs)
+                    checkCall(tp_x, msig_ctor, tqs)                    
                     
                 case ir.StmtCast(x, wt, p) => 
                     checkPathWf(reified, p)
@@ -339,7 +343,7 @@ extends TracksEnvironment(prog) {
                 cd.superClasses.foreach(checkInterfaceSuperclass)
                 if(!cd.fields.isEmpty)
                     throw new ir.IrError("intervals.interface.with.fields")
-                checkInterfaceConstructorDecl(cd, cd.ctor)
+                cd.ctors.foreach(checkInterfaceConstructorDecl(cd, _))
                 cd.methods.foreach(checkInterfaceMethodDecl(cd, _))
             }
         }
@@ -356,7 +360,7 @@ extends TracksEnvironment(prog) {
                 cd.superClasses.take(1).foreach(checkIsNotInterface)
                 cd.superClasses.drop(1).foreach(checkIsInterface)
                 cd.fields.foldLeft(Set.empty[ir.FieldName])(checkFieldDecl(cd))
-                checkNoninterfaceConstructorDecl(cd, cd.ctor)
+                cd.ctors.foreach(checkNoninterfaceConstructorDecl(cd, _))
                 cd.methods.foreach(checkNoninterfaceMethodDecl(cd, _))                    
             }
         }

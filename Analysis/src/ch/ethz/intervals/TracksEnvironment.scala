@@ -323,10 +323,15 @@ extends CheckPhase {
     }
 
     /// Method sig for constructor tp(tqs)
-    def substdCtorSig(tp: ir.TeePee, tqs: List[ir.TeePee]) = preservesEnv {
-        val msig = classDecl(tp.wt.c).ctor.msig(cap(tp))
-        val subst = ghostSubstOfTeePee(tp) + PathSubst.vp(msig.args.map(_.name), tqs.map(_.p))
-        subst.methodSig(msig)
+    def substdCtorSig(tp: ir.TeePee, m: ir.MethodName, tqs: List[ir.TeePee]) = preservesEnv {
+        classDecl(tp.wt.c).ctors.find(_.name == m) match {
+            case Some(md) =>
+                val msig = md.msig(cap(tp))
+                val subst = ghostSubstOfTeePee(tp) + PathSubst.vp(msig.args.map(_.name), tqs.map(_.p))
+                subst.methodSig(msig)
+            case None =>
+                throw ir.IrError("intervals.no.such.ctor", tp.wt.c, m)
+        }
     }
 
     /// Method sig for tp.m(tqs)

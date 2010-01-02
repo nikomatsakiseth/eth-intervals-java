@@ -135,7 +135,7 @@ object ir {
         superClasses: List[ClassName],
         ghosts: List[Ghost],
         reqs: List[Req],
-        ctor: MethodDecl,
+        ctors: List[MethodDecl],
         fields: List[FieldDecl],
         methods: List[MethodDecl]
     ) extends Positional {
@@ -218,8 +218,8 @@ object ir {
     }
     
     sealed abstract class Stmt extends Positional
-    sealed case class StmtSuperCtor(qs: List[Path]) extends Stmt {
-        override def toString = "super(%s)".format(qs)
+    sealed case class StmtSuperCtor(m: ir.MethodName, qs: List[Path]) extends Stmt {
+        override def toString = "super %s(%s)".format(m, qs)
     }
     sealed case class StmtSuperCall(x: VarName, m: MethodName, qs: List[Path]) extends Stmt {
         override def toString = "%s = super->%s(%s)".format(x, m, qs)
@@ -230,8 +230,8 @@ object ir {
     sealed case class StmtGetField(x: VarName, p: Path, f: FieldName) extends Stmt {
         override def toString = "%s = %s->%s".format(x, p, f)
     }
-    sealed case class StmtNew(x: VarName, t: TypeRef, qs: List[Path]) extends Stmt {
-        override def toString = "%s = new %s(%s);".format(x, t, qs.mkString(", "))
+    sealed case class StmtNew(x: VarName, t: TypeRef, m: ir.MethodName, qs: List[Path]) extends Stmt {
+        override def toString = "%s = new %s %s(%s);".format(x, t, m, qs.mkString(", "))
     }
     sealed case class StmtCast(x: VarName, wt: WcTypeRef, q: Path) extends Stmt {
         override def toString = "%s = (%s)%s;".format(x, wt, q)
@@ -259,7 +259,7 @@ object ir {
     }
 
     def isSuperCtor(s: Stmt) = s match {
-        case StmtSuperCtor(_) => true
+        case StmtSuperCtor(_, _) => true
         case _ => false
     }
     
@@ -459,7 +459,7 @@ object ir {
     val f_end = ir.FieldName("end")
     val f_super = ir.FieldName("super")
     
-    val m_ctor = ir.MethodName("constructor")
+    val m_init = ir.MethodName("<init>")
     val m_toString = ir.MethodName("toString")
     val m_run = ir.MethodName("run")
     
@@ -495,13 +495,13 @@ object ir {
         MethodDecl(
             /* attrs:  */ ctorAttrs,
             /* wt_ret: */ t_void, 
-            /* name:   */ m_ctor, 
+            /* name:   */ m_init, 
             /* args:   */ List(),
             /* reqs:   */ List(),
             /* blocks: */ Array(
                 Block(
                     /* args:  */ List(),
-                    /* stmts: */ List(ir.StmtSuperCtor(List())),
+                    /* stmts: */ List(ir.StmtSuperCtor(m_init, List())),
                     /* goto:  */ List()
                 )
             )
@@ -514,20 +514,20 @@ object ir {
             /* Extends: */  List(),
             /* Ghosts:  */  List(),
             /* Reqs:    */  List(),
-            /* Ctor:    */  MethodDecl(
+            /* Ctor:    */  List(MethodDecl(
                     /* attrs:  */ ctorAttrs,
                     /* wt_ret: */ t_void, 
-                    /* name:   */ m_ctor, 
+                    /* name:   */ m_init, 
                     /* args:   */ List(),
                     /* reqs:   */ List(),
                     /* blocks: */ Array(
                         Block(
                             /* args:  */ List(),
-                            /* stmts: */ List(ir.StmtSuperCtor(List())),
+                            /* stmts: */ List(ir.StmtSuperCtor(m_init, List())),
                             /* goto:  */ List()
                         )
                     )
-                ),
+                )),
             /* Fields:  */  List(
                     ir.gfd_creator
                 ),
@@ -554,20 +554,20 @@ object ir {
             /* Extends: */  List(c_object),
             /* Ghosts:  */  List(Ghost(f_creator, p_ctor)),
             /* Reqs:    */  List(),
-            /* Ctor:    */  MethodDecl(
+            /* Ctor:    */  List(MethodDecl(
                     /* attrs:  */ ctorAttrs,
                     /* wt_ret: */ t_void, 
-                    /* name:   */ m_ctor, 
+                    /* name:   */ m_init, 
                     /* args:   */ List(),
                     /* reqs:   */ List(),
                     /* blocks: */ Array(
                         Block(
                             /* args:  */ List(),
-                            /* stmts: */ List(ir.StmtSuperCtor(List())),
+                            /* stmts: */ List(ir.StmtSuperCtor(m_init, List())),
                             /* goto:  */ List()
                         )
                     )
-                ),
+                )),
             /* Fields:  */  List(),
             /* Methods: */  List()
         ),
@@ -577,20 +577,20 @@ object ir {
             /* Extends: */  List(c_object),
             /* Ghosts:  */  List(Ghost(f_creator, p_ctor)),
             /* Reqs:    */  List(),
-            /* Ctor:    */  MethodDecl(
+            /* Ctor:    */  List(MethodDecl(
                     /* attrs:  */ ctorAttrs,
                     /* wt_ret: */ t_void, 
-                    /* name:   */ m_ctor, 
+                    /* name:   */ m_init, 
                     /* args:   */ List(),
                     /* reqs:   */ List(),
                     /* blocks: */ Array(
                         Block(
                             /* args:  */ List(),
-                            /* stmts: */ List(ir.StmtSuperCtor(List())),
+                            /* stmts: */ List(ir.StmtSuperCtor(m_init, List())),
                             /* goto:  */ List()
                         )
                     )
-                ),
+                )),
             /* Fields:  */  List(),
             /* Methods: */  List()
         ),
@@ -600,20 +600,20 @@ object ir {
             /* Extends: */  List(c_object),
             /* Ghosts:  */  List(),
             /* Reqs:    */  List(),
-            /* Ctor:    */  MethodDecl(
+            /* Ctor:    */  List(MethodDecl(
                     /* attrs:  */ ctorAttrs,
                     /* wt_ret: */ t_void, 
-                    /* name:   */ m_ctor, 
+                    /* name:   */ m_init, 
                     /* args:   */ List(),
                     /* reqs:   */ List(),
                     /* blocks: */ Array(
                         Block(
                             /* args:  */ List(),
-                            /* stmts: */ List(ir.StmtSuperCtor(List())),
+                            /* stmts: */ List(ir.StmtSuperCtor(m_init, List())),
                             /* goto:  */ List()
                         )
                     )
-                ),
+                )),
             /* Fields:  */  List(
                 ReifiedFieldDecl(noAttrs, t_point, f_start, gfd_ctor.thisPath),
                 ReifiedFieldDecl(noAttrs, t_point, f_end, gfd_ctor.thisPath)),
@@ -640,20 +640,20 @@ object ir {
             /* Extends: */  List(c_object, c_guard),
             /* Ghosts:  */  List(Ghost(f_creator, p_ctor)),
             /* Reqs:    */  List(),
-            /* Ctor:    */  MethodDecl(
+            /* Ctor:    */  List(MethodDecl(
                     /* attrs:  */ ctorAttrs,
                     /* wt_ret: */ t_void, 
-                    /* name:   */ m_ctor, 
+                    /* name:   */ m_init, 
                     /* args:   */ List(),
                     /* reqs:   */ List(),
                     /* blocks: */ Array(
                         Block(
                             /* args:  */ List(),
-                            /* stmts: */ List(ir.StmtSuperCtor(List())),
+                            /* stmts: */ List(ir.StmtSuperCtor(m_init, List())),
                             /* goto:  */ List()
                         )
                     )
-                ),
+                )),
             /* Fields:  */  List(),
             /* Methods: */  List()
         ),
@@ -663,20 +663,20 @@ object ir {
             /* Extends: */  List(c_object),
             /* Ghosts:  */  List(Ghost(f_creator, p_ctor)),
             /* Reqs:    */  List(),
-            /* Ctor:    */  MethodDecl(
+            /* Ctor:    */  List(MethodDecl(
                     /* attrs:  */ ctorAttrs,
                     /* wt_ret: */ t_void, 
-                    /* name:   */ m_ctor, 
+                    /* name:   */ m_init, 
                     /* args:   */ List(),
                     /* reqs:   */ List(),
                     /* blocks: */ Array(
                         Block(
                             /* args:  */ List(),
-                            /* stmts: */ List(ir.StmtSuperCtor(List())),
+                            /* stmts: */ List(ir.StmtSuperCtor(m_init, List())),
                             /* goto:  */ List()
                         )
                     )
-                ),
+                )),
             /* Fields:  */  List(),
             /* Methods: */  List()
         ),
@@ -686,20 +686,20 @@ object ir {
             /* Extends: */  List(c_object, c_guard),
             /* Ghosts:  */  List(Ghost(f_creator, p_ctor)),
             /* Reqs:    */  List(),
-            /* Ctor:    */  MethodDecl(
+            /* Ctor:    */  List(MethodDecl(
                     /* attrs:  */ ctorAttrs,
                     /* wt_ret: */ t_void, 
-                    /* name:   */ m_ctor, 
+                    /* name:   */ m_init, 
                     /* args:   */ List(),
                     /* reqs:   */ List(),
                     /* blocks: */ Array(
                         Block(
                             /* args:  */ List(),
-                            /* stmts: */ List(ir.StmtSuperCtor(List())),
+                            /* stmts: */ List(ir.StmtSuperCtor(m_init, List())),
                             /* goto:  */ List()
                         )
                     )
-                ),
+                )),
             /* Fields:  */  List(),
             /* Methods: */  List()
         )

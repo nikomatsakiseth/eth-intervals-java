@@ -468,7 +468,7 @@ lvs_tar	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.
 m	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IrParser.scala	/^    def m = id                                  ^^ { case i => ir.MethodName(i) }$/;"	methods	line:54
 m1	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^            val m1 = _m.filter { case (k, v) => f(k) }$/;"	constants	line:293
 m1	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^            val m1 = _m.transform((k,v) => f(k, v))$/;"	constants	line:299
-m_ctor	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    val m_ctor = ir.MethodName("constructor")$/;"	constants	line:460
+m_init	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    val m_init = ir.MethodName("constructor")$/;"	constants	line:460
 m_run	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    val m_run = ir.MethodName("run")$/;"	constants	line:462
 m_toString	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    val m_toString = ir.MethodName("toString")$/;"	constants	line:461
 makeFlatMap	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^        def makeFlatMap[K,V](f: Q => Iterable[(K,V)]): Map[K,V] =$/;"	methods	line:111

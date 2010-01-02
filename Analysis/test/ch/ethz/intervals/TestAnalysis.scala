@@ -106,7 +106,7 @@ class TestAnalysis extends JUnitSuite {
                 constructor() 
                 requires method subinterval this.creator
                 {                   
-                    super();                    
+                    super `<init>`();                    
                 }
                 
                 Void setBothOkWhenGivenAsParameters(Interval inter, Object<creator: inter> obj) 
@@ -184,7 +184,7 @@ class TestAnalysis extends JUnitSuite {
             """
             class Data<Lock lock> extends Object<creator: this.lock> {                
                 constructor() {
-                    super();
+                    super `<init>`();
                 }
             }
             
@@ -202,7 +202,7 @@ class TestAnalysis extends JUnitSuite {
                 // XXX think that if the guard of a field is writable by
                 // XXX you, then the field itself is writable, and hence linked!
                 constructor(Lock lock) { // ERROR intervals.must.assign.first(this.data)
-                    super();
+                    super `<init>`();
                     this->lock = lock; // n.b.: if lock/data WERE linked, would make data invalid
                 }
             }
@@ -223,7 +223,7 @@ class TestAnalysis extends JUnitSuite {
                 
                 constructor() 
                 {         
-                    super();                    
+                    super `<init>`();                    
                     this->unctor = this;
                     this->ctor = this; // ERROR intervals.expected.subtype(this, Ctor{c}, Ctor{})
                 }
@@ -271,7 +271,7 @@ class TestAnalysis extends JUnitSuite {
                 
                 constructor(Interval f) 
                 {
-                    super();
+                    super `<init>`();
                     this->final = f;
                     
                     // Establish that this.final hb this:
@@ -316,7 +316,7 @@ class TestAnalysis extends JUnitSuite {
                 
                 constructor(Interval f) 
                 {
-                    super();
+                    super `<init>`();
                     this->final = f;
                     
                     this->emptyMethod();
@@ -346,7 +346,7 @@ class TestAnalysis extends JUnitSuite {
             class A<Interval a><Interval b> extends Object<creator: this.constructor> 
             {
                 constructor() {
-                    super();
+                    super `<init>`();
                 }
                 
                 Void aHbB() 
@@ -358,7 +358,7 @@ class TestAnalysis extends JUnitSuite {
             class FewerReqs extends A
             {
                 constructor() {
-                    super();
+                    super `<init>`();
                 }
                 
                 Void aHbB() // ok to have fewer reqs...
@@ -371,7 +371,7 @@ class TestAnalysis extends JUnitSuite {
             class SameReqs extends A
             {
                 constructor() {
-                    super();
+                    super `<init>`();
                 }
                 
                 Void aHbB() // ok to have same reqs...
@@ -385,7 +385,7 @@ class TestAnalysis extends JUnitSuite {
             class ImpliedReqs extends A
             {
                 constructor() {
-                    super();
+                    super `<init>`();
                 }
                 
                 Void aHbB() // ok to have different reqs where super => sub...
@@ -399,7 +399,7 @@ class TestAnalysis extends JUnitSuite {
             class UnsupportedReqs1 extends A 
             {
                 constructor() {
-                    super();
+                    super `<init>`();
                 }
                 
                 Void aHbB() // ERROR intervals.override.adds.req(requires method subinterval of this.constructor)
@@ -411,7 +411,7 @@ class TestAnalysis extends JUnitSuite {
             class UnsupportedReqs2 extends A
             {
                 constructor() {
-                    super();
+                    super `<init>`();
                 }
                 
                 Void aHbB() // ERROR intervals.override.adds.req(requires this.b hb this.a)
@@ -423,7 +423,7 @@ class TestAnalysis extends JUnitSuite {
             class UnsupportedReqs3 extends A
             {
                 constructor() {
-                    super();
+                    super `<init>`();
                 }
                 
                 Void aHbB() // ERROR intervals.override.adds.req(requires this.b readable by this.a)
@@ -441,7 +441,7 @@ class TestAnalysis extends JUnitSuite {
             """
             class Z extends Object {
                 constructor(String s) {
-                    super(s); // ERROR intervals.wrong.number.method.arguments(0, 1) 
+                    super `<init>`(s); // ERROR intervals.wrong.number.method.arguments(0, 1) 
                 }
             }
             
@@ -449,14 +449,14 @@ class TestAnalysis extends JUnitSuite {
                 String s requires this.constructor;
                 
                 constructor(String s) {
-                    super();
+                    super `<init>`();
                     this->s = s;
                 }
             }
             
             class B1 extends A {
                 constructor(String t, String w) {
-                    super(t, w); // ERROR intervals.wrong.number.method.arguments(1, 2)
+                    super `<init>`(t, w); // ERROR intervals.wrong.number.method.arguments(1, 2)
                 }
             }            
             """
@@ -468,14 +468,14 @@ class TestAnalysis extends JUnitSuite {
                 String s requires this.constructor;
                 
                 constructor(String s) {
-                    super();
+                    super `<init>`();
                     this->s = s;
                 }
             }
             
             class B2 extends A {
                 constructor(Void v) {
-                    super(v); // ERROR intervals.expected.subtype(v, Void{}, String{})
+                    super `<init>`(v); // ERROR intervals.expected.subtype(v, Void{}, String{})
                 }                
             }            
             """
@@ -490,13 +490,13 @@ class TestAnalysis extends JUnitSuite {
                 String s requires this.constructor;
                 
                 constructor(String s) {
-                    super();
+                    super `<init>`();
                 }
             }
             
             class B3 extends A {
                 constructor(String t) {
-                    super(t);
+                    super `<init>`(t);
                     
                     this->s = t; // ERROR intervals.not.writable(this.super)
                 }
@@ -506,7 +506,7 @@ class TestAnalysis extends JUnitSuite {
                 String t requires this.constructor;
                 
                 constructor(String s, String t) {
-                    super(s);
+                    super `<init>`(s);
                     this->t = t;
                 }
                 
@@ -518,7 +518,7 @@ class TestAnalysis extends JUnitSuite {
             class B5 extends A {
                 String t requires this.constructor;
                 constructor(String t) {
-                    super(t);
+                    super `<init>`(t);
                     
                     s = this->s; // this.super is readable
                     this->t = s; 
@@ -527,7 +527,7 @@ class TestAnalysis extends JUnitSuite {
             
             class C extends Object<creator: this.constructor> {
                 constructor() { 
-                    super();
+                    super `<init>`();
                 }
                 
                 Void mthdReadA(B5 constructor b) {
@@ -549,7 +549,7 @@ class TestAnalysis extends JUnitSuite {
             class A extends Object<creator: this.constructor> {
                 
                 constructor() {
-                    super();
+                    super `<init>`();
                 }
                 
             }
@@ -557,14 +557,14 @@ class TestAnalysis extends JUnitSuite {
             class B extends A {
                 
                 constructor() {
-                    super();
+                    super `<init>`();
                 }
             }
             
             class C extends B {
                 
                 constructor() {
-                    super();
+                    super `<init>`();
                 }
             }
             class Ctor extends Object<creator: this.constructor> {
@@ -576,7 +576,7 @@ class TestAnalysis extends JUnitSuite {
                 
                 constructor() 
                 {         
-                    super();                    
+                    super `<init>`();                    
                     this->unctor = this;
                     this->ctor = this; // ERROR intervals.expected.subtype(this, Ctor{c}, Ctor{})
                 }
@@ -626,7 +626,7 @@ class TestAnalysis extends JUnitSuite {
                 constructor(String f1) 
                 requires method subinterval this.init
                 {
-                    super();
+                    super `<init>`();
                     this->f1 = f1;
                 }
                 
@@ -658,7 +658,7 @@ class TestAnalysis extends JUnitSuite {
                 Lock lock requires this.constructor;
                 
                 constructor() {
-                    super();
+                    super `<init>`();
                     lock = new Lock();
                     this->lock = lock;
                 }
@@ -668,7 +668,7 @@ class TestAnalysis extends JUnitSuite {
                 String value requires this.lock;
                 
                 constructor() {
-                    super();
+                    super `<init>`();
                 }
 
                 String brokenGet() 
@@ -714,7 +714,7 @@ class TestAnalysis extends JUnitSuite {
             """
             interface class IFoo extends Object {
                 constructor() {
-                    super();
+                    super `<init>`();
                 }
                 
                 Object m1()
@@ -727,7 +727,7 @@ class TestAnalysis extends JUnitSuite {
                 Object f requires this.creator;
                 
                 constructor() {
-                    super();
+                    super `<init>`();
                 }
                 
                 Object m1() // n.b.: same requirements as IFoo
@@ -742,7 +742,7 @@ class TestAnalysis extends JUnitSuite {
                 Object f requires this.creator;
                 
                 constructor() {
-                    super();
+                    super `<init>`();
                 }
                 
                 Object m1() // n.b.: fewer requirements than IFoo
@@ -755,7 +755,7 @@ class TestAnalysis extends JUnitSuite {
                 Foo2<creator: this.creator> foo2 requires this.constructor;
                 
                 constructor() {
-                    super();
+                    super `<init>`();
                 }
                 
                 Void assign() {
@@ -790,13 +790,13 @@ class TestAnalysis extends JUnitSuite {
             """
             class Foo<String s><Lock l><Interval i> extends Object {
                 constructor() {
-                    super();
+                    super `<init>`();
                 }                
             }
             
             class Bar extends Object {
                 constructor() {
-                    super();
+                    super `<init>`();
                 }
                 
                 Void run() {
@@ -825,7 +825,7 @@ class TestAnalysis extends JUnitSuite {
             """
             class Foo<String s> extends Object {
                 constructor() {
-                    super();
+                    super `<init>`();
                 }                
             }
             
@@ -835,7 +835,7 @@ class TestAnalysis extends JUnitSuite {
                 Foo<s: this.s><creator: s> f3; // ERROR intervals.expected.subtype(this.s, String{}, Interval{})
                 
                 constructor() {
-                    super();
+                    super `<init>`();
                 }
             }
             """
@@ -849,18 +849,18 @@ class TestAnalysis extends JUnitSuite {
             """
             class Data1 extends Object {
                 Interval i;                
-                constructor() { super(); }
+                constructor() { super `<init>`(); }
             }
             
             class Data2 extends Object {
                 String s;
-                constructor() { super(); }
+                constructor() { super `<init>`(); }
             }
             
             class Direct extends Object {
                 Interval i;
                 Data2<creator: this.i> data2; // Safe, because i is in the same class.
-                constructor() { super(); }
+                constructor() { super `<init>`(); }
             }
             
             class Indirect1 extends Object {
@@ -870,7 +870,7 @@ class TestAnalysis extends JUnitSuite {
                 // it is not declared in the same class and it is not constant 
                 // during this.creator (data2's guard).
                 Data2<creator: this.data1.i> data2; // ERROR intervals.illegal.type.dep(this.data1.i, this.creator)
-                constructor() { super(); }
+                constructor() { super `<init>`(); }
             }
                         
             class Indirect2 extends Object {
@@ -879,14 +879,14 @@ class TestAnalysis extends JUnitSuite {
                 // See TODO for more thoughts.
                 Data1<creator: this.constructor> data1 requires this.constructor;
                 Data2<creator: this.data1.i> data2; // ERROR intervals.illegal.type.dep(this.data1.i, this.creator)
-                constructor() { super(); }
+                constructor() { super `<init>`(); }
             }
             
             class Indirect3 extends Interval {
                 // This is safe, because for intervals, we know that this.constructor hb this:
                 Data1<creator: this.constructor> data1 requires this.constructor;
                 Data2<creator: this.data1.i> data2 requires this;
-                constructor() { super(); }
+                constructor() { super `<init>`(); }
             }
 
             class Indirect4 extends Object {
@@ -895,7 +895,7 @@ class TestAnalysis extends JUnitSuite {
                 // making data2 invalid.
                 Data1<creator: this.constructor> data1 requires this.constructor;
                 Data2<creator: this.data1.i> data2 requires this.data1.i; // ERROR intervals.illegal.type.dep(this.data1.i, this.data1.i)
-                constructor() { super(); }
+                constructor() { super `<init>`(); }
             }
             """
         )
@@ -909,11 +909,11 @@ class TestAnalysis extends JUnitSuite {
             class Data extends Object {
                 Interval i;
                 
-                constructor() { super(); }
+                constructor() { super `<init>`(); }
             }
             
             class C extends Object {
-                constructor() { super(); }
+                constructor() { super `<init>`(); }
                 
                 Void mthd(
                     Data<creator: readableBy method> m1, 
@@ -940,11 +940,11 @@ class TestAnalysis extends JUnitSuite {
             class Data extends Object {
                 Interval i;
                 
-                constructor() { super(); }
+                constructor() { super `<init>`(); }
             }
             
             class C extends Object {
-                constructor() { super(); }
+                constructor() { super `<init>`(); }
                 
                 Void mthd(
                     Data<creator: readableBy method> m1, 
@@ -970,7 +970,7 @@ class TestAnalysis extends JUnitSuite {
             """
             class Foo<String s> extends Object {
                 constructor() {
-                    super();
+                    super `<init>`();
                 }                
             }
             
@@ -981,7 +981,7 @@ class TestAnalysis extends JUnitSuite {
                 Foo<t: this.s><creator: method> f4; // ERROR intervals.no.such.variable(method)
                 
                 constructor() {
-                    super();
+                    super `<init>`();
                 }
             }
             """
@@ -995,13 +995,13 @@ class TestAnalysis extends JUnitSuite {
             """
             class C1<Lock l1> extends Object {
                 constructor() {
-                    super();
+                    super `<init>`();
                 }
             }
             
             class C2<Lock l2> extends C1 {
                 constructor() {
-                    super();
+                    super `<init>`();
                 }                                
             }
             
@@ -1011,7 +1011,7 @@ class TestAnalysis extends JUnitSuite {
                 C1<creator: this.a><l1: this.b> creatorAl1B;
                 
                 constructor() {
-                    super();
+                    super `<init>`();
                 }                
                 
                 Void ok() 
@@ -1054,31 +1054,31 @@ class TestAnalysis extends JUnitSuite {
             """
             interface class IFoo extends Object {
                 constructor() {
-                    super();
+                    super `<init>`();
                 }
             }
             
             interface class IBar extends Ok { // ERROR intervals.superType.not.interface(Ok)
                 constructor() {
-                    super();
+                    super `<init>`();
                 }
             }
             
             class Ok extends Object, IFoo {
                 constructor() {
-                    super();
+                    super `<init>`();
                 }                
             }
             
             class BadExtendsInter extends IFoo, Object { // ERROR intervals.superType.interface(IFoo)
                 constructor() {
-                    super();
+                    super `<init>`();
                 }                
             }
             
             class BadExtendsClass extends Ok, Object { // ERROR intervals.superType.not.interface(Object)
                 constructor() {
-                    super();
+                    super `<init>`();
                 }                
             }
             """
@@ -1093,7 +1093,7 @@ class TestAnalysis extends JUnitSuite {
                 String fld requires this.lock;
                 
                 constructor() {
-                    super();
+                    super `<init>`();
                 }                
             }
             
@@ -1104,7 +1104,7 @@ class TestAnalysis extends JUnitSuite {
                 Link nextLink requires this.lock;
                 
                 constructor() {
-                    super();
+                    super `<init>`();
                     lock = new Lock();
                     this->lock = lock;
                     
@@ -1122,7 +1122,7 @@ class TestAnalysis extends JUnitSuite {
                 Link link requires this.constructor;
                 
                 constructor(Link link) {
-                    super();
+                    super `<init>`();
                     this->link = link;                 
                     this locks link.lock; 
                 }
@@ -1160,7 +1160,7 @@ class TestAnalysis extends JUnitSuite {
             """
             class Class extends Object {
                 constructor() {
-                    super();
+                    super `<init>`();
                 }
                 
                 // ______________________________________________________________________
@@ -1216,7 +1216,7 @@ class TestAnalysis extends JUnitSuite {
                 <Interval i> 
             extends Object {
                 constructor() {
-                    super();
+                    super `<init>`();
                 }
             }
             
@@ -1224,7 +1224,7 @@ class TestAnalysis extends JUnitSuite {
                 <Interval i> // ERROR intervals.shadowed.ghost(Super, i)
             extends Super {
                 constructor() {
-                    super();
+                    super `<init>`();
                 }
             }
             """            
@@ -1240,7 +1240,7 @@ class TestAnalysis extends JUnitSuite {
                 <Interval i> // ERROR intervals.duplicate.field(i)
             extends Object {
                 constructor() {
-                    super();
+                    super `<init>`();
                 }
             }
             """            
@@ -1254,7 +1254,7 @@ class TestAnalysis extends JUnitSuite {
             class Data extends Object {
                 Object<creator: this.creator> o;
                 constructor() {
-                    super();                    
+                    super `<init>`();                    
                 }
             }
             
@@ -1263,7 +1263,7 @@ class TestAnalysis extends JUnitSuite {
                 Interval nextProd;
                 ProdData<creator: this.nextProd> nextPdata;
                 constructor() {
-                    super();                    
+                    super `<init>`();                    
                 }
             }
             
@@ -1271,7 +1271,7 @@ class TestAnalysis extends JUnitSuite {
                 Interval nextCons;
                 ConsData<creator: this.nextCons> nextCdata;
                 constructor() {
-                    super();                    
+                    super `<init>`();                    
                 }
             }
             
@@ -1281,7 +1281,7 @@ class TestAnalysis extends JUnitSuite {
                 
                 constructor(Interval c, ConsData<creator: c> cdata)
                 {
-                    super();
+                    super `<init>`();
                     c hb this;
                     this->cdata = cdata;
                     pdata = new ProdData<creator: this>();
@@ -1315,7 +1315,7 @@ class TestAnalysis extends JUnitSuite {
                 
                 constructor(Interval p, ProdData<creator: p> pdata)
                 {
-                    super();
+                    super `<init>`();
                     p hb this;
                     this->pdata = pdata;
                     cdata = new ConsData<creator: this>();
@@ -1342,7 +1342,7 @@ class TestAnalysis extends JUnitSuite {
             
             class BBPC extends Interval {
                 constructor() {
-                    super();                    
+                    super `<init>`();                    
                 }
                 
                 Void run()

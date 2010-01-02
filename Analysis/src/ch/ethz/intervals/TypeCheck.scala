@@ -161,10 +161,10 @@ extends ComputeRelations(prog)
     def checkStatement(stmt: ir.Stmt): Unit = 
         at(stmt, ()) {
             stmt match {                  
-                case ir.StmtSuperCtor(qs) =>
+                case ir.StmtSuperCtor(m, qs) =>
                     val tp = tp_super
                     val tqs = teePee(ir.noAttrs, qs)
-                    val msig_ctor = substdCtorSig(tp, tqs)
+                    val msig_ctor = substdCtorSig(tp, m, tqs)
                     checkCallMsig(tp_super, msig_ctor, tqs)
                     
                 case ir.StmtGetField(_, p_o, f) =>
@@ -201,7 +201,7 @@ extends ComputeRelations(prog)
                     val tqs = teePee(ir.noAttrs, qs)
                     checkCall(tp_super, m, tqs)
                 
-                case ir.StmtNew(x, t, qs) =>
+                case ir.StmtNew(x, t, m, qs) =>
                     val cd = classDecl(t.c)
                     val tqs = teePee(ir.noAttrs, qs)
                     
@@ -218,17 +218,8 @@ extends ComputeRelations(prog)
                             checkIsSubtype(tp, gfd.wt)
                         }                        
                                         
-                        val subst_qs = PathSubst.vp(
-                            ir.lv_this :: cd.ctor.args.map(_.name),
-                            x.path :: tqs.map(_.p)
-                        )
-                        val subst_g = PathSubst.pp(
-                            t.ghosts.map(g => ir.p_this + g.f),
-                            t.ghosts.map(g => g.p)
-                        )
-                        val subst = subst_qs + subst_g
-                        val msig = subst.methodSig(cd.ctor.msig(t))
-                        checkCallMsig(teePee(x.path), msig, tqs)
+                        val msig_ctor = substdCtorSig(tp_x, m, tqs)
+                        checkCallMsig(teePee(x.path), msig_ctor, tqs)
                     }
                     
                 case ir.StmtCast(_, _, _) => ()
@@ -526,9 +517,10 @@ extends ComputeRelations(prog)
     def checkNoninterfaceClassDecl(cd: ir.ClassDecl) = 
         at(cd, ()) {
             savingEnv {
-                cd.fields.foldLeft(Set.empty[ir.FieldName])(checkFieldDecl(cd))
-                val env_ctor_assum = checkNoninterfaceConstructorDecl(cd, cd.ctor)                    
-                cd.methods.foreach(checkMethodDecl(cd, env_ctor_assum, _))                    
+                cd.fields.foldLeft(Set.empty[ir.FieldName])(checkFieldDecl(cd))                
+                val envs_ctor = cd.ctors.map(checkNoninterfaceConstructorDecl(cd, _))
+                val env_all_ctors = ir.Env.intersect(envs_ctor)
+                cd.methods.foreach(checkMethodDecl(cd, env_all_ctors, _))                    
             }
         }
             

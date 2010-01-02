@@ -1,14 +1,39 @@
 package ch.ethz.intervals
 
 import scala.util.parsing.combinator.syntactical.StandardTokenParsers
+import scala.util.parsing.input.Reader
+import scala.util.parsing.syntax.Tokens
+import scala.util.parsing.syntax.StdTokens
+import scala.util.parsing.combinator.lexical.StdLexical
 
 import Util._
 
 class IrParser extends StandardTokenParsers {
+    
+    // Extend parser so that "`.*`" is considered an identifier:
+    override val lexical = new StdLexical {
+        override def token: Parser[Token] = {
+            val superToken = super.token
+            new Parser[Token]() {
+                def untilTick(prefix: String, in: Reader[Char]): (String, Reader[Char]) =
+                    if(in.first == '`') (prefix, in.rest)
+                    else untilTick(prefix + in.first, in.rest)
+                def apply(in: Reader[Char]) = {
+                    if(in.first == '`') {                        
+                        val (str, out) = untilTick("", in.rest)
+                        Success(Identifier(str), out)
+                    } else {
+                        superToken.apply(in)
+                    }
+                }
+            }
+        }
+    }
+    
     lexical.delimiters += (
         "{", "}", "[", "]", "(", ")", "<", ">",
         ",", "@", "?", ":", ".", ";", "=", "->", 
-        "#", "<=", "&&", "`", "=="
+        "#", "<=", "&&", "=="
     )
     lexical.reserved += (
         "class", "new", "constructor", "null", 
@@ -52,6 +77,7 @@ class IrParser extends StandardTokenParsers {
     def attrs = rep(attr)                       ^^ { case la => ir.Attrs(Set(la: _*)) }
     
     def m = id                                  ^^ { case i => ir.MethodName(i) }
+    def cm = opt(m)                             ^^ { case Some(m) => m; case None => ir.m_init }
     def c = id                                  ^^ { case i => ir.ClassName(i) }
     def lv = id                                 ^^ { case i => ir.VarName(i) }
     def f = (
@@ -97,11 +123,11 @@ class IrParser extends StandardTokenParsers {
     def optLocks = optl2("locks", comma(p))
     
     def stmt: Parser[ir.Stmt] = positioned(
-       "super"~"("~comma(p)~")"~";"                 ^^ { case _~_~ps~_~_ => ir.StmtSuperCtor(ps) }
+       "super"~cm~"("~comma(p)~")"~";"              ^^ { case _~m~_~ps~_~_ => ir.StmtSuperCtor(m,ps) }
     |   optLv~p~"->"~m~"("~comma(p)~")"~";"         ^^ { case x~p~"->"~m~"("~qs~")"~_ => ir.StmtCall(x, p, m, qs) }
     |   optLv~"super"~"->"~m~"("~comma(p)~")"~";"   ^^ { case x~_~"->"~m~"("~qs~")"~_ => ir.StmtSuperCall(x, m, qs) }
     |   lv~"="~p~"->"~f~";"                         ^^ { case x~"="~p~"->"~f~_ => ir.StmtGetField(x, p, f) }
-    |   lv~"="~"new"~t~"("~comma(p)~")"~";"         ^^ { case x~"="~"new"~t~"("~qs~")"~_ => ir.StmtNew(x, t, qs) }
+    |   lv~"="~"new"~t~cm~"("~comma(p)~")"~";"      ^^ { case x~"="~"new"~t~m~"("~qs~")"~_ => ir.StmtNew(x, t, m, qs) }
     |   lv~"="~"("~wt~")"~p~";"                     ^^ { case x~"="~"("~wt~")"~p~";" => ir.StmtCast(x, wt, p) }
     |   lv~"="~"("~wt~")"~"null"~";"                ^^ { case x~"="~"("~wt~")"~"null"~";" => ir.StmtNull(x, wt) }
     |   p~"->"~f~"="~p~";"                          ^^ { case p~_~f~_~q~_ => ir.StmtSetField(p, f, q) }
@@ -145,10 +171,10 @@ class IrParser extends StandardTokenParsers {
     })
     
     def constructor = positioned(
-        "constructor"~"("~comma(lvdecl)~")"~reqs~methodBody
+        "constructor"~cm~"("~comma(lvdecl)~")"~reqs~methodBody
     ^^ {
-        case "constructor"~"("~args~")"~reqs~blocks =>
-            ir.MethodDecl(ir.ctorAttrs, ir.t_void, ir.m_ctor, args, reqs, blocks)
+        case "constructor"~m~"("~args~")"~reqs~blocks =>
+            ir.MethodDecl(ir.ctorAttrs, ir.t_void, m, args, reqs, blocks)
     })
     
     def ghostFieldDecl = positioned(
@@ -167,12 +193,12 @@ class IrParser extends StandardTokenParsers {
         reqs~
         "{"~
             rep(reifiedFieldDecl)~
-            constructor~
+            rep(constructor)~
             rep(methodDecl)~
         "}"
     ^^ {
-        case attrs~"class"~name~gfds~superClasses~guards~reqs~"{"~rfds~ctor~methods~"}" =>
-            ir.ClassDecl(attrs, name, superClasses, guards, reqs, ctor, gfds ++ rfds, methods)
+        case attrs~"class"~name~gfds~superClasses~guards~reqs~"{"~rfds~ctors~methods~"}" =>
+            ir.ClassDecl(attrs, name, superClasses, guards, reqs, ctors, gfds ++ rfds, methods)
     })
     
     def classDecls = rep(classDecl)
