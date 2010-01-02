@@ -480,7 +480,7 @@ class TestAnalysis extends JUnitSuite {
 
     @Test
     def superCtors() {
-        tc(
+        wf(
             """
             class Z extends Object {
                 constructor(String s) {
@@ -500,6 +500,19 @@ class TestAnalysis extends JUnitSuite {
             class B1 extends A {
                 constructor(String t, String w) {
                     super(t, w); // ERROR intervals.wrong.number.method.arguments(1, 2)
+                }
+            }            
+            """
+        )
+        
+        tc(
+            """
+            class A extends Object {
+                String s requires this.constructor;
+                
+                constructor(String s) {
+                    super();
+                    this->s = s;
                 }
             }
             
