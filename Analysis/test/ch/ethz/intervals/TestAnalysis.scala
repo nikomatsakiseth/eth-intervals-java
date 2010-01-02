@@ -308,6 +308,58 @@ class TestAnalysis extends JUnitSuite {
     }
     
     @Test
+    def inheritedAssumptionsFromMultipleCtors() {
+        tc(
+            """
+            class Foo extends Interval {
+                Interval unrelated requires this.constructor;
+                Interval maybeRelated requires this.constructor;
+                Interval before requires this.constructor;
+                
+                constructor c1(Interval a, Interval b, Interval c) 
+                {
+                    super();
+                    this->unrelated = a;
+                    this->maybeRelated = b;
+                    this->before = c;
+                    
+                    b hb this;
+                    c hb this;                    
+                }
+                
+                constructor c2(Interval a, Interval b, Interval c) 
+                {
+                    super();
+                    this->unrelated = a;
+                    this->maybeRelated = b;
+                    this->before = c;
+                    
+                    c hb this;                    
+                }
+                
+                Void mu(Object<creator: this.unrelated> o) 
+                requires method subinterval this
+                {
+                    o->toString(); // ERROR intervals.requirement.not.met(requires this.unrelated readable by method)
+                }
+                
+                Void mr(Object<creator: this.maybeRelated> o) 
+                requires method subinterval this
+                {
+                    o->toString(); // ERROR intervals.requirement.not.met(requires this.maybeRelated readable by method)
+                }
+                
+                Void mb(Object<creator: this.before> o) 
+                requires method subinterval this
+                {
+                    o->toString(); 
+                }
+            }
+            """
+        )
+    }
+    
+    @Test
     def inheritedAssumptionsOnlyIncludeTemporarilyAliasedFields() {
         tc(
             """

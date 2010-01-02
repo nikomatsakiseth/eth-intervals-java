@@ -413,6 +413,7 @@ extends ComputeRelations(prog)
                 
                 // Compute exit assumptions and store in prog.exportedCtorEnvs:
                 env = extractAssumptions(tp_ctor, Set(ir.lv_this)) // Globally valid assums
+                log.env("extracted assumptions:", env)
                 prog.exportedCtorEnvs += Pair((cd.name, md.name), env) // Store
                 env
             }
