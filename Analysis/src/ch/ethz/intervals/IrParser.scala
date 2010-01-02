@@ -61,10 +61,7 @@ class IrParser extends StandardTokenParsers {
     
     def comma[A](p: Parser[A]): Parser[List[A]] = repsep(p, ",")
                                     
-    def id = (
-        "`"~repsep(ident, ".")~"`"              ^^ { case "`"~is~"`" => is.mkString(".") }
-    |   ident
-    )
+    def id = ident
     
     def integer = numericLit                    ^^ { case s => s.toInt }
     
