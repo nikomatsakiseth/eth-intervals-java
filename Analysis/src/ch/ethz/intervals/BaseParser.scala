@@ -6,7 +6,9 @@ import scala.util.parsing.syntax.Tokens
 import scala.util.parsing.syntax.StdTokens
 import scala.util.parsing.combinator.lexical.StdLexical
 
-class BaseParser extends StandardTokenParsers {
+// Common code shared by both the IrParser (used in unit testing)
+// and the AnnotParser (used in comp. plugin).
+abstract class BaseParser extends StandardTokenParsers {
     
     // Extend parser so that "`.*`" is considered an identifier:
     override val lexical = new StdLexical {
@@ -33,12 +35,34 @@ class BaseParser extends StandardTokenParsers {
         ",", "@", "?", ":", ".", ";", "=", "->", 
         "#", "<=", "&&", "=="
     )
+    lexical.reserved += (
+        "hb", "subintervalOf", "readableBy", "writableBy", "locks"
+    )
     
     def parse[A](p: Parser[A])(text: String) = {
       val tokens = new lexical.Scanner(text)
       phrase(p)(tokens)
-    }    
+    }
+    
+    def parseToResult[A](p: Parser[A])(text: String) =
+        parse(p)(text) match {
+            case Success(v, _) => v
+            case n: NoSuccess => throw new ir.IrError("intervals.parse.error", n.toString)            
+        }
     
     def comma[A](p: Parser[A]): Parser[List[A]] = repsep(p, ",")
+    
+    def p: Parser[ir.Path]
+    
+    def wp = (
+        p
+    |   "?"                                     ^^ { case _ => ir.WcHb(List(), List()) }
+    |   "readableBy"~comma(p)                   ^^ { case _~ps => ir.WcReadableBy(ps) }
+    |   "writableBy"~comma(p)                   ^^ { case _~ps => ir.WcWritableBy(ps) }
+    |   comma(p)~"hb"~comma(p)                  ^^ { case ps~_~qs => ir.WcHb(ps, qs) }
+    |   "locks"~comma(p)                        ^^ { case _~ps => ir.WcLocks(ps) }
+    |   comma(p)~"locks"                        ^^ { case ps~_ => ir.WcLockedBy(ps) }
+    )
+
                                         
 }

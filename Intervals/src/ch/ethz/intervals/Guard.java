@@ -1,8 +1,8 @@
 package ch.ethz.intervals;
 
-import ch.ethz.intervals.params.creator;
 import ch.ethz.intervals.quals.GuardedBy;
 import ch.ethz.intervals.quals.WrittenDuring;
+import ch.ethz.intervals.quals.creator;
 
 /**
  * A guard is an object that defines when a field may be safely read or written.

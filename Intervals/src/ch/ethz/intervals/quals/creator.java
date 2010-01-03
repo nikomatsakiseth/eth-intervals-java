@@ -1,6 +1,5 @@
-package ch.ethz.intervals.params;
+package ch.ethz.intervals.quals;
 
-import ch.ethz.intervals.quals.DefinesGhost;
 
 /**
  * 

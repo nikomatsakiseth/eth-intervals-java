@@ -10,8 +10,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Assert;
 import org.junit.Test;
 
-import ch.ethz.intervals.params.creator;
 import ch.ethz.intervals.quals.WrittenDuring;
+import ch.ethz.intervals.quals.creator;
 
 /**
  * Bounded-buffer Producer Consumer example

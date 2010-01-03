@@ -13,8 +13,8 @@ class IrParser extends BaseParser {
     lexical.reserved += (
         "class", "new", "constructor", "null", 
         "return", "Rd", "Wr", "Free", "extends", 
-        "hb", "requires", "super", "locks",
-        "subinterval", "push", "pop", "readableBy", "writableBy",
+        "requires", "super", 
+        "subinterval", "push", "pop", 
         "interface", "goto"
     )
 
@@ -50,20 +50,10 @@ class IrParser extends BaseParser {
     
     def dotf = "."~f                            ^^ { case _~f => f }
     def p = lv~rep(dotf)                        ^^ { case lv~fs => lv ++ fs }
-    
     def g = "<"~f~":"~p~">"                     ^^ { case _~f~_~p~_ => ir.Ghost(f, p) }    
     def t = c~rep(g)                            ^^ { case c~lg => ir.TypeRef(c, lg, ir.noAttrs) }
-    
-    def wp = (
-        p
-    |   "?"                                     ^^ { case _ => ir.WcHb(List(), List()) }
-    |   "readableBy"~comma(p)                   ^^ { case _~ps => ir.WcReadableBy(ps) }
-    |   "writableBy"~comma(p)                   ^^ { case _~ps => ir.WcWritableBy(ps) }
-    |   comma(p)~"hb"~comma(p)                  ^^ { case ps~_~qs => ir.WcHb(ps, qs) }
-    |   "locks"~comma(p)                        ^^ { case _~ps => ir.WcLocks(ps) }
-    |   comma(p)~"locks"                        ^^ { case ps~_ => ir.WcLockedBy(ps) }
-    )
-    
+
+    override def wp = super.wp                  // Defined in BaseParser
     def wg = "<"~f~":"~wp~">"                   ^^ { case _~f~_~wp~_ => ir.WcGhost(f, wp) }    
     def wt = c~rep(wg)~attrs                    ^^ { case c~lwg~la => ir.WcTypeRef(c, lwg, la) }
     
