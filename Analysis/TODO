@@ -36,10 +36,10 @@ Features
 
 (*) Assertions
 
-    a hb b
-    a locks b    
-    a readableBy b
-    a writableBy b
+    a hb b              user's pnt.hb(pnt)
+    a locks b           user's foo.holdsLock(bar)
+    a readableBy b      user's foo.isReadable() translates to "foo readableBy method"
+    a writableBy b      user's foo.isWritable() translates to "foo writableBy method"
     a == b              creates a temporary alias from b to a?
     a == b->p           creates a temporary alias from b->p to a
 
@@ -50,10 +50,22 @@ Features
     If a class declared, for example, that two of its fields f and g have a HB relationship,
     then this would link f and g.  We can use the existing linked fields mechanisms to ensure
     that they are written together.
-        
+
+(*) Change implicit "contructor" ghost to be a ghost with the same name as the current class.
+
+    Then every class defines @X("this.super") where X is a supertype.  .super is a bit funny,
+    it's really an existential reference to an interval which is known to be in the past.
+    Both .X and .super are overly special that way.
+    
 Things to Think About
 ---------------------
 
+(*) Package-Level Ghosts
+
+    Before we found the idea of package-level regions quite useful.  Are they still useful?
+    How do they fit in with ghosts-as-fields?  Are they declared implicitly at the base of
+    the type hierarchy?  That's a bit strange.
+        
 (*) Allow multiple guards (or a guard predicate of some kind)
 
     For example, lock AND written during.  This way, you could have shared data accessed by

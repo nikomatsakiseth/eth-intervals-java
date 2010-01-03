@@ -2,7 +2,7 @@ package ch.ethz.intervals;
 
 import static ch.ethz.intervals.EdgeList.NONDETERMINISTIC;
 
-final class Lock
+public final class Lock
 extends /*@Writer("this.constructor")*/ Object 
 implements Guard
 {
@@ -26,6 +26,17 @@ implements Guard
 		
 		if(prevOwner != null)
 			prevOwner.addEdgeAndAdjust(startPnt, NONDETERMINISTIC);
+	}
+
+	@Override
+	public boolean isReadable() {
+		Current current = Current.get();
+		return (current.inter != null && current.inter.holdsLock(this));
+	}
+
+	@Override
+	public boolean isWritable() {
+		return isReadable();
 	}
 
 }

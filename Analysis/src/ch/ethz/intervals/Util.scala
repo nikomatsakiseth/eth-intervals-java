@@ -94,10 +94,13 @@ object Util {
     // Extensions to Option
     
     case class UtilOption[X](o: Option[X]) {
-            def mapToOption[Y](f: (X => Option[Y])) = o match {
-                    case None => None
-                    case Some(x) => f(x)
-            }
+        def mapToOption[Y](f: (X => Option[Y])) = o match {
+            case None => None
+            case Some(x) => f(x)
+        }
+        
+        def foldLeft[Y](y0: Y)(f: ((Y, X) => Y)): Y =
+            o.map(f(y0, _)).getOrElse(y0)
     }
     implicit def option2UtilOption[X](o: Option[X]) = UtilOption(o)
     
@@ -406,5 +409,36 @@ object Util {
         }
         g _
     }
+  
+    // ____________________________________________________________
     
+    def qualNameSb(sb: StringBuilder, elem: Element) {
+        if(elem == null)
+            sb.append("null")
+        else
+            elem.getKind match {
+                case EK.PACKAGE =>          
+                    val pkgElem = elem.asInstanceOf[PackageElement]
+                    sb.append(pkgElem.getQualifiedName)
+                case _ =>
+                    qualNameSb(sb, elem.getEnclosingElement)
+                    sb.append(".")
+                    sb.append(elem.getSimpleName.toString)
+                    if(elem.getKind == EK.METHOD)
+                        sb.append("()")
+            }
+    }
+    
+    def qualName(elem: Element): String = {
+        val sb = new StringBuilder()
+        qualNameSb(sb, elem)
+        sb.toString
+    }    
+    
+    def prefix(s: String) = 
+        if(s.length < 30)
+            s
+        else
+            s.substring(0, 30)
+            
 }

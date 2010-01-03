@@ -91,7 +91,7 @@ public class TestBarrier {
 		Barrier b;
 		try {
 			b = 
-				Intervals.blockingInterval(new Subinterval<Barrier>() {			
+				Intervals.subinterval(new SubintervalTask<Barrier>() {			
 					public Barrier run(Interval subinterval) {
 						return new Barrier(subinterval);
 					}

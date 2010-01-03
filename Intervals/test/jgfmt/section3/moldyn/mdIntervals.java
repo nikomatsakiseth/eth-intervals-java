@@ -221,7 +221,7 @@ public class mdIntervals extends mdBase {
 			/* move the particles and update velocities */
 			
 			// use accumulate shared force to update position of all particles
-			Intervals.blockingInterval(new VoidSubinterval() {				
+			Intervals.subinterval(new VoidSubinterval() {				
 				@Override public void run(Interval subinterval) {
 					new IndexedInterval(subinterval, mdsize) {
 						public void run(Point _, int start, int stop) {
@@ -245,7 +245,7 @@ public class mdIntervals extends mdBase {
 			interacts.resetAccumulators();
 
 			/* compute forces */
-			Intervals.blockingInterval(new VoidSubinterval() {				
+			Intervals.subinterval(new VoidSubinterval() {				
 				@Override public void run(Interval subinterval) {
 					new IndexedInterval(subinterval, mdsize) {
 						public void run(Point _, int start, int stop) {

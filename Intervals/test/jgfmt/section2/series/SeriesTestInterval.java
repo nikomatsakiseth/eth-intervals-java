@@ -69,7 +69,7 @@ public class SeriesTestInterval {
 		
 		//Thread debugThread = Debug.dumpDebugStateAfterTimeElapsed(8);
 
-		Intervals.blockingInterval(new VoidSubinterval() {
+		Intervals.subinterval(new VoidSubinterval() {
 			@Override public void run(Interval subinterval) {
 				for (int i = 0; i < array_rows; i++)
 					new SeriesRunnerInterval(subinterval, i);

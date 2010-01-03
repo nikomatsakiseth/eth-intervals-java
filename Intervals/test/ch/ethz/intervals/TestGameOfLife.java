@@ -271,9 +271,9 @@ public class TestGameOfLife {
 		byte[][] execute() {
 			gensRemaining = numGens;
 			
-			Intervals.blockingInterval(new VoidSubinterval() {
+			Intervals.subinterval(new VoidSubinterval() {
 				@Override public void run(Interval _) {
-					Intervals.blockingInterval(new VoidSubinterval() {
+					Intervals.subinterval(new VoidSubinterval() {
 						@Override public void run(Interval inner) {
 							switchGens(inner.end);
 							
@@ -367,7 +367,7 @@ public class TestGameOfLife {
 
 		@Override
 		byte[][] execute() {
-			Intervals.blockingInterval(new VoidSubinterval() {
+			Intervals.subinterval(new VoidSubinterval() {
 				@Override public void run(Interval subinterval) {
 					Point prevGen = null;
 					for(int gen = 0; gen < numGens; gen++) {
@@ -497,7 +497,7 @@ public class TestGameOfLife {
 				final byte[][] inBoard = data[gen % 2];
 				final byte[][] outBoard = data[(gen + 1) % 2];
 				
-				Intervals.blockingInterval(new VoidSubinterval() {
+				Intervals.subinterval(new VoidSubinterval() {
 					@Override public void run(final Interval subinterval) {
 						subdivide(rs, cs, w, h, new InvokableWithTile() {
 							public void run(final Tile t) {
@@ -596,7 +596,7 @@ public class TestGameOfLife {
 		@Override
 		byte[][] execute() {
 			
-			Intervals.blockingInterval(new VoidSubinterval() {				
+			Intervals.subinterval(new VoidSubinterval() {				
 				@Override public void run(Interval subinterval) {
 					subdivide(rs, cs, w, h, new InvokableWithTile() {
 						public void run(Tile t) {

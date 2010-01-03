@@ -1,13 +1,14 @@
 package ch.ethz.intervals.quals;
 
-import ch.ethz.intervals.Interval;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Target;
+
 
 /**
- * Used to indicate the {@link Interval} when a field
- * will be written or the {@link AddLock}.  Its value should be a path
- * like {@code "a.b.c"} where {@code a}, {@code b},
- * etc are field or ghosts of the current class.
+ * Equivalent to {@link GuardedBy}.  Intended for use with interval
+ * values; the resulting class definition is more readable.
  */
+@Target(ElementType.FIELD)
 public @interface WrittenDuring {
 	public String value();
 }

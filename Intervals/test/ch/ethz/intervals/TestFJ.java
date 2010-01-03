@@ -41,7 +41,7 @@ public class TestFJ {
 		// are children of the current interval and the current
 		// interval always waits for them to finish before 
 		// proceeding.
-		Intervals.blockingInterval(new VoidSubinterval() {
+		Intervals.subinterval(new VoidSubinterval() {
 			public void run(Interval subinterval) {
 				for(int i = 0; i < N; i++)
 					new AddTask(subinterval, i);				

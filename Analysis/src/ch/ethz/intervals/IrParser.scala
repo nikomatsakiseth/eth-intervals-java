@@ -8,33 +8,8 @@ import scala.util.parsing.combinator.lexical.StdLexical
 
 import Util._
 
-class IrParser extends StandardTokenParsers {
+class IrParser extends BaseParser {
     
-    // Extend parser so that "`.*`" is considered an identifier:
-    override val lexical = new StdLexical {
-        override def token: Parser[Token] = {
-            val superToken = super.token
-            new Parser[Token]() {
-                def untilTick(prefix: String, in: Reader[Char]): (String, Reader[Char]) =
-                    if(in.first == '`') (prefix, in.rest)
-                    else untilTick(prefix + in.first, in.rest)
-                def apply(in: Reader[Char]) = {
-                    if(in.first == '`') {                        
-                        val (str, out) = untilTick("", in.rest)
-                        Success(Identifier(str), out)
-                    } else {
-                        superToken.apply(in)
-                    }
-                }
-            }
-        }
-    }
-    
-    lexical.delimiters += (
-        "{", "}", "[", "]", "(", ")", "<", ">",
-        ",", "@", "?", ":", ".", ";", "=", "->", 
-        "#", "<=", "&&", "=="
-    )
     lexical.reserved += (
         "class", "new", "constructor", "null", 
         "return", "Rd", "Wr", "Free", "extends", 
@@ -42,11 +17,6 @@ class IrParser extends StandardTokenParsers {
         "subinterval", "push", "pop", "readableBy", "writableBy",
         "interface", "goto"
     )
-    
-    def parse[A](p: Parser[A])(text: String) = {
-      val tokens = new lexical.Scanner(text)
-      phrase(p)(tokens)
-    }
 
     def optd[A](p: Parser[A], d: => A) = 
         opt(p)                                  ^^ { case None => d
@@ -59,10 +29,6 @@ class IrParser extends StandardTokenParsers {
     def optl3[A](a: String, p: Parser[List[A]], b: String) =
         opt(a~p~b)                              ^^ { case Some(_~l~_) => l; case None => List() }
     
-    def comma[A](p: Parser[A]): Parser[List[A]] = repsep(p, ",")
-                                    
-    def id = ident
-    
     def integer = numericLit                    ^^ { case s => s.toInt }
     
     // Not all attributes are suitable in all contexts, but as this is an
@@ -73,13 +39,13 @@ class IrParser extends StandardTokenParsers {
     )
     def attrs = rep(attr)                       ^^ { case la => ir.Attrs(Set(la: _*)) }
     
-    def m = id                                  ^^ { case i => ir.MethodName(i) }
+    def m = ident                               ^^ { case i => ir.MethodName(i) }
     def cm = opt(m)                             ^^ { case Some(m) => m; case None => ir.m_init }
-    def c = id                                  ^^ { case i => ir.ClassName(i) }
-    def lv = id                                 ^^ { case i => ir.VarName(i) }
+    def c = ident                               ^^ { case i => ir.ClassName(i) }
+    def lv = ident                              ^^ { case i => ir.VarName(i) }
     def f = (
         "constructor"                           ^^ { case _ => ir.f_ctor }
-    |   id                                      ^^ { case i => ir.FieldName(i) }
+    |   ident                                   ^^ { case i => ir.FieldName(i) }
     )
     
     def dotf = "."~f                            ^^ { case _~f => f }

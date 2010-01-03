@@ -2,6 +2,8 @@ package ch.ethz.intervals;
 
 import static ch.ethz.intervals.EdgeList.NORMAL;
 import ch.ethz.intervals.ThreadPool.Worker;
+import ch.ethz.intervals.quals.Requires;
+import ch.ethz.intervals.quals.Subinterval;
 
 public abstract class Interval 
 extends ThreadPool.WorkItem 
@@ -32,18 +34,21 @@ implements Dependency, Guard
 		current.addUnscheduled(this);
 		
 		bound.addWaitCount();
-		if(current.start != null) 
-			current.start.addEdgeAfterOccurredWithoutException(start, NORMAL);		
-		ExecutionLog.logNewInterval(current.start, start, end);
+		if(current.inter != null) {
+			current.inter.start.addEdgeAfterOccurredWithoutException(start, NORMAL);		
+			ExecutionLog.logNewInterval(current.inter.start, start, end);
+		} else
+			ExecutionLog.logNewInterval(null, start, end);
 		
 		dep.addHbToNewInterval(this);		
 	}
-
+	
 	/**
 	 * Defines the behavior of the interval.  Must be
 	 * overridden.  Executed by the scheduler when {@code this}
 	 * is the current interval.  Do not invoke manually.
 	 */
+	@Requires(subinterval=@Subinterval(of="this"))
 	protected abstract void run();
 	
 	/**
@@ -61,7 +66,7 @@ implements Dependency, Guard
 	 * dependencies are satisfied).
 	 */
 	void exec() {
-		Current cur = Current.push(start, end);
+		Current cur = Current.push(this);
 		try {
 			try {
 				try {
@@ -85,19 +90,88 @@ implements Dependency, Guard
 		return String.format("Interval(%s-%s)", start, end);
 	}
 	
+	/**
+	 * Schedules {@code this} for execution.  You can also
+	 * schedule all pending intervals using {@link Intervals#schedule()},
+	 * or simply wait until the creating interval ends. 
+	 * 
+	 * @throws AlreadyScheduledException if already scheduled
+	 */
 	public final void schedule() throws AlreadyScheduledException {
 		Current current = Current.get();
 		current.schedule(this);
 	}
 	
+	/**
+	 * Returns {@link #end}, 
+	 * thus ensuring that new intervals using
+	 * {@code this} as their {@link Dependency} execute
+	 * during {@code this}.
+	 *  
+	 * <p>End-users should not override this method.  Doing so can
+	 * violate the race-freedom guarantees of our compiler.
+	 */
 	@Override
 	public Point boundForNewInterval() {
 		return end;
 	}
 
+	/**
+	 * Adds an edge from {@link #start} to {@code inter.start},
+	 * thus ensuring that new intervals using
+	 * {@code this} as their {@link Dependency} execute
+	 * during {@code this}.
+	 *  
+	 * <p>End-users should not override this method.  Doing so can
+	 * violate the race-freedom guarantees of our compiler.
+	 */
 	@Override
 	public final void addHbToNewInterval(Interval inter) {
 		start.addEdgeAndAdjust(inter.start, EdgeList.NORMAL);
 	}
 
+	/**
+	 * True if the current interval is {@code this} or a subinterval of {@code this},
+	 * or if the start of the current interval <em>happens after</em> {@code this.end}.
+	 * 
+	 * <p>End-users should not override this method.  Doing so can
+	 * violate the race-freedom guarantees of our compiler.
+	 * 
+	 * @see Guard#isReadable()
+	 */
+	@Override
+	public boolean isReadable() {
+		Current current = Current.get();
+		return current.inter == this || (
+				current.inter != null && end.hb(current.inter.start));
+	}
+
+	/**
+	 * True if the current interval is {@code this} or a subinterval of {@code this}.
+	 * 
+	 * <p>End-users should not override this method.  Doing so can
+	 * violate the race-freedom guarantees of our compiler.
+	 * 
+	 * @see Guard#isWritable()
+	 */
+	@Override
+	public boolean isWritable() {
+		Current current = Current.get();
+		return current.inter == this;
+	}
+	
+	/**
+	 * True if {@code this} will hold the lock {@code lock}
+	 * when it executes.
+	 * 
+	 * <p>End-users should not override this method.  Doing so can
+	 * violate the race-freedom guarantees of our compiler.
+	 */
+	public boolean holdsLock(Lock lock) {
+		for(LockList ll = start.pendingLocks(); ll != null; ll = ll.next)
+			if(ll.lock == lock)
+				return true;
+		return false;
+	}
+	
 }

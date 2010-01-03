@@ -113,7 +113,7 @@ class LinpackInterval {
 
 					// row elimination with column indexing
 					final int k0 = k;
-					Intervals.blockingInterval(new VoidSubinterval() {						
+					Intervals.subinterval(new VoidSubinterval() {						
 						@Override public void run(Interval subinterval) {
 							new IndexedInterval(subinterval, kp1, n) {						
 								@Override

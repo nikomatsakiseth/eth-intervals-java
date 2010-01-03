@@ -1,6 +1,6 @@
 package ch.ethz.intervals;
 
-import static ch.ethz.intervals.Intervals.blockingInterval;
+import static ch.ethz.intervals.Intervals.subinterval;
 import static org.junit.Assert.assertEquals;
 
 import java.util.ArrayList;
@@ -10,7 +10,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Assert;
 import org.junit.Test;
 
-import ch.ethz.intervals.params.writer;
+import ch.ethz.intervals.params.creator;
 import ch.ethz.intervals.quals.WrittenDuring;
 
 /**
@@ -44,7 +44,7 @@ public class TestBBPCLinks {
 	
 	/** Where producers write the data they produce,
 	 *  and information about the next producer. */
-	@writer class ProducerData {
+	@creator class ProducerData {
 		/** Data producer by producer <em>i</em> */
 		@WrittenDuring("writer")
 		public int produced;
@@ -55,33 +55,33 @@ public class TestBBPCLinks {
 		
 		/** Where producer <em>i+1</em> will write its data */
 		@WrittenDuring("writer")
-		public @writer("nextProducer") ProducerData nextProducerData;		
+		public @creator("nextProducer") ProducerData nextProducerData;		
 	}
 	
 	/** Where consumers write information about the next consumer. */
-	@writer class ConsumerData {
+	@creator class ConsumerData {
 		/** Consumer <em>i+1</em> */
 		@WrittenDuring("writer")
 		public Interval nextConsumer;
 		
 		/** Where consumer <em>i+1</em> will write its data */
 		@WrittenDuring("writer")
-		public @writer("nextConsumer") ConsumerData nextConsumerData;		
+		public @creator("nextConsumer") ConsumerData nextConsumerData;		
 	}
 	
 	class Producer extends Interval {
 		@WrittenDuring("constructor")
 		protected final int index;
 		@WrittenDuring("constructor")
-		protected final @writer("hb this") ConsumerData cdata;
+		protected final @creator("hb this") ConsumerData cdata;
 		@WrittenDuring("constructor")
-		protected final @writer("this") ProducerData pdata;
+		protected final @creator("this") ProducerData pdata;
 		
 		public Producer(
 				int index,
 				Interval prev,
 				Interval cons,
-				@writer("cons") ConsumerData cdata) 
+				@creator("cons") ConsumerData cdata) 
 		{
 			super(prev.end.bound);
 			Intervals.addHb(prev.end, start);
@@ -109,15 +109,15 @@ public class TestBBPCLinks {
 		@WrittenDuring("constructor")
 		protected final int index;
 		@WrittenDuring("constructor")
-		protected final @writer("hb this") ProducerData pdata;
+		protected final @creator("hb this") ProducerData pdata;
 		@WrittenDuring("constructor")
-		protected final @writer("this") ConsumerData cdata;
+		protected final @creator("this") ConsumerData cdata;
 
 		public Consumer(
 				int index,
 				Interval prevConsumer,
 				Interval producer,
-				@writer("producer") ProducerData pdata) 
+				@creator("producer") ProducerData pdata) 
 		{
 			super(prevConsumer.end.bound);
 			Intervals.addHb(prevConsumer.end, start);
@@ -158,10 +158,10 @@ public class TestBBPCLinks {
 		protected void run() {
 			// Create a dummy chain of consumer datas from index -N to -1.
 			// These consumer datas are all written by this interval.
-			@writer("this") ConsumerData cdata_1 = new /*@writer("this")*/ ConsumerData();			
-			@writer("this") ConsumerData cdata_N = cdata_1;
+			@creator("this") ConsumerData cdata_1 = new /*@writer("this")*/ ConsumerData();			
+			@creator("this") ConsumerData cdata_N = cdata_1;
 			for(int i = -1; i <= -N; i--) {
-				@writer("this") ConsumerData cdata_i = new /*@writer("this")*/ ConsumerData();
+				@creator("this") ConsumerData cdata_i = new /*@writer("this")*/ ConsumerData();
 				cdata_i.nextConsumer = this;
 				cdata_i.nextConsumerData = cdata_N;
 				cdata_N = cdata_i;
@@ -180,7 +180,7 @@ public class TestBBPCLinks {
 	}
 	
 	@Test public final void test() {
-		blockingInterval(new VoidSubinterval() {
+		subinterval(new VoidSubinterval() {
 			@Override public void run(Interval subinterval) {
 				new Init(subinterval);
 			}			

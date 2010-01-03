@@ -1,6 +1,6 @@
 package ch.ethz.intervals;
 
-import static ch.ethz.intervals.Intervals.blockingInterval;
+import static ch.ethz.intervals.Intervals.subinterval;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -73,9 +73,9 @@ public class TestInterval {
 	@Test public void basic() {
 		for (int i = 0; i < repeat; i++) {
 			final List<List<Integer>> list = Collections.synchronizedList(new ArrayList<List<Integer>>());
-			Intervals.blockingInterval(new VoidSubinterval() {
+			Intervals.subinterval(new VoidSubinterval() {
 				public void run(final Interval parentInterval) {
-					Intervals.blockingInterval(new VoidSubinterval() {
+					Intervals.subinterval(new VoidSubinterval() {
 						public void run(final Interval childInterval) {							
 							Interval after = new AddTask(parentInterval.end, list, 2);
 							Intervals.addHb(childInterval.end, after.start);
@@ -99,7 +99,7 @@ public class TestInterval {
 	@Test public void manyChildren() {
 		final int c = 1024;
 		final AtomicInteger cnt = new AtomicInteger();
-		Intervals.blockingInterval(new VoidSubinterval() {
+		Intervals.subinterval(new VoidSubinterval() {
 			public void run(Interval _) {
 				for(int i = 0; i < c; i++)
 					new IncTask(Intervals.child(), cnt);
@@ -115,7 +115,7 @@ public class TestInterval {
 	@Test public void manyChildrenScheduled() {
 		final int c = 1024;
 		final AtomicInteger cnt = new AtomicInteger();
-		Intervals.blockingInterval(new VoidSubinterval() {
+		Intervals.subinterval(new VoidSubinterval() {
 			public void run(Interval _) {
 				for(int i = 0; i < c; i++) {
 					new IncTask(Intervals.child(), cnt).schedule();
@@ -133,7 +133,7 @@ public class TestInterval {
 	@Test public void manyDuring() {
 		final int c = 1024;
 		final AtomicInteger cnt = new AtomicInteger();
-		Intervals.blockingInterval(new VoidSubinterval() {
+		Intervals.subinterval(new VoidSubinterval() {
 			public void run(Interval _) {
 				Interval future = new EmptyInterval(Intervals.child(), "during");
 				for(int i = 0; i < c; i++)
@@ -154,7 +154,7 @@ public class TestInterval {
 		 *                               s
 		 */
 		final AtomicInteger successful = new AtomicInteger();
-		Intervals.blockingInterval(new VoidSubinterval() {
+		Intervals.subinterval(new VoidSubinterval() {
 			public void run(Interval subinterval) {
 				Interval worker = new EmptyInterval(subinterval.end, "worker");
 				Interval d = new EmptyInterval(worker, "d");
@@ -201,7 +201,7 @@ public class TestInterval {
 		class TestHarness {
 			public void test() {
 				try {
-					Intervals.blockingInterval(new VoidSubinterval() {
+					Intervals.subinterval(new VoidSubinterval() {
 						public void run(Interval subinterval) {
 							new ThrowExceptionTask(subinterval.end);
 						}
@@ -228,7 +228,7 @@ public class TestInterval {
 			public Interval savedInter;
 			public void test() {
 				try {
-					Intervals.blockingInterval(new VoidSubinterval() {
+					Intervals.subinterval(new VoidSubinterval() {
 						public void run(Interval subinterval) {
 							savedInter = subinterval; 
 							new ThrowExceptionTask(subinterval);
@@ -250,7 +250,7 @@ public class TestInterval {
 		// This should not cause an exception to be thrown, even though
 		// the end of h.savedInter has an associated exception, because h.savedInter.end
 		// (the end of the blocking interval) is set to mask exceptions.
-		Intervals.blockingInterval(new VoidSubinterval() {			
+		Intervals.subinterval(new VoidSubinterval() {			
 			public void run(Interval subinterval) {
 				Intervals.addHb(h.savedInter.end, subinterval.end);
 			}
@@ -264,7 +264,7 @@ public class TestInterval {
 		class TestHarness {
 			public void test() {
 				try {
-					Intervals.blockingInterval(new VoidSubinterval() {
+					Intervals.subinterval(new VoidSubinterval() {
 						public void run(Interval _) {
 							new Interval(Intervals.child()) {
 								@Override protected void run() {
@@ -302,17 +302,17 @@ public class TestInterval {
 				// The exception in link0 travels along to linkN, where
 				// it escapes to end1.
 				System.err.printf("ROOT_END=%s\n", Intervals.ROOT_END);
-				Intervals.blockingInterval(new VoidSubinterval() {
+				Intervals.subinterval(new VoidSubinterval() {
 					public void run(final Interval sub0) {
 						System.err.printf("end0=%s\n", sub0.end);
 						try {
-							Intervals.blockingInterval(new VoidSubinterval() {
+							Intervals.subinterval(new VoidSubinterval() {
 								Interval link0, linkN;
 								
 								public void run(final Interval sub1) {
 									try {
 										System.err.printf("end1=%s\n", sub1.end);
-										Intervals.blockingInterval(new VoidSubinterval() {
+										Intervals.subinterval(new VoidSubinterval() {
 											public void run(final Interval sub2) {
 												System.err.printf("end2=%s\n", sub2.end);
 												link0 = new ThrowExceptionTask(sub2.end);
@@ -352,11 +352,11 @@ public class TestInterval {
 	}
 	
 	@Test public void exceptionPropagatesEvenIfPointOccurred() {
-		Intervals.blockingInterval(new VoidSubinterval() {
+		Intervals.subinterval(new VoidSubinterval() {
 			Interval link0;
 			public void run(final Interval _) {			
 				try {
-					Intervals.blockingInterval(new VoidSubinterval() {
+					Intervals.subinterval(new VoidSubinterval() {
 						public void run(final Interval _) {			
 							link0 = new ThrowExceptionTask(Intervals.child());
 						}
@@ -373,7 +373,7 @@ public class TestInterval {
 				// even though link0.end already occurred.
 				
 				try {
-					Intervals.blockingInterval(new VoidSubinterval() {
+					Intervals.subinterval(new VoidSubinterval() {
 						public void run(final Interval subinterval) {			
 							Intervals.addHb(link0.end, subinterval.end);
 						}
@@ -392,7 +392,7 @@ public class TestInterval {
 		class TestHarness {
 			public void test(final int length) {
 				try {
-					Intervals.blockingInterval(new VoidSubinterval() {
+					Intervals.subinterval(new VoidSubinterval() {
 						public void run(final Interval subinterval) {			
 							for(int i = 0; i < length; i++) {
 								new ThrowExceptionTask(subinterval);
@@ -468,7 +468,7 @@ public class TestInterval {
 		final AtomicInteger i = new AtomicInteger();
 		
 		try {
-			blockingInterval(new VoidSubinterval() {
+			subinterval(new VoidSubinterval() {
 				public void run(final Interval subinterval) {	
 					new IncTask(subinterval, i);
 					Interval b = new EmptyInterval(subinterval, "b");
@@ -489,7 +489,7 @@ public class TestInterval {
 		final AtomicInteger i = new AtomicInteger();
 		
 		try {
-			blockingInterval(new VoidSubinterval() {
+			subinterval(new VoidSubinterval() {
 				public void run(final Interval subinterval) {
 					new IncTask(subinterval, i);
 					Interval a = new EmptyInterval(subinterval, "a");
@@ -511,7 +511,7 @@ public class TestInterval {
 	public void raceCycle1() {
 		assert Intervals.SAFETY_CHECKS; // or else this test is not so useful.
 		final AtomicInteger cnt = new AtomicInteger();
-		blockingInterval(new VoidSubinterval() {			
+		subinterval(new VoidSubinterval() {			
 			public void run(final Interval subinterval) {
 				Interval a = new IncTask(subinterval, cnt);
 				Interval b = new IncTask(subinterval, cnt);
@@ -539,7 +539,7 @@ public class TestInterval {
 	public void raceCycle2() {
 		assert Intervals.SAFETY_CHECKS; // or else this test is not so useful.
 		final AtomicInteger cnt = new AtomicInteger();
-		blockingInterval(new VoidSubinterval() {			
+		subinterval(new VoidSubinterval() {			
 			public void run(final Interval subinterval) {
 				Interval a = new IncTask(subinterval, cnt);
 				Interval b = new IncTask(subinterval, cnt);

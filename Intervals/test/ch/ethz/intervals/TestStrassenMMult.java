@@ -117,7 +117,7 @@ public class TestStrassenMMult {
 			final Matrix C21 = C.submatrix(m2, nf); 
 			final Matrix C22 = C.submatrix(m2, n2);
 			
-			Intervals.blockingInterval(new VoidSubinterval() {				
+			Intervals.subinterval(new VoidSubinterval() {				
 				@Override public void run(Interval subinterval) {
 					
 					// M1 = (A11 + A22)*(B11 + B22)

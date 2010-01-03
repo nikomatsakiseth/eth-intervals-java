@@ -67,13 +67,13 @@ class IDEATest {
 		
 		// Encrypt plain1.
 		if(JGFCryptBench.nthreads == -1) {
-			Intervals.blockingInterval(new VoidSubinterval() {
+			Intervals.subinterval(new VoidSubinterval() {
 				@Override public void run(Interval subinterval) {
 					new IDEARunnerTask(subinterval, plain1.length / 8, plain1, crypt1, Z);
 				}
 			});
 			
-			Intervals.blockingInterval(new VoidSubinterval() {
+			Intervals.subinterval(new VoidSubinterval() {
 				@Override public void run(Interval subinterval) {
 					new IDEARunnerTask(subinterval, crypt1.length / 8, crypt1, plain2, DK);
 				}

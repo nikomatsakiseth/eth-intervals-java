@@ -159,7 +159,7 @@ public class AppDemoIntervals extends Universal implements AppDemoInterface {
 	public void runThread() {
 		results = new Vector<Object>(nRunsMC);
 		
-		Intervals.blockingInterval(new VoidSubinterval() {			
+		Intervals.subinterval(new VoidSubinterval() {			
 			@Override public void run(Interval subinterval) {
 				for (int i = 0; i < nRunsMC; i++) {
 					final int iRun = i;

@@ -18,21 +18,21 @@ class Current {
 		return local.get();
 	}
 	
-	static Current push(Point start, Point end) {
+	static Current push(Interval inter) {
 		Current c = get();
-		Current n = new Current(c, start, end);
+		Current n = new Current(c, inter, inter.end);
 		local.set(n);
 		return n;
 	}
 	
 	public Current prev;
-	public Point start;
+	public Interval inter; // Optional: may be NULL
 	public Point end;
 	public Interval unscheduled;
 
-	Current(Current prev, Point start, Point end) {
+	Current(Current prev, Interval inter, Point end) {
 		this.prev = prev;
-		this.start = start;
+		this.inter = inter;
 		this.end = end;
 	}
 	
@@ -80,7 +80,7 @@ class Current {
 		assert p.start.isUnscheduled(this);
 		assert p.end.isUnscheduled(this);
 		
-		ExecutionLog.logScheduleInterval(start, p);
+		ExecutionLog.logScheduleInterval(inter.start, p);
 		
 		p.start.clearUnscheduled();
 		p.end.clearUnscheduled();

@@ -239,37 +239,23 @@ public class Intervals {
 	 * wrapped in {@link RethrownException} and rethrown immediately.
 	 * Exceptions never propagate to the current interval.
 	 */
-	public static <R> R blockingInterval(final Subinterval<R> task) 
+	public static <R> R subinterval(final SubintervalTask<R> task) 
 	{		
-		class Box {
-			R result;
-		}
-		final Box box = new Box();
-		
 		// This could be made more optimized, but it will do for now:
 		Current current = Current.get();
-		Interval subinterval = new Interval(current.end) {			
-			protected void run() {
-				box.result = task.run(this);
-			}
-			
-			public String toString() {
-				return task.toString();
-			}
-		}; 
-		
+		SubintervalImpl<R> subinterval = new SubintervalImpl<R>(current.end, current.inter, task);
 		subinterval.end.addFlagBeforeScheduling(Point.FLAG_MASK_EXC);
 		current.schedule(subinterval);
 		join(subinterval.end); // may throw an exception
-		return box.result;
+		return subinterval.result;
 	}
 	
 	/**
-	 * Variant of {@link #blockingInterval(Subinterval)} for
+	 * Variant of {@link #subinterval(SubintervalTask)} for
 	 * subintervals that do not return a value. */
-	public static void blockingInterval(final VoidSubinterval task)
+	public static void subinterval(final VoidSubinterval task)
 	{
-		blockingInterval(new Subinterval<Void>() {
+		subinterval(new SubintervalTask<Void>() {
 			public Void run(Interval subinterval) {
 				task.run(subinterval);
 				return null;

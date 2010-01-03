@@ -164,7 +164,7 @@ c_interval	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scal
 c_lock	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    val c_lock = ir.ClassName("Lock")    $/;"	constants	line:469
 c_object	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    val c_object = ir.ClassName("Object")$/;"	constants	line:464
 c_point	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    val c_point = ir.ClassName("Point")$/;"	constants	line:468
-c_string	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    val c_string = ir.ClassName("String")$/;"	constants	line:470
+c_scalar	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    val c_scalar = ir.ClassName("String")$/;"	constants	line:470
 c_void	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    val c_void = ir.ClassName("Void")$/;"	constants	line:465
 cap	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^    def cap(tp: ir.TeePee): ir.TypeRef = preservesEnv {$/;"	methods	line:315
 cd	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ComputeRelations.scala	/^                    val cd = classDecl(t.c)$/;"	constants	line:91
@@ -658,7 +658,7 @@ t_objectCtor	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.sc
 t_point	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    val t_point = ir.TypeRef(c_point, List(), ir.noAttrs)$/;"	constants	line:475
 t_rcvr	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^                    val t_rcvr = typeOriginallyDefiningMethod(cd.name, md.name).get$/;"	constants	line:427
 t_rcvr	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/WfCheck.scala	/^                    val t_rcvr = typeOriginallyDefiningMethod(cd.name, md.name).get$/;"	constants	line:223
-t_string	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    val t_string = ir.TypeRef(c_string, List(), ir.noAttrs)$/;"	constants	line:473
+t_scalar	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    val t_scalar = ir.TypeRef(c_scalar, List(), ir.noAttrs)$/;"	constants	line:473
 t_this	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^                val t_this = thisTref(cd, ir.ctorAttrs)$/;"	constants	line:486
 t_this	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/WfCheck.scala	/^        val t_this = thisTref(cd, attrs)$/;"	constants	line:258
 t_void	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    val t_void = ir.TypeRef(c_void, List(), ir.noAttrs)$/;"	constants	line:472

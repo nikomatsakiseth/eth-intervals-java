@@ -27,6 +27,9 @@ final public class Point implements Dependency {
 	 *  interval are NOT propagated to its parent. */
 	protected static final int FLAG_MASK_EXC = 1;
 	
+	/** If set, then locks have been acquired. */
+	protected static final int FLAG_ACQUIRED_LOCKS = 2;
+	
 	public final Point bound;                 /** Bound of this point (this->bound). */
 	private final int depth;                  /** Depth in point bound tree. */
 	private EdgeList outEdges;                /** Linked list of outgoing edges from this point. */
@@ -95,7 +98,10 @@ final public class Point implements Dependency {
 		}
 	}
 
-	/** Returns the mutual bound of {@code this} and {@code j} */
+	/** Returns the mutual bound of {@code this} and {@code j}. 
+	 *  If {@code j == this}, the mutual bound is {@code this}.
+	 *  Otherwise, it is the closest bound to {@code this} which always
+	 *  bounds {@code j}. */
 	public Point mutualBound(Point j) {
 		Point i = this;
 		
@@ -218,7 +224,7 @@ final public class Point implements Dependency {
 		
 		assert newCount >= 0;
 		if(newCount == 0 && cnt != 0)
-			if(pendingLocks != null)
+			if((flags & FLAG_ACQUIRED_LOCKS) == 0)
 				acquirePendingLocks();
 			else
 				occur();
@@ -233,6 +239,7 @@ final public class Point implements Dependency {
 			lock.lock.addExclusive(this);
 		this.pendingLocks = null;
 		
+		flags |= FLAG_ACQUIRED_LOCKS;
 		arrive(1);
 	}
 	
@@ -385,6 +392,10 @@ final public class Point implements Dependency {
 			list.next = pendingLocks;
 			pendingLocks = list;
 		}
+	}
+	
+	synchronized LockList pendingLocks() {
+		return pendingLocks;
 	}
 
 	/** Simply adds an outgoing edge, without acquiring locks or performing any

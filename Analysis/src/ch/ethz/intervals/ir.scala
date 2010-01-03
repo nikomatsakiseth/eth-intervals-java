@@ -460,19 +460,26 @@ object ir {
     val f_super = ir.FieldName("super")
     
     val m_init = ir.MethodName("<init>")
-    val m_toString = ir.MethodName("toString")
+    val m_toScalar = ir.MethodName("toScalar")
     val m_run = ir.MethodName("run")
     
+    // Special types understood by the system:
+    //    (During testing, the definitions in cds_default are used)
     val c_object = ir.ClassName("Object")
-    val c_void = ir.ClassName("Void")
     val c_interval = ir.ClassName("Interval")
     val c_guard = ir.ClassName("Guard")
     val c_point = ir.ClassName("Point")
     val c_lock = ir.ClassName("Lock")    
-    val c_string = ir.ClassName("String")
+
+    // Types used to translate Java constructs into classes:
+    //    These types are not treated specially by the type system,
+    //    but we provide default, synthetic definitions.
+    val c_scalar = ir.ClassName("Scalar")  // Represents any scalar value.
+    val c_void = ir.ClassName("Void")      // Represents void values.
+    val c_array = ir.ClassName("Array")    // Represents arrays.
     
     val t_void = ir.TypeRef(c_void, List(), ir.noAttrs)
-    val t_string = ir.TypeRef(c_string, List(), ir.noAttrs)
+    val t_scalar = ir.TypeRef(c_scalar, List(), ir.noAttrs)
     val t_interval = ir.TypeRef(c_interval, List(), ir.noAttrs)
     val t_point = ir.TypeRef(c_point, List(), ir.noAttrs)
     val t_lock = ir.TypeRef(c_lock, List(), ir.noAttrs)
@@ -534,8 +541,8 @@ object ir {
             /* Methods: */  List(
                 MethodDecl(
                     /* attrs:  */ noAttrs,
-                    /* wt_ret: */ t_string, 
-                    /* name:   */ m_toString, 
+                    /* wt_ret: */ t_scalar, 
+                    /* name:   */ m_toScalar, 
                     /* args:   */ List(),
                     /* reqs:   */ List(ir.ReqReadableBy(List(gfd_creator.thisPath), List(p_mthd))),
                     /* blocks: */ Array(
@@ -573,7 +580,7 @@ object ir {
         ),
         ClassDecl(
             /* Attrs:   */  noAttrs,
-            /* Name:    */  c_string,
+            /* Name:    */  c_scalar,
             /* Extends: */  List(c_object),
             /* Ghosts:  */  List(Ghost(f_creator, p_ctor)),
             /* Reqs:    */  List(),

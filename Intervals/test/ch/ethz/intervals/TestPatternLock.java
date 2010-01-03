@@ -33,7 +33,7 @@ public class TestPatternLock {
 			
 		final Lock l = new Lock();
 		
-		Intervals.blockingInterval(new VoidSubinterval() {
+		Intervals.subinterval(new VoidSubinterval() {
 			public void run(Interval subinterval) {
 				new SetupInterval(subinterval) {
 					@Override protected void setup(Point setupEnd, Interval worker) {

@@ -1,6 +1,6 @@
 package ch.ethz.intervals;
 
-import static ch.ethz.intervals.Intervals.blockingInterval;
+import static ch.ethz.intervals.Intervals.subinterval;
 import static java.lang.String.format;
 
 import org.junit.Assert;
@@ -107,7 +107,7 @@ public class TestHOH {
 	
 	public @Test void testDouble() {
 		final Link list = buildList(5, 10, 25);
-		blockingInterval(new VoidSubinterval() {
+		subinterval(new VoidSubinterval() {
 			public void run(Interval subinterval) {
 				new MapWalk(subinterval.end, list, new DoubleTransform());		
 			}

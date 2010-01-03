@@ -63,7 +63,7 @@ public class JGFRayTracerBench extends RayTracer implements JGFSection3 {
 			JGFInstrumentor.stopTimer("Section3:RayTracer:Init");
 			
 			JGFInstrumentor.startTimer("Section3:RayTracer:Run");
-			Intervals.blockingInterval(new VoidSubinterval() {				
+			Intervals.subinterval(new VoidSubinterval() {				
 				@Override
 				public void run(ch.ethz.intervals.Interval subinterval) {
 					new IndexedInterval(subinterval.end, interval.height) {						

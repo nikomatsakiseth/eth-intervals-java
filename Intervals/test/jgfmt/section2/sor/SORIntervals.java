@@ -127,7 +127,7 @@ public class SORIntervals {
 				
 		JGFInstrumentor.startTimer("Section2:SOR:Kernel");
 		
-		Intervals.blockingInterval(new VoidSubinterval() {			
+		Intervals.subinterval(new VoidSubinterval() {			
 			@Override public void run(Interval subinterval) {
 				Point parentEnd = subinterval.end;
 				

@@ -101,7 +101,7 @@ public class TestFuzzyBarrier {
 	}
 	
 	@Test public void doTest() {
-		Barrier b = Intervals.blockingInterval(new Subinterval<Barrier>() {
+		Barrier b = Intervals.subinterval(new SubintervalTask<Barrier>() {
 			public Barrier run(Interval subinterval) {
 				return new Barrier(subinterval);
 			}
