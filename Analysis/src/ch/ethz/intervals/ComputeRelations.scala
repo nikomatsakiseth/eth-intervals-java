@@ -13,9 +13,6 @@ extends TracksEnvironment(prog)
     
     def tp_cur = otp_cur.get
 
-    // ______________________________________________________________________
-    // Computing the effects of statements, etc
-    
     def addCallMsig(tp: ir.TeePee, msig: ir.MethodSig, tqs: List[ir.TeePee]) {
         // Any method call disrupts potential temporary assocations:
         //     We make these disruptions before checking return value, 

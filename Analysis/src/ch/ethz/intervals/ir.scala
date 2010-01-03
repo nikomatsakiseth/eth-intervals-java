@@ -9,9 +9,7 @@ import Util._
 
     
 /*
-
-______________________________________________________________________
-Naming Conventions
+___ Naming Conventions _______________________________________________
 
 Naming conventions generally follow the formal typing rules,
 although in some cases I elected to use longer names in the code.
@@ -34,8 +32,7 @@ wt -> wildcard type (WcTypeRef)
 The type is then optionally followed by an underscore
 with a more descriptive tag, like p_r for the receiver path.
 
-______________________________________________________________________
-Assumptions
+___ Assumptions ______________________________________________________
 
 We currently assume but do not check:
 
@@ -55,8 +52,7 @@ code.
 
 object ir {
     
-    // ______________________________________________________________________
-    // Attributes attached to paths, types, methods
+    // ___ Attributes attached to paths, types, methods _____________________
     
     sealed abstract class Attr(c: String, val adj: String) {
         override def toString = c
@@ -97,9 +93,8 @@ object ir {
     val mutableAttrs = Attrs(ListSet(AttrMutable))
     val interfaceAttrs = Attrs(ListSet(AttrInterface))
     val allPathAttrs = Attrs(ListSet(AttrGhost, AttrMutable))
-    
-    // ______________________________________________________________________
-    // Names of variables, fields, methods, classes
+
+    // ___ Names of variables, fields, methods, classes _____________________   
     
     sealed abstract class Name(name: String) {
         override def toString = name
@@ -115,8 +110,7 @@ object ir {
     case class MethodName(name: String) extends Name(name)
     case class ClassName(name: String) extends Name(name)
     
-    // ______________________________________________________________________
-    // Error reporting
+    // ___ Error reporting __________________________________________________
     
     sealed case class Error(
         pos: Position,
@@ -126,8 +120,7 @@ object ir {
         override def toString = "%s(%s)".format(msg, args.mkString(", "))
     }
     
-    // ______________________________________________________________________
-    // Abstract syntax tree
+    // ___ Abstract syntax tree _____________________________________________
     
     sealed case class ClassDecl(
         attrs: Attrs,       

@@ -19,8 +19,7 @@ extends ComputeRelations(prog)
     import prog.isSubclass
     import prog.strictSuperclasses
     
-    // ______________________________________________________________________
-    // Subtyping    
+    // ___ Subtyping ________________________________________________________
     
     /// wp <= wq
     def isSubpath(p: ir.Path, wq: ir.WcPath) = savingEnv {
@@ -85,8 +84,7 @@ extends ComputeRelations(prog)
             throw new ir.IrError("intervals.expected.subtype", tp_sub.p, tp_sub.wt, wt_sup)
     }
     
-    // ______________________________________________________________________
-    // Checking Method Bodies
+    // ___ Checking method bodies ___________________________________________
     
     def isReqFulfilled(req: ir.Req): Boolean = log.indentedRes("isReqFulfilled(%s)", req) {
         def is(func: Function2[ir.TeePee, ir.TeePee, Boolean], ps: List[ir.Path], qs: List[ir.Path]) = {
@@ -242,8 +240,7 @@ extends ComputeRelations(prog)
         }
     
         
-    // ______________________________________________________________________
-    // Inter-method Assumptions
+    // ___ Inter-method assumptions _________________________________________
     //
     // When we know that method A must complete before method B is invoked,
     // we can move any relations known at the end of A into B.  In particular, 
@@ -294,8 +291,7 @@ extends ComputeRelations(prog)
         }
     }
     
-    // ______________________________________________________________________
-    // Checking methods and constructors
+    // ___ Checking methods and constructors ________________________________
 
     def checkArgumentTypesNonvariant(args_sub: List[ir.LvDecl], args_sup: List[ir.LvDecl]) {
         foreachzip(args_sub, args_sup) { case (arg_sub, arg_sup) =>
@@ -506,8 +502,8 @@ extends ComputeRelations(prog)
             }
             priorNames + fd.name
         }
-    // ______________________________________________________________________
-    // Classes and Interfaces
+        
+    // ___ Classes and interfaces ___________________________________________
     
     def checkInterfaceClassDecl(cd: ir.ClassDecl) =
         at(cd, ()) {

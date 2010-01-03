@@ -312,8 +312,7 @@ extends TracksEnvironment(prog) {
             priorNames + fd.name
         }
         
-    // ______________________________________________________________________
-    // Classes and Interfaces
+    // ___ Classes and interfaces ___________________________________________
     
     def checkIsInterface(c: ir.ClassName) {
         val cd = classDecl(c)
