@@ -68,6 +68,8 @@ class IntervalsChecker extends SourceChecker {
 	            referencedElements += tm.asInstanceOf[DeclaredType].asElement
 	        case TK.TYPEVAR =>
 	            referencedElements += tm.asInstanceOf[TypeVariable].asElement
+	        case _ =>
+	            ()
 	    }
 	    
     class TreeVisitor extends TreeScanner[Void, Void] {

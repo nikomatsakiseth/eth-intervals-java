@@ -46,6 +46,7 @@ class TestPlugin extends JUnitSuite {
         dir: String,
         addSourcepath: List[String],
         classpath: List[String],
+        bclasspath: List[String],
         debug: Boolean,
         isolated: Boolean) 
     {
@@ -71,10 +72,23 @@ class TestPlugin extends JUnitSuite {
     			"-Xlint:-deprecation",
     			"-processor", classOf[IntervalsChecker].getName,
     			"-classpath", classpath.mkString(":"),
+    			"-Xbootclasspath/p:%s".format(bclasspath.mkString(":")),
     			"-sourcepath", sourcepath
             ) ++ isolatedOpts ++ debugOpts
     }
-    val unitTest = JdkConfig("test-plugin", List(), List(), true, false)
+    val unitTest = JdkConfig(
+        /* dir: */              "test-plugin", 
+        /* addSourcepath: */    List(), 
+        /* classpath: */        List(
+                                    "target/classes", 
+                                    "lib/jsr308-all-1.04.jar",
+                                    "lib/Intervals.jar"
+                                ) ++ System.getProperty("java.class.path").split(':'), 
+        /* bclasspath: */       List(
+                                    "lib/jsr308-all-1.04.jar"
+                                ),
+        /* debug: */            true, 
+        /* isolated: */         false)
     
     def expectedErrors(jfos: List[JavaFileObject]): List[DiagError] = {
         var expErrors = List[DiagError]()
@@ -96,6 +110,7 @@ class TestPlugin extends JUnitSuite {
     }
     
     def compareAndReport(
+        config: JdkConfig,
         diagnostics: DiagnosticCollector[JavaFileObject],
         jfos: List[JavaFileObject],
         success: Boolean
@@ -107,6 +122,10 @@ class TestPlugin extends JUnitSuite {
         var matchedErrors = 0
         
         val log = new Log.TmpHtmlLog()
+        
+        log("jfos: %s", jfos)
+        log.indented("javac opts") { config.opts.foreach(log.apply) }
+        
         try {
             log.indented("Expected Errors") { expErrors.foreach(log.apply) }
 
@@ -138,13 +157,13 @@ class TestPlugin extends JUnitSuite {
     }
     
     def javac(config: JdkConfig, fileNames: String*) = {
-        val files = fileNames.map(new File(_)).toArray        
+        val files = fileNames.map(fileName => new File("%s/%s".format(config.srcDir, fileName)))
         val compiler = ToolProvider.getSystemJavaCompiler
         val diagnostics = new DiagnosticCollector[JavaFileObject]
         val fileManager = compiler.getStandardFileManager(diagnostics, null, null)
         val compUnits = fileManager.getJavaFileObjects(files: _*)
         val success = compiler.getTask(null, fileManager, diagnostics, config.opts, null, compUnits).call
-        compareAndReport(diagnostics, javaToScala(compUnits).toList, success.booleanValue)
+        compareAndReport(config, diagnostics, javaToScala(compUnits).toList, success.booleanValue)
     }
     
     @Test 

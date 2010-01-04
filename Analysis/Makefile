@@ -19,6 +19,6 @@ compile:
 test:
 	$(SBT) test-compile
 	JAVA_HOME="${JAVA_HOME}" \
-	JAVA_OPTS="-cp ${CLASSPATH} -Xbootclasspath/p:analysis/lib/javac-0.9.2.jar" \
+	JAVA_OPTS="-cp ${CLASSPATH} -Xbootclasspath/p:lib/jsr308-all-1.04.jar" \
 	${SCALA} -cp ${CLASSPATH} org.scalatest.tools.Runner -oW -s \
-		ch.ethz.intervals.TestAnalysis
+		ch.ethz.intervals.TestAll

@@ -67,8 +67,8 @@ class TranslateTypeFactory(
             f
         } catch {
             case e: ir.IrError =>
-                val argsList = e.args.map(_.toString).toList
-                checker.report(Result.failure(e.msg, argsList: _*), p.reportObject)
+                val argsArray = e.args.map(_.toString).toArray // Scala chokes at runtime with toList
+                checker.report(Result.failure(e.msg, argsArray: _*), p.reportObject)
                 d
         }
     }
