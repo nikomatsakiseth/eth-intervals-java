@@ -132,9 +132,19 @@ object ir {
         fields: List[FieldDecl],
         methods: List[MethodDecl]
     ) extends Positional {
+        def gfds = fields.flatMap {
+            case gfd: GhostFieldDecl => List(gfd)
+            case _ => List()
+        }
+        
+        def rfds = fields.flatMap {
+            case rfd: ReifiedFieldDecl => List(rfd)
+            case _ => List()
+        }
+        
         override def toString =
-            "class %s%s extends %s".format(
-                name, "".join(" ", reqs), superClasses.mkString(", "))
+            "class %s%s extends %s%s%s".format(
+                name, "".join(gfds), superClasses.mkString(", "), "".join(" ", ghosts), "".join(" ", reqs))
     }
     
     sealed case class MethodDecl(
@@ -181,7 +191,7 @@ object ir {
         wt: WcTypeRef,
         name: FieldName
     ) extends FieldDecl {
-        override def toString = "ghost %s %s".format(wt, name)
+        override def toString = "<%s %s>".format(wt, name)
         
         def ghost = Ghost(name, thisPath)
     }

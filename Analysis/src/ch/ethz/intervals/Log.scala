@@ -8,15 +8,11 @@ abstract class Log {
   // ______________________________________________________________________
   // Various versions of apply()
   
-  def apply(msg: String): Unit = rawWrite(escape(msg))
-  
-  def apply(fmt: String, arg0: Any, args: Any*) = rawWrite {
+  def apply(fmt: String, arg0: Any, args: Any*): Unit = rawWrite {
       def toLogString(o: Any) = o match {
         case null => escape("null")
-        /*
         case elem: Element => escape("%s[%s]".format(elem.getKind, qualName(elem)))
         case tree: Tree => escape("%s[%s]".format(tree.getKind, prefix(tree.toString)))
-        */
         case _ => escape(o.toString)
       }
 
@@ -26,6 +22,15 @@ abstract class Log {
   
   // ______________________________________________________________________
   // Special Log Methods
+  
+  def apply(v: Any): Unit = v match {
+      case e: ir.TcEnv => env("Env", e)
+      case m: Map[_, _] => map("Map", m)
+      case r: Relation[_, _] => map("Relation", r)
+      case cd: ir.ClassDecl => classDecl("", cd)
+      case md: ir.MethodDecl => methodDecl("", md)
+      case _ => rawWrite(escape(v.toString))
+  }
   
   def env(lbl: Any, env: ir.TcEnv) = {
       indented("%s", lbl) {
@@ -49,13 +54,32 @@ abstract class Log {
       }
   }
   
-  def rel(lbl: Any, n: String, r: Relation[ir.Path, _]) = {
+  def rel(lbl: Any, n: String, r: Relation[_, _]) = {
       indented("%s", lbl) {
           for((k, v) <- r.elements)
             apply("%s %s %s", k, n, v)
       }
   }
   
+  def classDecl(lbl: Any, cd: ir.ClassDecl) =
+      indented("%s%s", lbl, cd) {
+          cd.rfds.foreach(apply)
+          cd.ctors.foreach(methodDecl("", _))
+          cd.methods.foreach(methodDecl("", _))
+      }
+      
+  def methodDecl(lbl: Any, md: ir.MethodDecl) =
+    indented("%s%s", lbl, md) {
+        md.blocks.indices.foreach(b =>
+            block("%s: ".format(b), md.blocks(b)))
+    }
+      
+  def block(lbl: Any, blk: ir.Block) =
+    indented("%s%s", lbl, blk) {
+        blk.stmts.foreach(apply)
+        blk.gotos.foreach(apply)
+    }
+      
   // ______________________________________________________________________
   // Indentation
 

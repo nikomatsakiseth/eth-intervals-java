@@ -12,5 +12,4 @@ public @interface Requires {
 	Readable[] readable() default {};
 	Writable[] writable() default {};
 	Happens[] happens() default {};
-	HoldsLock[] holdsLock() default {};	
 }

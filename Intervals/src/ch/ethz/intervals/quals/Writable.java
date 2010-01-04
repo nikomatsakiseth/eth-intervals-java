@@ -9,6 +9,6 @@ import java.lang.annotation.Target;
  */
 @Target({})
 public @interface Writable {
-	public String value();
-	public String by() default "method";
+	public String[] value();
+	public String[] by() default "method";
 }

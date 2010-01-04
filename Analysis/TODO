@@ -57,6 +57,23 @@ Features
     it's really an existential reference to an interval which is known to be in the past.
     Both .X and .super are overly special that way.
     
+Translator Features
+-------------------
+
+(*) Primary guard
+
+(*) Defaults for ghosts which have been given a value, and not just ghost parameters?
+
+(*) Allow user specified defaults.  
+
+    Perhaps something like:
+    
+    @Defaults({
+        @Default(Foo.class, "this.some.path")
+    })
+    @Foo class Class {
+    }
+
 Things to Think About
 ---------------------
 

@@ -8,10 +8,10 @@ import java.lang.annotation.Target;
  */
 @Target({})
 public @interface Subinterval {
-	/** Path to the subinterval.  Generally the default
+	/** Path(s) to the subinterval.  Generally the default
 	 *  of {@code method} suffices. */
-	public String subinterval() default "method";
+	public String[] subinterval() default "method";
 	
-	/** Path to the superinterval. */
-	public String of();
+	/** Path(s) to the superinterval. */
+	public String[] of();
 }

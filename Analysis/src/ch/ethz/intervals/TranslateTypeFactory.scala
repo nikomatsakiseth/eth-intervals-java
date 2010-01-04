@@ -5,6 +5,7 @@ import com.sun.source.tree.Tree.{Kind => TRK}
 import checkers.types.AnnotatedTypeMirror
 import checkers.types.AnnotatedTypeMirror._
 import checkers.types.AnnotatedTypeFactory
+import checkers.source.Result
 import checkers.util.{ElementUtils => EU}
 import checkers.util.{TreeUtils => TU}
 import checkers.util.{AnnotationUtils => AU}
@@ -15,6 +16,8 @@ import javax.lang.model.element.{ElementKind => EK}
 import javax.lang.model.`type`.{TypeKind => TK}
 import javax.lang.model.util.{ElementFilter => EF}
 import scala.collection.jcl.Conversions._
+import scala.collection.immutable.Map
+import scala.collection.immutable.Set
 import scala.util.parsing.combinator.syntactical.StandardTokenParsers
 import scala.util.parsing.input.Positional
 import scala.util.parsing.input.Position
@@ -22,14 +25,54 @@ import java.util.{List => jList}
 import Util._
 import quals.DefinesGhost
 import ch.ethz.intervals.quals.Constructor
+import ch.ethz.intervals.quals.GuardedBy
+import ch.ethz.intervals.quals.WrittenDuring
+import ch.ethz.intervals.quals.Requires
+import ch.ethz.intervals.quals.Readable
+import ch.ethz.intervals.quals.Writable
+import ch.ethz.intervals.quals.Happens
+import ch.ethz.intervals.quals.Subinterval
 
 class TranslateTypeFactory(
-    tctx: TranslateContext,
-    checker: IntervalChecker,
+    log: Log,
+    checker: IntervalsChecker,
     root: CompilationUnitTree
 ) extends AnnotatedTypeFactory(checker, root) {
-    import tctx.log
+    // ___ Positions ________________________________________________________
     
+    abstract class DummyPosition extends Position {
+        def column = System.identityHashCode(reportObject) // just return something unique-ish
+        def line = 1
+        def lineContents = "dummy"        
+        
+        def reportObject: Object
+    }
+    
+    case object NullPosition extends DummyPosition {
+        def reportObject = null
+    }
+    
+    case class TreePosition(tree: Tree) extends DummyPosition {
+        def reportObject = tree
+        override def toString = "(At tree %s)".format(tree)
+    }
+    
+    case class ElementPosition(elem: Element) extends DummyPosition {
+        def reportObject = elem
+        override def toString = "(At element %s)".format(qualName(elem))
+    }
+    
+    def at[R](p: DummyPosition, d: => R)(f: => R) = {
+        try {
+            f
+        } catch {
+            case e: ir.IrError =>
+                val argsList = e.args.map(_.toString).toList
+                checker.report(Result.failure(e.msg, argsList: _*), p.reportObject)
+                d
+        }
+    }
+
     // ___ Misc. Helpers ____________________________________________________
     
     // Returns 'elem' if it is a class, otherwise the class enclosing 'elem' (or null)
@@ -47,7 +90,7 @@ class TranslateTypeFactory(
 
     // All supertypes, class first then interfaces.
     def directSupertys(telem: TypeElement) =
-        telem.getSuperclass :: telem.getInterfaces
+        telem.getSuperclass :: telem.getInterfaces.toList
         
     // Extracts the 'fldName'() argument from 'am' as a String.
     def annField(am: AnnotationMirror, fldName: String) = 
@@ -63,30 +106,15 @@ class TranslateTypeFactory(
             case _ => None
         }
         
-    def elemOfType(ty: TypeMirror): Option[Element] =
+    def elemOfType(ty: TypeMirror): Option[TypeElement] =
         ty.getKind match {
-            case TK.DECLARED => Some(ty.asInstanceOf[DeclaredType].asElement)
+            case TK.DECLARED => Some(ty.asInstanceOf[DeclaredType].asElement.asInstanceOf[TypeElement])
             case _ => None
         }
         
-    def elemOfAnnty(annty: AnnotatedTypeMirror): Option[Element] =
+    def elemOfAnnty(annty: AnnotatedTypeMirror): Option[TypeElement] =
         elemOfType(annty.getUnderlyingType)
         
-    def addAncestorsOrSelf(s: Set[Element], ty: TypeMirror): Set[Element] = {
-        elemOfType(ty).map(ancestorsOrSelf(s, _)).getOrElse(s)
-    }
-    
-    def addAncestorsOrSelf(s: Set[Element], elem: Element): Set[Element] = {
-        if(!s(elem)) {
-            val s1 = s + elem
-            directSupertys(elem).foldLeft(s)(addAncestorsOrSelf)
-        }
-    }
-    
-    def ancestorsOrSelf(elem: Element) = addAncestorsOrSelf(Set.empty, elem)
-    
-    def superElems(elem: Element) = ancestorsOrSelf(elem) - elem
-    
     def isInterfaceType(annty: AnnotatedTypeMirror) =
         elemKind(annty) == Some(ElementKind.INTERFACE)
         
@@ -103,6 +131,9 @@ class TranslateTypeFactory(
             case _ => ir.FieldName(qualName(elem))              
         }
         
+    def lv(velem: VariableElement): ir.VarName =
+        ir.VarName(velem.getSimpleName.toString)
+        
     // Given a field name like "a.b.c", returns "c"
     def shortFieldName(f: ir.FieldName) = {
         if(!f.name.contains(".")) 
@@ -113,27 +144,30 @@ class TranslateTypeFactory(
         }
     }
     
-    // Constructs an ir.MethodName from the combination of a Java method name
-    // and its argument types.  Keep synchronized with m() below.
-    def m(methodName: String, argClasses: List[Class[_]]): ir.MethodName = {
+    def m(methodName: String, argTypes: List[TypeMirror]): ir.MethodName = {
         val sb = new StringBuilder()
         sb.append(methodName)
         
-        def argName(c: Class[_]): String = c match {
-            case c if c.isPrimitive =>
-                c.getSimpleName
-            case c if c.isArray =>
-                argName(c.getComponentType) + "[]"
-            case c =>
-                c.getName
-        }        
-        val argNames = argClasses.map(argName)      
+        def argName(tm: TypeMirror): String = tm.getKind match {
+            case TK.ARRAY => argName(tm.asInstanceOf[ArrayType].getComponentType) + "[]"
+            case TK.DECLARED => qualName(tm.asInstanceOf[DeclaredType].asElement)
+            case _ => tm.toString
+        }
+        val argNames = argTypes.map(argName)
         sb.append("(")
         sb.append(",".join(argNames)) // kinda' inefficient...
         sb.append(")")
         
-        ir.MethodName(sb.toString)
-    }    
+        ir.MethodName(sb.toString)        
+    }
+
+    def m(methodName: String, etm: ExecutableType): ir.MethodName = {
+        m(methodName, etm.getParameterTypes.toList)
+    }
+    
+    def m(eelem: ExecutableElement): ir.MethodName = {
+        m(eelem.getSimpleName.toString, eelem.asType.asInstanceOf[ExecutableType])
+    }
     
     def findField(annty_owner: AnnotatedTypeMirror, s: String): Option[AnnotatedTypeMirror] =
         elemOfAnnty(annty_owner) match {
@@ -148,23 +182,21 @@ class TranslateTypeFactory(
     // ___ Ghost Fields _____________________________________________________
     
     sealed abstract class GhostAnn
-    sealed case object GhostAnnNone extends GhostCategory
-    sealed case object GhostAnnDecl(f: ir.FieldName, annty: AnnotatedTypeMirror) extends GhostCategory
-    sealed case object GhostAnnValue(f: ir.FieldName, value: String) extends GhostCategory
-    
-    val defGhostClass = ClassOf[DefinesGhost]
+    case object GhostAnnNone extends GhostAnn
+    sealed case class GhostAnnDecl(f: ir.FieldName, annty: AnnotatedTypeMirror) extends GhostAnn
+    sealed case class GhostAnnValue(f: ir.FieldName, value: String) extends GhostAnn
     
     def categorizeGhostAnnot(am: AnnotationMirror) = {
         val elem = am.getAnnotationType.asElement
-        if(elem.getAnnotation(defGhostClass) == null) GhostCategoryNone
+        if(elem.getAnnotation(classOf[DefinesGhost]) == null) GhostAnnNone
         else {
             val elem = am.getAnnotationType.asElement
             val value = annValue(am)
             if(value == "") {
-                val ghostCls = elem.getAnnotationType(defGhostClass).cls
+                val ghostCls = elem.getAnnotation(classOf[DefinesGhost]).cls
                 val ghostElem = elements.getTypeElement(ghostCls.getName)
                 val ghostAnnty = getAnnotatedType(ghostElem)
-                GhostAnnDecl(f(elem), ghostAnnty))
+                GhostAnnDecl(f(elem), ghostAnnty)
             } else
                 GhostAnnValue(f(elem), value)
         }
@@ -187,7 +219,7 @@ class TranslateTypeFactory(
         m0: Map[ir.FieldName, String], 
         elem0: Element
     ): Map[ir.FieldName, String] = 
-        addGhostFieldsGivenValueInAnnotations(m0, elem0.getAnnotationMirrors)
+        addGhostFieldsGivenValueInAnnotations(m0, elem0.getAnnotationMirrors.toList)
     
     def ghostFieldsGivenValueOnElem(elem: Element) =
         addGhostFieldsGivenValueOnElem(Map.empty, elem)
@@ -196,45 +228,51 @@ class TranslateTypeFactory(
         m0: Map[ir.FieldName, AnnotatedTypeMirror], 
         elem0: Element
     ): Map[ir.FieldName, AnnotatedTypeMirror] = 
-        elem0.getAnnotationMirrors.map(categorizeGhostAnnot).foldLeft(m2) { 
+        elem0.getAnnotationMirrors.map(categorizeGhostAnnot).foldLeft(m0) { 
             case (m, GhostAnnNone) => m
             case (m, GhostAnnDecl(f, annty)) => m + Pair(f, annty)
             case (m, GhostAnnValue(f, _)) => m - f
         }    
     
     def ghostFieldsDeclaredOnElem(elem: Element) =
-        addGhostElemsDeclaredOnElem(Map.empty, elem)
-    
-    def addGhostFieldsDeclaredOnElemAndSuperelems(env: TranslateEnv)(
+        addGhostFieldsDeclaredOnElem(Map.empty, elem)
+        
+    def addGhostFieldsDeclaredOnElemAndSuperelems(
         m0: Map[ir.FieldName, AnnotatedTypeMirror], 
-        elem0: Element
+        elem: Element
     ): Map[ir.FieldName, AnnotatedTypeMirror] = {
-        elem0.getKind match {
+        elem.getKind match {
             case EK.CLASS | EK.INTERFACE | EK.ENUM | EK.ANNOTATION_TYPE =>
                 // Extract decls from supertypes:
-                val m1 = elemOfAnnty(elem0.getSuperclass).foldLeft(m0)(addGhostFieldsDeclaredOnElem)
-                val interfaceElems = elem0.getInterfaces.flatMap(elemOfAnnty(_).toList)
-                val m2 = interfaceElems.foldLeft(m1)(addGhostFieldsDeclaredOnElem)
+                val telem = elem.asInstanceOf[TypeElement]
+                val m1 = addGhostFieldsDeclaredOnTyAndSupertypes(m0, telem.getSuperclass)
+                val m2 = telem.getInterfaces.foldLeft(m1)(addGhostFieldsDeclaredOnTyAndSupertypes)
                 
                 // Process annotations on this class:
-                addGhostFieldsDeclaredOnElem(m2, elem0)
+                addGhostFieldsDeclaredOnElem(m2, telem)
                 
             case _ =>
                 Map.empty
         }
     }
     
-    def ghostFieldsDeclaredOnElemAndSuperelems(elem: Element) =
-        addGhostElemsDeclaredOnElemAndSuperelems(Map.empty, elem)
+    def addGhostFieldsDeclaredOnTyAndSupertypes(
+        m0: Map[ir.FieldName, AnnotatedTypeMirror], 
+        ty: TypeMirror
+    ): Map[ir.FieldName, AnnotatedTypeMirror] = 
+        elemOfType(ty).foldLeft(m0)(addGhostFieldsDeclaredOnElemAndSuperelems)
     
-    def ghostFieldsDeclaredOnAnntyAndSupertypes(annty: AnnotatedTypeMirror) =
-        elemOfAnnty(annty).foldLeft(Map.empty)(addGhostElemsDeclaredOnElemAndSuperelems)
+    def ghostFieldsDeclaredOnElemAndSuperelems(elem: Element) =
+        addGhostFieldsDeclaredOnElemAndSuperelems(Map.empty, elem)
+    
+    def ghostFieldsDeclaredOnTyAndSupertypes(ty: TypeMirror) =
+        addGhostFieldsDeclaredOnTyAndSupertypes(Map.empty, ty)
     
     // ___ Environment ______________________________________________________
     
     case class TranslateEnv(
         pos: Position,
-        lvs: Map[String, (ir.Path, AnnotatedTypeMirror)],
+        m_lvs: Map[String, (ir.Path, AnnotatedTypeMirror)],
         m_defaultWghosts: Map[ir.FieldName, ir.WcPath]
     ) {
         def setPos[X <: Positional](v: X) = {
@@ -243,15 +281,88 @@ class TranslateTypeFactory(
         }
     }
     
-    val emptyEnv = TranslateEnv(
-        Map.empty
-    )
-    
-    /// Executes g and restores the old environment afterwards:
-    def savingEnv[R](g: => R): R = {
-        val oldEnv = env
-        try { g } finally { env = oldEnv }
-    }
+    val emptyEnv = TranslateEnv(NullPosition, Map.empty, Map.empty)
+
+    def elemEnv(elem: Element): TranslateEnv =
+        elem.getKind match {
+            case EK.PACKAGE =>
+                emptyEnv
+                
+            // ----------------------------------------------------------------------
+            // Computing class environment:
+            case EK.CLASS | EK.ENUM | EK.INTERFACE | EK.ANNOTATION_TYPE => {
+                val telem = elem.asInstanceOf[TypeElement]
+                val annty_this = getAnnotatedType(telem)
+
+                // ----------------------------------------------------------------------
+                // "Local variables:"
+                //
+                // At the class level, paths may begin with "this" or any of the fields, 
+                // ghost and reified, declared on the class.
+                //
+                // TODO-- Detect possible aliases among short field names here and do not
+                // add to the dictionary.
+
+                var m_lvs = Map.empty[String, (ir.Path, AnnotatedTypeMirror)]
+
+                val elems_fields = EF.fieldsIn(elements.getAllMembers(telem))
+                m_lvs = elems_fields.foldLeft(m_lvs) { case (m, elem) =>
+                    val f_elem = f(elem)
+                    m + Pair(f_elem.name, (f_elem.thisPath, atypes.asMemberOf(annty_this, elem))) 
+                }
+
+                val ghostFields = ghostFieldsDeclaredOnElemAndSuperelems(telem)
+                m_lvs = ghostFields.foldLeft(m_lvs) { case (m, (f, annty)) =>
+                    m + Pair(shortFieldName(f), (f.thisPath, annty)) 
+                }
+
+                m_lvs = m_lvs + Pair(ir.lv_this.name, (ir.p_this, annty_this))
+
+                // ----------------------------------------------------------------------
+                // Default Ghosts:
+                //
+                // All in-scope ghost parameters G are automatically supplied to types
+                // within (i.e., @G("G") is the default for any in-scope ghost parameter).
+
+                var m_defaultWghosts = Map.empty[ir.FieldName, ir.WcPath]
+                m_defaultWghosts = ghostFields.foldLeft(m_defaultWghosts) { case (m, (f, annty)) =>
+                    m + Pair(f, f.thisPath)
+                }
+
+                TranslateEnv(ElementPosition(telem), m_lvs, m_defaultWghosts)
+            }
+
+            // ----------------------------------------------------------------------
+            // Computing method environment:
+            case EK.CONSTRUCTOR | EK.METHOD => {
+                val eelem = elem.asInstanceOf[ExecutableElement]
+                val env_cls = elemEnv(eelem.getEnclosingElement)
+
+                // ----------------------------------------------------------------------
+                // "Local variables:"
+                //
+                // Add method arguments to the map of things that can start a path.
+                // Each arg x -> (p, annty) where p = x and annty = annty(x)
+
+                var m_lvs = env_cls.m_lvs
+                eelem.getParameters.foldLeft(m_lvs) { case (m, velem) =>
+                    m + Pair(elem.getSimpleName.toString, (lv(velem).path, getAnnotatedType(velem)))
+                }
+
+                // ----------------------------------------------------------------------
+                // "Defaults:"
+                //
+                // Methods do not (currently) affect the default ghosts.  In the future
+                // we may allow defaults to be specified on a method level, however.
+
+                var m_defaultWghosts = env_cls.m_defaultWghosts
+
+                TranslateEnv(ElementPosition(eelem), m_lvs, m_defaultWghosts)                
+            }
+            
+            case _ =>
+                elemEnv(elem.getEnclosingElement)
+        }
 
     // ___ Parsing __________________________________________________________
     //
@@ -260,7 +371,7 @@ class TranslateTypeFactory(
     case class ParsePath(p: ir.Path, annty: AnnotatedTypeMirror)
     
     class AnnotParser(env: TranslateEnv) extends BaseParser {
-        def pp = (
+        def pp: Parser[ParsePath] = (
             ident           ^^ { case s => startPath(s) }
         |   pp~"."~ident    ^^ { case pp~_~s => extendPath(pp, s) }
         )
@@ -268,7 +379,7 @@ class TranslateTypeFactory(
         def p = pp          ^^ { case pp => pp.p }
 
         def startPath(id: String): ParsePath = {
-            env.lvs.get(id) match {
+            env.m_lvs.get(id) match {
                 case Some((p, annty)) => ParsePath(p, annty)
                 case None => throw ir.IrError("intervals.no.such.variable", id)
             }
@@ -283,15 +394,15 @@ class TranslateTypeFactory(
                 
                 // Search for a non-ambigious short-name match:
                 case None =>
-                    declGhosts.keySet.filter(f_g => shortFieldName(f_g) == f_id) match {                        
+                    declGhosts.keySet.filter(f_g => shortFieldName(f_g) == f_id).toList match {                        
                         // Single match: use the ghost
-                        case Set(f_g) => ParsePath(pp.p + f_g, declGhosts(f_g))
+                        case List(f_g) => ParsePath(pp.p + f_g, declGhosts(f_g))
                         
                         // No matchs, search for a real field with that name:
-                        case Set() => 
-                            findField(p.annty, id) match {
+                        case List() => 
+                            findField(pp.annty, id) match {
                                 case Some(annty_id) => ParsePath(pp.p + f_id, annty_id)                                    
-                                case None =>throw new ir.IrError("intervals.no.such.field", f_id)
+                                case None => throw new ir.IrError("intervals.no.such.field", f_id)
                             }
                             
                         // Multiple matches, error:
@@ -303,14 +414,18 @@ class TranslateTypeFactory(
         def path(s: String): ir.Path = parseToResult(p)(s)
         def wpath(s: String): ir.WcPath = parseToResult(wp)(s)        
     }
-        
+    
+    object AnnotParser {
+        def apply(env: TranslateEnv) = new AnnotParser(env)
+    }
+    
     // ___ Translating types ________________________________________________
     
     def erasedTy(ty: TypeMirror): ir.ClassName =
         ty.getKind match {
             case TK.DECLARED => 
                 val telem = ty.asInstanceOf[DeclaredType].asElement.asInstanceOf[TypeElement]
-                tctx.classAttrs(telem)
+                className(telem)
                 
             case TK.ARRAY =>
                 ir.c_array
@@ -322,39 +437,78 @@ class TranslateTypeFactory(
                 ir.c_void
         }
         
-    def wghosts(env: Environment)(annty: AnnotatedTypeMirror) = {
+    def wghosts(env: TranslateEnv)(annty: AnnotatedTypeMirror) = {
         // Find and parse the explicit annotations given on the type:
         val m_annty_str = ghostFieldsGivenValueInAnnotations(annty.getAnnotations.toList)
         val m_annty_wp = m_annty_str.transform { case (_, v) => AnnotParser(env).wpath(v) }
         
         // Find the default annotations that are relevant to this type:
-        val fs_relevant = ghostFieldsDeclaredOnAnntyAndSupertypes(annty)
-        val m_default = env.m_defaultWghosts.filter { case (f, _) => fs_relevant(f) }
+        val fs_relevant = ghostFieldsDeclaredOnTyAndSupertypes(annty.getUnderlyingType).keySet
+        val m_defaultWghosts = env.m_defaultWghosts.filter { case (f, _) => fs_relevant(f) }
         
         // Combine the two, giving precedence to the explicit annotations:
-        val m_comb = m_default ++ m_annty_wp        
-        m_comb.toList.map { case (f, wp) => env.setPos(ir.WcGhost(f, wp)) }
+        val m_comb = m_defaultWghosts ++ m_annty_wp        
+        m_comb.toList.map { case (f, wp) => ir.WcGhost(f, wp) }
     }
     
-    def wtref(env: Environment)(annty: AnnotatedTypeMirror) = {
+    def wtref(env: TranslateEnv)(annty: AnnotatedTypeMirror) = {
         val c = erasedTy(annty.getUnderlyingType)
         annty.getKind match {
             case TK.DECLARED => {
                 val tattrs = 
                     if(annty.hasAnnotation(classOf[Constructor])) ir.ctorAttrs
                     else ir.noAttrs                
-                ir.TypeRef(c, wghosts(annty), tattrs)
+                ir.WcTypeRef(c, wghosts(env)(annty), tattrs)
             }
         
             case TK.ARRAY =>
-                ir.TypeRef(c, wghosts(annty), ir.noAttrs)
+                ir.WcTypeRef(c, wghosts(env)(annty), ir.noAttrs)
                         
             case _ =>
-                ir.TypeRef(c, Map.empty, ir.noAttrs)            
+                ir.TypeRef(c, List(), ir.noAttrs)            
         }            
     }
     
+    // ___ Requirements _____________________________________________________
+    
+    def reqs(elem: Element): List[ir.Req] = {
+        val parser = AnnotParser(elemEnv(elem))
+        
+        def subintervalReq(annot: Subinterval) =
+            ir.ReqSubintervalOf(
+                annot.subinterval.map(parser.path).toList, 
+                annot.of.map(parser.path).toList)
+        
+        def readableReq(annot: Readable) =
+            ir.ReqReadableBy(
+                annot.value.map(parser.path).toList, 
+                annot.by.map(parser.path).toList)
+        
+        def writableReq(annot: Writable) =
+            ir.ReqWritableBy(
+                annot.value.map(parser.path).toList, 
+                annot.by.map(parser.path).toList)
+        
+        def happensReq(annot: Happens) =
+            ir.ReqHb(
+                annot.before.map(parser.path).toList, 
+                annot.after.map(parser.path).toList)
+        
+        elem.getAnnotation(classOf[Requires]) match {
+            case null => List()
+            case annot => 
+                List[ir.Req]() ++
+                annot.subinterval.map(subintervalReq) ++
+                annot.readable.map(readableReq) ++
+                annot.writable.map(writableReq) ++
+                annot.happens.map(happensReq)
+        }
+    }    
+    
     // ___ Translating the class interface __________________________________
+    //
+    // The class interface includes all fields, methods, constructors, etc
+    // but does not include any method bodies.
     
     def classAttrs(telem: TypeElement) = telem.getKind match {
         case EK.INTERFACE | EK.ANNOTATION_TYPE => ir.interfaceAttrs
@@ -364,20 +518,20 @@ class TranslateTypeFactory(
     def dummyClassDecl(telem: TypeElement) = 
         ir.ClassDecl(
             /* Attrs:   */  classAttrs(telem),
-            /* Name:    */  tctx.className(telem),
+            /* Name:    */  className(telem),
             /* Extends: */  List(),
             /* Ghosts:  */  List(),
             /* Reqs:    */  List(),
-            /* Ctor:    */  List(MethodDecl(
-                    /* attrs:  */ ctorAttrs,
-                    /* wt_ret: */ t_void, 
-                    /* name:   */ m_init, 
+            /* Ctor:    */  List(ir.MethodDecl(
+                    /* attrs:  */ ir.ctorAttrs,
+                    /* wt_ret: */ ir.t_void, 
+                    /* name:   */ ir.m_init, 
                     /* args:   */ List(),
                     /* reqs:   */ List(),
                     /* blocks: */ Array(
-                        Block(
+                        ir.Block(
                             /* args:  */ List(),
-                            /* stmts: */ List(ir.StmtSuperCtor(m_init, List())),
+                            /* stmts: */ List(ir.StmtSuperCtor(ir.m_init, List())),
                             /* goto:  */ List()
                         )
                     )
@@ -386,29 +540,72 @@ class TranslateTypeFactory(
             /* Methods: */  List()
         )
     
-    // Returns a partial class decl. including ctor, fields, methods
-    def headerClassDecl(telem: TypeElement): ir.ClassDecl = 
-        log.indentedRes("headerClassDecl: %s", telem) {
-            at(telem, dummyClassDecl(telem)) {        
-                val parser = tctx.AnnotParser(scope)
-                
-                val ghostDecls = ghostFieldsDeclaredOnElem(telem).map { case (f, s) =>
-                    ir.GhostFieldDecl()
-                }
+    def fieldGuard(env: TranslateEnv)(velem: VariableElement) = {
+        val s_guard = 
+            if(velem.getAnnotation(classOf[WrittenDuring]) != null)
+                velem.getAnnotation(classOf[WrittenDuring]).value
+            else if(velem.getAnnotation(classOf[GuardedBy]) != null)
+                velem.getAnnotation(classOf[GuardedBy]).value
+            else
+                ir.p_this_creator.toString
+        AnnotParser(env).path(s_guard)
+    }
+    
+    def intFieldDecl(velem: VariableElement) = {
+        val env = elemEnv(velem)
+        ir.ReifiedFieldDecl(
+            ir.noAttrs,
+            wtref(env)(getAnnotatedType(velem)),
+            f(velem),  
+            fieldGuard(env)(velem)          
+        )        
+    }
         
+    def intArgDecl(velem: VariableElement) =
+        ir.LvDecl(
+            lv(velem),
+            wtref(elemEnv(velem))(getAnnotatedType(velem))
+        )
+        
+    def intMethodDecl(as0: ir.Attrs, eelem: ExecutableElement) = {
+        val env_mthd = elemEnv(eelem)
+        val annty = getAnnotatedType(eelem)
+        val as1 = 
+            if(eelem.getAnnotation(classOf[Constructor]) != null) as0.withCtor
+            else as0
+        ir.MethodDecl(
+            /* attrs:  */ as1,
+            /* wt_ret: */ wtref(env_mthd)(annty.getReturnType), 
+            /* name:   */ m(eelem), 
+            /* args:   */ eelem.getParameters.map(intArgDecl).toList,
+            /* reqs:   */ reqs(eelem),
+            /* blocks: */ Array(ir.Block(List(), List(), List()))
+        )
+    }
+    
+    def intClassDecl(filter: (Element => Boolean), telem: TypeElement): ir.ClassDecl = 
+        log.indentedRes("headerClassDecl: %s", telem) {
+            at(ElementPosition(telem), dummyClassDecl(telem)) {
+                val enclElems = telem.getEnclosedElements
+                val ctorDecls = EF.constructorsIn(enclElems).filter(filter).map(intMethodDecl(ir.ctorAttrs, _))
+                val methodDecls = EF.methodsIn(enclElems).filter(filter).map(intMethodDecl(ir.noAttrs, _))
+                val fieldDecls = EF.fieldsIn(enclElems).filter(filter).map(intFieldDecl)
+                
+                val env = elemEnv(telem)
+                val ghostDecls = ghostFieldsDeclaredOnElem(telem).map { case (f, annty) =>
+                    ir.GhostFieldDecl(wtref(env)(annty), f) }        
                 val ghosts = ghostFieldsGivenValueOnElem(telem).map { case (f, s) =>
-                    ir.Ghost(f, parser.path(s))
-                }
+                    ir.Ghost(f, AnnotParser(env).path(s)) }
         
                 ir.ClassDecl(
                     /* Attrs:   */  classAttrs(telem),
-                    /* Name:    */  tctx.className(telem),
-                    /* Extends: */  directSupertys(telem).flatMap(translateTy(_).toList)
-                    /* Ghosts:  */  ghosts,
-                    /* Reqs:    */  List(), // TODO
-                    /* Ctor:    */  List(), // Not included in header.
-                    /* Fields:  */  List(), // Not included in header. 
-                    /* Methods: */  List()  // Not included in header.
+                    /* Name:    */  className(telem),
+                    /* Extends: */  directSupertys(telem).map(erasedTy(_)),
+                    /* Ghosts:  */  ghosts.toList,
+                    /* Reqs:    */  reqs(telem),
+                    /* Ctor:    */  ctorDecls.toList,
+                    /* Fields:  */  (ghostDecls ++ fieldDecls).toList,
+                    /* Methods: */  methodDecls.toList
                 )
             }            
         }

@@ -1,17 +1,17 @@
 <?xml version="1.0" encoding="MacRoman" standalone="no"?>
 <jardesc>
     <jar path="/Users/niko/Intervals.jar"/>
-    <options buildIfNeeded="true" compress="true" descriptionLocation="/Intervals-Runtime/Intervals.jardesc" exportErrors="true" exportWarnings="true" includeDirectoryEntries="false" overwrite="false" saveDescription="true" storeRefactorings="false" useSourceFolders="false"/>
+    <options buildIfNeeded="true" compress="true" descriptionLocation="/Intervals/Intervals.jardesc" exportErrors="true" exportWarnings="true" includeDirectoryEntries="false" overwrite="false" saveDescription="true" storeRefactorings="false" useSourceFolders="false"/>
     <storedRefactorings deprecationInfo="true" structuralOnly="false"/>
     <selectedProjects/>
-    <manifest generateManifest="true" mainClassHandleIdentifier="=Intervals-Runtime/src&lt;ch.ethz.intervals.visualizer{VisualizerWindow.java[VisualizerWindow" manifestLocation="" manifestVersion="1.0" reuseManifest="false" saveManifest="false" usesManifest="true">
+    <manifest generateManifest="true" mainClassHandleIdentifier="=Intervals/src&lt;ch.ethz.intervals.visualizer{VisualizerWindow.java[VisualizerWindow" manifestLocation="" manifestVersion="1.0" reuseManifest="false" saveManifest="false" usesManifest="true">
         <sealing sealJar="false">
             <packagesToSeal/>
             <packagesToUnSeal/>
         </sealing>
     </manifest>
     <selectedElements exportClassFiles="true" exportJavaFiles="true" exportOutputFolder="false">
-        <folder path="/Intervals-Runtime/doc"/>
-        <javaElement handleIdentifier="=Intervals-Runtime/src"/>
+        <javaElement handleIdentifier="=Intervals/src"/>
+        <folder path="/Intervals/doc"/>
     </selectedElements>
 </jardesc>
