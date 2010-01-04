@@ -441,4 +441,28 @@ object Util {
         else
             s.substring(0, 30)
             
+    // ___ JCL Conversions __________________________________________________
+    
+    class JavaIterator[E](i: Iterator[E]) extends java.util.Iterator[E] {
+        def hasNext = i.hasNext
+        def next = i.next
+        def remove = throw new UnsupportedOperationException()
+    }
+    
+    class JavaIterable[E](i: Iterable[E]) extends java.lang.Iterable[E] {
+        def iterator = new JavaIterator(i.elements)
+    }
+    
+    class ScalaIterator[E](i: java.util.Iterator[E]) extends Iterator[E] {
+        def hasNext = i.hasNext
+        def next = i.next
+    }
+    
+    class ScalaIterable[E](i: java.lang.Iterable[E]) extends Iterable[E] {
+        def elements = new ScalaIterator(i.iterator)
+    }
+    
+    implicit def scalaToJava[E](i: Iterable[E]): java.lang.Iterable[E] = new JavaIterable(i)
+    implicit def javaToScala[E](i: java.lang.Iterable[E]): Iterable[E] = new ScalaIterable(i)
+            
 }

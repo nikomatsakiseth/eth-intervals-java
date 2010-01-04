@@ -192,7 +192,7 @@ object Log {
   
   abstract trait WritingToTmpFile extends Log {
     val (outFile, outURI) = {
-      val tmpFile = java.io.File.createTempFile("jpart.scala.", ".html")
+      val tmpFile = java.io.File.createTempFile("intervals.scala.", ".html")
       (new java.io.PrintWriter(tmpFile), tmpFile.toURI)
     }
     

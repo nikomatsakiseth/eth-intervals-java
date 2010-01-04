@@ -12,8 +12,7 @@ case class ExpError(msg: String, args: List[String])
 
 class TestAnalysis extends JUnitSuite { 
     
-    // ______________________________________________________________________
-    // Test running infrastructure:
+    // ___ Test running infrastructure ______________________________________
     
     def runTest(errorPhase: String, text: String) {
         val log = new Log.TmpHtmlLog()
@@ -92,8 +91,7 @@ class TestAnalysis extends JUnitSuite {
         runTest("success", text)
     }
     
-    // ______________________________________________________________________
-    // Tests
+    // ___ Tests ____________________________________________________________
 
     @Test
     def linkedFields() {
