@@ -38,6 +38,13 @@ class TranslateTypeFactory(
     checker: IntervalsChecker,
     root: CompilationUnitTree
 ) extends AnnotatedTypeFactory(checker, root) {
+    
+    // ___ Useful constants _________________________________________________
+    
+    // These constants are only safe because Interval has no ghosts.
+    val elem_interval = elements.getTypeElement(classOf[Interval].getName)
+    val annty_interval = getAnnotatedType(elem_interval)
+    
     // ___ Positions ________________________________________________________
     
     abstract class DummyPosition extends Position {
@@ -54,22 +61,27 @@ class TranslateTypeFactory(
     
     case class TreePosition(tree: Tree) extends DummyPosition {
         def reportObject = tree
-        override def toString = "(At tree %s)".format(tree)
+        override def toString = "(tree %s)".format(tree)
     }
     
     case class ElementPosition(elem: Element) extends DummyPosition {
         def reportObject = elem
-        override def toString = "(At element %s)".format(qualName(elem))
+        override def toString = "(element %s)".format(qualName(elem))
     }
     
-    def at[R](p: DummyPosition, d: => R)(f: => R) = {
+    def report(e: ir.Error) = {
+        log("Error: %s", e)        
+        val pos = e.pos.asInstanceOf[DummyPosition]
+        checker.report(Result.failure(e.msg, e.args: _*), pos.reportObject)
+    }
+    
+    def at[R](p: DummyPosition, default: => R)(func: => R) = {
         try {
-            f
+            log.indentedRes("At: %s", p.reportObject) { func }
         } catch {
-            case e: ir.IrError =>
-                val argsArray = e.args.map(_.toString).toArray // Scala chokes at runtime with toList
-                checker.report(Result.failure(e.msg, argsArray: _*), p.reportObject)
-                d
+            case err: ir.IrError =>
+                report(err.toError(p))
+                default
         }
     }
 
@@ -370,15 +382,14 @@ class TranslateTypeFactory(
     
     case class ParsePath(p: ir.Path, annty: AnnotatedTypeMirror)
     
+    val parserLog = log // log is inherited from BaseParser, so create an alias
     class AnnotParser(env: TranslateEnv) extends BaseParser {
-        def pp: Parser[ParsePath] = (
-            ident           ^^ { case s => startPath(s) }
-        |   pp~"."~ident    ^^ { case pp~_~s => extendPath(pp, s) }
-        )
-        
-        def p = pp          ^^ { case pp => pp.p }
+        def dotIdent = "."~ident        ^^ { case _~s => s }
+        def pp = ident~rep(dotIdent)    ^^ { case s~ss => ss.foldLeft(startPath(s))(extendPath)}
+        def p = pp                      ^^ { case pp => pp.p }
 
         def startPath(id: String): ParsePath = {
+            parserLog("startPath(%s)", id)
             env.m_lvs.get(id) match {
                 case Some((p, annty)) => ParsePath(p, annty)
                 case None => throw ir.IrError("intervals.no.such.variable", id)
@@ -386,11 +397,15 @@ class TranslateTypeFactory(
         }
         
         def extendPath(pp: ParsePath, id: String) = {
+            parserLog("extendPath(%s, %s)", pp, id)
             val declGhosts = elemOfAnnty(pp.annty).map(ghostFieldsDeclaredOnElemAndSuperelems).getOrElse(Map.empty)            
             val f_id = ir.FieldName(id)
             declGhosts.get(f_id) match {
                 // Exact match:
                 case Some(annty) => ParsePath(pp.p + f_id, annty)
+                
+                // Built-in constructor (annoying):
+                case None if f_id == ir.f_ctor => ParsePath(pp.p + f_id, annty_interval)                    
                 
                 // Search for a non-ambigious short-name match:
                 case None =>
@@ -411,8 +426,15 @@ class TranslateTypeFactory(
             }
         }
         
-        def path(s: String): ir.Path = parseToResult(p)(s)
-        def wpath(s: String): ir.WcPath = parseToResult(wp)(s)        
+        def path(s: String): ir.Path = 
+            parserLog.indentedRes("parse path(%s)", s) {
+                parseToResult(p)(s)
+            }
+            
+        def wpath(s: String): ir.WcPath = 
+            parserLog.indentedRes("parse wpath(%s)", s) {
+                parseToResult(wp)(s)
+            }
     }
     
     object AnnotParser {

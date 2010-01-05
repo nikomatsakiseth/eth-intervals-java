@@ -28,7 +28,8 @@ import scala.collection.jcl.Conversions._
 class IntervalsChecker extends SourceChecker {
     
     val log = new Log.TmpHtmlLog()
-    
+    println("Debugging output at: %s".format(log.outURI))
+        
     override def createFactory(root: CompilationUnitTree): TranslateTypeFactory =
         new TranslateTypeFactory(log, this, root)
         
@@ -38,7 +39,7 @@ class IntervalsChecker extends SourceChecker {
     override def typeProcess(
         telem: TypeElement,
         treePath: TreePath
-    ) {
+    ) = log.indented("typeProcess(%s,%s)".format(telem, treePath)) {
         telem.getKind match {
             case EK.CLASS | EK.INTERFACE | EK.ENUM => {
                 currentRoot = treePath.getCompilationUnit

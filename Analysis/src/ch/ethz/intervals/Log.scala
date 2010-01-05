@@ -88,6 +88,10 @@ abstract class Log {
       apply(fmt, arg0, args: _*)
       rawIndent
       f 
+    } catch {
+        case t: Throwable => 
+            apply("Error = %s".format(t))
+            throw t
     } finally { 
       rawUndent
     }
@@ -102,7 +106,11 @@ abstract class Log {
       val result = f
       apply("Result = %s", result)
       result
-    } finally { 
+    } catch {
+        case t: Throwable => 
+            apply("Error = %s".format(t))
+            throw t
+    } finally {
       rawUndent
     }
   }

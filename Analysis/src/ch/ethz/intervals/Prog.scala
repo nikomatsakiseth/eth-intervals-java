@@ -50,22 +50,17 @@ class Prog(
     
     var errors = ListSet.empty[ir.Error] // use a list set to keep ordering
     
-    def report(loc: Positional, msg: String, args: Any*) {
-        val argList = args.toList.map(_.toString)
-        log("Error: %s(%s)", msg, argList.mkString(", "))
-        errors += ir.Error(loc.pos, msg, argList)
-    }
-
-    def reportError(loc: Positional, i: ir.IrError) {
-        report(loc, i.msg, i.args: _*)
+    def report(err: ir.Error) {
+        log("Error: %s", err)
+        errors += err
     }
 
     def at[R](loc: Positional, default: R)(g: => R): R = 
         log.indentedRes(loc) {
             try { g } catch {
                 case err: ir.IrError =>
-                    reportError(loc, err)
-                    default           
+                    report(err.toError(loc.pos))
+                    default
             }            
         }
         

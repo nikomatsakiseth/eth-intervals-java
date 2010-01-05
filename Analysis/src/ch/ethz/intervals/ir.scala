@@ -118,9 +118,15 @@ object ir {
     sealed case class Error(
         pos: Position,
         msg: String,
-        args: List[String]
+        args: Array[String]
     ) {
         override def toString = "%s(%s)".format(msg, args.mkString(", "))
+    }
+    
+    case class IrError(msg: String, args: Any*) 
+    extends RuntimeException {
+        def toError(pos: Position) = Error(pos, msg, args.map(_.toString).toArray)
+        override def toString = "%s(%s)".format(msg, args.mkString(", "))        
     }
     
     // ___ Abstract syntax tree _____________________________________________
@@ -437,11 +443,6 @@ object ir {
             case List() => empty
             case hd :: tl => tl.foldLeft(hd)(_ ** _)
         }
-    }
-    
-    case class IrError(msg: String, args: Any*) 
-    extends RuntimeException {
-        override def toString = "%s(%s)".format(msg, args.mkString(", "))        
     }
     
     val lv_this = ir.VarName("this")
