@@ -2,7 +2,7 @@ package ch.ethz.intervals;
 
 import ch.ethz.intervals.quals.GuardedBy;
 import ch.ethz.intervals.quals.WrittenDuring;
-import ch.ethz.intervals.quals.creator;
+import ch.ethz.intervals.quals.Creator;
 
 /**
  * A guard is an object that defines when a field may be safely read or written.
@@ -34,7 +34,7 @@ import ch.ethz.intervals.quals.creator;
  * an assertion like {@code assert g.isWritable()} and the compiler
  * will respect it.  
  */
-@creator("this.constructor")
+@Creator("this.constructor")
 public interface Guard {
 	/** True if the current method is permitted to read data protected by {@code this}. */
 	public boolean isReadable();

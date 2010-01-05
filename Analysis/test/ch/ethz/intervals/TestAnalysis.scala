@@ -886,12 +886,12 @@ class TestAnalysis extends JUnitSuite {
                 void invokeThroughInterface() {
                     foo2 = this->foo2;
                     ifoo2 = (IFoo<creator: this.creator>)foo2;
-                    ifoo2->m1(); // ERROR intervals.requirement.not.met(requires this.creator readable by method)
+                    ifoo2->m1(); // ERROR intervals.requirement.not.met(requires this.#creator readable by method)
                 }
                 
                 void invokeThroughFoo1() {
                     foo1 = this->foo1;
-                    foo1->m1(); // ERROR intervals.requirement.not.met(requires this.creator readable by method)
+                    foo1->m1(); // ERROR intervals.requirement.not.met(requires this.#creator readable by method)
                 }
                 
                 void invokeThroughFoo2() {
@@ -989,7 +989,7 @@ class TestAnalysis extends JUnitSuite {
                 // It's not permitted for data2 depend on this.data1.i because
                 // it is not declared in the same class and it is not constant 
                 // during this.creator (data2's guard).
-                Data2<creator: this.data1.i> data2; // ERROR intervals.illegal.type.dep(this.data1.i, this.creator)
+                Data2<creator: this.data1.i> data2; // ERROR intervals.illegal.type.dep(this.data1.i, this.#creator)
                 constructor() { super(); }
             }
                         
@@ -998,7 +998,7 @@ class TestAnalysis extends JUnitSuite {
                 // ctor, because we don't know that data2 is only modified after ctor completes!
                 // See TODO for more thoughts.
                 Data1<creator: this.constructor> data1 requires this.constructor;
-                Data2<creator: this.data1.i> data2; // ERROR intervals.illegal.type.dep(this.data1.i, this.creator)
+                Data2<creator: this.data1.i> data2; // ERROR intervals.illegal.type.dep(this.data1.i, this.#creator)
                 constructor() { super(); }
             }
             

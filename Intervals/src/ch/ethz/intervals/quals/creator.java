@@ -5,6 +5,6 @@ package ch.ethz.intervals.quals;
  * 
  */
 @DefinesGhost
-public @interface creator {
+public @interface Creator {
 	public String value() default "";
 }

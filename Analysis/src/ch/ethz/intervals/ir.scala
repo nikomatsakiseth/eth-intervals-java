@@ -459,7 +459,7 @@ object ir {
     val p_cur = lv_cur.path
     val p_ghost = lv_ghost.path
 
-    val f_creator = ir.FieldName("creator")    
+    val f_creator = ir.FieldName("ch.ethz.intervals.quals.Creator")
     val f_start = ir.FieldName("start")
     val f_ctor = ir.FieldName("constructor")
     val f_end = ir.FieldName("end")
