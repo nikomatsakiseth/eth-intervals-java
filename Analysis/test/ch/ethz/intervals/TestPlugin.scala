@@ -54,7 +54,7 @@ class TestPlugin extends JUnitSuite {
         val binDir = "%s/bin-test".format(dir)
         val jdkDir = "%s/jdk".format(dir)
         
-        val sourcepath = "%s:%s".format(srcDir, addSourcepath.mkString(":"))
+        val sourcepath = "%s:%s:%s".format(srcDir, jdkDir, addSourcepath.mkString(":"))
         
         val isolatedOpts = 
             if(isolated) List("-bootclasspath","","-extdirs","")

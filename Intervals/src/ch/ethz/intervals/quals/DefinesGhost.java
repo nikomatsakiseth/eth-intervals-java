@@ -1,12 +1,11 @@
 package ch.ethz.intervals.quals;
 
-import ch.ethz.intervals.Guard;
 
 /** 
-    Meta-annotation that designates an object parameter. 
-    Can only be applied to annotations with a single
-    field, <code>String value();</code>
+    Meta-annotation that is used to designate a ghost annotation.
+    The value {@link #type()} defines the type of the object that this
+    ghost can be linked to.
 */
 public @interface DefinesGhost {
-	public Class<?> cls() default Guard.class;
+	public String type() default "ch.ethz.intervals.Guard";
 }

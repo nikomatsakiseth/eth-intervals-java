@@ -205,9 +205,8 @@ class TranslateTypeFactory(
             val elem = am.getAnnotationType.asElement
             val value = annValue(am)
             if(value == "") {
-                val ghostCls = elem.getAnnotation(classOf[DefinesGhost]).cls
-                val ghostElem = elements.getTypeElement(ghostCls.getName)
-                val ghostAnnty = getAnnotatedType(ghostElem)
+                val ghostTypeString = elem.getAnnotation(classOf[DefinesGhost]).`type`
+                val ghostAnnty = AnnTyParser(ghostTypeString)
                 GhostAnnDecl(f(elem), ghostAnnty)
             } else
                 GhostAnnValue(f(elem), value)
@@ -388,7 +387,7 @@ class TranslateTypeFactory(
         def dotIdent = "."~ident        ^^ { case _~s => s }
         def pp = ident~rep(dotIdent)    ^^ { case s~ss => ss.foldLeft(startPath(s))(extendPath)}
         def p = pp                      ^^ { case pp => pp.p }
-
+        
         def startPath(id: String): ParsePath = {
             parserLog("startPath(%s)", id)
             env.m_lvs.get(id) match {
@@ -440,6 +439,25 @@ class TranslateTypeFactory(
     
     object AnnotParser {
         def apply(env: TranslateEnv) = new AnnotParser(env)
+    }
+    
+    class AnnTyParser extends BaseParser {
+        def p = null // Unused here.
+        
+        // For parsing AnnotatedTypes:
+        //     Eventually could be improved to allow annotations,
+        //     use imports, and in numerous other ways.
+        def di = repsep(ident, ".")     ^^ { case idents => ".".join(idents) }
+        def elem = di                   ^^ { case s => elements.getTypeElement(s) }
+        def annty = elem                ^^ { case e => getAnnotatedType(e) }
+    }
+
+    object AnnTyParser {
+        def apply(s: String): AnnotatedTypeMirror =
+            parserLog.indentedRes("parse annty(%s)", s) {
+                val parser = new AnnTyParser()
+                parser.parseToResult(parser.annty)(s)
+            }
     }
     
     // ___ Translating types ________________________________________________

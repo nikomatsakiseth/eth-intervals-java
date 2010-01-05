@@ -50,16 +50,16 @@ class IrParser extends BaseParser {
         case "creator" => ir.f_creator
         case i => ir.FieldName(i) }
     )
-    def c = ident                               ^^ { 
-        case "Object" => ir.c_object
-        case "Interval" => ir.c_interval
-        case "Guard" => ir.c_guard
-        case "Point" => ir.c_point
-        case "Lock" => ir.c_lock
-        case "scalar" => ir.c_scalar
-        case "void" => ir.c_void
-        case "array" => ir.c_array
-        case i => ir.ClassName(i) 
+    def c = repsep(ident, ".")                  ^^ { 
+        case List("Object") => ir.c_object
+        case List("Interval") => ir.c_interval
+        case List("Guard") => ir.c_guard
+        case List("Point") => ir.c_point
+        case List("Lock") => ir.c_lock
+        case List("scalar") => ir.c_scalar
+        case List("void") => ir.c_void
+        case List("array") => ir.c_array
+        case idents => ir.ClassName(".".join(idents)) 
     }
     
     def dotf = "."~f                            ^^ { case _~f => f }

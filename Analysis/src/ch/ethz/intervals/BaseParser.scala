@@ -63,6 +63,5 @@ abstract class BaseParser extends StandardTokenParsers {
     |   "locks"~comma(p)                        ^^ { case _~ps => ir.WcLocks(ps) }
     |   comma(p)~"locks"                        ^^ { case ps~_ => ir.WcLockedBy(ps) }
     )
-
                                         
 }
