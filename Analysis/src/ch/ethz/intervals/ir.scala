@@ -99,7 +99,13 @@ object ir {
 
     // ___ Names of variables, fields, methods, classes _____________________   
     
+    val quoteRegex = "[^a-zA-Z0-9_]".r
     sealed abstract class Name(name: String) {
+        def toIdent =
+            quoteRegex.findFirstIn(name) match {
+                case None => name
+                case Some(_) => "`%s`".format(name)
+            }
         override def toString = name
     }
     case class VarName(name: String) extends Name(name) {
@@ -276,7 +282,7 @@ object ir {
     }
     
     sealed case class WcGhost(f: FieldName, wp: ir.WcPath) {
-        override def toString = "<%s: %s>".format(f, wp)        
+        override def toString = "<%s: %s>".format(f.toIdent, wp)
     } 
     sealed case class Ghost(
         override val f: FieldName,
@@ -355,7 +361,7 @@ object ir {
         
         def start = this + f_start
         def end = this + f_end        
-        override def toString = (lv :: fs).mkString(".")
+        override def toString = (lv :: fs).map(_.toIdent).mkString(".")
     }
     
     /// A TeePee is a typed path.

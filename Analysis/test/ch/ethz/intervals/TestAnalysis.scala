@@ -17,7 +17,7 @@ class TestAnalysis extends JUnitSuite {
     // These substitutions are performed.  They are not needed in program
     // text, but are useful in the expected error messages:
     def substs = List(
-        ("#creator", ir.f_creator.name),
+        ("#creator", "`%s`".format(ir.f_creator.name)),
         ("#Object", ir.c_object.name),
         ("#Interval", ir.c_interval.name),
         ("#Guard", ir.c_guard.name),

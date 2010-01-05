@@ -357,6 +357,7 @@ class TranslateTypeFactory(
                 // Each arg x -> (p, annty) where p = x and annty = annty(x)
 
                 var m_lvs = env_cls.m_lvs
+                m_lvs += Pair("method", (ir.p_mthd, annty_interval))
                 eelem.getParameters.foldLeft(m_lvs) { case (m, velem) =>
                     m + Pair(elem.getSimpleName.toString, (lv(velem).path, getAnnotatedType(velem)))
                 }
