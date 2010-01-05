@@ -24,14 +24,7 @@ import scala.util.parsing.input.Position
 import java.util.{List => jList}
 import Util._
 import quals.DefinesGhost
-import ch.ethz.intervals.quals.Constructor
-import ch.ethz.intervals.quals.GuardedBy
-import ch.ethz.intervals.quals.WrittenDuring
-import ch.ethz.intervals.quals.Requires
-import ch.ethz.intervals.quals.Readable
-import ch.ethz.intervals.quals.Writable
-import ch.ethz.intervals.quals.Happens
-import ch.ethz.intervals.quals.Subinterval
+import ch.ethz.intervals.quals._
 
 class TranslateTypeFactory(
     log: Log,

@@ -254,6 +254,9 @@ object ir {
     sealed case class StmtCast(x: VarName, wt: WcTypeRef, q: Path) extends Stmt {
         override def toString = "%s = (%s)%s;".format(x, wt, q)
     }
+    sealed case class StmtAssign(x: VarName, p: Path) extends Stmt {
+        override def toString = "%s = %s".format(x, p)
+    }
     sealed case class StmtNull(x: VarName, wt: WcTypeRef) extends Stmt {
         override def toString = "%s = (%s)null;".format(x, wt)
     }

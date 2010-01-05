@@ -66,6 +66,8 @@ Features
     it's really an existential reference to an interval which is known to be in the past.
     Both .X and .super are overly special that way.
     
+(*) Static fields, methods
+
 Translator Features
 -------------------
 
