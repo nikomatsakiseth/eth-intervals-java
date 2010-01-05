@@ -254,9 +254,6 @@ object ir {
     sealed case class StmtCast(x: VarName, wt: WcTypeRef, q: Path) extends Stmt {
         override def toString = "%s = (%s)%s;".format(x, wt, q)
     }
-    sealed case class StmtAssign(x: VarName, p: Path) extends Stmt {
-        override def toString = "%s = %s".format(x, p)
-    }
     sealed case class StmtNull(x: VarName, wt: WcTypeRef) extends Stmt {
         override def toString = "%s = (%s)null;".format(x, wt)
     }
@@ -478,6 +475,10 @@ object ir {
     val m_init = ir.MethodName("<init>")
     val m_toScalar = ir.MethodName("toScalar")
     val m_run = ir.MethodName("run")
+    
+    val m_arrayGet = ir.MethodName("arrayGet")
+    val m_arraySet = ir.MethodName("arraySet")
+    val m_toString = ir.MethodName("toString()")
     
     // Special types understood by the system:
     //    (During testing, the definitions in cds_default are used)
