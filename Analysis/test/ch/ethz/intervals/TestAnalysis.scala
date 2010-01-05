@@ -14,9 +14,24 @@ class TestAnalysis extends JUnitSuite {
     
     // ___ Test running infrastructure ______________________________________
     
-    def runTest(errorPhase: String, text: String) {
+    // These substitutions are performed.  They are not needed in program
+    // text, but are useful in the expected error messages:
+    def substs = List(
+        ("#creator", ir.f_creator.name),
+        ("#Object", ir.c_object.name),
+        ("#Interval", ir.c_interval.name),
+        ("#Guard", ir.c_guard.name),
+        ("#Point", ir.c_point.name),
+        ("#Lock", ir.c_lock.name),
+        ("#scalar", ir.c_scalar.name),
+        ("#void", ir.c_void.name)
+    )
+    
+    def runTest(errorPhase: String, text0: String) {
         val log = new Log.TmpHtmlLog()
         try {
+            val text = substs.foldLeft(text0) { case (t, (a, b)) => t.replace(a, b) }
+            
             // Extract errors:
             val tag = "// ERROR "
             val expErrors = text.lines.zipWithIndex.filter(_._1.contains(tag)).map { 
@@ -107,14 +122,14 @@ class TestAnalysis extends JUnitSuite {
                     super();                    
                 }
                 
-                Void setBothOkWhenGivenAsParameters(Interval inter, Object<creator: inter> obj) 
+                void setBothOkWhenGivenAsParameters(Interval inter, Object<creator: inter> obj) 
                 requires method subinterval this.creator
                 {
                     this->inter = inter;
                     this->obj = obj;
                 }
                 
-                Void setBothOkWhenOneIsCreated(Interval inter)
+                void setBothOkWhenOneIsCreated(Interval inter)
                 requires method subinterval this.creator
                 {
                     obj = new Object<creator: inter>();
@@ -123,32 +138,32 @@ class TestAnalysis extends JUnitSuite {
                     this->obj = obj;
                 }
                 
-                Void setBothWrongOrder(Interval inter, Object<creator: inter> obj) // ERROR intervals.must.assign.first(this.obj)
+                void setBothWrongOrder(Interval inter, Object<creator: inter> obj) // ERROR intervals.must.assign.first(this.obj)
                 requires method subinterval this.creator
                 {
-                    this->obj = obj; // ERROR intervals.expected.subtype(obj, Object<creator: inter>{}, Object<creator: this.inter>{})
+                    this->obj = obj; // ERROR intervals.expected.subtype(obj, #Object<#creator: inter>, #Object<#creator: this.inter>)
                     this->inter = inter;
                 }
                 
-                Void setOneNotOk(Interval inter) // ERROR intervals.must.assign.first(this.obj)
+                void setOneNotOk(Interval inter) // ERROR intervals.must.assign.first(this.obj)
                 requires method subinterval this.creator
                 {
                     this->inter = inter;
                 }
                 
-                Void anotherMethod()
+                void anotherMethod()
                 {
                 }
                 
-                Void invokingAnotherMethodInBetweenNotOk(Interval inter, Object<creator: inter> obj) 
+                void invokingAnotherMethodInBetweenNotOk(Interval inter, Object<creator: inter> obj) 
                 requires method subinterval this.creator
                 {
                     this->inter = inter;
                     this->anotherMethod(); // ERROR intervals.must.assign.first(this.obj)
-                    this->obj = obj; // ERROR intervals.expected.subtype(obj, Object<creator: inter>{}, Object<creator: this.inter>{})
+                    this->obj = obj; // ERROR intervals.expected.subtype(obj, #Object<#creator: inter>, #Object<#creator: this.inter>)
                 }
                 
-                Void invokingAnotherMethodAfterIsOk(Interval inter, Object<creator: inter> obj) 
+                void invokingAnotherMethodAfterIsOk(Interval inter, Object<creator: inter> obj) 
                 requires method subinterval this.creator
                 {
                     this->inter = inter;
@@ -156,15 +171,15 @@ class TestAnalysis extends JUnitSuite {
                     this->anotherMethod();
                 }
                 
-                Void creatingObjectsInBetweenNotOk(Interval inter, Object<creator: inter> obj) 
+                void creatingObjectsInBetweenNotOk(Interval inter, Object<creator: inter> obj) 
                 requires method subinterval this.creator
                 {
                     this->inter = inter;
                     obj2 = new Object<creator: inter>(); // ERROR intervals.must.assign.first(this.obj)
-                    this->obj = obj; // ERROR intervals.expected.subtype(obj, Object<creator: inter>{}, Object<creator: this.inter>{})
+                    this->obj = obj; // ERROR intervals.expected.subtype(obj, #Object<#creator: inter>, #Object<#creator: this.inter>)
                 }
                 
-                Void creatingObjectsAfterIsOk(Interval inter, Object<creator: inter> obj) 
+                void creatingObjectsAfterIsOk(Interval inter, Object<creator: inter> obj) 
                 requires method subinterval this.creator
                 {
                     this->inter = inter;
@@ -214,7 +229,7 @@ class TestAnalysis extends JUnitSuite {
             """
             class Ctor extends Object<creator: this.constructor> {
                 
-                Scalar c requires this.constructor;
+                scalar c requires this.constructor;
                 
                 Ctor constructor unctor requires this.constructor;
                 Ctor ctor requires this.constructor;
@@ -223,14 +238,14 @@ class TestAnalysis extends JUnitSuite {
                 {         
                     super();                    
                     this->unctor = this;
-                    this->ctor = this; // ERROR intervals.expected.subtype(this, Ctor{c}, Ctor{})
+                    this->ctor = this; // ERROR intervals.expected.subtype(this, Ctor constructor, Ctor)
                 }
                 
                 // This method is invokable from both within and without the
                 // constructor.  It cannot read fields like 'c' because that
                 // might permit a data race if the 'this' pointer were shared
                 // during the constructor.  (We could perhaps loosen this rule for this.constructor)
-                constructor Void ctorMethod1() 
+                constructor void ctorMethod1() 
                 {
                     c = this->c; // ERROR intervals.not.readable(this.constructor)
                     
@@ -238,16 +253,16 @@ class TestAnalysis extends JUnitSuite {
                     this->ctor = this; // ERROR intervals.not.writable(this.constructor)
                 }
                 
-                constructor Void ctorMethod2() 
+                constructor void ctorMethod2() 
                 requires method subinterval this.constructor
                 {
                     c = this->c; 
                     
                     this->unctor = this;
-                    this->ctor = this; // ERROR intervals.expected.subtype(this, Ctor{c}, Ctor{})
+                    this->ctor = this; // ERROR intervals.expected.subtype(this, Ctor constructor, Ctor)
                 }
                 
-                Void method(Ctor constructor unconstructed, Ctor constructed)
+                void method(Ctor constructor unconstructed, Ctor constructed)
                 {
                     a1 = constructed->toScalar();                    
                     a2 = constructed->c;
@@ -277,7 +292,7 @@ class TestAnalysis extends JUnitSuite {
                     f hb this;
                 }
                 
-                Void readFinal(Object<creator: this.final> o) 
+                void readFinal(Object<creator: this.final> o) 
                 requires method subinterval this
                 {
                     // this.final hb this, and method is a subinterval of this,
@@ -285,7 +300,7 @@ class TestAnalysis extends JUnitSuite {
                     o->toScalar();
                 }
                 
-                Void readFinal1(Object<creator: this.final> o) 
+                void readFinal1(Object<creator: this.final> o) 
                 {
                     // Here we do not require this method be
                     // invoked with method a subinterval of this,
@@ -293,7 +308,7 @@ class TestAnalysis extends JUnitSuite {
                     o->toScalar(); // ERROR intervals.requirement.not.met(requires this.final readable by method)
                 }
                 
-                constructor Void readFinal2(Object<creator: this.final> o) 
+                constructor void readFinal2(Object<creator: this.final> o) 
                 requires method subinterval this
                 {
                     // This method could be invoked in the constructor,
@@ -334,7 +349,7 @@ class TestAnalysis extends JUnitSuite {
                     super before(inter);
                 }
                 
-                Void run() 
+                void run() 
                 requires method subinterval this
                 {
                     this.obj->toScalar();
@@ -350,7 +365,7 @@ class TestAnalysis extends JUnitSuite {
                     super unrelated(inter);
                 }
                 
-                Void run() 
+                void run() 
                 requires method subinterval this
                 {
                     this.obj->toScalar(); // ERROR intervals.requirement.not.met(requires this.inter readable by method)
@@ -390,19 +405,19 @@ class TestAnalysis extends JUnitSuite {
                     c hb this;                    
                 }
                 
-                Void mu(Object<creator: this.unrelated> o) 
+                void mu(Object<creator: this.unrelated> o) 
                 requires method subinterval this
                 {
                     o->toScalar(); // ERROR intervals.requirement.not.met(requires this.unrelated readable by method)
                 }
                 
-                Void mr(Object<creator: this.maybeRelated> o) 
+                void mr(Object<creator: this.maybeRelated> o) 
                 requires method subinterval this
                 {
                     o->toScalar(); // ERROR intervals.requirement.not.met(requires this.maybeRelated readable by method)
                 }
                 
-                Void mb(Object<creator: this.before> o) 
+                void mb(Object<creator: this.before> o) 
                 requires method subinterval this
                 {
                     o->toScalar(); 
@@ -430,11 +445,11 @@ class TestAnalysis extends JUnitSuite {
                     f hb this;
                 }
                 
-                constructor Void emptyMethod()
+                constructor void emptyMethod()
                 {                    
                 }
                 
-                Void readFinal(Object<creator: this.final> o) 
+                void readFinal(Object<creator: this.final> o) 
                 requires method subinterval this
                 {
                     o->toScalar(); // ERROR intervals.requirement.not.met(requires this.final readable by method)
@@ -454,7 +469,7 @@ class TestAnalysis extends JUnitSuite {
                     super();
                 }
                 
-                Void aHbB() 
+                void aHbB() 
                 requires this.a hb this.b
                 {                    
                 }
@@ -466,7 +481,7 @@ class TestAnalysis extends JUnitSuite {
                     super();
                 }
                 
-                Void aHbB() // ok to have fewer reqs...
+                void aHbB() // ok to have fewer reqs...
                 {                    
                     // ...but then invoking super is not necessarily safe:
                     super->aHbB(); // ERROR intervals.requirement.not.met(requires this.a hb this.b)
@@ -479,7 +494,7 @@ class TestAnalysis extends JUnitSuite {
                     super();
                 }
                 
-                Void aHbB() // ok to have same reqs...
+                void aHbB() // ok to have same reqs...
                 requires this.a hb this.b 
                 {
                     // ...and in that case, super can be safely invoked:
@@ -493,7 +508,7 @@ class TestAnalysis extends JUnitSuite {
                     super();
                 }
                 
-                Void aHbB() // ok to have different reqs where super => sub...
+                void aHbB() // ok to have different reqs where super => sub...
                 requires this.a readableBy this.b 
                 {
                     // ...but then invoking super is not necessarily safe:
@@ -507,7 +522,7 @@ class TestAnalysis extends JUnitSuite {
                     super();
                 }
                 
-                Void aHbB() // ERROR intervals.override.adds.req(requires method subinterval of this.constructor)
+                void aHbB() // ERROR intervals.override.adds.req(requires method subinterval of this.constructor)
                 requires method subinterval this.constructor 
                 {                    
                 }
@@ -519,7 +534,7 @@ class TestAnalysis extends JUnitSuite {
                     super();
                 }
                 
-                Void aHbB() // ERROR intervals.override.adds.req(requires this.b hb this.a)
+                void aHbB() // ERROR intervals.override.adds.req(requires this.b hb this.a)
                 requires this.b hb this.a 
                 {                    
                 }
@@ -531,7 +546,7 @@ class TestAnalysis extends JUnitSuite {
                     super();
                 }
                 
-                Void aHbB() // ERROR intervals.override.adds.req(requires this.b readable by this.a)
+                void aHbB() // ERROR intervals.override.adds.req(requires this.b readable by this.a)
                 requires this.b readableBy this.a
                 {                    
                 }
@@ -545,22 +560,22 @@ class TestAnalysis extends JUnitSuite {
         wf(
             """
             class Z extends Object {
-                constructor(Scalar s) {
+                constructor(scalar s) {
                     super(s); // ERROR intervals.wrong.number.method.arguments(0, 1) 
                 }
             }
             
             class A extends Object {
-                Scalar s requires this.constructor;
+                scalar s requires this.constructor;
                 
-                constructor(Scalar s) {
+                constructor(scalar s) {
                     super();
                     this->s = s;
                 }
             }
             
             class B1 extends A {
-                constructor(Scalar t, Scalar w) {
+                constructor(scalar t, scalar w) {
                     super(t, w); // ERROR intervals.wrong.number.method.arguments(1, 2)
                 }
             }            
@@ -570,17 +585,17 @@ class TestAnalysis extends JUnitSuite {
         tc(
             """
             class A extends Object {
-                Scalar s requires this.constructor;
+                scalar s requires this.constructor;
                 
-                constructor(Scalar s) {
+                constructor(scalar s) {
                     super();
                     this->s = s;
                 }
             }
             
             class B2 extends A {
-                constructor(Void v) {
-                    super(v); // ERROR intervals.expected.subtype(v, Void{}, Scalar{})
+                constructor(void v) {
+                    super(v); // ERROR intervals.expected.subtype(v, void, scalar)
                 }                
             }            
             """
@@ -592,15 +607,15 @@ class TestAnalysis extends JUnitSuite {
         tc(
             """
             class A extends Object<creator: this.constructor> {
-                Scalar s requires this.constructor;
+                scalar s requires this.constructor;
                 
-                constructor(Scalar s) {
+                constructor(scalar s) {
                     super();
                 }
             }
             
             class B3 extends A {
-                constructor(Scalar t) {
+                constructor(scalar t) {
                     super(t);
                     
                     this->s = t; // ERROR intervals.not.writable(this.super)
@@ -608,21 +623,21 @@ class TestAnalysis extends JUnitSuite {
             }     
                    
             class B4 extends A {
-                Scalar t requires this.constructor;
+                scalar t requires this.constructor;
                 
-                constructor(Scalar s, Scalar t) {
+                constructor(scalar s, scalar t) {
                     super(s);
                     this->t = t;
                 }
                 
-                Scalar toScalar() {
+                scalar toScalar() {
                     return this.t;
                 }
             }       
                  
             class B5 extends A {
-                Scalar t requires this.constructor;
-                constructor(Scalar t) {
+                scalar t requires this.constructor;
+                constructor(scalar t) {
                     super(t);
                     
                     s = this->s; // this.super is readable
@@ -635,11 +650,11 @@ class TestAnalysis extends JUnitSuite {
                     super();
                 }
                 
-                Void mthdReadA(B5 constructor b) {
+                void mthdReadA(B5 constructor b) {
                     s = b->s; // No error, b.super readable.                    
                 }
                 
-                Void mthdReadB(B5 constructor b) {
+                void mthdReadB(B5 constructor b) {
                     s = b->t; // ERROR intervals.not.readable(b.constructor)
                 }
             }
@@ -674,7 +689,7 @@ class TestAnalysis extends JUnitSuite {
             }
             class Ctor extends Object<creator: this.constructor> {
                 
-                Scalar c requires this.constructor;
+                scalar c requires this.constructor;
                 
                 Ctor constructor unctor requires this.constructor;
                 Ctor ctor requires this.constructor;
@@ -683,14 +698,14 @@ class TestAnalysis extends JUnitSuite {
                 {         
                     super();                    
                     this->unctor = this;
-                    this->ctor = this; // ERROR intervals.expected.subtype(this, Ctor{c}, Ctor{})
+                    this->ctor = this; // ERROR intervals.expected.subtype(this, Ctor constructor, Ctor)
                 }
                 
                 // This method is invokable from both within and without the
                 // constructor.  It cannot read fields like 'c' because that
                 // might permit a data race if the 'this' pointer were shared
                 // during the constructor.  (We could perhaps loosen this rule for this.constructor)
-                constructor Void ctorMethod1() 
+                constructor void ctorMethod1() 
                 {
                     c = this->c; // ERROR intervals.not.readable(this.constructor)
                     
@@ -698,16 +713,16 @@ class TestAnalysis extends JUnitSuite {
                     this->ctor = this; // ERROR intervals.not.writable(this.constructor)
                 }
                 
-                constructor Void ctorMethod2() 
+                constructor void ctorMethod2() 
                 requires method subinterval this.constructor
                 {
                     c = this->c; 
                     
                     this->unctor = this;
-                    this->ctor = this; // ERROR intervals.expected.subtype(this, Ctor{c}, Ctor{})
+                    this->ctor = this; // ERROR intervals.expected.subtype(this, Ctor constructor, Ctor)
                 }
                 
-                Void method(Ctor constructor unconstructed, Ctor constructed)
+                void method(Ctor constructor unconstructed, Ctor constructed)
                 {
                     a1 = constructed->toScalar();                    
                     a2 = constructed->c;
@@ -725,23 +740,23 @@ class TestAnalysis extends JUnitSuite {
         tc(
             """
             class ExtendedInit<Interval init> extends Object<creator: this.init> {
-                Scalar f1 requires this.init;
-                Scalar f2 requires this.init;
+                scalar f1 requires this.init;
+                scalar f2 requires this.init;
                 
-                constructor(Scalar f1) 
+                constructor(scalar f1) 
                 requires method subinterval this.init
                 {
                     super();
                     this->f1 = f1;
                 }
                 
-                Void additionalInit(Scalar f2)
+                void additionalInit(scalar f2)
                 requires method subinterval this.init
                 {
                     this->f2 = f2;
                 }
                 
-                Void afterInit()
+                void afterInit()
                 requires this.init hb method
                 {
                     f1 = this->f1; // safe to read both of these...
@@ -769,25 +784,25 @@ class TestAnalysis extends JUnitSuite {
                 }
             }
             
-            class ScalarRegister extends Monitor {
-                Scalar value requires this.lock;
+            class scalarRegister extends Monitor {
+                scalar value requires this.lock;
                 
                 constructor() {
                     super();
                 }
 
-                Scalar brokenGet() 
+                scalar brokenGet() 
                 {
                     v = this->value; // ERROR intervals.not.readable(this.lock)
                     // return v; /* commented out due to error above */
                 }
 
-                Void brokenSet(Scalar v) 
+                void brokenSet(scalar v) 
                 {
                     this->value = v; // ERROR intervals.not.writable(this.lock)
                 }
                 
-                Scalar get() 
+                scalar get() 
                 {
                     subinterval push x locks this.lock;
                     v = this->value; 
@@ -795,14 +810,14 @@ class TestAnalysis extends JUnitSuite {
                     return v;
                 }
                 
-                Void set(Scalar v) 
+                void set(scalar v) 
                 {
                     subinterval push x locks this.lock;
                     this->value = v;
                     subinterval pop x;
                 }
                 
-                Scalar toScalar() 
+                scalar toScalar() 
                 {
                     s = this->get();
                     return s;
@@ -863,23 +878,23 @@ class TestAnalysis extends JUnitSuite {
                     super();
                 }
                 
-                Void assign() {
+                void assign() {
                     ifoo1 = this->foo1;
                     ifoo2 = this->foo2;                    
                 }
                 
-                Void invokeThroughInterface() {
+                void invokeThroughInterface() {
                     foo2 = this->foo2;
                     ifoo2 = (IFoo<creator: this.creator>)foo2;
                     ifoo2->m1(); // ERROR intervals.requirement.not.met(requires this.creator readable by method)
                 }
                 
-                Void invokeThroughFoo1() {
+                void invokeThroughFoo1() {
                     foo1 = this->foo1;
                     foo1->m1(); // ERROR intervals.requirement.not.met(requires this.creator readable by method)
                 }
                 
-                Void invokeThroughFoo2() {
+                void invokeThroughFoo2() {
                     foo2 = this->foo2;
                     foo2->m1();
                 }
@@ -893,7 +908,7 @@ class TestAnalysis extends JUnitSuite {
     {
         tc(
             """
-            class Foo<Scalar s><Lock l><Interval i> extends Object {
+            class Foo<scalar s><Lock l><Interval i> extends Object {
                 constructor() {
                     super();
                 }                
@@ -904,16 +919,16 @@ class TestAnalysis extends JUnitSuite {
                     super();
                 }
                 
-                Void run() {
-                    s = (Scalar)null;
+                void run() {
+                    s = (scalar)null;
                     l = (Lock)null;
                     i = (Interval)null;
                                         
                     f1 = new Foo<s: s><l: l><i: i><creator: i>();
-                    f2 = new Foo<s: l><l: l><i: i><creator: i>(); // ERROR intervals.expected.subtype(l, Lock{}, Scalar{})
-                    f3 = new Foo<s: s><l: s><i: i><creator: i>(); // ERROR intervals.expected.subtype(s, Scalar{}, Lock{})
-                    f4 = new Foo<s: s><l: l><i: s><creator: i>(); // ERROR intervals.expected.subtype(s, Scalar{}, Interval{})
-                    f5 = new Foo<s: s><l: l><i: i><creator: s>(); // ERROR intervals.expected.subtype(s, Scalar{}, Interval{})
+                    f2 = new Foo<s: l><l: l><i: i><creator: i>(); // ERROR intervals.expected.subtype(l, #Lock, #scalar)
+                    f3 = new Foo<s: s><l: s><i: i><creator: i>(); // ERROR intervals.expected.subtype(s, #scalar, #Lock)
+                    f4 = new Foo<s: s><l: l><i: s><creator: i>(); // ERROR intervals.expected.subtype(s, #scalar, #Interval)
+                    f5 = new Foo<s: s><l: l><i: i><creator: s>(); // ERROR intervals.expected.subtype(s, #scalar, #Interval)
                 }
             }
             """
@@ -928,16 +943,16 @@ class TestAnalysis extends JUnitSuite {
     {
         tc(
             """
-            class Foo<Scalar s> extends Object {
+            class Foo<scalar s> extends Object {
                 constructor() {
                     super();
                 }                
             }
             
-            class Bar<Scalar s><Interval i> extends Object {
+            class Bar<scalar s><Interval i> extends Object {
                 Foo<s: this.s><creator: i> f1; 
-                Foo<s: this.i><creator: i> f2; // ERROR intervals.expected.subtype(this.i, Interval{}, Scalar{})
-                Foo<s: this.s><creator: s> f3; // ERROR intervals.expected.subtype(this.s, Scalar{}, Interval{})
+                Foo<s: this.i><creator: i> f2; // ERROR intervals.expected.subtype(this.i, Interval, scalar)
+                Foo<s: this.s><creator: s> f3; // ERROR intervals.expected.subtype(this.s, scalar, Interval)
                 
                 constructor() {
                     super();
@@ -958,7 +973,7 @@ class TestAnalysis extends JUnitSuite {
             }
             
             class Data2 extends Object {
-                Scalar s;
+                scalar s;
                 constructor() { super(); }
             }
             
@@ -1020,15 +1035,15 @@ class TestAnalysis extends JUnitSuite {
             class C extends Object {
                 constructor() { super(); }
                 
-                Void mthd(
+                void mthd(
                     Data<creator: readableBy method> m1, 
                     Data<creator: readableBy method> m2, 
                     Data<creator: hb method> c1,
                     Data<creator: hb method> c2
                 ) 
                 requires c1.i hb c2.i
-                requires c1 hb c2 // ERROR intervals.expected.subclass.of.any(Data, Array(Point, Interval))
-                requires c1.i hb c2 // ERROR intervals.expected.subclass.of.any(Data, Array(Point, Interval))
+                requires c1 hb c2 // ERROR intervals.expected.subclass.of.any(Data, Array(#Point, #Interval))
+                requires c1.i hb c2 // ERROR intervals.expected.subclass.of.any(Data, Array(#Point, #Interval))
                 {
                     
                 }
@@ -1051,7 +1066,7 @@ class TestAnalysis extends JUnitSuite {
             class C extends Object {
                 constructor() { super(); }
                 
-                Void mthd(
+                void mthd(
                     Data<creator: readableBy method> m1, 
                     Data<creator: readableBy method> m2, 
                     Data<creator: hb method> c1,
@@ -1073,13 +1088,13 @@ class TestAnalysis extends JUnitSuite {
     {
         wf(
             """
-            class Foo<Scalar s> extends Object {
+            class Foo<scalar s> extends Object {
                 constructor() {
                     super();
                 }                
             }
             
-            class Bar<Scalar s><Interval i> extends Object {
+            class Bar<scalar s><Interval i> extends Object {
                 Foo<s: this.s><creator: this.i> f1; 
                 Foo<t: this.s><creator: this.i> f2; // ERROR intervals.no.such.ghost(Foo, t)
                 Foo<t: this.s><creator: i> f3; // ERROR intervals.no.such.variable(i)
@@ -1119,7 +1134,7 @@ class TestAnalysis extends JUnitSuite {
                     super();
                 }                
                 
-                Void ok() 
+                void ok() 
                 requires this.creator writableBy method
                 {
                     obj = new C2<creator: this.a><l1: this.b><l2: this.c>();
@@ -1128,22 +1143,22 @@ class TestAnalysis extends JUnitSuite {
                     this->creatorAl1B = obj; 
                 }
                 
-                Void creatorWrong() 
+                void creatorWrong() 
                 requires this.creator writableBy method
                 {
                     obj = new C2<creator: this.d><l1: this.b><l2: this.c>();
-                    this->creatorA = obj; // ERROR intervals.expected.subtype(obj, C2<creator: this.d><l1: this.b><l2: this.c>{}, Object<creator: this.a>{})
+                    this->creatorA = obj; // ERROR intervals.expected.subtype(obj, C2<#creator: this.d><l1: this.b><l2: this.c>, #Object<#creator: this.a>)
                     this->l1B = obj; 
-                    this->creatorAl1B = obj; // ERROR intervals.expected.subtype(obj, C2<creator: this.d><l1: this.b><l2: this.c>{}, C1<creator: this.a><l1: this.b>{})
+                    this->creatorAl1B = obj; // ERROR intervals.expected.subtype(obj, C2<#creator: this.d><l1: this.b><l2: this.c>, C1<#creator: this.a><l1: this.b>)
                 } 
                 
-                Void l1Wrong() 
+                void l1Wrong() 
                 requires this.creator writableBy method
                 {
                     obj = new C2<creator: this.a><l1: this.c><l2: this.b>();
                     this->creatorA = obj;
-                    this->l1B = obj; // ERROR intervals.expected.subtype(obj, C2<creator: this.a><l1: this.c><l2: this.b>{}, C1<l1: this.b>{})
-                    this->creatorAl1B = obj; // ERROR intervals.expected.subtype(obj, C2<creator: this.a><l1: this.c><l2: this.b>{}, C1<creator: this.a><l1: this.b>{})
+                    this->l1B = obj; // ERROR intervals.expected.subtype(obj, C2<#creator: this.a><l1: this.c><l2: this.b>, C1<l1: this.b>)
+                    this->creatorAl1B = obj; // ERROR intervals.expected.subtype(obj, C2<#creator: this.a><l1: this.c><l2: this.b>, C1<#creator: this.a><l1: this.b>)
                 }                                         
             }            
             """
@@ -1181,7 +1196,7 @@ class TestAnalysis extends JUnitSuite {
                 }                
             }
             
-            class BadExtendsClass extends Ok, Object { // ERROR intervals.superType.not.interface(Object)
+            class BadExtendsClass extends Ok, Object { // ERROR intervals.superType.not.interface(#Object)
                 constructor() {
                     super();
                 }                
@@ -1195,7 +1210,7 @@ class TestAnalysis extends JUnitSuite {
         success(
             """
             class Data<Lock lock> extends Object<creator: this.lock> {
-                Scalar fld requires this.lock;
+                scalar fld requires this.lock;
                 
                 constructor() {
                     super();
@@ -1241,7 +1256,7 @@ class TestAnalysis extends JUnitSuite {
                     return outData;
                 }
                 
-                Void run() 
+                void run() 
                 requires method subinterval this
                 {
                     // Update data:
@@ -1297,12 +1312,12 @@ class TestAnalysis extends JUnitSuite {
                     // between succ 1 and 2:
                     b2 = (Object<creator: this>)null;
                     goto 1();
-                    goto 2(b2); // ERROR intervals.expected.subtype(b2, Object<creator: this>{}, Object<creator: this.creator>{})
+                    goto 2(b2); // ERROR intervals.expected.subtype(b2, #Object<#creator: this>, #Object<#creator: this.#creator>)
                 }
                 () // Block 1
                 {
                     b1 = (Object<creator: this>)null;
-                    goto 2(b1); // ERROR intervals.expected.subtype(b1, Object<creator: this>{}, Object<creator: this.creator>{})
+                    goto 2(b1); // ERROR intervals.expected.subtype(b1, #Object<#creator: this>, #Object<#creator: this.#creator>)
                 }
                 (Object<creator: this.creator> b3) // Block 2
                 {
@@ -1393,7 +1408,7 @@ class TestAnalysis extends JUnitSuite {
                     this->pdata = pdata;
                 }
 
-                Void run()
+                void run()
                 requires method subinterval this
                 {
                     pdata = this->pdata;
@@ -1427,7 +1442,7 @@ class TestAnalysis extends JUnitSuite {
                     this->cdata = cdata;
                 }
 
-                Void run()
+                void run()
                 requires method subinterval this
                 {
                     pdata = this->pdata;
@@ -1450,7 +1465,7 @@ class TestAnalysis extends JUnitSuite {
                     super();                    
                 }
                 
-                Void run()
+                void run()
                 requires method subinterval this
                 {
                     d0 = new ConsData<creator: this>();

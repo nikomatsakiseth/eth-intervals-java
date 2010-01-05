@@ -39,14 +39,28 @@ class IrParser extends BaseParser {
     )
     def attrs = rep(attr)                       ^^ { case la => ir.Attrs(Set(la: _*)) }
     
+    // For method, variable, field, and class names, we just use identifiers,
+    // but sometimes we apply some conversions to internal names:
     def m = ident                               ^^ { case i => ir.MethodName(i) }
     def cm = opt(m)                             ^^ { case Some(m) => m; case None => ir.m_init }
-    def c = ident                               ^^ { case i => ir.ClassName(i) }
     def lv = ident                              ^^ { case i => ir.VarName(i) }
     def f = (
         "constructor"                           ^^ { case _ => ir.f_ctor }
-    |   ident                                   ^^ { case i => ir.FieldName(i) }
+    |   ident                                   ^^ { 
+        case "creator" => ir.f_creator
+        case i => ir.FieldName(i) }
     )
+    def c = ident                               ^^ { 
+        case "Object" => ir.c_object
+        case "Interval" => ir.c_interval
+        case "Guard" => ir.c_guard
+        case "Point" => ir.c_point
+        case "Lock" => ir.c_lock
+        case "scalar" => ir.c_scalar
+        case "void" => ir.c_void
+        case "array" => ir.c_array
+        case i => ir.ClassName(i) 
+    }
     
     def dotf = "."~f                            ^^ { case _~f => f }
     def p = lv~rep(dotf)                        ^^ { case lv~fs => lv ++ fs }

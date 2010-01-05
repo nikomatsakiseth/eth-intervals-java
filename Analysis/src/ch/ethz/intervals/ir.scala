@@ -85,6 +85,9 @@ object ir {
         
         def diff(as: Attrs): Set[Attr] = s -- as.s
         
+        def preWords = "".join("", s.map(_.adj), " ")
+        def postWords = "".join(" ", s.map(_.adj), "")
+        
         override def toString = "{%s}".format(s.mkString(""))
     }
     val noAttrs = Attrs(ListSet.empty)
@@ -143,8 +146,8 @@ object ir {
         }
         
         override def toString =
-            "class %s%s extends %s%s%s".format(
-                name, "".join(gfds), superClasses.mkString(", "), "".join(" ", ghosts), "".join(" ", reqs))
+            "%sclass %s%s extends %s%s%s".format(
+                attrs.preWords, name, "".join(gfds), superClasses.mkString(", "), "".join(" ", ghosts), "".join(" ", reqs))
     }
     
     sealed case class MethodDecl(
@@ -158,8 +161,8 @@ object ir {
         def msig(t_rcvr: TypeRef) = MethodSig(t_rcvr, attrs, args, reqs, wt_ret)
         
         override def toString =
-            "%s %s %s(%s)%s".format(
-                attrs, wt_ret, name, args.mkString(", "), "".join(" ", reqs))
+            "%s%s %s(%s)%s".format(
+                attrs.preWords, wt_ret, name, args.mkString(", "), "".join(" ", reqs))
     }
     
     sealed case class MethodSig(
@@ -169,8 +172,8 @@ object ir {
         reqs: List[Req],
         wt_ret: WcTypeRef
     ) {
-        override def toString = "(%s %s (%s)::_(%s)%s)".format(
-            as, wt_ret, t_rcvr, args.mkString(", "), reqs.mkString(""))            
+        override def toString = "(%s%s (%s)::_(%s)%s)".format(
+            as.preWords, wt_ret, t_rcvr, args.mkString(", "), reqs.mkString(""))            
     }
     
     sealed case class LvDecl(
@@ -202,7 +205,7 @@ object ir {
         name: FieldName,
         p_guard: Path
     ) extends FieldDecl {
-        override def toString = "%s %s %s requires %s".format(as, wt, name, p_guard)
+        override def toString = "%s%s %s requires %s".format(as.preWords, wt, name, p_guard)
     }
     
     sealed case class Block(
@@ -279,7 +282,7 @@ object ir {
         wghosts: List[WcGhost],
         as: Attrs
     ) {
-        override def toString = "%s%s%s".format(c, wghosts.mkString(""), as)
+        override def toString = "%s%s%s".format(c, wghosts.mkString(""), as.postWords)
         def withAttrs(as: Attrs) = ir.WcTypeRef(c, wghosts, as)
         def owghost(f: FieldName) = wghosts.find(_.f == f).map(_.wp)
         def dependentPaths =
@@ -468,18 +471,18 @@ object ir {
     
     // Special types understood by the system:
     //    (During testing, the definitions in cds_default are used)
-    val c_object = ir.ClassName("Object")
-    val c_interval = ir.ClassName("Interval")
-    val c_guard = ir.ClassName("Guard")
-    val c_point = ir.ClassName("Point")
-    val c_lock = ir.ClassName("Lock")    
+    val c_object = ir.ClassName("java.lang.Object")
+    val c_interval = ir.ClassName("ch.ethz.intervals.Interval")
+    val c_guard = ir.ClassName("ch.ethz.intervals.Guard")
+    val c_point = ir.ClassName("ch.ethz.intervals.Point")
+    val c_lock = ir.ClassName("ch.ethz.intervals.Lock")
 
     // Types used to translate Java constructs into classes:
     //    These types are not treated specially by the type system,
     //    but we provide default, synthetic definitions.
-    val c_scalar = ir.ClassName("Scalar")  // Represents any scalar value.
-    val c_void = ir.ClassName("Void")      // Represents void values.
-    val c_array = ir.ClassName("Array")    // Represents arrays.
+    val c_scalar = ir.ClassName("scalar")  // Represents any scalar value.
+    val c_void = ir.ClassName("void")      // Represents void values.
+    val c_array = ir.ClassName("array")    // Represents arrays.
     
     val t_void = ir.TypeRef(c_void, List(), ir.noAttrs)
     val t_scalar = ir.TypeRef(c_scalar, List(), ir.noAttrs)

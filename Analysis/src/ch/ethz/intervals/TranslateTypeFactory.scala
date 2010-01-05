@@ -503,17 +503,36 @@ class TranslateTypeFactory(
                 annot.writable.map(writableReq) ++
                 annot.happens.map(happensReq)
         }
-    }    
+    }   
     
-    // ___ Translating the class interface __________________________________
+    // ___ Dummy Entries ____________________________________________________ 
     //
-    // The class interface includes all fields, methods, constructors, etc
-    // but does not include any method bodies.
+    // In case of errors when translating something, we insert a dummy
+    // entry as an attempt to recover.
     
-    def classAttrs(telem: TypeElement) = telem.getKind match {
-        case EK.INTERFACE | EK.ANNOTATION_TYPE => ir.interfaceAttrs
-        case _ => ir.noAttrs
-    }
+    def dummyLvDecl(velem: VariableElement) =
+        ir.LvDecl(
+            lv(velem),
+            ir.t_void
+        )
+    
+    def dummyFieldDecl(velem: VariableElement) =
+        ir.ReifiedFieldDecl(
+            ir.noAttrs,
+            ir.t_void,
+            f(velem),
+            ir.p_this_creator
+        )
+
+    def dummyMethodDecl(eelem: ExecutableElement) =
+        ir.MethodDecl(
+            /* attrs:  */ ir.noAttrs,
+            /* wt_ret: */ ir.t_void,
+            /* name:   */ m(eelem), 
+            /* args:   */ eelem.getParameters.map(dummyLvDecl).toList,
+            /* reqs:   */ List(),
+            /* blocks: */ Array(ir.Block(List(), List(), List()))
+        )
 
     def dummyClassDecl(telem: TypeElement) = 
         ir.ClassDecl(
@@ -538,50 +557,65 @@ class TranslateTypeFactory(
                 )),
             /* Fields:  */  List(),
             /* Methods: */  List()
-        )
+        )    
     
-    def fieldGuard(env: TranslateEnv)(velem: VariableElement) = {
-        val s_guard = 
-            if(velem.getAnnotation(classOf[WrittenDuring]) != null)
-                velem.getAnnotation(classOf[WrittenDuring]).value
-            else if(velem.getAnnotation(classOf[GuardedBy]) != null)
-                velem.getAnnotation(classOf[GuardedBy]).value
-            else
-                ir.p_this_creator.toString
-        AnnotParser(env).path(s_guard)
+    // ___ Translating the class interface __________________________________
+    //
+    // The class interface includes all fields, methods, constructors, etc
+    // but does not include any method bodies.
+    
+    def classAttrs(telem: TypeElement) = telem.getKind match {
+        case EK.INTERFACE | EK.ANNOTATION_TYPE => ir.interfaceAttrs
+        case _ => ir.noAttrs
     }
     
-    def intFieldDecl(velem: VariableElement) = {
-        val env = elemEnv(velem)
-        ir.ReifiedFieldDecl(
-            ir.noAttrs,
-            wtref(env)(getAnnotatedType(velem)),
-            f(velem),  
-            fieldGuard(env)(velem)          
-        )        
-    }
+    def fieldGuard(env: TranslateEnv)(velem: VariableElement) = 
+        at(ElementPosition(velem), ir.p_this_creator) {
+            val s_guard = 
+                if(velem.getAnnotation(classOf[WrittenDuring]) != null)
+                    velem.getAnnotation(classOf[WrittenDuring]).value
+                else if(velem.getAnnotation(classOf[GuardedBy]) != null)
+                    velem.getAnnotation(classOf[GuardedBy]).value
+                else
+                    ir.p_this_creator.toString
+            AnnotParser(env).path(s_guard)
+        }
+    
+    def intFieldDecl(velem: VariableElement) = 
+        at(ElementPosition(velem), dummyFieldDecl(velem)) {
+            val env = elemEnv(velem)
+            ir.ReifiedFieldDecl(
+                ir.noAttrs,
+                wtref(env)(getAnnotatedType(velem)),
+                f(velem),  
+                fieldGuard(env)(velem)          
+            )        
+        }
         
     def intArgDecl(velem: VariableElement) =
-        ir.LvDecl(
-            lv(velem),
-            wtref(elemEnv(velem))(getAnnotatedType(velem))
-        )
+        at(ElementPosition(velem), dummyLvDecl(velem)) {
+            ir.LvDecl(
+                lv(velem),
+                wtref(elemEnv(velem))(getAnnotatedType(velem))
+            )
+        }
         
-    def intMethodDecl(as0: ir.Attrs, eelem: ExecutableElement) = {
-        val env_mthd = elemEnv(eelem)
-        val annty = getAnnotatedType(eelem)
-        val as1 = 
-            if(eelem.getAnnotation(classOf[Constructor]) != null) as0.withCtor
-            else as0
-        ir.MethodDecl(
-            /* attrs:  */ as1,
-            /* wt_ret: */ wtref(env_mthd)(annty.getReturnType), 
-            /* name:   */ m(eelem), 
-            /* args:   */ eelem.getParameters.map(intArgDecl).toList,
-            /* reqs:   */ reqs(eelem),
-            /* blocks: */ Array(ir.Block(List(), List(), List()))
-        )
-    }
+    def intMethodDecl(as0: ir.Attrs, eelem: ExecutableElement) = 
+        at(ElementPosition(eelem), dummyMethodDecl(eelem)) {
+            val env_mthd = elemEnv(eelem)
+            val annty = getAnnotatedType(eelem)
+            val as1 = 
+                if(eelem.getAnnotation(classOf[Constructor]) != null) as0.withCtor
+                else as0
+            ir.MethodDecl(
+                /* attrs:  */ as1,
+                /* wt_ret: */ wtref(env_mthd)(annty.getReturnType), 
+                /* name:   */ m(eelem), 
+                /* args:   */ eelem.getParameters.map(intArgDecl).toList,
+                /* reqs:   */ reqs(eelem),
+                /* blocks: */ Array(ir.Block(List(), List(), List()))
+            )
+        }
     
     def intClassDecl(filter: (Element => Boolean), telem: TypeElement): ir.ClassDecl = 
         log.indentedRes("headerClassDecl: %s", telem) {
