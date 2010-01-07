@@ -441,6 +441,10 @@ object Util {
         else
             s.substring(0, 30)
             
+    def nullToOption[A <: AnyRef](a: A) =
+        if(a == null) None
+        else Some(a)
+
     // ___ JCL Conversions __________________________________________________
     
     class JavaIterator[E](i: Iterator[E]) extends java.util.Iterator[E] {
