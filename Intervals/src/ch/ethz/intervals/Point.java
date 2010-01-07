@@ -396,11 +396,15 @@ final public class Point implements Dependency {
 	 * Optimized routine for the case where 'this' is known to have
 	 * already occurred and not to have had any exceptions.
 	 */
-	void addEdgeAfterOccurredWithoutException(Point targetPnt, int flags) {
+	void addEdgeAfterOccurredWithoutException(Point targetPnt, int edgeFlags) {
 		synchronized(this) {
 			assert didOccur();
-			assert pendingExceptions == null;
-			primAddOutEdge(targetPnt, flags);
+			
+			// In some cases, pendingExceptions may be non-null if this was a 
+			// subinterval which rethrew the exceptions and had them caught.
+			assert (this.flags & FLAG_MASK_EXC) != 0 || pendingExceptions == null;
+			
+			primAddOutEdge(targetPnt, edgeFlags);
 		}
 	}
 
