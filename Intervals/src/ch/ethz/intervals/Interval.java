@@ -33,8 +33,8 @@ implements Dependency, Guard
 		current.checkCanAddDep(bound);	
 		
 		line = new Line(current, bound);		
-		end = new Point(line, null, NO_POINT_FLAGS, 2, null);
-		start = new Point(line, end, FLAG_ACQUIRE_LOCKS, 1, this);		
+		end = new Point(line, Point.END_EPOCH, null, NO_POINT_FLAGS, 2, null);
+		start = new Point(line, 0, end, FLAG_ACQUIRE_LOCKS, 1, this);		
 		current.addUnscheduled(this);
 		
 		bound.addWaitCount();

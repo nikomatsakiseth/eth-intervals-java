@@ -74,7 +74,7 @@ class Debug {
 		
 		public String toString() {
 			final StringBuilder sb = new StringBuilder();
-			sb.append(String.format("OCCUR %s nextEpochOrBound %s succs", point, point.nextEpochOrBound()));
+			sb.append(String.format("OCCUR %s nextEpoch %s bound %s succs", point, point.nextEpoch, point.line.bound));
 			
 			new EdgeList.Iterator(list) {
 				public void doForEach(Point toPoint, int flags) {
@@ -106,6 +106,25 @@ class Debug {
 	
 	public static void join(Point joinedPnt) {
 		addEvent(new JoinEvent(joinedPnt));
+	}
+
+	static class SubIntervalEvent extends Event {
+		public final Interval inter;
+		public final String description;
+
+		public SubIntervalEvent(Interval inter, String description) {
+			this.inter = inter;
+			this.description = description;
+		}
+		
+		public String toString() {
+			return String.format("SUB %s-%s end.nextEpoch=%s desc=%s", inter.start, inter.end, inter.end.nextEpoch, description);
+		}
+	}
+	
+	public static void subInterval(Interval inter, String description) {
+		if(ENABLED_INTER)
+			addEvent(new SubIntervalEvent(inter, description));
 	}
 
 	static class NewIntervalEvent extends Event {

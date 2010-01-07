@@ -13,7 +13,7 @@ public class Intervals {
 	public static final boolean SAFETY_CHECKS = true;	
 
 	/** Final point of the program.  Never occurs until program ends. */
-	static final Point rootEnd = new Point(Line.rootLine, null, NO_POINT_FLAGS, 1, null);
+	static final Point rootEnd = new Point(Line.rootLine, Point.END_EPOCH, null, NO_POINT_FLAGS, 1, null);
 	
 	/** Shared thread pool that executes tasks. */
 	static final ThreadPool POOL = new ThreadPool();
@@ -250,14 +250,20 @@ public class Intervals {
 			subinterval = current.start.insertSubintervalAfter(task);			
 		} else { // If current.start == null, this is first subinterval of root interval: 
 			assert current.end.isRootEnd();
-			subinterval = current.end.insertSubintervalBefore(task);
+			subinterval = current.end.insertSubintervalBefore(1, task);
 		}
+		if(Debug.ENABLED)
+			Debug.subInterval(subinterval, task.toString());		
 		subinterval.start.occur();
+		assert subinterval.start.didOccur();
 		subinterval.exec();
-		current.updateStart(subinterval.end);		
-		join(subinterval.end); // may throw an exception
-		return subinterval.result;
-	}
+		try {
+			join(subinterval.end); // may throw an exception
+			return subinterval.result;
+		} finally {
+			current.updateStart(subinterval.end);			
+		}
+	}		
 	
 	/**
 	 * Variant of {@link #subinterval(SubintervalTask)} for

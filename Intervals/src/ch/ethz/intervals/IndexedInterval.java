@@ -44,15 +44,15 @@ public abstract class IndexedInterval extends Interval {
 	@Override
 	public final void run() {
 		parentEnd = end;
-    	new Subtask(parentEnd, lo0, hi0);
+    	new Subtask(lo0, hi0);
 	}
 	
 	final class Subtask extends Interval {
         final int lo;
         final int hi;
 		
-        Subtask(Point bound, int lo, int hi) {
-        	super(bound);
+        Subtask(int lo, int hi) {
+        	super(parentEnd);
             this.lo = lo;
             this.hi = hi;
         }
@@ -71,7 +71,7 @@ public abstract class IndexedInterval extends Interval {
                 do {
                     int rh = h;
                     h = (l + h) >>> 1;
-                    Subtask t = new Subtask(bound(), h, rh);
+                    Subtask t = new Subtask(h, rh);
                     t.schedule();
                 } while (h - l > g);
                 

@@ -34,8 +34,9 @@ final public class Point implements Dependency {
 	/** If set, then we must acquire locks for {@link #line} before occurring. */
 	static final int FLAG_ACQUIRE_LOCKS = 2;
 
+	final int epoch;
 	final Line line;
-	private volatile Point nextEpoch;
+	/*private*/ volatile Point nextEpoch;
 	
 	private EdgeList outEdges;                /** Linked list of outgoing edges from this point. */
 	private volatile int waitCount;           /** Number of preceding points that have not arrived.  
@@ -45,15 +46,16 @@ final public class Point implements Dependency {
 	private int flags;                  	  /** Flags (see integer constants like {@link #FLAG_MASK_EXC}) */
 	private Interval workItem;            	  /** Work to schedule when we occur (if any) */
 
-	Point(Line line, Point nextEpoch, int flags, int waitCount, Interval workItem) {
+	Point(Line line, int epoch, Point nextEpoch, int flags, int waitCount, Interval workItem) {
 		this.line = line;
+		this.epoch = epoch;
 		this.nextEpoch = nextEpoch;
 		this.flags = flags;
 		this.waitCount = waitCount;
 		this.workItem = workItem;
 	}
 	
-	<R> SubintervalImpl<R> insertSubintervalBefore(SubintervalTask<R> task) {
+	<R> SubintervalImpl<R> insertSubintervalBefore(int epoch, SubintervalTask<R> task) {
 		// See insertSubintervalAfter() for details on the points we are
 		// creating.  This method should really be private because it 
 		// cannot safely be used from the outside
@@ -62,16 +64,15 @@ final public class Point implements Dependency {
 		// in one specific circumstance: if current.start == null and 
 		// current.end == rootEnd, that's because we don't instantiate the 
 		// root start point (to aid the GC).  For that reason, we make it package.
+		assert !didOccur();
 		addWaitCount();
-		Point subEnd = new Point(line, this, FLAG_MASK_EXC, 2, null);
-		Point subStart = new Point(line, subEnd, NO_POINT_FLAGS, 0, null);
+		Point subEnd = new Point(line, epoch+1, this, FLAG_MASK_EXC, 2, null);
+		Point subStart = new Point(line, epoch, subEnd, NO_POINT_FLAGS, 0, null);
 		return new SubintervalImpl<R>(line, subStart, subEnd, task);
 	}
 	
 	<R> SubintervalImpl<R> insertSubintervalAfter(SubintervalTask<R> task) {
-		// This must be the last point before the end.
-		//
-		// In the very beginning there are 2 points:
+		// In the very beginning there are 2 points and we are point 0:
 		//    0----END
 		// When we are done there will be 4:
 		//    0----1----2----END
@@ -79,7 +80,8 @@ final public class Point implements Dependency {
 		//     pre  sub  post
 		// Where pre is the current span of time, sub is the subinterval,
 		// and post is the span of time after the subinterval.
-		SubintervalImpl<R> subinter = nextEpoch.insertSubintervalBefore(task);
+		assert didOccur();
+		SubintervalImpl<R> subinter = nextEpoch.insertSubintervalBefore(epoch+1, task);
 		nextEpoch = subinter.start;
 		return subinter;
 	}
@@ -88,7 +90,7 @@ final public class Point implements Dependency {
 		return outEdges;
 	}
 
-	private boolean didOccur() {
+	boolean didOccur() {
 		return waitCount == OCCURRED;
 	}
 	
@@ -104,7 +106,7 @@ final public class Point implements Dependency {
 	
 	@Override
 	public String toString() {
-		return "Point("+System.identityHashCode(this)+")";
+		return "Point("+System.identityHashCode(this)+"/"+line+"["+epoch+"])";
 	}
 	
 	public Point mutualBound(Point j) {
@@ -252,9 +254,13 @@ final public class Point implements Dependency {
 		assert waitCount == 0;
 		assert line.isScheduled();
 		
+		// Save copies of our outgoing edges at the time we occurred:
+		//      They may be modified further while we are notifying successors.
+		final Point nextEpoch;
 		final EdgeList outEdges;
 		synchronized(this) {
 			outEdges = this.outEdges;
+			nextEpoch = this.nextEpoch;
 			this.waitCount = OCCURRED;
 			notifyAll(); // in case anyone is joining us
 		}
@@ -271,12 +277,15 @@ final public class Point implements Dependency {
 					notifySuccessor(toPoint, true);
 			}
 		};
-		notifySuccessor(nextEpochOrBound(), true);
+		if(nextEpoch != null)
+			notifySuccessor(nextEpoch, true);
+		else
+			notifySuccessor(line.bound, true);
 		
 		if(workItem != null) {
 			workItem.fork((pendingExceptions != null));
 			workItem = null;
-		}
+		}		
 	}
 	
 	/** Takes the appropriate action to notify a successor {@code pnt}
@@ -294,6 +303,7 @@ final public class Point implements Dependency {
 	 *  <b>Does not acquire a lock on this.</b> */
 	protected void addWaitCount() {
 		int newCount = waitCountUpdater.incrementAndGet(this);
+		assert newCount > 1;
 		if(Debug.ENABLED)
 			Debug.addWaitCount(this, newCount);		
 	}

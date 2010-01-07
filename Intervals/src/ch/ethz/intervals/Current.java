@@ -32,6 +32,7 @@ class Current {
 	private Interval unscheduled; /** Linked list of unscheduled intervals. */
 
 	Current(Current prev, Point start, Point end) {
+		assert (start == null || start.didOccur());
 		assert end != null;
 		this.prev = prev;
 		this.line = end.line;
@@ -40,6 +41,7 @@ class Current {
 	}
 	
 	void updateStart(Point start) {
+		assert start.didOccur();
 		assert start.nextEpochOrBound() == end;
 		this.start = start;
 	}

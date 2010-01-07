@@ -81,4 +81,8 @@ final class Line {
 		return false;
 	}
 	
+	public final String toString() {
+		return "Line("+System.identityHashCode(this)+")";
+	}	
+	
 }
