@@ -16,6 +16,8 @@ import ch.ethz.intervals.ThreadPool.Worker;
 
 final public class Point implements Dependency {
 	
+	public static final int END_EPOCH = Integer.MAX_VALUE;
+	
 	public static final int OCCURRED = -1;	
 	
 	public static final int initialWaitCount = Integer.MAX_VALUE;
@@ -29,41 +31,62 @@ final public class Point implements Dependency {
 	
 	/** If set, then locks have been acquired. */
 	protected static final int FLAG_ACQUIRED_LOCKS = 2;
+
+	final Line line;
+	private volatile Point nextEpoch;
 	
-	public final Point bound;                 /** Bound of this point (this->bound). */
-	private final int depth;                  /** Depth in point bound tree. */
 	private EdgeList outEdges;                /** Linked list of outgoing edges from this point. */
 	private volatile int waitCount;           /** Number of preceding points that have not arrived.  
 	                                              Set to {@link #OCCURRED} when this has occurred. 
 	                                              Modified only through {@link #waitCountUpdater}. */
 	private Set<Throwable> pendingExceptions; /** Exception(s) that occurred while executing the task or in some preceding point. */
 	private int flags;                        /** Flags (see integer constants like {@link #FLAG_MASK_EXC}) */
-	private LockList pendingLocks;            /** Locks to acquire once waitCount reaches 0 but before we occur */
-	private Interval workItem;            /** Work to schedule when we occur (if any) */
-	private Current unscheduled;
+	private Interval workItem;            	  /** Work to schedule when we occur (if any) */
 
-	/** Used only for the end point of the root interval. */
-	Point(int waitCount) {
-		bound = null;
-		depth = 0;
+	Point(Line line, Point nextEpoch, int waitCount, Interval workItem) {
+		this.line = line;
+		this.nextEpoch = nextEpoch;
 		this.waitCount = waitCount;
-	}
-
-	/** Used only almost all points. */
-	Point(Current unscheduled, Point bound, int waitCount, Interval workItem) {
-		this.bound = bound;
-		this.depth = bound.depth + 1;
-		this.waitCount = waitCount;
-		this.unscheduled = unscheduled;
 		this.workItem = workItem;
 	}
 	
-	boolean isUnscheduled(Current current) {
-		return unscheduled == current;
+	<R> SubintervalImpl<R> insertSubintervalBefore(SubintervalTask<R> task) {
+		// See insertSubintervalAfter() for details on the points we are
+		// creating.  This method should really be private because it 
+		// cannot safely be used from the outside
+		// except when there is no extant previous point to 'this' on the
+		// current line.  This is generally not known to be true except for
+		// in one specific circumstance: if current.start == null and 
+		// current.end == rootEnd, that's because we don't instantiate the 
+		// root start point (to aid the GC).  For that reason, we make it package.
+		Point postStart = new Point(line, this, 1, null);
+		Point subEnd = new Point(line, postStart, 1, null);
+		subEnd.addFlagBeforeScheduling(Point.FLAG_MASK_EXC);		
+		Point subStart = new Point(line, subEnd, 0, null);
+		return new SubintervalImpl<R>(line, subStart, subEnd, task);
 	}
 	
-	void clearUnscheduled() {
-		unscheduled = null;
+	<R> SubintervalImpl<R> insertSubintervalAfter(SubintervalTask<R> task) {
+		// This must be the last point before the end.
+		//
+		// In the very beginning there are 2 points:
+		//    0--END
+		// When we are done there will be 6:
+		//    0--1--2--3--4--END
+		//    ~~~~  ~~~~  ~~~~~~
+		//    pre   sub   post
+		// Where pre is the current span of time, sub is the subinterval,
+		// and post is the span of time after the subinterval.
+		// 
+		// To generalize, initially there are N points and we are point N-2:
+		//    0--...--(N-2)--END
+		// When we are done there will be N+4 and the subinterval is (N)--(N+1):
+		//    0--...--(N-2)--(N-1)--(N)--(N+1)--(N+2)--END
+		//            ~~~~~~~~~~~~  ~~~~~~~~~~  ~~~~~~~~~~
+		assert(nextEpoch != null && nextEpoch.nextEpoch == null);
+		SubintervalImpl<R> subinter = nextEpoch.insertSubintervalBefore(task);
+		nextEpoch = new Point(line, subinter.start, 0, null);
+		return subinter;
 	}
 	
 	synchronized EdgeList outEdgesSync() {
@@ -74,56 +97,54 @@ final public class Point implements Dependency {
 		return waitCount == OCCURRED;
 	}
 	
+	Point nextEpochOrBound() {
+		Point nextEpoch = this.nextEpoch;
+		if(nextEpoch != null) return nextEpoch;
+		return line.bound;
+	}
+	
+	boolean isRootEnd() {
+		return nextEpochOrBound() == null;
+	}
+	
 	@Override
 	public String toString() {
 		return "Point("+System.identityHashCode(this)+")";
 	}
 	
-	public final Point bound() {
-		return bound;
-	}
-
-	/** True if {@code p} bounds {@code this} or one of its bounds */
-	public boolean isBoundedBy(Point p) {
-		Point pp = (Point) p;
-		Point bb = bound;
-		
-		if(bb != null) {
-			while(bb.depth > pp.depth)
-				bb = bb.bound;
-			
-			return (pp == bb);
-		} else {
-			return false;
-		}
-	}
-
-	/** Returns the mutual bound of {@code this} and {@code j}. 
-	 *  If {@code j == this}, the mutual bound is {@code this}.
-	 *  Otherwise, it is the closest bound to {@code this} which always
-	 *  bounds {@code j}. */
 	public Point mutualBound(Point j) {
+		
+		// NOTE:
+		//
+		// No synchronization is required here.  True?  		
+		
 		Point i = this;
 		
-		// Move either i or j up the street so that
-		// both pointers are at the same depth.
-		int d = i.depth - j.depth;
-		if(d > 0) // i.depth > j.depth
-			while(d-- > 0)
-				i = i.bound;
-		else      // j.depth > i.depth
-			while(d++ < 0)
-				j = j.bound;
-		
-		// Move up in pairs till we find a common ancestor.
 		while(i != j) {
-			i = i.bound;
-			j = j.bound;
+			if(i.line == j.line) {
+				for(Point e = i.nextEpoch; e != null; e = e.nextEpoch)
+					if(e == j) return j;
+				for(Point e = j.nextEpoch; e != null; e = e.nextEpoch)
+					if(e == i) return i;
+				throw new RuntimeException("Two points on same line but neither is first?");
+			} else if (i.line.depth > j.line.depth) {
+				i = i.line.bound;
+			} else if (i.line.depth < j.line.depth) {
+				j = j.line.bound;
+			} else {
+				i = i.line.bound;
+				j = j.line.bound;
+			}
 		}
 		
 		return i;
 	}
 	
+	/** True if {@code p} bounds {@code this} or one of its bounds */
+	public boolean isBoundedBy(Point p) {
+		return mutualBound(p) == p;
+	}
+
 	public boolean hb(final Point p) {
 		return hb((Point) p, NONDETERMINISTIC | SPECULATIVE);
 	}
@@ -134,40 +155,21 @@ final public class Point implements Dependency {
 	boolean hb(final Point p, final int skipFlags) {
 		assert p != null;
 		
+		// Some simple checks:
 		if(p == this)
 			return false;
 		if(isBoundedBy(p))
 			return true;
-		
-		// Common case check:
-		//
-		//                 bound
-		//                   /
-		//   p --> this--bound
-		//
-		// Check for the scenario where 
-		// (a) this is a start point;
-		// (b) p shares a bound with our end point;
-		// (c) this has no other successors.
-		if(bound == null || (
-				outEdges == null && 
-				bound.outEdges == null &&
-				bound.bound != null &&
-				p.isBoundedBy(bound.bound)))
+		if(p.isBoundedBy(this))
 			return false;
-
+		
 		// Perform a BFS to find p:		
-		final Point pBounds[] = p.bounds();
 		final Queue<Point> queue = new LinkedList<Point>();
 		final Set<Point> visited = new HashSet<Point>(64);
 		queue.add(this);
 		
 		class Helper {
 			boolean foundIt = false;
-			
-			boolean pIsBoundedBy(Point q) {
-				return(q.depth < pBounds.length && pBounds[q.depth] == q);
-			}
 			
 			/** Add {@code q} to queue if not already visited, returning
 			 *  {@code true} if {@code q} is the node we are looking for. */
@@ -179,11 +181,12 @@ final public class Point implements Dependency {
 					return true; // found it
 				}
 
-				// If p is bounded by q, then p->q, so q cannot hb p.
+				// TODO: We can optimize here.  For example,
+				// if p is bounded by q, then p->q, so q cannot hb p.
 				//
 				// (If the user attempted to add such an edge, a cycle
 				//  exception would result.)
-				if(!pIsBoundedBy(q) && visited.add(q))
+				if(visited.add(q))
 					queue.add(q);
 				return false;
 			}
@@ -193,7 +196,7 @@ final public class Point implements Dependency {
 		do {
 			Point q = queue.remove();
 			
-			if(q.bound != null && h.tryEnqueue(q.bound))				
+			if(h.tryEnqueue(q.nextEpochOrBound()))				
 				return true;
 			
 			// Do we need to use synchronized accessor here?
@@ -234,10 +237,14 @@ final public class Point implements Dependency {
 	 *  acquire all pending locks. */
 	protected final void acquirePendingLocks() {
 		waitCount = 1; // Wait for us to finish iterating through the list of locks.
-			
-		for(LockList lock = this.pendingLocks; lock != null; lock = lock.next)
-			lock.lock.addExclusive(this);
-		this.pendingLocks = null;
+		
+		final Point endPnt = nextEpoch;
+		assert endPnt.nextEpoch == null;
+		
+		// It is safe to use an unsynchronized read here, because any modification
+		// to this list must have been during some interval which HB the current point.
+		for(LockList lock = line.locksUnsync(); lock != null; lock = lock.next)
+			lock.lock.addExclusive(this, endPnt);
 		
 		flags |= FLAG_ACQUIRED_LOCKS;
 		arrive(1);
@@ -245,10 +252,9 @@ final public class Point implements Dependency {
 	
 	/** Invoked when the wait count is zero and all pending locks
 	 *  are acquired. Each point occurs precisely once. */
-	protected final void occur() {
-		assert pendingLocks == null;
+	final void occur() {
 		assert waitCount == 0;
-		assert unscheduled == null;
+		assert line.isScheduled();
 		
 		final EdgeList outEdges;
 		synchronized(this) {
@@ -269,14 +275,14 @@ final public class Point implements Dependency {
 					notifySuccessor(toPoint, true);
 			}
 		};
-		notifySuccessor(bound, true);
+		notifySuccessor(nextEpoch, true);
 		
 		if(workItem != null) {
 			if(pendingExceptions == null) {
 				Intervals.POOL.submit(workItem);
 				workItem = null;
 			} else {
-				bound.arrive(1);
+				nextEpoch.arrive(1);
 			}
 		}
 	}
@@ -349,7 +355,7 @@ final public class Point implements Dependency {
 	
 	synchronized void addPendingException(Throwable thr) {
 		assert !didOccur() : "Cannot add a pending exception after pnt occurs!";
-		if(bound == null) {
+		if(isRootEnd()) {
 			thr.printStackTrace();
 		} else {
 			// Using a PSet<> would really be better here:
@@ -384,18 +390,6 @@ final public class Point implements Dependency {
 
 	protected void removeFlagBeforeScheduling(int flag) {
 		this.flags = this.flags & (~flag);
-	}
-
-	void addPendingLock(Lock lock, boolean exclusive) {
-		LockList list = new LockList(lock, exclusive, null);
-		synchronized(this) {
-			list.next = pendingLocks;
-			pendingLocks = list;
-		}
-	}
-	
-	synchronized LockList pendingLocks() {
-		return pendingLocks;
 	}
 
 	/** Simply adds an outgoing edge, without acquiring locks or performing any
@@ -487,13 +481,6 @@ final public class Point implements Dependency {
 		// need to invoke accept():
 		assert didOccur();	
 		notifySuccessor(toImpl, false);
-	}
-	
-	Point[] bounds() {
-		Point[] result = new Point[depth];
-		for(Point b = bound; b != null; b = b.bound)
-			result[b.depth] = b;
-		return result;
 	}
 
 	@Override

@@ -209,11 +209,11 @@ public class TestGameOfLife {
 			this.h = h;			
 		}
 
-		void switchGens(Point endOfThisGen) {
-			Interval switchInterval = new SwitchGenTask(endOfThisGen.bound());
-			Intervals.addHb(endOfThisGen, switchInterval.start);
+		void switchGens(Interval thisGen) {
+			Interval switchInterval = new SwitchGenTask(thisGen.bound());
+			Intervals.addHb(thisGen.end, switchInterval.start);
 			
-			nextGen = new EmptyInterval(endOfThisGen.bound(), "gen");
+			nextGen = new EmptyInterval(thisGen.bound(), "gen");
 			Intervals.addHb(switchInterval.end, nextGen.start);
 			
 			Intervals.schedule();
@@ -228,7 +228,7 @@ public class TestGameOfLife {
 			@Override
 			public void run() {
 				if(gensRemaining-- > 0)
-					switchGens(nextGen.end);
+					switchGens(nextGen);
 			}
 			
 		}
@@ -275,7 +275,7 @@ public class TestGameOfLife {
 				@Override public void run(Interval _) {
 					Intervals.subinterval(new VoidSubinterval() {
 						@Override public void run(Interval inner) {
-							switchGens(inner.end);
+							switchGens(inner);
 							
 							subdivide(rs, cs, w, h, new InvokableWithTile() {					
 								@Override public void run(Tile t) {

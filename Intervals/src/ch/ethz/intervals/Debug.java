@@ -74,7 +74,7 @@ class Debug {
 		
 		public String toString() {
 			final StringBuilder sb = new StringBuilder();
-			sb.append(String.format("OCCUR %s bound %s succs", point, point.bound()));
+			sb.append(String.format("OCCUR %s nextEpochOrBound %s succs", point, point.nextEpochOrBound()));
 			
 			new EdgeList.Iterator(list) {
 				public void doForEach(Point toPoint, int flags) {
@@ -415,7 +415,7 @@ class Debug {
 		}
 
 		public String toString() {
-			return String.format("LOCK_EXCLUSIVE %s prevOwner=%s newOwner=%s-%s", lock, prevOwner, newOwner, newOwner.bound);
+			return String.format("LOCK_EXCLUSIVE %s prevOwner=%s newOwner=%s-%s", lock, prevOwner, newOwner, newOwner.nextEpochOrBound());
 		}
 	}
 	

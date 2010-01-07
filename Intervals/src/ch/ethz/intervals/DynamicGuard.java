@@ -23,42 +23,40 @@ public class DynamicGuard implements Guard {
 	@Override
 	public boolean isReadable() {		
 		Current current = Current.get();		
-		Interval curInter = current.inter;
-		if(curInter == null)
+		if(current.start == null)
 			return false;		
-		return isReadableBy(curInter);
+		return isReadableBy(current.start, current.end);
 	}
 
-	synchronized boolean isReadableBy(Interval curInter) {
-		if(wr == curInter.end) 
+	synchronized boolean isReadableBy(Point curStart, Point curEnd) { 
+		if(wr == curEnd) 
 			return true; // current interval wrote last, can also read
-		if(wr != null && !wr.hb(curInter.start, EdgeList.SPECULATIVE))
+		if(wr != null && !wr.hb(curStart, EdgeList.SPECULATIVE))
 			return false; // last write must HB reads
 		if(rd == null)
-			rd = curInter.end;
-		else if(rd != curInter.end)
-			rd = rd.mutualBound(curInter.end);
+			rd = curEnd;
+		else if(rd != curEnd)
+			rd = rd.mutualBound(curEnd);
 		return true;
 	}
 	
 	@Override
 	public boolean isWritable() {
 		Current current = Current.get();		
-		Interval curInter = current.inter;
-		if(curInter == null)
-			return false;
-		return isWritableBy(curInter);
+		if(current.start == null)
+			return false;		
+		return isWritableBy(current.start, current.end);
 	}
 	
-	synchronized boolean isWritableBy(Interval curInter) {
-		if(wr == curInter.end) 
+	synchronized boolean isWritableBy(Point curStart, Point curEnd) {
+		if(wr == curEnd) 
 			return true; // current interval wrote last
-		if(wr != null && !wr.hb(curInter.start, EdgeList.SPECULATIVE))
+		if(wr != null && !wr.hb(curStart, EdgeList.SPECULATIVE))
 			return false; // last write must HB next write
-		if(rd != null && !rd.hb(curInter.start, EdgeList.SPECULATIVE))
+		if(rd != null && !rd.hb(curStart, EdgeList.SPECULATIVE))
 			return false; // last read must HB next write
 		rd = null;
-		wr = curInter.end;
+		wr = curEnd;
 		return true;
 	}
 		

@@ -12,7 +12,7 @@ public class Intervals {
 	public static final boolean SAFETY_CHECKS = true;	
 
 	/** Final point of the program.  Never occurs until program ends. */
-	static final Point ROOT_END = new Point(1); 
+	static final Point rootEnd = new Point(Line.rootLine, null, 1, null);
 	
 	/** Shared thread pool that executes tasks. */
 	static final ThreadPool POOL = new ThreadPool();
@@ -54,7 +54,7 @@ public class Intervals {
 		return new Dependency() {			
 			@Override
 			public Point boundForNewInterval() {
-				return current.end.bound;
+				return current.line.bound;
 			}
 						
 			@Override
@@ -208,7 +208,7 @@ public class Intervals {
 		if(interval != null && lock != null) {
 			Current current = Current.get();
 			current.checkCanAddDep(interval.start);
-			interval.start.addPendingLock((Lock) lock, true);
+			interval.line.addLock(lock, true);
 		}
 	}
 
@@ -243,9 +243,16 @@ public class Intervals {
 	{		
 		// This could be made more optimized, but it will do for now:
 		Current current = Current.get();
-		SubintervalImpl<R> subinterval = new SubintervalImpl<R>(current.end, current.inter, task);
-		subinterval.end.addFlagBeforeScheduling(Point.FLAG_MASK_EXC);
-		current.schedule(subinterval);
+		
+		SubintervalImpl<R> subinterval;
+		if(current.start != null) {
+			subinterval = current.start.insertSubintervalAfter(task);			
+		} else { // If current.start == null, this is first subinterval of root interval: 
+			assert current.end.isRootEnd();
+			subinterval = current.end.insertSubintervalBefore(task);
+		}
+		subinterval.start.occur();
+		current.updateStart(subinterval.end.nextEpochOrBound());		
 		join(subinterval.end); // may throw an exception
 		return subinterval.result;
 	}
@@ -268,7 +275,7 @@ public class Intervals {
 	 * computation.  This point will not occur until all other
 	 * points have occurred, and it is the only point without a bound. */
 	public static Point rootEnd() {
-		return ROOT_END;
+		return rootEnd;
 	}
 
 }

@@ -83,7 +83,7 @@ public class TestBBPCLinks {
 				Interval cons,
 				@Creator("cons") ConsumerData cdata) 
 		{
-			super(prev.end.bound);
+			super(prev.bound());
 			Intervals.addHb(prev.end, start);
 			Intervals.addHb(cons.end, start);
 			
@@ -119,7 +119,7 @@ public class TestBBPCLinks {
 				Interval producer,
 				@Creator("producer") ProducerData pdata) 
 		{
-			super(prevConsumer.end.bound);
+			super(prevConsumer.bound());
 			Intervals.addHb(prevConsumer.end, start);
 			Intervals.addHb(producer.end, start);
 			

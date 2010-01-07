@@ -81,7 +81,7 @@ public abstract class IndexedInterval extends Interval {
                 do {
                     int rh = h;
                     h = (l + h) >>> 1;
-                    Subtask t = new Subtask(end.bound, h, rh);
+                    Subtask t = new Subtask(bound(), h, rh);
                     t.schedule();
                 } while (h - l > g);
                 

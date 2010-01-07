@@ -2,13 +2,11 @@ package ch.ethz.intervals;
 
 final class SubintervalImpl<R> extends Interval {
 
-	final Interval superInterval; // Warning: may be null!
 	SubintervalTask<R> task;
 	R result;
 	
-	SubintervalImpl(Point bound, Interval superInterval, SubintervalTask<R> task) {
-		super(bound);
-		this.superInterval = superInterval;
+	SubintervalImpl(Line line, Point start, Point end, SubintervalTask<R> task) {
+		super(line, start, end);
 		this.task = task;
 	}
 	
@@ -20,24 +18,6 @@ final class SubintervalImpl<R> extends Interval {
 	@Override
 	protected void run() {
 		result = task.run(this);
-	}	
-
-	@Override
-	public boolean isReadable() {
-		return super.isReadable() || (
-				superInterval != null && superInterval.isReadable());
-	}
-
-	@Override
-	public boolean isWritable() {
-		return super.isWritable() || (
-				superInterval != null && superInterval.isWritable());
-	}
-	
-	@Override
-	public boolean holdsLock(Lock l) {
-		return super.holdsLock(l) || (
-				superInterval != null && superInterval.holdsLock(l));
 	}
 	
 }

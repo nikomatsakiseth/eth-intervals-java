@@ -4,7 +4,7 @@ import static ch.ethz.intervals.Intervals.SAFETY_CHECKS;
 
 class Current {
 	
-	private static Current root = new Current(null, null, Intervals.ROOT_END);
+	private static Current root = new Current(null, null, Intervals.rootEnd);
 	private static ThreadLocal<Current> local = new ThreadLocal<Current>() {
 
 		@Override
@@ -20,20 +20,28 @@ class Current {
 	
 	static Current push(Interval inter) {
 		Current c = get();
-		Current n = new Current(c, inter, inter.end);
+		Current n = new Current(c, inter.start, inter.end);
 		local.set(n);
 		return n;
 	}
 	
-	public Current prev;
-	public Interval inter; // Optional: may be NULL
-	public Point end;
-	public Interval unscheduled;
+	final Current prev;           /** */
+	final Line line;              /** The line we are executing. */
+	Point start;                  /** An optional point which HB the current moment. */
+	final Point end;              /** Bound of the current moment. */
+	private Interval unscheduled; /** Linked list of unscheduled intervals. */
 
-	Current(Current prev, Interval inter, Point end) {
+	Current(Current prev, Point start, Point end) {
+		assert end != null;
 		this.prev = prev;
-		this.inter = inter;
+		this.line = end.line;
+		this.start = start;
 		this.end = end;
+	}
+	
+	void updateStart(Point start) {
+		assert start.nextEpochOrBound() == end;
+		this.start = start;
 	}
 	
 	void addUnscheduled(Interval interval) {
@@ -42,7 +50,7 @@ class Current {
 	}
 	
 	boolean isUnscheduled(Point pnt) {
-		return pnt.isUnscheduled(this);
+		return pnt.line.isUnscheduled(this);
 	}
 
 	void schedule(Interval interval) {
@@ -77,13 +85,11 @@ class Current {
 	}
 
 	private void scheduleUnchecked(Interval p) {
-		assert p.start.isUnscheduled(this);
-		assert p.end.isUnscheduled(this);
+		assert p.line.isUnscheduled(this);
 		
-		ExecutionLog.logScheduleInterval(inter.start, p);
+		ExecutionLog.logScheduleInterval(p);
 		
-		p.start.clearUnscheduled();
-		p.end.clearUnscheduled();
+		p.line.clearUnscheduled();
 		p.start.arrive(1);
 	}
 
@@ -117,5 +123,5 @@ class Current {
 				throw new CycleException(from, to);
 		}
 	}
-	
+
 }

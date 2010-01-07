@@ -10,11 +10,12 @@ extends ThreadPool.WorkItem
 implements Dependency, Guard
 {	
 	private static final long serialVersionUID = 8105268455633202522L;
-	
+		
 	public final Point start;
 	public final Point end;
+	final Line line;
 	Interval nextUnscheduled; /** @see Current#unscheduled */
-	
+		
 	public Interval(Dependency dep) {
 		Point bound = dep.boundForNewInterval();
 		Current current = Current.get();
@@ -27,20 +28,27 @@ implements Dependency, Guard
 		//     path current.start->bnd was already added.
 		// (2) Bound is current.end.  current.start->current.end.
 		// (3) A path exists from current.end -> bnd.  Same as (2).
-		current.checkCanAddDep(bound);		
+		current.checkCanAddDep(bound);	
 		
-		this.end = new Point(current, bound, 2, null);
-		this.start = new Point(current, this.end, 1, this);		
+		this.line = new Line(current, bound);		
+		this.end = new Point(line, null, 2, null);
+		this.start = new Point(line, this.end, 1, this);		
 		current.addUnscheduled(this);
 		
 		bound.addWaitCount();
-		if(current.inter != null) {
-			current.inter.start.addEdgeAfterOccurredWithoutException(start, NORMAL);		
-			ExecutionLog.logNewInterval(current.inter.start, start, end);
+		if(current.start!= null) {
+			current.start.addEdgeAfterOccurredWithoutException(start, NORMAL);		
+			ExecutionLog.logNewInterval(current.start, start, end);
 		} else
 			ExecutionLog.logNewInterval(null, start, end);
 		
 		dep.addHbToNewInterval(this);		
+	}
+	
+	Interval(Line line, Point start, Point end) {
+		this.line = line;
+		this.start = start;
+		this.end = end;
 	}
 	
 	/**
@@ -103,16 +111,20 @@ implements Dependency, Guard
 	}
 	
 	/**
+	 * Returns the bounding point of this interval.
+	 */
+	public final Point bound() {
+		return line.bound;
+	}
+	
+	/**
 	 * Returns {@link #end}, 
 	 * thus ensuring that new intervals using
 	 * {@code this} as their {@link Dependency} execute
 	 * during {@code this}.
-	 *  
-	 * <p>End-users should not override this method.  Doing so can
-	 * violate the race-freedom guarantees of our compiler.
 	 */
 	@Override
-	public Point boundForNewInterval() {
+	public final Point boundForNewInterval() {
 		return end;
 	}
 
@@ -121,9 +133,6 @@ implements Dependency, Guard
 	 * thus ensuring that new intervals using
 	 * {@code this} as their {@link Dependency} execute
 	 * during {@code this}.
-	 *  
-	 * <p>End-users should not override this method.  Doing so can
-	 * violate the race-freedom guarantees of our compiler.
 	 */
 	@Override
 	public final void addHbToNewInterval(Interval inter) {
@@ -134,44 +143,32 @@ implements Dependency, Guard
 	 * True if the current interval is {@code this} or a subinterval of {@code this},
 	 * or if the start of the current interval <em>happens after</em> {@code this.end}.
 	 * 
-	 * <p>End-users should not override this method.  Doing so can
-	 * violate the race-freedom guarantees of our compiler.
-	 * 
 	 * @see Guard#isReadable()
 	 */
 	@Override
-	public boolean isReadable() {
+	public final boolean isReadable() {
 		Current current = Current.get();
-		return current.inter == this || (
-				current.inter != null && end.hb(current.inter.start));
+		return current.line == line || (
+				current.start != null && end.hb(current.start));
 	}
 
 	/**
 	 * True if the current interval is {@code this} or a subinterval of {@code this}.
 	 * 
-	 * <p>End-users should not override this method.  Doing so can
-	 * violate the race-freedom guarantees of our compiler.
-	 * 
 	 * @see Guard#isWritable()
 	 */
 	@Override
-	public boolean isWritable() {
+	public final boolean isWritable() {
 		Current current = Current.get();
-		return current.inter == this;
+		return current.line == line;
 	}
 	
 	/**
 	 * True if {@code this} will hold the lock {@code lock}
 	 * when it executes.
-	 * 
-	 * <p>End-users should not override this method.  Doing so can
-	 * violate the race-freedom guarantees of our compiler.
 	 */
-	public boolean holdsLock(Lock lock) {
-		for(LockList ll = start.pendingLocks(); ll != null; ll = ll.next)
-			if(ll.lock == lock)
-				return true;
-		return false;
+	public final boolean holdsLock(Lock lock) {
+		return line.holdsLock(lock);
 	}
 	
 }

@@ -81,7 +81,7 @@ public class TestHOH {
 	    public void run() {
 	        transform.transform(link);
 	        if(link.next != null) {
-	        	Interval next = new MapWalk(end.bound, link.next, transform);
+	        	Interval next = new MapWalk(bound(), link.next, transform);
 	        	Intervals.addHb(next.start, end);
             }
 	    } 

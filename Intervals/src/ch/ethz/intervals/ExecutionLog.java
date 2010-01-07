@@ -104,11 +104,11 @@ public class ExecutionLog {
 					l.identity(current),
 					l.identity(sp),
 					l.identity(ep),
-					l.identity(ep.bound())));
+					l.identity(ep.line.bound)));
 		}
 	}
 	
-	static void logScheduleInterval(Point current, Interval i) {
+	static void logScheduleInterval(Interval i) {
 		ExecutionLog l = log;
 		if(l != null) {
 			l.events.add(new EventLog.Schedule(

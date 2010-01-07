@@ -14,11 +14,11 @@ implements Guard
 	 * The next owner may acquire the lock once {@code startPnt.bound}
 	 * has occurred.
 	 */
-	final void addExclusive(Point startPnt) {
+	final void addExclusive(Point startPnt, Point endPnt) {
 		Point prevOwner;
 		synchronized(this) {
 			prevOwner = latestOwner;
-			latestOwner = startPnt.bound;
+			latestOwner = endPnt;
 		}
 		
 		if(Debug.ENABLED)
@@ -30,13 +30,13 @@ implements Guard
 
 	@Override
 	public boolean isReadable() {
-		Current current = Current.get();
-		return (current.inter != null && current.inter.holdsLock(this));
+		return isWritable();
 	}
 
 	@Override
 	public boolean isWritable() {
-		return isReadable();
+		Current current = Current.get();
+		return (current.line != null && current.line.holdsLock(this));
 	}
 
 }
