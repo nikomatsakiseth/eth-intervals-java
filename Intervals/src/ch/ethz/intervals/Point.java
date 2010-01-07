@@ -31,8 +31,8 @@ final public class Point implements Dependency {
 	 *  interval are NOT propagated to its parent. */
 	static final int FLAG_MASK_EXC = 1;
 	
-	/** If set, then locks have been acquired. */
-	static final int FLAG_ACQUIRED_LOCKS = 2;
+	/** If set, then we must acquire locks for {@link #line} before occurring. */
+	static final int FLAG_ACQUIRE_LOCKS = 2;
 
 	final Line line;
 	private volatile Point nextEpoch;
@@ -63,8 +63,8 @@ final public class Point implements Dependency {
 		// current.end == rootEnd, that's because we don't instantiate the 
 		// root start point (to aid the GC).  For that reason, we make it package.
 		addWaitCount();
-		Point subEnd = new Point(line, this, FLAG_ACQUIRED_LOCKS|FLAG_MASK_EXC, 2, null);
-		Point subStart = new Point(line, subEnd, FLAG_ACQUIRED_LOCKS, 0, null);
+		Point subEnd = new Point(line, this, FLAG_MASK_EXC, 2, null);
+		Point subStart = new Point(line, subEnd, NO_POINT_FLAGS, 0, null);
 		return new SubintervalImpl<R>(line, subStart, subEnd, task);
 	}
 	
@@ -222,7 +222,7 @@ final public class Point implements Dependency {
 		
 		assert newCount >= 0;
 		if(newCount == 0 && cnt != 0)
-			if((flags & FLAG_ACQUIRED_LOCKS) == 0)
+			if((flags & FLAG_ACQUIRE_LOCKS) != 0)
 				acquirePendingLocks();
 			else
 				occur();
@@ -241,7 +241,7 @@ final public class Point implements Dependency {
 		for(LockList lock = line.locksUnsync(); lock != null; lock = lock.next)
 			lock.lock.addExclusive(this, endPnt);
 		
-		flags |= FLAG_ACQUIRED_LOCKS;
+		flags &= ~FLAG_ACQUIRE_LOCKS;
 		arrive(1);
 	}
 	
@@ -388,7 +388,8 @@ final public class Point implements Dependency {
 	 */
 	void addEdgeAfterOccurredWithoutException(Point targetPnt, int flags) {
 		synchronized(this) {
-			assert didOccur() && pendingExceptions == null;
+			assert didOccur();
+			assert pendingExceptions == null;
 			primAddOutEdge(targetPnt, flags);
 		}
 	}
@@ -435,7 +436,7 @@ final public class Point implements Dependency {
 		
 		// Careful
 		//
-		// The edge to toImpl WAS speculative.  We are now going
+		// The edge to toImpl was speculative.  We are now going
 		// to convert it into an ordinary edge.  If we are doing this
 		// conversion before we occurred, then we will have to set the
 		// WAITING flag on it and add to its wait count.

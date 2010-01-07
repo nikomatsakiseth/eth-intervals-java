@@ -1,7 +1,7 @@
 package ch.ethz.intervals;
 
 import static ch.ethz.intervals.EdgeList.NORMAL;
-import static ch.ethz.intervals.Point.FLAG_ACQUIRED_LOCKS;
+import static ch.ethz.intervals.Point.FLAG_ACQUIRE_LOCKS;
 import static ch.ethz.intervals.Point.NO_POINT_FLAGS;
 import ch.ethz.intervals.ThreadPool.Worker;
 import ch.ethz.intervals.quals.Requires;
@@ -33,8 +33,8 @@ implements Dependency, Guard
 		current.checkCanAddDep(bound);	
 		
 		line = new Line(current, bound);		
-		end = new Point(line, null, FLAG_ACQUIRED_LOCKS, 2, null);
-		start = new Point(line, end, NO_POINT_FLAGS, 1, this);		
+		end = new Point(line, null, NO_POINT_FLAGS, 2, null);
+		start = new Point(line, end, FLAG_ACQUIRE_LOCKS, 1, this);		
 		current.addUnscheduled(this);
 		
 		bound.addWaitCount();

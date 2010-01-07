@@ -358,8 +358,7 @@ public class TestGameOfLife {
 			@Override
 			public void run(Point parentEnd, int fromIndex, int toIndex) {
 				for(int r = fromIndex; r < toIndex; r++) {
-					new ColTask(Intervals.child(), gen, r);
-					Intervals.schedule();
+					new ColTask(Intervals.child(), gen, r).schedule();
 				}
 			}
 			
@@ -373,7 +372,7 @@ public class TestGameOfLife {
 					for(int gen = 0; gen < numGens; gen++) {
 						Interval thisGen = new GenTask(Intervals.child(), gen);
 						Intervals.addHb(prevGen, thisGen.start);
-						Intervals.schedule();
+						thisGen.schedule();
 						prevGen = thisGen.end;
 					}
 				}
