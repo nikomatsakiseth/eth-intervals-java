@@ -1,6 +1,8 @@
 package ch.ethz.intervals;
 
 import static ch.ethz.intervals.EdgeList.NORMAL;
+import static ch.ethz.intervals.Point.FLAG_ACQUIRED_LOCKS;
+import static ch.ethz.intervals.Point.NO_POINT_FLAGS;
 import ch.ethz.intervals.ThreadPool.Worker;
 import ch.ethz.intervals.quals.Requires;
 import ch.ethz.intervals.quals.Subinterval;
@@ -30,9 +32,9 @@ implements Dependency, Guard
 		// (3) A path exists from current.end -> bnd.  Same as (2).
 		current.checkCanAddDep(bound);	
 		
-		this.line = new Line(current, bound);		
-		this.end = new Point(line, null, 2, null);
-		this.start = new Point(line, this.end, 1, this);		
+		line = new Line(current, bound);		
+		end = new Point(line, null, FLAG_ACQUIRED_LOCKS, 2, null);
+		start = new Point(line, end, NO_POINT_FLAGS, 1, this);		
 		current.addUnscheduled(this);
 		
 		bound.addWaitCount();
@@ -59,6 +61,21 @@ implements Dependency, Guard
 	@Requires(subinterval=@Subinterval(of="this"))
 	protected abstract void run();
 	
+	/** 
+	 * Invoked when the start point for this interval occurs.  If no errors
+	 * are pending, schedules {@code this} for execution.  Otherwise, just
+	 * signals {@link #end} that we have completed (the {@code #exec(Worker)}
+	 * method should only be run if there were no pending exceptions).  
+	 *  
+	 * @param exceptionsPending true if the start point has exceptions pending */
+	final void fork(boolean exceptionsPending) {
+		if(!exceptionsPending) {
+			Intervals.POOL.submit(this);
+		} else {
+			end.arrive(1);
+		}
+	}
+	
 	/**
 	 * The "main" method for this interval: invoked when we are scheduled.
 	 * Simply invokes {@link #exec()}.
@@ -67,13 +84,13 @@ implements Dependency, Guard
 	void exec(Worker worker) {
 		exec();
 	}
-
+	
 	/**
 	 * Executes the interval's task and -- once it is finished -- signals 
 	 * the end of the interval that it can occur (assuming all of its other
 	 * dependencies are satisfied).
 	 */
-	void exec() {
+	final void exec() {
 		Current cur = Current.push(this);
 		try {
 			try {
@@ -170,5 +187,5 @@ implements Dependency, Guard
 	public final boolean holdsLock(Lock lock) {
 		return line.holdsLock(lock);
 	}
-	
+
 }

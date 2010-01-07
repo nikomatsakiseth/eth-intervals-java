@@ -272,10 +272,10 @@ public class TestGameOfLife {
 			gensRemaining = numGens;
 			
 			Intervals.subinterval(new VoidSubinterval() {
-				@Override public void run(Interval _) {
-					Intervals.subinterval(new VoidSubinterval() {
-						@Override public void run(Interval inner) {
-							switchGens(inner);
+				@Override public void run(Interval sub) {
+					new Interval(sub) {
+						@Override public void run() {
+							switchGens(this);
 							
 							subdivide(rs, cs, w, h, new InvokableWithTile() {					
 								@Override public void run(Tile t) {
@@ -283,7 +283,7 @@ public class TestGameOfLife {
 								}
 							});
 						}
-					});
+					};
 				}
 			});
 

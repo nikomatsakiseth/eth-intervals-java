@@ -1,6 +1,7 @@
 package ch.ethz.intervals;
 
 import static ch.ethz.intervals.EdgeList.NORMAL;
+import static ch.ethz.intervals.Point.FLAG_ACQUIRED_LOCKS;
 
 /** Static methods for creating and manipulating intervals. */
 public class Intervals {
@@ -12,7 +13,7 @@ public class Intervals {
 	public static final boolean SAFETY_CHECKS = true;	
 
 	/** Final point of the program.  Never occurs until program ends. */
-	static final Point rootEnd = new Point(Line.rootLine, null, 1, null);
+	static final Point rootEnd = new Point(Line.rootLine, null, FLAG_ACQUIRED_LOCKS, 1, null);
 	
 	/** Shared thread pool that executes tasks. */
 	static final ThreadPool POOL = new ThreadPool();
@@ -252,7 +253,8 @@ public class Intervals {
 			subinterval = current.end.insertSubintervalBefore(task);
 		}
 		subinterval.start.occur();
-		current.updateStart(subinterval.end.nextEpochOrBound());		
+		subinterval.exec();
+		current.updateStart(subinterval.end);		
 		join(subinterval.end); // may throw an exception
 		return subinterval.result;
 	}

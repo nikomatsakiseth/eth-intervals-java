@@ -3,7 +3,7 @@ package ch.ethz.intervals;
 import static ch.ethz.intervals.Intervals.addHb;
 
 /** Base class for tasks with an extended setup period.  
- *  @see {@link #setup(Point, Interval)}.  */
+ *  @see #setup(Point, Interval)  */
 public abstract class SetupInterval extends Interval {
 
 	public SetupInterval(Dependency dep) {
@@ -51,8 +51,8 @@ public abstract class SetupInterval extends Interval {
 	/**
 	 * Overriden to define the behavior of this task.  This method defines the
 	 * setup period.  The worker interval parameter will not execute until after
-	 * the end of the setup period, so you can use {@link Intervals#intervalDuring(Interval, Task)}
-	 * to schedule work that will not run until this method returns.
+	 * the end of the setup period, so you can create subintervals of
+	 * {@code worker} that will not run until this method returns.
 	 * 
 	 * Normally, however, this guarantee can be obtained in a more straight-forward
 	 * fashion by any task simply by not invoking {@link Intervals#schedule()}

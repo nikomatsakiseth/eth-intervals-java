@@ -73,8 +73,6 @@ final class Line {
 	/**
 	 * True if {@code this} will hold the lock {@code lock}
 	 * when it executes.
-	 * @param interval TODO
-	 * @param lock TODO
 	 */
 	public final boolean holdsLock(Lock lock) {
 		for(LockList ll = locksSync(); ll != null; ll = ll.next)

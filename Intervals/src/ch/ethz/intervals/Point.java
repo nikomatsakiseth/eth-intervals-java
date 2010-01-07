@@ -25,12 +25,14 @@ final public class Point implements Dependency {
 	private static AtomicIntegerFieldUpdater<Point> waitCountUpdater =
 		AtomicIntegerFieldUpdater.newUpdater(Point.class, "waitCount");
 
+	static final int NO_POINT_FLAGS = 0;
+
 	/** If this flag is set, then uncaught exceptions for this 
 	 *  interval are NOT propagated to its parent. */
-	protected static final int FLAG_MASK_EXC = 1;
+	static final int FLAG_MASK_EXC = 1;
 	
 	/** If set, then locks have been acquired. */
-	protected static final int FLAG_ACQUIRED_LOCKS = 2;
+	static final int FLAG_ACQUIRED_LOCKS = 2;
 
 	final Line line;
 	private volatile Point nextEpoch;
@@ -40,12 +42,13 @@ final public class Point implements Dependency {
 	                                              Set to {@link #OCCURRED} when this has occurred. 
 	                                              Modified only through {@link #waitCountUpdater}. */
 	private Set<Throwable> pendingExceptions; /** Exception(s) that occurred while executing the task or in some preceding point. */
-	private int flags;                        /** Flags (see integer constants like {@link #FLAG_MASK_EXC}) */
+	private int flags;                  	  /** Flags (see integer constants like {@link #FLAG_MASK_EXC}) */
 	private Interval workItem;            	  /** Work to schedule when we occur (if any) */
 
-	Point(Line line, Point nextEpoch, int waitCount, Interval workItem) {
+	Point(Line line, Point nextEpoch, int flags, int waitCount, Interval workItem) {
 		this.line = line;
 		this.nextEpoch = nextEpoch;
+		this.flags = flags;
 		this.waitCount = waitCount;
 		this.workItem = workItem;
 	}
@@ -59,10 +62,9 @@ final public class Point implements Dependency {
 		// in one specific circumstance: if current.start == null and 
 		// current.end == rootEnd, that's because we don't instantiate the 
 		// root start point (to aid the GC).  For that reason, we make it package.
-		Point postStart = new Point(line, this, 1, null);
-		Point subEnd = new Point(line, postStart, 1, null);
-		subEnd.addFlagBeforeScheduling(Point.FLAG_MASK_EXC);		
-		Point subStart = new Point(line, subEnd, 0, null);
+		addWaitCount();
+		Point subEnd = new Point(line, this, FLAG_ACQUIRED_LOCKS|FLAG_MASK_EXC, 2, null);
+		Point subStart = new Point(line, subEnd, FLAG_ACQUIRED_LOCKS, 0, null);
 		return new SubintervalImpl<R>(line, subStart, subEnd, task);
 	}
 	
@@ -70,22 +72,15 @@ final public class Point implements Dependency {
 		// This must be the last point before the end.
 		//
 		// In the very beginning there are 2 points:
-		//    0--END
-		// When we are done there will be 6:
-		//    0--1--2--3--4--END
-		//    ~~~~  ~~~~  ~~~~~~
-		//    pre   sub   post
+		//    0----END
+		// When we are done there will be 4:
+		//    0----1----2----END
+		//    ^----^----^----^
+		//     pre  sub  post
 		// Where pre is the current span of time, sub is the subinterval,
 		// and post is the span of time after the subinterval.
-		// 
-		// To generalize, initially there are N points and we are point N-2:
-		//    0--...--(N-2)--END
-		// When we are done there will be N+4 and the subinterval is (N)--(N+1):
-		//    0--...--(N-2)--(N-1)--(N)--(N+1)--(N+2)--END
-		//            ~~~~~~~~~~~~  ~~~~~~~~~~  ~~~~~~~~~~
-		assert(nextEpoch != null && nextEpoch.nextEpoch == null);
 		SubintervalImpl<R> subinter = nextEpoch.insertSubintervalBefore(task);
-		nextEpoch = new Point(line, subinter.start, 0, null);
+		nextEpoch = subinter.start;
 		return subinter;
 	}
 	
@@ -142,7 +137,7 @@ final public class Point implements Dependency {
 	
 	/** True if {@code p} bounds {@code this} or one of its bounds */
 	public boolean isBoundedBy(Point p) {
-		return mutualBound(p) == p;
+		return mutualBound(p) == p; // TODO Make more efficient
 	}
 
 	public boolean hb(final Point p) {
@@ -174,20 +169,20 @@ final public class Point implements Dependency {
 			/** Add {@code q} to queue if not already visited, returning
 			 *  {@code true} if {@code q} is the node we are looking for. */
 			boolean tryEnqueue(Point q) {
-				assert q != null;
-				
-				if(q == p) {
-					foundIt = true;
-					return true; // found it
+				if(q != null) {				
+					if(q == p) {
+						foundIt = true;
+						return true; // found it
+					}
+	
+					// TODO: We can optimize here.  For example,
+					// if p is bounded by q, then p->q, so q cannot hb p.
+					//
+					// (If the user attempted to add such an edge, a cycle
+					//  exception would result.)
+					if(visited.add(q))
+						queue.add(q);
 				}
-
-				// TODO: We can optimize here.  For example,
-				// if p is bounded by q, then p->q, so q cannot hb p.
-				//
-				// (If the user attempted to add such an edge, a cycle
-				//  exception would result.)
-				if(visited.add(q))
-					queue.add(q);
 				return false;
 			}
 		}
@@ -253,6 +248,7 @@ final public class Point implements Dependency {
 	/** Invoked when the wait count is zero and all pending locks
 	 *  are acquired. Each point occurs precisely once. */
 	final void occur() {
+		assert !isRootEnd();
 		assert waitCount == 0;
 		assert line.isScheduled();
 		
@@ -275,15 +271,11 @@ final public class Point implements Dependency {
 					notifySuccessor(toPoint, true);
 			}
 		};
-		notifySuccessor(nextEpoch, true);
+		notifySuccessor(nextEpochOrBound(), true);
 		
 		if(workItem != null) {
-			if(pendingExceptions == null) {
-				Intervals.POOL.submit(workItem);
-				workItem = null;
-			} else {
-				nextEpoch.arrive(1);
-			}
+			workItem.fork((pendingExceptions != null));
+			workItem = null;
 		}
 	}
 	
@@ -353,6 +345,7 @@ final public class Point implements Dependency {
 			throw new RethrownException(pendingExceptions);				
 	}
 	
+	/** Adds {@code thr} to {@link #pendingExceptions} */
 	synchronized void addPendingException(Throwable thr) {
 		assert !didOccur() : "Cannot add a pending exception after pnt occurs!";
 		if(isRootEnd()) {
@@ -371,25 +364,10 @@ final public class Point implements Dependency {
 	}
 
 
-	/** Invoked when a child interval has thrown the exception 't'. 
-	 *  Overwrites the field {@link #pendingExceptions} with {@code t}.
-	 *  This is non-ideal, as it may result in exceptions being lost,
-	 *  and it is also unpredictable which exception will be reported
-	 *  (the one from the task? the one from a child? if so, which child)
-	 *  The correct behavior is probably to construct an aggregate object
-	 *  containing a set of all exceptions thrown.
-	 */
+	/** Invoked when a child interval has thrown the exceptions {@code thr}. */
 	synchronized void addPendingExceptions(Set<Throwable> thr) {
 		for(Throwable t : thr)
 			addPendingException(t);
-	}
-
-	protected void addFlagBeforeScheduling(int flag) {
-		this.flags = this.flags | flag;
-	}
-
-	protected void removeFlagBeforeScheduling(int flag) {
-		this.flags = this.flags & (~flag);
 	}
 
 	/** Simply adds an outgoing edge, without acquiring locks or performing any

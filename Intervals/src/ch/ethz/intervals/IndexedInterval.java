@@ -12,16 +12,6 @@ import static ch.ethz.intervals.Intervals.POOL;
  * in parallel.  The task is always invoked with the end of the outer
  * interval, which is always an ancestor of the current interval
  * but may not be the current interval itself.  
- * 
- * Because the current interval is not predictable in the
- * {@link #run(Point, int, int)} method, it is not recommended
- * to use {@link Intervals#siblingInterval(Task)} or 
- * {@link Intervals#successorInterval(Task)}, although 
- * {@link Intervals#childInterval(Task)} will still lead to the
- * desired results.
- * 
- * @param count the number of times to invoke {@code task}
- * @param task the task to invoke
  */
 public abstract class IndexedInterval extends Interval {
 	private final int lo0, hi0;
