@@ -6,11 +6,10 @@ package ch.ethz.intervals;
  * to data sharing the same dynamic guard <em>happen before</em>
  * all other writes as well as any reads.  
  * 
- * <p>Reads do not have to happen before
- * one another, but they must <em>happen before</em> any subsequent reads.
- * If two intervals {@code i1} and {@code i2} read in parallel, then the next write must
- * <em>happen after</em> the mutual bound of {@code i1.end}, {@code i2.end}, as defined
- * by {@link Point#mutualBound(Point)}.
+ * <p>Whenever there are multiple reads which are not ordered by
+ * <i>happens before</i> relations, the next write must occur
+ * after the mutual bound of all reads, as defined by
+ * {@link Point#mutualBound(Point)}.
  */
 public class DynamicGuard implements Guard {
 	
