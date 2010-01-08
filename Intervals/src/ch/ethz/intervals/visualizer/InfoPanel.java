@@ -9,6 +9,7 @@ import javax.swing.JTable;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableModel;
 
+@SuppressWarnings("serial")
 public class InfoPanel 
 extends JPanel
 {
