@@ -494,4 +494,16 @@ final public class Point implements Dependency {
 		return this;
 	}
 
+	/** Returns an array {@code bounds} where {@code bounds[0]} == the bound at depth 0,
+	 *  {@code bounds[depth] == this} */
+	Point[] bounds() {
+		Point[] bounds = new Point[line.depth+1];
+		Point b = this;
+		for(int i = line.depth; i >= 0; i--) {
+			bounds[i] = b;
+			b = b.line.bound;
+		}
+		return bounds;
+	}
+	
 }

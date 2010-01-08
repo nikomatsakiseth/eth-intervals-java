@@ -44,16 +44,6 @@ final class Line {
 		}
 	}
 	
-	Point[] bounds() {
-		Point[] bounds = new Point[depth];
-		Point b = bound;
-		for(int i = depth - 1; i >= 0; i--) {
-			bounds[i] = b;
-			b = b.line.bound;
-		}
-		return bounds;
-	}
-	
 	synchronized LockList locksSync() {
 		return locks;
 	}
