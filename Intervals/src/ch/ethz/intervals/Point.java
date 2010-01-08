@@ -142,8 +142,18 @@ final public class Point implements Dependency {
 		return mutualBound(p) == p; // TODO Make more efficient
 	}
 
+	/** Returns true if {@code this} <i>happens before</i> {@code p} */
 	public boolean hb(final Point p) {
-		return hb((Point) p, NONDETERMINISTIC | SPECULATIVE);
+		return hb(p, NONDETERMINISTIC | SPECULATIVE);
+	}
+	
+	/** Returns true if {@code this == p} or {@code this} <i>happens before</i> {@code p} */
+	public boolean hbeq(final Point p) {
+		return (this == p) || hb(p);
+	}
+	
+	boolean hbeq(Point p, int skipFlags) {
+		return (this == p) || hb(p, skipFlags);
 	}
 	
 	/** true if {@code this} -> {@code p}.
@@ -403,7 +413,6 @@ final public class Point implements Dependency {
 			// In some cases, pendingExceptions may be non-null if this was a 
 			// subinterval which rethrew the exceptions and had them caught.
 			assert (this.flags & FLAG_MASK_EXC) != 0 || pendingExceptions == null;
-			
 			primAddOutEdge(targetPnt, edgeFlags);
 		}
 	}
@@ -484,5 +493,5 @@ final public class Point implements Dependency {
 	public Point boundForNewInterval() {
 		return this;
 	}
-	
+
 }

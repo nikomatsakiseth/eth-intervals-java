@@ -14,49 +14,114 @@ package ch.ethz.intervals;
  */
 public class DynamicGuard implements Guard {
 	
+	/* Dynamic guards have four states:
+	 * <ul>
+	 * 
+	 * <li><b>Initial:</b> The data has never been read or written.
+	 * 
+	 * <li><b>Wr Owned:</b> The data is being written by the interval {@code wr}.
+	 *     <ul>
+	 *     <li>Any other interval to read or write must <i>happen after</i> {@code wr}.
+	 *     <li>The state becomes Rd Owned or Wr Owned accordingly.
+	 *     </ul>
+	 *  
+	 * <li><b>Rd Owned:</b> The data is being read by the interval ending at {@code rd}
+	 * and was written by the interval ending at {@code wr}.
+	 *     <ul>
+	 *     <li>If {@code rd} tries to write, the state is converted to Wr Owned by {@code rd}.
+	 *     <li>Any other interval trying to read must <i>happen after</i> {@code wr}.
+	 *     The state becomes Rd Shared.
+	 *     <li>Any other interval trying to write must <i>happen after</i> {@code rd}.
+	 *     The state becomes Wr Owned.
+	 *     </ul>
+	 * 
+	 * <li><b>Rd Shared:</b> The data has been read but only by one interval.
+	 * The data is being read by multiple intervals bounded by {@code rd}
+	 * and was last written by {@code wr}.
+	 *     <ul>
+	 *     <li>Any interval trying to read must <i>happen after</i> {@code wr}.
+	 *     The end of that interval is incorporated into the bound.
+	 *     <li>Any interval trying to write must <i>happen after</i> {@code rd}.
+	 *     The state becomes Wr Owned.
+	 *     </ul>
+	 * 
+	 * </ul>
+	 */
+	
 	/** End of last interval to write data guarded by this guard. */
 	private Point wr;
 	
-	/** Mutual bound of ends of all interval to read data guarded by this guard. */
+	/** End of last interval to read data guarded by this guard. */
 	private Point rd;
 	
+	/** End of single reader */
+	private boolean rdOwned;
+		
 	@Override
-	public boolean isReadable() {		
-		Current current = Current.get();		
-		if(current.start == null)
-			return false;		
-		return isReadableBy(current.start, current.end);
-	}
-
-	synchronized boolean isReadableBy(Point curStart, Point curEnd) { 
-		if(wr == curEnd) 
-			return true; // current interval wrote last, can also read
-		if(wr != null && !wr.hb(curStart, EdgeList.SPECULATIVE))
-			return false; // last write must HB reads
-		if(rd == null)
-			rd = curEnd;
-		else if(rd != curEnd)
-			rd = rd.mutualBound(curEnd);
-		return true;
-	}
-	
-	@Override
-	public boolean isWritable() {
+	public boolean isWritable() {		
 		Current current = Current.get();		
 		if(current.start == null)
 			return false;		
 		return isWritableBy(current.start, current.end);
 	}
-	
-	synchronized boolean isWritableBy(Point curStart, Point curEnd) {
-		if(wr == curEnd) 
-			return true; // current interval wrote last
-		if(wr != null && !wr.hb(curStart, EdgeList.SPECULATIVE))
-			return false; // last write must HB next write
-		if(rd != null && !rd.hb(curStart, EdgeList.SPECULATIVE))
-			return false; // last read must HB next write
+
+	synchronized boolean isWritableBy(Point curStart, Point curEnd) { 
+		if(wr == curEnd) {
+			// Current interval was last writer.
+			return true; 
+		} else if(rd != null) {
+			// If single previous reader, must either be us or we must come after.
+			// If previous readers, we must come after them.
+			//    Note: this implies that wr.hbeq(curStart)
+			if(!(rdOwned && rd == curEnd) && !rd.hbeq(curStart, EdgeList.SPECULATIVE))
+				return false;
+		} else if (wr != null) {
+			// If no previous reader, but previous write, we must come after.
+			if(!wr.hbeq(curStart, EdgeList.SPECULATIVE))
+				return false;
+		}
+				
+		rdOwned = false;
 		rd = null;
 		wr = curEnd;
+		return true;
+	}
+	
+	@Override
+	public boolean isReadable() {
+		Current current = Current.get();		
+		if(current.start == null)
+			return false;		
+		return isReadableBy(current.start, current.end);
+	}
+	
+	synchronized boolean isReadableBy(Point curStart, Point curEnd) {
+		if(wr == curEnd || rd == curEnd)
+			return true; // current interval read or wrote last
+		
+		if(rd != null && rd.hbeq(curStart, EdgeList.SPECULATIVE)) {
+			// This read does not overlap with any previous reader:
+			//    Note: this implies that wr.hbeq(curStart)
+			rdOwned = true; // Exclusive ownership.
+			rd = curEnd;
+			return true;
+		}
+		
+		if(wr != null && !wr.hbeq(curStart, EdgeList.SPECULATIVE)) {
+			// This read does not come after the write:
+			return false;
+		}
+		
+		if(rd != null) {
+			// This read may overlap with previous readers:
+			rdOwned = false; // Shared ownership.
+			rd = rd.mutualBound(curEnd);
+			return true;
+		} 
+		
+		// No previous reader and we come after the write:
+		rdOwned = true; // Exclusive ownership.
+		rd = curEnd;
 		return true;
 	}
 		
