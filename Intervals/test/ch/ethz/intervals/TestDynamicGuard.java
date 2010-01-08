@@ -70,7 +70,7 @@ public class TestDynamicGuard {
 		
 		assertEquals(3+1+a2children+3, results.size());
 		for(int i = 0; i < results.size(); i++)
-			assertEquals(true, results.get(i));
+			assertEquals(String.format("index %d", i), true, results.get(i));
 	}	
 	
 	/**
@@ -185,11 +185,11 @@ public class TestDynamicGuard {
 		assertEquals(true, results.get(i++));
 		assertEquals(true, results.get(i++));  // Should be in Wr Owned (a) state
 
-		assertEquals(false, results.get(i++)); // Fails because of Wr Owned (a) state
-		assertEquals(false, results.get(i++)); // --> Not sure if this is desirable behavior.
-		assertEquals(false, results.get(i++)); 
+		assertEquals(true, results.get(i++));  // Rd Shared (a2) state
+		assertEquals(true, results.get(i++)); 
+		assertEquals(true, results.get(i++)); 
 		
-		assertEquals(true, results.get(i++));  // Still in Wr Owned (a) state
+		assertEquals(true, results.get(i++));  // Rd Shared (a2) becomes Rd Owned (a)
 		assertEquals(true, results.get(i++));
 		assertEquals(true, results.get(i++));
 	}

@@ -14,76 +14,66 @@ package ch.ethz.intervals;
  */
 public class DynamicGuard implements Guard {
 	
-	/* Dynamic guards have four states:
-	 * <ul>
-	 * 
-	 * <li><b>Initial:</b> The data has never been read or written.
-	 * 
-	 * <li><b>Wr Owned:</b> The data is being written by the interval {@code wr}.
-	 *     <ul>
-	 *     <li>Any other interval to read or write must <i>happen after</i> {@code wr}.
-	 *     <li>The state becomes Rd Owned or Wr Owned accordingly.
-	 *     </ul>
-	 *  
-	 * <li><b>Rd Owned:</b> The data is being read by the interval ending at {@code rd}
-	 * and was written by the interval ending at {@code wr}.
-	 *     <ul>
-	 *     <li>If {@code rd} tries to write, the state is converted to Wr Owned by {@code rd}.
-	 *     <li>Any other interval trying to read must <i>happen after</i> {@code wr}.
-	 *     The state becomes Rd Shared.
-	 *     <li>Any other interval trying to write must <i>happen after</i> {@code rd}.
-	 *     The state becomes Wr Owned.
-	 *     </ul>
-	 * 
-	 * <li><b>Rd Shared:</b> The data has been read but only by one interval.
-	 * The data is being read by multiple intervals bounded by {@code rd}
-	 * and was last written by {@code wr}.
-	 *     <ul>
-	 *     <li>Any interval trying to read must <i>happen after</i> {@code wr}.
-	 *     The end of that interval is incorporated into the bound.
-	 *     <li>Any interval trying to write must <i>happen after</i> {@code rd}.
-	 *     The state becomes Wr Owned.
-	 *     </ul>
-	 * 
-	 * </ul>
-	 */
+	private enum State {
+		/** Both wr, rd are {@code null} */
+		INITIAL,
+		
+		/** wr is start of writer, rd is {@code null} */
+		WR_OWNED,
+		
+		/** wr is start of previous writer, rd is <b>start</b> of singular reader */
+		RD_OWNED, 
+		
+		/** wr is start of previous writer, rd is mutual bound of <b>ends</b> of all readers */
+		RD_SHARED 
+	}
 	
-	/** End of last interval to write data guarded by this guard. */
-	private Point wr;
-	
-	/** End of last interval to read data guarded by this guard. */
-	private Point rd;
-	
-	/** End of single reader */
-	private boolean rdOwned;
+	private State state = State.INITIAL;	
+	private Point wr, rd; /** @see State */
 		
 	@Override
 	public boolean isWritable() {		
 		Current current = Current.get();		
 		if(current.start == null)
-			return false;		
-		return isWritableBy(current.start, current.end);
+			return false;
+		return isWritableBy(current.start);
 	}
 
-	synchronized boolean isWritableBy(Point curStart, Point curEnd) { 
-		if(wr == curEnd) {
-			// Current interval was last writer.
-			return true; 
-		} else if(rd != null) {
-			// If single previous reader, must either be us or we must come after.
-			// If previous readers, we must come after them.
-			//    Note: this implies that wr.hbeq(curStart)
-			if(!(rdOwned && rd == curEnd) && !rd.hbeq(curStart, EdgeList.SPECULATIVE))
+	synchronized boolean isWritableBy(Point curStart) {
+		if(wr == curStart) return true; // shortcircuit repeated writes
+		
+		switch(state) {
+		case INITIAL:
+			// Not yet read or written.  Always safe.
+			break; 
+			
+		case WR_OWNED:
+			// Currently being written by interval starting at "wr".  Safe if either:
+			// * wr == curStart (we are the owner, checked above)
+			// * wr.nextEpoch hbeq curStart (writer has finished)
+			if(!wr.nextEpoch.hbeq(curStart, EdgeList.SPECULATIVE))
 				return false;
-		} else if (wr != null) {
-			// If no previous reader, but previous write, we must come after.
-			if(!wr.hbeq(curStart, EdgeList.SPECULATIVE))
+			break;
+			
+		case RD_OWNED:
+			// Currently being read by interval starting at "rd". Safe if either:
+			// * rd is curStart (curStart was the reader, now becomes the writer)
+			// * rd.nextEpoch hbeq curStart (reader has finished)
+			if(rd != curStart && !rd.nextEpoch.hbeq(curStart, EdgeList.SPECULATIVE))
 				return false;
-		}
-				
-		rdOwned = false;
+			break;
+		
+		case RD_SHARED:
+			// Currently being read by multiple intervals bounded by "rd".  Safe if:
+			// * rd hbeq curStart (all readers have finished)
+			if(!rd.hbeq(curStart, EdgeList.SPECULATIVE))
+				return false;
+			break;
+		}		
+		
+		wr = curStart;
 		rd = null;
-		wr = curEnd;
+		state = State.WR_OWNED;
 		return true;
 	}
 	
@@ -92,37 +82,61 @@ public class DynamicGuard implements Guard {
 		Current current = Current.get();		
 		if(current.start == null)
 			return false;		
-		return isReadableBy(current.start, current.end);
+		return isReadableBy(current.start);
 	}
 	
-	synchronized boolean isReadableBy(Point curStart, Point curEnd) {
-		if(wr == curEnd || rd == curEnd)
-			return true; // current interval read or wrote last
-		
-		if(rd != null && rd.hbeq(curStart, EdgeList.SPECULATIVE)) {
-			// This read does not overlap with any previous reader:
-			//    Note: this implies that wr.hbeq(curStart)
-			rdOwned = true; // Exclusive ownership.
-			rd = curEnd;
+	synchronized boolean isReadableBy(Point curStart) {
+		switch(state) {
+		case INITIAL: 
+			// Not yet read or written.  Always safe, and we are the only writer.
+			state = State.RD_OWNED;
+			rd = curStart;
 			return true;
-		}
 		
-		if(wr != null && !wr.hbeq(curStart, EdgeList.SPECULATIVE)) {
-			// This read does not come after the write:
-			return false;
-		}
-		
-		if(rd != null) {
-			// This read may overlap with previous readers:
-			rdOwned = false; // Shared ownership.
-			rd = rd.mutualBound(curEnd);
+		case WR_OWNED: 
+			// Previously written by wr.  Safe if:
+			// * wr == curStart (being read by the writer)
+			// * wr.nextEpoch hbeq curStart (writer has finished)
+			// In the latter case, we become the Rd Owner.
+			if(wr == curStart) // Already Wr Owner.  Stay that way.
+				return true;
+			if(!wr.nextEpoch.hbeq(curStart, EdgeList.SPECULATIVE))
+				return false;
+			
+			state = State.RD_OWNED;
+			rd = curStart;
 			return true;
-		} 
-		
-		// No previous reader and we come after the write:
-		rdOwned = true; // Exclusive ownership.
-		rd = curEnd;
-		return true;
+			
+		case RD_OWNED:
+			// Previously being read only by interval starting at rd.  Safe if:
+			// * rd == curStart (still rd owner)
+			// * wr.nextEpoch hbeq curStart (writer has finished)
+			// In the latter case, there are now two readers, so go to RD_SHARED state.
+			if(rd == curStart) // Already Rd Owner.  Stay that way.
+				return true;
+			if(wr != null && !wr.nextEpoch.hbeq(curStart, EdgeList.SPECULATIVE))
+				return false;
+			state = State.RD_SHARED;
+			rd = rd.nextEpoch.mutualBound(curStart.nextEpoch); // n.b.: mutual bound of END!
+			return true;
+			
+		case RD_SHARED:
+			// Prevously being read by multiple intervals, bounded by rd.  Safe if:
+			// * rd hbeq curStart (all previous readers have finished, we become sole reader)
+			// * wr.nextEpoch bheq curStart (writer has finished)
+			// Must adjust rd to include our bound.
+			if(rd.hbeq(curStart, EdgeList.SPECULATIVE)) {
+				state = State.RD_OWNED;
+				rd = curStart;
+				return true;
+			}				
+			if(wr != null && !wr.nextEpoch.hbeq(curStart, EdgeList.SPECULATIVE))
+				return false;
+			rd = rd.mutualBound(curStart.nextEpoch);
+			return true;			
+		}
+		assert false; // should never happen
+		return false;
 	}
 		
 }
