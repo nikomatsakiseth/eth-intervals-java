@@ -109,38 +109,33 @@ public class DynamicGuard implements Guard {
 		case RD_OWNED:
 			// Previously being read only by interval starting at rd.  Safe if:
 			// * rd == curStart (rd still rd owner)
-			// * rd.nextEpoch hbeq curStart (prev rd owner has finished)
-			// * wr.nextEpoch hbeq curStart (writer has finished)
-			// In the last case, there are now two concurrent readers, so go to RD_SHARED state.
+			// * (see twoReaders)			
 			if(rd == curStart) // Already Rd Owner.  Stay that way.
-				return true;
-			if(rd.nextEpoch.hbeq(curStart, EdgeList.SPECULATIVE)) {
-				rd = curStart;
-				return true;
-			}	
-			if(wr != null && !wr.nextEpoch.hbeq(curStart, EdgeList.SPECULATIVE))
-				return false;
-			state = State.RD_SHARED;
-			rd = rd.nextEpoch.mutualBound(curStart.nextEpoch); // n.b.: mutual bound of END!
-			return true;
+				return true;			
+			return twoReaders(curStart, rd.nextEpoch);
 			
 		case RD_SHARED:
-			// Prevously being read by multiple intervals, bounded by rd.  Safe if:
-			// * rd hbeq curStart (all previous readers have finished, we become sole reader)
-			// * wr.nextEpoch bheq curStart (writer has finished)
-			// Must adjust rd to include our bound.
-			if(rd.hbeq(curStart, EdgeList.SPECULATIVE)) {
-				state = State.RD_OWNED;
-				rd = curStart;
-				return true;
-			}				
-			if(wr != null && !wr.nextEpoch.hbeq(curStart, EdgeList.SPECULATIVE))
-				return false;
-			rd = rd.mutualBound(curStart.nextEpoch);
-			return true;			
+			return twoReaders(curStart, rd);
 		}
 		assert false; // should never happen
 		return false;
+	}
+
+	private boolean twoReaders(Point curStart, Point curRdEnd) {
+		// Being read by one or more intervals, bounded by curRdEnd.  Safe if:
+		// * curRdEnd hbeq curStart (all previous readers have finished, curStart becomes sole reader)
+		// * wr.nextEpoch bheq curStart (writer has finished)
+		// In last case, must adjust rd to include curStart.nextEpoch
+		if(curRdEnd.hbeq(curStart, EdgeList.SPECULATIVE)) {
+			state = State.RD_OWNED;
+			rd = curStart;
+			return true;
+		}				
+		if(wr != null && !wr.nextEpoch.hbeq(curStart, EdgeList.SPECULATIVE))
+			return false;
+		state = State.RD_SHARED;
+		rd = curRdEnd.mutualBound(curStart.nextEpoch);
+		return true;
 	}
 		
 }
