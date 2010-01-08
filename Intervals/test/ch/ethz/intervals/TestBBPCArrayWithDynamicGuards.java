@@ -60,12 +60,9 @@ public class TestBBPCArrayWithDynamicGuards {
 		class Producer extends Interval {
 			final int index;
 
-			public Producer(Dependency dep, Interval after, int index) {
+			public Producer(Dependency dep, int index) {
 				super(dep);
 				this.index = index;
-				
-				// comes after the previous producer (or init phase):
-				addHb(after.end, start);
 				
 				// and the consumer N indices before:
 				if (index >= N)
@@ -79,7 +76,7 @@ public class TestBBPCArrayWithDynamicGuards {
 			public void run() {
 				produced[index] = (index * 2);
 				if(index + 1 < M)
-					producers[(index + 1) % N].set(new Producer(bound(), this, index + 1));
+					producers[(index + 1) % N].set(new Producer(successor(), index + 1));
 				else
 					producers[(index + 1) % N].set(null);
 			}
@@ -88,15 +85,12 @@ public class TestBBPCArrayWithDynamicGuards {
 		class Consumer extends Interval {
 			final int index;
 			
-			public Consumer(Dependency dep, Interval after, int index) {
+			public Consumer(Dependency dep, int index) {
 				super(dep);
 				this.index = index;
 
 				// comes after the producer:
 				addHb(producers[index % N].get().end, start);
-				
-				// and after the previous consumer (or init phase):
-				addHb(after.end, start);
 			}
 			
 			public String toString() {
@@ -106,16 +100,15 @@ public class TestBBPCArrayWithDynamicGuards {
 			public void run() {
 				consumed[index] = produced[index];
 				if(producers[(index + 1) % N].get() != null)
-					consumers[(index + 1) % N].set(new Consumer(bound(), this, index + 1));
+					consumers[(index + 1) % N].set(new Consumer(successor(), index + 1));
 			}
 		}
 
 		public void run() {
-			final Interval bbpc = this;
 			Intervals.subinterval(new VoidSubinterval() {
 				@Override public void run(Interval init) {
-					producers[0].set(new Producer(bbpc, init, 0));
-					consumers[0].set(new Consumer(bbpc, init, 0));
+					producers[0].set(new Producer(successor(), 0));
+					consumers[0].set(new Consumer(successor(), 0));
 				}
 			});
 		}
