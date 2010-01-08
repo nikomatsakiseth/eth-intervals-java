@@ -266,4 +266,56 @@ public class TestDynamicGuard {
 		assertEquals(false, results.get(i++)); // Cannot convert to Wr Owned state now!
 	}
 	
+	/**
+	 * Test that if the current Rd Owner has terminated,
+	 * then next reader also becomes Rd Owner
+	 */
+	@Test public void testRdOwnedToRdOwned() {
+		
+		// |-a--------------------------|
+		//   |-a1-| -> |-a2-| -> |-a3-|
+
+		final List<Boolean> results = new ArrayList<Boolean>();
+		
+		Intervals.subinterval(new VoidSubinterval() { 
+			@Override public void run(final Interval a) {
+				final DynamicGuard dg = new DynamicGuard();
+				
+				final Interval a1 = new Interval(a) {
+					@Override public String toString() { return "a1"; }
+					@Override protected void run() {
+						results.add(dg.isWritable());
+					}
+				};
+				
+				final Interval a2 = new Interval(a) {					
+					{ Intervals.addHb(a1.end, this.start); }
+					@Override public String toString() { return "a2"; }
+					@Override protected void run() {
+						results.add(dg.isReadable());
+					}
+				};
+				
+				new Interval(a) {										
+					{ Intervals.addHb(a2.end, this.start); }
+					@Override public String toString() { return "a3"; }					
+					@Override protected void run() {
+						results.add(dg.isReadable());
+						results.add(dg.isWritable());
+					}					
+				};
+			}
+		});
+		
+		assertEquals(1+1+2, results.size());
+		
+		int i = 0;
+		assertEquals(true, results.get(i++));  // Wr Owned (a1)
+		
+		assertEquals(true, results.get(i++));  // Rd Owned (a2)
+		
+		assertEquals(true, results.get(i++));  // Rd Owned (a3)
+		assertEquals(true, results.get(i++));  // Wr Owned (a3)
+	}
+
 }

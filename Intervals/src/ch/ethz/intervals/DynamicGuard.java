@@ -108,11 +108,16 @@ public class DynamicGuard implements Guard {
 			
 		case RD_OWNED:
 			// Previously being read only by interval starting at rd.  Safe if:
-			// * rd == curStart (still rd owner)
+			// * rd == curStart (rd still rd owner)
+			// * rd.nextEpoch hbeq curStart (prev rd owner has finished)
 			// * wr.nextEpoch hbeq curStart (writer has finished)
-			// In the latter case, there are now two readers, so go to RD_SHARED state.
+			// In the last case, there are now two concurrent readers, so go to RD_SHARED state.
 			if(rd == curStart) // Already Rd Owner.  Stay that way.
 				return true;
+			if(rd.nextEpoch.hbeq(curStart, EdgeList.SPECULATIVE)) {
+				rd = curStart;
+				return true;
+			}	
 			if(wr != null && !wr.nextEpoch.hbeq(curStart, EdgeList.SPECULATIVE))
 				return false;
 			state = State.RD_SHARED;
