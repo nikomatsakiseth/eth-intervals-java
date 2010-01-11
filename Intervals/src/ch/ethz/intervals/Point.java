@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
 import ch.ethz.intervals.ThreadPool.Worker;
 
-final public class Point implements Dependency {
+final public class Point {
 	
 	public static final int END_EPOCH = Integer.MAX_VALUE;
 	
@@ -27,15 +27,12 @@ final public class Point implements Dependency {
 
 	static final int NO_POINT_FLAGS = 0;
 
-	/** If this flag is set, then uncaught exceptions for this 
-	 *  interval are NOT propagated to its parent. */
-	static final int FLAG_MASK_EXC = 1;
-	
 	/** If set, then we must acquire locks for {@link #line} before occurring. */
 	static final int FLAG_ACQUIRE_LOCKS = 2;
 
-	final int epoch;
 	final Line line;
+	
+	final Point end;
 	/*private*/ volatile Point nextEpoch;
 	
 	private EdgeList outEdges;                /** Linked list of outgoing edges from this point. */
@@ -43,35 +40,34 @@ final public class Point implements Dependency {
 	                                              Set to {@link #OCCURRED} when this has occurred. 
 	                                              Modified only through {@link #waitCountUpdater}. */
 	private Set<Throwable> pendingExceptions; /** Exception(s) that occurred while executing the task or in some preceding point. */
-	private int flags;                  	  /** Flags (see integer constants like {@link #FLAG_MASK_EXC}) */
+	private int flags;                  	  /** Flags (see integer constants like {@link #FLAG_ACQUIRE_LOCKS}) */
 	private Interval workItem;            	  /** Work to schedule when we occur (if any) */
 
-	Point(Line line, int epoch, Point nextEpoch, int flags, int waitCount, Interval workItem) {
+	Point(Line line, Point end, Point nextEpoch, int flags, int waitCount, Interval workItem) {
 		this.line = line;
-		this.epoch = epoch;
 		this.nextEpoch = nextEpoch;
+		this.end = end;
 		this.flags = flags;
 		this.waitCount = waitCount;
 		this.workItem = workItem;
 	}
 	
-	<R> SubintervalImpl<R> insertSubintervalBefore(int epoch, SubintervalTask<R> task) {
-		// See insertSubintervalAfter() for details on the points we are
-		// creating.  This method should really be private because it 
-		// cannot safely be used from the outside
-		// except when there is no extant previous point to 'this' on the
-		// current line.  This is generally not known to be true except for
-		// in one specific circumstance: if current.start == null and 
-		// current.end == rootEnd, that's because we don't instantiate the 
-		// root start point (to aid the GC).  For that reason, we make it package.
-		assert !didOccur();
-		addWaitCount();
-		Point subEnd = new Point(line, epoch+1, this, FLAG_MASK_EXC, 2, null);
-		Point subStart = new Point(line, epoch, subEnd, NO_POINT_FLAGS, 0, null);
-		return new SubintervalImpl<R>(line, subStart, subEnd, task);
+	boolean maskExceptions() {
+		// The end of any subinterval masks exceptions
+		return (end == null && nextEpoch != null);
 	}
 	
-	<R> SubintervalImpl<R> insertSubintervalAfter(SubintervalTask<R> task) {
+	private <R> SubintervalImpl<R> insertSubintervalBefore(Interval current, SubintervalTask<R> task) {
+		// See insertSubintervalAfter() for details on the points we are
+		// creating.
+		assert !didOccur() && line == current.line;
+		addWaitCount();
+		Point subEnd = new Point(line, null, this, NO_POINT_FLAGS, 2, null);
+		Point subStart = new Point(line, subEnd, subEnd, NO_POINT_FLAGS, 0, null);
+		return new SubintervalImpl<R>(current, subStart, subEnd, task);
+	}
+	
+	<R> SubintervalImpl<R> insertSubintervalAfter(Interval current, SubintervalTask<R> task) {
 		// In the very beginning there are 2 points and we are point 0:
 		//    0----END
 		// When we are done there will be 4:
@@ -81,7 +77,7 @@ final public class Point implements Dependency {
 		// Where pre is the current span of time, sub is the subinterval,
 		// and post is the span of time after the subinterval.
 		assert didOccur();
-		SubintervalImpl<R> subinter = nextEpoch.insertSubintervalBefore(epoch+1, task);
+		SubintervalImpl<R> subinter = nextEpoch.insertSubintervalBefore(current, task);
 		nextEpoch = subinter.start;
 		return subinter;
 	}
@@ -106,7 +102,7 @@ final public class Point implements Dependency {
 	
 	@Override
 	public String toString() {
-		return "Point("+System.identityHashCode(this)+"/"+line+"["+epoch+"])";
+		return "Point("+System.identityHashCode(this)+"/"+line+")";
 	}
 	
 	public Point mutualBound(Point j) {
@@ -243,17 +239,9 @@ final public class Point implements Dependency {
 	/** Invoked when the wait count is zero.  Attempts to
 	 *  acquire all pending locks. */
 	protected final void acquirePendingLocks() {
-		waitCount = 1; // Wait for us to finish iterating through the list of locks.
-		
-		final Point endPnt = nextEpoch;
-		assert endPnt.nextEpoch == null;
-		
-		// It is safe to use an unsynchronized read here, because any modification
-		// to this list must have been during some interval which HB the current point.
-		for(LockList lock = line.locksUnsync(); lock != null; lock = lock.next)
-			lock.lock.addExclusive(this, endPnt);
-		
 		flags &= ~FLAG_ACQUIRE_LOCKS;
+		waitCount = 1; // Wait for us to finish iterating through the list of locks.		
+		this.workItem.acquirePendingLocks();		
 		arrive(1);
 	}
 	
@@ -302,7 +290,7 @@ final public class Point implements Dependency {
 	 *  that {@code this} has occurred.  Propagates exceptions and 
 	 *  optionally invokes {@link #arrive(int)}. */
 	private void notifySuccessor(Point pnt, boolean arrive) {
-		if((flags & FLAG_MASK_EXC) == 0 && pendingExceptions != null)
+		if(!maskExceptions() && pendingExceptions != null)
 			pnt.addPendingExceptions(pendingExceptions);
 		if(arrive)
 			pnt.arrive(1);
@@ -318,6 +306,12 @@ final public class Point implements Dependency {
 			Debug.addWaitCount(this, newCount);		
 	}
 
+	protected void subWaitCountUnsync(int cnt) {
+		int newCount = waitCount - cnt;
+		waitCount = newCount;
+		assert newCount > 0;
+	}
+	
 	/** Adds to the wait count but only if the point has
 	 *  not yet occurred.  Always safe.
 	 *  @return true if the add succeeded. */
@@ -412,7 +406,7 @@ final public class Point implements Dependency {
 			
 			// In some cases, pendingExceptions may be non-null if this was a 
 			// subinterval which rethrew the exceptions and had them caught.
-			assert (this.flags & FLAG_MASK_EXC) != 0 || pendingExceptions == null;
+			assert maskExceptions() || pendingExceptions == null;
 			primAddOutEdge(targetPnt, edgeFlags);
 		}
 	}
@@ -485,15 +479,6 @@ final public class Point implements Dependency {
 		notifySuccessor(toImpl, false);
 	}
 
-	@Override
-	public void addHbToNewInterval(Interval inter) {
-	}
-
-	@Override
-	public Point boundForNewInterval() {
-		return this;
-	}
-
 	/** Returns an array {@code bounds} where {@code bounds[0]} == the bound at depth 0,
 	 *  {@code bounds[depth] == this} */
 	Point[] bounds() {
@@ -505,5 +490,5 @@ final public class Point implements Dependency {
 		}
 		return bounds;
 	}
-	
+
 }

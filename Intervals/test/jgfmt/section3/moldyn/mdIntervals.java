@@ -224,7 +224,7 @@ public class mdIntervals extends mdBase {
 			Intervals.subinterval(new VoidSubinterval() {				
 				@Override public void run(Interval subinterval) {
 					new IndexedInterval(subinterval, mdsize) {
-						public void run(Point _, int start, int stop) {
+						public void run(int start, int stop) {
 							for(int i = start; i < stop; i++)
 								one[i].domove(side, i);
 						}				
@@ -248,7 +248,7 @@ public class mdIntervals extends mdBase {
 			Intervals.subinterval(new VoidSubinterval() {				
 				@Override public void run(Interval subinterval) {
 					new IndexedInterval(subinterval, mdsize) {
-						public void run(Point _, int start, int stop) {
+						public void run(int start, int stop) {
 							for(int i = start; i < stop; i++)
 								one[i].force(side, rcoff, mdsize, i);
 						}				

@@ -9,7 +9,7 @@ public interface Dependency {
 	 * <p>End-users should not override or implement this method.  
 	 * Doing so can violate the race-freedom guarantees of our compiler.
 	 */
-	public Point boundForNewInterval();
+	public Interval parentForNewInterval();
 	
 	/**
 	 * Adds any additional edges required when a new interval 

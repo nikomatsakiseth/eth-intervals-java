@@ -66,8 +66,8 @@ public class JGFRayTracerBench extends RayTracer implements JGFSection3 {
 			Intervals.subinterval(new VoidSubinterval() {				
 				@Override
 				public void run(ch.ethz.intervals.Interval subinterval) {
-					new IndexedInterval(subinterval.end, interval.height) {						
-						@Override public void run(Point parentEnd, int fromIndex, int toIndex) {
+					new IndexedInterval(subinterval, interval.height) {						
+						@Override public void run(int fromIndex, int toIndex) {
 							rayTracer.run(fromIndex, toIndex);
 						}
 					};

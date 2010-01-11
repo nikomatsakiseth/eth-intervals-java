@@ -5,7 +5,9 @@ package ch.ethz.intervals;
  * Small linked list object that used to record the locks we have acquired
  * and those that are still pending.
  */
-class LockList {
+class LockList 
+extends LockBase
+{
 	final Lock lock;
 	final boolean exclusive;
 	LockList next;
@@ -14,6 +16,11 @@ class LockList {
 		this.lock = lock;
 		this.exclusive = exclusive;
 		this.next = next;
+	}
+
+	@Override
+	protected Lock lock() {
+		return lock;
 	}
 
 }

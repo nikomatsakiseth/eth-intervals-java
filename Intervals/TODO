@@ -1,0 +1,10 @@
+* DynamicGuard-- avoid "accidental" HB!  Consider:
+
+	c -> a (l)
+	b (l) -> d
+	
+	if a happens to go first, then c ~> d
+	if b happens to go first, then c ~/> d
+	
+	D'oh!  I think we only want to consider lock edges very specially,
+	or else just ignore them in the hb() checks.

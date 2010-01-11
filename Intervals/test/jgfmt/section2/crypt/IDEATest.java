@@ -542,7 +542,7 @@ class IDEARunner implements Runnable {
 
 	} // End routine.
 
-	public void run(Point _, int start, int stop) {
+	public void run(int start, int stop) {
 		int i1 = start * 8; // Index into first text array.
 		int i2 = start * 8; // Index into second text array.
 		for(int idx = start; idx < stop; idx++) {
@@ -679,8 +679,8 @@ class IDEARunnerTask extends IndexedInterval {
 	}
 
 	@Override
-	public void run(Point parentEnd, int fromIndex, int toIndex) {
-		runner.run(parentEnd, fromIndex, toIndex);
+	public void run(int fromIndex, int toIndex) {
+		runner.run(fromIndex, toIndex);
 	}	
 	
 	

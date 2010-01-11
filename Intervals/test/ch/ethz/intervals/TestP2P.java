@@ -66,7 +66,7 @@ public class TestP2P {
 	@Test public void testP2P() {
 		P2P p2p = Intervals.subinterval(new SubintervalTask<P2P>() {
 			public P2P run(Interval subinterval) {
-				return new P2P(subinterval.end);
+				return new P2P(subinterval);
 			}
 		});
 		

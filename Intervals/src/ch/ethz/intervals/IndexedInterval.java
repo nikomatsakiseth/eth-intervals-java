@@ -16,7 +16,6 @@ import static ch.ethz.intervals.Intervals.POOL;
 public abstract class IndexedInterval extends Interval {
 	private final int lo0, hi0;
 	private final int threshold;
-	private Point parentEnd;
 
 	/** {@link #run(Point, int, int)} will be invoked from all indices i where {@code 0 <= i < count} */
 	public IndexedInterval(Dependency dep, int count) {
@@ -39,11 +38,10 @@ public abstract class IndexedInterval extends Interval {
 		return String.format("IndexedTask@%x(%d-%d)", System.identityHashCode(this), lo0, hi0);
 	}
 	
-	abstract public void run(Point parentEnd, int fromIndex, int toIndex);
+	abstract public void run(int fromIndex, int toIndex);
 
 	@Override
 	public final void run() {
-		parentEnd = end;
     	new Subtask(lo0, hi0);
 	}
 	
@@ -52,7 +50,7 @@ public abstract class IndexedInterval extends Interval {
         final int hi;
 		
         Subtask(int lo, int hi) {
-        	super(parentEnd);
+        	super(IndexedInterval.this);
             this.lo = lo;
             this.hi = hi;
         }
@@ -78,7 +76,7 @@ public abstract class IndexedInterval extends Interval {
             }
             
             // Run what's left:
-            IndexedInterval.this.run(parentEnd, l, h);            	
+            IndexedInterval.this.run(l, h);            	
 		}		
 	}
 

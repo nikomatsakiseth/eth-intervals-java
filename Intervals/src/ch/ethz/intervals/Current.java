@@ -4,7 +4,7 @@ import static ch.ethz.intervals.Intervals.SAFETY_CHECKS;
 
 class Current {
 	
-	private static Current root = new Current(null, null, Intervals.rootEnd);
+	private static Current root = new Current(null, Intervals.rootInter);
 	private static ThreadLocal<Current> local = new ThreadLocal<Current>() {
 
 		@Override
@@ -20,24 +20,23 @@ class Current {
 	
 	static Current push(Interval inter) {
 		Current c = get();
-		Current n = new Current(c, inter.start, inter.end);
+		Current n = new Current(c, inter);
 		local.set(n);
 		return n;
 	}
 	
-	final Current prev;           /** */
-	final Line line;              /** The line we are executing. */
-	Point start;                  /** An optional point which HB the current moment. */
-	final Point end;              /** Bound of the current moment. */
+	final Current prev;           /** Previous Current on stack. */
+	final Interval inter;         /** Smallest containing interval. */
+	Point start;                  /** Most recent point on inter.line that occurred. Not always inter.start! */
+	final Point end;              /** Always inter.end.      */
 	private Interval unscheduled; /** Linked list of unscheduled intervals. */
 
-	Current(Current prev, Point start, Point end) {
-		assert (start == null || start.didOccur());
-		assert end != null;
+	Current(Current prev, Interval inter) {
+		assert inter != null && inter.start.didOccur();
 		this.prev = prev;
-		this.line = end.line;
-		this.start = start;
-		this.end = end;
+		this.inter = inter;
+		this.start = inter.start;
+		this.end = inter.end;
 	}
 	
 	void updateStart(Point start) {

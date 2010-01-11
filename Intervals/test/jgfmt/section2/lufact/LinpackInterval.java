@@ -117,7 +117,7 @@ class LinpackInterval {
 						@Override public void run(Interval subinterval) {
 							new IndexedInterval(subinterval, kp1, n) {						
 								@Override
-								public void run(Point parentEnd, int fromIndex, int toIndex) {
+								public void run(int fromIndex, int toIndex) {
 									for(int j = fromIndex; j < toIndex; j++) {
 										double[] col_j = a[j];
 										double t = col_j[l];

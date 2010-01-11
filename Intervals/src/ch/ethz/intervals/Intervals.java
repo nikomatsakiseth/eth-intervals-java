@@ -13,7 +13,11 @@ public class Intervals {
 	public static final boolean SAFETY_CHECKS = true;	
 
 	/** Final point of the program.  Never occurs until program ends. */
-	static final Point rootEnd = new Point(Line.rootLine, Point.END_EPOCH, null, NO_POINT_FLAGS, 1, null);
+	static final Line rootLine = Line.rootLine();
+	static final Point rootEnd = new Point(rootLine, null, null, NO_POINT_FLAGS, 1, null);
+	static final Point rootStart = new Point(rootLine, rootEnd, rootEnd, NO_POINT_FLAGS, Point.OCCURRED, null);
+	static final Interval rootInter = new EmptyInterval(null, rootStart, rootEnd, "root");
+	
 	
 	/** Shared thread pool that executes tasks. */
 	static final ThreadPool POOL = new ThreadPool();
@@ -38,26 +42,19 @@ public class Intervals {
 	
 	public static Dependency child() {
 		final Current current = Current.get();
-		return new Dependency() {			
-			@Override
-			public Point boundForNewInterval() {
-				return current.end;
-			}
-			
-			@Override
-			public void addHbToNewInterval(Interval inter) {				
-			}
-		};
+		return current.inter;
 	}
 	
 	public static Dependency successor() {
 		final Current current = Current.get();
+		if(current.inter.parent == null)
+			throw new NotInRootIntervalException();
 		return new Dependency() {			
 			@Override
-			public Point boundForNewInterval() {
-				return current.line.bound;
+			public Interval parentForNewInterval() {
+				return current.inter.parent;
 			}
-						
+			
 			@Override
 			public void addHbToNewInterval(Interval inter) {	
 				Intervals.addHb(current.end, inter.start);
@@ -209,7 +206,7 @@ public class Intervals {
 		if(interval != null && lock != null) {
 			Current current = Current.get();
 			current.checkCanAddDep(interval.start);
-			interval.line.addLock(lock, true);
+			interval.addLock(lock, true);
 		}
 	}
 
@@ -245,13 +242,7 @@ public class Intervals {
 		// This could be made more optimized, but it will do for now:
 		Current current = Current.get();
 		
-		SubintervalImpl<R> subinterval;
-		if(current.start != null) {
-			subinterval = current.start.insertSubintervalAfter(task);			
-		} else { // If current.start == null, this is first subinterval of root interval: 
-			assert current.end.isRootEnd();
-			subinterval = current.end.insertSubintervalBefore(1, task);
-		}
+		SubintervalImpl<R> subinterval = current.start.insertSubintervalAfter(current.inter, task);			
 		if(Debug.ENABLED)
 			Debug.subInterval(subinterval, task.toString());		
 		subinterval.start.occur();

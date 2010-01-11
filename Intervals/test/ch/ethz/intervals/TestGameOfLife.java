@@ -210,10 +210,10 @@ public class TestGameOfLife {
 		}
 
 		void switchGens(Interval thisGen) {
-			Interval switchInterval = new SwitchGenTask(thisGen.bound());
+			Interval switchInterval = new SwitchGenTask(thisGen.parent);
 			Intervals.addHb(thisGen.end, switchInterval.start);
 			
-			nextGen = new EmptyInterval(thisGen.bound(), "gen");
+			nextGen = new EmptyInterval(thisGen.parent, "gen");
 			Intervals.addHb(switchInterval.end, nextGen.start);
 			
 			Intervals.schedule();
@@ -337,7 +337,7 @@ public class TestGameOfLife {
 			}
 
 			@Override
-			public void run(Point parentEnd, int fromIndex, int toIndex) {
+			public void run(int fromIndex, int toIndex) {
 				byte[][] inData = data[gen % 2];
 				byte[][] outData = data[(gen + 1) % 2];
 				for(int c = fromIndex; c < toIndex; c++)
@@ -356,9 +356,9 @@ public class TestGameOfLife {
 			}
 
 			@Override
-			public void run(Point parentEnd, int fromIndex, int toIndex) {
+			public void run(int fromIndex, int toIndex) {
 				for(int r = fromIndex; r < toIndex; r++) {
-					new ColTask(Intervals.child(), gen, r).schedule();
+					new ColTask(this, gen, r).schedule();
 				}
 			}
 			
@@ -500,7 +500,7 @@ public class TestGameOfLife {
 					@Override public void run(final Interval subinterval) {
 						subdivide(rs, cs, w, h, new InvokableWithTile() {
 							public void run(final Tile t) {
-								new Interval(subinterval.end) {
+								new Interval(subinterval) {
 									public String toString() 
 									{
 										return "Tile("+t.tr+","+t.tc+")";

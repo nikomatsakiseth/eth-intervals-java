@@ -77,11 +77,11 @@ public class TestInterval {
 				public void run(final Interval parentInterval) {
 					Intervals.subinterval(new VoidSubinterval() {
 						public void run(final Interval childInterval) {							
-							Interval after = new AddTask(parentInterval.end, list, 2);
+							Interval after = new AddTask(parentInterval, list, 2);
 							Intervals.addHb(childInterval.end, after.start);
-							new AddTask(childInterval.end, list, 1);
-							new AddTask(childInterval.end, list, 1);
-							new AddTask(childInterval.end, list, 1);							
+							new AddTask(childInterval, list, 1);
+							new AddTask(childInterval, list, 1);
+							new AddTask(childInterval, list, 1);							
 						}
 					});					
 				}
@@ -156,7 +156,7 @@ public class TestInterval {
 		final AtomicInteger successful = new AtomicInteger();
 		Intervals.subinterval(new VoidSubinterval() {
 			public void run(Interval subinterval) {
-				Interval worker = new EmptyInterval(subinterval.end, "worker");
+				Interval worker = new EmptyInterval(subinterval, "worker");
 				Interval d = new EmptyInterval(worker, "d");
 				Interval k = new EmptyInterval(d, "k");
 				Interval n = new EmptyInterval(d, "n");
@@ -203,7 +203,7 @@ public class TestInterval {
 				try {
 					Intervals.subinterval(new VoidSubinterval() {
 						public void run(Interval subinterval) {
-							new ThrowExceptionTask(subinterval.end);
+							new ThrowExceptionTask(subinterval);
 						}
 					});
 					
@@ -315,11 +315,11 @@ public class TestInterval {
 										Intervals.subinterval(new VoidSubinterval() {
 											public void run(final Interval sub2) {
 												System.err.printf("end2=%s\n", sub2.end);
-												link0 = new ThrowExceptionTask(sub2.end);
+												link0 = new ThrowExceptionTask(sub2);
 												System.err.printf("link0=%s\n", link0);
 												linkN = link0;
 												for(int i = 0; i < length; i++) {
-													linkN = new IncTask(sub2.end, ctr);
+													linkN = new IncTask(sub2, ctr);
 													Intervals.addHb(link0.end, linkN.start);
 													System.err.printf("link%d=%s\n", (i+1), linkN);
 												}
@@ -413,58 +413,58 @@ public class TestInterval {
 		
 	@Test(expected=EdgeNeededException.class) 
 	public void raceConditionInBeforeGeneratesError1() {
-		final Interval a = new EmptyInterval(Intervals.rootEnd, "a");
+		final Interval a = new EmptyInterval(Intervals.rootInter, "a");
 		Intervals.schedule();
-		Interval b = new EmptyInterval(Intervals.rootEnd, "b");
+		Interval b = new EmptyInterval(Intervals.rootInter, "b");
 		Intervals.addHb(b.end, a.start);
 	}
 	
 	@Test(expected=EdgeNeededException.class) 
 	public void raceConditionInBeforeGeneratesError2() {
-		final Interval a = new EmptyInterval(Intervals.rootEnd, "a");
+		final Interval a = new EmptyInterval(Intervals.rootInter, "a");
 		Intervals.schedule();
-		Interval b = new EmptyInterval(Intervals.rootEnd, "b");
+		Interval b = new EmptyInterval(Intervals.rootInter, "b");
 		Intervals.addHb(b.start, a.end);
 	}
 	
 	@Test(expected=EdgeNeededException.class) 
 	public void raceConditionInBeforeGeneratesError3() {
-		final Interval a = new EmptyInterval(Intervals.rootEnd, "a");
+		final Interval a = new EmptyInterval(Intervals.rootInter, "a");
 		Intervals.schedule();
-		new EmptyInterval(a.start, "b");
+		new EmptyInterval(a, "b");
 	}	
 
 	@Test(expected=CycleException.class) 
 	public void simpleCycleGeneratesError() {
-		final Interval a = new EmptyInterval(Intervals.rootEnd, "a");
+		final Interval a = new EmptyInterval(Intervals.rootInter, "a");
 		Intervals.addHb(Intervals.rootEnd, a.end);
 	}
 	
 	@Test(expected=CycleException.class) 
 	public void simpleCycleGeneratesError2() {
-		final Interval a = new EmptyInterval(Intervals.rootEnd, "a");
-		final Interval b = new EmptyInterval(Intervals.rootEnd, "b");
+		final Interval a = new EmptyInterval(Intervals.rootInter, "a");
+		final Interval b = new EmptyInterval(Intervals.rootInter, "b");
 		Intervals.addHb(a.end, b.start);
 		Intervals.addHb(b.end, a.start);
 	}
 	
 	@Test(expected=CycleException.class) 
 	public void boundToStartGeneratesError() {
-		final Interval a = new EmptyInterval(Intervals.rootEnd, "a");
-		final Interval b = new EmptyInterval(a.end, "b");
+		final Interval a = new EmptyInterval(Intervals.rootInter, "a");
+		final Interval b = new EmptyInterval(a, "b");
 		Intervals.addHb(a.end, b.start);
 	}
 	
 	@Test(expected=CycleException.class) 
 	public void boundToEndGeneratesError() {
-		final Interval a = new EmptyInterval(Intervals.rootEnd, "a");
-		final Interval b = new EmptyInterval(a.end, "b");
+		final Interval a = new EmptyInterval(Intervals.rootInter, "a");
+		final Interval b = new EmptyInterval(a, "b");
 		Intervals.addHb(a.end, b.end);
 	}
 	
 	@Test 
 	public void raceCondErrorsLeaveSchedulerInStableState() {
-		final Interval a = new EmptyInterval(Intervals.rootEnd, "a");
+		final Interval a = new EmptyInterval(Intervals.rootInter, "a");
 		final AtomicInteger i = new AtomicInteger();
 		
 		try {

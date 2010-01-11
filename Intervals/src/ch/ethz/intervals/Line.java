@@ -11,18 +11,18 @@ package ch.ethz.intervals;
  * then they will only keep successors of that object alive.  
  */
 final class Line {
-	static final Line rootLine = new Line();
-	
 	final Point bound;
 	final int depth;                  /** Depth in line tree. */
 	
 	private Current unscheduled;
 
-	private LockList locks;
-
 	private Line() {
 		this.bound = null;
 		this.depth = 0;
+	}
+	
+	static Line rootLine() {
+		return new Line();
 	}
 	
 	Line(Current unscheduled, Point bound) {
@@ -35,40 +35,12 @@ final class Line {
 		return unscheduled == current;
 	}
 	
-	/** Note: Safety checks apply!  See {@link Current#checkCanAddDep(Point)} */ 
-	void addLock(Lock lock, boolean exclusive) {
-		LockList list = new LockList(lock, exclusive, null);
-		synchronized(this) {
-			list.next = locks;
-			locks = list;
-		}
-	}
-	
-	synchronized LockList locksSync() {
-		return locks;
-	}
-	
-	LockList locksUnsync() {
-		return locks;
-	}
-	
 	boolean isScheduled() {
 		return unscheduled == null;
 	}
 	
 	void clearUnscheduled() {
 		unscheduled = null;
-	}
-
-	/**
-	 * True if {@code this} will hold the lock {@code lock}
-	 * when it executes.
-	 */
-	public final boolean holdsLock(Lock lock) {
-		for(LockList ll = locksSync(); ll != null; ll = ll.next)
-			if(ll.lock == lock)
-				return true;
-		return false;
 	}
 	
 	public final String toString() {

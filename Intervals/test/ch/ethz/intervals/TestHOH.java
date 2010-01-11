@@ -81,7 +81,7 @@ public class TestHOH {
 	    public void run() {
 	        transform.transform(link);
 	        if(link.next != null) {
-	        	Interval next = new MapWalk(bound(), link.next, transform);
+	        	Interval next = new MapWalk(parent, link.next, transform);
 	        	Intervals.addHb(next.start, end);
             }
 	    } 
@@ -109,7 +109,7 @@ public class TestHOH {
 		final Link list = buildList(5, 10, 25);
 		subinterval(new VoidSubinterval() {
 			public void run(Interval subinterval) {
-				new MapWalk(subinterval.end, list, new DoubleTransform());		
+				new MapWalk(subinterval, list, new DoubleTransform());		
 			}
 		});
 		Link expList = buildList(10, 20, 50);

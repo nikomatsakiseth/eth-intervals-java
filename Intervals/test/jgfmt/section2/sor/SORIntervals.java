@@ -129,8 +129,6 @@ public class SORIntervals {
 		
 		Intervals.subinterval(new VoidSubinterval() {			
 			@Override public void run(Interval subinterval) {
-				Point parentEnd = subinterval.end;
-				
 				// Intervals from previous iteration:
 				//   (note that null just means "no wait")
 				final Point[][] intervals = new Point[2][M/2+2];
@@ -143,14 +141,14 @@ public class SORIntervals {
 					int prevBit = (bit + 1) % 2;
 					
 					int i = 1 + (p % 2);
-					Interval inter = new Row(parentEnd, i);
+					Interval inter = new Row(subinterval, i);
 					intervals[bit][1] = inter.end;
 					Intervals.addHb(intervals[prevBit][1], inter.start);
 					Intervals.addHb(intervals[prevBit][2], inter.start);
 					
 					i += 2;
 					for(int j = 2; i < M; i += 2, j++) {
-						inter = new Row(parentEnd, i);
+						inter = new Row(subinterval, i);
 						intervals[bit][j] = inter.end;
 						Intervals.addHb(intervals[prevBit][j-2], inter.start);
 						Intervals.addHb(intervals[prevBit][j-1], inter.start);

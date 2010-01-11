@@ -13,13 +13,19 @@ implements Dependency, Guard
 {	
 	private static final long serialVersionUID = 8105268455633202522L;
 		
+	public final Interval parent;
 	public final Point start;
 	public final Point end;
+	
 	final Line line;
+	
 	Interval nextUnscheduled; /** @see Current#unscheduled */
-		
+
+	private LockList locks;
+	private LittleLinkedList<Interval> pendingChildIntervals = null;
+	
 	public Interval(Dependency dep) {
-		Point bound = dep.boundForNewInterval();
+		Interval parent = dep.parentForNewInterval();
 		Current current = Current.get();
 		
 		// Note: if this check passes, then no need to check for cycles 
@@ -30,15 +36,18 @@ implements Dependency, Guard
 		//     path current.start->bnd was already added.
 		// (2) Bound is current.end.  current.start->current.end.
 		// (3) A path exists from current.end -> bnd.  Same as (2).
-		current.checkCanAddDep(bound);	
+		current.checkCanAddDep(parent.end);	
 		
-		line = new Line(current, bound);		
-		end = new Point(line, Point.END_EPOCH, null, NO_POINT_FLAGS, 2, null);
-		start = new Point(line, 0, end, FLAG_ACQUIRE_LOCKS, 1, this);		
+		this.parent = parent;
+		line = new Line(current, parent.end);		
+		end = new Point(line, null, null, NO_POINT_FLAGS, 2, null);
+		start = new Point(line, end, end, FLAG_ACQUIRE_LOCKS, 2, this);		
+		
 		current.addUnscheduled(this);
-		
-		bound.addWaitCount();
-		if(current.start!= null) {
+		int expFromParent = parent.addChildInterval(this);
+		if(expFromParent == 0) start.subWaitCountUnsync(1);
+				
+		if(current.start != parent.start) {
 			current.start.addEdgeAfterOccurredWithoutException(start, NORMAL);		
 			ExecutionLog.logNewInterval(current.start, start, end);
 		} else
@@ -47,12 +56,59 @@ implements Dependency, Guard
 		dep.addHbToNewInterval(this);		
 	}
 	
-	Interval(Line line, Point start, Point end) {
-		this.line = line;
+	Interval(Interval parent, Point start, Point end) {
+		assert start != null && end != null && start.line == end.line;
+		this.parent = parent;
+		this.line = start.line;
 		this.start = start;
 		this.end = end;
 	}
 	
+	int addChildInterval(Interval inter) {
+		end.addWaitCount();
+		
+		synchronized(start) {
+			if(start.didOccur())
+				return 0;
+			else {
+				pendingChildIntervals = new LittleLinkedList<Interval>(inter, pendingChildIntervals);
+				return 1;
+			}
+		}
+	}
+	
+	/** Note: Safety checks apply!  See {@link Current#checkCanAddDep(Point)} */ 
+	void addLock(Lock lock, boolean exclusive) {
+		LockList list = new LockList(lock, exclusive, null);
+		synchronized(this) {
+			list.next = locks;
+			locks = list;
+		}
+	}
+	
+	synchronized LockList locksSync() {
+		return locks;
+	}
+	
+	LockList locksUnsync() {
+		return locks;
+	}
+	
+	/**
+	 * Invoked by {@link #start} when all HB dependencies are resolved.
+	 */
+	boolean acquirePendingLocks() {		
+		// It is safe to use an unsynchronized read here, because any modification
+		// to this list must have been during some interval which HB the start point.
+		LockList lock = locksUnsync();
+		if(lock != null) {
+			for(; lock != null; lock = lock.next)
+				lock.lock.addExclusive(start, end);
+			return true;
+		} else
+			return false;
+	}
+
 	/**
 	 * Defines the behavior of the interval.  Must be
 	 * overridden.  Executed by the scheduler when {@code this}
@@ -91,6 +147,10 @@ implements Dependency, Guard
 	 * dependencies are satisfied).
 	 */
 	final void exec() {
+		for(LittleLinkedList<Interval> pending = pendingChildIntervals; pending != null; pending = pending.next)
+			pending.value.start.arrive(1);
+		pendingChildIntervals = null;
+		
 		Current cur = Current.push(this);
 		try {
 			try {
@@ -141,8 +201,8 @@ implements Dependency, Guard
 	 * during {@code this}.
 	 */
 	@Override
-	public final Point boundForNewInterval() {
-		return end;
+	public final Interval parentForNewInterval() {
+		return this;
 	}
 
 	/**
@@ -165,7 +225,7 @@ implements Dependency, Guard
 	@Override
 	public final boolean isReadable() {
 		Current current = Current.get();
-		return current.line == line || (
+		return current.inter.line == line || (
 				current.start != null && end.hb(current.start));
 	}
 
@@ -177,7 +237,7 @@ implements Dependency, Guard
 	@Override
 	public final boolean isWritable() {
 		Current current = Current.get();
-		return current.line == line;
+		return current.inter.line == line;
 	}
 	
 	/**
@@ -185,7 +245,10 @@ implements Dependency, Guard
 	 * when it executes.
 	 */
 	public final boolean holdsLock(Lock lock) {
-		return line.holdsLock(lock);
+		for(LockList ll = locksSync(); ll != null; ll = ll.next)
+			if(ll.lock == lock)
+				return true;
+		return false;
 	}
 
 }

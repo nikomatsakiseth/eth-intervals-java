@@ -12,15 +12,14 @@ public abstract class SetupInterval extends Interval {
 
 	@Override
 	public void run() {
-		final Point parentEnd = end;
-		new Interval(parentEnd) {
+		new Interval(this) {
 			protected void run() {				
 				final Point setupEnd = end;
 				
 				class WorkerInterval extends Interval {
 					
 					public WorkerInterval() {
-						super(parentEnd);
+						super(SetupInterval.this);
 						addHb(setupEnd, start);
 					}
 
