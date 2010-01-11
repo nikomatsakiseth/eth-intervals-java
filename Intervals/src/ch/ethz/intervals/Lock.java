@@ -1,6 +1,5 @@
 package ch.ethz.intervals;
 
-import static ch.ethz.intervals.EdgeList.NONDETERMINISTIC;
 
 public final class Lock
 extends /*@Writer("this.constructor")*/ LockBase 

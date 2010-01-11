@@ -16,10 +16,10 @@ import ch.ethz.intervals.visualizer.EventLog;
 import ch.ethz.intervals.visualizer.EventLogVisitor;
 import ch.ethz.intervals.visualizer.EventProducerThread;
 import ch.ethz.intervals.visualizer.VisualizerWindow;
+import ch.ethz.intervals.visualizer.EventLog.AddLock;
 import ch.ethz.intervals.visualizer.EventLog.Arrive;
 import ch.ethz.intervals.visualizer.EventLog.Edge;
 import ch.ethz.intervals.visualizer.EventLog.Event;
-import ch.ethz.intervals.visualizer.EventLog.AddLock;
 import ch.ethz.intervals.visualizer.EventLog.NewInterval;
 import ch.ethz.intervals.visualizer.EventLog.Schedule;
 
