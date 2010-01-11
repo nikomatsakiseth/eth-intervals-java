@@ -18,10 +18,10 @@ public class DynamicGuard implements Guard {
 		INITIAL,
 		
 		/** wr is start of writer, rd is {@code null} */
-		WR_OWNED,
+		WR_OWNED_START,
 		
 		/** wr is start of previous writer, rd is <b>start</b> of singular reader */
-		RD_OWNED, 
+		RD_OWNED_START, 
 		
 		/** wr is start of previous writer, rd is mutual bound of <b>ends</b> of all readers */
 		RD_SHARED 
@@ -46,7 +46,7 @@ public class DynamicGuard implements Guard {
 			// Not yet read or written.  Always safe.
 			break; 
 			
-		case WR_OWNED:
+		case WR_OWNED_START:
 			// Currently being written by interval starting at "wr".  Safe if either:
 			// * wr == curStart (we are the owner, checked above)
 			// * wr.nextEpoch hbeq curStart (writer has finished)
@@ -54,7 +54,7 @@ public class DynamicGuard implements Guard {
 				return false;
 			break;
 			
-		case RD_OWNED:
+		case RD_OWNED_START:
 			// Currently being read by interval starting at "rd". Safe if either:
 			// * rd is curStart (curStart was the reader, now becomes the writer)
 			// * rd.nextEpoch hbeq curStart (reader has finished)
@@ -72,7 +72,7 @@ public class DynamicGuard implements Guard {
 		
 		wr = curStart;
 		rd = null;
-		state = State.WR_OWNED;
+		state = State.WR_OWNED_START;
 		return true;
 	}
 	
@@ -88,11 +88,11 @@ public class DynamicGuard implements Guard {
 		switch(state) {
 		case INITIAL: 
 			// Not yet read or written.  Always safe, and we are the only writer.
-			state = State.RD_OWNED;
+			state = State.RD_OWNED_START;
 			rd = curStart;
 			return true;
 		
-		case WR_OWNED: 
+		case WR_OWNED_START: 
 			// Previously written by wr.  Safe if:
 			// * wr == curStart (being read by the writer)
 			// * wr.nextEpoch hbeq curStart (writer has finished)
@@ -102,11 +102,11 @@ public class DynamicGuard implements Guard {
 			if(!wr.nextEpoch.hbeq(curStart, EdgeList.SPECULATIVE))
 				return false;
 			
-			state = State.RD_OWNED;
+			state = State.RD_OWNED_START;
 			rd = curStart;
 			return true;
 			
-		case RD_OWNED:
+		case RD_OWNED_START:
 			// Previously being read only by interval starting at rd.  Safe if:
 			// * rd == curStart (rd still rd owner)
 			// * (see twoReaders)			
@@ -127,7 +127,7 @@ public class DynamicGuard implements Guard {
 		// * wr.nextEpoch bheq curStart (writer has finished)
 		// In last case, must adjust rd to include curStart.nextEpoch
 		if(curRdEnd.hbeq(curStart, EdgeList.SPECULATIVE)) {
-			state = State.RD_OWNED;
+			state = State.RD_OWNED_START;
 			rd = curStart;
 			return true;
 		}				
