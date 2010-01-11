@@ -56,7 +56,7 @@ implements Dependency, Guard
 		
 		current.addUnscheduled(this);
 		int expFromParent = (parent != null ? parent.addChildInterval(this) : 0);
-		if(expFromParent == 0) start.subWaitCountUnsync(1);
+		if(expFromParent == 0) start.addWaitCountUnsync(-1);
 				
 		if(current.mr != parentStart) {
 			current.mr.addEdgeAfterOccurredWithoutException(start, NORMAL);		
@@ -107,17 +107,37 @@ implements Dependency, Guard
 	
 	/**
 	 * Invoked by {@link #start} when all HB dependencies are resolved.
+	 * Returns true if the caller should wait for locks to be acquired,
+	 * or false if they are all acquired upon return.
 	 */
 	boolean acquirePendingLocks() {		
 		// It is safe to use an unsynchronized read here, because any modification
 		// to this list must have been during some interval which HB the start point.
 		LockList lock = locksUnsync();
 		if(lock != null) {
+			start.addWaitCountUnsync(1); // sync not needed here, all pred. arrived
 			for(; lock != null; lock = lock.next)
-				lock.lock.addExclusive(start, end);
+				acquireLock(lock.exclusive, lock.lock);
+			start.arrive(1); // now we may have pred. again, need sync
 			return true;
 		} else
 			return false;
+	}
+
+	private void acquireLock(boolean exclusive, Lock lock) {
+		assert exclusive;
+		
+		// First check whether we are recursively acquiring this lock:
+		for(Interval ancestor = parent; ancestor != null; ancestor = ancestor.parent) {
+			for(LockList lockList = ancestor.locksUnsync(); lockList != null; lockList = lockList.next)
+				if(lockList.lock == lock) {
+					lockList.addExclusive(start, end);
+					return;
+				}
+		}
+		
+		// If not:
+		lock.addExclusive(start, end);							
 	}
 
 	/**

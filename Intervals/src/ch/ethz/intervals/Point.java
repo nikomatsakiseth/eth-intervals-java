@@ -236,19 +236,19 @@ final public class Point {
 		
 		assert newCount >= 0;
 		if(newCount == 0 && cnt != 0)
-			if((flags & FLAG_ACQUIRE_LOCKS) != 0)
-				acquirePendingLocks();
-			else
+			if(!acquirePendingLocks())
 				occur();
 	}
 	
 	/** Invoked when the wait count is zero.  Attempts to
-	 *  acquire all pending locks. */
-	protected final void acquirePendingLocks() {
-		flags &= ~FLAG_ACQUIRE_LOCKS;
-		waitCount = 1; // Wait for us to finish iterating through the list of locks.		
-		this.workItem.acquirePendingLocks();		
-		arrive(1);
+	 *  acquire pending locks if needed.  Returns true if
+	 *  the caller should wait. */
+	private boolean acquirePendingLocks() {
+		if((flags & FLAG_ACQUIRE_LOCKS) != 0) {
+			flags &= ~FLAG_ACQUIRE_LOCKS;
+			return this.workItem.acquirePendingLocks();
+		} else
+			return false;
 	}
 	
 	/** Invoked when the wait count is zero and all pending locks
@@ -321,8 +321,8 @@ final public class Point {
 			Debug.addWaitCount(this, newCount);		
 	}
 
-	protected void subWaitCountUnsync(int cnt) {
-		int newCount = waitCount - cnt;
+	protected void addWaitCountUnsync(int cnt) {
+		int newCount = waitCount + cnt;
 		waitCount = newCount;
 		assert newCount > 0;
 	}
