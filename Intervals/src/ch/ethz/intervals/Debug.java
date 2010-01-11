@@ -13,7 +13,7 @@ class Debug {
 	public static final boolean ENABLED = false;
 	public static final boolean DUMP_IMMEDIATELY = true;
 	
-	public static final boolean ENABLED_LOCK = true;         /** Debug statements related to locks. */
+	public static final boolean ENABLED_LOCK = false;         /** Debug statements related to locks. */
 	public static final boolean ENABLED_WAIT_COUNTS = true;	 /** Debug statements related to wait counts. */
 	public static final boolean ENABLED_INTER = false;       /** Debug statements related to higher-level interval control-flow */
 	public static final boolean ENABLED_WORK_STEAL = false;  /** Debug statements related to the work-stealing queue */
@@ -74,7 +74,8 @@ class Debug {
 		
 		public String toString() {
 			final StringBuilder sb = new StringBuilder();
-			sb.append(String.format("OCCUR %s nextEpoch %s bound %s succs", point, point.nextEpoch, point.line.bound));
+			sb.append(String.format("OCCUR %s errors %d%s nextEpoch %s bound %s succs", 
+					point, point.numPendingExceptions(), (point.maskExceptions() ? " (masked)" : ""), point.nextEpoch, point.line.bound));
 			
 			new EdgeList.Iterator(list) {
 				public void doForEach(Point toPoint, int flags) {

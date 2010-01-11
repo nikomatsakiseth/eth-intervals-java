@@ -5,7 +5,7 @@ public class EmptyInterval extends Interval {
 	private final String name;
 	
 	public EmptyInterval(Dependency dep, String name) {
-		super(dep);
+		super(dep, name);
 		this.name = name;
 	}
 	

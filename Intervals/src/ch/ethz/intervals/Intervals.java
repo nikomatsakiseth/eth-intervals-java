@@ -138,21 +138,21 @@ public class Intervals {
 		if(from == null)
 			return;
 		
+		current.checkEdgeEndPointsProperlyBound(from, to);
+		
 		// Optimistically add edge (though it may cause a cycle!):
 		//
 		//   If safety checks are enabled, then we initially record
 		//   the edge as non-deterministic until we have confirmed
 		//   that it causes no problems.
-		Point fromImpl = (Point) from;
-		Point toImpl = (Point) to;
 		
 		if(!SAFETY_CHECKS) {
-			fromImpl.addEdgeAndAdjust(toImpl, NORMAL);
+			from.addEdgeAndAdjust(to, NORMAL);
 		} else {
 			// Really, these helper methods ought to be inlined,
 			// but they are separated to aid in testing. 
-			optimisticallyAddEdge(fromImpl, toImpl);
-			checkForCycleAndRecover(fromImpl, toImpl);			
+			optimisticallyAddEdge(from, to);
+			checkForCycleAndRecover(from, to);			
 		}
 		
 		ExecutionLog.logEdge(from, to);
@@ -161,25 +161,25 @@ public class Intervals {
 	/** Helper method of {@link #addHb(Point, Point)}.
 	 *  Pulled apart for use with testing. */
 	static void optimisticallyAddEdge(
-			Point fromImpl,
-			Point toImpl) 
+			Point from,
+			Point to) 
 	{
 		// Note: the edge is considered speculative until we have
 		// verified that the resulting graph is acyclic.
-		fromImpl.addSpeculativeEdge(toImpl, NORMAL);
+		from.addSpeculativeEdge(to, NORMAL);
 	}
 	
 	/** Helper method of {@link #addHb(Point, Point)}.
 	 *  Pulled apart for use with testing. */
 	static void checkForCycleAndRecover(
-			Point fromImpl,
-			Point toImpl) 
+			Point from,
+			Point to) 
 	{
-		if(toImpl.hb(fromImpl, 0)) {
-			recoverFromCycle(fromImpl, toImpl);
-			throw new CycleException(fromImpl, toImpl);
+		if(to.hb(from, 0)) {
+			recoverFromCycle(from, to);
+			throw new CycleException(from, to);
 		} else {
-			fromImpl.confirmEdgeAndAdjust(toImpl, NORMAL);
+			from.confirmEdgeAndAdjust(to, NORMAL);
 		}
 	}
 
@@ -220,6 +220,11 @@ public class Intervals {
 		pnt.checkAndRethrowPendingException();
 	}
 	
+	public static <R> R subinterval(final SubintervalTask<R> task) 
+	{
+		return subinterval(null, task);
+	}
+	
 	/**
 	 * Creates a new interval which executes during the current interval.
 	 * This interval will execute {@code task}.  This function does not
@@ -229,16 +234,16 @@ public class Intervals {
 	 * wrapped in {@link RethrownException} and rethrown immediately.
 	 * Exceptions never propagate to the current interval.
 	 */
-	public static <R> R subinterval(final SubintervalTask<R> task) 
+	public static <R> R subinterval(String name, final SubintervalTask<R> task) 
 	{		
 		// This could be made more optimized, but it will do for now:
 		Current current = Current.get();
 		
 		SubintervalImpl<R> subinterval; 
 		if(current.mr != null) {
-			subinterval = current.mr.insertSubintervalAfter(current.inter, task);			
+			subinterval = current.mr.insertSubintervalAfter(name, current.inter, task);			
 		} else { // root interval in the very beginning:
-			subinterval = new SubintervalImpl<R>(null, Line.rootLine, null, task);
+			subinterval = new SubintervalImpl<R>(name, null, Line.rootLine, null, task);
 		}
 		
 		if(Debug.ENABLED)

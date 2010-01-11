@@ -5,8 +5,8 @@ final class SubintervalImpl<R> extends Interval {
 	SubintervalTask<R> task;
 	R result;
 	
-	SubintervalImpl(Interval superInterval, Line line, Point nextEpoch, SubintervalTask<R> task) {
-		super(superInterval, line, 0, 2, nextEpoch);
+	SubintervalImpl(String name, Interval superInterval, Line line, Point nextEpoch, SubintervalTask<R> task) {
+		super(name, superInterval, line, 0, 2, nextEpoch);
 		assert end.maskExceptions();
 		this.task = task;		
 	}

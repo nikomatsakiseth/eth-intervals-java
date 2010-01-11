@@ -28,7 +28,16 @@ implements Dependency, Guard
 	 *  be sure that {@link #start} does not occur. */
 	private LittleLinkedList<Interval> pendingChildIntervals = null;
 	
+	private String pntName(String prefix, String suffix) {
+		if(prefix == null) return null;
+		return prefix + suffix;
+	}
+	
 	public Interval(Dependency dep) {
+		this(dep, null);
+	}
+	
+	public Interval(Dependency dep, String name) {
 		Interval parent = dep.parentForNewInterval();
 		Current current = Current.get();
 		
@@ -41,7 +50,6 @@ implements Dependency, Guard
 			parentStart = null;
 			parentEnd = null;
 		}
-
 		
 		// Note: if this check passes, then no need to check for cycles 
 		// for the path from current.start->bnd.  This is because we require
@@ -55,8 +63,8 @@ implements Dependency, Guard
 		
 		this.parent = parent;
 		Line line = new Line(current, parentEnd);		
-		end = new Point(line, null, null, 2, this);
-		start = new Point(line, end, end, 2, this);		
+		end = new Point(name, line, null, null, 2, this);
+		start = new Point(name, line, end, end, 2, this);		
 		
 		current.addUnscheduled(this);
 		int expFromParent = (parent != null ? parent.addChildInterval(this) : 0);
@@ -71,11 +79,11 @@ implements Dependency, Guard
 		dep.addHbToNewInterval(this);		
 	}
 	
-	Interval(Interval parent, Line line, int startWaitCount, int endWaitCount, Point nextEpoch) {
+	Interval(String name, Interval parent, Line line, int startWaitCount, int endWaitCount, Point nextEpoch) {
 		assert line != null;
 		this.parent = parent;		
-		this.end = new Point(line, null, nextEpoch, endWaitCount, this);
-		this.start = new Point(line, end, end, startWaitCount, this);
+		this.end = new Point(name, line, null, nextEpoch, endWaitCount, this);
+		this.start = new Point(name, line, end, end, startWaitCount, this);
 		
 		if(nextEpoch != null)
 			nextEpoch.addWaitCount();
@@ -167,6 +175,11 @@ implements Dependency, Guard
 	final void didOccur(Point pnt, boolean hasPendingExceptions) {
 		assert pnt.didOccur();
 		if(pnt == start) {
+			// First awaken any children.
+			for(LittleLinkedList<Interval> pending = pendingChildIntervals; pending != null; pending = pending.next)
+				pending.value.start.arrive(1);
+			pendingChildIntervals = null;
+			
 			// After start point occurs, if no exceptions then run user task.
 			if(!hasPendingExceptions) Intervals.POOL.submit(this);
 			else end.arrive(1); // otherwise just signal the end point
@@ -193,10 +206,6 @@ implements Dependency, Guard
 	 * dependencies are satisfied).
 	 */
 	final void exec() {
-		for(LittleLinkedList<Interval> pending = pendingChildIntervals; pending != null; pending = pending.next)
-			pending.value.start.arrive(1);
-		pendingChildIntervals = null;
-		
 		Current cur = Current.push(this);
 		try {
 			try {

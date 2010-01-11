@@ -111,10 +111,20 @@ class Current {
 			throw new EdgeNeededException((inter != null ? inter.end : null), to);
 		}		
 	}
+	
+	void checkEdgeEndPointsProperlyBound(Point from, Point to) {
+		// An edge p->q is only permitted if q is bound by
+		// p's parent.  In other words, edges are permitted from
+		// high-level nodes down the tree, but not the other direction.		
+		if(from.line.depth <= 1 || to.isBoundedBy(from.line.bound))
+			return;
+		throw new MustBeBoundedByException(from.line.bound, to);
+	}
 
 	void checkCanAddHb(Point from, Point to) {
 		if(SAFETY_CHECKS) {
 			checkCanAddDep(to);
+			checkEdgeEndPointsProperlyBound(from, to);
 			checkCycle(from, to);
 		}
 	}

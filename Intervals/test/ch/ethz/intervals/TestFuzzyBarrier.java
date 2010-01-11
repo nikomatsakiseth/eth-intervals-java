@@ -17,28 +17,29 @@ public class TestFuzzyBarrier {
 	final Random R = new Random(66L);
 	
 	class Barrier extends SetupInterval {
-		private Interval parent;
+		private Interval allRounds;
 		private Interval thisRound;
 		private Interval nextRound;
+		int roundId = 0;
 		final List<Integer> list = Collections.synchronizedList(new ArrayList<Integer>());
 		int prevListSize = 0;
 		
 		public Barrier(Dependency dep) {
-			super(dep);
+			super(dep, "barrier");
 		}
 
 		@Override
 		public void setup(Point currentEnd, Interval worker) {
-			this.parent = worker;			
-			startRound(new EmptyInterval(parent, "round"));			
+			this.allRounds = worker;			
+			startRound(new EmptyInterval(allRounds, "round0"));			
 			for(int id = 0; id < N; id++)
 				new WorkerTask(thisRound, id, R.nextInt(MAX_COUNTER));
 		}
 		
 	    private void startRound(Interval inter) {
 	        thisRound = inter;
-	        Interval barrier = new BarrierTask(parent);
-	        nextRound = new EmptyInterval(parent, "round");
+	        Interval barrier = new BarrierTask(allRounds, ++roundId);
+	        nextRound = new EmptyInterval(allRounds, "round"+roundId);
 	       
 	        // thisRound.end -> barrier -> nextRound.start
 	        Intervals.addHb(thisRound.end, barrier.start);
@@ -47,8 +48,8 @@ public class TestFuzzyBarrier {
 	    
 	    class BarrierTask extends Interval {
 
-			public BarrierTask(Dependency dep) {
-				super(dep);
+			public BarrierTask(Dependency dep, int id) {
+				super(dep, "barrier"+id);
 			}
 
 			@Override
@@ -67,7 +68,7 @@ public class TestFuzzyBarrier {
 	    	public final int counter;
 	    	
 			public WorkerTask(Interval during, int id, int counter) {
-				super(during);
+				super(during, "worker["+id+"/"+roundId+"]");
 				this.id = id;
 				this.counter = counter;
 			}
@@ -75,7 +76,7 @@ public class TestFuzzyBarrier {
 	    	class FuzzyTask extends Interval {
 	    		
 				public FuzzyTask(Dependency dep, WorkerTask nextWorker) {
-					super(dep);
+					super(dep, "fuzzy"+id);
 					Intervals.addHb(end, nextWorker.start);
 				}
 
@@ -93,7 +94,7 @@ public class TestFuzzyBarrier {
 				list.add(id | (counter << 16));
 				if(counter > 0) {
 					new FuzzyTask(
-							parent, 
+							allRounds, 
 							new WorkerTask(nextRound, id, counter-1));
 				}
 			}
@@ -101,7 +102,7 @@ public class TestFuzzyBarrier {
 	}
 	
 	@Test public void doTest() {
-		Barrier b = Intervals.subinterval(new SubintervalTask<Barrier>() {
+		Barrier b = Intervals.subinterval("doTest", new SubintervalTask<Barrier>() {
 			public Barrier run(Interval subinterval) {
 				return new Barrier(subinterval);
 			}

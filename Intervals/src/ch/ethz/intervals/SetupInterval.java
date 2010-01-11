@@ -10,16 +10,20 @@ public abstract class SetupInterval extends Interval {
 		super(dep);
 	}
 
+	public SetupInterval(Dependency dep, String name) {
+		super(dep, name);
+	}
+
 	@Override
 	public void run() {
-		new Interval(this) {
+		new Interval(this, "setup") {
 			protected void run() {				
 				final Point setupEnd = end;
 				
 				class WorkerInterval extends Interval {
 					
 					public WorkerInterval() {
-						super(SetupInterval.this);
+						super(SetupInterval.this, "worker");
 						addHb(setupEnd, start);
 					}
 

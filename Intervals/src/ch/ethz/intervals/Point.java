@@ -20,6 +20,7 @@ final public class Point {
 	private static AtomicIntegerFieldUpdater<Point> waitCountUpdater =
 		AtomicIntegerFieldUpdater.newUpdater(Point.class, "waitCount");
 
+	final String name;							/** Possibly null */
 	final Line line;							/** Line on which the point resides. */	
 	final Point end;						  	/** if a start point, the paired end point.  otherwise, null. */
 	volatile Point nextEpoch;				  	/** next point on same line, if any. */
@@ -31,8 +32,9 @@ final public class Point {
 	private Set<Throwable> pendingExceptions; 	/** Exception(s) that occurred while executing the task or in some preceding point. */
 	private Interval interval;            	  	/** Interval which owns this point.  Set to {@code null} when the point occurs. */
 
-	Point(Line line, Point end, Point nextEpoch, int waitCount, Interval interval) {
+	Point(String name, Line line, Point end, Point nextEpoch, int waitCount, Interval interval) {
 		assert line != null && interval != null;
+		this.name = name;
 		this.line = line;
 		this.nextEpoch = nextEpoch;
 		this.end = end;
@@ -57,7 +59,7 @@ final public class Point {
 		return end == null;
 	}
 	
-	<R> SubintervalImpl<R> insertSubintervalAfter(Interval current, SubintervalTask<R> task) {
+	<R> SubintervalImpl<R> insertSubintervalAfter(String name, Interval current, SubintervalTask<R> task) {
 		// In the very beginning there are 2 points and we are point 0:
 		//    0----END
 		// When we are done there will be 4:
@@ -67,7 +69,7 @@ final public class Point {
 		// Where pre is the current span of time, sub is the subinterval,
 		// and post is the span of time after the subinterval.
 		assert didOccur() && ((current == null && line == Line.rootLine) || line == current.line());		
-		SubintervalImpl<R> subinter = new SubintervalImpl<R>(current, line, nextEpoch, task); 
+		SubintervalImpl<R> subinter = new SubintervalImpl<R>(name, current, line, nextEpoch, task); 
 		nextEpoch = subinter.start;		
 		return subinter;
 	}
@@ -88,6 +90,11 @@ final public class Point {
 	
 	@Override
 	public String toString() {
+		if(name != null)
+			if(isStartPoint())
+				return name + ".start";
+			else
+				return name + ".end";
 		return "Point("+System.identityHashCode(this)+")";
 	}
 	
@@ -468,6 +475,12 @@ final public class Point {
 			b = b.line.bound;
 		}
 		return bounds;
+	}
+
+	int numPendingExceptions() {
+		if(pendingExceptions == null)
+			return 0;
+		return pendingExceptions.size();
 	}
 
 }

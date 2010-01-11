@@ -283,110 +283,7 @@ public class TestInterval {
 		
 		new TestHarness().test();
 	}
-	
-	/**
-	 * Tests that uncaught exceptions propagate up to the parent, etc.
-	 */
-	@Test public void exceptionPropagatesToSuccessors() {
-		final AtomicInteger ctr = new AtomicInteger();
-		
-		class TestHarness {
-			public void test(final int length) {
-				// Complex system creates a dependency pattern like:
-				//
-				// * ----------------------------- sub0.end
-				//   * --------------------- sub1.end
-				//     * ---------------- sub2.end ^
-				//        link0 -> linkN ----------+
-				//
-				// The exception in link0 travels along to linkN, where
-				// it escapes to end1.
-				Intervals.subinterval(new VoidSubinterval() {
-					public void run(final Interval sub0) {
-						System.err.printf("end0=%s\n", sub0.end);
-						try {
-							Intervals.subinterval(new VoidSubinterval() {
-								Interval link0, linkN;
-								
-								public void run(final Interval sub1) {
-									try {
-										System.err.printf("end1=%s\n", sub1.end);
-										Intervals.subinterval(new VoidSubinterval() {
-											public void run(final Interval sub2) {
-												System.err.printf("end2=%s\n", sub2.end);
-												link0 = new ThrowExceptionTask(sub2);
-												System.err.printf("link0=%s\n", link0);
-												linkN = link0;
-												for(int i = 0; i < length; i++) {
-													linkN = new IncTask(sub2, ctr);
-													Intervals.addHb(link0.end, linkN.start);
-													System.err.printf("link%d=%s\n", (i+1), linkN);
-												}
-												Intervals.addHb(linkN.end, sub1.end);
-											}
-										});							
-										Assert.fail("No exception thrown!");
-									} catch (RethrownException e) {
-										Assert.assertTrue("Not subtype: "+e.getCause(), e.getCause() instanceof TestException);
-									}
 
-								}
-							});
-							
-							Assert.fail("No exception thrown!");
-						} catch (RethrownException e) {
-							Assert.assertTrue("Not subtype: "+e.getCause(), e.getCause() instanceof TestException);
-						}
-					}
-				});
-				
-				// The incTasks should be cancelled!				
-				Assert.assertEquals(0, ctr.get());
-			}
-		}
-		
-		for(int length = 5; length < 25; length++) {
-			new TestHarness().test(length);
-		}
-	}
-	
-	@Test public void exceptionPropagatesEvenIfPointOccurred() {
-		Intervals.subinterval(new VoidSubinterval() {
-			Interval link0;
-			public void run(final Interval _) {			
-				try {
-					Intervals.subinterval(new VoidSubinterval() {
-						public void run(final Interval _) {			
-							link0 = new ThrowExceptionTask(Intervals.child());
-						}
-					});
-					Assert.fail("No exception thrown!");
-				} catch(RethrownException e) {					
-					Assert.assertTrue("Not subtype: "+e.getCause(), e.getCause() instanceof TestException);
-				}
-				
-				// At this stage, link0 points to a terminated interval 
-				// which has pending exceptions.  Now we add an outgoing
-				// end from link0.end to the end of a new blocking interval;
-				// this should cause the exceptions to be transmitted,
-				// even though link0.end already occurred.
-				
-				try {
-					Intervals.subinterval(new VoidSubinterval() {
-						public void run(final Interval subinterval) {			
-							Intervals.addHb(link0.end, subinterval.end);
-						}
-					});
-					Assert.fail("No exception thrown!");
-				} catch(RethrownException e) {					
-					Assert.assertTrue("Not subtype: "+e.getCause(), e.getCause() instanceof TestException);
-				}
-				
-			}
-		});
-	}
-
-	
 	@Test public void multipleExceptionsCollected() {
 		class TestHarness {
 			public void test(final int length) {
@@ -453,6 +350,25 @@ public class TestInterval {
 		final Interval a = new EmptyInterval(Intervals.root(), "a");
 		final Interval b = new EmptyInterval(a, "b");
 		Intervals.addHb(a.end, b.end);
+	}
+	
+	@Test
+	public void parentIntervalsWithUnexecutedChildrenCancelSafely() {
+		try {
+			Intervals.subinterval(new VoidSubinterval() {				
+				@Override public void run(Interval subinterval) {
+					Interval thr = new ThrowExceptionTask(subinterval);
+					
+					Interval foo = new EmptyInterval(subinterval, "foo");
+					new EmptyInterval(foo, "bar");
+					
+					Intervals.addHb(thr.end, foo.start);
+				}
+			});
+			Assert.fail("Never threw error!");
+		} catch (RethrownException e) {
+			Assert.assertTrue(e.getCause() instanceof TestException);
+		}
 	}
 	
 	@Test 
