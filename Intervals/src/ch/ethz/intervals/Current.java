@@ -89,11 +89,11 @@ class Current {
 	}
 
 	private void scheduleUnchecked(Interval p) {
-		assert p.line.isUnscheduled(this);
+		assert p.line().isUnscheduled(this);
 		
 		ExecutionLog.logScheduleInterval(p);
 		
-		p.line.clearUnscheduled();
+		p.line().clearUnscheduled();
 		p.start.arrive(1);
 	}
 

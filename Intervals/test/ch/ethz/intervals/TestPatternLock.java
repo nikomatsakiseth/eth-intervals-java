@@ -51,8 +51,8 @@ public class TestPatternLock {
 						Interval l1 = (Interval) new DebugInterval(b, ("l1"));
 						Interval l2 = (Interval) new DebugInterval(b, ("l2"));
 						
-						Intervals.exclusiveLock(l1, l);
-						Intervals.exclusiveLock(l2, l);
+						Intervals.addExclusiveLock(l1, l);
+						Intervals.addExclusiveLock(l2, l);
 						
 						System.out.printf("a=%s b=%s c=%s b1=%s b11=%s b2=%s l1=%s l2=%s setup.end=%s, worker=%s\n", 
 								a, b, c, b1, b11, b2, l1, l2, setupEnd, worker);					

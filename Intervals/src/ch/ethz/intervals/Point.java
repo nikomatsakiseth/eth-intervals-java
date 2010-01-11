@@ -1,6 +1,5 @@
 package ch.ethz.intervals;
 
-import static ch.ethz.intervals.EdgeList.NONDETERMINISTIC;
 import static ch.ethz.intervals.EdgeList.SPECULATIVE;
 import static ch.ethz.intervals.EdgeList.WAITING;
 import static ch.ethz.intervals.EdgeList.speculative;
@@ -16,40 +15,29 @@ import ch.ethz.intervals.ThreadPool.Worker;
 
 final public class Point {
 	
-	public static final int END_EPOCH = Integer.MAX_VALUE;
-	
-	public static final int OCCURRED = -1;	
-	
-	public static final int initialWaitCount = Integer.MAX_VALUE;
+	public static final int OCCURRED = -1;		/** Value of {@link #waitCount} once we have occurred */
 	
 	private static AtomicIntegerFieldUpdater<Point> waitCountUpdater =
 		AtomicIntegerFieldUpdater.newUpdater(Point.class, "waitCount");
 
-	static final int NO_POINT_FLAGS = 0;
-
-	/** If set, then we must acquire locks for {@link #line} before occurring. */
-	static final int FLAG_ACQUIRE_LOCKS = 2;
-
-	final Line line;
+	final Line line;							/** Line on which the point resides. */	
+	final Point end;						  	/** if a start point, the paired end point.  otherwise, null. */
+	volatile Point nextEpoch;				  	/** next point on same line, if any. */
 	
-	final Point end;
-	/*private*/ volatile Point nextEpoch;
-	
-	private EdgeList outEdges;                /** Linked list of outgoing edges from this point. */
-	private volatile int waitCount;           /** Number of preceding points that have not arrived.  
-	                                              Set to {@link #OCCURRED} when this has occurred. 
-	                                              Modified only through {@link #waitCountUpdater}. */
-	private Set<Throwable> pendingExceptions; /** Exception(s) that occurred while executing the task or in some preceding point. */
-	private int flags;                  	  /** Flags (see integer constants like {@link #FLAG_ACQUIRE_LOCKS}) */
-	private Interval workItem;            	  /** Work to schedule when we occur (if any) */
+	private EdgeList outEdges;                	/** Linked list of outgoing edges from this point. */
+	private volatile int waitCount;           	/** Number of preceding points that have not arrived.  
+	                                              	Set to {@link #OCCURRED} when this has occurred. 
+	                                              	Modified only through {@link #waitCountUpdater}. */
+	private Set<Throwable> pendingExceptions; 	/** Exception(s) that occurred while executing the task or in some preceding point. */
+	private Interval interval;            	  	/** Interval which owns this point.  Set to {@code null} when the point occurs. */
 
-	Point(Line line, Point end, Point nextEpoch, int flags, int waitCount, Interval workItem) {
+	Point(Line line, Point end, Point nextEpoch, int waitCount, Interval interval) {
+		assert line != null && interval != null;
 		this.line = line;
 		this.nextEpoch = nextEpoch;
 		this.end = end;
-		this.flags = flags;
 		this.waitCount = waitCount;
-		this.workItem = workItem;
+		this.interval = interval;
 	}
 	
 	boolean maskExceptions() {
@@ -78,18 +66,10 @@ final public class Point {
 		//     pre  sub  post
 		// Where pre is the current span of time, sub is the subinterval,
 		// and post is the span of time after the subinterval.
-		assert didOccur();
-		
-		if(nextEpoch != null) {
-			assert nextEpoch.isEndPoint();
-			nextEpoch.addWaitCount();
-		}
-		
-		Point subEnd = new Point(line, null, nextEpoch, NO_POINT_FLAGS, 2, null);
-		Point subStart = new Point(line, subEnd, subEnd, NO_POINT_FLAGS, 0, null);
-		nextEpoch = subStart;
-		
-		return new SubintervalImpl<R>(current, subStart, subEnd, task);
+		assert didOccur() && ((current == null && line == Line.rootLine) || line == current.line());		
+		SubintervalImpl<R> subinter = new SubintervalImpl<R>(current, line, nextEpoch, task); 
+		nextEpoch = subinter.start;		
+		return subinter;
 	}
 	
 	synchronized EdgeList outEdgesSync() {
@@ -108,7 +88,7 @@ final public class Point {
 	
 	@Override
 	public String toString() {
-		return "Point("+System.identityHashCode(this)+"/"+line+")";
+		return "Point("+System.identityHashCode(this)+")";
 	}
 	
 	public Point mutualBound(Point j) {
@@ -146,7 +126,7 @@ final public class Point {
 
 	/** Returns true if {@code this} <i>happens before</i> {@code p} */
 	public boolean hb(final Point p) {
-		return hb(p, NONDETERMINISTIC | SPECULATIVE);
+		return hb(p, SPECULATIVE);
 	}
 	
 	/** Returns true if {@code this == p} or {@code this} <i>happens before</i> {@code p} */
@@ -236,19 +216,8 @@ final public class Point {
 		
 		assert newCount >= 0;
 		if(newCount == 0 && cnt != 0)
-			if(!acquirePendingLocks())
+			if(interval.willOccur(this, (pendingExceptions != null)))
 				occur();
-	}
-	
-	/** Invoked when the wait count is zero.  Attempts to
-	 *  acquire pending locks if needed.  Returns true if
-	 *  the caller should wait. */
-	private boolean acquirePendingLocks() {
-		if((flags & FLAG_ACQUIRE_LOCKS) != 0) {
-			flags &= ~FLAG_ACQUIRE_LOCKS;
-			return this.workItem.acquirePendingLocks();
-		} else
-			return false;
 	}
 	
 	/** Invoked when the wait count is zero and all pending locks
@@ -287,10 +256,8 @@ final public class Point {
 		else
 			notifyRootEnd();
 		
-		if(workItem != null) {
-			workItem.fork((pendingExceptions != null));
-			workItem = null;
-		}		
+		interval.didOccur(this, (pendingExceptions != null));
+		interval = null;
 	}
 	
 	private void notifyRootEnd() {

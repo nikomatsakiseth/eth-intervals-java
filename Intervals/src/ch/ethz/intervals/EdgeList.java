@@ -4,18 +4,13 @@ class EdgeList implements Cloneable {
 	
 	// Flags for edges:
 	public static final int NORMAL = 0;               /** A user-created, confirmed edge. */   
-	static public final int NONDETERMINISTIC = 1;     /** May not exist on every program run. */
-	static public final int SPECULATIVE = 2;          /** Not yet confirmed. */
-	static public final int WAITING = 4;              /** Waiting for point to occur. */
-	static public final int CNT_FLAGS = 3;            /** Number of flags. */
+	static public final int SPECULATIVE = 1;          /** Not yet confirmed. */
+	static public final int WAITING = 2;              /** Waiting for point to occur. */
+	static public final int CNT_FLAGS = 2;            /** Number of flags. */
 	static public final int ALL_FLAGS = (1 << CNT_FLAGS) - 1; /** Union of all flags. */
 
 	static public final boolean speculative(int flags) {
 		return (flags & SPECULATIVE) != 0;
-	}
-	
-	static public final boolean nondeterministic(int flags) {
-		return (flags & NONDETERMINISTIC) != 0;
 	}
 	
 	static public final boolean waiting(int flags) {
@@ -55,14 +50,14 @@ class EdgeList implements Cloneable {
 			return false;
 		}
 	}
-	
+			
 	public static EdgeList add(EdgeList list, Point toPoint, int toFlags) {
 		assert (toFlags & ALL_FLAGS) == toFlags; // No extra bits.
 		if(list != null && list.add(toPoint, toFlags))
 			return list;
 		return new EdgeList(toPoint, toFlags, list);		
 	}
-
+	
 	public static void remove(EdgeList list, Point toImpl) {
 		for(; list != null; list = list.next) {
 			if(list.toPoint0 == toImpl) {
@@ -157,6 +152,5 @@ class EdgeList implements Cloneable {
 			return false;
 		}
 	}
-		
-	
+
 }

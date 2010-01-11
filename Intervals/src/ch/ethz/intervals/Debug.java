@@ -13,9 +13,9 @@ class Debug {
 	public static final boolean ENABLED = false;
 	public static final boolean DUMP_IMMEDIATELY = true;
 	
-	public static final boolean ENABLED_LOCK = true;        /** Debug statements related to locks. */
-	public static final boolean ENABLED_WAIT_COUNTS = true; /** Debug statements related to wait counts. */
-	public static final boolean ENABLED_INTER = true;       /** Debug statements related to higher-level interval control-flow */
+	public static final boolean ENABLED_LOCK = true;         /** Debug statements related to locks. */
+	public static final boolean ENABLED_WAIT_COUNTS = true;	 /** Debug statements related to wait counts. */
+	public static final boolean ENABLED_INTER = false;       /** Debug statements related to higher-level interval control-flow */
 	public static final boolean ENABLED_WORK_STEAL = false;  /** Debug statements related to the work-stealing queue */
 	
 	public static List<Event> events = Collections.synchronizedList(new ArrayList<Event>());
@@ -416,60 +416,79 @@ class Debug {
 		if(ENABLED_WAIT_COUNTS)
 			addEvent(new ExecuteEvent(worker, item, started));
 	}
-
-	static class AddExclusiveEvent extends Event {
-		public final Lock lock;
-		public final Point prevOwner;
-		public final Point newOwner;
+	
+	static class AcquireLockEvent extends Event {
+		public final LockBase lockBase;
+		public final LockList acq;
 		
-		public AddExclusiveEvent(
-				Lock lock, 
-				Point prevOwner,
-				Point newOwner) 
-		{
-			super();
-			this.lock = lock;
-			this.prevOwner = prevOwner;
-			this.newOwner = newOwner;
+		public AcquireLockEvent(LockBase lockBase, LockList acq) {
+			this.lockBase = lockBase;
+			this.acq = acq;
 		}
 
 		public String toString() {
-			return String.format("LOCK_EXCLUSIVE %s prevOwner=%s newOwner=%s-%s", lock, prevOwner, newOwner, newOwner.nextEpochOrBound());
+			return String.format("ACQUIRE_LOCK %s lockList=%s", lockBase, acq);
 		}
 	}
-	
-	public static void exclusiveLock(Lock lock, Point prevOwner, Point newOwner) {
+
+	public static void acquireLock(LockBase lockBase, LockList acq) {
 		if(ENABLED_LOCK)
-			addEvent(new AddExclusiveEvent(lock, prevOwner, newOwner));
+			addEvent(new AcquireLockEvent(lockBase, acq));
 	}
 
-	static class AddSharedEvent extends Event {
-		public final Lock lock;
-		public final Point prevOwner;
-		public final Point readInterval;
-		public final Point inter;
+	static class QueueForLockEvent extends Event {
+		public final LockBase lockBase;
+		public final LockList acq;
 		
-		public AddSharedEvent(Lock lock, Point prevOwner,
-				Point readInterval, Point inter) {
-			super();
-			this.lock = lock;
-			this.prevOwner = prevOwner;
-			this.readInterval = readInterval;
-			this.inter = inter;
+		public QueueForLockEvent(LockBase lockBase, LockList acq) {
+			this.lockBase = lockBase;
+			this.acq = acq;
 		}
 
 		public String toString() {
-			return String.format("LOCK_SHARED %s prevOwner=%s readInterval=%s inter=%s", lock, prevOwner, readInterval, inter);
+			return String.format("ENQUEUE_FOR_LOCK %s start=%s", lockBase, acq);
 		}
 	}
-	
-	public static void sharedLock(
-			Lock lock, 
-			Point prevOwner,
-			Point readInterval, 
-			Point inter) {
+
+	public static void enqueueForLock(LockBase lockBase, LockList acq) {
 		if(ENABLED_LOCK)
-			addEvent(new AddSharedEvent(lock, prevOwner, readInterval, inter));
+			addEvent(new QueueForLockEvent(lockBase, acq));
 	}
 
+	static class DequeueForLockEvent extends Event {
+		public final LockBase lockBase;
+		public final LockList acq;
+		
+		public DequeueForLockEvent(LockBase lockBase, LockList acq) {
+			this.lockBase = lockBase;
+			this.acq = acq;
+		}
+
+		public String toString() {
+			return String.format("DEQUEUE_FOR_LOCK %s start=%s", lockBase, acq);
+		}
+	}
+
+	public static void dequeueForLock(LockBase lockBase, LockList acq) {
+		if(ENABLED_LOCK)
+			addEvent(new DequeueForLockEvent(lockBase, acq));
+	}
+	
+	static class LockFreeEvent extends Event {
+		public final LockBase lockBase;
+		
+		public LockFreeEvent(LockBase lockBase) {
+			this.lockBase = lockBase;
+		}
+
+		public String toString() {
+			return String.format("LOCK_FREE lock=%s", lockBase);
+		}
+	}
+
+	public static void lockFree(LockBase lockBase) {
+		if(ENABLED_LOCK)
+			addEvent(new LockFreeEvent(lockBase));
+	}
+	
 }

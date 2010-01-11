@@ -1,30 +1,92 @@
 package ch.ethz.intervals;
 
-import static ch.ethz.intervals.EdgeList.NONDETERMINISTIC;
-
+/**
+ * A {@link LockBase} is a lockable object.  This includes both the
+ * {@link Lock} instances exposed to the end user, and the {@link LockList}
+ * instances that support recursive acquires.
+ */
 abstract class LockBase 
 {
-	private Point latestOwner;
+	/** True if we are locked. Access in synchronized only. */
+	private boolean locked;	
+	
+	/** linked list queue of people waiting for the lock.  
+	 *  We own a wait count on the {@link LockList#start} fields of 
+	 *  all entries in this queue.  Access in synchronized only. */
+	private LockList firstPending = null, lastPending = null;
 	
 	abstract protected Lock lock();
+	
+	public LockBase(boolean locked) {
+		this.locked = locked;
+	}
 
 	/**
-	 * Adds dependencies to {@code startPnt} so that it will wait
-	 * to execute until the previous exclusive owner has finished.
-	 * The next owner may acquire the lock once {@code startPnt.bound}
-	 * has occurred.
+	 * If the lock is available, obtain it.  Otherwise,
+	 * enqueue {@code acq}, adjusting its wait count
+	 * appropriately.  Returns the number of
+	 * arrivals that {@code acq.start} can expect
+	 * (i.e., 0 if the lock was taken, 1 if not)
 	 */
-	final void addExclusive(Point startPnt, Point endPnt) {
-		Point prevOwner;
+	final int tryAndEnqueue(LockList acq) {
+		assert acq.nextPending == null && acq.acquiredLock == null;
+		acq.acquiredLock = this;
+		
 		synchronized(this) {
-			prevOwner = latestOwner;
-			latestOwner = endPnt;
+			if(!locked) { // Available.  Go to locked state.
+				if(Debug.ENABLED)
+					Debug.acquireLock(this, acq);
+				
+				locked = true;
+				return 0;
+			} else { // Already locked.  Enqueue 'acq'.
+				if(Debug.ENABLED)
+					Debug.enqueueForLock(this, acq);
+				
+				acq.inter.start.addWaitCount();
+				if (firstPending == null) {
+					firstPending = lastPending = acq;
+				} else {
+					lastPending.nextPending = acq;
+					lastPending = acq;					
+				}
+				return 1;
+			} 
+		}
+	}
+	
+	final void unlockThis() {		
+		LockList newOwner;
+		
+		synchronized(this) {
+			assert locked;
+			
+			// Check if anyone is pending.
+			newOwner = firstPending;
+			if(newOwner == null) { // No.  Clear locked flag.
+				assert lastPending == null;
+				locked = false;
+				
+				if(Debug.ENABLED)
+					Debug.lockFree(this);
+				
+				return;
+			} 
+			
+			// Yes.  Stay locked and remove newOwner from queue.
+			if(newOwner == lastPending) { // They were last.  Queue now empty.
+				assert newOwner.nextPending == null;
+				firstPending = lastPending = null;
+			} else { // More people waiting.
+				firstPending = newOwner.nextPending;
+			} 
 		}
 		
 		if(Debug.ENABLED)
-			Debug.exclusiveLock(lock(), prevOwner, startPnt);
+			Debug.dequeueForLock(this, newOwner);
 		
-		if(prevOwner != null)
-			prevOwner.addEdgeAndAdjust(startPnt, NONDETERMINISTIC);
+		// If we get here, we dequeued newOwner.  Wake them up.
+		newOwner.nextPending = null;
+		newOwner.inter.start.arrive(1);			
 	}
 }

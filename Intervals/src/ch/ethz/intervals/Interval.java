@@ -1,8 +1,6 @@
 package ch.ethz.intervals;
 
 import static ch.ethz.intervals.EdgeList.NORMAL;
-import static ch.ethz.intervals.Point.FLAG_ACQUIRE_LOCKS;
-import static ch.ethz.intervals.Point.NO_POINT_FLAGS;
 import ch.ethz.intervals.ThreadPool.Worker;
 import ch.ethz.intervals.quals.Requires;
 import ch.ethz.intervals.quals.Subinterval;
@@ -17,11 +15,17 @@ implements Dependency, Guard
 	public final Point start;
 	public final Point end;
 	
-	final Line line;
-	
-	Interval nextUnscheduled; /** @see Current#unscheduled */
+	/** @see Current#unscheduled */
+	Interval nextUnscheduled;
 
+	/** Linked list of locks to acquire before executing.  Modified only when
+	 *  synchronized, but once start point occurs can now longer be modified,
+	 *  so used without synchronization in methods that must happen after start. */
 	private LockList locks;
+	
+	/** Any child intervals created before {@link #start} has occurred are
+	 *  added to this list.  Must lock {@link #start} when modifying to 
+	 *  be sure that {@link #start} does not occur. */
 	private LittleLinkedList<Interval> pendingChildIntervals = null;
 	
 	public Interval(Dependency dep) {
@@ -50,9 +54,9 @@ implements Dependency, Guard
 		if(parentEnd != null) current.checkCanAddDep(parentEnd);	
 		
 		this.parent = parent;
-		line = new Line(current, parentEnd);		
-		end = new Point(line, null, null, NO_POINT_FLAGS, 2, null);
-		start = new Point(line, end, end, FLAG_ACQUIRE_LOCKS, 2, this);		
+		Line line = new Line(current, parentEnd);		
+		end = new Point(line, null, null, 2, this);
+		start = new Point(line, end, end, 2, this);		
 		
 		current.addUnscheduled(this);
 		int expFromParent = (parent != null ? parent.addChildInterval(this) : 0);
@@ -67,12 +71,18 @@ implements Dependency, Guard
 		dep.addHbToNewInterval(this);		
 	}
 	
-	Interval(Interval parent, Point start, Point end) {
-		assert start != null && end != null && start.line == end.line;
-		this.parent = parent;
-		this.line = start.line;
-		this.start = start;
-		this.end = end;
+	Interval(Interval parent, Line line, int startWaitCount, int endWaitCount, Point nextEpoch) {
+		assert line != null;
+		this.parent = parent;		
+		this.end = new Point(line, null, nextEpoch, endWaitCount, this);
+		this.start = new Point(line, end, end, startWaitCount, this);
+		
+		if(nextEpoch != null)
+			nextEpoch.addWaitCount();
+	}
+	
+	Line line() {
+		return end.line;
 	}
 	
 	int addChildInterval(Interval inter) {
@@ -89,8 +99,8 @@ implements Dependency, Guard
 	}
 	
 	/** Note: Safety checks apply!  See {@link Current#checkCanAddDep(Point)} */ 
-	void addLock(Lock lock, boolean exclusive) {
-		LockList list = new LockList(lock, exclusive, null);
+	void addExclusiveLock(Lock lock) {
+		LockList list = new LockList(this, lock, null);
 		synchronized(this) {
 			list.next = locks;
 			locks = list;
@@ -105,39 +115,38 @@ implements Dependency, Guard
 		return locks;
 	}
 	
-	/**
-	 * Invoked by {@link #start} when all HB dependencies are resolved.
-	 * Returns true if the caller should wait for locks to be acquired,
-	 * or false if they are all acquired upon return.
-	 */
-	boolean acquirePendingLocks() {		
-		// It is safe to use an unsynchronized read here, because any modification
-		// to this list must have been during some interval which HB the start point.
-		LockList lock = locksUnsync();
-		if(lock != null) {
-			start.addWaitCountUnsync(1); // sync not needed here, all pred. arrived
-			for(; lock != null; lock = lock.next)
-				acquireLock(lock.exclusive, lock.lock);
-			start.arrive(1); // now we may have pred. again, need sync
-			return true;
-		} else
-			return false;
+	/** Invoked when the wait count of {@code point} reaches zero. 
+	 *  If it returns {@code true}, then the point should occur.
+	 *  Otherwise, if it returns false, new dependencies have been added and 
+	 *  the point should not occur yet.  */
+	boolean willOccur(Point point, boolean hasPendingExceptions) {
+		if(point == start && !hasPendingExceptions) {
+			// It is safe to use an unsynchronized read here, because any modification
+			// to this list must have been during some interval which HB the start point.
+			LockList lockList = locksUnsync();
+			if(lockList != null && lockList.acquiredLock == null) {
+				start.addWaitCountUnsync(1); // sync not needed here, all pred. arrived
+				for(; lockList != null; lockList = lockList.next)
+					acquireLock(lockList);
+				start.arrive(1); // now we may have pred. again, need sync
+				return false;
+			} 
+		}
+		
+		return true;
 	}
 
-	private void acquireLock(boolean exclusive, Lock lock) {
-		assert exclusive;
-		
+	private int acquireLock(LockList thisLockList) {
 		// First check whether we are recursively acquiring this lock:
 		for(Interval ancestor = parent; ancestor != null; ancestor = ancestor.parent) {
-			for(LockList lockList = ancestor.locksUnsync(); lockList != null; lockList = lockList.next)
-				if(lockList.lock == lock) {
-					lockList.addExclusive(start, end);
-					return;
+			for(LockList ancLockList = ancestor.locksUnsync(); ancLockList != null; ancLockList = ancLockList.next)
+				if(ancLockList.lock == thisLockList.lock) {
+					return ancLockList.tryAndEnqueue(thisLockList);
 				}
 		}
 		
 		// If not:
-		lock.addExclusive(start, end);							
+		return thisLockList.lock.tryAndEnqueue(thisLockList);							
 	}
 
 	/**
@@ -154,12 +163,18 @@ implements Dependency, Guard
 	 * signals {@link #end} that we have completed (the {@code #exec(Worker)}
 	 * method should only be run if there were no pending exceptions).  
 	 *  
-	 * @param exceptionsPending true if the start point has exceptions pending */
-	final void fork(boolean exceptionsPending) {
-		if(!exceptionsPending) {
-			Intervals.POOL.submit(this);
+	 * @param hasPendingExceptions true if the start point has exceptions pending */
+	final void didOccur(Point pnt, boolean hasPendingExceptions) {
+		assert pnt.didOccur();
+		if(pnt == start) {
+			// After start point occurs, if no exceptions then run user task.
+			if(!hasPendingExceptions) Intervals.POOL.submit(this);
+			else end.arrive(1); // otherwise just signal the end point
 		} else {
-			end.arrive(1);
+			// After end point occurs, release any locks we acquired.
+			assert pnt == end;
+			for(LockList lock = locksUnsync(); lock != null; lock = lock.next)
+				lock.unlockAcquiredLock();
 		}
 	}
 	
@@ -190,6 +205,12 @@ implements Dependency, Guard
 				} catch(Throwable t) {
 					end.addPendingException(t);
 				}
+
+				// n.b.: This does not release the locks we acquired.  It releases the *recursive*
+				// versions of those locks, so that our subintervals can now acquire them!
+				// The locks themselves are released to non-subintervals in didOccur() after end occurs. 
+				for(LockList lockList = this.locks; lockList != null; lockList = lockList.next)
+					lockList.unlockThis();
 
 				cur.schedule();				
 				end.arrive(1);
@@ -222,7 +243,7 @@ implements Dependency, Guard
 	 * Returns the bounding point of this interval.
 	 */
 	public final Point bound() {
-		return line.bound;
+		return end.line.bound;
 	}
 	
 	/**
@@ -256,7 +277,7 @@ implements Dependency, Guard
 	@Override
 	public final boolean isReadable() {
 		Current current = Current.get();
-		return current.inter.line == line || (
+		return current.inter.line() == line() || (
 				current.mr != null && end.hb(current.mr));
 	}
 
@@ -268,7 +289,7 @@ implements Dependency, Guard
 	@Override
 	public final boolean isWritable() {
 		Current current = Current.get();
-		return current.inter.line == line;
+		return current.inter.line() == line();
 	}
 	
 	/**
@@ -279,6 +300,10 @@ implements Dependency, Guard
 		for(LockList ll = locksSync(); ll != null; ll = ll.next)
 			if(ll.lock == lock)
 				return true;
+		
+		if(parent != null && parent.line() == line())
+			return parent.holdsLock(lock);
+		
 		return false;
 	}
 

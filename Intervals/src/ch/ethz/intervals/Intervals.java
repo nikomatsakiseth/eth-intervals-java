@@ -194,11 +194,11 @@ public class Intervals {
 	 *  an exclusive lock on {@code guard}.  The lock will be automatically
 	 *  acquired sometime before {@code interval.start} and release
 	 *  sometime after {@code interval.end}. */
-	public static void exclusiveLock(Interval interval, Lock lock) {
+	public static void addExclusiveLock(Interval interval, Lock lock) {
 		if(interval != null && lock != null) {
 			Current current = Current.get();
 			current.checkCanAddDep(interval.start);
-			interval.addLock(lock, true);
+			interval.addExclusiveLock(lock);
 		}
 	}
 
@@ -235,20 +235,16 @@ public class Intervals {
 		Current current = Current.get();
 		
 		SubintervalImpl<R> subinterval; 
-		if(current.mr != null) {		
+		if(current.mr != null) {
 			subinterval = current.mr.insertSubintervalAfter(current.inter, task);			
-		} else {
-			// Root interval:
-			Point subEnd = new Point(Line.rootLine, null, null, Point.NO_POINT_FLAGS, 2, null);
-			Point subStart = new Point(Line.rootLine, subEnd, subEnd, Point.NO_POINT_FLAGS, 0, null);
-			subinterval = new SubintervalImpl<R>(null, subStart, subEnd, task);
+		} else { // root interval in the very beginning:
+			subinterval = new SubintervalImpl<R>(null, Line.rootLine, null, task);
 		}
 		
 		if(Debug.ENABLED)
 			Debug.subInterval(subinterval, task.toString());		
 		subinterval.start.occur();
 		assert subinterval.start.didOccur();
-		subinterval.exec();
 		try {
 			join(subinterval.end); // may throw an exception
 			return subinterval.result;
