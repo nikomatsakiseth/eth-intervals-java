@@ -262,7 +262,7 @@ final public class Point {
 	
 	private void notifyRootEnd() {
 		// what should we do if an exception is never caught?
-		if(pendingExceptions != null) {
+		if(pendingExceptions != null && !maskExceptions()) {
 			for(Throwable t : pendingExceptions)
 				t.printStackTrace();
 		}
