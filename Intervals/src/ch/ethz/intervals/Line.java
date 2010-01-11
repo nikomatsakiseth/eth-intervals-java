@@ -11,24 +11,23 @@ package ch.ethz.intervals;
  * then they will only keep successors of that object alive.  
  */
 final class Line {
-	final Point bound;
+	static final Line rootLine = new Line(null, null);
+	
+	final Point bound;                /** {@code null} means root.end */
 	final int depth;                  /** Depth in line tree. */
 	
 	private Current unscheduled;
 
-	private Line() {
+	Line() { // the root line
+		this.unscheduled = null;
 		this.bound = null;
 		this.depth = 0;
 	}
-	
-	static Line rootLine() {
-		return new Line();
-	}
-	
+
 	Line(Current unscheduled, Point bound) {
 		this.unscheduled = unscheduled;
 		this.bound = bound;
-		this.depth = bound.line.depth + 1;
+		this.depth = (bound == null ? 1 : bound.line.depth + 1);
 	}
 
 	boolean isUnscheduled(Current current) {

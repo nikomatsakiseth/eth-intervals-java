@@ -4,12 +4,11 @@ import static ch.ethz.intervals.Intervals.SAFETY_CHECKS;
 
 class Current {
 	
-	private static Current root = new Current(null, Intervals.rootInter);
 	private static ThreadLocal<Current> local = new ThreadLocal<Current>() {
 
 		@Override
 		protected Current initialValue() {
-			return root;
+			return new Current();
 		}
 		
 	};
@@ -26,23 +25,27 @@ class Current {
 	}
 	
 	final Current prev;           /** Previous Current on stack. */
-	final Interval inter;         /** Smallest containing interval. */
-	Point start;                  /** Most recent point on inter.line that occurred. Not always inter.start! */
-	final Point end;              /** Always inter.end.      */
+	final Interval inter;         /** Smallest containing interval. {@code null} if root. */
+	Point mr;                  	  /** Most recent point on inter.line that occurred. Not always inter.start! May be {@code null} if root. */
 	private Interval unscheduled; /** Linked list of unscheduled intervals. */
+	
+	private Current() {
+		this.prev = null;
+		this.inter = null;
+		this.mr = null;
+		this.unscheduled = null;
+	}
 
 	Current(Current prev, Interval inter) {
 		assert inter != null && inter.start.didOccur();
 		this.prev = prev;
 		this.inter = inter;
-		this.start = inter.start;
-		this.end = inter.end;
+		this.mr = inter.start;
 	}
 	
-	void updateStart(Point start) {
-		assert start.didOccur();
-		assert start.nextEpochOrBound() == end;
-		this.start = start;
+	void updateMostRecent(Point mr) {
+		assert mr.didOccur();
+		this.mr = mr;
 	}
 	
 	void addUnscheduled(Interval interval) {
@@ -101,13 +104,11 @@ class Current {
 
 	void checkCanAddDep(Point to) {		
 		if(SAFETY_CHECKS) {
-			if(end == to)
-				return;
 			if(isUnscheduled((Point) to))
 				return;
-			if(end.hb(to))
+			if(inter != null && (inter.end.hbeq(to)))
 				return;
-			throw new EdgeNeededException(end, to);
+			throw new EdgeNeededException((inter != null ? inter.end : null), to);
 		}		
 	}
 

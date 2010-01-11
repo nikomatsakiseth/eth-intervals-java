@@ -54,17 +54,19 @@ final public class Point {
 	
 	boolean maskExceptions() {
 		// The end of any subinterval masks exceptions
-		return (end == null && nextEpoch != null);
+		return isEndPoint() && (nextEpoch != null || line == Line.rootLine);
 	}
 	
-	private <R> SubintervalImpl<R> insertSubintervalBefore(Interval current, SubintervalTask<R> task) {
-		// See insertSubintervalAfter() for details on the points we are
-		// creating.
-		assert !didOccur() && line == current.line;
-		addWaitCount();
-		Point subEnd = new Point(line, null, this, NO_POINT_FLAGS, 2, null);
-		Point subStart = new Point(line, subEnd, subEnd, NO_POINT_FLAGS, 0, null);
-		return new SubintervalImpl<R>(current, subStart, subEnd, task);
+	private boolean isStartPoint() {
+		return end != null;
+	}
+
+	private boolean isStartPointOf(Point anEnd) {
+		return end == anEnd;
+	}
+
+	private boolean isEndPoint() {
+		return end == null;
 	}
 	
 	<R> SubintervalImpl<R> insertSubintervalAfter(Interval current, SubintervalTask<R> task) {
@@ -77,9 +79,17 @@ final public class Point {
 		// Where pre is the current span of time, sub is the subinterval,
 		// and post is the span of time after the subinterval.
 		assert didOccur();
-		SubintervalImpl<R> subinter = nextEpoch.insertSubintervalBefore(current, task);
-		nextEpoch = subinter.start;
-		return subinter;
+		
+		if(nextEpoch != null) {
+			assert nextEpoch.isEndPoint();
+			nextEpoch.addWaitCount();
+		}
+		
+		Point subEnd = new Point(line, null, nextEpoch, NO_POINT_FLAGS, 2, null);
+		Point subStart = new Point(line, subEnd, subEnd, NO_POINT_FLAGS, 0, null);
+		nextEpoch = subStart;
+		
+		return new SubintervalImpl<R>(current, subStart, subEnd, task);
 	}
 	
 	synchronized EdgeList outEdgesSync() {
@@ -94,10 +104,6 @@ final public class Point {
 		Point nextEpoch = this.nextEpoch;
 		if(nextEpoch != null) return nextEpoch;
 		return line.bound;
-	}
-	
-	boolean isRootEnd() {
-		return nextEpochOrBound() == null;
 	}
 	
 	@Override
@@ -248,7 +254,6 @@ final public class Point {
 	/** Invoked when the wait count is zero and all pending locks
 	 *  are acquired. Each point occurs precisely once. */
 	final void occur() {
-		assert !isRootEnd();
 		assert waitCount == 0;
 		assert line.isScheduled();
 		
@@ -277,13 +282,23 @@ final public class Point {
 		};
 		if(nextEpoch != null)
 			notifySuccessor(nextEpoch, true);
-		else
+		else if (line.bound != null)
 			notifySuccessor(line.bound, true);
+		else
+			notifyRootEnd();
 		
 		if(workItem != null) {
 			workItem.fork((pendingExceptions != null));
 			workItem = null;
 		}		
+	}
+	
+	private void notifyRootEnd() {
+		// what should we do if an exception is never caught?
+		if(pendingExceptions != null) {
+			for(Throwable t : pendingExceptions)
+				t.printStackTrace();
+		}
 	}
 	
 	/** Takes the appropriate action to notify a successor {@code pnt}
@@ -362,18 +377,15 @@ final public class Point {
 	/** Adds {@code thr} to {@link #pendingExceptions} */
 	synchronized void addPendingException(Throwable thr) {
 		assert !didOccur() : "Cannot add a pending exception after pnt occurs!";
-		if(isRootEnd()) {
-			thr.printStackTrace();
+		
+		// Using a PSet<> would really be better here:
+		if(pendingExceptions == null)
+			pendingExceptions = Collections.singleton(thr);
+		else if(pendingExceptions.size() == 1) {
+			pendingExceptions = new HashSet<Throwable>(pendingExceptions);
+			pendingExceptions.add(thr);
 		} else {
-			// Using a PSet<> would really be better here:
-			if(pendingExceptions == null)
-				pendingExceptions = Collections.singleton(thr);
-			else if(pendingExceptions.size() == 1) {
-				pendingExceptions = new HashSet<Throwable>(pendingExceptions);
-				pendingExceptions.add(thr);
-			} else {
-				pendingExceptions.add(thr);
-			}
+			pendingExceptions.add(thr);
 		}
 	}
 

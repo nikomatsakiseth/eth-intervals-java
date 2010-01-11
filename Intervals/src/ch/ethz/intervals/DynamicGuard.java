@@ -33,13 +33,13 @@ public class DynamicGuard implements Guard {
 	@Override
 	public boolean isWritable() {		
 		Current current = Current.get();		
-		if(current.start == null)
+		if(current.mr == null)
 			return false;
-		return isWritableBy(current.start);
+		return isWritableBy(current.mr);
 	}
 
-	synchronized boolean isWritableBy(Point curStart) {
-		if(wr == curStart) return true; // shortcircuit repeated writes
+	synchronized boolean isWritableBy(Point mostRecent) {
+		if(wr == mostRecent) return true; // shortcircuit repeated writes
 		
 		switch(state) {
 		case INITIAL:
@@ -50,7 +50,7 @@ public class DynamicGuard implements Guard {
 			// Currently being written by interval starting at "wr".  Safe if either:
 			// * wr == curStart (we are the owner, checked above)
 			// * wr.nextEpoch hbeq curStart (writer has finished)
-			if(!wr.nextEpoch.hbeq(curStart, EdgeList.SPECULATIVE))
+			if(!wr.nextEpoch.hbeq(mostRecent, EdgeList.SPECULATIVE))
 				return false;
 			break;
 			
@@ -58,19 +58,19 @@ public class DynamicGuard implements Guard {
 			// Currently being read by interval starting at "rd". Safe if either:
 			// * rd is curStart (curStart was the reader, now becomes the writer)
 			// * rd.nextEpoch hbeq curStart (reader has finished)
-			if(rd != curStart && !rd.nextEpoch.hbeq(curStart, EdgeList.SPECULATIVE))
+			if(rd != mostRecent && !rd.nextEpoch.hbeq(mostRecent, EdgeList.SPECULATIVE))
 				return false;
 			break;
 		
 		case RD_SHARED:
 			// Currently being read by multiple intervals bounded by "rd".  Safe if:
 			// * rd hbeq curStart (all readers have finished)
-			if(!rd.hbeq(curStart, EdgeList.SPECULATIVE))
+			if(!rd.hbeq(mostRecent, EdgeList.SPECULATIVE))
 				return false;
 			break;
 		}		
 		
-		wr = curStart;
+		wr = mostRecent;
 		rd = null;
 		state = State.WR_OWNED_START;
 		return true;
@@ -79,17 +79,17 @@ public class DynamicGuard implements Guard {
 	@Override
 	public boolean isReadable() {
 		Current current = Current.get();		
-		if(current.start == null)
+		if(current.mr == null)
 			return false;		
-		return isReadableBy(current.start);
+		return isReadableBy(current.mr);
 	}
 	
-	synchronized boolean isReadableBy(Point curStart) {
+	synchronized boolean isReadableBy(Point mostRecent) {
 		switch(state) {
 		case INITIAL: 
 			// Not yet read or written.  Always safe, and we are the only writer.
 			state = State.RD_OWNED_START;
-			rd = curStart;
+			rd = mostRecent;
 			return true;
 		
 		case WR_OWNED_START: 
@@ -97,25 +97,25 @@ public class DynamicGuard implements Guard {
 			// * wr == curStart (being read by the writer)
 			// * wr.nextEpoch hbeq curStart (writer has finished)
 			// In the latter case, we become the Rd Owner.
-			if(wr == curStart) // Already Wr Owner.  Stay that way.
+			if(wr == mostRecent) // Already Wr Owner.  Stay that way.
 				return true;
-			if(!wr.nextEpoch.hbeq(curStart, EdgeList.SPECULATIVE))
+			if(!wr.nextEpoch.hbeq(mostRecent, EdgeList.SPECULATIVE))
 				return false;
 			
 			state = State.RD_OWNED_START;
-			rd = curStart;
+			rd = mostRecent;
 			return true;
 			
 		case RD_OWNED_START:
 			// Previously being read only by interval starting at rd.  Safe if:
 			// * rd == curStart (rd still rd owner)
 			// * (see twoReaders)			
-			if(rd == curStart) // Already Rd Owner.  Stay that way.
+			if(rd == mostRecent) // Already Rd Owner.  Stay that way.
 				return true;			
-			return twoReaders(curStart, rd.nextEpoch);
+			return twoReaders(mostRecent, rd.nextEpoch);
 			
 		case RD_SHARED:
-			return twoReaders(curStart, rd);
+			return twoReaders(mostRecent, rd);
 		}
 		assert false; // should never happen
 		return false;

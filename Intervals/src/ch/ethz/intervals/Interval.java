@@ -28,6 +28,17 @@ implements Dependency, Guard
 		Interval parent = dep.parentForNewInterval();
 		Current current = Current.get();
 		
+		// If parent == null, then direct child of root interval:
+		Point parentStart, parentEnd;
+		if(parent != null) {
+			parentStart = parent.start;
+			parentEnd = parent.end;
+		} else {
+			parentStart = null;
+			parentEnd = null;
+		}
+
+		
 		// Note: if this check passes, then no need to check for cycles 
 		// for the path from current.start->bnd.  This is because we require
 		// one of the following three conditions to be true, and in all three
@@ -36,20 +47,20 @@ implements Dependency, Guard
 		//     path current.start->bnd was already added.
 		// (2) Bound is current.end.  current.start->current.end.
 		// (3) A path exists from current.end -> bnd.  Same as (2).
-		current.checkCanAddDep(parent.end);	
+		if(parentEnd != null) current.checkCanAddDep(parentEnd);	
 		
 		this.parent = parent;
-		line = new Line(current, parent.end);		
+		line = new Line(current, parentEnd);		
 		end = new Point(line, null, null, NO_POINT_FLAGS, 2, null);
 		start = new Point(line, end, end, FLAG_ACQUIRE_LOCKS, 2, this);		
 		
 		current.addUnscheduled(this);
-		int expFromParent = parent.addChildInterval(this);
+		int expFromParent = (parent != null ? parent.addChildInterval(this) : 0);
 		if(expFromParent == 0) start.subWaitCountUnsync(1);
 				
-		if(current.start != parent.start) {
-			current.start.addEdgeAfterOccurredWithoutException(start, NORMAL);		
-			ExecutionLog.logNewInterval(current.start, start, end);
+		if(current.mr != parentStart) {
+			current.mr.addEdgeAfterOccurredWithoutException(start, NORMAL);		
+			ExecutionLog.logNewInterval(current.mr, start, end);
 		} else
 			ExecutionLog.logNewInterval(null, start, end);
 		
@@ -226,7 +237,7 @@ implements Dependency, Guard
 	public final boolean isReadable() {
 		Current current = Current.get();
 		return current.inter.line == line || (
-				current.start != null && end.hb(current.start));
+				current.mr != null && end.hb(current.mr));
 	}
 
 	/**

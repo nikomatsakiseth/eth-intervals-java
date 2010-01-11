@@ -12,13 +12,6 @@ public class Intervals {
 	 */
 	public static final boolean SAFETY_CHECKS = true;	
 
-	/** Final point of the program.  Never occurs until program ends. */
-	static final Line rootLine = Line.rootLine();
-	static final Point rootEnd = new Point(rootLine, null, null, NO_POINT_FLAGS, 1, null);
-	static final Point rootStart = new Point(rootLine, rootEnd, rootEnd, NO_POINT_FLAGS, Point.OCCURRED, null);
-	static final Interval rootInter = new EmptyInterval(null, rootStart, rootEnd, "root");
-	
-	
 	/** Shared thread pool that executes tasks. */
 	static final ThreadPool POOL = new ThreadPool();
 	
@@ -47,7 +40,7 @@ public class Intervals {
 	
 	public static Dependency successor() {
 		final Current current = Current.get();
-		if(current.inter.parent == null)
+		if(current.inter == null)
 			throw new NotInRootIntervalException();
 		return new Dependency() {			
 			@Override
@@ -57,7 +50,7 @@ public class Intervals {
 			
 			@Override
 			public void addHbToNewInterval(Interval inter) {	
-				Intervals.addHb(current.end, inter.start);
+				Intervals.addHb(current.inter.end, inter.start);
 			}
 		};		
 	}
@@ -242,7 +235,16 @@ public class Intervals {
 		// This could be made more optimized, but it will do for now:
 		Current current = Current.get();
 		
-		SubintervalImpl<R> subinterval = current.start.insertSubintervalAfter(current.inter, task);			
+		SubintervalImpl<R> subinterval; 
+		if(current.mr != null) {		
+			subinterval = current.mr.insertSubintervalAfter(current.inter, task);			
+		} else {
+			// Root interval:
+			Point subEnd = new Point(Line.rootLine, null, null, Point.NO_POINT_FLAGS, 2, null);
+			Point subStart = new Point(Line.rootLine, subEnd, subEnd, Point.NO_POINT_FLAGS, 0, null);
+			subinterval = new SubintervalImpl<R>(null, subStart, subEnd, task);
+		}
+		
 		if(Debug.ENABLED)
 			Debug.subInterval(subinterval, task.toString());		
 		subinterval.start.occur();
@@ -252,7 +254,7 @@ public class Intervals {
 			join(subinterval.end); // may throw an exception
 			return subinterval.result;
 		} finally {
-			current.updateStart(subinterval.end);			
+			current.updateMostRecent(subinterval.end);			
 		}
 	}		
 	
@@ -273,8 +275,17 @@ public class Intervals {
 	 * Returns the point which represents the end of the entire
 	 * computation.  This point will not occur until all other
 	 * points have occurred, and it is the only point without a bound. */
-	public static Point rootEnd() {
-		return rootEnd;
+	public static Dependency root() {
+		return new Dependency() {			
+			@Override
+			public Interval parentForNewInterval() {
+				return null;
+			}
+			
+			@Override
+			public void addHbToNewInterval(Interval inter) {
+			}
+		};
 	}
 
 }

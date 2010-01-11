@@ -301,7 +301,6 @@ public class TestInterval {
 				//
 				// The exception in link0 travels along to linkN, where
 				// it escapes to end1.
-				System.err.printf("ROOT_END=%s\n", Intervals.rootEnd);
 				Intervals.subinterval(new VoidSubinterval() {
 					public void run(final Interval sub0) {
 						System.err.printf("end0=%s\n", sub0.end);
@@ -413,58 +412,52 @@ public class TestInterval {
 		
 	@Test(expected=EdgeNeededException.class) 
 	public void raceConditionInBeforeGeneratesError1() {
-		final Interval a = new EmptyInterval(Intervals.rootInter, "a");
+		final Interval a = new EmptyInterval(Intervals.root(), "a");
 		Intervals.schedule();
-		Interval b = new EmptyInterval(Intervals.rootInter, "b");
+		Interval b = new EmptyInterval(Intervals.root(), "b");
 		Intervals.addHb(b.end, a.start);
 	}
 	
 	@Test(expected=EdgeNeededException.class) 
 	public void raceConditionInBeforeGeneratesError2() {
-		final Interval a = new EmptyInterval(Intervals.rootInter, "a");
+		final Interval a = new EmptyInterval(Intervals.root(), "a");
 		Intervals.schedule();
-		Interval b = new EmptyInterval(Intervals.rootInter, "b");
+		Interval b = new EmptyInterval(Intervals.root(), "b");
 		Intervals.addHb(b.start, a.end);
 	}
 	
 	@Test(expected=EdgeNeededException.class) 
 	public void raceConditionInBeforeGeneratesError3() {
-		final Interval a = new EmptyInterval(Intervals.rootInter, "a");
+		final Interval a = new EmptyInterval(Intervals.root(), "a");
 		Intervals.schedule();
 		new EmptyInterval(a, "b");
 	}	
 
 	@Test(expected=CycleException.class) 
 	public void simpleCycleGeneratesError() {
-		final Interval a = new EmptyInterval(Intervals.rootInter, "a");
-		Intervals.addHb(Intervals.rootEnd, a.end);
-	}
-	
-	@Test(expected=CycleException.class) 
-	public void simpleCycleGeneratesError2() {
-		final Interval a = new EmptyInterval(Intervals.rootInter, "a");
-		final Interval b = new EmptyInterval(Intervals.rootInter, "b");
+		final Interval a = new EmptyInterval(Intervals.root(), "a");
+		final Interval b = new EmptyInterval(Intervals.root(), "b");
 		Intervals.addHb(a.end, b.start);
 		Intervals.addHb(b.end, a.start);
 	}
 	
 	@Test(expected=CycleException.class) 
 	public void boundToStartGeneratesError() {
-		final Interval a = new EmptyInterval(Intervals.rootInter, "a");
+		final Interval a = new EmptyInterval(Intervals.root(), "a");
 		final Interval b = new EmptyInterval(a, "b");
 		Intervals.addHb(a.end, b.start);
 	}
 	
 	@Test(expected=CycleException.class) 
 	public void boundToEndGeneratesError() {
-		final Interval a = new EmptyInterval(Intervals.rootInter, "a");
+		final Interval a = new EmptyInterval(Intervals.root(), "a");
 		final Interval b = new EmptyInterval(a, "b");
 		Intervals.addHb(a.end, b.end);
 	}
 	
 	@Test 
 	public void raceCondErrorsLeaveSchedulerInStableState() {
-		final Interval a = new EmptyInterval(Intervals.rootInter, "a");
+		final Interval a = new EmptyInterval(Intervals.root(), "a");
 		final AtomicInteger i = new AtomicInteger();
 		
 		try {
