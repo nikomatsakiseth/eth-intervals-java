@@ -220,6 +220,7 @@ public class Intervals {
 		pnt.checkAndRethrowPendingException();
 	}
 	
+	/** Anonymous variant of {@link #subinterval(String, SubintervalTask)} */
 	public static <R> R subinterval(final SubintervalTask<R> task) 
 	{
 		return subinterval(null, task);
@@ -261,9 +262,15 @@ public class Intervals {
 	/**
 	 * Variant of {@link #subinterval(SubintervalTask)} for
 	 * subintervals that do not return a value. */
-	public static void subinterval(final VoidSubinterval task)
+	public static void subinterval(final String name, final VoidSubinterval task)
 	{
-		subinterval(new SubintervalTask<Void>() {
+		subinterval(name, new SubintervalTask<Void>() {
+			public String toString() {
+				if(name != null)
+					return name;
+				else 
+					return task.toString();
+			}
 			public Void run(Interval subinterval) {
 				task.run(subinterval);
 				return null;
@@ -271,6 +278,12 @@ public class Intervals {
 		});
 	}
 
+	/** Anonymous variant of {@link #subinterval(String, VoidSubinterval)} */
+	public static void subinterval(final VoidSubinterval task)
+	{
+		subinterval(null, task);
+	}
+	
 	/** 
 	 * Returns the point which represents the end of the entire
 	 * computation.  This point will not occur until all other

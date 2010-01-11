@@ -1,6 +1,6 @@
 package ch.ethz.intervals;
 
-public class MustBeBoundedByException extends RuntimeException {
+public class MustBeBoundedByException extends IntervalException {
 	private static final long serialVersionUID = -3545763123904421907L;
 	
 	public final Point bound;
