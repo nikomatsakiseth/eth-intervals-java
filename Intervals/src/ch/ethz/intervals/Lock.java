@@ -1,7 +1,7 @@
 package ch.ethz.intervals;
 
 
-public final class Lock
+public class Lock
 extends /*@Writer("this.constructor")*/ LockBase 
 implements Guard
 {
@@ -21,13 +21,12 @@ implements Guard
 	}
 
 	@Override
-	protected Lock lock() {
-		return this;
-	}
-
-	@Override
 	public String toString() {
 		return String.format("Lock(%x)", System.identityHashCode(this));
 	}
-
+	
+	/** Invoked whenever an interval acquires this lock, either initially or
+	 *  recursively.  Used to drive the dynamic race detector. */
+	void didLock(Interval inter) {}
+	
 }

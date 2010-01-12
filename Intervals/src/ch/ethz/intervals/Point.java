@@ -106,6 +106,11 @@ public abstract class Point {
 		return false;
 	}
 
+	/** True if {@code p == this} or {@link #isBoundedBy(Point)} */
+	public boolean isBoundedByOrEqualTo(Point p) {
+		return (this == p) || isBoundedBy(p);
+	}
+
 	/** Returns true if {@code this} <i>happens before</i> {@code p} */
 	public boolean hb(final Point p) {
 		return hb(p, SPECULATIVE);

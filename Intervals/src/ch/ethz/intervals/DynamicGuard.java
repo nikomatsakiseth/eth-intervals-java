@@ -11,30 +11,100 @@ package ch.ethz.intervals;
  * after the mutual bound of all reads, as defined by
  * {@link Point#mutualBound(Point)}.
  */
-public class DynamicGuard implements Guard {
+public class DynamicGuard 
+extends Lock
+implements Guard {
 	
 	private enum State {
 		/** Both wr, rd are {@code null} */
 		INITIAL,
 		
-		/** wr is start of writer, rd is {@code null} */
+		/** wr is bound of writer, rd is {@code null} */
 		WR_OWNED_END,
 		
-		/** wr is start of previous writer, rd is <b>start</b> of singular reader */
+		/** wr is bound of previous writer, rd is bound of singular reader */
 		RD_OWNED_END, 
 		
-		/** wr is start of previous writer, rd is mutual bound of <b>ends</b> of all readers */
+		/** wr is bound of previous writer, rd is mutual bound of <b>all readers</b> */
 		RD_SHARED 
 	}
 	
-	private State state = State.INITIAL;	
-	private Point wr, rd; /** @see State */
+	private State state = State.INITIAL;
+	
+	/** End of most recent lock owner, or null. */
+	private Point lockEnd;
+	
+	/** End of most recent writer. */
+	private Point wr;
+	
+	/** End of most recent reader, or mutual bound, depending on {@link State}. */
+	private Point rd; 
+	
+	class SavedFields {
+		final State state;
+		final Point lockEnd, wr, rd;
+		final SavedFields stack;
 		
+		public SavedFields(State state, Point lockEnd, Point wr, Point rd,
+				SavedFields stack) {
+			this.state = state;
+			this.lockEnd = lockEnd;
+			this.wr = wr;
+			this.rd = rd;
+			this.stack = stack;
+		}
+	}
+	
+	SavedFields stack = null;
+	
+	private void pushFields(State nextState, Point nextLockEnd, Point nextWr, Point nextRd) {
+		stack = new SavedFields(state, lockEnd, wr, rd, stack);		
+		rd = nextRd;
+		wr = nextWr;
+		lockEnd = nextLockEnd;
+		state = nextState;
+	}
+	
+	private void popFields() {
+		state = stack.state;
+		lockEnd = stack.lockEnd;
+		wr = stack.wr;
+		rd = stack.rd;
+		stack = stack.stack;
+	}
+	
+	@Override
+	void didLock(Interval inter) {
+		pushFields(State.INITIAL, inter.end, null, null);
+	}
+
+	private boolean processLock(Interval inter) {
+		if(lockEnd == null)
+			return true;
+		
+		if(inter.end.isBoundedByOrEqualTo(lockEnd))
+			return true;
+		
+		if(lockEnd.hbeq(inter.start)) {
+			popFields();
+			return processLock(inter);
+		}
+		
+		return false;
+	}
+	
 	@Override
 	public boolean isWritable() {		
-		Current current = Current.get();		
-		if(current.mr == null)
+		Current current = Current.get();
+		
+		// Root interval:
+		//     For now play it safe.  Later think.
+		if(current.inter == null)
 			return false;
+		
+		if(!processLock(current.inter))
+			return false;
+		
 		return isWritableBy(current.mr);
 	}
 	
@@ -83,8 +153,15 @@ public class DynamicGuard implements Guard {
 	@Override
 	public boolean isReadable() {
 		Current current = Current.get();		
-		if(current.mr == null)
-			return false;		
+		
+		// Root interval:
+		//     For now play it safe.  Later think.
+		if(current.inter == null)
+			return false;
+		
+		if(!processLock(current.inter))
+			return false;
+		
 		return isReadableBy(current.mr);
 	}
 	

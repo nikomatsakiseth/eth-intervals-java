@@ -15,8 +15,6 @@ abstract class LockBase
 	 *  all entries in this queue.  Access in synchronized only. */
 	private LockList firstPending = null, lastPending = null;
 	
-	abstract protected Lock lock();
-	
 	public LockBase(boolean locked) {
 		this.locked = locked;
 	}
@@ -32,27 +30,33 @@ abstract class LockBase
 		assert acq.nextPending == null && acq.acquiredLock == null;
 		acq.acquiredLock = this;
 		
+		int result;
 		synchronized(this) {
 			if(!locked) { // Available.  Go to locked state.
 				if(Debug.ENABLED)
 					Debug.acquireLock(this, acq);
 				
 				locked = true;
-				return 0;
+				result = 0;
 			} else { // Already locked.  Enqueue 'acq'.
 				if(Debug.ENABLED)
 					Debug.enqueueForLock(this, acq);
 				
-				acq.inter.start.addWaitCount();
+				acq.enqueued();
 				if (firstPending == null) {
 					firstPending = lastPending = acq;
 				} else {
 					lastPending.nextPending = acq;
 					lastPending = acq;					
 				}
-				return 1;
+				result = 1;
 			} 
 		}
+		
+		if(result == 0)
+			acq.lockAcquired(this);
+		
+		return result;
 	}
 	
 	final void unlockThis() {		
@@ -87,6 +91,8 @@ abstract class LockBase
 		
 		// If we get here, we dequeued newOwner.  Wake them up.
 		newOwner.nextPending = null;
-		newOwner.inter.start.arrive(1);			
+		newOwner.lockAcquired(this);
+		newOwner.dequeued();
 	}
+
 }
