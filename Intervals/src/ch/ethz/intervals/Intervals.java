@@ -240,12 +240,9 @@ public class Intervals {
 		// This could be made more optimized, but it will do for now:
 		Current current = Current.get();
 		
-		SubintervalImpl<R> subinterval; 
-		if(current.mr != null) {
-			subinterval = current.mr.insertSubintervalAfter(name, current.inter, task);			
-		} else { // root interval in the very beginning:
-			subinterval = new SubintervalImpl<R>(name, null, Line.rootLine, null, task);
-		}
+		SubintervalImpl<R> subinterval = new SubintervalImpl<R>(name, current.inter, current.line(), task); 		
+		if(current.mr != null && current.mr != current.start())
+			current.mr.addEdgeAfterOccurredWithoutException(subinterval.start, NORMAL);
 		
 		if(Debug.ENABLED)
 			Debug.subInterval(subinterval, task.toString());		
@@ -299,6 +296,11 @@ public class Intervals {
 			public void addHbToNewInterval(Interval inter) {
 			}
 		};
+	}
+
+	static Line line(Interval parent) {
+		if(parent == null) return Line.rootLine;
+		return parent.line();
 	}
 
 }

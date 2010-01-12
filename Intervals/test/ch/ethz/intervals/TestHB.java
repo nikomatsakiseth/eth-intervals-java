@@ -79,4 +79,68 @@ public class TestHB {
 		Assert.assertTrue(h.a1.start.hb(h.b1.end));
 	}	
 
+	@Test public void subPattern() {
+		// Create the following pattern:
+		// 
+		// 0.s--1.s--2.s--2.e--1.e--3.s--4.s--4.e--3.e--0.e
+		//
+		// which is kind of a stress test for our internal representation.
+		class Helper {
+			Interval[] i = new Interval[5];
+		}
+		final Helper h = new Helper();
+		
+		Intervals.subinterval(new VoidSubinterval() {			
+			@Override public void run(Interval a) {
+				h.i[0] = a;
+				
+				Intervals.subinterval(new VoidSubinterval() {					
+					@Override public void run(Interval b) {
+						h.i[1] = b;
+						
+						Intervals.subinterval(new VoidSubinterval() {					
+							@Override public void run(Interval c) {
+								h.i[2] = c;
+							}
+						});
+					}
+				});
+				
+				Intervals.subinterval(new VoidSubinterval() {					
+					@Override public void run(Interval d) {
+						h.i[3] = d;
+						
+						Intervals.subinterval(new VoidSubinterval() {					
+							@Override public void run(Interval e) {
+								h.i[4] = e;
+							}
+						});
+					}
+				});
+			}
+		});
+		
+		for(int j = 1; j <= 4; j++) {
+			Assert.assertTrue(h.i[0].start.hb(h.i[j].start));
+			Assert.assertTrue(h.i[0].start.hb(h.i[j].end));			
+			Assert.assertFalse(h.i[0].end.hb(h.i[j].start));
+		}
+		
+		Assert.assertTrue(h.i[1].start.hb(h.i[2].start));
+		Assert.assertTrue(h.i[1].start.hb(h.i[2].end));
+		Assert.assertFalse(h.i[1].end.hb(h.i[2].start));
+		
+		for(int j = 3; j <= 4; j++) {
+			Assert.assertTrue(h.i[1].start.hb(h.i[j].start));
+			Assert.assertTrue(h.i[1].start.hb(h.i[j].end));
+			Assert.assertTrue(h.i[1].end.hb(h.i[j].start));
+		}
+		
+		for(int j = 3; j <= 4; j++) {
+			Assert.assertTrue(h.i[2].start.hb(h.i[j].start));
+			Assert.assertTrue(h.i[2].start.hb(h.i[j].end));
+			Assert.assertTrue(h.i[2].end.hb(h.i[j].start));
+		}
+	}	
+	
 }

@@ -18,10 +18,10 @@ public class DynamicGuard implements Guard {
 		INITIAL,
 		
 		/** wr is start of writer, rd is {@code null} */
-		WR_OWNED_START,
+		WR_OWNED_END,
 		
 		/** wr is start of previous writer, rd is <b>start</b> of singular reader */
-		RD_OWNED_START, 
+		RD_OWNED_END, 
 		
 		/** wr is start of previous writer, rd is mutual bound of <b>ends</b> of all readers */
 		RD_SHARED 
@@ -37,28 +37,32 @@ public class DynamicGuard implements Guard {
 			return false;
 		return isWritableBy(current.mr);
 	}
+	
+	private boolean isRepeat(Point bnd, Point mostRecent) {
+		return mostRecent.line == bnd.line && mostRecent.isBoundedBy(bnd);
+	}
 
 	synchronized boolean isWritableBy(Point mostRecent) {
-		if(wr == mostRecent) return true; // shortcircuit repeated writes
-		
 		switch(state) {
 		case INITIAL:
 			// Not yet read or written.  Always safe.
 			break; 
 			
-		case WR_OWNED_START:
+		case WR_OWNED_END:
 			// Currently being written by interval starting at "wr".  Safe if either:
-			// * wr == curStart (we are the owner, checked above)
+			// * wr == curStart (we are already the owner)
 			// * wr.nextEpoch hbeq curStart (writer has finished)
-			if(!wr.nextEpoch.hbeq(mostRecent, EdgeList.SPECULATIVE))
+			if(isRepeat(wr, mostRecent))
+				return true;
+			if(!wr.hbeq(mostRecent, EdgeList.SPECULATIVE))
 				return false;
 			break;
 			
-		case RD_OWNED_START:
+		case RD_OWNED_END:
 			// Currently being read by interval starting at "rd". Safe if either:
 			// * rd is curStart (curStart was the reader, now becomes the writer)
 			// * rd.nextEpoch hbeq curStart (reader has finished)
-			if(rd != mostRecent && !rd.nextEpoch.hbeq(mostRecent, EdgeList.SPECULATIVE))
+			if(rd != mostRecent.bound && !rd.hbeq(mostRecent, EdgeList.SPECULATIVE))
 				return false;
 			break;
 		
@@ -70,9 +74,9 @@ public class DynamicGuard implements Guard {
 			break;
 		}		
 		
-		wr = mostRecent;
+		wr = mostRecent.bound;
 		rd = null;
-		state = State.WR_OWNED_START;
+		state = State.WR_OWNED_END;
 		return true;
 	}
 	
@@ -88,31 +92,31 @@ public class DynamicGuard implements Guard {
 		switch(state) {
 		case INITIAL: 
 			// Not yet read or written.  Always safe, and we are the only writer.
-			state = State.RD_OWNED_START;
-			rd = mostRecent;
+			state = State.RD_OWNED_END;
+			rd = mostRecent.bound;
 			return true;
 		
-		case WR_OWNED_START: 
+		case WR_OWNED_END: 
 			// Previously written by wr.  Safe if:
 			// * wr == curStart (being read by the writer)
 			// * wr.nextEpoch hbeq curStart (writer has finished)
 			// In the latter case, we become the Rd Owner.
-			if(wr == mostRecent) // Already Wr Owner.  Stay that way.
+			if(isRepeat(wr, mostRecent))
 				return true;
-			if(!wr.nextEpoch.hbeq(mostRecent, EdgeList.SPECULATIVE))
+			if(!wr.hbeq(mostRecent, EdgeList.SPECULATIVE))
 				return false;
 			
-			state = State.RD_OWNED_START;
-			rd = mostRecent;
+			state = State.RD_OWNED_END;
+			rd = mostRecent.bound;
 			return true;
 			
-		case RD_OWNED_START:
+		case RD_OWNED_END:
 			// Previously being read only by interval starting at rd.  Safe if:
 			// * rd == curStart (rd still rd owner)
 			// * (see twoReaders)			
-			if(rd == mostRecent) // Already Rd Owner.  Stay that way.
-				return true;			
-			return twoReaders(mostRecent, rd.nextEpoch);
+			if(isRepeat(rd, mostRecent))
+				return true;
+			return twoReaders(mostRecent, rd);
 			
 		case RD_SHARED:
 			return twoReaders(mostRecent, rd);
@@ -121,20 +125,20 @@ public class DynamicGuard implements Guard {
 		return false;
 	}
 
-	private boolean twoReaders(Point curStart, Point curRdEnd) {
+	private boolean twoReaders(Point mostRecent, Point curRdEnd) {
 		// Being read by one or more intervals, bounded by curRdEnd.  Safe if:
 		// * curRdEnd hbeq curStart (all previous readers have finished, curStart becomes sole reader)
 		// * wr.nextEpoch bheq curStart (writer has finished)
 		// In last case, must adjust rd to include curStart.nextEpoch
-		if(curRdEnd.hbeq(curStart, EdgeList.SPECULATIVE)) {
-			state = State.RD_OWNED_START;
-			rd = curStart;
+		if(curRdEnd.hbeq(mostRecent, EdgeList.SPECULATIVE)) {
+			state = State.RD_OWNED_END;
+			rd = mostRecent.bound;
 			return true;
 		}				
-		if(wr != null && !wr.nextEpoch.hbeq(curStart, EdgeList.SPECULATIVE))
+		if(wr != null && !wr.hbeq(mostRecent, EdgeList.SPECULATIVE))
 			return false;
 		state = State.RD_SHARED;
-		rd = curRdEnd.mutualBound(curStart.nextEpoch);
+		rd = curRdEnd.mutualBound(mostRecent.bound);
 		return true;
 	}
 		

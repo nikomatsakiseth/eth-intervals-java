@@ -43,6 +43,11 @@ class Current {
 		this.mr = inter.start;
 	}
 	
+	Line line() {
+		if(inter == null) return Line.rootLine;
+		return inter.line();
+	}
+	
 	void updateMostRecent(Point mr) {
 		assert mr.didOccur();
 		this.mr = mr;
@@ -104,9 +109,9 @@ class Current {
 
 	void checkCanAddDep(Point to) {		
 		if(SAFETY_CHECKS) {
-			if(isUnscheduled((Point) to))
+			if(isUnscheduled(to))
 				return;
-			if(inter != null && (inter.end.hbeq(to)))
+			if(inter != null && inter.end.hbeq(to))
 				return;
 			throw new EdgeNeededException((inter != null ? inter.end : null), to);
 		}		
@@ -115,10 +120,18 @@ class Current {
 	void checkEdgeEndPointsProperlyBound(Point from, Point to) {
 		// An edge p->q is only permitted if q is bound by
 		// p's parent.  In other words, edges are permitted from
-		// high-level nodes down the tree, but not the other direction.		
-		if(from.line.depth <= 1 || to.isBoundedBy(from.line.bound))
+		// high-level nodes down the tree, but not the other direction.
+		
+		Point parentEnd;
+		if(from.isStartPoint())
+			parentEnd = from.bound.bound;
+		else
+			parentEnd = from.bound;
+			
+		if(parentEnd == null || to.isBoundedBy(parentEnd))
 			return;
-		throw new MustBeBoundedByException(from.line.bound, to);
+		
+		throw new MustBeBoundedByException(from.bound, to);
 	}
 
 	void checkCanAddHb(Point from, Point to) {
@@ -134,6 +147,12 @@ class Current {
 			if(from != null && to.hb(from))
 				throw new CycleException(from, to);
 		}
+	}
+
+	public Point start() {
+		if(inter != null)
+			return inter.start;
+		return null;
 	}
 
 }

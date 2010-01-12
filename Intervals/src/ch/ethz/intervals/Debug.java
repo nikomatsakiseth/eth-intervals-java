@@ -74,8 +74,8 @@ class Debug {
 		
 		public String toString() {
 			final StringBuilder sb = new StringBuilder();
-			sb.append(String.format("OCCUR %s errors %d%s nextEpoch %s bound %s succs", 
-					point, point.numPendingExceptions(), (point.maskExceptions() ? " (masked)" : ""), point.nextEpoch, point.line.bound));
+			sb.append(String.format("OCCUR %s errors %d%s bound %s succs", 
+					point, point.numPendingExceptions(), (point.maskExceptions() ? " (masked)" : ""), point.bound));
 			
 			new EdgeList.Iterator(list) {
 				public void doForEach(Point toPoint, int flags) {
@@ -119,7 +119,7 @@ class Debug {
 		}
 		
 		public String toString() {
-			return String.format("SUB %s-%s end.nextEpoch=%s desc=%s", inter.start, inter.end, inter.end.nextEpoch, description);
+			return String.format("SUB %s-%s desc=%s", inter.start, inter.end, description);
 		}
 	}
 	

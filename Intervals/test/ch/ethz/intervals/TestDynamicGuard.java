@@ -185,9 +185,9 @@ public class TestDynamicGuard {
 		assertEquals(true, results.get(i++));
 		assertEquals(true, results.get(i++));  // Should be in Wr Owned (a) state
 
-		assertEquals(true, results.get(i++));  // Rd Shared (a2) state
-		assertEquals(true, results.get(i++)); 
-		assertEquals(true, results.get(i++)); 
+		assertEquals(true, results.get(i++));  // State machine permits 
+		assertEquals(false, results.get(i++)); // subintervals on the same line,
+		assertEquals(false, results.get(i++)); // but not asynchronous ones.    
 		
 		assertEquals(true, results.get(i++));  // Rd Shared (a2) becomes Rd Owned (a)
 		assertEquals(true, results.get(i++));

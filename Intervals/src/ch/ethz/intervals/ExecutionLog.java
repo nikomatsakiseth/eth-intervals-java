@@ -104,7 +104,7 @@ public class ExecutionLog {
 					l.identity(current),
 					l.identity(sp),
 					l.identity(ep),
-					l.identity(ep.line.bound)));
+					l.identity(ep.bound)));
 		}
 	}
 	

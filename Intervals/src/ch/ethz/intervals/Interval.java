@@ -42,14 +42,7 @@ implements Dependency, Guard
 		Current current = Current.get();
 		
 		// If parent == null, then direct child of root interval:
-		Point parentStart, parentEnd;
-		if(parent != null) {
-			parentStart = parent.start;
-			parentEnd = parent.end;
-		} else {
-			parentStart = null;
-			parentEnd = null;
-		}
+		Point parentEnd = Intervals.end(parent);
 		
 		// Note: if this check passes, then no need to check for cycles 
 		// for the path from current.start->bnd.  This is because we require
@@ -62,15 +55,15 @@ implements Dependency, Guard
 		if(parentEnd != null) current.checkCanAddDep(parentEnd);	
 		
 		this.parent = parent;
-		Line line = new Line(current, parentEnd);		
-		end = new Point(name, line, null, null, 2, this);
-		start = new Point(name, line, end, end, 2, this);		
+		Line line = new Line(current);
+		end = new EndPoint(name, line, parentEnd, 2, this);
+		start = new StartPoint(name, line, end, 2, this);		
 		
 		current.addUnscheduled(this);
 		int expFromParent = (parent != null ? parent.addChildInterval(this) : 0);
 		if(expFromParent == 0) start.addWaitCountUnsync(-1);
 				
-		if(current.mr != parentStart) {
+		if(current.mr != Intervals.start(parent)) {
 			current.mr.addEdgeAfterOccurredWithoutException(start, NORMAL);		
 			ExecutionLog.logNewInterval(current.mr, start, end);
 		} else
@@ -79,14 +72,14 @@ implements Dependency, Guard
 		dep.addHbToNewInterval(this);		
 	}
 	
-	Interval(String name, Interval parent, Line line, int startWaitCount, int endWaitCount, Point nextEpoch) {
+	Interval(String name, Interval parent, Line line, int startWaitCount, int endWaitCount) {
 		assert line != null;
 		this.parent = parent;		
-		this.end = new Point(name, line, null, nextEpoch, endWaitCount, this);
-		this.start = new Point(name, line, end, end, startWaitCount, this);
+		this.end = new EndPoint(name, line, Intervals.end(parent), endWaitCount, this);
+		this.start = new StartPoint(name, line, end, startWaitCount, this);
 		
-		if(nextEpoch != null)
-			nextEpoch.addWaitCount();
+		if(end.bound != null)
+			end.bound.addWaitCount();
 	}
 	
 	Line line() {
@@ -252,7 +245,7 @@ implements Dependency, Guard
 	 * Returns the bounding point of this interval.
 	 */
 	public final Point bound() {
-		return end.line.bound;
+		return end.bound;
 	}
 	
 	/**

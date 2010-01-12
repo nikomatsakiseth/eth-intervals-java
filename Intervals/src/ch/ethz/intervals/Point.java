@@ -13,7 +13,7 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
 import ch.ethz.intervals.ThreadPool.Worker;
 
-final public class Point {
+public abstract class Point {
 	
 	public static final int OCCURRED = -1;		/** Value of {@link #waitCount} once we have occurred */
 	
@@ -22,8 +22,8 @@ final public class Point {
 
 	final String name;							/** Possibly null */
 	final Line line;							/** Line on which the point resides. */	
-	final Point end;						  	/** if a start point, the paired end point.  otherwise, null. */
-	volatile Point nextEpoch;				  	/** next point on same line, if any. */
+	final Point bound;						  	/** if a start point, the paired end point.  otherwise, null. */
+	final int depth;							/** depth of bound + 1 */
 	
 	private EdgeList outEdges;                	/** Linked list of outgoing edges from this point. */
 	private volatile int waitCount;           	/** Number of preceding points that have not arrived.  
@@ -32,60 +32,38 @@ final public class Point {
 	private Set<Throwable> pendingExceptions; 	/** Exception(s) that occurred while executing the task or in some preceding point. */
 	private Interval interval;            	  	/** Interval which owns this point.  Set to {@code null} when the point occurs. */
 
-	Point(String name, Line line, Point end, Point nextEpoch, int waitCount, Interval interval) {
+	Point(String name, Line line, Point bound, int waitCount, Interval interval) {
 		assert line != null && interval != null;
 		this.name = name;
 		this.line = line;
-		this.nextEpoch = nextEpoch;
-		this.end = end;
+		this.bound = bound;
 		this.waitCount = waitCount;
 		this.interval = interval;
+		this.depth = (bound == null ? 0 : bound.depth + 1);
 	}
 	
-	boolean maskExceptions() {
+	abstract boolean isStartPoint();
+	
+	final boolean isEndPoint() {
+		return !isStartPoint();
+	}
+	
+	final boolean maskExceptions() {
 		// The end of any subinterval masks exceptions
-		return isEndPoint() && (nextEpoch != null || line == Line.rootLine);
+		if(!isEndPoint()) return false;
+		
+		if(bound == null)
+			return (line == Line.rootLine);
+		
+		return (bound.line == line);
 	}
 	
-	private boolean isStartPoint() {
-		return end != null;
-	}
-
-	private boolean isStartPointOf(Point anEnd) {
-		return end == anEnd;
-	}
-
-	private boolean isEndPoint() {
-		return end == null;
-	}
-	
-	<R> SubintervalImpl<R> insertSubintervalAfter(String name, Interval current, SubintervalTask<R> task) {
-		// In the very beginning there are 2 points and we are point 0:
-		//    0----END
-		// When we are done there will be 4:
-		//    0----1----2----END
-		//    ^----^----^----^
-		//     pre  sub  post
-		// Where pre is the current span of time, sub is the subinterval,
-		// and post is the span of time after the subinterval.
-		assert didOccur() && ((current == null && line == Line.rootLine) || line == current.line());		
-		SubintervalImpl<R> subinter = new SubintervalImpl<R>(name, current, line, nextEpoch, task); 
-		nextEpoch = subinter.start;		
-		return subinter;
-	}
-	
-	synchronized EdgeList outEdgesSync() {
+	final synchronized EdgeList outEdgesSync() {
 		return outEdges;
 	}
 
-	boolean didOccur() {
+	final boolean didOccur() {
 		return waitCount == OCCURRED;
-	}
-	
-	Point nextEpochOrBound() {
-		Point nextEpoch = this.nextEpoch;
-		if(nextEpoch != null) return nextEpoch;
-		return line.bound;
 	}
 	
 	@Override
@@ -98,29 +76,21 @@ final public class Point {
 		return "Point("+System.identityHashCode(this)+")";
 	}
 	
-	public Point mutualBound(Point j) {
-		
-		// NOTE:
-		//
-		// No synchronization is required here.  True?  		
+	Point mutualBound(Point j) {
 		
 		Point i = this;
 		
+		while(i.depth > j.depth) {
+			i = i.bound;		
+		}
+		
+		while(j.depth > i.depth) {
+			j = j.bound;
+		}
+		
 		while(i != j) {
-			if(i.line == j.line) {
-				for(Point e = i.nextEpoch; e != null; e = e.nextEpoch)
-					if(e == j) return j;
-				for(Point e = j.nextEpoch; e != null; e = e.nextEpoch)
-					if(e == i) return i;
-				throw new RuntimeException("Two points on same line but neither is first?");
-			} else if (i.line.depth > j.line.depth) {
-				i = i.line.bound;
-			} else if (i.line.depth < j.line.depth) {
-				j = j.line.bound;
-			} else {
-				i = i.line.bound;
-				j = j.line.bound;
-			}
+			i = i.bound;
+			j = j.bound;
 		}
 		
 		return i;
@@ -128,7 +98,12 @@ final public class Point {
 	
 	/** True if {@code p} bounds {@code this} or one of its bounds */
 	public boolean isBoundedBy(Point p) {
-		return mutualBound(p) == p; // TODO Make more efficient
+		if(depth > p.depth) {
+			for(Point b = bound; b != null; b = b.bound)
+				if(b == p)
+					return true;
+		}
+		return false;
 	}
 
 	/** Returns true if {@code this} <i>happens before</i> {@code p} */
@@ -146,68 +121,109 @@ final public class Point {
 	}
 	
 	/** true if {@code this} -> {@code p}.
-	 * @param p another point
+	 * @param tar another point
 	 * @param skipFlags Skips edges which have any of the flags in here. */
-	boolean hb(final Point p, final int skipFlags) {
-		assert p != null;
+	boolean hb(final Point tar, final int skipFlags) {
+		assert tar != null;
+		
+		// XXX We currently access the list of outgoing edges with
+		// XXX outEdgesSync.  Is that necessary?  It seems like a
+		// XXX volatile might be enough, at worst it would miss a path--
+		// XXX Except that missing a path is bad when checking for cycles!
+		// XXX Otherwise, since safety conditions are established
+		// XXX by the PRESENCE of paths and not their absence, we would
+		// XXX be able to remove synchronized checks if we could detect
+		// XXX cycles another way, or at least synchronize in some other way
+		// XXX when checking for cycles.  Perhaps a global clock.
 		
 		// Some simple checks:
-		if(p == this)
+		if(tar == this)
 			return false;
-		if(isBoundedBy(p))
+		if(this.isBoundedBy(tar))
 			return true;
-		if(p.isBoundedBy(this))
-			return false;
 		
-		// Perform a BFS to find p:		
-		final Queue<Point> queue = new LinkedList<Point>();
-		final Set<Point> visited = new HashSet<Point>(64);
-		queue.add(this);
+		// If this is a start point, then it's connected to anything which is
+		// bound by the corresponding end point.  This check is not merely 
+		// an optimization: we have to do it because there are no links in the
+		// data structures connecting a start to its children.
+		if(isStartPoint() && tar.isBoundedBy(bound))
+			return true;
 		
-		class Helper {
-			boolean foundIt = false;
+		// Efficiently check whether a point bounds tar or not:
+		class BoundHelper {
+			final Point[] tarBounds = tar.bounds();
 			
-			/** Add {@code q} to queue if not already visited, returning
-			 *  {@code true} if {@code q} is the node we are looking for. */
-			boolean tryEnqueue(Point q) {
-				if(q != null) {				
-					if(q == p) {
+			boolean boundsTar(Point p) {
+				return p.depth < tarBounds.length && tarBounds[p.depth] == p;
+			}
+			
+			boolean couldLegallyBeConnectedToTar(Point src) {
+				return src.bound == null || boundsTar(src.bound);
+			}
+		}
+		final BoundHelper bh = new BoundHelper();
+		
+		Point src = this;
+		
+		// If src could not legally connect to tar, then it can only HB tar
+		// if its bound HB tar:
+		while(!bh.couldLegallyBeConnectedToTar(src))
+			src = src.bound;
+		
+		// If src has no outgoing edges, then it can only HB tar if its bound HB tar:
+		while(src.outEdgesSync() == null) {
+			src = src.bound;
+			if(src == null) return false;
+			if(bh.boundsTar(src)) return false;
+		}
+		
+		// At this point, we just have to bite the bullet and do a BFS to see
+		// whether src can reach tar.  
+		class SearchHelper {
+			boolean foundIt = false;
+			final Set<Point> visited = new HashSet<Point>(64);
+			final LinkedList<Point> queue = new LinkedList<Point>();
+			
+			boolean shouldContinue() {
+				return !foundIt && !queue.isEmpty();
+			}
+			
+			boolean tryEnqueue(Point pnt) {
+				if(pnt != null) {		
+					if((pnt == tar) // found tar
+						|| 
+						(pnt.isStartPoint() && bh.boundsTar(pnt.bound))) // found start point of an ancestor of p
+					{
 						foundIt = true;
 						return true; // found it
 					}
-	
-					// TODO: We can optimize here.  For example,
-					// if p is bounded by q, then p->q, so q cannot hb p.
-					//
-					// (If the user attempted to add such an edge, a cycle
-					//  exception would result.)
-					if(visited.add(q))
-						queue.add(q);
+
+					if(!bh.boundsTar(pnt) && visited.add(pnt))
+						queue.add(pnt);
 				}
 				return false;
 			}
 		}
-		final Helper h = new Helper();
+		final SearchHelper sh = new SearchHelper();
+		sh.queue.add(src);
 		
 		do {
-			Point q = queue.remove();
+			Point q = sh.queue.remove();
 			
-			if(h.tryEnqueue(q.nextEpochOrBound()))				
+			if(sh.tryEnqueue(q.bound))
 				return true;
 			
-			// Do we need to use synchronized accessor here?
-			// Would it be good enough to use a volatile field for outEdges?
 			new EdgeList.InterruptibleIterator(q.outEdgesSync()) {
 				public boolean forEach(Point toPoint, int flags) {
 					if((flags & skipFlags) == 0) {
-						return h.tryEnqueue(toPoint);
+						return sh.tryEnqueue(toPoint);
 					}
 					return false;
 				}
 			};
-		} while(!queue.isEmpty() && !h.foundIt);
+		} while(sh.shouldContinue());
 		
-		return h.foundIt;
+		return sh.foundIt;
 	}
 
 	/** When a preceding point (or something else we were waiting for)
@@ -235,11 +251,9 @@ final public class Point {
 		
 		// Save copies of our outgoing edges at the time we occurred:
 		//      They may be modified further while we are notifying successors.
-		final Point nextEpoch;
 		final EdgeList outEdges;
 		synchronized(this) {
 			outEdges = this.outEdges;
-			nextEpoch = this.nextEpoch;
 			this.waitCount = OCCURRED;
 			notifyAll(); // in case anyone is joining us
 		}
@@ -256,10 +270,8 @@ final public class Point {
 					notifySuccessor(toPoint, true);
 			}
 		};
-		if(nextEpoch != null)
-			notifySuccessor(nextEpoch, true);
-		else if (line.bound != null)
-			notifySuccessor(line.bound, true);
+		if(bound != null)
+			notifySuccessor(bound, true);
 		else
 			notifyRootEnd();
 		
@@ -393,6 +405,7 @@ final public class Point {
 			// In some cases, pendingExceptions may be non-null if this was a 
 			// subinterval which rethrew the exceptions and had them caught.
 			assert maskExceptions() || pendingExceptions == null;
+			
 			primAddOutEdge(targetPnt, edgeFlags);
 		}
 	}
@@ -468,11 +481,11 @@ final public class Point {
 	/** Returns an array {@code bounds} where {@code bounds[0]} == the bound at depth 0,
 	 *  {@code bounds[depth] == this} */
 	Point[] bounds() {
-		Point[] bounds = new Point[line.depth+1];
+		Point[] bounds = new Point[depth+1];
 		Point b = this;
-		for(int i = line.depth; i >= 0; i--) {
+		for(int i = depth; i >= 0; i--) {
 			bounds[i] = b;
-			b = b.line.bound;
+			b = b.bound;
 		}
 		return bounds;
 	}
