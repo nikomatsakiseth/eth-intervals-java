@@ -36,7 +36,7 @@ public class TestIllegalEdges {
 				Interval a2 = new EmptyInterval(a, "a2"); 
 				Interval b = new EmptyInterval(Intervals.root(), "a");
 
-				addLegalEdge(a12.end, a1.end);
+				addIllegalEdge(a12.end, a1.end, MustBeBoundedByException.class);
 				
 				addLegalEdge(a1.end, a2.start);
 				addLegalEdge(a1.end, a2.end);
