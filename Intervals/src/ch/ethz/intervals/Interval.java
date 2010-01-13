@@ -27,8 +27,9 @@ implements Dependency, Guard
 	 *  so used without synchronization in methods that must happen after start. */
 	private LockList locks;
 	
-	/** Any child intervals created before run method finishes execution. 
-	 *  Modified only under lock! */
+	/** Any child intervals created before run method finishes execution.
+	 *  Once run method completes, set to {@link #runMethodTerminated} and never
+	 *  changed. Modified only under lock! */
 	private ChunkList<Interval> pendingChildIntervals = null;
 	
 	public Interval(Dependency dep) {
