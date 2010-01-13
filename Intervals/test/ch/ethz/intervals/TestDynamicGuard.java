@@ -3,11 +3,69 @@ package ch.ethz.intervals;
 import static org.junit.Assert.assertEquals;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 public class TestDynamicGuard {
+	
+	public static final int FLAG_LCK = 1;
+	public static final int FLAG_RD1 = 2;
+	public static final int FLAG_WR1 = 4;
+	public static final int FLAG_RD2 = 8;
+	public static final int FLAG_WR2 = 16;
+	
+	class DgIntervalFactory {
+		public final DynamicGuard dg = new DynamicGuard();
+		public final Map<String, Boolean> results = 
+			Collections.synchronizedMap(new HashMap<String, Boolean>());
+		
+		public boolean result(String name) {
+			return results.get(name).booleanValue();
+		}
+		
+		public Interval create(Dependency dep, String name, int flags) {
+			return new DgInterval(dep, name, flags);
+		}
+		
+		class DgInterval extends Interval {
+			
+			final String name;
+			final int flags;
+
+			public DgInterval(
+					Dependency dep, 
+					String name, 
+					int flags) 
+			{
+				super(dep, name);
+				this.name = name;
+				this.flags = flags;
+				
+				if((flags & FLAG_LCK) != 0)
+					Intervals.addExclusiveLock(this, dg);
+			}
+
+			@Override
+			protected void run() {
+				if((flags & FLAG_RD1) != 0) 
+					results.put(name + ".rd1", dg.isReadable());
+				if((flags & FLAG_WR1) != 0) 
+					results.put(name + ".wr1", dg.isWritable());
+				if((flags & FLAG_RD2) != 0) 
+					results.put(name + ".rd2", dg.isReadable());
+				if((flags & FLAG_WR2) != 0) 
+					results.put(name + ".wr2", dg.isWritable());
+			}
+			
+		}		
+	}
+	
+
 	
 	/**
 	 * The guard goes from being wr owned in {@code a1} to rd shared 
@@ -317,5 +375,109 @@ public class TestDynamicGuard {
 		assertEquals(true, results.get(i++));  // Rd Owned (a3)
 		assertEquals(true, results.get(i++));  // Wr Owned (a3)
 	}
-
+	
+	@Test public void testTwoWritersObtainingLocks() {
+		final List<Boolean> results = Collections.synchronizedList(new ArrayList<Boolean>());
+		
+		Intervals.subinterval(new VoidSubinterval() { 
+			@Override public void run(final Interval a) {
+				final DynamicGuard dg = new DynamicGuard();
+				
+				new Interval(a, "withLock1") {
+					{ Intervals.addExclusiveLock(this, dg); }
+					@Override protected void run() {
+						results.add(dg.isWritable());
+					}
+				};
+				
+				new Interval(a, "withLock2") {					
+					{ Intervals.addExclusiveLock(this, dg); }
+					@Override protected void run() {
+						results.add(dg.isWritable());
+					}
+				};
+			}
+		});		
+		
+		assertEquals(2, results.size());
+		
+		int i = 0;
+		assertEquals(true, results.get(i++));
+		assertEquals(true, results.get(i++));
+	}
+	
+	@Test public void testLockingIntervalContendsWithChildren() {
+		final DgIntervalFactory f = new DgIntervalFactory();
+		
+		Intervals.subinterval(new VoidSubinterval() { 
+			@Override public void run(final Interval a) {				
+				Interval withLock1 = f.create(a, "withLock1", FLAG_LCK|FLAG_RD1);
+				Interval noLock = f.create(withLock1, "noLock", FLAG_WR1);
+			}
+		});		
+		
+		assertEquals(2, f.results.size());
+		
+		Assert.assertTrue(
+				f.result("withLock1.rd1") == !f.result("noLock.wr1"));
+	}
+	
+	@Test public void testCooperatingChildren() {
+		final DgIntervalFactory f = new DgIntervalFactory();
+		
+		Intervals.subinterval(new VoidSubinterval() { 
+			@Override public void run(final Interval a) {				
+				Interval withLock1 = f.create(a, "withLock1", FLAG_LCK);
+				
+				Interval readers = f.create(withLock1, "readers", 0);
+				Interval reader0 = f.create(readers, "reader0", FLAG_RD1);
+				Interval reader1 = f.create(readers, "reader1", FLAG_RD1);
+				Interval reader2 = f.create(readers, "reader2", FLAG_RD1);
+				
+				Interval writers = f.create(withLock1, "writers", 0);
+				Interval writer0 = f.create(writers, "writer0", FLAG_RD1|FLAG_WR2);
+				
+				Intervals.addHb(readers.end, writers.start);
+			}
+		});		
+		
+		assertEquals(5, f.results.size());
+		
+		Assert.assertTrue(
+				f.result("reader0.rd1") && 
+				f.result("reader1.rd1") && 
+				f.result("reader2.rd1") && 
+				f.result("writer0.rd1") &&
+				f.result("writer0.wr2"));
+	}
+	
+	@Test public void testGoToLock() {
+		final DgIntervalFactory f = new DgIntervalFactory();
+		
+		Intervals.subinterval(new VoidSubinterval() { 
+			@Override public void run(final Interval a) {				
+				Interval withLock1 = f.create(a, "withLock1", FLAG_LCK);
+				
+				Interval readers = f.create(withLock1, "readers", 0);
+				Interval reader0 = f.create(readers, "reader0", FLAG_RD1);
+				Interval reader1 = f.create(readers, "reader1", FLAG_RD1);
+				Interval reader2 = f.create(readers, "reader2", FLAG_RD1);
+				
+				Interval writers = f.create(withLock1, "writers", 0);
+				Interval writer0 = f.create(writers, "writer0", FLAG_RD1|FLAG_WR2);
+				
+				Intervals.addHb(readers.end, writers.start);
+			}
+		});		
+		
+		assertEquals(5, f.results.size());
+		
+		Assert.assertTrue(
+				f.result("reader0.rd1") && 
+				f.result("reader1.rd1") && 
+				f.result("reader2.rd1") && 
+				f.result("writer0.rd1") &&
+				f.result("writer0.wr2"));
+	}
+	
 }
