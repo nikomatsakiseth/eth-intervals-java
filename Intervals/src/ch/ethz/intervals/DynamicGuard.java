@@ -55,6 +55,11 @@ implements Guard {
 		}
 		
 		private boolean isRepeat(Point end) {
+			// Strictly speaking, the correct code here would be end == bound,
+			// which essentially means the interval is precisely the same.  However,
+			// we accept blocking subintervals as well because it permits us
+			// to push fewer states onto the stack.  I believe the resulting
+			// machines are equivalent in terms of what they accept.
 			return end.line == bound.line && end.isBoundedByOrEqualTo(bound);
 		}
 

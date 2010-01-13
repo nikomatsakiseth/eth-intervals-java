@@ -7,6 +7,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -17,7 +18,7 @@ public class TestDynamicGuard {
 	public static final int FLAG_RD1 = 2;
 	public static final int FLAG_WR1 = 4;
 	public static final int FLAG_RD2 = 8;
-	public static final int FLAG_WR2 = 16;
+	public static final int FLAG_WR2 = 16;	
 	
 	class DgIntervalFactory {
 		public final DynamicGuard dg = new DynamicGuard();
@@ -29,22 +30,32 @@ public class TestDynamicGuard {
 		}
 		
 		public Interval create(Dependency dep, String name, int flags) {
-			return new DgInterval(dep, name, flags);
+			return new DgInterval(dep, name, flags, null, null);
+		}
+		
+		public Interval create(Dependency dep, String name, int flags, CountDownLatch await, CountDownLatch signal) {
+			return new DgInterval(dep, name, flags, await, signal);
 		}
 		
 		class DgInterval extends Interval {
 			
 			final String name;
 			final int flags;
+			final CountDownLatch await;
+			final CountDownLatch signal;
 
 			public DgInterval(
 					Dependency dep, 
 					String name, 
-					int flags) 
+					int flags,
+					CountDownLatch await,
+					CountDownLatch signal) 
 			{
 				super(dep, name);
 				this.name = name;
 				this.flags = flags;
+				this.await = await;
+				this.signal = signal;
 				
 				if((flags & FLAG_LCK) != 0)
 					Intervals.addExclusiveLock(this, dg);
@@ -52,6 +63,15 @@ public class TestDynamicGuard {
 
 			@Override
 			protected void run() {
+				// Sometimes we want to force an ordering.  This can be hard
+				// to do, so we cheat:
+				if(await != null)
+					try {
+						await.await();
+					} catch (InterruptedException e) {}
+				if(signal != null)
+					await.countDown();
+				
 				if((flags & FLAG_RD1) != 0) 
 					results.put(name + ".rd1", dg.isReadable());
 				if((flags & FLAG_WR1) != 0) 
@@ -468,6 +488,100 @@ public class TestDynamicGuard {
 				f.result("reader2.rd1") && 
 				f.result("writer0.rd1") &&
 				f.result("writer0.wr2"));
+	}	
+	
+	@Test public void testWriteHandoff() {
+		final DgIntervalFactory f = new DgIntervalFactory();
+		
+		Intervals.subinterval(new VoidSubinterval() { 
+			@Override public void run(final Interval a) {				
+				Interval wrParent = f.create(a, "wrParent", FLAG_WR1);				
+				Interval wrChild1 = f.create(wrParent, "wrChild1", FLAG_WR1);
+				Interval wrChild2 = f.create(wrParent, "wrChild2", FLAG_WR1);
+				Intervals.addHb(wrChild1, wrChild2);
+			}
+		});		
+		
+		assertEquals(3, f.results.size());
+		
+		Assert.assertTrue(
+				f.result("wrParent.wr1") &&
+				f.result("wrChild1.wr1") && 
+				f.result("wrChild2.wr1"));
 	}
 	
+	@Test public void testWriteHandoffWithStrayReader() {
+		final DgIntervalFactory f = new DgIntervalFactory();
+		
+		Intervals.subinterval(new VoidSubinterval() { 
+			@Override public void run(final Interval a) {				
+				Interval wrParent = f.create(a, "wrParent", FLAG_WR1);				
+				Interval wrChild1 = f.create(wrParent, "wrChild1", FLAG_WR1);
+				Interval wrChild2 = f.create(wrParent, "wrChild2", FLAG_WR1);
+				f.create(wrParent, "rdChild", FLAG_RD1);
+				Intervals.addHb(wrChild1, wrChild2);
+			}
+		});		
+		
+		assertEquals(4, f.results.size());
+		
+		Assert.assertTrue(
+				f.result("wrParent.wr1") &&
+				(
+						(f.result("wrChild1.wr1") && f.result("wrChild2.wr1") && !f.result("rdChild.rd1")) ||
+						(f.result("wrChild1.wr1") && !f.result("wrChild2.wr1") && f.result("rdChild.rd1")) || 
+						(!f.result("wrChild1.wr1") && !f.result("wrChild2.wr1") && f.result("rdChild.rd1"))
+				));
+	}
+	
+	boolean testUnlockLockRaceHelper(final boolean lockFirst, final int unlockFlag, String accName) {
+		final DgIntervalFactory f = new DgIntervalFactory();
+		
+		try {
+			Intervals.subinterval("parent", new VoidSubinterval() { 
+				@Override public void run(final Interval parent) {
+					Interval lockChild = f.create(parent, "lockChild", FLAG_LCK); 
+					Interval unlockChild = f.create(parent, "unlockChild", unlockFlag); 
+					
+					// Use speculative flag to enforce an ordering without actually creating HB relations:
+					if(lockFirst) 
+						lockChild.end.addEdgeAndAdjustDuringTest(unlockChild.start, EdgeList.SPECULATIVE);
+					else
+						unlockChild.end.addEdgeAndAdjustDuringTest(lockChild.start, EdgeList.SPECULATIVE);
+				}
+			});
+
+			// If lock fails, an exception is thrown.  Since no exception, write
+			// should have failed:
+			Assert.assertTrue(!f.result("unlockChild."+accName));	
+			return true; // unlock failed
+		} catch (RethrownException e) {
+			Assert.assertTrue(f.result("unlockChild."+accName));			
+			
+			Assert.assertTrue(
+					"Not a DataRaceException:"+e.getCause(), 
+					e.getCause() instanceof DataRaceException);
+			
+			DataRaceException dre = (DataRaceException)e.getCause();
+			Assert.assertEquals(f.dg, dre.dg);
+			Assert.assertEquals(DataRaceException.Role.LOCK, dre.acc);
+			Assert.assertEquals("lockChild", dre.interloper.toString());
+			//FIX Assert.assertEquals("unlockChild", dre.owner);
+			return false; // lock failed
+		}
+	}
+
+	
+	@Test public void testLockWriteRace() {
+		boolean ufRd = testUnlockLockRaceHelper(true, FLAG_RD1, "rd1");
+		boolean ufWr = testUnlockLockRaceHelper(true, FLAG_WR1, "wr1");
+		boolean lfRd = testUnlockLockRaceHelper(false, FLAG_RD1, "rd1");
+		boolean lfWr = testUnlockLockRaceHelper(false, FLAG_WR1, "wr1");
+		
+		// Right now, it's deterministic which will run first, so assert
+		// that we've tried out both code paths:
+		Assert.assertEquals(ufRd, ufWr);
+		Assert.assertEquals(lfRd, lfWr);
+		Assert.assertEquals(lfRd, !ufRd);
+	}
 }

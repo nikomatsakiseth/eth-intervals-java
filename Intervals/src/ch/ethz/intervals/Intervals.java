@@ -54,6 +54,31 @@ public class Intervals {
 		};		
 	}
 	
+	/** Equivalent of {@code addHb(start(from), start(to))}
+	 *  @see Intervals#start(Interval)
+	 *  @see Intervals#end(Interval)
+	 *  @see Intervals#addHb(Point, Point)
+	 */
+	public static void addHb(Interval from, Interval to) {
+		addHb(end(from), start(to));
+	}
+	
+	/** Equivalent of {@code addHb(end(from), to)}
+	 *  @see Intervals#end(Interval)
+	 *  @see Intervals#addHb(Point, Point)
+	 */
+	public static void addHb(Interval from, Point to) {
+		addHb(end(from), to);
+	}
+	
+	/** Equivalent of {@code addHb(from, start(to))}
+	 *  @see Intervals#start(Interval)
+	 *  @see Intervals#addHb(Point, Point)
+	 */
+	public static void addHb(Point from, Interval to) {
+		addHb(from, start(to));
+	}
+	
 	/** 
 	 * Creates a dependency so that {@code from} <em>happens before</em>
 	 * {@code to}.  

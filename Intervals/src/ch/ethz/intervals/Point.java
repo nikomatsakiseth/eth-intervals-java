@@ -421,9 +421,16 @@ public abstract class Point {
 	 *  
 	 * Returns the number of wait counts added to {@code toImpl}.
 	 */
-	void addEdgeAndAdjust(Point toImpl, int flags) {		
-		assert !speculative(flags) : "addEdgeAndAdjust should not be used for spec. edges!";
-		
+	void addEdgeAndAdjust(Point toImpl, int flags) {
+		assert !speculative(flags) : "addEdgeAndAdjust should not be used for spec. edges!";		
+		addEdgeAndAdjustDuringTest(toImpl, flags);
+	}
+
+	/**
+	 * Like {@link #addEdgeAndAdjust(Point, int)} but skips some assertions
+	 * that apply in normal code but not in testing code.
+	 */
+	void addEdgeAndAdjustDuringTest(Point toImpl, int flags) {
 		// Note: we must increment the wait count before we release
 		// the lock on this, because otherwise toImpl could arrive and
 		// then decrement the wait count before we get a chance to increment

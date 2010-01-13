@@ -8,7 +8,7 @@ import ch.ethz.intervals.quals.Subinterval;
 public abstract class Interval 
 extends ThreadPool.WorkItem 
 implements Dependency, Guard
-{	
+{
 	private static final LittleLinkedList<Interval> empty = 
 		new LittleLinkedList<Interval>(null);
 	
@@ -172,19 +172,23 @@ implements Dependency, Guard
 		assert pnt.didOccur();
 		if(pnt == start) {
 			// First check whether locks were safe to acquire
-			for(LockList list = this.locks; list != null; list = list.next)
+			LittleLinkedList<Throwable> lockErrors = null;
+			for(LockList list = this.locks; list != null; list = list.next) {			
 				if(!list.lock.isLockableBy(start, end)) {
 					// XXX Create this exception in isLockableBy, where we know the other owner
-					start.addPendingException(new DataRaceException(
+					Throwable error = new DataRaceException(
 							(DynamicGuard) list.lock, 
 							DataRaceException.Role.LOCK, 
-							this, null));
+							this, null);
+					end.addPendingException(error);
+					lockErrors = new LittleLinkedList<Throwable>(error, lockErrors);
 					hasPendingExceptions = true;
 				}
+			}
 			
 			// After start point occurs, if no exceptions then run user task.
 			if(!hasPendingExceptions) Intervals.POOL.submit(this);
-			else finishSequentialPortion();
+			else finishSequentialPortion(lockErrors);
 		} else {
 			// After end point occurs, release any locks we acquired.
 			assert pnt == end;
@@ -217,7 +221,7 @@ implements Dependency, Guard
 					end.addPendingException(t);
 				}
 				cur.schedule();								
-				finishSequentialPortion();
+				finishSequentialPortion(null);
 			} catch(Throwable e) {
 				e.printStackTrace(); // unexpected!
 			}
@@ -226,14 +230,18 @@ implements Dependency, Guard
 		}
 	}
 	
-	private void finishSequentialPortion() {
+	private void finishSequentialPortion(LittleLinkedList<Throwable> extraErrors) {
 		LittleLinkedList<Interval> pending;
 		synchronized(this) {
 			pending = pendingChildIntervals;
 			this.pendingChildIntervals = null;
 		}				
-		for(; pending != empty; pending = pending.next)
+		for(; pending != empty; pending = pending.next) {
+			if(extraErrors != null)
+				for(LittleLinkedList<Throwable> extraError = extraErrors; extraError != null; extraError = extraError.next)
+					pending.value.start.addPendingException(extraError.value);
 			pending.value.start.arrive(1);
+		}
 
 		end.arrive(1);
 	}
