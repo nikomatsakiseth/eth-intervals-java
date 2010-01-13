@@ -6,11 +6,11 @@ for iter in 500 1000 1500
 do
 	echo Testing 8 threads with $iter iterations
 	for N in 1 2 3 4 5
-	do java -cp bin threads.sor.Sor $iter 8
+	do java ${JAVAOPTS} -cp bin threads.sor.Sor $iter 8
 	done
 
 	echo Testing intervals with $iter iterations
 	for N in 1 2 3 4 5
-	do java -cp bin intervals.sor.Sor $iter
+	do java ${JAVAOPTS} -cp bin intervals.sor.Sor $iter
 	done
 done
