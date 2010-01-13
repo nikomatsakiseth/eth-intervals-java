@@ -268,12 +268,14 @@ public abstract class Point {
 			Debug.occur(this, outEdges);
 		
 		// Notify our successors:
-		new ChunkList.Iterator<Point>(outEdges) {
-			public void doForEach(Point toPoint, int flags) {
-				if(ChunkList.waiting(flags))
-					notifySuccessor(toPoint, true);
-			}
-		};
+		if(outEdges != null) {
+			new ChunkList.Iterator<Point>(outEdges) {
+				public void doForEach(Point toPoint, int flags) {
+					if(ChunkList.waiting(flags))
+						notifySuccessor(toPoint, true);
+				}
+			};
+		}
 		if(bound != null)
 			notifySuccessor(bound, true);
 		else

@@ -237,14 +237,16 @@ implements Dependency, Guard
 			this.pendingChildIntervals = runMethodTerminated;
 		}
 		
-		new ChunkList.Iterator<Interval>(pending) {
-			@Override public void doForEach(Interval child, int flags) {
-				if(extraErrors != null)
-					for(LittleLinkedList<Throwable> extraError = extraErrors; extraError != null; extraError = extraError.next)
-						child.start.addPendingException(extraError.value);
-				child.start.arrive(1);
-			}
-		};
+		if(pending != null) {
+			new ChunkList.Iterator<Interval>(pending) {
+				@Override public void doForEach(Interval child, int flags) {
+					if(extraErrors != null)
+						for(LittleLinkedList<Throwable> extraError = extraErrors; extraError != null; extraError = extraError.next)
+							child.start.addPendingException(extraError.value);
+					child.start.arrive(1);
+				}
+			};
+		}
 
 		end.arrive(1);
 	}
