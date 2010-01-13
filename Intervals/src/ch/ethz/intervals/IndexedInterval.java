@@ -41,7 +41,7 @@ public abstract class IndexedInterval extends Interval {
 	abstract public void run(int fromIndex, int toIndex);
 
 	@Override
-	public final void run() {
+	public void run() {
     	new Subtask(lo0, hi0);
 	}
 	
