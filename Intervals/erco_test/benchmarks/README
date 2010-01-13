@@ -1,0 +1,293 @@
+The archives elevator, hedc, sor and tsp contain multi-threaded
+benchmark programs that we have used for evaluating object-race
+detection. All archives unpack into separate directories.
+
+The tests are self-contained, i.e. they only require the standard JDK
+libraries to compile and run (I verified this with JDK 1.3.1).
+
+Some benchmarks use additional libraries that I have taken from the 
+net (the util.concurrent lib from D. Lea and a library for regular 
+expressions by J. Payne). They are included in the archives and I 
+thank the authors. 
+
+
+elevator
+--------
+Program input is provided through stdin. We have used file 'data', 
+i.e. run the simulation with the command line 'java Elevator < data'.
+
+hedc
+----
+The configuration of the program is determined in properties.txt. 
+As the program queries data archives through the network, you need
+Internet access to run this program. The server addresses and 
+further format parameters are specified as constants in the programs. 
+
+As the Java library we were using for our tests (GNU libgcj 2.95)  
+did not support some of the required functionality we supplied/adapted
+the necessary classes in java/util. Run the program with 'java Tester', 
+the output of each Tester-Thread is written to a '.log'-file.
+
+sor
+---
+We have run the benchmark with 2 threads, i.e. the command line is 
+'java Sor 50 2'.
+
+tsp
+---
+The topology of the graph is specified in a file. We have run the 
+application with two worker threads, i.e. the command line is 
+'java Tsp tspfiles/map16c 2'.
+
+mtrt
+----
+I did not add this benchmark here because it is in part of the SPEC 
+JVM98 suite. We ran it with 2 threads.
+
+
+Christoph von Praun
+10/23/01
+
+
+-----------------------
+
+We have obmitted the instrumentation for certain accesses to library 
+methods that we do not want to consider as source of object races. Most 
+of these methods are without side effect or mean access to immutable 
+objects.
+
+java.lang.Boolean::<init>:(Z)V
+java.lang.Boolean::<init>:(Ljava/lang/String;)V
+java.lang.Boolean::booleanValue:()Z
+java.lang.Boolean::equals:(Ljava/lang/Object;)Z
+java.lang.Boolean::toBoolean:(Ljava/lang/String;)Z
+java.lang.Boolean::toString:()Ljava/lang/String;
+java.lang.Boolean::valueOf:(Ljava/lang/String;)Ljava/lang/Boolean;
+
+java.lang.Byte::<init>:(B)V
+java.lang.Byte::<init>:(Ljava/lang/String;)V
+java.lang.Byte::byteValue:()B
+java.lang.Byte::shortValue:()S
+java.lang.Byte::intValue:()I
+java.lang.Byte::longValue:()J
+java.lang.Byte::floatValue:()F
+java.lang.Byte::doubleValue:()D
+java.lang.Byte::equals:(Ljava/lang/Object;)Z
+java.lang.Byte::parseByte:(Ljava/lang/String;)B
+java.lang.Byte::parseByte:(Ljava/lang/String;I)B
+java.lang.Byte::toString:()Ljava/lang/String;
+java.lang.Byte::toString:(B)Ljava/lang/String;
+java.lang.Byte::valueOf:(Ljava/lang/String;I)Ljava/lang/Byte;
+java.lang.Byte::valueOf:(Ljava/lang/String;)Ljava/lang/Byte;
+
+java.lang.Character::<init>:(C)V
+java.lang.Character::charValue:()C
+java.lang.Character::equals:(Ljava/lang/Object;)Z
+java.lang.Character::toString:()Ljava/lang/String;
+java.lang.Character::isLowerCase:(C)Z
+java.lang.Character::isUpperCase:(C)Z
+java.lang.Character::isDigit:(C)Z
+java.lang.Character::isDefined:(C)Z
+java.lang.Character::isLetter:(C)Z
+java.lang.Character::isLetterOrDigit:(C)Z
+java.lang.Character::toLowerCase:(C)C
+java.lang.Character::toUpperCase:(C)C
+java.lang.Character::digit:(CI)I
+java.lang.Character::getNumericValue:(C)I
+java.lang.Character::getType:(C)I
+
+java.lang.Class::toString:()Ljava/lang/String;
+java.lang.Class::isInstance:(Ljava/lang/Object;)Z
+java.lang.Class::isAssignableFrom:(Ljava/lang/Class;)Z
+java.lang.Class::isInterface:()Z
+java.lang.Class::isArray:()Z
+java.lang.Class::isPrimitive:()Z
+
+java.lang.Double::isInfinite:(D)Z
+java.lang.Double::<init>:(D)V
+java.lang.Double::<init>:(Ljava/lang/String;)V
+java.lang.Double::isInfinite:()Z
+java.lang.Double::toString:(D)Ljava/lang/String;
+java.lang.Double::valueOf:(Ljava/lang/String;)Ljava/lang/Double;
+java.lang.Double::parseDouble:(Ljava/lang/String;)D
+java.lang.Double::isNaN:(D)Z
+java.lang.Double::isNaN:()Z
+java.lang.Double::toString:()Ljava/lang/String;
+java.lang.Double::byteValue:()B
+java.lang.Double::shortValue:()S
+java.lang.Double::intValue:()I
+java.lang.Double::longValue:()J
+java.lang.Double::floatValue:()F
+java.lang.Double::doubleValue:()D
+java.lang.Double::equals:(Ljava/lang/Object;)Z
+
+java.lang.Float::isInfinite:(F)Z
+java.lang.Float::<init>:(F)V
+java.lang.Float::<init>:(D)V
+java.lang.Float::<init>:(Ljava/lang/String;)V
+java.lang.Float::isInfinite:()Z
+java.lang.Float::toString:(F)Ljava/lang/String;
+java.lang.Float::valueOf:(Ljava/lang/String;)Ljava/lang/Float;
+java.lang.Float::parseFloat:(Ljava/lang/String;)F
+java.lang.Float::isNaN:(F)Z
+java.lang.Float::isNaN:()Z
+java.lang.Float::toString:()Ljava/lang/String;
+java.lang.Float::byteValue:()B
+java.lang.Float::shortValue:()S
+java.lang.Float::intValue:()I
+java.lang.Float::longValue:()J
+java.lang.Float::floatValue:()F
+java.lang.Float::doubleValue:()D
+java.lang.Float::equals:(Ljava/lang/Object;)Z
+
+java.lang.Integer::<init>:(I)V
+java.lang.Integer::<init>:(Ljava/lang/String;)V
+java.lang.Integer::toString:(II)Ljava/lang/String;
+java.lang.Integer::toHexString:(I)Ljava/lang/String;
+java.lang.Integer::toOctalString:(I)Ljava/lang/String;
+java.lang.Integer::toBinaryString:(I)Ljava/lang/String;
+java.lang.Integer::toString:(I)Ljava/lang/String;
+java.lang.Integer::parseInt:(Ljava/lang/String;I)I
+java.lang.Integer::parseInt:(Ljava/lang/String;)I
+java.lang.Integer::valueOf:(Ljava/lang/String;I)Ljava/lang/Integer;
+java.lang.Integer::valueOf:(Ljava/lang/String;)Ljava/lang/Integer;
+java.lang.Integer::byteValue:()B
+java.lang.Integer::shortValue:()S
+java.lang.Integer::intValue:()I
+java.lang.Integer::longValue:()J
+java.lang.Integer::floatValue:()F
+java.lang.Integer::doubleValue:()D
+java.lang.Integer::toString:()Ljava/lang/String;
+java.lang.Integer::equals:(Ljava/lang/Object;)Z
+
+java.lang.Long::<init>:(J)V
+java.lang.Long::<init>:(Ljava/lang/String;)V
+java.lang.Long::toString:(JI)Ljava/lang/String;
+java.lang.Long::toHexString:(J)Ljava/lang/String;
+java.lang.Long::toOctalString:(J)Ljava/lang/String;
+java.lang.Long::toBinaryString:(J)Ljava/lang/String;
+java.lang.Long::toString:(J)Ljava/lang/String;
+java.lang.Long::parseLong:(Ljava/lang/String;I)J
+java.lang.Long::parseLong:(Ljava/lang/String;)J
+java.lang.Long::valueOf:(Ljava/lang/String;I)Ljava/lang/Long;
+java.lang.Long::valueOf:(Ljava/lang/String;)Ljava/lang/Long;
+java.lang.Long::byteValue:()B
+java.lang.Long::shortValue:()S
+java.lang.Long::intValue:()I
+java.lang.Long::longValue:()J
+java.lang.Long::floatValue:()F
+java.lang.Long::doubleValue:()D
+java.lang.Long::toString:()Ljava/lang/String;
+java.lang.Long::equals:(Ljava/lang/Object;)Z
+
+java.lang.Math::sin:(D)D
+java.lang.Math::cos:(D)D
+java.lang.Math::tan:(D)D
+java.lang.Math::asin:(D)D
+java.lang.Math::acos:(D)D
+java.lang.Math::atan:(D)D
+java.lang.Math::toRadians:(D)D
+java.lang.Math::toDegrees:(D)D
+java.lang.Math::exp:(D)D
+java.lang.Math::log:(D)D
+java.lang.Math::sqrt:(D)D
+java.lang.Math::IEEEremainder:(DD)D
+java.lang.Math::ceil:(D)D
+java.lang.Math::floor:(D)D
+java.lang.Math::rint:(D)D
+java.lang.Math::atan2:(DD)D
+java.lang.Math::pow:(DD)D
+java.lang.Math::round:(F)I
+java.lang.Math::round:(D)J
+java.lang.Math::abs:(I)I
+java.lang.Math::abs:(J)J
+java.lang.Math::abs:(F)F
+java.lang.Math::abs:(D)D
+java.lang.Math::max:(II)I
+java.lang.Math::max:(JJ)J
+java.lang.Math::max:(FF)F
+java.lang.Math::max:(DD)D
+java.lang.Math::min:(II)I
+java.lang.Math::min:(JJ)J
+java.lang.Math::min:(FF)F
+java.lang.Math::min:(DD)D
+
+java.lang.Object::hashCode:()I
+java.lang.Object::equals:(Ljava/lang/Object;)Z
+java.lang.Object::clone:()Ljava/lang/Object;
+java.lang.Object::toString:()Ljava/lang/String;
+java.lang.Object::getClass:()Ljava/lang/Class;
+
+java.lang.Short::<init>:(S)V
+java.lang.Short::<init>:(Ljava/lang/String;)V
+java.lang.Short::toString:(S)Ljava/lang/String;
+java.lang.Short::parseShort:(Ljava/lang/String;)S
+java.lang.Short::parseShort:(Ljava/lang/String;I)S
+java.lang.Short::valueOf:(Ljava/lang/String;I)Ljava/lang/Short;
+java.lang.Short::valueOf:(Ljava/lang/String;)Ljava/lang/Short;
+java.lang.Short::byteValue:()B
+java.lang.Short::shortValue:()S
+java.lang.Short::intValue:()I
+java.lang.Short::longValue:()J
+java.lang.Short::floatValue:()F
+java.lang.Short::doubleValue:()D
+java.lang.Short::toString:()Ljava/lang/String;
+java.lang.Short::equals(Ljava/lang/Object;)Z
+
+java.lang.String::<init>:()V
+java.lang.String::<init>:(Ljava/lang/String;)V
+java.lang.String::length:()I
+java.lang.String::charAt:(I)C
+java.lang.String::equals:(Ljava/lang/Object;)Z
+java.lang.String::equalsIgnoreCase:(Ljava/lang/String;)Z
+java.lang.String::startsWith:(Ljava/lang/String;I)Z
+java.lang.String::startsWith:(Ljava/lang/String;)Z
+java.lang.String::endsWith:(Ljava/lang/String;)Z
+java.lang.String::indexOf:(I)I
+java.lang.String::indexOf:(II)I
+java.lang.String::lastIndexOf:(I)I
+java.lang.String::lastIndexOf:(II)I
+java.lang.String::indexOf:(Ljava/lang/String;)I
+java.lang.String::indexOf:(Ljava/lang/String;I)I
+java.lang.String::LastIndexOf:(Ljava/lang/String;)I
+java.lang.String::LastIndexOf:(Ljava/lang/String;I)I
+java.lang.String::valueOf:(Ljava/lang/Object;)Ljava/lang/String;
+java.lang.String::valueOf:(Z)Ljava/lang/String;
+java.lang.String::valueOf:(C)Ljava/lang/String;
+java.lang.String::valueOf:(I)Ljava/lang/String;
+java.lang.String::valueOf:(J)Ljava/lang/String;
+java.lang.String::valueOf:(F)Ljava/lang/String;
+java.lang.String::valueOf:(D)Ljava/lang/String;
+java.lang.String::toString:()Ljava/lang/String;
+java.lang.String::copyValueOf:([CII)Ljava.lang.String;
+java.lang.String::copyValueOf:([C)Ljava.lang.String;
+
+java.lang.Thread::currentThread:()Ljava/lang/Thread;
+java.lang.Thread::sleep:(J)V
+java.lang.Thread::sleep:(JI)V
+java.lang.Thread::join:()V
+java.lang.Thread::isInterrupted:(N)Z
+
+java.lang.Object::<init>:()V
+
+java.lang.Exception::<init>:()V
+java.lang.Exception::<init>:(Ljava/lang/String;)V
+
+java.lang.Throwable::<init>:()V
+java.lang.Throwable::<init>:(Ljava/lang/String;)V
+
+java.lang.StringBuffer::<init>:()V
+java.lang.StringBuffer::<init>:(Ljava/lang/String;)V
+java.lang.StringBuffer::<init>:(I)V
+
+java.lang.System::currentTimeMillis:()J
+java.lang.System::exit:(I)V
+java.lang.System::gc:()V
+
+java.io.PrintStream::println:()V
+java.io.PrintStream::println:(Ljava/lang/String;)V
+java.io.PrintStream::println:(Ljava/lang/Object;)V
+java.io.PrintStream::print:(Ljava/lang/String;)V
+java.io.PrintStream::print:(Ljava/lang/Object;)V
+java.io.PrintStream::flush:()V
+
