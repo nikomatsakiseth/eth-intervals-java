@@ -253,13 +253,18 @@ public abstract class Point {
 		assert waitCount == 0;
 		assert line.isScheduled();
 		
+		// Subintervals of the root interval should invoke notifyAll(),
+		// as there might be someone listening.
+		boolean shouldNotifyAll = (bound == null && line == Line.rootLine && isEndPoint());
+		
 		// Save copies of our outgoing edges at the time we occurred:
 		//      They may be modified further while we are notifying successors.
 		final ChunkList<Point> outEdges;
 		synchronized(this) {
 			outEdges = this.outEdges;
 			this.waitCount = OCCURRED;
-			notifyAll(); // in case anyone is joining us
+			if(shouldNotifyAll)
+				notifyAll(); // in case anyone is joining us
 		}
 		
 		ExecutionLog.logArrive(this);
