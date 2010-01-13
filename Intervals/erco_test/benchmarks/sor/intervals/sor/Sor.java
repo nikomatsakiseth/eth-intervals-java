@@ -1,4 +1,4 @@
-package erco_test;
+package intervals.sor;
 /*
  * Copyright (C) 2000 by ETHZ/INF/CS
  * All rights reserved
@@ -17,7 +17,7 @@ import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.VoidSubinterval;
 
-public class SorIntervals {
+public class Sor {
 
 	public final static int N = 500;
 	public final static int M = 500;

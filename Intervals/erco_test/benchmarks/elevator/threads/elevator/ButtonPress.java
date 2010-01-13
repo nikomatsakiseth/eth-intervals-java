@@ -1,3 +1,4 @@
+package threads.elevator;
 /*
  * Copyright (C) 2000 by ETHZ/INF/CS
  * All rights reserved

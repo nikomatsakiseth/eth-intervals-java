@@ -1,4 +1,4 @@
-package erco_test;
+package threads.sor;
 /*
  * Copyright (C) 2000 by ETHZ/INF/CS
  * All rights reserved
