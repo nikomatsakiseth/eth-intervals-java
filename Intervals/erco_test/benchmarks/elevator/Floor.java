@@ -13,19 +13,18 @@ import java.io.*;
 // class to represent a floor in the control object
 class Floor {
 
-    // Lists of people waiting to go up, and down
-    // The Vectors will have instances of Integer objects.  The Integer will
-    // store the floor that the person wants to go to
-    public Vector upPeople, downPeople;
+	// Lists of people waiting to go up, and down
+	// The Vectors will have instances of Integer objects. The Integer will
+	// store the floor that the person wants to go to
+	public Vector upPeople, downPeople;
 
-    // True if an elevator has claimed the the up or down call
-    public boolean upFlag, downFlag;
+	// True if an elevator has claimed the the up or down call
+	public boolean upFlag, downFlag;
 
-    public Floor() {
-	upPeople = new Vector();
-	downPeople = new Vector();
-	upFlag = false;
-	downFlag = false;
-    }
+	public Floor() {
+		upPeople = new Vector();
+		downPeople = new Vector();
+		upFlag = false;
+		downFlag = false;
+	}
 }
- 

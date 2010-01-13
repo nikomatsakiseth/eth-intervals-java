@@ -12,95 +12,88 @@ import java.io.*;
 
 public class Elevator {
 
-    private static Lift dummy;
+	private static Lift dummy;
 
-    // shared control object
-    private static Controls controls; 
-    private static Vector events;
+	// shared control object
+	private static Controls controls;
+	private static Vector events;
 
-    // Initializer for main class, reads the input and initlizes
-    // the events Vector with ButtonPress objects
-    private Elevator() {
-	InputStreamReader reader = new InputStreamReader(System.in);
-	StreamTokenizer st = new StreamTokenizer(reader);
-	st.lowerCaseMode(true);
-	st.parseNumbers();
-    
-	events = new Vector();
+	// Initializer for main class, reads the input and initlizes
+	// the events Vector with ButtonPress objects
+	private Elevator() {
+		InputStreamReader reader = new InputStreamReader(System.in);
+		StreamTokenizer st = new StreamTokenizer(reader);
+		st.lowerCaseMode(true);
+		st.parseNumbers();
 
-	int numFloors = 0, numLifts = 0;
-	try {
-	    numFloors = readNum(st);
-	    numLifts = readNum(st);
+		events = new Vector();
 
-	    int time = 0, to = 0, from = 0;
-	    do {
-		time = readNum(st);
-		if(time != 0) {
-		    from = readNum(st);
-		    to = readNum(st);
-		    events.addElement(new ButtonPress(time, from, to));
+		int numFloors = 0, numLifts = 0;
+		try {
+			numFloors = readNum(st);
+			numLifts = readNum(st);
+
+			int time = 0, to = 0, from = 0;
+			do {
+				time = readNum(st);
+				if (time != 0) {
+					from = readNum(st);
+					to = readNum(st);
+					events.addElement(new ButtonPress(time, from, to));
+				}
+			} while (time != 0);
+		} catch (IOException e) {
+			System.err.println("error reading input: " + e.getMessage());
+			e.printStackTrace(System.err);
+			System.exit(1);
 		}
-	    } while(time != 0);
+
+		// Create the shared control object
+		controls = new Controls(numFloors);
+		// Create the elevators
+		for (int i = 0; i < numLifts; i++)
+			dummy = new Lift(numFloors, controls);
 	}
-	catch(IOException e) {
-	    System.err.println("error reading input: " + e.getMessage());
-	    e.printStackTrace(System.err);
-	    System.exit(1);
+
+	// Press the buttons at the correct time
+	private void begin() {
+		// Get the thread that this method is executing in
+		Thread me = Thread.currentThread();
+		// First tick is 1
+		int time = 1;
+
+		for (int i = 0; i < events.size();) {
+			ButtonPress bp = (ButtonPress) events.elementAt(i);
+			// if the current tick matches the time of th next event
+			// push the correct buttton
+			if (time == bp.time) {
+				System.out
+						.println("Elevator::begin - its time to press a button");
+				if (bp.onFloor > bp.toFloor)
+					controls.pushDown(bp.onFloor, bp.toFloor);
+				else
+					controls.pushUp(bp.onFloor, bp.toFloor);
+				i += 1;
+			}
+			// wait 1/2 second to next tick
+			try {
+				me.sleep(500);
+			} catch (InterruptedException e) {
+			}
+			time += 1;
+		}
 	}
 
-	// Create the shared control object
-	controls = new Controls(numFloors);
-	// Create the elevators
-	for(int i = 0; i < numLifts; i++)
-	    dummy = new Lift(numFloors, controls);
-    }
+	private int readNum(StreamTokenizer st) throws IOException {
+		int tokenType = st.nextToken();
 
-    // Press the buttons at the correct time
-    private void begin() {
-	// Get the thread that this method is executing in
-	Thread me = Thread.currentThread();
-	// First tick is 1
-	int time = 1;
-    
-	for(int i = 0; i < events.size(); ) {
-	    ButtonPress bp = (ButtonPress)events.elementAt(i);
-	    // if the current tick matches the time of th next event
-	    // push the correct buttton
-	    if(time == bp.time) {
-		System.out.println("Elevator::begin - its time to press a button");
-		if(bp.onFloor > bp.toFloor)
-		    controls.pushDown(bp.onFloor, bp.toFloor);
-		else
-		    controls.pushUp(bp.onFloor, bp.toFloor);
-		i += 1;
-	    }
-	    // wait 1/2 second to next tick
-	    try { 
-		me.sleep(500); 
-	    } catch(InterruptedException e) {}
-	    time += 1;
-	}    
-    }
-  
-    private int readNum(StreamTokenizer st) throws IOException {
-	int tokenType = st.nextToken();
-    
-	if(tokenType != StreamTokenizer.TT_NUMBER)
-	    throw new IOException("Number expected!");
-	return (int)st.nval;
-    }
+		if (tokenType != StreamTokenizer.TT_NUMBER)
+			throw new IOException("Number expected!");
+		return (int) st.nval;
+	}
 
-    public static void main(String args[]) {
-	Elevator building = new Elevator();
-	building.begin();
-    }
+	public static void main(String args[]) {
+		Elevator building = new Elevator();
+		building.begin();
+	}
 }
-
-
-
-
-
-
-
-
