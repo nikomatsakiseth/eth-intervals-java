@@ -9,11 +9,16 @@ public abstract class Interval
 extends ThreadPool.WorkItem 
 implements Dependency, Guard
 {	
+	private static final LittleLinkedList<Interval> empty = 
+		new LittleLinkedList<Interval>(null);
+	
 	private static final long serialVersionUID = 8105268455633202522L;
 		
 	public final Interval parent;
 	public final Point start;
 	public final Point end;
+	
+	private final String name;
 	
 	/** @see Current#unscheduled */
 	Interval nextUnscheduled;
@@ -23,15 +28,9 @@ implements Dependency, Guard
 	 *  so used without synchronization in methods that must happen after start. */
 	private LockList locks;
 	
-	/** Any child intervals created before {@link #start} has occurred are
-	 *  added to this list.  Must lock {@link #start} when modifying to 
-	 *  be sure that {@link #start} does not occur. */
-	private LittleLinkedList<Interval> pendingChildIntervals = null;
-	
-	private String pntName(String prefix, String suffix) {
-		if(prefix == null) return null;
-		return prefix + suffix;
-	}
+	/** Any child intervals created before run method finishes execution. 
+	 *  Modified only under lock! */
+	private LittleLinkedList<Interval> pendingChildIntervals = empty;
 	
 	public Interval(Dependency dep) {
 		this(dep, null);
@@ -54,6 +53,7 @@ implements Dependency, Guard
 		// (3) A path exists from current.end -> bnd.  Same as (2).
 		if(parentEnd != null) current.checkCanAddDep(parentEnd);	
 		
+		this.name = name;
 		this.parent = parent;
 		Line line = new Line(current);
 		end = new EndPoint(name, line, parentEnd, 2, this);
@@ -74,6 +74,7 @@ implements Dependency, Guard
 	
 	Interval(String name, Interval parent, Line line, int startWaitCount, int endWaitCount) {
 		assert line != null;
+		this.name = name;
 		this.parent = parent;		
 		this.end = new EndPoint(name, line, Intervals.end(parent), endWaitCount, this);
 		this.start = new StartPoint(name, line, end, startWaitCount, this);
@@ -88,11 +89,13 @@ implements Dependency, Guard
 	
 	int addChildInterval(Interval inter) {
 		end.addWaitCount();
-		
-		synchronized(start) {
-			if(start.didOccur())
+
+		synchronized(this) {
+			if(pendingChildIntervals == null) {
+				// Run method already finished.  New children should just start.
 				return 0;
-			else {
+			} else {
+				// Run method not yet finished.  New children must wait.
 				pendingChildIntervals = new LittleLinkedList<Interval>(inter, pendingChildIntervals);
 				return 1;
 			}
@@ -168,14 +171,20 @@ implements Dependency, Guard
 	final void didOccur(Point pnt, boolean hasPendingExceptions) {
 		assert pnt.didOccur();
 		if(pnt == start) {
-			// First awaken any children.
-			for(LittleLinkedList<Interval> pending = pendingChildIntervals; pending != null; pending = pending.next)
-				pending.value.start.arrive(1);
-			pendingChildIntervals = null;
+			// First check whether locks were safe to acquire
+			for(LockList list = this.locks; list != null; list = list.next)
+				if(!list.lock.isLockableBy(start, end)) {
+					// XXX Create this exception in isLockableBy, where we know the other owner
+					start.addPendingException(new DataRaceException(
+							(DynamicGuard) list.lock, 
+							DataRaceException.Role.LOCK, 
+							this, null));
+					hasPendingExceptions = true;
+				}
 			
 			// After start point occurs, if no exceptions then run user task.
 			if(!hasPendingExceptions) Intervals.POOL.submit(this);
-			else end.arrive(1); // otherwise just signal the end point
+			else finishSequentialPortion();
 		} else {
 			// After end point occurs, release any locks we acquired.
 			assert pnt == end;
@@ -207,15 +216,8 @@ implements Dependency, Guard
 				} catch(Throwable t) {
 					end.addPendingException(t);
 				}
-
-				// n.b.: This does not release the locks we acquired.  It releases the *recursive*
-				// versions of those locks, so that our subintervals can now acquire them!
-				// The locks themselves are released to non-subintervals in didOccur() after end occurs. 
-				for(LockList lockList = this.locks; lockList != null; lockList = lockList.next)
-					lockList.unlockThis();
-
-				cur.schedule();				
-				end.arrive(1);
+				cur.schedule();								
+				finishSequentialPortion();
 			} catch(Throwable e) {
 				e.printStackTrace(); // unexpected!
 			}
@@ -224,8 +226,22 @@ implements Dependency, Guard
 		}
 	}
 	
+	private void finishSequentialPortion() {
+		LittleLinkedList<Interval> pending;
+		synchronized(this) {
+			pending = pendingChildIntervals;
+			this.pendingChildIntervals = null;
+		}				
+		for(; pending != empty; pending = pending.next)
+			pending.value.start.arrive(1);
+
+		end.arrive(1);
+	}
+
 	@Override
 	public String toString() {
+		if(name != null)
+			return name;
 		return String.format("Interval(%s-%s)", start, end);
 	}
 	

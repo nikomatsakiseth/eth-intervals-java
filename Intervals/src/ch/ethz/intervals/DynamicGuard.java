@@ -15,139 +15,219 @@ public class DynamicGuard
 extends Lock
 implements Guard {
 	
-	private enum State {
+	private enum StateKind {
 		/** Both wr, rd are {@code null} */
 		INITIAL,
 		
+		/** wr is bound of locker, rd is {@code null} */
+		LOCK_OWNED,
+		
 		/** wr is bound of writer, rd is {@code null} */
-		WR_OWNED_END,
+		WR_OWNED,
 		
 		/** wr is bound of previous writer, rd is bound of singular reader */
-		RD_OWNED_END, 
+		RD_OWNED, 
 		
 		/** wr is bound of previous writer, rd is mutual bound of <b>all readers</b> */
 		RD_SHARED 
 	}
 	
-	private State state = State.INITIAL;
-	
-	/** End of most recent lock owner, or null. */
-	private Point lockEnd;
-	
-	/** End of most recent writer. */
-	private Point wr;
-	
-	/** End of most recent reader, or mutual bound, depending on {@link State}. */
-	private Point rd; 
-	
-	class SavedFields {
-		final State state;
-		final Point lockEnd, wr, rd;
-		final SavedFields stack;
+	private enum AccessKind {
+		LOCK(StateKind.LOCK_OWNED), WR(StateKind.WR_OWNED), RD(StateKind.RD_OWNED);
 		
-		public SavedFields(State state, Point lockEnd, Point wr, Point rd,
-				SavedFields stack) {
-			this.state = state;
-			this.lockEnd = lockEnd;
-			this.wr = wr;
-			this.rd = rd;
-			this.stack = stack;
+		final StateKind ownerStateKind;
+
+		private AccessKind(StateKind ownerStateKind) {
+			this.ownerStateKind = ownerStateKind;
+		}		
+	}
+	
+	private static class State {
+		StateKind kind;
+		Point bound, prevWr;
+		State next;
+		
+		public State(StateKind kind, Point bound, Point prevWr, State next) {
+			this.kind = kind;
+			this.bound = bound;
+			this.prevWr = prevWr;
+			this.next = next;
 		}
+		
+		private boolean isRepeat(Point end) {
+			return end.line == bound.line && end.isBoundedByOrEqualTo(bound);
+		}
+
 	}
 	
-	SavedFields stack = null;
+	private static final State initialState = new State(StateKind.INITIAL, null, null, null);
 	
-	private void pushFields(State nextState, Point nextLockEnd, Point nextWr, Point nextRd) {
-		stack = new SavedFields(state, lockEnd, wr, rd, stack);		
-		rd = nextRd;
-		wr = nextWr;
-		lockEnd = nextLockEnd;
-		state = nextState;
+	private State state = initialState;
+	
+	/** Tries to push a new ownership state of the correct kind for the given
+	 *  access.  This is only possible if {@code inter} is bounded by
+	 *  the current owner.  Returns false otherwise. */
+	private boolean tryPushState(AccessKind accKind, Point mr, Point end) {
+		if(end.isBoundedBy(state.bound)) {
+			state = new State(accKind.ownerStateKind, end, null, state);
+			return true;
+		}
+		return false;		
 	}
 	
-	private void popFields() {
-		state = stack.state;
-		lockEnd = stack.lockEnd;
-		wr = stack.wr;
-		rd = stack.rd;
-		stack = stack.stack;
-	}
-	
-	@Override
-	void didLock(Interval inter) {
-		pushFields(State.INITIAL, inter.end, null, null);
+	/** Returns true if the current state is guaranteed to have finished
+	 *  because {@code inter} is active. */
+	private boolean canPopState(Point mr) {
+		return (state.bound.hbeq(mr));
 	}
 
-	private boolean processLock(Interval inter) {
-		if(lockEnd == null)
-			return true;
-		
-		if(inter.end.isBoundedByOrEqualTo(lockEnd))
-			return true;
-		
-		if(lockEnd.hbeq(inter.start)) {
-			popFields();
-			return processLock(inter);
+	/** Pops off the top-most state and retries the access. */
+	private boolean popState(AccessKind accKind, Point mr, Point end) {
+		state = state.next;
+		switch(accKind) {
+			case LOCK:
+				return isLockableBy(mr, end);
+			case WR:
+				return isWritableBy(mr, end);
+			case RD:
+				return isReadableBy(mr, end);
+			default:
+				throw new RuntimeException("Invalid pushOrPopState: "+accKind); 
 		}
-		
+	}
+	
+	/** Pops off the top-most state if it is guaranteed to have finished,
+	 *  otherwise just fails.  Not called tryPopState() because a false return
+	 *  does not necessarily indicate that it failed to pop the state! */
+	private boolean popStateElseFail(AccessKind accKind, Point mr, Point end) {
+		if(canPopState(mr))
+			return popState(accKind, mr, end);
 		return false;
 	}
 	
+	/** Tries to push or pop the state, failing if neither is possible.  
+	 *  Note that a false return does not indicate that it failed to push/pop. */
+	private boolean pushElsePopStateElseFail(AccessKind accKind, Point mr, Point end) {
+		return tryPushState(accKind, mr, end) || popStateElseFail(accKind, mr, end);
+	}
+	
+	/** False if {@code inter} races with the previous write */
+	private boolean canGeneralizeReadState(Point mr) {
+		return state.prevWr == null || state.prevWr.hbeq(mr);
+	}
+	
+	/** Removes one or more {@link StateKind#RD_OWNED} states from the top of the stack
+	 *  and converts to {@link StateKind#RD_SHARED}. */
+	private void generalizeReadOwnedState(Point end) {
+		assert state.kind == StateKind.RD_OWNED && !end.isBoundedBy(state.bound);
+		
+		Point prevWr = state.prevWr;
+		Point rdBound;
+				
+		State topMost = state;
+		do {		
+			rdBound = state.bound;
+			topMost = topMost.next;					
+		} while(topMost.kind == StateKind.RD_OWNED && !end.isBoundedBy(state.bound));
+		
+		rdBound = rdBound.mutualBound(end);
+		
+		state = new State(StateKind.RD_SHARED, rdBound, prevWr, topMost);
+	}
+		
+	/** Generalizes the bound of the {@link StateKind#RD_SHARED} state on top of
+	 *  the stack. */
+	private void generalizeReadSharedState(Point end) {
+		assert state.kind == StateKind.RD_SHARED;
+		
+		state.bound = state.bound.mutualBound(end);
+	}	
+
+	/** True if LOCKing this object is permitted by {@code inter}.
+	 *  Invoked only after {@code inter} has successfully acquired the lock.
+	 *  Note that just because {@code inter} acquired the lock does not
+	 *  mean it was safe to do so: there may be other intervals out there
+	 *  doing unlocked accesses and racing with {@code inter}. */
+	synchronized boolean isLockableBy(Point mr, Point end) {
+		switch(state.kind) {
+		case INITIAL:
+			state = new State(StateKind.LOCK_OWNED, end, null, state);
+			return true;
+			
+		case LOCK_OWNED:
+			// Note: if this is not a recursive lock, then it
+			// cannot have happened unless the previous owner
+			// had finished with its lock.  This is true even
+			// if there is no HB relationship between {@code inter}
+			// and the previous owner.
+			
+			if(tryPushState(AccessKind.LOCK, mr, end))
+				return true;
+			return popState(AccessKind.LOCK, mr, end);
+			
+		case WR_OWNED:
+			return popStateElseFail(AccessKind.LOCK, mr, end);
+			
+		case RD_OWNED:
+			return popStateElseFail(AccessKind.LOCK, mr, end);
+		
+		case RD_SHARED:
+			return popStateElseFail(AccessKind.LOCK, mr, end);
+			
+		default:
+			throw new RuntimeException("Unhandled state kind: " + state.kind);
+		}		
+	}
+
+	/**
+	 * Returns true if the current interval is permitted to write to
+	 * fields guarded by {@code this}.  If this call returns true
+	 * once during a given interval, it will always return true.
+	 */
 	@Override
 	public boolean isWritable() {		
 		Current current = Current.get();
 		
 		// Root interval:
-		//     For now play it safe.  Later think.
+		//     For now play it safe.  Later think about this.
 		if(current.inter == null)
 			return false;
 		
-		if(!processLock(current.inter))
-			return false;
-		
-		return isWritableBy(current.mr);
+		return isWritableBy(current.mr, current.inter.end);
 	}
 	
-	private boolean isRepeat(Point bnd, Point mostRecent) {
-		return mostRecent.line == bnd.line && mostRecent.isBoundedBy(bnd);
-	}
-
-	synchronized boolean isWritableBy(Point mostRecent) {
-		switch(state) {
+	synchronized private boolean isWritableBy(Point mr, Point end) {
+		switch(state.kind) {
 		case INITIAL:
-			// Not yet read or written.  Always safe.
-			break; 
+			state = new State(StateKind.WR_OWNED, end, null, state);
+			return true;
 			
-		case WR_OWNED_END:
-			// Currently being written by interval starting at "wr".  Safe if either:
-			// * wr == curStart (we are already the owner)
-			// * wr.nextEpoch hbeq curStart (writer has finished)
-			if(isRepeat(wr, mostRecent))
+		case LOCK_OWNED:
+			if(state.isRepeat(end))
 				return true;
-			if(!wr.hbeq(mostRecent, EdgeList.SPECULATIVE))
-				return false;
-			break;
+			return pushElsePopStateElseFail(AccessKind.WR, mr, end);
 			
-		case RD_OWNED_END:
-			// Currently being read by interval starting at "rd". Safe if either:
-			// * rd is curStart (curStart was the reader, now becomes the writer)
-			// * rd.nextEpoch hbeq curStart (reader has finished)
-			if(rd != mostRecent.bound && !rd.hbeq(mostRecent, EdgeList.SPECULATIVE))
-				return false;
-			break;
+		case WR_OWNED:
+			if(state.isRepeat(end))
+				return true;
+			return pushElsePopStateElseFail(AccessKind.WR, mr, end);
+			
+		case RD_OWNED:
+			if(state.isRepeat(end)) {
+				state.kind = StateKind.WR_OWNED;
+				state.prevWr = null; // no longer relevant
+				return true;
+			}
+			return pushElsePopStateElseFail(AccessKind.WR, mr, end);
 		
 		case RD_SHARED:
-			// Currently being read by multiple intervals bounded by "rd".  Safe if:
-			// * rd hbeq curStart (all readers have finished)
-			if(!rd.hbeq(mostRecent, EdgeList.SPECULATIVE))
-				return false;
-			break;
+			if(canPopState(mr))
+				return popState(AccessKind.WR, mr, end);
+			return false;
+			
+		default:
+			throw new RuntimeException("Unhandled state kind: " + state.kind);
 		}		
-		
-		wr = mostRecent.bound;
-		rd = null;
-		state = State.WR_OWNED_END;
-		return true;
 	}
 	
 	@Override
@@ -159,64 +239,52 @@ implements Guard {
 		if(current.inter == null)
 			return false;
 		
-		if(!processLock(current.inter))
-			return false;
-		
-		return isReadableBy(current.mr);
+		return isReadableBy(current.mr, current.inter.end);
 	}
 	
-	synchronized boolean isReadableBy(Point mostRecent) {
-		switch(state) {
+	synchronized boolean isReadableBy(Point mr, Point end) {
+		switch(state.kind) {
 		case INITIAL: 
-			// Not yet read or written.  Always safe, and we are the only writer.
-			state = State.RD_OWNED_END;
-			rd = mostRecent.bound;
+			state = new State(StateKind.RD_OWNED, end, null, state);
 			return true;
+			
+		case LOCK_OWNED:
+			if(state.isRepeat(end))
+				return true;
+			
+			return pushElsePopStateElseFail(AccessKind.RD, mr, end);			
 		
-		case WR_OWNED_END: 
-			// Previously written by wr.  Safe if:
-			// * wr == curStart (being read by the writer)
-			// * wr.nextEpoch hbeq curStart (writer has finished)
-			// In the latter case, we become the Rd Owner.
-			if(isRepeat(wr, mostRecent))
+		case WR_OWNED: 
+			if(state.isRepeat(end))
 				return true;
-			if(!wr.hbeq(mostRecent, EdgeList.SPECULATIVE))
-				return false;
 			
-			state = State.RD_OWNED_END;
-			rd = mostRecent.bound;
-			return true;
+			return pushElsePopStateElseFail(AccessKind.RD, mr, end);
 			
-		case RD_OWNED_END:
-			// Previously being read only by interval starting at rd.  Safe if:
-			// * rd == curStart (rd still rd owner)
-			// * (see twoReaders)			
-			if(isRepeat(rd, mostRecent))
+		case RD_OWNED:
+			if(state.isRepeat(end))
 				return true;
-			return twoReaders(mostRecent, rd);
+			if(tryPushState(AccessKind.RD, mr, end))
+				return true;
+			if(canPopState(mr))
+				return popState(AccessKind.RD, mr, end);
+			if(canGeneralizeReadState(mr)) {
+				generalizeReadOwnedState(end);
+				return true;
+			}
+			return false;
 			
 		case RD_SHARED:
-			return twoReaders(mostRecent, rd);
+			if(canPopState(mr))
+				return popState(AccessKind.RD, mr, end);
+			if(canGeneralizeReadState(mr)) {
+				generalizeReadSharedState(end);
+				return true;
+			}
+			return false;
+			
+		default:
+			throw new RuntimeException("Unhandled state kind: " + state.kind);
 		}
-		assert false; // should never happen
-		return false;
 	}
 
-	private boolean twoReaders(Point mostRecent, Point curRdEnd) {
-		// Being read by one or more intervals, bounded by curRdEnd.  Safe if:
-		// * curRdEnd hbeq curStart (all previous readers have finished, curStart becomes sole reader)
-		// * wr.nextEpoch bheq curStart (writer has finished)
-		// In last case, must adjust rd to include curStart.nextEpoch
-		if(curRdEnd.hbeq(mostRecent, EdgeList.SPECULATIVE)) {
-			state = State.RD_OWNED_END;
-			rd = mostRecent.bound;
-			return true;
-		}				
-		if(wr != null && !wr.hbeq(mostRecent, EdgeList.SPECULATIVE))
-			return false;
-		state = State.RD_SHARED;
-		rd = curRdEnd.mutualBound(mostRecent.bound);
-		return true;
-	}
-		
 }

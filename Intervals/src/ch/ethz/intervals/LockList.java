@@ -15,10 +15,6 @@ package ch.ethz.intervals;
  * In addition, because a {@link LockList} extends {@link LockBase}, they are
  * lockable objects.  This is to support recursive acquires: any subinterval
  * acquiring {@link #lock} actually contends for locking {@code this}.  
- * Because LockLists begin in a locked state, recursive acquires will initially
- * block until the interval's {@link Interval#run()} method finishes, which
- * causes all of its {@link LockList} instances to be unlocked and hence
- * available for recursive acquires.
  */
 class LockList 
 extends LockBase
@@ -41,7 +37,7 @@ extends LockBase
 	LockList nextPending;
 	
 	LockList(Interval inter, Lock lock, LockList next) {
-		super(true);
+		super(false);
 		this.inter = inter;
 		this.lock = lock;
 		this.next = next;
@@ -58,7 +54,6 @@ extends LockBase
 	 */	
 	void lockAcquired(LockBase acquiredLock) {
 		this.acquiredLock = acquiredLock;
-		lock.didLock(inter);
 	}
 
 	/** Invoked sometime after the lock is acquired */

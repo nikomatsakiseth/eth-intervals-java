@@ -5,25 +5,18 @@ public class DataRaceException extends RuntimeException {
 	private static final long serialVersionUID = -4846309821441326261L;
 
 	enum Role { READ, WRITE, LOCK };
+
+	public final DynamicGuard dg;      /** Guard on which the race occurred. */
+	public final Role acc;             /** Kind of access which failed. */
+	public final Interval interloper;  /** Interval performing failed access. */
+	public final Interval owner;       /** Current owner. */
 	
-	public final Lock lock;
-	public final Role beforeRole;
-	public final Point before;
-	public final Role afterRole;
-	public final Point after;
-	
-	public DataRaceException(
-			Lock lock,
-			Role beforeRole,
-			Point before,
-			Role afterRole,
-			Point after)
+	public DataRaceException(DynamicGuard g, Role acc, Interval interloper, Interval owner) 
 	{
-		this.lock = lock;
-		this.beforeRole = beforeRole;
-		this.before = before;
-		this.afterRole = afterRole;
-		this.after = after;
+		this.dg = g;
+		this.acc = acc;
+		this.interloper = interloper;
+		this.owner = owner;
 	}
 	
 }

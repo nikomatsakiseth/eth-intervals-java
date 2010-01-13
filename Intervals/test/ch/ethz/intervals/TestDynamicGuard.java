@@ -87,8 +87,7 @@ public class TestDynamicGuard {
 			@Override public void run(Interval a) {
 				final DynamicGuard dg = new DynamicGuard();
 				
-				final Interval a1 = new Interval(a) {
-					@Override public String toString() { return "a1"; }
+				final Interval a1 = new Interval(a, "a1") {
 					@Override protected void run() {
 						results.add(dg.isReadable());
 						results.add(dg.isWritable());
@@ -96,9 +95,8 @@ public class TestDynamicGuard {
 					}
 				};
 				
-				final Interval a2 = new Interval(a) {					
+				final Interval a2 = new Interval(a, "a2") {					
 					{ Intervals.addHb(a1.end, this.start); }
-					@Override public String toString() { return "a2"; }
 					@Override protected void run() {
 						results.add(dg.isReadable());
 						
@@ -114,9 +112,8 @@ public class TestDynamicGuard {
 					}
 				};
 				
-				new Interval(a) {										
+				new Interval(a, "a3") {										
 					{ Intervals.addHb(a2.end, this.start); }
-					@Override public String toString() { return "a3"; }					
 					@Override protected void run() {
 						results.add(dg.isReadable());
 						results.add(dg.isReadable());
@@ -148,8 +145,7 @@ public class TestDynamicGuard {
 			@Override public void run(Interval a) {
 				final DynamicGuard dg = new DynamicGuard();
 				
-				Intervals.subinterval(new VoidSubinterval() {					
-					@Override public String toString() { return "a1"; }
+				Intervals.subinterval("a1", new VoidSubinterval() {					
 					@Override public void run(Interval a1) {
 						results.add(dg.isReadable());
 						results.add(dg.isWritable());
@@ -157,15 +153,12 @@ public class TestDynamicGuard {
 					}
 				});
 				
-				Intervals.subinterval(new VoidSubinterval() {					
-					@Override public String toString() { return "a2"; }
+				Intervals.subinterval("a2", new VoidSubinterval() {					
 					@Override public void run(Interval a2) {
 						results.add(dg.isReadable());
 						
 						for(int i = 1; i <= a2children; i++) {
-							final int num = i;
-							new Interval(a2) {
-								@Override public String toString() { return "a2"+num; }
+							new Interval(a2, "a2"+i) {
 								@Override protected void run() {
 									results.add(dg.isReadable());
 								}
@@ -174,8 +167,7 @@ public class TestDynamicGuard {
 					}
 				});
 				
-				Intervals.subinterval(new VoidSubinterval() {					
-					@Override public String toString() { return "a3"; }
+				Intervals.subinterval("a3", new VoidSubinterval() {					
 					@Override public void run(Interval a3) {
 						results.add(dg.isReadable());
 						results.add(dg.isReadable());
@@ -211,15 +203,12 @@ public class TestDynamicGuard {
 				results.add(dg.isWritable());
 				results.add(dg.isReadable());
 				
-				Intervals.subinterval(new VoidSubinterval() {					
-					@Override public String toString() { return "a2"; }
+				Intervals.subinterval("a2", new VoidSubinterval() {					
 					@Override public void run(Interval a2) {
 						results.add(dg.isReadable());
 						
 						for(int i = 1; i <= a2children; i++) {
-							final int num = i;
-							new Interval(a2) {
-								@Override public String toString() { return "a2"+num; }
+							new Interval(a2, "a2"+i) {
 								@Override protected void run() {
 									results.add(dg.isReadable());
 								}
@@ -243,9 +232,9 @@ public class TestDynamicGuard {
 		assertEquals(true, results.get(i++));
 		assertEquals(true, results.get(i++));  // Should be in Wr Owned (a) state
 
-		assertEquals(true, results.get(i++));  // State machine permits 
-		assertEquals(false, results.get(i++)); // subintervals on the same line,
-		assertEquals(false, results.get(i++)); // but not asynchronous ones.    
+		assertEquals(true, results.get(i++));  // Rd Owned (a2) state is pushed on
+		assertEquals(true, results.get(i++));  // Rd Owned (a21) 
+		assertEquals(true, results.get(i++));  // Rd Shared (a2.end)
 		
 		assertEquals(true, results.get(i++));  // Rd Shared (a2) becomes Rd Owned (a)
 		assertEquals(true, results.get(i++));
@@ -406,20 +395,21 @@ public class TestDynamicGuard {
 		assertEquals(true, results.get(i++));
 	}
 	
-	@Test public void testLockingIntervalContendsWithChildren() {
+	@Test public void testLockingIntervalDoesNotContendWithChildren() {
 		final DgIntervalFactory f = new DgIntervalFactory();
 		
 		Intervals.subinterval(new VoidSubinterval() { 
 			@Override public void run(final Interval a) {				
 				Interval withLock1 = f.create(a, "withLock1", FLAG_LCK|FLAG_RD1);
-				Interval noLock = f.create(withLock1, "noLock", FLAG_WR1);
+				f.create(withLock1, "noLock", FLAG_WR1);
 			}
 		});		
 		
 		assertEquals(2, f.results.size());
 		
 		Assert.assertTrue(
-				f.result("withLock1.rd1") == !f.result("noLock.wr1"));
+				f.result("withLock1.rd1") &&
+				f.result("noLock.wr1"));
 	}
 	
 	@Test public void testCooperatingChildren() {

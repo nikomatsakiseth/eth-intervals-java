@@ -25,8 +25,9 @@ implements Guard
 		return String.format("Lock(%x)", System.identityHashCode(this));
 	}
 	
-	/** Invoked whenever an interval acquires this lock, either initially or
-	 *  recursively.  Used to drive the dynamic race detector. */
-	void didLock(Interval inter) {}
-	
+	/** @see DynamicGuard#isLockableBy(Point, Point) */
+	boolean isLockableBy(Point mr, Point end) {
+		return true;
+	}
+
 }
