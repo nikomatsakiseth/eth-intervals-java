@@ -147,7 +147,7 @@ class ChunkList<T> implements Cloneable {
 			super(list);
 		}
 
-		/** Like {@link Iterator#forEach(Point, int)} but with
+		/** Like {@link #forEach(Object, int)} but with
 		 *  no possibility to break out of the loop. */
 		public abstract void doForEach(T toPoint, int flags);
 

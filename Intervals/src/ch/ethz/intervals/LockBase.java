@@ -10,9 +10,10 @@ abstract class LockBase
 	/** True if we are locked. Access in synchronized only. */
 	private boolean locked;	
 	
-	/** linked list queue of people waiting for the lock.  
-	 *  We own a wait count on the {@link LockList#start} fields of 
-	 *  all entries in this queue.  Access in synchronized only. */
+	/** linked list queue of people waiting for the lock.
+	 *  Each entry in this list has been {@link LockList#enqueued()}.
+	 *  When they are removed we must invoke {@link LockList#dequeued()}.
+	 *  Access in synchronized only. */
 	private LockList firstPending = null, lastPending = null;
 	
 	public LockBase(boolean locked) {
