@@ -1,0 +1,55 @@
+Script started on Wed 13 Jan 2010 07:02:58 PM CET
+Logfile: mafushi-2010-01-13-19:02:58-erco.txt
+> date
+Wed Jan 13 19:02:58 CET 2010
+git show --pretty=oneline | head -1
+616d0b02095bc540b7b8525ec2c669ce37cff0b2 add Erco SOR to the set of things being built
+git diff | cat
+pwd
+/home/nmatsaki/git/eth-intervals-java/Intervals
+
+Settings:
+JAVAOPTS=
+NOBUILD=
+Buildfile: build.xml
+
+clean:
+   [delete] Deleting directory /home/nmatsaki/git/eth-intervals-java/Intervals/bin
+
+create:
+    [mkdir] Created dir: /home/nmatsaki/git/eth-intervals-java/Intervals/bin
+
+compile:
+    [javac] Compiling 66 source files to /home/nmatsaki/git/eth-intervals-java/Intervals/bin
+    [javac] Compiling 111 source files to /home/nmatsaki/git/eth-intervals-java/Intervals/bin
+    [javac] Compiling 2 source files to /home/nmatsaki/git/eth-intervals-java/Intervals/bin
+
+jar:
+      [jar] Building jar: /home/nmatsaki/git/eth-intervals-java/Intervals/test.jar
+
+BUILD SUCCESSFUL
+Total time: 6 seconds
+Testing 8 threads with 500 iterations
+Sor-8	1861
+Exiting. red_sum = 26919.13, black_sum = 26905.768
+Sor-8	1732
+Exiting. red_sum = 26919.13, black_sum = 26905.768
+Sor-8	1971
+Exiting. red_sum = 26919.13, black_sum = 26905.768
+Sor-8	2041
+Exiting. red_sum = 26919.13, black_sum = 26905.768
+Sor-8	1489
+Exiting. red_sum = 26919.13, black_sum = 26905.768
+Testing intervals with 500 iterations
+SorIntervals-	1154
+Exiting. red_sum = 26919.129, black_sum = 26905.768
+SorIntervals-	1213
+Exiting. red_sum = 26919.129, black_sum = 26905.768
+SorIntervals-	1192
+Exiting. red_sum = 26919.129, black_sum = 26905.768
+SorIntervals-	1181
+Exiting. red_sum = 26919.129, black_sum = 26905.768
+SorIntervals-	1375
+Exiting. red_sum = 26919.129, black_sum = 26905.768
+
+Script done on Wed 13 Jan 2010 07:03:22 PM CET

@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<project name="sampleProject" basedir="." default="jar">
+<project name="sampleProject" basedir="." default="compile">
     <target name="compile" depends="create">
         <javac destdir="bin">            
             <src path="src"/>            

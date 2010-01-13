@@ -1,0 +1,112 @@
+Script started on Wed 13 Jan 2010 07:11:10 PM CET
+Logfile: mafushi-2010-01-13-19:11:10-erco.txt
+> date
+Wed Jan 13 19:11:10 CET 2010
+git show --pretty=oneline | head -1
+39e8b1f64efb9587de9d559cb8b681eb70dfd280 script to run the erco SOR test
+git diff | cat
+diff --git a/Intervals/measure-erco.1 b/Intervals/measure-erco.1
+index 75777f4..56ad7c8 100755
+--- a/Intervals/measure-erco.1
++++ b/Intervals/measure-erco.1
+@@ -2,7 +2,7 @@
+ 
+ ./benchmark-init.sh $1
+ 
+-for iter in 500
++for iter in 500 1000 1500
+ do
+ 	echo Testing 8 threads with $iter iterations
+ 	for N in 1 2 3 4 5
+pwd
+/home/nmatsaki/git/eth-intervals-java/Intervals
+
+Settings:
+JAVAOPTS=
+NOBUILD=
+Buildfile: build.xml
+
+clean:
+   [delete] Deleting directory /home/nmatsaki/git/eth-intervals-java/Intervals/bin
+
+create:
+    [mkdir] Created dir: /home/nmatsaki/git/eth-intervals-java/Intervals/bin
+
+compile:
+    [javac] Compiling 66 source files to /home/nmatsaki/git/eth-intervals-java/Intervals/bin
+    [javac] Compiling 111 source files to /home/nmatsaki/git/eth-intervals-java/Intervals/bin
+    [javac] Compiling 2 source files to /home/nmatsaki/git/eth-intervals-java/Intervals/bin
+
+jar:
+      [jar] Building jar: /home/nmatsaki/git/eth-intervals-java/Intervals/test.jar
+
+BUILD SUCCESSFUL
+Total time: 6 seconds
+Testing 8 threads with 500 iterations
+Sor-8	1609
+Exiting. red_sum = 26919.13, black_sum = 26905.768
+Sor-8	1655
+Exiting. red_sum = 26919.13, black_sum = 26905.768
+Sor-8	1492
+Exiting. red_sum = 26919.13, black_sum = 26905.768
+Sor-8	1941
+Exiting. red_sum = 26919.13, black_sum = 26905.768
+Sor-8	1557
+Exiting. red_sum = 26919.13, black_sum = 26905.768
+Testing intervals with 500 iterations
+SorIntervals-	1306
+Exiting. red_sum = 26919.129, black_sum = 26905.768
+SorIntervals-	1200
+Exiting. red_sum = 26919.129, black_sum = 26905.768
+SorIntervals-	1155
+Exiting. red_sum = 26919.129, black_sum = 26905.768
+SorIntervals-	1173
+Exiting. red_sum = 26919.129, black_sum = 26905.768
+SorIntervals-	1158
+Exiting. red_sum = 26919.129, black_sum = 26905.768
+Testing 8 threads with 1000 iterations
+Sor-8	2100
+Exiting. red_sum = 37382.758, black_sum = 37369.684
+Sor-8	1759
+Exiting. red_sum = 37382.758, black_sum = 37369.684
+Sor-8	1818
+Exiting. red_sum = 37382.758, black_sum = 37369.684
+Sor-8	1751
+Exiting. red_sum = 37382.758, black_sum = 37369.684
+Sor-8	2246
+Exiting. red_sum = 37382.758, black_sum = 37369.684
+Testing intervals with 1000 iterations
+SorIntervals-	1633
+Exiting. red_sum = 37382.758, black_sum = 37369.645
+SorIntervals-	1572
+Exiting. red_sum = 37382.758, black_sum = 37369.645
+SorIntervals-	1372
+Exiting. red_sum = 37382.758, black_sum = 37369.645
+SorIntervals-	1481
+Exiting. red_sum = 37382.758, black_sum = 37369.645
+SorIntervals-	1571
+Exiting. red_sum = 37382.758, black_sum = 37369.645
+Testing 8 threads with 1500 iterations
+Sor-8	2016
+Exiting. red_sum = 45251.754, black_sum = 45243.207
+Sor-8	2473
+Exiting. red_sum = 45251.754, black_sum = 45243.207
+Sor-8	1897
+Exiting. red_sum = 45251.754, black_sum = 45243.207
+Sor-8	1985
+Exiting. red_sum = 45251.754, black_sum = 45243.207
+Sor-8	2301
+Exiting. red_sum = 45251.754, black_sum = 45243.207
+Testing intervals with 1500 iterations
+SorIntervals-	1924
+Exiting. red_sum = 45251.746, black_sum = 45243.207
+SorIntervals-	1895
+Exiting. red_sum = 45251.746, black_sum = 45243.207
+SorIntervals-	1858
+Exiting. red_sum = 45251.746, black_sum = 45243.207
+SorIntervals-	1868
+Exiting. red_sum = 45251.746, black_sum = 45243.207
+SorIntervals-	1728
+Exiting. red_sum = 45251.746, black_sum = 45243.207
+
+Script done on Wed 13 Jan 2010 07:12:16 PM CET

@@ -1,5 +1,4 @@
 #!/bin/bash
-ant 
 MYDIR=$(dirname $0)
 LOGDIR=$MYDIR/../measurements
 LOGFILE=$(hostname)-$(date +'%Y-%m-%d-%H:%M:%S')-erco.txt
