@@ -24,12 +24,12 @@ import java.util.Hashtable;
 
 public class JGFInstrumentor {
 
-	private static Hashtable timers;
-	private static Hashtable data;
+	private static Hashtable<String,JGFTimer> timers;
+	private static Hashtable<String,Object> data;
 
 	static {
-		timers = new Hashtable();
-		data = new Hashtable();
+		timers = new Hashtable<String,JGFTimer>();
+		data = new Hashtable<String,Object>();
 	}
 
 	public static synchronized void addTimer(String name) {

@@ -26,13 +26,13 @@ package jgfmt.section3.raytracer;
 import java.util.Vector;
 
 public class Scene implements java.io.Serializable {
-	public final Vector lights;
-	public final Vector objects;
+	public final Vector<Object> lights;
+	public final Vector<Object> objects;
 	private View view;
 
 	public Scene() {
-		this.lights = new Vector();
-		this.objects = new Vector();
+		this.lights = new Vector<Object>();
+		this.objects = new Vector<Object>();
 	}
 
 	public void addLight(Light l) {

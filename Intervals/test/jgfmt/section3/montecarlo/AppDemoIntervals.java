@@ -348,7 +348,7 @@ public class AppDemoIntervals extends Universal implements AppDemoInterface {
 	 * 
 	 * @return Value of instance variable <code>tasks</code>.
 	 */
-	public Vector get_tasks() {
+	public Vector<Object> get_tasks() {
 		return (this.tasks);
 	}
 
@@ -358,7 +358,7 @@ public class AppDemoIntervals extends Universal implements AppDemoInterface {
 	 * @param tasks
 	 *            the value to set for the instance variable <code>tasks</code>.
 	 */
-	public void set_tasks(Vector tasks) {
+	public void set_tasks(Vector<Object> tasks) {
 		this.tasks = tasks;
 	}
 
@@ -367,7 +367,7 @@ public class AppDemoIntervals extends Universal implements AppDemoInterface {
 	 * 
 	 * @return Value of instance variable <code>results</code>.
 	 */
-	public Vector get_results() {
+	public Vector<Object> get_results() {
 		return (this.results);
 	}
 
@@ -378,7 +378,7 @@ public class AppDemoIntervals extends Universal implements AppDemoInterface {
 	 *            the value to set for the instance variable
 	 *            <code>results</code>.
 	 */
-	public void set_results(Vector results) {
+	public void set_results(Vector<Object> results) {
 		this.results = results;
 	}
 	// ------------------------------------------------------------------------

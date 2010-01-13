@@ -65,9 +65,9 @@ class Debug {
 
 	static class OccurEvent extends Event {
 		public final Point point;
-		public final EdgeList list;
+		public final ChunkList<Point> list;
 		
-		public OccurEvent(Point point, EdgeList list) {
+		public OccurEvent(Point point, ChunkList<Point> list) {
 			this.point = point;
 			this.list = list;
 		}				
@@ -77,10 +77,10 @@ class Debug {
 			sb.append(String.format("OCCUR %s errors %d%s bound %s succs", 
 					point, point.numPendingExceptions(), (point.maskExceptions() ? " (masked)" : ""), point.bound));
 			
-			new EdgeList.Iterator(list) {
+			new ChunkList.Iterator<Point>(list) {
 				public void doForEach(Point toPoint, int flags) {
-					if(EdgeList.waiting(flags))
-						sb.append(String.format(" %s(%x)", toPoint, flags & EdgeList.ALL_FLAGS));					
+					if(ChunkList.waiting(flags))
+						sb.append(String.format(" %s(%x)", toPoint, flags & ChunkList.ALL_FLAGS));					
 				}
 			};
 			
@@ -88,7 +88,7 @@ class Debug {
 		}
 	}
 	
-	public static void occur(Point point, EdgeList list) {
+	public static void occur(Point point, ChunkList<Point> list) {
 		if(ENABLED_WAIT_COUNTS)
 			addEvent(new OccurEvent(point, list));
 	}

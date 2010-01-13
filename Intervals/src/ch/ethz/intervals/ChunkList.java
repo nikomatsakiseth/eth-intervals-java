@@ -1,13 +1,18 @@
 package ch.ethz.intervals;
 
-class EdgeList implements Cloneable {
+class ChunkList<T> implements Cloneable {
+	
+	public static final int NORMAL = 0;               /** A user-created, confirmed edge. */   
 	
 	// Flags for edges:
-	public static final int NORMAL = 0;               /** A user-created, confirmed edge. */   
 	static public final int SPECULATIVE = 1;          /** Not yet confirmed. */
 	static public final int WAITING = 2;              /** Waiting for point to occur. */
-	static public final int CNT_FLAGS = 2;            /** Number of flags. */
-	static public final int ALL_FLAGS = (1 << CNT_FLAGS) - 1; /** Union of all flags. */
+	
+	// Flags for intervals
+	// (none)
+	
+	static public final int CNT_FLAGS = 10;            			/** Number of flag bits we can support per entry. */
+	static public final int ALL_FLAGS = (1 << CNT_FLAGS) - 1; 	/** Union of all flags. */
 
 	static public final boolean speculative(int flags) {
 		return (flags & SPECULATIVE) != 0;
@@ -22,28 +27,28 @@ class EdgeList implements Cloneable {
 	static private final int SHIFT2 = CNT_FLAGS*2;
 	
 	private int flags;
-	private Point toPoint0;
-	private Point toPoint1;
-	private Point toPoint2;
-	private EdgeList next;
+	private T mem0;
+	private T mem1;
+	private T mem2;
+	private ChunkList<T> next;
 	
-	private EdgeList(Point pnt0, int flags, EdgeList next) {
+	private ChunkList(T pnt0, int flags, ChunkList<T> next) {
 		this.flags = flags;
-		this.toPoint0 = pnt0;
+		this.mem0 = pnt0;
 		this.next = next;
 	}
 	
-	private boolean add(Point toPoint, int toFlags) {
-		if(toPoint0 == null) {
-			toPoint0 = toPoint;
+	private boolean add(T toPoint, int toFlags) {
+		if(mem0 == null) {
+			mem0 = toPoint;
 			flags |= toFlags << SHIFT0;
 			return true;
-		} else if(toPoint1 == null) {
-			toPoint1 = toPoint;
+		} else if(mem1 == null) {
+			mem1 = toPoint;
 			flags |= toFlags << SHIFT1;
 			return true;
-		} else if(toPoint2 == null) {
-			toPoint2 = toPoint;
+		} else if(mem2 == null) {
+			mem2 = toPoint;
 			flags |= toFlags << SHIFT2;
 			return true;
 		} else {
@@ -51,25 +56,25 @@ class EdgeList implements Cloneable {
 		}
 	}
 			
-	public static EdgeList add(EdgeList list, Point toPoint, int toFlags) {
+	public static <T> ChunkList<T> add(ChunkList<T> list, T toPoint, int toFlags) {
 		assert (toFlags & ALL_FLAGS) == toFlags; // No extra bits.
 		if(list != null && list.add(toPoint, toFlags))
 			return list;
-		return new EdgeList(toPoint, toFlags, list);		
+		return new ChunkList<T>(toPoint, toFlags, list);		
 	}
 	
-	public static void remove(EdgeList list, Point toImpl) {
+	public static <T> void remove(ChunkList<T> list, T toImpl) {
 		for(; list != null; list = list.next) {
-			if(list.toPoint0 == toImpl) {
-				list.toPoint0 = null;
+			if(list.mem0 == toImpl) {
+				list.mem0 = null;
 				list.flags &= ~(ALL_FLAGS << SHIFT0);
 				return;
-			} else if(list.toPoint1 == toImpl) {
-				list.toPoint1 = null;
+			} else if(list.mem1 == toImpl) {
+				list.mem1 = null;
 				list.flags &= ~(ALL_FLAGS << SHIFT1);
 				return;
-			} else if(list.toPoint2 == toImpl) {
-				list.toPoint2 = null;
+			} else if(list.mem2 == toImpl) {
+				list.mem2 = null;
 				list.flags &= ~(ALL_FLAGS << SHIFT2);
 				return;
 			}
@@ -78,27 +83,27 @@ class EdgeList implements Cloneable {
 	
 	/** Finds a speculative edge to toImpl and clears the speculative bit,
 	 *  also adding the flags in {@code addFlags}. */
-	public static void removeSpeculativeFlagAndAdd(
-			EdgeList list, 
-			Point toImpl, 
+	public static <T> void removeSpeculativeFlagAndAdd(
+			ChunkList<T> list, 
+			T toImpl, 
 			int addFlags) 
 	{
 		assert (addFlags & ~ALL_FLAGS) == 0;
 		
 		for(; list != null; list = list.next) {
 			int flags = list.flags;
-			if(list.toPoint0 == toImpl && speculative(flags >> SHIFT0)) {
-				flags &= ~(EdgeList.SPECULATIVE << SHIFT0);
+			if(list.mem0 == toImpl && speculative(flags >> SHIFT0)) {
+				flags &= ~(ChunkList.SPECULATIVE << SHIFT0);
 				flags |= (addFlags << SHIFT0);
 				list.flags = flags;
 				return;
-			} else if(list.toPoint1 == toImpl && speculative(flags >> SHIFT1)) {
-				flags &= ~(EdgeList.SPECULATIVE << SHIFT1);
+			} else if(list.mem1 == toImpl && speculative(flags >> SHIFT1)) {
+				flags &= ~(ChunkList.SPECULATIVE << SHIFT1);
 				flags |= (addFlags << SHIFT1);
 				list.flags = flags;
 				return;
-			} else if(list.toPoint2 == toImpl && speculative(flags >> SHIFT2)) {
-				flags &= ~(EdgeList.SPECULATIVE << SHIFT2);
+			} else if(list.mem2 == toImpl && speculative(flags >> SHIFT2)) {
+				flags &= ~(ChunkList.SPECULATIVE << SHIFT2);
 				flags |= (addFlags << SHIFT2);
 				list.flags = flags;
 				return;
@@ -107,19 +112,19 @@ class EdgeList implements Cloneable {
 		assert false : "No speculative edge found!";
 	}
 	
-	static abstract class InterruptibleIterator {
+	static abstract class InterruptibleIterator<T> {
 		
-		public InterruptibleIterator(EdgeList list) {
+		public InterruptibleIterator(ChunkList<T> list) {
 			while(list != null) {
 				int flags = list.flags;
 				
-				if(list.toPoint0 != null && forEach(list.toPoint0, flags >> SHIFT0))
+				if(list.mem0 != null && forEach(list.mem0, flags >> SHIFT0))
 					break;
 				
-				if(list.toPoint1 != null && forEach(list.toPoint1, flags >> SHIFT1))
+				if(list.mem1 != null && forEach(list.mem1, flags >> SHIFT1))
 					break;
 				
-				if(list.toPoint2 != null && forEach(list.toPoint2, flags >> SHIFT2))
+				if(list.mem2 != null && forEach(list.mem2, flags >> SHIFT2))
 					break;				
 				
 				list = list.next;
@@ -129,25 +134,25 @@ class EdgeList implements Cloneable {
 		/**
 		 * Invoked for each point with the corresponding flags.
 		 * Note that the flags int may include bits outside of
-		 * {@link EdgeList#ALL_FLAGS} so be sure to mask if needed.
+		 * {@link ChunkList#ALL_FLAGS} so be sure to mask if needed.
 		 * @return true if we should break out of the loop
 		 */
-		public abstract boolean forEach(Point toPoint, int flags);
+		public abstract boolean forEach(T toPoint, int flags);
 		
 	}
 
-	static abstract class Iterator extends InterruptibleIterator {
+	static abstract class Iterator<T> extends InterruptibleIterator<T> {
 		
-		public Iterator(EdgeList list) {
+		public Iterator(ChunkList<T> list) {
 			super(list);
 		}
 
 		/** Like {@link Iterator#forEach(Point, int)} but with
 		 *  no possibility to break out of the loop. */
-		public abstract void doForEach(Point toPoint, int flags);
+		public abstract void doForEach(T toPoint, int flags);
 
 		@Override
-		public final boolean forEach(Point toPoint, int flags) {
+		public final boolean forEach(T toPoint, int flags) {
 			doForEach(toPoint, flags);
 			return false;
 		}

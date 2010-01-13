@@ -1,8 +1,8 @@
 package ch.ethz.intervals;
 
-import static ch.ethz.intervals.EdgeList.SPECULATIVE;
-import static ch.ethz.intervals.EdgeList.WAITING;
-import static ch.ethz.intervals.EdgeList.speculative;
+import static ch.ethz.intervals.ChunkList.SPECULATIVE;
+import static ch.ethz.intervals.ChunkList.WAITING;
+import static ch.ethz.intervals.ChunkList.speculative;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -25,7 +25,7 @@ public abstract class Point {
 	final Point bound;						  	/** if a start point, the paired end point.  otherwise, null. */
 	final int depth;							/** depth of bound + 1 */
 	
-	private EdgeList outEdges;                	/** Linked list of outgoing edges from this point. */
+	private ChunkList<Point> outEdges;          /** Linked list of outgoing edges from this point. */
 	private volatile int waitCount;           	/** Number of preceding points that have not arrived.  
 	                                              	Set to {@link #OCCURRED} when this has occurred. 
 	                                              	Modified only through {@link #waitCountUpdater}. */
@@ -58,7 +58,7 @@ public abstract class Point {
 		return (bound.line == line);
 	}
 	
-	final synchronized EdgeList outEdgesSync() {
+	final synchronized ChunkList<Point> outEdgesSync() {
 		return outEdges;
 	}
 
@@ -218,7 +218,7 @@ public abstract class Point {
 			if(sh.tryEnqueue(q.bound))
 				return true;
 			
-			new EdgeList.InterruptibleIterator(q.outEdgesSync()) {
+			new ChunkList.InterruptibleIterator<Point>(q.outEdgesSync()) {
 				public boolean forEach(Point toPoint, int flags) {
 					if((flags & skipFlags) == 0) {
 						return sh.tryEnqueue(toPoint);
@@ -256,7 +256,7 @@ public abstract class Point {
 		
 		// Save copies of our outgoing edges at the time we occurred:
 		//      They may be modified further while we are notifying successors.
-		final EdgeList outEdges;
+		final ChunkList<Point> outEdges;
 		synchronized(this) {
 			outEdges = this.outEdges;
 			this.waitCount = OCCURRED;
@@ -269,9 +269,9 @@ public abstract class Point {
 			Debug.occur(this, outEdges);
 		
 		// Notify our successors:
-		new EdgeList.Iterator(outEdges) {
+		new ChunkList.Iterator<Point>(outEdges) {
 			public void doForEach(Point toPoint, int flags) {
-				if(EdgeList.waiting(flags))
+				if(ChunkList.waiting(flags))
 					notifySuccessor(toPoint, true);
 			}
 		};
@@ -390,12 +390,12 @@ public abstract class Point {
 	/** Simply adds an outgoing edge, without acquiring locks or performing any
 	 *  further checks. */
 	private void primAddOutEdge(Point targetPnt, int flags) {
-		outEdges = EdgeList.add(outEdges, targetPnt, flags);
+		outEdges = ChunkList.add(outEdges, targetPnt, flags);
 	}
 	
 	void addSpeculativeEdge(Point targetPnt, int flags) {
 		synchronized(this) {
-			primAddOutEdge(targetPnt, flags | EdgeList.SPECULATIVE);
+			primAddOutEdge(targetPnt, flags | ChunkList.SPECULATIVE);
 		}
 	}
 	
@@ -438,7 +438,7 @@ public abstract class Point {
 		// on toImpl, because otherwise deadlock could result.
 		synchronized(this) {			
 			if(!didOccur()) {
-				primAddOutEdge(toImpl, flags | EdgeList.WAITING); 
+				primAddOutEdge(toImpl, flags | ChunkList.WAITING); 
 				toImpl.addWaitCount();
 				return;
 			} else {
@@ -456,7 +456,7 @@ public abstract class Point {
 	 *  if this point has occurred. */
 	void unAddEdge(Point toImpl) {
 		synchronized(this) {
-			EdgeList.remove(outEdges, toImpl);
+			ChunkList.remove(outEdges, toImpl);
 		}
 	}
 
@@ -475,10 +475,10 @@ public abstract class Point {
 		synchronized(this) {
 			if(!didOccur()) {
 				toImpl.addWaitCount();
-				EdgeList.removeSpeculativeFlagAndAdd(outEdges, toImpl, WAITING);
+				ChunkList.removeSpeculativeFlagAndAdd(outEdges, toImpl, WAITING);
 				return;
 			} else {
-				EdgeList.removeSpeculativeFlagAndAdd(outEdges, toImpl, 0);
+				ChunkList.removeSpeculativeFlagAndAdd(outEdges, toImpl, 0);
 			}			
 		} 
 		

@@ -461,7 +461,7 @@ public class RatePath extends PathId {
 		int iLine = 0, initNlines = 100, nLines = 0;
 
 		String aLine;
-		java.util.Vector allLines = new Vector(initNlines);
+		java.util.Vector<Object> allLines = new Vector<Object>(initNlines);
 		try {
 			while ((aLine = in.readLine()) != null) {
 				iLine++;
@@ -482,7 +482,7 @@ public class RatePath extends PathId {
 		this.pathDate = new int[nLines];
 		nAcceptedPathValue = 0;
 		iLine = 0;
-		for (java.util.Enumeration _enum = allLines.elements(); _enum
+		for (java.util.Enumeration<Object> _enum = allLines.elements(); _enum
 				.hasMoreElements();) {
 			aLine = (String) _enum.nextElement();
 			String[] field = Utilities.splitString(",", aLine);

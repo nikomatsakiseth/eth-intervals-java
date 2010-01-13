@@ -1,6 +1,6 @@
 package ch.ethz.intervals;
 
-import static ch.ethz.intervals.EdgeList.NORMAL;
+import static ch.ethz.intervals.ChunkList.NORMAL;
 import ch.ethz.intervals.ThreadPool.Worker;
 import ch.ethz.intervals.quals.Requires;
 import ch.ethz.intervals.quals.Subinterval;
@@ -291,7 +291,7 @@ implements Dependency, Guard
 	 */
 	@Override
 	public final void addHbToNewInterval(Interval inter) {
-		start.addEdgeAndAdjust(inter.start, EdgeList.NORMAL);
+		start.addEdgeAndAdjust(inter.start, ChunkList.NORMAL);
 	}
 
 	/**

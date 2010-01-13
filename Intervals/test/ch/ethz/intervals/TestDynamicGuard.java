@@ -545,9 +545,9 @@ public class TestDynamicGuard {
 					
 					// Use speculative flag to enforce an ordering without actually creating HB relations:
 					if(lockFirst) 
-						lockChild.end.addEdgeAndAdjustDuringTest(unlockChild.start, EdgeList.SPECULATIVE);
+						lockChild.end.addEdgeAndAdjustDuringTest(unlockChild.start, ChunkList.SPECULATIVE);
 					else
-						unlockChild.end.addEdgeAndAdjustDuringTest(lockChild.start, EdgeList.SPECULATIVE);
+						unlockChild.end.addEdgeAndAdjustDuringTest(lockChild.start, ChunkList.SPECULATIVE);
 				}
 			});
 

@@ -86,8 +86,8 @@ public class AppDemo extends Universal implements AppDemoInterface {
 	 */
 	private int runMode;
 
-	public static Vector tasks;
-	public static Vector results;
+	public static Vector<Object> tasks;
+	public static Vector<Object> results;
 
 	public AppDemo(
 			String dataDirname,
@@ -157,7 +157,7 @@ public class AppDemo extends Universal implements AppDemoInterface {
 	 * @see jgfmt.section3.montecarlo.AppDemoInterface#runThread()
 	 */
 	public void runThread() {
-		results = new Vector(nRunsMC);
+		results = new Vector<Object>(nRunsMC);
 
 		Runnable thobjects[] = new Runnable[JGFMonteCarloBench.nthreads];
 		Thread th[] = new Thread[JGFMonteCarloBench.nthreads];
@@ -202,7 +202,7 @@ public class AppDemo extends Universal implements AppDemoInterface {
 	 *            the number of tasks, and hence Monte Carlo paths to produce.
 	 */
 	private void initTasks(int nRunsMC) {
-		tasks = new Vector(nRunsMC);
+		tasks = new Vector<Object>(nRunsMC);
 		for (int i = 0; i < nRunsMC; i++) {
 			String header = "MC run " + String.valueOf(i);
 			ToTask task = new ToTask(header, (long) i * 11);
@@ -353,7 +353,7 @@ public class AppDemo extends Universal implements AppDemoInterface {
 	 * 
 	 * @return Value of instance variable <code>tasks</code>.
 	 */
-	public Vector get_tasks() {
+	public Vector<Object> get_tasks() {
 		return (this.tasks);
 	}
 
@@ -363,7 +363,7 @@ public class AppDemo extends Universal implements AppDemoInterface {
 	 * @param tasks
 	 *            the value to set for the instance variable <code>tasks</code>.
 	 */
-	public void set_tasks(Vector tasks) {
+	public void set_tasks(Vector<Object> tasks) {
 		this.tasks = tasks;
 	}
 
@@ -372,7 +372,7 @@ public class AppDemo extends Universal implements AppDemoInterface {
 	 * 
 	 * @return Value of instance variable <code>results</code>.
 	 */
-	public Vector get_results() {
+	public Vector<Object> get_results() {
 		return (this.results);
 	}
 
@@ -383,7 +383,7 @@ public class AppDemo extends Universal implements AppDemoInterface {
 	 *            the value to set for the instance variable
 	 *            <code>results</code>.
 	 */
-	public void set_results(Vector results) {
+	public void set_results(Vector<Object> results) {
 		this.results = results;
 	}
 	// ------------------------------------------------------------------------
