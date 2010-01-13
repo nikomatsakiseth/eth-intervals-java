@@ -2,14 +2,14 @@ package ch.ethz.intervals;
 
 class ChunkList<T> implements Cloneable {
 	
-	public static final int NORMAL = 0;               /** A user-created, confirmed edge. */   
 	
 	// Flags for edges:
+	public static final int NORMAL = 0;               /** A user-created, confirmed edge. */   
 	static public final int SPECULATIVE = 1;          /** Not yet confirmed. */
 	static public final int WAITING = 2;              /** Waiting for point to occur. */
 	
 	// Flags for intervals
-	// (none)
+	public static final int NO_FLAGS = 0;
 	
 	static public final int CNT_FLAGS = 10;            			/** Number of flag bits we can support per entry. */
 	static public final int ALL_FLAGS = (1 << CNT_FLAGS) - 1; 	/** Union of all flags. */
@@ -54,6 +54,10 @@ class ChunkList<T> implements Cloneable {
 		} else {
 			return false;
 		}
+	}
+	
+	public static <T> ChunkList<T> empty() {
+		return new ChunkList<T>(null, 0, null);
 	}
 			
 	public static <T> ChunkList<T> add(ChunkList<T> list, T toPoint, int toFlags) {

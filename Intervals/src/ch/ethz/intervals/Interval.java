@@ -9,8 +9,7 @@ public abstract class Interval
 extends ThreadPool.WorkItem 
 implements Dependency, Guard
 {
-	private static final LittleLinkedList<Interval> empty = 
-		new LittleLinkedList<Interval>(null);
+	private static final ChunkList<Interval> runMethodTerminated = ChunkList.empty();
 	
 	private static final long serialVersionUID = 8105268455633202522L;
 		
@@ -30,7 +29,7 @@ implements Dependency, Guard
 	
 	/** Any child intervals created before run method finishes execution. 
 	 *  Modified only under lock! */
-	private LittleLinkedList<Interval> pendingChildIntervals = empty;
+	private ChunkList<Interval> pendingChildIntervals = null;
 	
 	public Interval(Dependency dep) {
 		this(dep, null);
@@ -91,12 +90,12 @@ implements Dependency, Guard
 		end.addWaitCount();
 
 		synchronized(this) {
-			if(pendingChildIntervals == null) {
+			if(pendingChildIntervals == runMethodTerminated) {
 				// Run method already finished.  New children should just start.
 				return 0;
 			} else {
 				// Run method not yet finished.  New children must wait.
-				pendingChildIntervals = new LittleLinkedList<Interval>(inter, pendingChildIntervals);
+				pendingChildIntervals = ChunkList.add(pendingChildIntervals, inter, ChunkList.NO_FLAGS);
 				return 1;
 			}
 		}
@@ -230,18 +229,21 @@ implements Dependency, Guard
 		}
 	}
 	
-	private void finishSequentialPortion(LittleLinkedList<Throwable> extraErrors) {
-		LittleLinkedList<Interval> pending;
+	private void finishSequentialPortion(final LittleLinkedList<Throwable> extraErrors) {
+		ChunkList<Interval> pending;
 		synchronized(this) {
 			pending = pendingChildIntervals;
-			this.pendingChildIntervals = null;
-		}				
-		for(; pending != empty; pending = pending.next) {
-			if(extraErrors != null)
-				for(LittleLinkedList<Throwable> extraError = extraErrors; extraError != null; extraError = extraError.next)
-					pending.value.start.addPendingException(extraError.value);
-			pending.value.start.arrive(1);
+			this.pendingChildIntervals = runMethodTerminated;
 		}
+		
+		new ChunkList.Iterator<Interval>(pending) {
+			@Override public void doForEach(Interval child, int flags) {
+				if(extraErrors != null)
+					for(LittleLinkedList<Throwable> extraError = extraErrors; extraError != null; extraError = extraError.next)
+						child.start.addPendingException(extraError.value);
+				child.start.arrive(1);
+			}
+		};
 
 		end.arrive(1);
 	}
