@@ -2,6 +2,8 @@ package ch.ethz.intervals;
 
 import static ch.ethz.intervals.ChunkList.NORMAL;
 
+import java.util.Iterator;
+
 /** Static methods for creating and manipulating intervals. */
 public class Intervals {
 	
@@ -245,12 +247,6 @@ public class Intervals {
 		pnt.checkAndRethrowPendingException();
 	}
 	
-	/** Anonymous variant of {@link #subinterval(String, SubintervalTask)} */
-	public static <R> R subinterval(final SubintervalTask<R> task) 
-	{
-		return subinterval(null, task);
-	}
-	
 	/**
 	 * Creates a new interval which executes during the current interval.
 	 * This interval will execute {@code task}.  This function does not
@@ -260,19 +256,37 @@ public class Intervals {
 	 * wrapped in {@link RethrownException} and rethrown immediately.
 	 * Exceptions never propagate to the current interval.
 	 */
-	public static <R> R subinterval(String name, final SubintervalTask<R> task) 
+	public static <R> R subinterval(final SubintervalTask<R> task) 
 	{		
 		// This could be made more optimized, but it will do for now:
 		Current current = Current.get();
 		
-		SubintervalImpl<R> subinterval = new SubintervalImpl<R>(name, current.inter, current.line(), task); 		
+		String name;
+		Throwable nameThrowable;
+		try {
+			name = task.toString();
+			nameThrowable = null;
+		} catch (Throwable thr) {
+			name = null;
+			nameThrowable = thr;
+		}
+		
+		SubintervalImpl<R> subinterval = new SubintervalImpl<R>(name, current.inter, current.line(), task);
+		
 		if(current.mr != null && current.mr != current.start())
 			current.mr.addEdgeAfterOccurredWithoutException(subinterval.start, NORMAL);
 		
+		if(nameThrowable != null)
+			subinterval.start.addPendingException(nameThrowable);
+		
 		if(Debug.ENABLED)
-			Debug.subInterval(subinterval, task.toString());		
-		subinterval.start.occur();
-		assert subinterval.start.didOccur();
+			Debug.subInterval(subinterval, task.toString());	
+		
+		subinterval.start.occur(); 
+		// Generally, at this point start will have occurred; but not
+		// if the subinterval acquires locks.
+		// assert subinterval.start.didOccur();
+		
 		try {
 			join(subinterval.end); // may throw an exception
 			return subinterval.result;
@@ -284,27 +298,22 @@ public class Intervals {
 	/**
 	 * Variant of {@link #subinterval(SubintervalTask)} for
 	 * subintervals that do not return a value. */
-	public static void subinterval(final String name, final VoidSubinterval task)
+	public static void subinterval(final VoidSubinterval task)
 	{
-		subinterval(name, new SubintervalTask<Void>() {
-			public String toString() {
-				if(name != null)
-					return name;
-				else 
-					return task.toString();
+		subinterval(new SubintervalTask<Void>() {			
+			@Override public String toString() {
+				return task.toString();
 			}
-			public Void run(Interval subinterval) {
+			@Override public Lock[] locks() {
+				return task.locks();
+			}
+			@Override public Void run(Interval subinterval) {
 				task.run(subinterval);
 				return null;
 			}
 		});
 	}
 
-	/** Anonymous variant of {@link #subinterval(String, VoidSubinterval)} */
-	public static void subinterval(final VoidSubinterval task)
-	{
-		subinterval(null, task);
-	}
 	
 	/** 
 	 * Returns the point which represents the end of the entire

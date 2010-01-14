@@ -165,7 +165,8 @@ public class TestDynamicGuard {
 			@Override public void run(Interval a) {
 				final DynamicGuard dg = new DynamicGuard();
 				
-				Intervals.subinterval("a1", new VoidSubinterval() {					
+				Intervals.subinterval(new VoidSubinterval() {
+					@Override public String toString() { return "a1"; }
 					@Override public void run(Interval a1) {
 						results.add(dg.isReadable());
 						results.add(dg.isWritable());
@@ -173,7 +174,8 @@ public class TestDynamicGuard {
 					}
 				});
 				
-				Intervals.subinterval("a2", new VoidSubinterval() {					
+				Intervals.subinterval(new VoidSubinterval() {					
+					@Override public String toString() { return "a2"; }
 					@Override public void run(Interval a2) {
 						results.add(dg.isReadable());
 						
@@ -187,7 +189,8 @@ public class TestDynamicGuard {
 					}
 				});
 				
-				Intervals.subinterval("a3", new VoidSubinterval() {					
+				Intervals.subinterval(new VoidSubinterval() {					
+					@Override public String toString() { return "a3"; }
 					@Override public void run(Interval a3) {
 						results.add(dg.isReadable());
 						results.add(dg.isReadable());
@@ -223,7 +226,8 @@ public class TestDynamicGuard {
 				results.add(dg.isWritable());
 				results.add(dg.isReadable());
 				
-				Intervals.subinterval("a2", new VoidSubinterval() {					
+				Intervals.subinterval(new VoidSubinterval() {					
+					@Override public String toString() { return "a2"; }
 					@Override public void run(Interval a2) {
 						results.add(dg.isReadable());
 						
@@ -538,7 +542,8 @@ public class TestDynamicGuard {
 		final DgIntervalFactory f = new DgIntervalFactory();
 		
 		try {
-			Intervals.subinterval("parent", new VoidSubinterval() { 
+			Intervals.subinterval(new VoidSubinterval() { 
+				@Override public String toString() { return "parent"; }
 				@Override public void run(final Interval parent) {
 					Interval lockChild = f.create(parent, "lockChild", FLAG_LCK); 
 					Interval unlockChild = f.create(parent, "unlockChild", unlockFlag); 

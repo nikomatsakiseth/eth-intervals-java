@@ -102,6 +102,10 @@ implements Dependency, Guard
 		}
 	}
 	
+	void setLocksUnsync(LockList locks) {
+		this.locks = locks;
+	}
+	
 	/** Note: Safety checks apply!  See {@link Current#checkCanAddDep(Point)} */ 
 	void addExclusiveLock(Lock lock) {
 		LockList list = new LockList(this, lock, null);

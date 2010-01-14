@@ -263,18 +263,14 @@ public abstract class Point {
 		if(!interval.willOccur(this, (pendingExceptions != null)))
 			return;
 		
-		// Subintervals of the root interval should invoke notifyAll(),
-		// as there might be someone listening.
-		boolean shouldNotifyAll = (bound == null && line == Line.rootLine && isEndPoint());
-		
 		// Save copies of our outgoing edges at the time we occurred:
 		//      They may be modified further while we are notifying successors.
 		final ChunkList<Point> outEdges;
 		synchronized(this) {
 			outEdges = this.outEdges;
 			this.waitCount = OCCURRED;
-			if(shouldNotifyAll)
-				notifyAll(); // in case anyone is joining us
+			if(bound == null) // If this is (or could be) a root subinterval...
+				notifyAll();  // ...someone might be wait()ing on us!
 		}
 		
 		ExecutionLog.logArrive(this);

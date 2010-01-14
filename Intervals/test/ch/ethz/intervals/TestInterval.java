@@ -448,8 +448,9 @@ public class TestInterval {
 	public void raceCycle2() {
 		assert Intervals.SAFETY_CHECKS; // or else this test is not so useful.
 		final AtomicInteger cnt = new AtomicInteger();
-		subinterval("parent", new VoidSubinterval() {			
-			public void run(final Interval subinterval) {				
+		subinterval(new VoidSubinterval() {			
+			@Override public String toString() { return "parent"; }
+			@Override public void run(final Interval subinterval) {				
 				new Interval(subinterval, "child") {		
 					@Override protected void run() {
 						Interval a = new IncTask(subinterval, cnt);

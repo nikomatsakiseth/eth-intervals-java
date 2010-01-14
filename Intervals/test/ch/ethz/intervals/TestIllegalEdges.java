@@ -19,7 +19,8 @@ public class TestIllegalEdges {
 	}
 	
 	@Test public void testCE() {
-		Intervals.subinterval("a", new VoidSubinterval() {			
+		Intervals.subinterval(new VoidSubinterval() {			
+			@Override public String toString() { return "a"; }
 			@Override public void run(Interval a) {
 				Interval a1 = new EmptyInterval(a, "a1"); 
 				Interval a12 = new EmptyInterval(a1, "a12"); 
@@ -29,7 +30,8 @@ public class TestIllegalEdges {
 	}
 	
 	@Test public void testMBBB() {
-		Intervals.subinterval("a", new VoidSubinterval() {			
+		Intervals.subinterval(new VoidSubinterval() {			
+			@Override public String toString() { return "a"; }
 			@Override public void run(Interval a) {
 				Interval a1 = new EmptyInterval(a, "a1"); 
 				Interval a12 = new EmptyInterval(a1, "a12"); 
@@ -64,17 +66,20 @@ public class TestIllegalEdges {
 	}
 	
 	@Test public void testMBBBWithSub() {
-		Intervals.subinterval("a", new VoidSubinterval() {			
+		Intervals.subinterval(new VoidSubinterval() {			
+			@Override public String toString() { return "a"; }
 			@Override public void run(Interval a) {
 				class Helper {
 					Interval a1, a12, a2, b;
 				}
 				final Helper h = new Helper();
 				
-				Intervals.subinterval("a1", new VoidSubinterval() {					
+				Intervals.subinterval(new VoidSubinterval() {					
+					@Override public String toString() { return "a1"; }
 					@Override public void run(Interval a1) {
 						h.a1 = a1;
-						Intervals.subinterval("a12", new VoidSubinterval() {							
+						Intervals.subinterval(new VoidSubinterval() {							
+							@Override public String toString() { return "a12"; }
 							@Override public void run(Interval a12) {
 								h.a12 = a12;
 							}

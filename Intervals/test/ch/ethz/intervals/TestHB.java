@@ -103,15 +103,18 @@ public class TestHB {
 		}
 		final Helper h = new Helper();
 		
-		Intervals.subinterval("p", new VoidSubinterval() {			
+		Intervals.subinterval(new VoidSubinterval() {			
+			@Override public String toString() { return "p"; }
 			@Override public void run(Interval p) {
 				h.p = p;
 				
-				Intervals.subinterval("a0", new VoidSubinterval() {					
+				Intervals.subinterval(new VoidSubinterval() {					
+					@Override public String toString() { return "a0"; }
 					@Override public void run(Interval i) {
 						h.a[0] = i;
 						
-						Intervals.subinterval("a1", new VoidSubinterval() {					
+						Intervals.subinterval(new VoidSubinterval() {					
+							@Override public String toString() { return "a1"; }
 							@Override public void run(Interval i) {
 								h.a[1] = i;
 								h.a[2] = new EmptyInterval(i, "a2");
@@ -120,11 +123,13 @@ public class TestHB {
 					}
 				});
 				
-				Intervals.subinterval("b0", new VoidSubinterval() {					
+				Intervals.subinterval(new VoidSubinterval() {					
+					@Override public String toString() { return "b0"; }
 					@Override public void run(Interval i) {
 						h.b[0] = i;
 						
-						Intervals.subinterval("b1", new VoidSubinterval() {					
+						Intervals.subinterval(new VoidSubinterval() {					
+							@Override public String toString() { return "b1"; }
 							@Override public void run(Interval i) {
 								h.b[1] = i;
 								h.b[2] = new EmptyInterval(i, "b2");
