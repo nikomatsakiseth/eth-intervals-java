@@ -63,11 +63,7 @@ implements Dependency, Guard
 		int expFromParent = (parent != null ? parent.addChildInterval(this) : 0);
 		if(expFromParent == 0) start.addWaitCountUnsync(-1);
 				
-		if(current.mr != Intervals.start(parent)) {
-			current.mr.addEdgeAfterOccurredWithoutException(start, NORMAL);		
-			ExecutionLog.logNewInterval(current.mr, start, end);
-		} else
-			ExecutionLog.logNewInterval(null, start, end);
+		ExecutionLog.logNewInterval(null, start, end);
 		
 		dep.addHbToNewInterval(this);		
 	}
