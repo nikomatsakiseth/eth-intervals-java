@@ -49,7 +49,7 @@ public class Tester implements Runnable {
 		Messages.debug(0, "Tester::main - creating tester thread %1.", String.valueOf(i));
 		new Thread(new Tester("thread" + i + ".log", TES_PAUSE_, TES_ITERATIONS_)).start();
 	    } catch (Exception e) {
-		Messages.assert(false);
+		Messages.check(false);
 	    }
 	}
 	Messages.debug(0, "Tester::main - running ... metasearch terminates after all testers processed their queries.");
@@ -94,7 +94,7 @@ public class Tester implements Runnable {
 	try {
 	    fw_.close();
 	} catch (Exception e) { 
-	    Messages.assert(false);
+	    Messages.check(false);
 	}
 	Messages.debug(0, "Tester::run end -- left output in logfile '%1'", name_);
     }

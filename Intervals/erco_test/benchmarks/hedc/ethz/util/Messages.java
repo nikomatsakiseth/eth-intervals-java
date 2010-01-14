@@ -43,7 +43,7 @@ public class Messages {
      */
     private Messages() {};
     
-    public static void assert(boolean b) {
+    public static void check(boolean b) {
 	if (!b) 
 	    error("assertion failed");
     }
@@ -57,7 +57,7 @@ public class Messages {
 	output_(message, "e");
 	throw (new RuntimeException(message));
     }
-    public static void assert(boolean b, String message) {
+    public static void check(boolean b, String message) {
 	if (!b) 
 	    error(message);
     }
@@ -75,7 +75,7 @@ public class Messages {
 	output_(s, "e");
 	throw (new RuntimeException(s));
     }
-    public static void assert(boolean b, String message, Object arg1) {
+    public static void check(boolean b, String message, Object arg1) {
 	if (!b) 
 	    error(message, arg1);
     }
@@ -95,7 +95,7 @@ public class Messages {
 	output_(s, "e");
 	throw (new RuntimeException(s));
     }
-    public static void assert(boolean b, String message, Object arg1, Object arg2) {
+    public static void check(boolean b, String message, Object arg1, Object arg2) {
 	if (!b) 
 	    error(message, arg1, arg2);
     }
@@ -117,7 +117,7 @@ public class Messages {
 	output_(s, "e");
 	throw (new RuntimeException(s));
     }
-    public static void assert(boolean b, String message, Object arg1, Object arg2, Object arg3) {
+    public static void check(boolean b, String message, Object arg1, Object arg2, Object arg3) {
 	if (!b) 
 	    error(message, arg1, arg2, arg3);
     }

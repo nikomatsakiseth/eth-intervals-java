@@ -11,14 +11,19 @@
 
 package ethz.util;
 
-import java.util.*;
-import java.io.*;
-import java.net.*;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.InetAddress;
+import java.net.URL;
+import java.util.Properties;
+import java.util.StringTokenizer;
 
 /**
  * Reads properties form a file and converts them into Java objects
  */
-public class BaseProperties extends Properties {
+public class BaseProperties extends java.util.Properties {
 
     /** 
      * An array of observers. The size is adapted automatically

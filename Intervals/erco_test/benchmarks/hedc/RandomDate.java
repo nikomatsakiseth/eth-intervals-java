@@ -13,11 +13,11 @@ import ethz.util.*;
 public class RandomDate { 
     private static SimpleDateFormat format_ = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
     public static String format(Date d) {
-	Messages.assert(d != null);
+	Messages.check(d != null);
 	return format_.format(d);
     }
     public static Date parse(String s) throws ParseException {
-	Messages.assert(s != null);
+	Messages.check(s != null);
 	return format_.parse(s);
     }
 
@@ -26,22 +26,22 @@ public class RandomDate {
     private long end_ = 0;
     
     RandomDate(Date start, Date end) {
-	Messages.assert(start != null && end != null);
+	Messages.check(start != null && end != null);
 	start_ = start.getTime();
 	end_ = end.getTime();
-	Messages.assert(start_ < end_);
+	Messages.check(start_ < end_);
 	random_ = new Random();
     }
 
     RandomDate(String start, String end) throws ParseException {
-	Messages.assert(start != null && end != null);
+	Messages.check(start != null && end != null);
 	// Messages.debug(-1, "RandomDate::<init1> before parse s=%1", start);
 	Date tmp = parse(start); start_ = tmp.getTime();
 	// Messages.debug(-1, "RandomDate::<init1> after parse");
 	// Messages.debug(-1, "RandomDate::<init2> before parse");
 	tmp = parse(end); end_ = tmp.getTime();
 	// Messages.debug(-1, "RandomDate::<init2> after parse");
-	Messages.assert(start_ < end_);
+	Messages.check(start_ < end_);
 	random_ = new Random();
     }
     
@@ -57,7 +57,7 @@ public class RandomDate {
 	try {
 	    ret = format(nextDate());
 	} catch (Exception _) {
-	    Messages.assert(false);
+	    Messages.check(false);
 	}
 	return ret;
     }

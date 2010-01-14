@@ -88,7 +88,7 @@ public class FormFiller {
      */
     public static char[] internalize(String name) {
 	char[] buf = null;
-	Messages.assert(name != null && !name.equals(""));
+	Messages.check(name != null && !name.equals(""));
 	try {
 	    // first try the name (e.g. name is an absolute pathname)
 	    File f = new File(name);

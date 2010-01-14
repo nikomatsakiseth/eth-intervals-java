@@ -40,7 +40,7 @@ public class Tester implements Runnable {
 	    try {
 		new Thread(new Tester("thread"+i+".log", TES_PAUSE_, TES_ITERATIONS_)).start();
 	    } catch (Exception e) {
-		Messages.assert(false);
+		Messages.check(false);
 	    }
 	}
 	Messages.debug(1, "Tester::main end");
@@ -85,7 +85,7 @@ public class Tester implements Runnable {
 	try {
 	    fw_.close();
 	} catch (Exception e) { 
-	    Messages.assert(false);
+	    Messages.check(false);
 	}
 	Messages.debug(1, "Tester::run end");
     }
