@@ -69,8 +69,6 @@ public class TestDynamicGuard {
 					try {
 						await.await();
 					} catch (InterruptedException e) {}
-				if(signal != null)
-					await.countDown();
 				
 				if((flags & FLAG_RD1) != 0) 
 					results.put(name + ".rd1", dg.isReadable());
@@ -80,6 +78,9 @@ public class TestDynamicGuard {
 					results.put(name + ".rd2", dg.isReadable());
 				if((flags & FLAG_WR2) != 0) 
 					results.put(name + ".wr2", dg.isWritable());
+
+				if(signal != null)
+					await.countDown();
 			}
 			
 		}		
@@ -282,8 +283,7 @@ public class TestDynamicGuard {
 			@Override public void run(final Interval a) {
 				final DynamicGuard dg = new DynamicGuard();
 				
-				final Interval a1 = new Interval(a) {
-					@Override public String toString() { return "a1"; }
+				final Interval a1 = new Interval(a, "a1") {
 					@Override protected void run() {
 						results.add(dg.isReadable());
 						results.add(dg.isWritable());
@@ -291,28 +291,27 @@ public class TestDynamicGuard {
 					}
 				};
 				
-				final Interval a2 = new Interval(a) {					
+				final Interval a2 = new Interval(a, "a2") {					
 					{ Intervals.addHb(a1.end, this.start); }
-					@Override public String toString() { return "a2"; }
 					@Override protected void run() {
 						results.add(dg.isReadable());
-						
-						// Note: our BOUND is the a interval, even though we add
-						// an HB that guarantees we finish by the end of a2:
-						final Interval a2 = this;
-						new Interval(a) {
-							{ Intervals.addHb(end, a2.end); }
-							@Override public String toString() { return "a21"; }
-							@Override protected void run() {
-								results.add(dg.isReadable());
-							}
-						};
+					}
+				};
+
+				// a3 runs in parallel with a2 (in theory) but
+				// we use a TESTS edge to force it to run afterwards:
+				final Interval a3 = new Interval(a, "a3") {
+					{ 
+						Intervals.addHb(a1.end, this.start);
+						a2.end.addEdgeAndAdjust(start, ChunkList.TESTS);
+					}
+					@Override protected void run() {
+						results.add(dg.isReadable());
 					}
 				};
 				
-				new Interval(a) {										
-					{ Intervals.addHb(a2.end, this.start); }
-					@Override public String toString() { return "a3"; }					
+				new Interval(a, "a4") {										
+					{ Intervals.addHb(a3.end, this.start); }
 					@Override protected void run() {
 						results.add(dg.isReadable());
 						results.add(dg.isReadable());
@@ -436,6 +435,25 @@ public class TestDynamicGuard {
 				f.result("noLock.wr1"));
 	}
 	
+	@Test public void testReadsWithoutWrites() {
+		final DgIntervalFactory f = new DgIntervalFactory();
+		
+		Intervals.subinterval(new VoidSubinterval() { 
+			@Override public void run(final Interval a) {				
+				f.create(a, "reader0", FLAG_RD1);
+				f.create(a, "reader1", FLAG_RD1);
+				f.create(a, "reader2", FLAG_RD1);
+			}
+		});		
+		
+		assertEquals(3, f.results.size());
+		
+		Assert.assertTrue(
+				f.result("reader0.rd1") && 
+				f.result("reader1.rd1") && 
+				f.result("reader2.rd1"));		
+	}
+	
 	@Test public void testCooperatingChildren() {
 		final DgIntervalFactory f = new DgIntervalFactory();
 		
@@ -550,9 +568,9 @@ public class TestDynamicGuard {
 					
 					// Use speculative flag to enforce an ordering without actually creating HB relations:
 					if(lockFirst) 
-						lockChild.end.addEdgeAndAdjustDuringTest(unlockChild.start, ChunkList.SPECULATIVE);
+						lockChild.end.addEdgeAndAdjust(unlockChild.start, ChunkList.TESTS);
 					else
-						unlockChild.end.addEdgeAndAdjustDuringTest(lockChild.start, ChunkList.SPECULATIVE);
+						unlockChild.end.addEdgeAndAdjust(lockChild.start, ChunkList.TESTS);
 				}
 			});
 
@@ -589,4 +607,30 @@ public class TestDynamicGuard {
 		Assert.assertEquals(lfRd, lfWr);
 		Assert.assertEquals(lfRd, !ufRd);
 	}
+
+	@Test public void testMustHappenAfterPrevWr() {
+		final DgIntervalFactory f = new DgIntervalFactory();
+		
+		Intervals.subinterval(new VoidSubinterval() {
+			@Override public String toString() { return "outer"; }
+			@Override public void run(Interval subinterval) {
+				Interval wr = f.create(subinterval, "wr", FLAG_WR1, null, null);
+				Interval ro = f.create(subinterval, "rdOwner", FLAG_RD1, null, null);
+				Intervals.addHb(wr, ro);
+
+				// Note: rp is parallel to wr and ro, but "happens" to come after ro:
+				Interval rp = f.create(subinterval, "rdPar", FLAG_RD1, null, null);
+				ro.end.addEdgeAndAdjust(rp.start, ChunkList.TESTS);
+			}
+		});
+		
+		assertEquals(3, f.results.size());
+		
+		Assert.assertTrue(
+				f.results.toString(),
+				f.result("wr.wr1") &&
+				f.result("rdOwner.rd1") &&
+				!f.result("rdPar.rd1"));
+	}
+
 }

@@ -1,6 +1,7 @@
 package ch.ethz.intervals;
 
 import static ch.ethz.intervals.ChunkList.SPECULATIVE;
+import static ch.ethz.intervals.ChunkList.TESTS;
 import static ch.ethz.intervals.ChunkList.WAITING;
 import static ch.ethz.intervals.ChunkList.speculative;
 
@@ -112,7 +113,7 @@ public abstract class Point {
 
 	/** Returns true if {@code this} <i>happens before</i> {@code p} */
 	public boolean hb(final Point p) {
-		return hb(p, SPECULATIVE);
+		return hb(p, SPECULATIVE|TESTS);
 	}
 	
 	/** Returns true if {@code this == p} or {@code this} <i>happens before</i> {@code p} */
@@ -120,14 +121,16 @@ public abstract class Point {
 		return (this == p) || hb(p);
 	}
 	
-	boolean hbeq(Point p, int skipFlags) {
-		return (this == p) || hb(p, skipFlags);
+	/** Returns true if {@code this} <i>happens before</i> {@code p},
+	 *  including speculative edges. */
+	boolean hbOrSpec(final Point p) {
+		return hb(p, TESTS);
 	}
 	
 	/** true if {@code this} -> {@code p}.
 	 * @param tar another point
 	 * @param skipFlags Skips edges which have any of the flags in here. */
-	boolean hb(final Point tar, final int skipFlags) {
+	private boolean hb(final Point tar, final int skipFlags) {
 		assert tar != null;
 		
 		// XXX We currently access the list of outgoing edges with
@@ -435,14 +438,7 @@ public abstract class Point {
 	 */
 	void addEdgeAndAdjust(Point toImpl, int flags) {
 		assert !speculative(flags) : "addEdgeAndAdjust should not be used for spec. edges!";		
-		addEdgeAndAdjustDuringTest(toImpl, flags);
-	}
-
-	/**
-	 * Like {@link #addEdgeAndAdjust(Point, int)} but skips some assertions
-	 * that apply in normal code but not in testing code.
-	 */
-	void addEdgeAndAdjustDuringTest(Point toImpl, int flags) {
+		
 		// Note: we must increment the wait count before we release
 		// the lock on this, because otherwise toImpl could arrive and
 		// then decrement the wait count before we get a chance to increment

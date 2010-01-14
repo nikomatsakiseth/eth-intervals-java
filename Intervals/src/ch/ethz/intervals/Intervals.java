@@ -202,7 +202,7 @@ public class Intervals {
 			Point from,
 			Point to) 
 	{
-		if(to.hb(from, 0)) {
+		if(to.hbOrSpec(from)) {
 			recoverFromCycle(from, to);
 			throw new CycleException(from, to);
 		} else {

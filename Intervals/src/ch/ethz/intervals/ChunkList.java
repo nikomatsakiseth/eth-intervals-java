@@ -7,6 +7,7 @@ class ChunkList<T> implements Cloneable {
 	public static final int NORMAL = 0;               /** A user-created, confirmed edge. */   
 	static public final int SPECULATIVE = 1;          /** Not yet confirmed. */
 	static public final int WAITING = 2;              /** Waiting for point to occur. */
+	static public final int TESTS = 4;                /** Edges used in the tests to force ordering which DO NOT COUNT FOR HB. */
 	
 	// Flags for intervals
 	public static final int NO_FLAGS = 0;
@@ -20,6 +21,10 @@ class ChunkList<T> implements Cloneable {
 	
 	static public final boolean waiting(int flags) {
 		return (flags & WAITING) != 0;
+	}
+	
+	static public final boolean tests(int flags) {
+		return (flags & TESTS) != 0;
 	}
 	
 	static private final int SHIFT0 = 0;
