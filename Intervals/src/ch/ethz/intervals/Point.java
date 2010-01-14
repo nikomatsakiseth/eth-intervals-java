@@ -1,7 +1,7 @@
 package ch.ethz.intervals;
 
 import static ch.ethz.intervals.ChunkList.SPECULATIVE;
-import static ch.ethz.intervals.ChunkList.TESTS;
+import static ch.ethz.intervals.ChunkList.TEST_EDGE;
 import static ch.ethz.intervals.ChunkList.WAITING;
 import static ch.ethz.intervals.ChunkList.speculative;
 
@@ -113,7 +113,7 @@ public abstract class Point {
 
 	/** Returns true if {@code this} <i>happens before</i> {@code p} */
 	public boolean hb(final Point p) {
-		return hb(p, SPECULATIVE|TESTS);
+		return hb(p, SPECULATIVE|TEST_EDGE);
 	}
 	
 	/** Returns true if {@code this == p} or {@code this} <i>happens before</i> {@code p} */
@@ -124,7 +124,7 @@ public abstract class Point {
 	/** Returns true if {@code this} <i>happens before</i> {@code p},
 	 *  including speculative edges. */
 	boolean hbOrSpec(final Point p) {
-		return hb(p, TESTS);
+		return hb(p, TEST_EDGE);
 	}
 	
 	/** true if {@code this} -> {@code p}.

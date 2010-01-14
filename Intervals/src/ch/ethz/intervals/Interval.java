@@ -173,16 +173,19 @@ implements Dependency, Guard
 		if(pnt == start) {
 			// First check whether locks were safe to acquire
 			LittleLinkedList<Throwable> lockErrors = null;
-			for(LockList list = this.locks; list != null; list = list.next) {			
-				if(!list.lock.isLockableBy(start, end)) {
-					// XXX Create this exception in isLockableBy, where we know the other owner
-					Throwable error = new DataRaceException(
-							(DynamicGuard) list.lock, 
-							DataRaceException.Role.LOCK, 
-							this, null);
-					end.addPendingException(error);
-					lockErrors = new LittleLinkedList<Throwable>(error, lockErrors);
-					hasPendingExceptions = true;
+			for(LockList list = this.locks; list != null; list = list.next) {
+				// If there were pending exceptions, we may not have acquired any lock:
+				if(list.acquiredLock != null) {
+					if(!list.lock.isLockableBy(start, end)) {
+						// XXX Create this exception in isLockableBy, where we know the other owner
+						Throwable error = new DataRaceException(
+								(DynamicGuard) list.lock, 
+								DataRaceException.Role.LOCK, 
+								this, null);
+						end.addPendingException(error);
+						lockErrors = new LittleLinkedList<Throwable>(error, lockErrors);
+						hasPendingExceptions = true;
+					}
 				}
 			}
 			
@@ -193,7 +196,9 @@ implements Dependency, Guard
 			// After end point occurs, release any locks we acquired.
 			assert pnt == end;
 			for(LockList lock = locksUnsync(); lock != null; lock = lock.next)
-				lock.unlockAcquiredLock();
+				// If there were pending exceptions, we may not have acquired any locks:
+				if(lock.acquiredLock != null)
+					lock.unlockAcquiredLock();
 		}
 	}
 	

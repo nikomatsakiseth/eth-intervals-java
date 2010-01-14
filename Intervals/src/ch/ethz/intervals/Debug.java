@@ -10,10 +10,10 @@ import ch.ethz.intervals.ThreadPool.Worker;
 
 class Debug {
 	
-	public static final boolean ENABLED = false;
+	public static final boolean ENABLED = true;
 	public static final boolean DUMP_IMMEDIATELY = true;
 	
-	public static final boolean ENABLED_LOCK = false;         /** Debug statements related to locks. */
+	public static final boolean ENABLED_LOCK = true;         /** Debug statements related to locks. */
 	public static final boolean ENABLED_WAIT_COUNTS = true;	 /** Debug statements related to wait counts. */
 	public static final boolean ENABLED_INTER = false;       /** Debug statements related to higher-level interval control-flow */
 	public static final boolean ENABLED_WORK_STEAL = false;  /** Debug statements related to the work-stealing queue */
@@ -61,6 +61,25 @@ class Debug {
 	public static void arrive(Point point, int count, int newCount) {
 		if(ENABLED_WAIT_COUNTS)
 			addEvent(new ArriveEvent(point, count, newCount));
+	}
+	
+	static class ScheduleEvent extends Event {
+		public final Interval inter;
+		public final Interval current;
+		
+		public ScheduleEvent(Interval inter, Interval current) {
+			this.inter = inter;
+			this.current = current;
+		}				
+		
+		public String toString() {
+			return String.format("SCHEDULE %s start=%s current=%s", inter, inter.start, current);
+		}
+	}
+	
+	public static void schedule(Interval inter, Interval current) {
+		if(ENABLED_WAIT_COUNTS)
+			addEvent(new ScheduleEvent(inter, current));
 	}
 
 	static class OccurEvent extends Event {

@@ -96,6 +96,8 @@ class Current {
 	private void scheduleUnchecked(Interval p) {
 		assert p.line().isUnscheduled(this);
 		
+		if(Debug.ENABLED)
+			Debug.schedule(p, inter);
 		ExecutionLog.logScheduleInterval(p);
 		
 		p.line().clearUnscheduled();

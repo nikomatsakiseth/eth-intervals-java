@@ -1,5 +1,6 @@
 package ch.ethz.intervals;
 
+import static ch.ethz.intervals.ChunkList.TEST_EDGE;
 import static org.junit.Assert.assertEquals;
 
 import java.util.ArrayList;
@@ -14,14 +15,21 @@ import org.junit.Test;
 
 public class TestDynamicGuard {
 	
-	public static final int FLAG_LCK = 1;
-	public static final int FLAG_RD1 = 2;
-	public static final int FLAG_WR1 = 4;
-	public static final int FLAG_RD2 = 8;
-	public static final int FLAG_WR2 = 16;	
+	public static final int FLAG_LCK1 = 1 << 0;
+	public static final int FLAG_RD1 = 1 << 1;
+	public static final int FLAG_WR1 = 1 << 2;
+	public static final int FLAG_EMBED1 = 1 << 3;
+	public static final int FLAG_UNEMBED1 = 1 << 4;
+	
+	public static final int FLAG_LCK2 = 1 << 10;
+	public static final int FLAG_RD2 = 1 << 11;
+	public static final int FLAG_WR2 = 1 << 12;	
+	public static final int FLAG_EMBED2 = 1 << 13;	
+	public static final int FLAG_UNEMBED2 = 1 << 14;	
 	
 	class DgIntervalFactory {
-		public final DynamicGuard dg = new DynamicGuard();
+		public final DynamicGuard dg1 = new DynamicGuard();
+		public final DynamicGuard dg2 = new DynamicGuard();
 		public final Map<String, Boolean> results = 
 			Collections.synchronizedMap(new HashMap<String, Boolean>());
 		
@@ -57,8 +65,10 @@ public class TestDynamicGuard {
 				this.await = await;
 				this.signal = signal;
 				
-				if((flags & FLAG_LCK) != 0)
-					Intervals.addExclusiveLock(this, dg);
+				if((flags & FLAG_LCK1) != 0)
+					Intervals.addExclusiveLock(this, dg1);
+				if((flags & FLAG_LCK2) != 0)
+					Intervals.addExclusiveLock(this, dg2);
 			}
 
 			@Override
@@ -71,13 +81,22 @@ public class TestDynamicGuard {
 					} catch (InterruptedException e) {}
 				
 				if((flags & FLAG_RD1) != 0) 
-					results.put(name + ".rd1", dg.isReadable());
+					results.put(name + ".rd1", dg1.isReadable());
 				if((flags & FLAG_WR1) != 0) 
-					results.put(name + ".wr1", dg.isWritable());
+					results.put(name + ".wr1", dg1.isWritable());
+				if((flags & FLAG_EMBED1) != 0)
+					results.put(name + ".embed1", dg1.embed(dg2));
+				if((flags & FLAG_UNEMBED1) != 0)
+					results.put(name + ".unembed1", dg1.unembed());
+				
 				if((flags & FLAG_RD2) != 0) 
-					results.put(name + ".rd2", dg.isReadable());
+					results.put(name + ".rd2", dg2.isReadable());
 				if((flags & FLAG_WR2) != 0) 
-					results.put(name + ".wr2", dg.isWritable());
+					results.put(name + ".wr2", dg2.isWritable());
+				if((flags & FLAG_EMBED2) != 0)
+					results.put(name + ".embed2", dg2.embed(dg1));
+				if((flags & FLAG_UNEMBED2) != 0)
+					results.put(name + ".unembed2", dg2.unembed());
 
 				if(signal != null)
 					await.countDown();
@@ -303,7 +322,7 @@ public class TestDynamicGuard {
 				final Interval a3 = new Interval(a, "a3") {
 					{ 
 						Intervals.addHb(a1.end, this.start);
-						a2.end.addEdgeAndAdjust(start, ChunkList.TESTS);
+						a2.end.addEdgeAndAdjust(start, ChunkList.TEST_EDGE);
 					}
 					@Override protected void run() {
 						results.add(dg.isReadable());
@@ -423,7 +442,7 @@ public class TestDynamicGuard {
 		
 		Intervals.subinterval(new VoidSubinterval() { 
 			@Override public void run(final Interval a) {				
-				Interval withLock1 = f.create(a, "withLock1", FLAG_LCK|FLAG_RD1);
+				Interval withLock1 = f.create(a, "withLock1", FLAG_LCK1|FLAG_RD1);
 				f.create(withLock1, "noLock", FLAG_WR1);
 			}
 		});		
@@ -459,7 +478,7 @@ public class TestDynamicGuard {
 		
 		Intervals.subinterval(new VoidSubinterval() { 
 			@Override public void run(final Interval a) {				
-				Interval withLock1 = f.create(a, "withLock1", FLAG_LCK);
+				Interval withLock1 = f.create(a, "withLock1", FLAG_LCK1);
 				
 				Interval readers = f.create(withLock1, "readers", 0);
 				Interval reader0 = f.create(readers, "reader0", FLAG_RD1);
@@ -467,7 +486,7 @@ public class TestDynamicGuard {
 				Interval reader2 = f.create(readers, "reader2", FLAG_RD1);
 				
 				Interval writers = f.create(withLock1, "writers", 0);
-				Interval writer0 = f.create(writers, "writer0", FLAG_RD1|FLAG_WR2);
+				Interval writer0 = f.create(writers, "writer0", FLAG_RD1|FLAG_WR1);
 				
 				Intervals.addHb(readers.end, writers.start);
 			}
@@ -480,7 +499,7 @@ public class TestDynamicGuard {
 				f.result("reader1.rd1") && 
 				f.result("reader2.rd1") && 
 				f.result("writer0.rd1") &&
-				f.result("writer0.wr2"));
+				f.result("writer0.wr1"));
 	}
 	
 	@Test public void testGoToLock() {
@@ -488,7 +507,7 @@ public class TestDynamicGuard {
 		
 		Intervals.subinterval(new VoidSubinterval() { 
 			@Override public void run(final Interval a) {				
-				Interval withLock1 = f.create(a, "withLock1", FLAG_LCK);
+				Interval withLock1 = f.create(a, "withLock1", FLAG_LCK1);
 				
 				Interval readers = f.create(withLock1, "readers", 0);
 				Interval reader0 = f.create(readers, "reader0", FLAG_RD1);
@@ -496,7 +515,7 @@ public class TestDynamicGuard {
 				Interval reader2 = f.create(readers, "reader2", FLAG_RD1);
 				
 				Interval writers = f.create(withLock1, "writers", 0);
-				Interval writer0 = f.create(writers, "writer0", FLAG_RD1|FLAG_WR2);
+				Interval writer0 = f.create(writers, "writer0", FLAG_RD1|FLAG_WR1);
 				
 				Intervals.addHb(readers.end, writers.start);
 			}
@@ -509,7 +528,7 @@ public class TestDynamicGuard {
 				f.result("reader1.rd1") && 
 				f.result("reader2.rd1") && 
 				f.result("writer0.rd1") &&
-				f.result("writer0.wr2"));
+				f.result("writer0.wr1"));
 	}	
 	
 	@Test public void testWriteHandoff() {
@@ -563,14 +582,14 @@ public class TestDynamicGuard {
 			Intervals.subinterval(new VoidSubinterval() { 
 				@Override public String toString() { return "parent"; }
 				@Override public void run(final Interval parent) {
-					Interval lockChild = f.create(parent, "lockChild", FLAG_LCK); 
+					Interval lockChild = f.create(parent, "lockChild", FLAG_LCK1); 
 					Interval unlockChild = f.create(parent, "unlockChild", unlockFlag); 
 					
 					// Use speculative flag to enforce an ordering without actually creating HB relations:
 					if(lockFirst) 
-						lockChild.end.addEdgeAndAdjust(unlockChild.start, ChunkList.TESTS);
+						lockChild.end.addEdgeAndAdjust(unlockChild.start, ChunkList.TEST_EDGE);
 					else
-						unlockChild.end.addEdgeAndAdjust(lockChild.start, ChunkList.TESTS);
+						unlockChild.end.addEdgeAndAdjust(lockChild.start, ChunkList.TEST_EDGE);
 				}
 			});
 
@@ -586,7 +605,7 @@ public class TestDynamicGuard {
 					e.getCause() instanceof DataRaceException);
 			
 			DataRaceException dre = (DataRaceException)e.getCause();
-			Assert.assertEquals(f.dg, dre.dg);
+			Assert.assertEquals(f.dg1, dre.dg);
 			Assert.assertEquals(DataRaceException.Role.LOCK, dre.acc);
 			Assert.assertEquals("lockChild", dre.interloper.toString());
 			//FIX Assert.assertEquals("unlockChild", dre.owner);
@@ -620,7 +639,7 @@ public class TestDynamicGuard {
 
 				// Note: rp is parallel to wr and ro, but "happens" to come after ro:
 				Interval rp = f.create(subinterval, "rdPar", FLAG_RD1, null, null);
-				ro.end.addEdgeAndAdjust(rp.start, ChunkList.TESTS);
+				ro.end.addEdgeAndAdjust(rp.start, ChunkList.TEST_EDGE);
 			}
 		});
 		
@@ -633,4 +652,118 @@ public class TestDynamicGuard {
 				!f.result("rdPar.rd1"));
 	}
 
+	@Test public void testEmbedUnembedSuccessfully() {
+		final DgIntervalFactory f = new DgIntervalFactory();
+		
+		Intervals.subinterval(new VoidSubinterval() {
+			@Override public String toString() { return "outer"; }
+			@Override public void run(Interval subinterval) {
+				Interval wr1a = f.create(subinterval, "wr1a", FLAG_WR1, null, null);
+				Interval em = f.create(subinterval, "em", FLAG_LCK2|FLAG_EMBED1, null, null);
+				Intervals.addHb(wr1a, em);
+
+				Interval unem = f.create(subinterval, "unem", FLAG_LCK2|FLAG_UNEMBED1, null, null);
+				Interval wr1b = f.create(subinterval, "wr1b", FLAG_WR1, null, null);
+				em.end.addEdgeAndAdjust(unem.start, ChunkList.TEST_EDGE);
+				Intervals.addHb(unem, wr1b);
+			}
+		});
+		
+		assertEquals(4, f.results.size());
+		
+		Assert.assertTrue(
+				f.results.toString(),
+				f.result("wr1a.wr1") &&
+				f.result("em.embed1") &&
+				f.result("unem.unembed1") &&
+				f.result("wr1b.wr1"));
+	}
+
+	@Test public void testEmbedUnembedForgotLock() {
+		final DgIntervalFactory f = new DgIntervalFactory();
+		
+		Intervals.subinterval(new VoidSubinterval() {
+			@Override public String toString() { return "outer"; }
+			@Override public void run(Interval subinterval) {
+				Interval wr1a = f.create(subinterval, "wr1a", FLAG_WR1, null, null);
+				Interval em = f.create(subinterval, "em", FLAG_LCK2|FLAG_EMBED1, null, null);
+				Intervals.addHb(wr1a, em);
+
+				// Note: unem does not acquire LCK2, therefore it cannot unembed
+				// because dg2 will not be writable.
+				Interval unem = f.create(subinterval, "unem", FLAG_UNEMBED1, null, null);
+				Interval wr1b = f.create(subinterval, "wr1b", FLAG_WR1, null, null);
+				em.end.addEdgeAndAdjust(unem.start, ChunkList.TEST_EDGE);
+				Intervals.addHb(unem, wr1b);
+			}
+		});
+		
+		assertEquals(4, f.results.size());
+		
+		Assert.assertTrue(
+				f.results.toString(),
+				f.result("wr1a.wr1") &&
+				f.result("em.embed1") &&
+				!f.result("unem.unembed1") &&
+				!f.result("wr1b.wr1"));
+	}
+
+	@Test public void testEmbedUnembedWriteOrdered() {
+		final DgIntervalFactory f = new DgIntervalFactory();
+		
+		Intervals.subinterval(new VoidSubinterval() {
+			@Override public String toString() { return "outer"; }
+			@Override public void run(Interval subinterval) {
+				Interval wr1a = f.create(subinterval, "wr1a", FLAG_WR1, null, null);
+				Interval em = f.create(subinterval, "em", FLAG_WR2|FLAG_EMBED1, null, null);
+				Intervals.addHb(wr1a, em);
+
+				Interval unem = f.create(subinterval, "unem", FLAG_WR2|FLAG_UNEMBED1, null, null);
+				Intervals.addHb(em, unem);
+				
+				Interval wr1b = f.create(subinterval, "wr1b", FLAG_WR1, null, null);
+				Intervals.addHb(unem, wr1b);
+			}
+		});
+		
+		assertEquals(6, f.results.size());
+		
+		Assert.assertTrue(
+				f.results.toString(),
+				f.result("wr1a.wr1") &&
+				f.result("em.wr2") &&
+				f.result("em.embed1") &&
+				f.result("unem.wr2") &&
+				f.result("unem.unembed1") &&
+				f.result("wr1b.wr1"));
+	}
+	
+	@Test public void testUnorderedWriteAfterUnembed() {
+		final DgIntervalFactory f = new DgIntervalFactory();
+		
+		Intervals.subinterval(new VoidSubinterval() {
+			@Override public String toString() { return "outer"; }
+			@Override public void run(Interval subinterval) {
+				Interval wr1a = f.create(subinterval, "wr1a", FLAG_WR1, null, null);
+				Interval em = f.create(subinterval, "em", FLAG_LCK2|FLAG_EMBED1, null, null);
+				Intervals.addHb(wr1a, em);
+
+				Interval unem = f.create(subinterval, "unem", FLAG_LCK2|FLAG_UNEMBED1, null, null);
+				em.end.addEdgeAndAdjust(unem.start, TEST_EDGE);
+				
+				// Note: this write is not ordered with respect to the unembed.
+				Interval wr1b = f.create(subinterval, "wr1b", FLAG_WR1, null, null);
+				unem.end.addEdgeAndAdjust(wr1b.start, TEST_EDGE);
+			}
+		});
+		
+		assertEquals(4, f.results.size());
+		
+		Assert.assertTrue(
+				f.results.toString(),
+				f.result("wr1a.wr1") &&
+				f.result("em.embed1") &&
+				f.result("unem.unembed1") &&
+				!f.result("wr1b.wr1"));
+	}
 }

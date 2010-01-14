@@ -304,7 +304,8 @@ implements Guard {
 			return false;
 			
 		default:
-			throw new RuntimeException("Unhandled state kind: " + state.kind);
+			assert false : "Unhandled state kind: " + state.kind;
+			return false;
 		}		
 	}
 	
@@ -360,15 +361,37 @@ implements Guard {
 			return false;
 			
 		default:
-			throw new RuntimeException("Unhandled state kind: " + state.kind);
+			assert false : "Unhandled state kind: " + state.kind;
+			return false;
 		}
 	}
 	
+	/** True if the fields guarded by {@code this} can be embedded into
+	 *  the data structure {@code embedIn}.  They must then be 
+	 *  removed via {@link #unembed()} before they can be used again. */
+	public boolean embed(Guard embedIn) {
+		if(this == embedIn)
+			return false;
+		
+		Current current = Current.get();		
+		
+		// Root interval:
+		//     For now play it safe.  Later think.
+		if(current.inter == null)
+			return false;
+		
+		return embed(current.mr, current.inter.end, embedIn);
+	}
+
 	synchronized boolean embed(Point mr, Point end, Guard embedIn) {
 		if(!embedIn.isWritable())
 			return false;
 		
 		switch(state.kind) {
+		case INITIAL:
+			state = new State(embedIn, state);
+			return true;
+			
 		case LOCK_OWNED:
 		case WR_OWNED:
 		case RD_OWNED:			
@@ -379,9 +402,24 @@ implements Guard {
 			return false;
 			
 		default:
-			throw new RuntimeException("Unhandled state kind: " + state.kind);
+			assert false : "Unhandled state kind: " + state.kind;
+			return false;
 		}
 		
+	}
+	
+	/** Attempts to unembed {@code this} from where it was embedded.  If this
+	 *  is not safe, or {@code this} is not embedded, returns false.  Otherwise,
+	 *  {@code this} is now cleared for writes by the current interval. */
+	public boolean unembed() {
+		Current current = Current.get();		
+		
+		// Root interval:
+		//     For now play it safe.  Later think.
+		if(current.inter == null)
+			return false;
+		
+		return unembed(current.mr, current.inter.end);
 	}
 	
 	synchronized boolean unembed(Point mr, Point end) {
@@ -389,9 +427,12 @@ implements Guard {
 		case EMBEDDED:
 			// Unembedding makes the current interval the exclusive owner.
 			// It could, if it chose, make writes etc.  Anyone that wants
-			// to read it etc must Happen-After the unembedder. 
-			state = new State(StateKind.WR_OWNED, end, state);
-			return true;
+			// to read it etc must Happen-After the unembedder.
+			if(state.embeddedIn.isWritable()) {
+				state = new State(StateKind.WR_OWNED, end, state.next);
+				return true;
+			}
+			return false;
 			
 		default:
 			return false;
