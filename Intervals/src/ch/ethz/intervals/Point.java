@@ -250,8 +250,7 @@ public abstract class Point {
 		
 		assert newCount >= 0;
 		if(newCount == 0 && cnt != 0)
-			if(interval.willOccur(this, (pendingExceptions != null)))
-				occur();
+			occur();
 	}
 	
 	/** Invoked when the wait count is zero and all pending locks
@@ -259,6 +258,10 @@ public abstract class Point {
 	final void occur() {
 		assert waitCount == 0;
 		assert line.isScheduled();
+
+		// first give the interval a chance to second guess us
+		if(!interval.willOccur(this, (pendingExceptions != null)))
+			return;
 		
 		// Subintervals of the root interval should invoke notifyAll(),
 		// as there might be someone listening.
