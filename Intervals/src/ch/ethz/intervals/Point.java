@@ -161,7 +161,8 @@ public abstract class Point {
 				return p.depth < tarBounds.length && tarBounds[p.depth] == p;
 			}
 			
-			boolean couldLegallyBeConnectedToTar(Point src) {
+			// True if the user could legally invoke addHb(src, tar) 
+			boolean userCouldLegallyAddHbToTarFrom(Point src) {
 				return src.bound == null || boundsTar(src.bound);
 			}
 		}
@@ -171,7 +172,7 @@ public abstract class Point {
 		
 		// If src could not legally connect to tar, then it can only HB tar
 		// if its bound HB tar:
-		while(!bh.couldLegallyBeConnectedToTar(src))
+		while(!bh.userCouldLegallyAddHbToTarFrom(src))
 			src = src.bound;
 		
 		// If src has no outgoing edges, then it can only HB tar if its bound HB tar:
@@ -217,14 +218,20 @@ public abstract class Point {
 			if(sh.tryEnqueue(q.bound))
 				return true;
 			
-			new ChunkList.InterruptibleIterator<Point>(q.outEdgesSync()) {
-				public boolean forEach(Point toPoint, int flags) {
-					if((flags & skipFlags) == 0) {
-						return sh.tryEnqueue(toPoint);
-					}
-					return false;
+			// Only explore non-bound edges if it's 
+			// legal for the user to connect q to tar.
+			if(bh.userCouldLegallyAddHbToTarFrom(q)) {
+				ChunkList<Point> qOutEdges = q.outEdgesSync(); 
+				if(qOutEdges != null) {
+					new ChunkList.InterruptibleIterator<Point>(qOutEdges) {
+						public boolean forEach(Point toPoint, int flags) {
+							if((flags & skipFlags) == 0)
+								return sh.tryEnqueue(toPoint);
+							return false;
+						}
+					};
 				}
-			};
+			}
 		} while(sh.shouldContinue());
 		
 		return sh.foundIt;
