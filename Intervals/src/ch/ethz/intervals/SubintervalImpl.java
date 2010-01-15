@@ -25,10 +25,10 @@ final class SubintervalImpl<R> extends Interval {
 		}		
 		if(locks != null) {
 			LockList lockList = null;
-			// Preserver ordering of locks (may be sig. for deadlock):
-			for(int i = locks.length - 1; i >= 0; i--)
-				lockList = new LockList(this, locks[i], lockList);
-			setLocksUnsync(lockList);
+			// Build list in reverse order of the array:
+			for(Lock lock : locks)
+				lockList = new LockList(this, lock, lockList);
+			setRevLocksUnsync(lockList);
 		}
 	}
 

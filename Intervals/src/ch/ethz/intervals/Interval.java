@@ -24,11 +24,9 @@ implements Dependency, Guard
 
 	/** Linked list of locks to acquire before executing.  Modified only when
 	 *  synchronized, but once start point occurs can now longer be modified,
-	 *  so used without synchronization in methods that must happen after start. */
-	private LockList allLocks;
-	
-	/** Always a suffix of {@link #allLocks}.  Lists the locks not yet acquired. */
-	private LockList unacquiredLocks;
+	 *  so used without synchronization in methods that must happen after start. 
+	 *  <b>Warning:</b> Stored in THE REVERSE ORDER of how they should be acquired! */
+	private LockList revLocks;
 	
 	/** Any child intervals created before run method finishes execution.
 	 *  Once run method completes, set to {@link #runMethodTerminated} and never
@@ -101,21 +99,21 @@ implements Dependency, Guard
 		}
 	}
 	
-	void setLocksUnsync(LockList locks) {
-		allLocks = unacquiredLocks = locks;
+	void setRevLocksUnsync(LockList locks) {
+		revLocks = locks;
 	}
 	
 	/** Note: Safety checks apply!  See {@link Current#checkCanAddDep(Point)} */ 
 	void addExclusiveLock(Lock lock) {
 		LockList list = new LockList(this, lock, null);
 		synchronized(this) {
-			list.next = allLocks;			
-			setLocksUnsync(list);
+			list.next = revLocks;			
+			setRevLocksUnsync(list);
 		}
 	}
 	
-	synchronized LockList allLocksSync() {
-		return allLocks;
+	synchronized LockList revLocksSync() {
+		return revLocks;
 	}
 	
 	/** Invoked when the wait count of {@code point} reaches zero. 
@@ -139,13 +137,19 @@ implements Dependency, Guard
 	 *  been acquired. */
 	void acquireNextUnacquiredLock(boolean hasPendingExceptions) {		
 		if(!hasPendingExceptions) {
+			// Find the last lock which has not yet been acquired.
 			// It is safe to use unsynchronized reads/writes here, 
 			// because any modification to this list must have been 
 			// during some interval which HB the start point.
-			LockList ll = unacquiredLocks;
-			if(ll != null) {
-				unacquiredLocks = ll.next;
-				acquireLock(ll); // will callback to didAcquireLock()
+			LockList ll1 = null, ll2 = revLocks;
+			while(ll2 != null) {
+				if(ll2.acquiredLock != null)
+					break;
+				ll1 = ll2;
+				ll2 = ll2.next;
+			}
+			if(ll1 != null) {
+				acquireLock(ll1);
 				return;
 			}
 		}
@@ -177,7 +181,7 @@ implements Dependency, Guard
 	private int acquireLock(LockList thisLockList) {
 		// First check whether we are recursively acquiring this lock:
 		for(Interval ancestor = parent; ancestor != null; ancestor = ancestor.parent) {
-			for(LockList ancLockList = ancestor.allLocks; ancLockList != null; ancLockList = ancLockList.next)
+			for(LockList ancLockList = ancestor.revLocks; ancLockList != null; ancLockList = ancLockList.next)
 				if(ancLockList.lock == thisLockList.lock) {
 					return ancLockList.tryAndEnqueue(thisLockList);
 				}
@@ -211,7 +215,7 @@ implements Dependency, Guard
 		} else {
 			// After end point occurs, release any locks we acquired.
 			assert pnt == end;
-			for(LockList lock = allLocks; lock != null; lock = lock.next)
+			for(LockList lock = revLocks; lock != null; lock = lock.next)
 				// If there were pending exceptions, we may not have acquired any locks:
 				if(lock.acquiredLock != null)
 					lock.unlockAcquiredLock();
@@ -349,7 +353,7 @@ implements Dependency, Guard
 	 * when it executes.
 	 */
 	public final boolean holdsLock(Lock lock) {
-		for(LockList ll = allLocksSync(); ll != null; ll = ll.next)
+		for(LockList ll = revLocksSync(); ll != null; ll = ll.next)
 			if(ll.lock == lock)
 				return true;
 		
