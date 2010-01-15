@@ -43,7 +43,6 @@ abstract class LockBase
 				if(Debug.ENABLED)
 					Debug.enqueueForLock(this, acq);
 				
-				acq.enqueued();
 				if (firstPending == null) {
 					firstPending = lastPending = acq;
 				} else {
@@ -55,7 +54,7 @@ abstract class LockBase
 		}
 		
 		if(result == 0)
-			acq.lockAcquired(this);
+			acq.didAcquireLock(this);
 		
 		return result;
 	}
@@ -92,8 +91,7 @@ abstract class LockBase
 		
 		// If we get here, we dequeued newOwner.  Wake them up.
 		newOwner.nextPending = null;
-		newOwner.lockAcquired(this);
-		newOwner.dequeued();
+		newOwner.didAcquireLock(this);
 	}
 
 }

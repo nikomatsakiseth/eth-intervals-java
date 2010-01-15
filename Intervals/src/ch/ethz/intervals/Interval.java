@@ -25,7 +25,10 @@ implements Dependency, Guard
 	/** Linked list of locks to acquire before executing.  Modified only when
 	 *  synchronized, but once start point occurs can now longer be modified,
 	 *  so used without synchronization in methods that must happen after start. */
-	private LockList locks;
+	private LockList allLocks;
+	
+	/** Always a suffix of {@link #allLocks}.  Lists the locks not yet acquired. */
+	private LockList unacquiredLocks;
 	
 	/** Any child intervals created before run method finishes execution.
 	 *  Once run method completes, set to {@link #runMethodTerminated} and never
@@ -99,51 +102,82 @@ implements Dependency, Guard
 	}
 	
 	void setLocksUnsync(LockList locks) {
-		this.locks = locks;
+		allLocks = unacquiredLocks = locks;
 	}
 	
 	/** Note: Safety checks apply!  See {@link Current#checkCanAddDep(Point)} */ 
 	void addExclusiveLock(Lock lock) {
 		LockList list = new LockList(this, lock, null);
 		synchronized(this) {
-			list.next = locks;
-			locks = list;
+			list.next = allLocks;			
+			setLocksUnsync(list);
 		}
 	}
 	
-	synchronized LockList locksSync() {
-		return locks;
-	}
-	
-	LockList locksUnsync() {
-		return locks;
+	synchronized LockList allLocksSync() {
+		return allLocks;
 	}
 	
 	/** Invoked when the wait count of {@code point} reaches zero. 
-	 *  If it returns {@code true}, then the point should occur.
-	 *  Otherwise, if it returns false, new dependencies have been added and 
-	 *  the point should not occur yet.  */
-	boolean willOccur(Point point, boolean hasPendingExceptions) {
-		if(point == start && !hasPendingExceptions) {
-			// It is safe to use an unsynchronized read here, because any modification
-			// to this list must have been during some interval which HB the start point.
-			LockList lockList = locksUnsync();
-			if(lockList != null && lockList.acquiredLock == null) {
-				start.addWaitCountUnsync(1); // sync not needed here, all pred. arrived
-				for(; lockList != null; lockList = lockList.next)
-					acquireLock(lockList);
-				start.arrive(1); // now we may have pred. again, need sync
-				return false;
-			} 
+	 *  For the start point, begins acquiring locks, and invokes
+	 *  {@link Point#occur()} when complete.  For the end point,
+	 *  simply invokes {@link Point#occur()}. 
+	 */
+	void didReachWaitCountZero(Point point, boolean hasPendingExceptions) {
+		if(point == start) {
+			acquireNextUnacquiredLock(hasPendingExceptions);
+		} else {
+			assert point == end;
+			end.occur();
+		}
+	}
+	
+	/** So long as {@code hasPendingExceptions} is false, 
+	 *  acquirse any unacquired locks, invoking {@link Point#occur()}
+	 *  when complete.  If some lock cannot be immediately acquired,
+	 *  then it returns and waits for a callback when the lock has
+	 *  been acquired. */
+	void acquireNextUnacquiredLock(boolean hasPendingExceptions) {		
+		if(!hasPendingExceptions) {
+			// It is safe to use unsynchronized reads/writes here, 
+			// because any modification to this list must have been 
+			// during some interval which HB the start point.
+			LockList ll = unacquiredLocks;
+			if(ll != null) {
+				unacquiredLocks = ll.next;
+				acquireLock(ll); // will callback to didAcquireLock()
+				return;
+			}
+		}
+		start.occur();
+		return;
+	}
+	
+	void didAcquireLock(LockList ll) {
+		assert ll.acquiredLock != null;
+		
+		// Check that acquiring this lock did not
+		// create a data race:
+		boolean hasPendingExceptions;
+		if(!ll.lock.isLockableBy(start, end)) {
+			// XXX Create this exception in isLockableBy, where we know the other owner
+			Throwable error = new DataRaceException(
+					(DynamicGuard) ll.lock, 
+					DataRaceException.Role.LOCK, 
+					this, null);
+			start.addPendingException(error);
+			hasPendingExceptions = true;
+		} else {
+			hasPendingExceptions = false;
 		}
 		
-		return true;
+		acquireNextUnacquiredLock(hasPendingExceptions);
 	}
 
 	private int acquireLock(LockList thisLockList) {
 		// First check whether we are recursively acquiring this lock:
 		for(Interval ancestor = parent; ancestor != null; ancestor = ancestor.parent) {
-			for(LockList ancLockList = ancestor.locksUnsync(); ancLockList != null; ancLockList = ancLockList.next)
+			for(LockList ancLockList = ancestor.allLocks; ancLockList != null; ancLockList = ancLockList.next)
 				if(ancLockList.lock == thisLockList.lock) {
 					return ancLockList.tryAndEnqueue(thisLockList);
 				}
@@ -171,31 +205,13 @@ implements Dependency, Guard
 	final void didOccur(Point pnt, boolean hasPendingExceptions) {
 		assert pnt.didOccur();
 		if(pnt == start) {
-			// First check whether locks were safe to acquire
-			LittleLinkedList<Throwable> lockErrors = null;
-			for(LockList list = this.locks; list != null; list = list.next) {
-				// If there were pending exceptions, we may not have acquired any lock:
-				if(list.acquiredLock != null) {
-					if(!list.lock.isLockableBy(start, end)) {
-						// XXX Create this exception in isLockableBy, where we know the other owner
-						Throwable error = new DataRaceException(
-								(DynamicGuard) list.lock, 
-								DataRaceException.Role.LOCK, 
-								this, null);
-						end.addPendingException(error);
-						lockErrors = new LittleLinkedList<Throwable>(error, lockErrors);
-						hasPendingExceptions = true;
-					}
-				}
-			}
-			
 			// After start point occurs, if no exceptions then run user task.
 			if(!hasPendingExceptions) Intervals.POOL.submit(this);
-			else finishSequentialPortion(lockErrors);
+			else finishSequentialPortion(null);
 		} else {
 			// After end point occurs, release any locks we acquired.
 			assert pnt == end;
-			for(LockList lock = locksUnsync(); lock != null; lock = lock.next)
+			for(LockList lock = allLocks; lock != null; lock = lock.next)
 				// If there were pending exceptions, we may not have acquired any locks:
 				if(lock.acquiredLock != null)
 					lock.unlockAcquiredLock();
@@ -333,7 +349,7 @@ implements Dependency, Guard
 	 * when it executes.
 	 */
 	public final boolean holdsLock(Lock lock) {
-		for(LockList ll = locksSync(); ll != null; ll = ll.next)
+		for(LockList ll = allLocksSync(); ll != null; ll = ll.next)
 			if(ll.lock == lock)
 				return true;
 		

@@ -1,8 +1,5 @@
 package ch.ethz.intervals;
 
-import java.util.Iterator;
-
-import ch.ethz.intervals.TestInterval.ThrowExceptionTask;
 
 
 final class SubintervalImpl<R> extends Interval {

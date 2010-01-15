@@ -282,7 +282,9 @@ public class Intervals {
 		if(Debug.ENABLED)
 			Debug.subInterval(subinterval, task.toString());	
 		
-		subinterval.start.occur(); 
+		// Subinterval start never has a non-zero wait count:
+		subinterval.start.didReachWaitCountZero();
+		
 		// Generally, at this point start will have occurred; but not
 		// if the subinterval acquires locks.
 		// assert subinterval.start.didOccur();

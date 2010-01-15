@@ -241,10 +241,12 @@ public abstract class Point {
 	}
 
 	/** When a preceding point (or something else we were waiting for)
-	 *  occurs, this method is invoked. 
+	 *  occurs, this method is invoked.  Once {@link #waitCount} 
+	 *  reaches 0, invokes {@link Interval#didReachWaitCountZero(Point, boolean)}.
+	 *  
 	 *  @param cnt the number of preceding things that occurred,
 	 *  should always be positive and non-zero */
-	protected final void arrive(int cnt) {
+	final void arrive(int cnt) {
 		int newCount = waitCountUpdater.addAndGet(this, -cnt);
 		
 		if(Debug.ENABLED) {
@@ -253,19 +255,21 @@ public abstract class Point {
 		
 		assert newCount >= 0;
 		if(newCount == 0 && cnt != 0)
-			occur();
+			didReachWaitCountZero();
+	}
+
+	/** Invoked by {@link #arrive(int)} when wait count reaches zero,
+	 *  but also from {@link Intervals#subinterval(SubintervalTask)} */
+	void didReachWaitCountZero() {
+		interval.didReachWaitCountZero(this, (pendingExceptions != null));
 	}
 	
-	/** Invoked when the wait count is zero and all pending locks
+	/** Invoked by {@link #interval} once all pending locks
 	 *  are acquired. Each point occurs precisely once. */
 	final void occur() {
 		assert waitCount == 0;
 		assert line.isScheduled();
 
-		// first give the interval a chance to second guess us
-		if(!interval.willOccur(this, (pendingExceptions != null)))
-			return;
-		
 		// Save copies of our outgoing edges at the time we occurred:
 		//      They may be modified further while we are notifying successors.
 		final ChunkList<Point> outEdges;

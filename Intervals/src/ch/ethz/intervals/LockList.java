@@ -43,22 +43,13 @@ extends LockBase
 		this.next = next;
 	}
 	
-	/** Invoked when we are enqueued waiting for a lock. */
-	void enqueued() {
-		inter.start.addWaitCount();
-	}
-	
 	/**
 	 * Invoked when we acquire the lock.  
 	 * @param acquiredLock the lock we acquired, see {@link #acquiredLock}
 	 */	
-	void lockAcquired(LockBase acquiredLock) {
+	void didAcquireLock(LockBase acquiredLock) {
 		this.acquiredLock = acquiredLock;
-	}
-
-	/** Invoked sometime after the lock is acquired */
-	void dequeued() {
-		inter.start.arrive(1);				
+		inter.didAcquireLock(this);
 	}
 
 	public void unlockAcquiredLock() {
