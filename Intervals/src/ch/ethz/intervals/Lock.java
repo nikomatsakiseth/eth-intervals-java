@@ -5,7 +5,7 @@ public class Lock
 extends /*@Writer("this.constructor")*/ LockBase 
 implements Guard
 {
-	Lock() {
+	public Lock() {
 		super(false);
 	}
 	
