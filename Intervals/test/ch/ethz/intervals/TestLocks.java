@@ -242,5 +242,48 @@ public class TestLocks {
 			Assert.assertEquals(1, executed[2]);
 		}
 	}
+		
+	/** Same test as {@link #lockOrdering()} but {@code b} is a subinterval */
+	@Test public void lockOrderingSubinter() {
+		for(int repeat = 0; repeat < REPEAT; repeat++) {
+			final Lock l1 = new Lock(), l2 = new Lock();
+			final int[] executed = new int[3];
+			
+			Intervals.subinterval(new VoidSubinterval() {			
+				@Override public String toString() {
+					return "outer";
+				}
+				@Override public void run(Interval subinterval) {
+					Interval a1 = new Interval(subinterval, "a1") {						
+						@Override protected void run() {
+							Interval a2 = new Interval(this, "a2") {
+								@Override protected void run() { executed[1]++; }
+							};
+							Intervals.addExclusiveLock(a2, l2);
+							executed[0]++;
+						}
+					};
+					Intervals.addExclusiveLock(a1, l1);
+	
+					Interval bOuter = new Interval(subinterval, "bOuter") {						
+						@Override protected void run() {
+							Intervals.subinterval(new VoidSubinterval() {
+								@Override public String toString() { return "b"; }
+								@Override public Lock[] locks() { return new Lock[] { l1, l2 }; }
+								@Override public void run(Interval subinterval) {
+									executed[2]++;
+								}
+							});
+						}
+					};					
+					Intervals.addHb(a1.start, bOuter.start);
+				}
+			});
+			
+			Assert.assertEquals(1, executed[0]);
+			Assert.assertEquals(1, executed[1]);
+			Assert.assertEquals(1, executed[2]);
+		}
+	}
 
 }
