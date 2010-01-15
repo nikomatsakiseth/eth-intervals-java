@@ -72,7 +72,7 @@ class Current {
 				p = p.nextUnscheduled;
 			
 			if(p == null)
-				throw new AlreadyScheduledException();
+				throw new IntervalException.AlreadyScheduled(interval);
 			
 			p.nextUnscheduled = interval.nextUnscheduled;
 		}

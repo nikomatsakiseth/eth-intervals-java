@@ -32,12 +32,12 @@ public class TestBBPCArrayWithDynamicGuards {
 		private Interval interval;
 		
 		public Interval get() {
-			assert dg.isReadable();
+			dg.checkReadable();
 			return interval;
 		}
 		
 		public void set(Interval interval) {
-			assert dg.isWritable();
+			dg.checkWritable();
 			this.interval = interval;
 		}
 	}

@@ -10,14 +10,16 @@ implements Guard
 	}
 	
 	@Override
-	public boolean isReadable() {
-		return isWritable();
+	public boolean checkReadable() {
+		return checkWritable();
 	}
 
 	@Override
-	public boolean isWritable() {
+	public boolean checkWritable() {
 		Current current = Current.get();
-		return (current.inter != null && current.inter.holdsLock(this));
+		if(current.inter == null || !current.inter.holdsLock(this))
+			throw new IntervalException.LockNotHeld(this, current.inter);
+		return true;
 	}
 
 	@Override
@@ -25,9 +27,9 @@ implements Guard
 		return String.format("Lock(%x)", System.identityHashCode(this));
 	}
 	
-	/** @see DynamicGuard#isLockableBy(Point, Point) */
-	boolean isLockableBy(Point mr, Point end) {
-		return true;
+	/** @see DynamicGuard#checkLockableByReturningException(Interval) */
+	IntervalException checkLockableByReturningException(Interval inter) {
+		return null;
 	}
 
 }

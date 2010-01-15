@@ -1,6 +1,5 @@
 package ch.ethz.intervals;
 
-import static ch.ethz.intervals.ChunkList.NORMAL;
 import ch.ethz.intervals.ThreadPool.Worker;
 import ch.ethz.intervals.quals.Requires;
 import ch.ethz.intervals.quals.Subinterval;
@@ -162,20 +161,13 @@ implements Dependency, Guard
 		
 		// Check that acquiring this lock did not
 		// create a data race:
-		boolean hasPendingExceptions;
-		if(!ll.lock.isLockableBy(start, end)) {
-			// XXX Create this exception in isLockableBy, where we know the other owner
-			Throwable error = new DataRaceException(
-					(DynamicGuard) ll.lock, 
-					DataRaceException.Role.LOCK, 
-					this, null);
-			start.addPendingException(error);
-			hasPendingExceptions = true;
-		} else {
-			hasPendingExceptions = false;
-		}
+		IntervalException err = ll.lock.checkLockableByReturningException(this);
 		
-		acquireNextUnacquiredLock(hasPendingExceptions);
+		if(err != null) {
+			start.addPendingException(err);		
+			acquireNextUnacquiredLock(true);
+		} else
+			acquireNextUnacquiredLock(false);
 	}
 
 	private int acquireLock(LockList thisLockList) {
@@ -288,9 +280,9 @@ implements Dependency, Guard
 	 * schedule all pending intervals using {@link Intervals#schedule()},
 	 * or simply wait until the creating interval ends. 
 	 * 
-	 * @throws AlreadyScheduledException if already scheduled
+	 * @throws IntervalException.AlreadyScheduled if already scheduled
 	 */
-	public final void schedule() throws AlreadyScheduledException {
+	public final void schedule() throws IntervalException.AlreadyScheduled {
 		Current current = Current.get();
 		current.schedule(this);
 	}
@@ -323,29 +315,41 @@ implements Dependency, Guard
 	public final void addHbToNewInterval(Interval inter) {
 		start.addEdgeAndAdjust(inter.start, ChunkList.NORMAL);
 	}
+	
+	private boolean isWritableBy(Interval inter) {
+		return (inter == this || (inter.line() == line() && inter.end.isBoundedBy(end))); 
+	}
+	
+	private boolean isReadableBy(Point mr, Interval inter) {
+		return (isWritableBy(inter) || (mr != null && end.hbeq(mr)));
+	}
 
 	/**
 	 * True if the current interval is {@code this} or a subinterval of {@code this},
 	 * or if the start of the current interval <em>happens after</em> {@code this.end}.
 	 * 
-	 * @see Guard#isReadable()
+	 * @see Guard#checkReadable()
 	 */
 	@Override
-	public final boolean isReadable() {
+	public final boolean checkReadable() {
 		Current current = Current.get();
-		return current.inter.line() == line() || (
-				current.mr != null && end.hb(current.mr));
+		if(!isReadableBy(current.mr, current.inter))
+			throw new IntervalException.MustHappenBefore(end, current.mr);
+		return true;
 	}
 
 	/**
 	 * True if the current interval is {@code this} or a subinterval of {@code this}.
+	 * Otherwise throws an exception.
 	 * 
-	 * @see Guard#isWritable()
+	 * @see Guard#checkWritable()
 	 */
 	@Override
-	public final boolean isWritable() {
+	public final boolean checkWritable() {
 		Current current = Current.get();
-		return current.inter.line() == line();
+		if(!isWritableBy(current.inter))
+			throw new IntervalException.NotSubinterval(current.inter, this);
+		return true;
 	}
 	
 	/**

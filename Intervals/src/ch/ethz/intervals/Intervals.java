@@ -2,8 +2,6 @@ package ch.ethz.intervals;
 
 import static ch.ethz.intervals.ChunkList.NORMAL;
 
-import java.util.Iterator;
-
 /** Static methods for creating and manipulating intervals. */
 public class Intervals {
 	
@@ -338,5 +336,5 @@ public class Intervals {
 		if(parent == null) return Line.rootLine;
 		return parent.line();
 	}
-
+	
 }

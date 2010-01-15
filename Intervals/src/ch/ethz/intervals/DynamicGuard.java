@@ -1,5 +1,8 @@
 package ch.ethz.intervals;
 
+import ch.ethz.intervals.IntervalException.DataRace.Role;
+
+
 /**
  * Dynamic guards monitor field accesses dynamically to guarantee 
  * that no race conditions occur.  They require that all writes
@@ -16,22 +19,33 @@ extends Lock
 implements Guard {
 	
 	private enum StateKind {
-		INITIAL,		
-		LOCK_OWNED,		
-		WR_OWNED,		
-		RD_OWNED, 		
-		RD_SHARED,		
-		EMBEDDED
+		INITIAL(Role.READ), 		
+		LOCK_OWNED(Role.LOCK),		
+		WR_OWNED(Role.WRITE),
+		RD_OWNED(Role.READ),
+		RD_SHARED(Role.READ),
+		EMBEDDED(Role.EMBED);
+	
+		final IntervalException.DataRace.Role role;
+
+		private StateKind(Role role) {
+			this.role = role;
+		}
 	}
 	
 	private enum AccessKind {
-		LOCK(StateKind.LOCK_OWNED), WR(StateKind.WR_OWNED), RD(StateKind.RD_OWNED), EMBED(StateKind.EMBEDDED);
+		LOCK(StateKind.LOCK_OWNED, Role.LOCK), 
+		WR(StateKind.WR_OWNED, Role.WRITE), 
+		RD(StateKind.RD_OWNED, Role.READ), 
+		EMBED(StateKind.EMBEDDED, Role.EMBED);
 		
 		final StateKind ownerStateKind;
-
-		private AccessKind(StateKind ownerStateKind) {
+		final IntervalException.DataRace.Role role;
+		
+		private AccessKind(StateKind ownerStateKind, Role role) {
 			this.ownerStateKind = ownerStateKind;
-		}		
+			this.role = role;
+		}
 	}
 	
 	private static class State {
@@ -119,8 +133,8 @@ implements Guard {
 	/** Tries to push a new ownership state of the correct kind for the given
 	 *  access.  This is only possible if {@code inter} is bounded by
 	 *  the current owner.  Returns false otherwise. */
-	private boolean tryPushState(Point mr, Point end, AccessKind accKind, Point bound, Guard embeddedIn) {
-		if(canPushState(end)) {
+	private boolean tryPushState(Point mr, Interval inter, AccessKind accKind, Point bound, Guard embeddedIn) {
+		if(canPushState(inter.end)) {
 			// Subtle: prevWr is always null here.  Why?  Because even if the parent 
 			// was writing, they are suspended now, and we are their child, so their
 			// latest write must HB our start (and the start of any reads/writes which
@@ -128,6 +142,7 @@ implements Guard {
 			state = new State(accKind.ownerStateKind, bound, null, embeddedIn, state);
 			return true;
 		}
+		
 		return false;		
 	}
 	
@@ -138,18 +153,18 @@ implements Guard {
 	}
 
 	/** Pops off the top-most state and retries the access. */
-	private boolean popStateAndRetry(AccessKind accKind, Point mr, Point end, Guard embedIn) {		
+	private Void popStateAndRetry(AccessKind accKind, Point mr, Interval inter, Guard embedIn) {		
 		prepareToPopStack(state);		
 		state = state.next;
 		switch(accKind) {
 			case LOCK:
-				return isLockableBy(mr, end);
+				return checkLockableBy(mr, inter);
 			case WR:
-				return isWritableBy(mr, end);
+				return checkWritableBy(mr, inter);
 			case RD:
-				return isReadableBy(mr, end);
+				return checkReadableBy(mr, inter);
 			case EMBED:
-				return embed(mr, end, embedIn);
+				return checkEmbeddableInBy(mr, inter, embedIn);
 			default:
 				throw new RuntimeException("Invalid pushOrPopState: "+accKind); 
 		}
@@ -158,26 +173,26 @@ implements Guard {
 	/** Pops off the top-most state if it is guaranteed to have finished,
 	 *  otherwise just fails.  Not called tryPopState() because a false return
 	 *  does not necessarily indicate that it failed to pop the state! */
-	private boolean popStateAndRetryElseFail(AccessKind accKind, Point mr, Point end, Guard embedIn) {
-		if(canPopState(mr))
-			return popStateAndRetry(accKind, mr, end, embedIn);
-		return false;
+	private Void popStateAndRetryElseFail(AccessKind accKind, Point mr, Interval inter, Guard embedIn) {
+		if(canPopState(mr)) {
+			return popStateAndRetry(accKind, mr, inter, embedIn);
+		} else {
+			throw new IntervalException.DataRace(this, accKind.role, inter, state.kind.role, state.bound);
+		}
 	}
 	
 	/** Tries to push or pop the state, failing if neither is possible.  
 	 *  Note that a false return does not indicate that it failed to push/pop. */
-	private boolean pushElsePopStateAndRetryElseFail(Point mr, Point end, AccessKind accKind, Point bound, Guard embedIn) {
-		return tryPushState(mr, end, accKind, bound, embedIn) || popStateAndRetryElseFail(accKind, mr, end, embedIn);
-	}
-	
-	/** False if {@code inter} races with the previous write */
-	private boolean canGeneralizeReadState(Point mr) {
-		return state.prevWr == null || state.prevWr.hbeq(mr);
+	private Void pushElsePopStateAndRetryElseFail(Point mr, Interval inter, AccessKind accKind, Point bound, Guard embedIn) {
+		if(tryPushState(mr, inter, accKind, bound, embedIn))
+			return null;
+		else
+			return popStateAndRetryElseFail(accKind, mr, inter, embedIn);
 	}
 	
 	/** Removes one or more {@link StateKind#RD_OWNED} states from the top of the stack
 	 *  and converts to {@link StateKind#RD_SHARED}. */
-	private boolean tryGeneralizeReadOwnedState(Point mr, Point end) {
+	private Void generalizeReadOwnedState(Point mr, Point end) {
 		assert state.kind == StateKind.RD_OWNED && !end.isBoundedBy(state.bound);
 		
 		// Walk up the stack to identify those RD_OWNED states 
@@ -201,12 +216,12 @@ implements Guard {
 			
 		if(topMost.prevWr != null)
 			if(!topMost.prevWr.hbeq(mr))
-				return false;
+				throw new IntervalException.MustHappenBefore(topMost.prevWr, mr);
 		
 		rdBound = rdBound.mutualBound(end);
 		
 		state = new State(StateKind.RD_SHARED, rdBound, topMost.prevWr, topMost);
-		return true;
+		return null;
 	}
 		
 	/** Invoked by {@link #popStateAndRetry(AccessKind, Point, Point, Guard)} and
@@ -219,16 +234,25 @@ implements Guard {
 			top.next.prevWr = top.bound;
 	}
 	
-	/** True if LOCKing this object is permitted by {@code inter}.
+	@Override IntervalException checkLockableByReturningException(Interval inter) {
+		try {
+			checkLockableBy(inter.start, inter);
+			return null;
+		} catch (IntervalException exc) {
+			return exc;
+		}
+	}
+	
+	/** Like the other check methods, either returns True if LOCKing this object is permitted by {@code inter}.
 	 *  Invoked only after {@code inter} has successfully acquired the lock.
 	 *  Note that just because {@code inter} acquired the lock does not
 	 *  mean it was safe to do so: there may be other intervals out there
 	 *  doing unlocked accesses and racing with {@code inter}. */
-	synchronized boolean isLockableBy(Point mr, Point end) {
+	synchronized private Void checkLockableBy(Point mr, Interval inter) {
 		switch(state.kind) {
 		case INITIAL:
-			state = new State(StateKind.LOCK_OWNED, end, null, state);
-			return true;
+			state = new State(StateKind.LOCK_OWNED, inter.end, null, state);
+			return null;
 			
 		case LOCK_OWNED:
 			// Note: if this is not a recursive lock, then it
@@ -237,173 +261,170 @@ implements Guard {
 			// if there is no HB relationship between {@code inter}
 			// and the previous owner.
 			
-			if(tryPushState(mr, end, AccessKind.LOCK, end, null))
-				return true;
-			return popStateAndRetry(AccessKind.LOCK, mr, end, null);
+			if(tryPushState(mr, inter, AccessKind.LOCK, inter.end, null))
+				return null;
+			return popStateAndRetry(AccessKind.LOCK, mr, inter, null);
 			
 		case WR_OWNED:
-			return popStateAndRetryElseFail(AccessKind.LOCK, mr, end, null);
+			return popStateAndRetryElseFail(AccessKind.LOCK, mr, inter, null);			
 			
 		case RD_OWNED:
-			return popStateAndRetryElseFail(AccessKind.LOCK, mr, end, null);
+			return popStateAndRetryElseFail(AccessKind.LOCK, mr, inter, null);
 		
 		case RD_SHARED:
-			return popStateAndRetryElseFail(AccessKind.LOCK, mr, end, null);
+			return popStateAndRetryElseFail(AccessKind.LOCK, mr, inter, null);
 			
 		case EMBEDDED:
-			return false;
+			throw new IntervalException.MustUnembed(this, state.embeddedIn);
 			
 		default:
-			throw new RuntimeException("Unhandled state kind: " + state.kind);
+			throw new IntervalException.InternalError("Unhandled state kind: " + state.kind);
 		}		
 	}
-
+	
 	/**
 	 * Returns true if the current interval is permitted to write to
 	 * fields guarded by {@code this}.  If this call returns true
 	 * once during a given interval, it will always return true.
 	 */
 	@Override
-	public boolean isWritable() {		
+	public boolean checkWritable() {		
 		Current current = Current.get();
 		
 		// Root interval:
 		//     For now play it safe.  Later think about this.
-		if(current.inter == null)
-			return false;
-		
-		return isWritableBy(current.mr, current.inter.end);
+		if(current.inter != null) {
+			checkWritableBy(current.mr, current.inter);
+			return true;
+		} else 
+			throw new NotInRootIntervalException(); 
 	}
 	
-	synchronized private boolean isWritableBy(Point mr, Point end) {
+	synchronized private Void checkWritableBy(Point mr, Interval inter) {
 		switch(state.kind) {
 		case INITIAL:
-			state = new State(StateKind.WR_OWNED, end, null, state);
-			return true;
+			state = new State(StateKind.WR_OWNED, inter.end, null, state);
+			return null;
 			
 		case LOCK_OWNED:
 		case WR_OWNED:
-			if(state.isRepeatFromSameLine(end))
-				return true;
-			return pushElsePopStateAndRetryElseFail(mr, end, AccessKind.WR, end, null);
+			if(state.isRepeatFromSameLine(inter.end))
+				return null;
+			return pushElsePopStateAndRetryElseFail(mr, inter, AccessKind.WR, inter.end, null);
 			
 		case RD_OWNED:
-			if(state.isSameInterval(end)) { // XXX not really sound I think unless end == state.bound
+			if(state.isSameInterval(inter.end)) { // XXX not really sound I think unless end == state.bound
 				state.kind = StateKind.WR_OWNED;
 				state.prevWr = null; // no longer relevant
-				return true;
+				return null;
 			}
-			return pushElsePopStateAndRetryElseFail(mr, end, AccessKind.WR, end, null);
+			return pushElsePopStateAndRetryElseFail(mr, inter, AccessKind.WR, inter.end, null);
 		
 		case RD_SHARED:
-			if(canPopState(mr))
-				return popStateAndRetry(AccessKind.WR, mr, end, null);
-			return false;
+			return popStateAndRetryElseFail(AccessKind.WR, mr, inter, null);
 			
 		case EMBEDDED:
-			return false;
+			throw new IntervalException.MustUnembed(this, state.embeddedIn);
 			
 		default:
-			assert false : "Unhandled state kind: " + state.kind;
-			return false;
+			throw new IntervalException.InternalError("Unhandled state kind: " + state.kind);
 		}		
 	}
 	
 	@Override
-	public boolean isReadable() {
+	public boolean checkReadable() {
 		Current current = Current.get();		
 		
 		// Root interval:
 		//     For now play it safe.  Later think.
-		if(current.inter == null)
-			return false;
-		
-		return isReadableBy(current.mr, current.inter.end);
+		if(current.inter != null) {
+			checkReadableBy(current.mr, current.inter);
+			return true;
+		} else 
+			throw new NotInRootIntervalException(); 
 	}
 	
-	synchronized boolean isReadableBy(Point mr, Point end) {
+	synchronized Void checkReadableBy(Point mr, Interval inter) {
 		switch(state.kind) {
 		case INITIAL: 
-			state = new State(StateKind.RD_OWNED, end, null, state);
-			return true;
+			state = new State(StateKind.RD_OWNED, inter.end, null, state);
+			return null;
 			
 		case LOCK_OWNED:
-			if(state.isRepeatFromSameLine(end))
-				return true;
+			if(state.isRepeatFromSameLine(inter.end))
+				return null;
 			
-			return pushElsePopStateAndRetryElseFail(mr, end, AccessKind.RD, end, null);			
+			return pushElsePopStateAndRetryElseFail(mr, inter, AccessKind.RD, inter.end, null);
 		
 		case WR_OWNED: 
-			if(state.isRepeatFromSameLine(end))
-				return true;
+			if(state.isRepeatFromSameLine(inter.end))
+				return null;
 			
-			return pushElsePopStateAndRetryElseFail(mr, end, AccessKind.RD, end, null);
+			return pushElsePopStateAndRetryElseFail(mr, inter, AccessKind.RD, inter.end, null);
 			
 		case RD_OWNED:
-			if(state.isRepeatFromSameLine(end))
-				return true;
-			if(tryPushState(mr, end, AccessKind.RD, end, null))
-				return true;
-			if(canPopState(mr))
-				return popStateAndRetry(AccessKind.RD, mr, end, null);
-			return tryGeneralizeReadOwnedState(mr, end);
+			if(state.isRepeatFromSameLine(inter.end))
+				return null;
+			if(tryPushState(mr, inter, AccessKind.RD, inter.end, null))
+				return null;
+			if(canPopState(mr)) {
+				return popStateAndRetry(AccessKind.RD, mr, inter, null);
+			}
+			return generalizeReadOwnedState(mr, inter.end);
 			
 		case RD_SHARED:
-			if(canPopState(mr))
-				return popStateAndRetry(AccessKind.RD, mr, end, null);
-			if(state.prevWr == null || state.prevWr.hbeq(mr)) {
-				state.bound = state.bound.mutualBound(end);
-				return true;
-			}
-			return false;
-			
+			if(canPopState(mr)) {
+				return popStateAndRetry(AccessKind.RD, mr, inter, null);
+			} else if(state.prevWr == null || state.prevWr.hbeq(mr)) {
+				state.bound = state.bound.mutualBound(inter.end);
+				return null;
+			} else
+				throw new IntervalException.MustHappenBefore(state.prevWr, mr);
+						
 		case EMBEDDED:
-			return false;
+			throw new IntervalException.MustUnembed(this, state.embeddedIn);
 			
 		default:
-			assert false : "Unhandled state kind: " + state.kind;
-			return false;
+			throw new IntervalException.InternalError("Unhandled state kind: " + state.kind);
 		}
 	}
 	
 	/** True if the fields guarded by {@code this} can be embedded into
 	 *  the data structure {@code embedIn}.  They must then be 
-	 *  removed via {@link #unembed()} before they can be used again. */
-	public boolean embed(Guard embedIn) {
-		if(this == embedIn)
-			return false;
-		
+	 *  removed via {@link #checkUnembeddable()} before they can be used again. */
+	public boolean checkEmbeddableIn(Guard embedIn) {
 		Current current = Current.get();		
 		
 		// Root interval:
 		//     For now play it safe.  Later think.
-		if(current.inter == null)
-			return false;
-		
-		return embed(current.mr, current.inter.end, embedIn);
+		if(this == embedIn) {
+			throw new IntervalException.CannotEmbedInSelf(this);
+		} else if(current.inter != null) {
+			checkEmbeddableInBy(current.mr, current.inter, embedIn);
+			return true;
+		} else 
+			throw new NotInRootIntervalException(); 		
 	}
 
-	synchronized boolean embed(Point mr, Point end, Guard embedIn) {
-		if(!embedIn.isWritable())
-			return false;
+	synchronized Void checkEmbeddableInBy(Point mr, Interval inter, Guard embedIn) {
+		embedIn.checkWritable();
 		
 		switch(state.kind) {
 		case INITIAL:
 			state = new State(embedIn, state);
-			return true;
+			return null;
 			
 		case LOCK_OWNED:
 		case WR_OWNED:
 		case RD_OWNED:			
 		case RD_SHARED:
-			return pushElsePopStateAndRetryElseFail(mr, end, AccessKind.EMBED, null, embedIn);
+			return pushElsePopStateAndRetryElseFail(mr, inter, AccessKind.EMBED, null, embedIn);
 			
 		case EMBEDDED:
-			return false;
+			throw new IntervalException.MustUnembed(this, state.embeddedIn);
 			
 		default:
-			assert false : "Unhandled state kind: " + state.kind;
-			return false;
+			throw new IntervalException.InternalError("Unhandled state kind: " + state.kind);
 		}
 		
 	}
@@ -411,28 +432,27 @@ implements Guard {
 	/** Attempts to unembed {@code this} from where it was embedded.  If this
 	 *  is not safe, or {@code this} is not embedded, returns false.  Otherwise,
 	 *  {@code this} is now cleared for writes by the current interval. */
-	public boolean unembed() {
+	public boolean checkUnembeddable() {
 		Current current = Current.get();		
 		
 		// Root interval:
 		//     For now play it safe.  Later think.
-		if(current.inter == null)
-			return false;
-		
-		return unembed(current.mr, current.inter.end);
+		if(current.inter != null) {
+			checkUnembeddableBy(current.mr, current.inter.end);
+			return true;
+		} else 
+			throw new NotInRootIntervalException(); 
 	}
 	
-	synchronized boolean unembed(Point mr, Point end) {
+	synchronized boolean checkUnembeddableBy(Point mr, Point end) {
 		switch(state.kind) {
 		case EMBEDDED:
 			// Unembedding makes the current interval the exclusive owner.
 			// It could, if it chose, make writes etc.  Anyone that wants
 			// to read it etc must Happen-After the unembedder.
-			if(state.embeddedIn.isWritable()) {
-				state = new State(StateKind.WR_OWNED, end, state.next);
-				return true;
-			}
-			return false;
+			state.embeddedIn.checkWritable();
+			state = new State(StateKind.WR_OWNED, end, state.next);
+			return true;
 			
 		default:
 			return false;

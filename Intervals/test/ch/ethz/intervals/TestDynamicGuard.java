@@ -27,6 +27,46 @@ public class TestDynamicGuard {
 	public static final int FLAG_EMBED2 = 1 << 13;	
 	public static final int FLAG_UNEMBED2 = 1 << 14;	
 	
+	boolean isWritable(Guard g) {
+		try {
+			boolean res = g.checkWritable();
+			assert res;
+			return true;
+		} catch (IntervalException exc) {
+			return false;
+		}
+	}
+
+	boolean isReadable(Guard g) {
+		try {
+			boolean res = g.checkReadable();
+			assert res;
+			return true;
+		} catch (IntervalException exc) {
+			return false;
+		}
+	}
+
+	boolean isEmbeddable(DynamicGuard g, Guard embedIn) {
+		try {
+			boolean res = g.checkEmbeddableIn(embedIn);
+			assert res;
+			return true;
+		} catch (IntervalException exc) {
+			return false;
+		}
+	}
+
+	boolean isUnembeddable(DynamicGuard g) {
+		try {
+			boolean res = g.checkUnembeddable();
+			assert res;
+			return true;
+		} catch (IntervalException exc) {
+			return false;
+		}
+	}
+	
 	class DgIntervalFactory {
 		public final DynamicGuard dg1 = new DynamicGuard();
 		public final DynamicGuard dg2 = new DynamicGuard();
@@ -81,22 +121,22 @@ public class TestDynamicGuard {
 					} catch (InterruptedException e) {}
 				
 				if((flags & FLAG_RD1) != 0) 
-					results.put(name + ".rd1", dg1.isReadable());
+					results.put(name + ".rd1", isReadable(dg1));
 				if((flags & FLAG_WR1) != 0) 
-					results.put(name + ".wr1", dg1.isWritable());
+					results.put(name + ".wr1", isWritable(dg1));
 				if((flags & FLAG_EMBED1) != 0)
-					results.put(name + ".embed1", dg1.embed(dg2));
+					results.put(name + ".embed1", isEmbeddable(dg1, dg2));
 				if((flags & FLAG_UNEMBED1) != 0)
-					results.put(name + ".unembed1", dg1.unembed());
+					results.put(name + ".unembed1", isUnembeddable(dg1));
 				
 				if((flags & FLAG_RD2) != 0) 
-					results.put(name + ".rd2", dg2.isReadable());
+					results.put(name + ".rd2", isReadable(dg2));
 				if((flags & FLAG_WR2) != 0) 
-					results.put(name + ".wr2", dg2.isWritable());
+					results.put(name + ".wr2", isWritable(dg2));
 				if((flags & FLAG_EMBED2) != 0)
-					results.put(name + ".embed2", dg2.embed(dg1));
+					results.put(name + ".embed2", isEmbeddable(dg2, dg1));
 				if((flags & FLAG_UNEMBED2) != 0)
-					results.put(name + ".unembed2", dg2.unembed());
+					results.put(name + ".unembed2", isUnembeddable(dg2));
 
 				if(signal != null)
 					await.countDown();
@@ -129,23 +169,23 @@ public class TestDynamicGuard {
 				
 				final Interval a1 = new Interval(a, "a1") {
 					@Override protected void run() {
-						results.add(dg.isReadable());
-						results.add(dg.isWritable());
-						results.add(dg.isReadable());
+						results.add(isReadable(dg));
+						results.add(isWritable(dg));
+						results.add(isReadable(dg));
 					}
 				};
 				
 				final Interval a2 = new Interval(a, "a2") {					
 					{ Intervals.addHb(a1.end, this.start); }
 					@Override protected void run() {
-						results.add(dg.isReadable());
+						results.add(isReadable(dg));
 						
 						for(int i = 1; i <= a2children; i++) {
 							final int num = i;
 							new Interval(this) {
 								@Override public String toString() { return "a2"+num; }
 								@Override protected void run() {
-									results.add(dg.isReadable());
+									results.add(isReadable(dg));
 								}
 							};
 						}
@@ -155,9 +195,9 @@ public class TestDynamicGuard {
 				new Interval(a, "a3") {										
 					{ Intervals.addHb(a2.end, this.start); }
 					@Override protected void run() {
-						results.add(dg.isReadable());
-						results.add(dg.isReadable());
-						results.add(dg.isWritable());
+						results.add(isReadable(dg));
+						results.add(isReadable(dg));
+						results.add(isWritable(dg));
 					}					
 				};
 			}
@@ -188,21 +228,21 @@ public class TestDynamicGuard {
 				Intervals.subinterval(new VoidSubinterval() {
 					@Override public String toString() { return "a1"; }
 					@Override public void run(Interval a1) {
-						results.add(dg.isReadable());
-						results.add(dg.isWritable());
-						results.add(dg.isReadable());
+						results.add(isReadable(dg));
+						results.add(isWritable(dg));
+						results.add(isReadable(dg));
 					}
 				});
 				
 				Intervals.subinterval(new VoidSubinterval() {					
 					@Override public String toString() { return "a2"; }
 					@Override public void run(Interval a2) {
-						results.add(dg.isReadable());
+						results.add(isReadable(dg));
 						
 						for(int i = 1; i <= a2children; i++) {
 							new Interval(a2, "a2"+i) {
 								@Override protected void run() {
-									results.add(dg.isReadable());
+									results.add(isReadable(dg));
 								}
 							};
 						}
@@ -212,9 +252,9 @@ public class TestDynamicGuard {
 				Intervals.subinterval(new VoidSubinterval() {					
 					@Override public String toString() { return "a3"; }
 					@Override public void run(Interval a3) {
-						results.add(dg.isReadable());
-						results.add(dg.isReadable());
-						results.add(dg.isWritable());
+						results.add(isReadable(dg));
+						results.add(isReadable(dg));
+						results.add(isWritable(dg));
 					}					
 				});
 			}
@@ -242,28 +282,28 @@ public class TestDynamicGuard {
 			@Override public void run(Interval a) {
 				final DynamicGuard dg = new DynamicGuard();
 				
-				results.add(dg.isReadable());
-				results.add(dg.isWritable());
-				results.add(dg.isReadable());
+				results.add(isReadable(dg));
+				results.add(isWritable(dg));
+				results.add(isReadable(dg));
 				
 				Intervals.subinterval(new VoidSubinterval() {					
 					@Override public String toString() { return "a2"; }
 					@Override public void run(Interval a2) {
-						results.add(dg.isReadable());
+						results.add(isReadable(dg));
 						
 						for(int i = 1; i <= a2children; i++) {
 							new Interval(a2, "a2"+i) {
 								@Override protected void run() {
-									results.add(dg.isReadable());
+									results.add(isReadable(dg));
 								}
 							};
 						}
 					}
 				});
 				
-				results.add(dg.isReadable());
-				results.add(dg.isReadable());
-				results.add(dg.isWritable());
+				results.add(isReadable(dg));
+				results.add(isReadable(dg));
+				results.add(isWritable(dg));
 			}
 		});
 		
@@ -304,16 +344,16 @@ public class TestDynamicGuard {
 				
 				final Interval a1 = new Interval(a, "a1") {
 					@Override protected void run() {
-						results.add(dg.isReadable());
-						results.add(dg.isWritable());
-						results.add(dg.isReadable());
+						results.add(isReadable(dg));
+						results.add(isWritable(dg));
+						results.add(isReadable(dg));
 					}
 				};
 				
 				final Interval a2 = new Interval(a, "a2") {					
 					{ Intervals.addHb(a1.end, this.start); }
 					@Override protected void run() {
-						results.add(dg.isReadable());
+						results.add(isReadable(dg));
 					}
 				};
 
@@ -325,16 +365,16 @@ public class TestDynamicGuard {
 						a2.end.addEdgeAndAdjust(start, ChunkList.TEST_EDGE);
 					}
 					@Override protected void run() {
-						results.add(dg.isReadable());
+						results.add(isReadable(dg));
 					}
 				};
 				
 				new Interval(a, "a4") {										
 					{ Intervals.addHb(a3.end, this.start); }
 					@Override protected void run() {
-						results.add(dg.isReadable());
-						results.add(dg.isReadable());
-						results.add(dg.isWritable());
+						results.add(isReadable(dg));
+						results.add(isReadable(dg));
+						results.add(isWritable(dg));
 					}					
 				};
 			}
@@ -373,7 +413,7 @@ public class TestDynamicGuard {
 				final Interval a1 = new Interval(a) {
 					@Override public String toString() { return "a1"; }
 					@Override protected void run() {
-						results.add(dg.isWritable());
+						results.add(isWritable(dg));
 					}
 				};
 				
@@ -381,7 +421,7 @@ public class TestDynamicGuard {
 					{ Intervals.addHb(a1.end, this.start); }
 					@Override public String toString() { return "a2"; }
 					@Override protected void run() {
-						results.add(dg.isReadable());
+						results.add(isReadable(dg));
 					}
 				};
 				
@@ -389,8 +429,8 @@ public class TestDynamicGuard {
 					{ Intervals.addHb(a2.end, this.start); }
 					@Override public String toString() { return "a3"; }					
 					@Override protected void run() {
-						results.add(dg.isReadable());
-						results.add(dg.isWritable());
+						results.add(isReadable(dg));
+						results.add(isWritable(dg));
 					}					
 				};
 			}
@@ -417,14 +457,14 @@ public class TestDynamicGuard {
 				new Interval(a, "withLock1") {
 					{ Intervals.addExclusiveLock(this, dg); }
 					@Override protected void run() {
-						results.add(dg.isWritable());
+						results.add(isWritable(dg));
 					}
 				};
 				
 				new Interval(a, "withLock2") {					
 					{ Intervals.addExclusiveLock(this, dg); }
 					@Override protected void run() {
-						results.add(dg.isWritable());
+						results.add(isWritable(dg));
 					}
 				};
 			}
@@ -602,13 +642,13 @@ public class TestDynamicGuard {
 			
 			Assert.assertTrue(
 					"Not a DataRaceException:"+e.getCause(), 
-					e.getCause() instanceof DataRaceException);
+					e.getCause() instanceof IntervalException.DataRace);
 			
-			DataRaceException dre = (DataRaceException)e.getCause();
+			IntervalException.DataRace dre = (IntervalException.DataRace)e.getCause();
 			Assert.assertEquals(f.dg1, dre.dg);
-			Assert.assertEquals(DataRaceException.Role.LOCK, dre.acc);
+			Assert.assertEquals(IntervalException.DataRace.Role.LOCK, dre.interloperRole);
 			Assert.assertEquals("lockChild", dre.interloper.toString());
-			//FIX Assert.assertEquals("unlockChild", dre.owner);
+			Assert.assertEquals("unlockChild.end", dre.ownerBound.toString());
 			return false; // lock failed
 		}
 	}

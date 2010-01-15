@@ -9,7 +9,7 @@ import ch.ethz.intervals.quals.WrittenDuring;
  * There are three subtypes of {@link Guard}, each with different properties: 
  * <ol>
  * 
- * <li>{@link Lock}: Fields guarded by a {@link Lock} may only be accessed 
+ * <li>{@link Lock}: Fields guarded by a {@link Lock} may only be read or written 
  * during an interval which holds the lock.  
  *  
  * <li>{@link Interval}: Fields guarded by an {@link Interval} {@code inter} may only be
@@ -29,16 +29,22 @@ import ch.ethz.intervals.quals.WrittenDuring;
  * is automatically inserted by the plugin.
  * 
  * <p>If the compiler plugin cannot statically prove the safety of your program,
- * you can use the methods {@link Guard#isReadable()} or 
- * {@link Guard#isWritable()} as a kind of escape clause.  Simply insert
- * an assertion like {@code assert g.isWritable()} and the compiler
+ * you can use the methods {@link Guard#checkReadable()} or 
+ * {@link Guard#checkWritable()} as a kind of escape clause.  Simply insert
+ * an assertion like {@code assert g.checkWritable()} and the compiler
  * will respect it.  
  */
 @Creator("this.constructor")
 public interface Guard {
-	/** True if the current method is permitted to read data protected by {@code this}. */
-	public boolean isReadable();
 	
-	/** True if the current method is permitted to write data protected by {@code this}. */
-	public boolean isWritable();
+	/** If {@code g} is not readable by the current method, throws an appropriate
+	 *  exception.  Otherwise returns true.  The return value is a convenience 
+	 *  method so that it can be used in an assert like {@code assert g.checkReadable();}. */
+	public boolean checkReadable();
+		
+	/** If {@code g} is not writable by the current method, throws an appropriate
+	 *  exception.  Otherwise returns true.  The return value is a convenience 
+	 *  method so that it can be used in an assert like {@code assert g.checkWritable();}. */
+	public boolean checkWritable(); 
+	
 }
