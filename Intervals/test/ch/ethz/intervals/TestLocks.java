@@ -148,7 +148,9 @@ public class TestLocks {
 			
 			Assert.assertTrue(aTimes[0] <= aTimes[1]);
 			Assert.assertTrue(bTimes[0] <= bTimes[1]);
-			Assert.assertTrue(aTimes[1] <= bTimes[0] || bTimes[1] <= aTimes[0]);
+			Assert.assertTrue(
+					String.format("aTimes=(%s-%s) bTimes=(%s-%s)", aTimes[0], aTimes[1], bTimes[0], bTimes[1]),
+					aTimes[1] <= bTimes[0] || bTimes[1] <= aTimes[0]);
 		}
 	}
 	
