@@ -5,8 +5,16 @@ public class Lock
 extends /*@Writer("this.constructor")*/ LockBase 
 implements Guard
 {
+	private final String name;
+	
 	public Lock() {
 		super(false);
+		this.name = null;
+	}
+	
+	public Lock(String name) {
+		super(false);
+		this.name = name;
 	}
 	
 	@Override
@@ -24,6 +32,8 @@ implements Guard
 
 	@Override
 	public String toString() {
+		if(name != null)
+			return name;
 		return String.format("Lock(%x)", System.identityHashCode(this));
 	}
 	

@@ -8,6 +8,8 @@ import ch.ethz.intervals.Lock;
 import ch.ethz.intervals.SubintervalTask;
 import ch.ethz.intervals.VoidSubinterval;
 import ch.ethz.intervals.quals.GuardedBy;
+import ch.ethz.intervals.quals.Requires;
+import ch.ethz.intervals.quals.Writable;
 
 /*
  * Copyright (C) 2000 by ETHZ/INF/CS
@@ -21,11 +23,11 @@ public class TspSolver extends Interval {
 
 	static final boolean debug = Tsp.debug;
 		
-	static final DynamicGuard MinLock = new DynamicGuard();
+	static final DynamicGuard MinLock = new DynamicGuard("MinLock");
 	@GuardedBy("MinLock") static int MinTourLen; 
 	@GuardedBy("MinLock") static int[] MinTour = new int[Tsp.MAX_TOUR_SIZE];		
 	
-	static final DynamicGuard TourLock = new DynamicGuard();
+	static final DynamicGuard TourLock = new DynamicGuard("TourLock");
 
 	static int[][] weights = new int[Tsp.MAX_TOUR_SIZE][Tsp.MAX_TOUR_SIZE];
 	@GuardedBy("TourLock") static int TourStackTop;
@@ -132,7 +134,7 @@ public class TspSolver extends Interval {
 			@Override public String toString() { return "set_best"; }
 			@Override public Lock[] locks() { return new Lock[] { MinLock }; }
 			@Override public void run(Interval subinterval) {
-				assert MinLock.isWritable();
+				assert MinLock.checkWritable();
 				
 				if (best < MinTourLen) {
 					if (debug) {
@@ -404,6 +406,7 @@ public class TspSolver extends Interval {
 	 * 
 	 * Return the next solvable (sufficiently short) tour.
 	 */
+	@Requires(writable=@Writable("TourLock"))
 	static int find_solvable_tour() {
 		return Intervals.subinterval(new SubintervalTask<Integer>() {
 			@Override public String toString() { return "find_solvable_tour"; }
@@ -489,6 +492,7 @@ public class TspSolver extends Interval {
 							break;
 					}
 
+					assert Tours[curr].dg.checkUnembeddable();
 					last = Tours[curr].last();
 
 					/*
@@ -509,6 +513,7 @@ public class TspSolver extends Interval {
 							MakeTourString(Tsp.TspSize, Tours[curr].prefix());
 						}
 					}
+					assert Tours[curr].dg.checkEmbeddableIn(TourLock);
 					TourStack[++TourStackTop] = curr; /* Free tour. */
 
 				}

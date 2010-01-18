@@ -20,52 +20,52 @@ public class TourElement {
     @GuardedBy("dg") private int mst_weight;
     
 	void setConn(int conn) {
-		//assert dg.isWritable();
+		assert dg.checkWritable();
 		this.conn = conn;
 	}
 	int conn() {
-		//assert dg.isReadable();
+		assert dg.checkReadable();
 		return conn;
 	}
 	int setLast(int last) {
-		//assert dg.isWritable();
+		assert dg.checkWritable();
 		this.last = last;
 		return last;
 	}
 	int last() {
-		//assert dg.isReadable();
+		assert dg.checkReadable();
 		return last;
 	}
 	void setPrefix_weight(int prefix_weight) {
-		//assert dg.isWritable();
+		assert dg.checkWritable();
 		this.prefix_weight = prefix_weight;
 	}
 	int prefix_weight() {
-		//assert dg.isReadable();
+		assert dg.checkReadable();
 		return prefix_weight;
 	}
 	void setLower_bound(int lower_bound) {
-		//assert dg.isWritable();
+		assert dg.checkWritable();
 		this.lower_bound = lower_bound;
 	}
 	int lower_bound() {
-		//assert dg.isReadable();
+		assert dg.checkReadable();
 		return lower_bound;
 	}
 	void setMst_weight(int mst_weight) {
-		//assert dg.isWritable();
+		assert dg.checkWritable();
 		this.mst_weight = mst_weight;
 	}
 	int mst_weight() {
-		//assert dg.isReadable();
+		assert dg.checkReadable();
 		return mst_weight;
 	}
 	void setPrefix(int[] prefix) {
-		//assert dg.isWritable();
+		assert dg.checkWritable();
 		this.prefix = prefix;
 	}
 	int[] prefix() {
-		//assert dg.isReadable();
+		assert dg.checkReadable();
 		return prefix;
 	}
 }

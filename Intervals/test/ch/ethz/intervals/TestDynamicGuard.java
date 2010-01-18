@@ -72,9 +72,15 @@ public class TestDynamicGuard {
 		public final DynamicGuard dg2 = new DynamicGuard();
 		public final Map<String, Boolean> results = 
 			Collections.synchronizedMap(new HashMap<String, Boolean>());
+		int resultCheckedCounter;
 		
 		public boolean result(String name) {
+			resultCheckedCounter++;
 			return results.get(name).booleanValue();
+		}
+		
+		public boolean allResultsChecked() {
+			return resultCheckedCounter == results.size();
 		}
 		
 		public Interval create(Dependency dep, String name, int flags) {
@@ -393,6 +399,46 @@ public class TestDynamicGuard {
 		assertEquals(true, results.get(i++));  // Now Rd Shared (a)
 		assertEquals(true, results.get(i++));  // Now Rd Shared (a)
 		assertEquals(false, results.get(i++)); // Cannot convert to Wr Owned state now!
+	}
+	
+	/**
+	 * Similar to {@link #testRdOwnedAllowsWr()} except that
+	 * we use a different bound on {@code a21} so that in 
+	 * {@code a3} the guard is in the rd shared state.
+	 */
+	@Test public void testRdSharedBoundedByWr() {
+		
+		// |-a-----------------------------|
+		//          |-a1-| 
+		//          |-a2-|   |-a4-|
+		//          |-a3-|
+		//                 |-b-----------------------------|
+
+		final DgIntervalFactory f = new DgIntervalFactory();
+		
+		Intervals.subinterval(new VoidSubinterval() { 
+			@Override public void run(final Interval outer) {				
+				Interval a = f.create(outer, "a", FLAG_WR1);
+				Interval a1 = f.create(a, "a1", FLAG_RD1);
+				f.create(a, "a2", FLAG_RD1);
+				f.create(a, "a3", FLAG_RD1);
+				Interval a4 = f.create(a, "a4", FLAG_WR1);				
+				
+				Interval b = f.create(outer, "b", FLAG_RD1);
+				
+				a1.end.addEdgeAndAdjust(b.start, TEST_EDGE);
+				b.start.addEdgeAndAdjust(a4.start, TEST_EDGE);
+			}
+		});
+		
+		Assert.assertTrue(f.result("a.wr1"));
+		Assert.assertTrue(f.result("a1.rd1"));
+		Assert.assertTrue(f.result("a2.rd1"));
+		Assert.assertTrue(f.result("a3.rd1"));
+		Assert.assertTrue(f.result("a4.wr1"));
+		Assert.assertFalse(f.result("b.rd1"));
+		
+		Assert.assertTrue(f.allResultsChecked());
 	}
 	
 	/**

@@ -124,6 +124,14 @@ implements Guard {
 
 	}
 	
+	public DynamicGuard() {
+		super();
+	}
+
+	public DynamicGuard(String name) {
+		super(name);
+	}
+
 	private State state = new State(StateKind.INITIAL, null, null, null);
 	
 	private boolean canPushState(Point end) {
@@ -266,10 +274,12 @@ implements Guard {
 			return popStateAndRetry(AccessKind.LOCK, mr, inter, null);
 			
 		case WR_OWNED:
-			return popStateAndRetryElseFail(AccessKind.LOCK, mr, inter, null);			
+			return pushElsePopStateAndRetryElseFail(mr, inter, AccessKind.LOCK, inter.end, null);
+			//return popStateAndRetryElseFail(AccessKind.LOCK, mr, inter, null);			
 			
 		case RD_OWNED:
-			return popStateAndRetryElseFail(AccessKind.LOCK, mr, inter, null);
+			return pushElsePopStateAndRetryElseFail(mr, inter, AccessKind.LOCK, inter.end, null);
+			//return popStateAndRetryElseFail(AccessKind.LOCK, mr, inter, null);
 		
 		case RD_SHARED:
 			return popStateAndRetryElseFail(AccessKind.LOCK, mr, inter, null);
@@ -324,7 +334,8 @@ implements Guard {
 			return popStateAndRetryElseFail(AccessKind.WR, mr, inter, null);
 			
 		case EMBEDDED:
-			throw new IntervalException.MustUnembed(this, state.embeddedIn);
+			state.embeddedIn.checkWritable();
+			return null;
 			
 		default:
 			throw new IntervalException.InternalError("Unhandled state kind: " + state.kind);
@@ -380,9 +391,10 @@ implements Guard {
 				return null;
 			} else
 				throw new IntervalException.MustHappenBefore(state.prevWr, mr);
-						
+			
 		case EMBEDDED:
-			throw new IntervalException.MustUnembed(this, state.embeddedIn);
+			state.embeddedIn.checkReadable();
+			return null;
 			
 		default:
 			throw new IntervalException.InternalError("Unhandled state kind: " + state.kind);

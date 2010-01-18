@@ -11,11 +11,12 @@ package erco.intervals.tsp;
 import java.util.*;
 import java.io.*;
 
+import ch.ethz.intervals.Dependency;
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.VoidSubinterval;
 
-public class Tsp {
+public class Tsp extends Interval {
 	public final static boolean debug = false;
 	public final static int MAX_TOUR_SIZE = 32;
 	public final static int MAX_NUM_TOURS = 5000;
@@ -27,6 +28,10 @@ public class Tsp {
 	static int StartNode = 0;
 	static int NodesFromEnd = 12;
 	static volatile int routesComputed;
+	
+	public Tsp(Dependency dep) {
+		super(dep, "Tsp");
+	}
 
 	public static void main(String[] args) {
 		int i;
@@ -54,48 +59,12 @@ public class Tsp {
 			TspSolver.MinTourLen = BIGINT;
 
 			TspSize = read_tsp(fname);
-
-			long start = new Date().getTime();
-
-			/* init arrays */
-			for (i = 0; i < MAX_NUM_TOURS; i++) {
-				TspSolver.Tours[i] = new TourElement();
-				TspSolver.PrioQ[i] = new PrioQElement();
-			}
-
-			/* Initialize first tour */
-			TspSolver.Tours[0].prefix()[0] = StartNode;
-			TspSolver.Tours[0].setConn(1);
-			TspSolver.Tours[0].setLast(0);
-			TspSolver.Tours[0].setPrefix_weight(0);
-			TspSolver.calc_bound(0); /* Sets lower_bound */
-
-			/* Initialize the priority queue structures */
-			TspSolver.PrioQ[1].index = 0;
-			TspSolver.PrioQ[1].priority = TspSolver.Tours[0].lower_bound();
-			TspSolver.PrioQLast = 1;
-
-			/* Put all unused tours in the free tour stack */
-			for (i = MAX_NUM_TOURS - 1; i > 0; i--)
-				TspSolver.TourStack[++TspSolver.TourStackTop] = i;
-
-			/* XXX This just maps threads to intervals. Uncool. */
+			
 			Intervals.subinterval(new VoidSubinterval() {				
 				@Override public void run(Interval subinterval) {
-					for(int i = 0; i < nWorkers; i++) {
-						new TspSolver(subinterval, "Worker "+i);
-					}
-				}				
+					new Tsp(subinterval);
+				}
 			});
-
-			long end = new Date().getTime();
-
-			System.out.println("tsp-routes_computed\t" + routesComputed);
-			System.out.println("tsp-" + nWorkers + "\t"
-					+ ((int) end - (int) start));
-			System.out.println("Minimum tour length: " + TspSolver.MinTourLen);
-			System.out.print("Minimum tour:");
-			TspSolver.MakeTourString(TspSize, TspSolver.MinTour);
 		}
 	}
 
@@ -121,5 +90,52 @@ public class Tsp {
 			System.exit(-1);
 		}
 		return (TspSize);
+	}
+
+	@Override
+	protected void run() {
+		long start = new Date().getTime();
+
+		/* init arrays */
+		for (int i = 0; i < MAX_NUM_TOURS; i++) {
+			TspSolver.Tours[i] = new TourElement();
+			TspSolver.PrioQ[i] = new PrioQElement();
+		}
+
+		/* Initialize first tour */
+		TspSolver.Tours[0].prefix()[0] = StartNode;
+		TspSolver.Tours[0].setConn(1);
+		TspSolver.Tours[0].setLast(0);
+		TspSolver.Tours[0].setPrefix_weight(0);
+		TspSolver.calc_bound(0); /* Sets lower_bound */
+
+		/* Initialize the priority queue structures */
+		TspSolver.PrioQ[1].index = 0;
+		TspSolver.PrioQ[1].priority = TspSolver.Tours[0].lower_bound();
+		TspSolver.PrioQLast = 1;
+
+		/* Put all unused tours in the free tour stack */
+		for (int i = MAX_NUM_TOURS - 1; i > 0; i--)
+			TspSolver.TourStack[++TspSolver.TourStackTop] = i;
+
+		/* XXX This just maps threads to intervals. Uncool. */
+		Intervals.subinterval(new VoidSubinterval() {				
+			@Override public void run(Interval subinterval) {
+				TspSolver.Tours[0].dg.checkEmbeddableIn(TspSolver.TourLock);
+				
+				for(int i = 0; i < nWorkers; i++) {
+					new TspSolver(subinterval, "Worker "+i);
+				}
+			}				
+		});
+
+		long end = new Date().getTime();
+
+		System.out.println("tsp-routes_computed\t" + routesComputed);
+		System.out.println("tsp-" + nWorkers + "\t"
+				+ ((int) end - (int) start));
+		System.out.println("Minimum tour length: " + TspSolver.MinTourLen);
+		System.out.print("Minimum tour:");
+		TspSolver.MakeTourString(TspSize, TspSolver.MinTour);
 	}
 }
