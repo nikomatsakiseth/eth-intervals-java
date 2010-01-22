@@ -38,6 +38,10 @@ implements DynamicGuard {
 		this.name = name;
 	}
 	
+	@Override public String toString() {
+		return name;
+	}
+	
 	/** Indicates that either a is b or else a is suspended/inactive 
 	 * 	while b is active. a is always the end of an
 	 *  interval, but b may be either the start or end. */
