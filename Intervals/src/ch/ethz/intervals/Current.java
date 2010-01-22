@@ -43,11 +43,6 @@ class Current {
 		this.mr = inter.start;
 	}
 	
-	Line line() {
-		if(inter == null) return Line.rootLine;
-		return inter.line();
-	}
-	
 	void updateMostRecent(Point mr) {
 		assert mr.didOccur();
 		this.mr = mr;
@@ -59,7 +54,10 @@ class Current {
 	}
 	
 	boolean isUnscheduled(Point pnt) {
-		return pnt.line.isUnscheduled(this);
+		Interval interval = pnt.racyInterval();
+		if(interval == null)
+			return false;
+		return interval.isUnscheduled(this);
 	}
 
 	void schedule(Interval interval) {
@@ -94,13 +92,13 @@ class Current {
 	}
 
 	private void scheduleUnchecked(Interval p) {
-		assert p.line().isUnscheduled(this);
+		assert p.isUnscheduled(this);
 		
 		if(Debug.ENABLED)
 			Debug.schedule(p, inter);
 		ExecutionLog.logScheduleInterval(p);
 		
-		p.line().clearUnscheduled();
+		p.clearUnscheduled();
 		p.start.arrive(1);
 	}
 

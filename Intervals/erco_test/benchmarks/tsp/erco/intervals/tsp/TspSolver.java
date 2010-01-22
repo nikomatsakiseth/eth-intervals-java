@@ -1,7 +1,7 @@
 package erco.intervals.tsp;
 
 import ch.ethz.intervals.Dependency;
-import ch.ethz.intervals.DynamicGuard;
+import ch.ethz.intervals.DefaultDynamicGuard;
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.Lock;
@@ -23,11 +23,11 @@ public class TspSolver extends Interval {
 
 	static final boolean debug = Tsp.debug;
 		
-	static final DynamicGuard MinLock = new DynamicGuard("MinLock");
+	static final DefaultDynamicGuard MinLock = new DefaultDynamicGuard("MinLock");
 	@GuardedBy("MinLock") static int MinTourLen; 
 	@GuardedBy("MinLock") static int[] MinTour = new int[Tsp.MAX_TOUR_SIZE];		
 	
-	static final DynamicGuard TourLock = new DynamicGuard("TourLock");
+	static final DefaultDynamicGuard TourLock = new DefaultDynamicGuard("TourLock");
 
 	static int[][] weights = new int[Tsp.MAX_TOUR_SIZE][Tsp.MAX_TOUR_SIZE];
 	@GuardedBy("TourLock") static int TourStackTop;

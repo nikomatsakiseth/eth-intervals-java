@@ -14,18 +14,23 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import ch.ethz.intervals.ThreadPool.Worker;
 import ch.ethz.intervals.mirror.PointMirror;
 
-public abstract class Point 
+public final class Point 
 implements PointMirror 
 {
+	public static final int NO_FLAGS = 0;
+	public static final int FLAG_END = 1;		  /** is end point? */
+	public static final int FLAG_SYNCHRONOUS = 2; /** is point of a sync. interval? */
 	
+	public static final int FLAGS_SYNCHRONOUS_END = FLAG_END | FLAG_SYNCHRONOUS;	
+
 	public static final int OCCURRED = -1;		/** Value of {@link #waitCount} once we have occurred */
 	
 	private static AtomicIntegerFieldUpdater<Point> waitCountUpdater =
 		AtomicIntegerFieldUpdater.newUpdater(Point.class, "waitCount");
 
 	final String name;							/** Possibly null */
-	final Line line;							/** Line on which the point resides. */	
 	final Point bound;						  	/** if a start point, the paired end point.  otherwise, null. */
+	final int flags;                            /** various flags */
 	final int depth;							/** depth of bound + 1 */
 	
 	private ChunkList<Point> outEdges;          /** Linked list of outgoing edges from this point. */
@@ -35,30 +40,29 @@ implements PointMirror
 	private Set<Throwable> pendingExceptions; 	/** Exception(s) that occurred while executing the task or in some preceding point. */
 	private Interval interval;            	  	/** Interval which owns this point.  Set to {@code null} when the point occurs. */
 
-	Point(String name, Line line, Point bound, int waitCount, Interval interval) {
-		assert line != null && interval != null;
+	Point(String name, int flags, Point bound, int waitCount, Interval interval) {
 		this.name = name;
-		this.line = line;
+		this.flags = flags;
 		this.bound = bound;
 		this.waitCount = waitCount;
 		this.interval = interval;
 		this.depth = (bound == null ? 0 : bound.depth + 1);
 	}
 	
-	abstract boolean isStartPoint();
-	
-	final boolean isEndPoint() {
-		return !isStartPoint();
+	final boolean isStartPoint() {
+		return (flags & FLAG_END) == 0;
 	}
 	
+	final boolean isEndPoint() {
+		return (flags & FLAG_END) == FLAG_END;
+	}
+	
+	final boolean isSynchronous() {
+		return (flags & FLAG_SYNCHRONOUS) == FLAG_SYNCHRONOUS;
+	}
+
 	final boolean maskExceptions() {
-		// The end of any subinterval masks exceptions
-		if(!isEndPoint()) return false;
-		
-		if(bound == null)
-			return (line == Line.rootLine);
-		
-		return (bound.line == line);
+		return (flags & (FLAGS_SYNCHRONOUS_END)) == FLAGS_SYNCHRONOUS_END;
 	}
 	
 	final synchronized ChunkList<Point> outEdgesSync() {
@@ -69,6 +73,16 @@ implements PointMirror
 		return waitCount == OCCURRED;
 	}
 	
+	/** 
+	 * Returns the interval with which this point is associated or
+	 * null if this point has occurred.  Note that returning non-null  
+	 * is not a guarantee that point has not occurred by the time you
+	 * receive the return value!
+	 */
+	Interval racyInterval() {
+		return this.interval;
+	}
+
 	@Override
 	public String toString() {
 		if(name != null)
@@ -123,12 +137,12 @@ implements PointMirror
 	}
 
 	/** Returns true if {@code this} <i>happens before</i> {@code p} */
-	public final boolean hb(final PointMirror p) {
+	@Override public final boolean hb(final PointMirror p) {
 		return hb(p, SPECULATIVE|TEST_EDGE);
 	}
 	
 	/** Returns true if {@code this == p} or {@code this} <i>happens before</i> {@code p} */
-	public boolean hbeq(final Point p) {
+	@Override public boolean hbeq(final PointMirror p) {
 		return (this == p) || hb(p);
 	}
 	
@@ -279,7 +293,6 @@ implements PointMirror
 	 *  are acquired. Each point occurs precisely once. */
 	final void occur() {
 		assert waitCount == 0;
-		assert line.isScheduled();
 
 		// Save copies of our outgoing edges at the time we occurred:
 		//      They may be modified further while we are notifying successors.

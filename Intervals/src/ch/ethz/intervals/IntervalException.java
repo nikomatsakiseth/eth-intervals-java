@@ -1,5 +1,10 @@
 package ch.ethz.intervals;
 
+import ch.ethz.intervals.guard.Guard;
+import ch.ethz.intervals.mirror.IntervalMirror;
+import ch.ethz.intervals.mirror.LockMirror;
+import ch.ethz.intervals.mirror.PointMirror;
+
 
 /** Base class for all exceptions thrown by the interval runtime. */
 @SuppressWarnings("serial")
@@ -21,10 +26,10 @@ public abstract class IntervalException extends RuntimeException {
 	}
 	
 	public static class NotSubinterval extends IntervalException {
-		public final Interval current;
-		public final Interval reqdParent;
+		public final IntervalMirror current;
+		public final IntervalMirror reqdParent;
 		
-		public NotSubinterval(Interval current, Interval reqdParent) {
+		public NotSubinterval(IntervalMirror current, IntervalMirror reqdParent) {
 			this.current = current;
 			this.reqdParent = reqdParent;
 		}
@@ -37,10 +42,10 @@ public abstract class IntervalException extends RuntimeException {
 	}
 
 	public static class LockNotHeld extends IntervalException {
-		public final Lock lock;
-		public final Interval inter;
+		public final LockMirror lock;
+		public final IntervalMirror inter;
 
-		public LockNotHeld(Lock lock, Interval inter) {
+		public LockNotHeld(LockMirror lock, IntervalMirror inter) {
 			this.lock = lock;
 			this.inter = inter;
 		}
@@ -53,10 +58,10 @@ public abstract class IntervalException extends RuntimeException {
 	}
 	
 	public static class MustHappenBefore extends IntervalException {
-		public final Point before;
-		public final Point after;
+		public final PointMirror before;
+		public final PointMirror after;
 
-		public MustHappenBefore(Point before, Point after) {
+		public MustHappenBefore(PointMirror before, PointMirror after) {
 			this.before = before;
 			this.after = after;
 		}
@@ -68,24 +73,25 @@ public abstract class IntervalException extends RuntimeException {
 		}		
 	}
 	
-	/** Indicates that a data race was detected on a {@link DynamicGuard} */
+	/** Indicates that a data race was detected on a {@link DefaultDynamicGuard} */
 	public static class DataRace extends IntervalException {
 		enum Role { READ, WRITE, LOCK, EMBED };
 
-		public final DynamicGuard dg;      /** Guard on which the race occurred. */
+		public final Guard dg;      			/** Guard on which the race occurred. */
 		
-		public final Role interloperRole;  /** Kind of access which failed. */
-		public final Interval interloper;  /** Interval performing failed access. */
+		public final Role interloperRole;  		/** Kind of access which failed. */
+		public final IntervalMirror interloper; /** Interval performing failed access. */
 
-		public final Role ownerRole;       /** Current role of {@link #dg} */
-		public final Point ownerBound;     /** Bound when current role ends. */
+		public final Role ownerRole;       		/** Current role of {@link #dg} */
+		public final PointMirror ownerBound;    /** Bound when current role ends. */
 		
 		public DataRace(
-				DynamicGuard dg,
-				ch.ethz.intervals.IntervalException.DataRace.Role interloperRole,
-				Interval interloper,
-				ch.ethz.intervals.IntervalException.DataRace.Role ownerRole,
-				Point ownerBound) {
+				Guard dg,
+				Role interloperRole,
+				IntervalMirror interloper,
+				Role ownerRole,
+				PointMirror ownerBound) 
+		{
 			this.dg = dg;
 			this.interloperRole = interloperRole;
 			this.interloper = interloper;
@@ -100,23 +106,6 @@ public abstract class IntervalException extends RuntimeException {
 					);
 		}
 	}
-	
-	public static class MustUnembed extends IntervalException {
-		public final Guard embedded;
-		public final Guard embeddedIn;
-		
-		public MustUnembed(Guard embedded, Guard embeddedIn) {
-			this.embedded = embedded;
-			this.embeddedIn = embeddedIn;
-		}
-		
-		@Override public String toString() {
-			return String.format(
-					"%s must be unembedded from %s before it can be used",
-					embedded, embeddedIn);
-		}
-
-	}
 
 	public static class InternalError extends IntervalException {
 		public InternalError(String arg0) {
@@ -129,7 +118,7 @@ public abstract class IntervalException extends RuntimeException {
 	}
 
 	public static class AlreadyScheduled extends IntervalException {
-		public final Interval inter;
+		public final IntervalMirror inter;
 
 		AlreadyScheduled(Interval inter) {
 			this.inter = inter;
@@ -140,16 +129,18 @@ public abstract class IntervalException extends RuntimeException {
 		}
 	}
 	
-	public static class CannotEmbedInSelf extends IntervalException {
+	public static class CannotBeLockedBy extends IntervalException {
 		public final Guard guard;
+		public final LockMirror lock;
 
-		public CannotEmbedInSelf(Guard guard) {
+		CannotBeLockedBy(Guard guard, LockMirror lock) {
 			this.guard = guard;
+			this.lock = lock;
 		}
 		
 		@Override public String toString() {
-			return guard + " cannot be embedded in itself";
-		}		
+			return "Guard " + guard + " cannot be locked by " + lock;
+		}
 	}
 
 }

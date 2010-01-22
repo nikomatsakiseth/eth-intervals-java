@@ -28,7 +28,7 @@ public class TestBBPCArrayWithDynamicGuards {
 	int[] produced = new int[M];
 	
 	public class BoxedInterval {
-		private final DynamicGuard dg = new DynamicGuard();
+		private final DefaultDynamicGuard dg = new DefaultDynamicGuard();
 		private Interval interval;
 		
 		public Interval get() {

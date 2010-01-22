@@ -3,7 +3,7 @@ package ch.ethz.intervals.quals;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Target;
 
-import ch.ethz.intervals.Guard;
+import ch.ethz.intervals.guard.Guard;
 
 /**
  * Specifies a path to the <b>guard</b> for a field.

@@ -13,6 +13,8 @@ import java.util.concurrent.CountDownLatch;
 import org.junit.Assert;
 import org.junit.Test;
 
+import ch.ethz.intervals.guard.Guard;
+
 public class TestDynamicGuard {
 	
 	public static final int FLAG_LCK1 = 1 << 0;
@@ -45,7 +47,7 @@ public class TestDynamicGuard {
 		}
 	}
 
-	boolean isLockable(DynamicGuard g, Lock l) {
+	boolean isLockable(DefaultDynamicGuard g, Lock l) {
 		try {
 			boolean res = g.checkLockable(l);
 			assert res;
@@ -56,8 +58,8 @@ public class TestDynamicGuard {
 	}
 	
 	class DgIntervalFactory {
-		public final DynamicGuard dg1 = new DynamicGuard();
-		public final DynamicGuard dg2 = new DynamicGuard();
+		public final DefaultDynamicGuard dg1 = new DefaultDynamicGuard();
+		public final DefaultDynamicGuard dg2 = new DefaultDynamicGuard();
 		public final Map<String, Boolean> results = 
 			Collections.synchronizedMap(new HashMap<String, Boolean>());
 		int resultCheckedCounter;
@@ -155,7 +157,7 @@ public class TestDynamicGuard {
 		
 		Intervals.subinterval(new VoidSubinterval() { 
 			@Override public void run(Interval a) {
-				final DynamicGuard dg = new DynamicGuard();
+				final DefaultDynamicGuard dg = new DefaultDynamicGuard();
 				
 				final Interval a1 = new Interval(a, "a1") {
 					@Override protected void run() {
@@ -213,7 +215,7 @@ public class TestDynamicGuard {
 		
 		Intervals.subinterval(new VoidSubinterval() { 
 			@Override public void run(Interval a) {
-				final DynamicGuard dg = new DynamicGuard();
+				final DefaultDynamicGuard dg = new DefaultDynamicGuard();
 				
 				Intervals.subinterval(new VoidSubinterval() {
 					@Override public String toString() { return "a1"; }
@@ -270,7 +272,7 @@ public class TestDynamicGuard {
 		
 		Intervals.subinterval(new VoidSubinterval() { 
 			@Override public void run(Interval a) {
-				final DynamicGuard dg = new DynamicGuard();
+				final DefaultDynamicGuard dg = new DefaultDynamicGuard();
 				
 				results.add(isReadable(dg));
 				results.add(isWritable(dg));
@@ -330,7 +332,7 @@ public class TestDynamicGuard {
 		
 		Intervals.subinterval(new VoidSubinterval() { 
 			@Override public void run(final Interval a) {
-				final DynamicGuard dg = new DynamicGuard();
+				final DefaultDynamicGuard dg = new DefaultDynamicGuard();
 				
 				final Interval a1 = new Interval(a, "a1") {
 					@Override protected void run() {
@@ -441,7 +443,7 @@ public class TestDynamicGuard {
 		
 		Intervals.subinterval(new VoidSubinterval() { 
 			@Override public void run(final Interval a) {
-				final DynamicGuard dg = new DynamicGuard();
+				final DefaultDynamicGuard dg = new DefaultDynamicGuard();
 				
 				final Interval a1 = new Interval(a) {
 					@Override public String toString() { return "a1"; }

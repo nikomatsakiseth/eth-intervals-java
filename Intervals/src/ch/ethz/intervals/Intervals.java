@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import ch.ethz.intervals.guard.Guard;
 import ch.ethz.intervals.mirror.PointMirror;
 
 /** Static methods for creating and manipulating intervals. */
@@ -275,7 +276,7 @@ public class Intervals {
 			nameThrowable = thr;
 		}
 		
-		SubintervalImpl<R> subinterval = new SubintervalImpl<R>(name, current.inter, current.line(), task);
+		SubintervalImpl<R> subinterval = new SubintervalImpl<R>(name, current.inter, task);
 		
 		if(current.mr != null && current.mr != current.start())
 			current.mr.addEdgeAfterOccurredWithoutException(subinterval.start, NORMAL);
@@ -338,11 +339,6 @@ public class Intervals {
 		};
 	}
 
-	static Line line(Interval parent) {
-		if(parent == null) return Line.rootLine;
-		return parent.line();
-	}
-	
 	/** Returns an array {@code bounds} where {@code bounds[0]} == the bound at depth 0,
 	 *  {@code bounds[depth] == this} */
 	public static PointMirror[] bounds(PointMirror pointMirror) {
@@ -364,6 +360,34 @@ public class Intervals {
 			Collections.reverse(lst);
 			return lst.toArray(new PointMirror[lst.size()]);
 		}
+	}
+	
+	/**
+	 * Convenience method for asserting that the current interval is readable.
+	 * Intended to be used like: {@code assert checkReadable(guard);}
+	 * 
+	 * @param guard the guard to check for readability
+	 * @returns true if {@code guard} is readable, and throws an exception otherwise.
+	 */
+	public static boolean checkReadable(Guard guard) {
+		Current current = Current.get();
+		if(current.inter == null)
+			throw new NotInRootIntervalException(); // later we could allow this maybe
+		guard.checkReadable(current.mr, current.inter);
+		return true;
+	}
+	
+	/**
+	 * Convenience method for asserting that the current interval is writable.
+	 * 
+	 * @see #checkReadable(Guard)
+	 */
+	public static boolean checkWritable(Guard guard) {
+		Current current = Current.get();
+		if(current.inter == null)
+			throw new NotInRootIntervalException(); // later we could allow this maybe
+		guard.checkWritable(current.mr, current.inter);
+		return true;
 	}
 	
 }

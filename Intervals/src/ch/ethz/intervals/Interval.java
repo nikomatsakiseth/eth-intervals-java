@@ -1,6 +1,7 @@
 package ch.ethz.intervals;
 
 import ch.ethz.intervals.ThreadPool.Worker;
+import ch.ethz.intervals.guard.Guard;
 import ch.ethz.intervals.mirror.IntervalMirror;
 import ch.ethz.intervals.mirror.LockMirror;
 import ch.ethz.intervals.mirror.PointMirror;
@@ -11,6 +12,8 @@ public abstract class Interval
 extends ThreadPool.WorkItem 
 implements Dependency, Guard, IntervalMirror
 {
+	static final int SYNCHRONOUS_FLAG = 1;
+	
 	private static final ChunkList<Interval> runMethodTerminated = ChunkList.empty();
 	
 	private static final long serialVersionUID = 8105268455633202522L;
@@ -20,6 +23,9 @@ implements Dependency, Guard, IntervalMirror
 	public final Point end;
 	
 	private final String name;
+	
+	/** If we are unscheduled, who are we "unscheduled" by? */
+	private Current unscheduled;
 	
 	/** @see Current#unscheduled */
 	Interval nextUnscheduled;
@@ -58,9 +64,8 @@ implements Dependency, Guard, IntervalMirror
 		
 		this.name = name;
 		this.parent = parent;
-		Line line = new Line(current);
-		end = new EndPoint(name, line, parentEnd, 2, this);
-		start = new StartPoint(name, line, end, 2, this);		
+		end = new Point(name, Point.FLAG_END, parentEnd, 2, this);
+		start = new Point(name, Point.NO_FLAGS, end, 2, this);		
 		
 		current.addUnscheduled(this);
 		int expFromParent = (parent != null ? parent.addChildInterval(this) : 0);
@@ -71,19 +76,14 @@ implements Dependency, Guard, IntervalMirror
 		dep.addHbToNewInterval(this);		
 	}
 	
-	Interval(String name, Interval parent, Line line, int startWaitCount, int endWaitCount) {
-		assert line != null;
+	Interval(String name, Interval parent, int pntFlags, int startWaitCount, int endWaitCount) {
 		this.name = name;
 		this.parent = parent;		
-		this.end = new EndPoint(name, line, Intervals.end(parent), endWaitCount, this);
-		this.start = new StartPoint(name, line, end, startWaitCount, this);
+		this.end = new Point(name, pntFlags | Point.FLAG_END, Intervals.end(parent), endWaitCount, this);
+		this.start = new Point(name, pntFlags, end, startWaitCount, this);
 		
 		if(end.bound != null)
 			end.bound.addWaitCount();
-	}
-	
-	Line line() {
-		return end.line;
 	}
 	
 	int addChildInterval(Interval inter) {
@@ -319,40 +319,33 @@ implements Dependency, Guard, IntervalMirror
 		start.addEdgeAndAdjust(inter.start, ChunkList.NORMAL);
 	}
 	
-	private boolean isWritableBy(Interval inter) {
-		return (inter == this || (inter.line() == line() && inter.end.isBoundedBy(end))); 
+	private boolean isWritableBy(IntervalMirror inter) {
+		while(inter != this && inter.isSynchronous())
+			inter = inter.parent();
+		return (inter == this);
 	}
 	
-	private boolean isReadableBy(Point mr, Interval inter) {
+	private boolean isReadableBy(PointMirror mr, IntervalMirror inter) {
 		return (isWritableBy(inter) || (mr != null && end.hbeq(mr)));
 	}
-
-	/**
-	 * True if the current interval is {@code this} or a subinterval of {@code this},
-	 * or if the start of the current interval <em>happens after</em> {@code this.end}.
-	 * 
-	 * @see Guard#checkReadable()
-	 */
+	
 	@Override
-	public final boolean checkReadable() {
-		Current current = Current.get();
-		if(!isReadableBy(current.mr, current.inter))
-			throw new IntervalException.MustHappenBefore(end, current.mr);
-		return true;
+	public Void checkLockable(IntervalMirror interval, LockMirror lock) {
+		throw new IntervalException.CannotBeLockedBy(this, lock);
 	}
 
-	/**
-	 * True if the current interval is {@code this} or a subinterval of {@code this}.
-	 * Otherwise throws an exception.
-	 * 
-	 * @see Guard#checkWritable()
-	 */
 	@Override
-	public final boolean checkWritable() {
-		Current current = Current.get();
-		if(!isWritableBy(current.inter))
-			throw new IntervalException.NotSubinterval(current.inter, this);
-		return true;
+	public Void checkReadable(PointMirror mr, IntervalMirror inter) {
+		if(!isReadableBy(mr, inter))
+			throw new IntervalException.MustHappenBefore(end, mr);
+		return null;
+	}
+
+	@Override
+	public Void checkWritable(PointMirror mr, IntervalMirror inter) {
+		if(!isWritableBy(inter))
+			throw new IntervalException.NotSubinterval(inter, this);
+		return null;
 	}
 	
 	/**
@@ -364,7 +357,7 @@ implements Dependency, Guard, IntervalMirror
 		if(holdsLockItself(lock))
 			return true;
 		
-		if(parent != null && parent.line() == line())
+		if(isSynchronous() && parent != null)
 			return parent.locks(lock);
 		
 		return false;
@@ -395,6 +388,32 @@ implements Dependency, Guard, IntervalMirror
 		} else {
 			throw new UnsupportedOperationException("Must be subtype of Lock");
 		}
+	}
+
+	@Override
+	public boolean isSynchronous() {
+		return start.isSynchronous();
+	}
+
+	@Override
+	public Interval parent() {
+		return parent;
+	}
+
+	/**
+	 * Returns true if this interval is due to be scheduled by
+	 * {@cure current}.
+	 */
+	boolean isUnscheduled(Current current) {
+		// No need to worry about race conditions: if our field == current,
+		// then current is the only thread that will ever change it.
+		// Otherwise, going to return false anyhow.
+		return (unscheduled == current);
+	}
+
+	void clearUnscheduled() {
+		// Only invoked by our scheduler:
+		unscheduled = null;
 	}
 	
 }

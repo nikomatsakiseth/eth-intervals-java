@@ -1,6 +1,6 @@
 package erco.intervals.tsp;
 
-import ch.ethz.intervals.DynamicGuard;
+import ch.ethz.intervals.DefaultDynamicGuard;
 /*
  * Copyright (C) 2000 by ETHZ/INF/CS
  * All rights reserved
@@ -11,7 +11,7 @@ import ch.ethz.intervals.DynamicGuard;
 import ch.ethz.intervals.quals.GuardedBy;
 
 public class TourElement {
-	final DynamicGuard dg = new DynamicGuard();
+	final DefaultDynamicGuard dg = new DefaultDynamicGuard();
     @GuardedBy("dg") private int[] prefix=new int[Tsp.MAX_TOUR_SIZE];
     @GuardedBy("dg") private int conn;
     @GuardedBy("dg") private int last;
