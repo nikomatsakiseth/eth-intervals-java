@@ -67,6 +67,7 @@ implements Dependency, Guard, IntervalMirror
 		end = new Point(name, Point.FLAG_END, parentEnd, 2, this);
 		start = new Point(name, Point.NO_FLAGS, end, 2, this);		
 		
+		unscheduled = current;
 		current.addUnscheduled(this);
 		int expFromParent = (parent != null ? parent.addChildInterval(this) : 0);
 		if(expFromParent == 0) start.addWaitCountUnsync(-1);
@@ -106,8 +107,8 @@ implements Dependency, Guard, IntervalMirror
 	}
 	
 	/** Note: Safety checks apply!  See {@link Current#checkCanAddDep(Point)} */ 
-	void addExclusiveLock(Lock lock) {
-		LockList list = new LockList(this, lock, null);
+	void addExclusiveLock(Lock lock, Guard guard) {
+		LockList list = new LockList(this, lock, guard, null);
 		synchronized(this) {
 			list.next = revLocks;			
 			setRevLocksUnsync(list);
@@ -163,8 +164,8 @@ implements Dependency, Guard, IntervalMirror
 		assert ll.acquiredLock != null;
 		
 		// Check that acquiring this lock did not
-		// create a data race:
-		IntervalException err = ll.lock.checkLockableByReturningException(this);
+		// create a data race:		
+		Throwable err = (ll.guard == null ? null : ll.guard.checkLockable(this, ll.lock));
 		
 		if(err != null) {
 			start.addPendingException(err);		
@@ -330,21 +331,21 @@ implements Dependency, Guard, IntervalMirror
 	}
 	
 	@Override
-	public Void checkLockable(IntervalMirror interval, LockMirror lock) {
-		throw new IntervalException.CannotBeLockedBy(this, lock);
+	public IntervalException checkLockable(IntervalMirror interval, LockMirror lock) {
+		return new IntervalException.CannotBeLockedBy(this, lock);
 	}
 
 	@Override
-	public Void checkReadable(PointMirror mr, IntervalMirror inter) {
+	public IntervalException checkReadable(PointMirror mr, IntervalMirror inter) {
 		if(!isReadableBy(mr, inter))
-			throw new IntervalException.MustHappenBefore(end, mr);
+			return new IntervalException.MustHappenBefore(end, mr);
 		return null;
 	}
 
 	@Override
-	public Void checkWritable(PointMirror mr, IntervalMirror inter) {
+	public IntervalException checkWritable(PointMirror mr, IntervalMirror inter) {
 		if(!isWritableBy(inter))
-			throw new IntervalException.NotSubinterval(inter, this);
+			return new IntervalException.NotSubinterval(inter, this);
 		return null;
 	}
 	
@@ -382,9 +383,9 @@ implements Dependency, Guard, IntervalMirror
 		return end;
 	}
 	
-	@Override public void addLock(LockMirror lock) {
+	@Override public void addLock(LockMirror lock, Guard guard) {
 		if(lock instanceof Lock) {
-			addExclusiveLock((Lock) lock);
+			Intervals.addExclusiveLock(this, (Lock) lock, guard);
 		} else {
 			throw new UnsupportedOperationException("Must be subtype of Lock");
 		}

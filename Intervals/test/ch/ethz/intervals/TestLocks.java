@@ -31,7 +31,7 @@ public class TestLocks {
 		}
 
 		@Override protected void run() {
-			Assert.assertTrue(lock.checkWritable());
+			Assert.assertTrue(Intervals.checkWritable(lock));
 			Assert.assertTrue(this.locks(lock));
 			list.add(id);
 		}
@@ -111,7 +111,7 @@ public class TestLocks {
 		}
 		@Override public void run(Interval subinterval) {
 			times[0] = System.currentTimeMillis();
-			ids.add(name+":"+l1.checkWritable());
+			ids.add(name+":"+Intervals.checkWritable(l1));
 			try { // just to make it more likely that the lock fails
 				Thread.sleep(100);
 			} catch (InterruptedException e) {

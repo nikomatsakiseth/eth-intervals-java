@@ -74,7 +74,7 @@ public class TestHOH {
 			this.link = link;
 			this.transform = transform;
 			
-        	Intervals.addExclusiveLock(this, link.lock);
+        	Intervals.addExclusiveLock(this, link.lock, null);
 		}
 		
 		@Override

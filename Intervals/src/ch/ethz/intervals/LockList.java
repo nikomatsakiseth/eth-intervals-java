@@ -1,5 +1,7 @@
 package ch.ethz.intervals;
 
+import ch.ethz.intervals.guard.Guard;
+
 
 /**
  * LockLists serve many purposes related to acquiring locks.
@@ -25,6 +27,9 @@ extends LockBase
 	/** User-specified lock to acquire */
 	final Lock lock;
 	
+	/** Guard being protected by {@link #lock}, if any. */
+	final Guard guard;
+	
 	/** Next lock to acquire */
 	LockList next;
 	
@@ -36,10 +41,11 @@ extends LockBase
 	/** Owned by the {@link LockBase}, used to track pending candidates */
 	LockList nextPending;
 	
-	LockList(Interval inter, Lock lock, LockList next) {
+	LockList(Interval inter, Lock lock, Guard guard, LockList next) {
 		super(false);
 		this.inter = inter;
 		this.lock = lock;
+		this.guard = guard;
 		this.next = next;
 	}
 	

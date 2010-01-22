@@ -27,7 +27,7 @@ final class SubintervalImpl<R> extends Interval {
 			LockList lockList = null;
 			// Build list in reverse order of the array:
 			for(Lock lock : locks)
-				lockList = new LockList(this, lock, lockList);
+				lockList = new LockList(this, lock, null, lockList);
 			setRevLocksUnsync(lockList);
 		}
 	}

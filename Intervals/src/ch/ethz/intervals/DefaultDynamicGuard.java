@@ -1,15 +1,7 @@
 package ch.ethz.intervals;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
 import ch.ethz.intervals.IntervalException.DataRace.Role;
 import ch.ethz.intervals.guard.DynamicGuard;
-import ch.ethz.intervals.guard.Guard;
 import ch.ethz.intervals.mirror.IntervalMirror;
 import ch.ethz.intervals.mirror.LockMirror;
 import ch.ethz.intervals.mirror.PointMirror;
@@ -30,9 +22,44 @@ public class DefaultDynamicGuard
 implements DynamicGuard {
 	
 	private final String name;
-	private final List<PointMirror> writes = new ArrayList<PointMirror>();
-	private final Map<PointMirror, LockMirror> locks = new HashMap<PointMirror, LockMirror>();
-	private final Set<PointMirror> reads = new HashSet<PointMirror>();
+	
+	private final static class Owner {
+		final PointMirror end;
+		final LockMirror lock;
+		final Owner prev;
+		
+		private Owner(PointMirror bound, LockMirror lock, Owner prev) {
+			this.end = bound;
+			this.lock = lock;
+			this.prev = prev;
+		}
+		
+		public boolean bounds(IntervalMirror inter) {
+			return (end == null) || inter.end().isBoundedBy(end);
+		}
+	}
+	
+	private static final Owner rootOwner = new Owner(null, null, null); 
+	
+	private final static class State {
+		Owner owner;
+		PointMirror mrw;
+		LockMirror mrl;
+		ChunkList<PointMirror> activeReads;
+	}
+	
+	/** current owner */
+	Owner owner = rootOwner;
+	
+	/** end of most recent write within current owner */
+	PointMirror mrw = null;
+	
+	/** end of potentially active reads within current owner */
+	ChunkList<PointMirror> activeReads = null;
+	
+	public DefaultDynamicGuard() {
+		this(null);
+	}
 	
 	public DefaultDynamicGuard(String name) {
 		this.name = name;
@@ -42,76 +69,136 @@ implements DynamicGuard {
 		return name;
 	}
 	
-	/** Indicates that either a is b or else a is suspended/inactive 
-	 * 	while b is active. a is always the end of an
-	 *  interval, but b may be either the start or end. */
-	private boolean admits(PointMirror a, PointMirror mr, IntervalMirror inter) {
-		return (a == inter.end() || inter.end().isBoundedBy(a) || a.hbeq(mr));
+	/**
+	 * Given that 'mr' has occurred, finds and returns the new state:
+	 * <ul>
+	 * <li> Pops any owners which must have terminated.
+	 * <li> Sets most recent write to end of the outermost interval to be popped,
+	 *      or {@link #mrw} if none are popped.
+	 * <li> Drops any active reads which were bounded by a popped owner. 
+	 * </ul>  
+	 */
+	private State walkBack(PointMirror mr, IntervalMirror inter) {
+		State result = new State();
+		if(owner.bounds(inter)) {
+			result.owner = owner;
+			result.mrw = mrw;
+			result.mrl = null;
+			result.activeReads = activeReads;			
+		} else {
+			Owner o = owner;
+			do {
+				result.mrw = o.end;
+				result.mrl = o.lock;
+				o = o.prev;
+			} while(!o.bounds(inter));			
+			result.activeReads = null;
+			result.owner = o;
+		}
+		return result;
+	}
+	
+	private Role mrRole(State result) {
+		return (result.mrl != null ? Role.LOCK : Role.WRITE);
+	}
+	
+	private void checkHappensAfterMostRecentWrite(
+			final PointMirror mr,
+			final IntervalMirror inter, 
+			final Role interRole,
+			State result) 
+	{
+		if(result.mrw != null && !result.mrw.hbeq(mr))
+			throw new IntervalException.DataRace(this, interRole, inter, mrRole(result), result.mrw);
+	}
+
+	private void checkHappensAfterActiveReads(
+			final PointMirror mr,
+			final IntervalMirror inter, 
+			final Role interRole,
+			State result) 
+	{
+		if(result.activeReads != null) {
+			new ChunkList.Iterator<PointMirror>(result.activeReads) {
+				@Override public void doForEach(PointMirror rd, int _) {
+					if(!rd.hbeq(mr))
+						throw new IntervalException.DataRace(
+								DefaultDynamicGuard.this, 
+								interRole, inter,
+								Role.READ, rd);
+				}
+			};
+		}
 	}
 	
 	@Override
-	public synchronized Void checkReadable(PointMirror mr, IntervalMirror inter) {
-		for(PointMirror w : writes) {
-			if(!admits(w, mr, inter))
-				throw new IntervalException.DataRace(this, Role.READ, inter, Role.WRITE, w);
+	public synchronized IntervalException checkReadable(PointMirror mr, IntervalMirror inter) {
+		PointMirror interEnd = inter.end();
+		
+		// Read by owner, ok.
+		if(owner.end == interEnd)
+			return null;
+		
+		State result = walkBack(mr, inter);		
+		try {
+			checkHappensAfterMostRecentWrite(mr, inter, Role.READ, result);
+		} catch (IntervalException.DataRace err) {
+			return err;
 		}
-		reads.add(inter.end());
+		
+		// read is permitted:
+		owner = result.owner;
+		mrw = result.mrw;
+		activeReads = ChunkList.add(result.activeReads, interEnd, ChunkList.NO_FLAGS);
 		return null;
 	}
 	
 
 	@Override
-	public synchronized Void checkWritable(PointMirror mr, IntervalMirror inter) {
-		int writeSize = writes.size();
-		if(writeSize >= 1) {			
-			PointMirror w = writes.get(writeSize - 1);			
-			if(!admits(w, mr, inter))
-				throw new IntervalException.DataRace(this, Role.WRITE, inter, Role.WRITE, w);				
+	public synchronized IntervalException checkWritable(final PointMirror mr, final IntervalMirror inter) {
+		PointMirror interEnd = inter.end();
+		
+		// Write by owner, ok.
+		if(owner.end == interEnd)
+			return null;
+		
+		State result = walkBack(mr, inter);
+		
+		try {
+			checkHappensAfterMostRecentWrite(mr, inter, Role.WRITE, result);
+			checkHappensAfterActiveReads(mr, inter, Role.WRITE, result);
+		} catch (IntervalException.DataRace err) {
+			return err;
 		}
 		
-		for(PointMirror r : reads) {
-			if(!admits(r, mr, inter))
-				throw new IntervalException.DataRace(this, Role.WRITE, inter, Role.READ, r);
-		}
-		
-		writes.add(inter.end());
-		
-		return null;
-	}
-	
-	@Override
-	public synchronized Void checkLockable(IntervalMirror inter, LockMirror lock) {
-		if(!inter.locks(lock))
-			throw new IntervalException.LockNotHeld(lock, inter);
-		
-		int writeSize = writes.size();
-		if(writeSize >= 1) {
-			PointMirror w = writes.get(writeSize - 1);			
-			if(!admits(w, inter.start(), inter) && !holdsLock(w, lock))
-				throw new IntervalException.DataRace(this, Role.LOCK, inter, Role.WRITE, w);			
-		}
-		
-		if(locks.get(inter.end()) != null && locks.get(inter.end()) != lock)
-			throw new IntervalException.DataRace(this, Role.LOCK, inter, Role.LOCK, inter.end());
-		
-		for(PointMirror r : reads) {
-			if(!admits(r, inter.start(), inter) && !holdsLock(r, lock))
-				throw new IntervalException.DataRace(this, Role.LOCK, inter, Role.READ, r);
-		}
-		
-		writes.add(inter.end());
-		locks.put(inter.end(), lock);
+		// write is permitted:
+		owner = new Owner(interEnd, null, result.owner);
+		mrw = null;
+		activeReads = null;
 		return null;
 	}
 
-	private boolean holdsLock(PointMirror end, LockMirror lock) {
-		if(locks.get(end) == lock) 
-			return true;
-		for(PointMirror w1 : writes) 
-			if(end.isBoundedBy(w1) && locks.get(w1) == lock)
-				return true;
-		return false;
+	@Override
+	public synchronized IntervalException checkLockable(IntervalMirror inter, LockMirror lock) {
+		assert lock != null;
+		
+		PointMirror interStart = inter.end();
+		State result = walkBack(interStart, inter);
+
+		// must either acquire same lock or happen after most recent write:
+		try {
+			if(lock != result.mrl) 
+				checkHappensAfterMostRecentWrite(interStart, inter, Role.LOCK, result);
+			checkHappensAfterActiveReads(interStart, inter, Role.LOCK, result);
+		} catch (IntervalException.DataRace err) {
+			return err;
+		}
+		
+		// lock is permitted:
+		owner = new Owner(inter.end(), lock, result.owner);
+		mrw = null;
+		activeReads = null;
+		return null;
 	}
-	
 
 }

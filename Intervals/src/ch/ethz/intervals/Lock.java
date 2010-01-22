@@ -35,21 +35,21 @@ implements Guard, LockMirror
 	}
 
 	@Override
-	public Void checkLockable(IntervalMirror interval, LockMirror lock) {
+	public IntervalException checkLockable(IntervalMirror interval, LockMirror lock) {
 		if(lock != this)
-			throw new IntervalException.CannotBeLockedBy(this, lock);
+			return new IntervalException.CannotBeLockedBy(this, lock);
 		return null;
 	}
 
 	@Override
-	public Void checkReadable(PointMirror mr, IntervalMirror inter) {
+	public IntervalException checkReadable(PointMirror mr, IntervalMirror inter) {
 		return checkWritable(mr, inter);
 	}
 
 	@Override
-	public Void checkWritable(PointMirror mr, IntervalMirror inter) {
+	public IntervalException checkWritable(PointMirror mr, IntervalMirror inter) {
 		if(!inter.locks(this))
-			throw new IntervalException.LockNotHeld(this, inter);
+			return new IntervalException.LockNotHeld(this, inter);
 		return null;
 	}
 

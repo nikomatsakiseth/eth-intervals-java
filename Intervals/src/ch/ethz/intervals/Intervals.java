@@ -222,15 +222,27 @@ public class Intervals {
 		fromImpl.unAddEdge(toImpl);
 	}
 	
-	/** Indicates that {@code interval} should execute while holding
-	 *  an exclusive lock on {@code guard}.  The lock will be automatically
-	 *  acquired sometime before {@code interval.start} and release
-	 *  sometime after {@code interval.end}. */
+	/** Invokes {@link #addExclusiveLock(Interval, Lock, Guard)} with a 
+	 *  {@code null} guard. */
 	public static void addExclusiveLock(Interval interval, Lock lock) {
+		addExclusiveLock(interval, lock, null);		
+	}
+
+	
+	/** Indicates that {@code interval} should execute while holding
+	 *  the exclusive lock {@code lock}.  The lock will be automatically
+	 *  acquired sometime before {@code interval.start} and release
+	 *  sometime after {@code interval.end}.  You may also, optionally, 
+	 *  provide a guard {@code guard} which is being protected by this lock.
+	 *   
+	 *  @param interval the interval which should acquire the lock
+	 *  @param lock the lock to be acquired
+	 *  @param guard the guard whose data is being protected, or {@code null} */
+	public static void addExclusiveLock(Interval interval, Lock lock, Guard guard) {
 		if(interval != null && lock != null) {
 			Current current = Current.get();
 			current.checkCanAddDep(interval.start);
-			interval.addExclusiveLock(lock);
+			interval.addExclusiveLock(lock, guard);
 		}
 	}
 
@@ -373,7 +385,8 @@ public class Intervals {
 		Current current = Current.get();
 		if(current.inter == null)
 			throw new NotInRootIntervalException(); // later we could allow this maybe
-		guard.checkReadable(current.mr, current.inter);
+		RuntimeException err = guard.checkReadable(current.mr, current.inter);
+		if(err != null) throw err;
 		return true;
 	}
 	
@@ -386,7 +399,8 @@ public class Intervals {
 		Current current = Current.get();
 		if(current.inter == null)
 			throw new NotInRootIntervalException(); // later we could allow this maybe
-		guard.checkWritable(current.mr, current.inter);
+		RuntimeException err = guard.checkWritable(current.mr, current.inter);
+		if(err != null) throw err;
 		return true;
 	}
 	

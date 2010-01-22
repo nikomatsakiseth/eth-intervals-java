@@ -2,6 +2,7 @@ package ch.ethz.intervals.guard;
 
 import ch.ethz.intervals.DefaultDynamicGuard;
 import ch.ethz.intervals.Interval;
+import ch.ethz.intervals.IntervalException;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.Lock;
 import ch.ethz.intervals.mirror.IntervalMirror;
@@ -46,27 +47,32 @@ public interface Guard {
 	
 	/**
 	 * If fields protected by this guard are writable and/or readable by the given
-	 * interval, returns {@code null}.  Otherwise, throws an exception.   
+	 * interval, returns {@code null}.  Otherwise, returns an exception describing
+	 * the error that ocurred.   
 	 * 
 	 * @param mr the most recent point that has already happened in {@code inter}.
 	 * This is normally {@code inter.start}, but if there have been synchronous
 	 * subintervals it will be the end of the most recent subinterval.
 	 * 
 	 * @param inter the currently executing interval
+	 * 
+	 * @returns null if there is no error, otherwise a descriptive exception
 	 */
-	public Void checkWritable(PointMirror mr, IntervalMirror inter); 
+	public RuntimeException checkWritable(PointMirror mr, IntervalMirror inter); 
 
 	/** 
 	 * Same as {@link #checkWritable(PointMirror, IntervalMirror)}, but only
 	 * for read access.
 	 */
-	public Void checkReadable(PointMirror mr, IntervalMirror current);
+	public RuntimeException checkReadable(PointMirror mr, IntervalMirror current);
 		
 	/**
 	 * Checks whether fields protected by this guard may legally be locked
 	 * by the lock {@code lock}.  Users would never normally need to
 	 * invoke this method directly; it is invoked automatically when you
-	 * use the method {@link Intervals#addExclusiveLock(Interval, Lock)}. 
+	 * use the method {@link Intervals#addExclusiveLock(Interval, Lock)}.
+	 * 
+	 * @returns null if there is no error, otherwise a descriptive exception
 	 */
-	public Void checkLockable(IntervalMirror interval, LockMirror lock);
+	public RuntimeException checkLockable(IntervalMirror interval, LockMirror lock);
 }

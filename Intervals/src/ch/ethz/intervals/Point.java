@@ -118,17 +118,20 @@ implements PointMirror
 	}
 	
 	public final boolean isBoundedBy(Point p) {
-		Point b = bound;
-		while(b.depth >= p.depth) 
-			b = b.bound;
-		return (b == p);
+		if(bound != null) {
+			Point b = bound;
+			while(b.depth >= p.depth) 
+				b = b.bound;
+			return (b == p);
+		}
+		return false;
 	}
 	
 	/** True if {@code p} bounds {@code this} or one of its bounds */
 	@Override public final boolean isBoundedBy(PointMirror p) {
 		if(p instanceof Point) 
 			return isBoundedBy((Point)p);
-		return false;
+		return false; // always bounded by a genuine Point, not some funky mirror
 	}
 
 	/** True if {@code p == this} or {@link #isBoundedBy(Point)} */

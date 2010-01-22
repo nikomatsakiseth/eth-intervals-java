@@ -12,6 +12,6 @@ public interface IntervalMirror {
 	public boolean isSynchronous();
 	public PointMirror start();
 	public PointMirror end();
-	public void addLock(LockMirror lock);
+	public void addLock(LockMirror lock, Guard guard);
 	public boolean locks(LockMirror lock);
 }

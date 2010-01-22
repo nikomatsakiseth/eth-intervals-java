@@ -17,19 +17,19 @@ import ch.ethz.intervals.guard.Guard;
 
 public class TestDynamicGuard {
 	
-	public static final int FLAG_LCK1 = 1 << 0;
-	public static final int FLAG_RD1 = 1 << 1;
-	public static final int FLAG_WR1 = 1 << 2;
-	public static final int FLAG_1LOCKABLEBY2 = 1 << 3;
+	public static final int FLAG_LCK1FOR1 = 1 << 0;
+	public static final int FLAG_LCK1FOR2 = 1 << 1;
+	public static final int FLAG_RD1 = 1 << 2;
+	public static final int FLAG_WR1 = 1 << 3;
 	
-	public static final int FLAG_LCK2 = 1 << 10;
-	public static final int FLAG_RD2 = 1 << 11;
-	public static final int FLAG_WR2 = 1 << 12;	
-	public static final int FLAG_2LOCKABLEBY1 = 1 << 13;
+	public static final int FLAG_LCK2FOR1 = 1 << 10;
+	public static final int FLAG_LCK2FOR2 = 1 << 11;
+	public static final int FLAG_RD2 = 1 << 12;
+	public static final int FLAG_WR2 = 1 << 13;	
 	
 	boolean isWritable(Guard g) {
-		try {
-			boolean res = g.checkWritable();
+		try {			
+			boolean res = Intervals.checkWritable(g);
 			assert res;
 			return true;
 		} catch (IntervalException exc) {
@@ -39,7 +39,7 @@ public class TestDynamicGuard {
 
 	boolean isReadable(Guard g) {
 		try {
-			boolean res = g.checkReadable();
+			boolean res = Intervals.checkReadable(g);
 			assert res;
 			return true;
 		} catch (IntervalException exc) {
@@ -47,19 +47,13 @@ public class TestDynamicGuard {
 		}
 	}
 
-	boolean isLockable(DefaultDynamicGuard g, Lock l) {
-		try {
-			boolean res = g.checkLockable(l);
-			assert res;
-			return true;
-		} catch (IntervalException exc) {
-			return false;
-		}
-	}
-	
 	class DgIntervalFactory {
+		public final Lock l1 = new Lock();
+		public final Lock l2 = new Lock();
+		
 		public final DefaultDynamicGuard dg1 = new DefaultDynamicGuard();
 		public final DefaultDynamicGuard dg2 = new DefaultDynamicGuard();
+		
 		public final Map<String, Boolean> results = 
 			Collections.synchronizedMap(new HashMap<String, Boolean>());
 		int resultCheckedCounter;
@@ -74,64 +68,45 @@ public class TestDynamicGuard {
 		}
 		
 		public Interval create(Dependency dep, String name, int flags) {
-			return new DgInterval(dep, name, flags, null, null);
-		}
-		
-		public Interval create(Dependency dep, String name, int flags, CountDownLatch await, CountDownLatch signal) {
-			return new DgInterval(dep, name, flags, await, signal);
+			return new DgInterval(dep, name, flags);
 		}
 		
 		class DgInterval extends Interval {
 			
 			final String name;
 			final int flags;
-			final CountDownLatch await;
-			final CountDownLatch signal;
 
 			public DgInterval(
 					Dependency dep, 
 					String name, 
-					int flags,
-					CountDownLatch await,
-					CountDownLatch signal) 
+					int flags) 
 			{
 				super(dep, name);
 				this.name = name;
 				this.flags = flags;
-				this.await = await;
-				this.signal = signal;
 				
-				if((flags & FLAG_LCK1) != 0)
-					Intervals.addExclusiveLock(this, dg1);
-				if((flags & FLAG_LCK2) != 0)
-					Intervals.addExclusiveLock(this, dg2);
+				if((flags & FLAG_LCK1FOR1) != 0)
+					Intervals.addExclusiveLock(this, l1, dg1);
+				if((flags & FLAG_LCK1FOR2) != 0)
+					Intervals.addExclusiveLock(this, l1, dg2);
+				
+				if((flags & FLAG_LCK2FOR1) != 0)
+					Intervals.addExclusiveLock(this, l2, dg1);
+				if((flags & FLAG_LCK2FOR2) != 0)
+					Intervals.addExclusiveLock(this, l2, dg2);
 			}
 
 			@Override
 			protected void run() {
-				// Sometimes we want to force an ordering.  This can be hard
-				// to do, so we cheat:
-				if(await != null)
-					try {
-						await.await();
-					} catch (InterruptedException e) {}
-				
 				if((flags & FLAG_RD1) != 0) 
 					results.put(name + ".rd1", isReadable(dg1));
 				if((flags & FLAG_WR1) != 0) 
 					results.put(name + ".wr1", isWritable(dg1));
-				if((flags & FLAG_1LOCKABLEBY2) != 0)
-					results.put(name + ".1lockableby2", isLockable(dg1, dg2));
 				
 				if((flags & FLAG_RD2) != 0) 
 					results.put(name + ".rd2", isReadable(dg2));
 				if((flags & FLAG_WR2) != 0) 
 					results.put(name + ".wr2", isWritable(dg2));
-				if((flags & FLAG_2LOCKABLEBY1) != 0)
-					results.put(name + ".2lockableby1", isLockable(dg2, dg1));
-
-				if(signal != null)
-					await.countDown();
 			}
 			
 		}		
@@ -487,8 +462,8 @@ public class TestDynamicGuard {
 		
 		Intervals.subinterval(new VoidSubinterval() { 
 			@Override public void run(final Interval outer) {
-				f.create(outer, "a", FLAG_LCK1|FLAG_WR1);
-				f.create(outer, "b", FLAG_LCK1|FLAG_WR1);
+				f.create(outer, "a", FLAG_LCK1FOR1|FLAG_WR1);
+				f.create(outer, "b", FLAG_LCK1FOR1|FLAG_WR1);
 			}
 		});		
 		
@@ -502,7 +477,7 @@ public class TestDynamicGuard {
 		
 		Intervals.subinterval(new VoidSubinterval() { 
 			@Override public void run(final Interval a) {				
-				Interval withLock1 = f.create(a, "withLock1", FLAG_LCK1|FLAG_RD1);
+				Interval withLock1 = f.create(a, "withLock1", FLAG_LCK1FOR1|FLAG_RD1);
 				f.create(withLock1, "noLock", FLAG_WR1);
 			}
 		});		
@@ -538,7 +513,7 @@ public class TestDynamicGuard {
 		
 		Intervals.subinterval(new VoidSubinterval() { 
 			@Override public void run(final Interval a) {				
-				Interval withLock1 = f.create(a, "withLock1", FLAG_LCK1);
+				Interval withLock1 = f.create(a, "withLock1", FLAG_LCK1FOR1);
 				
 				Interval readers = f.create(withLock1, "readers", 0);
 				Interval reader0 = f.create(readers, "reader0", FLAG_RD1);
@@ -567,7 +542,7 @@ public class TestDynamicGuard {
 		
 		Intervals.subinterval(new VoidSubinterval() { 
 			@Override public void run(final Interval a) {				
-				Interval withLock1 = f.create(a, "withLock1", FLAG_LCK1);
+				Interval withLock1 = f.create(a, "withLock1", FLAG_LCK1FOR1);
 				
 				Interval readers = f.create(withLock1, "readers", 0);
 				Interval reader0 = f.create(readers, "reader0", FLAG_RD1);
@@ -642,7 +617,7 @@ public class TestDynamicGuard {
 			Intervals.subinterval(new VoidSubinterval() { 
 				@Override public String toString() { return "parent"; }
 				@Override public void run(final Interval parent) {
-					Interval lockChild = f.create(parent, "lockChild", FLAG_LCK1); 
+					Interval lockChild = f.create(parent, "lockChild", FLAG_LCK1FOR1); 
 					Interval unlockChild = f.create(parent, "unlockChild", unlockFlag); 
 					
 					if(lockFirst) 
@@ -692,12 +667,12 @@ public class TestDynamicGuard {
 		Intervals.subinterval(new VoidSubinterval() {
 			@Override public String toString() { return "outer"; }
 			@Override public void run(Interval subinterval) {
-				Interval wr = f.create(subinterval, "wr", FLAG_WR1, null, null);
-				Interval ro = f.create(subinterval, "rdOwner", FLAG_RD1, null, null);
+				Interval wr = f.create(subinterval, "wr", FLAG_WR1);
+				Interval ro = f.create(subinterval, "rdOwner", FLAG_RD1);
 				Intervals.addHb(wr, ro);
 
 				// Note: rp is parallel to wr and ro, but "happens" to come after ro:
-				Interval rp = f.create(subinterval, "rdPar", FLAG_RD1, null, null);
+				Interval rp = f.create(subinterval, "rdPar", FLAG_RD1);
 				ro.end.addEdgeAndAdjust(rp.start, ChunkList.TEST_EDGE);
 			}
 		});
@@ -714,20 +689,20 @@ public class TestDynamicGuard {
 	@Test public void testEmbedUnembedSuccessfully() {
 		final DgIntervalFactory f = new DgIntervalFactory();
 		
-		// |-wr1a-| -> |-l2a-| 
-		//                      |-l2b-| -> |-wr1b-|
+		// |-wr1a-| -> |-l1a-| 
+		//                      |-l1b-| -> |-wr1b-|
 		//
 		// Allowed because wr1a and wr1b are ordered through l2.
 		
 		Intervals.subinterval(new VoidSubinterval() {
 			@Override public String toString() { return "outer"; }
 			@Override public void run(Interval subinterval) {
-				Interval wr1a = f.create(subinterval, "wr1a", FLAG_WR1, null, null);
-				Interval l2a = f.create(subinterval, "l2a", FLAG_LCK2|FLAG_1LOCKABLEBY2, null, null);
+				Interval wr1a = f.create(subinterval, "wr1a", FLAG_WR1);
+				Interval l2a = f.create(subinterval, "l1a", FLAG_LCK1FOR1);
 				Intervals.addHb(wr1a, l2a);
 
-				Interval l2b = f.create(subinterval, "l2b", FLAG_LCK2|FLAG_1LOCKABLEBY2, null, null);
-				Interval wr1b = f.create(subinterval, "wr1b", FLAG_WR1, null, null);
+				Interval l2b = f.create(subinterval, "l1b", FLAG_LCK1FOR1);
+				Interval wr1b = f.create(subinterval, "wr1b", FLAG_WR1);
 				Intervals.addHb(l2b, wr1b);
 
 				l2a.end.addEdgeAndAdjust(l2b.start, TEST_EDGE);
@@ -737,8 +712,8 @@ public class TestDynamicGuard {
 		Assert.assertTrue(
 				f.results.toString(),
 				f.result("wr1a.wr1") &&
-				f.result("l2a.1lockableby2") &&
-				f.result("l2b.1lockableby2") &&
+				f.result("l1a.1lockableby2") &&
+				f.result("l1b.1lockableby2") &&
 				f.result("wr1b.wr1") &&
 				f.allResultsChecked());
 	}
@@ -756,15 +731,15 @@ public class TestDynamicGuard {
 		Intervals.subinterval(new VoidSubinterval() {
 			@Override public String toString() { return "outer"; }
 			@Override public void run(Interval subinterval) {
-				Interval wr1a = f.create(subinterval, "wr1a", FLAG_WR1, null, null);
-				Interval l2a = f.create(subinterval, "l2a", FLAG_LCK2|FLAG_1LOCKABLEBY2, null, null);
+				Interval wr1a = f.create(subinterval, "wr1a", FLAG_WR1);
+				Interval l2a = f.create(subinterval, "l2a", FLAG_LCK1FOR1);
 				Intervals.addHb(wr1a, l2a);
 
-				Interval l2b = f.create(subinterval, "l2b", FLAG_LCK2|FLAG_1LOCKABLEBY2, null, null);
-				Interval wr1b = f.create(subinterval, "wr1b", FLAG_WR1, null, null);
+				Interval l2b = f.create(subinterval, "l2b", FLAG_LCK1FOR1);
+				Interval wr1b = f.create(subinterval, "wr1b", FLAG_WR1);
 				Intervals.addHb(l2b, wr1b);
 
-				Interval l2c = f.create(subinterval, "l2c", FLAG_LCK2|FLAG_1LOCKABLEBY2, null, null);
+				Interval l2c = f.create(subinterval, "l2c", FLAG_LCK1FOR1);
 				
 				l2a.end.addEdgeAndAdjust(l2b.start, TEST_EDGE);
 				wr1b.end.addEdgeAndAdjust(l2c.start, TEST_EDGE);
@@ -795,15 +770,15 @@ public class TestDynamicGuard {
 		Intervals.subinterval(new VoidSubinterval() {
 			@Override public String toString() { return "outer"; }
 			@Override public void run(Interval subinterval) {
-				Interval wr1a = f.create(subinterval, "wr1a", FLAG_WR1, null, null);
-				Interval l2a = f.create(subinterval, "l2a", FLAG_LCK2|FLAG_1LOCKABLEBY2, null, null);
+				Interval wr1a = f.create(subinterval, "wr1a", FLAG_WR1);
+				Interval l2a = f.create(subinterval, "l2a", FLAG_LCK1FOR1);
 				Intervals.addHb(wr1a, l2a);
 
-				Interval l2b = f.create(subinterval, "l2b", FLAG_LCK2|FLAG_1LOCKABLEBY2, null, null);
-				Interval wr1b = f.create(subinterval, "wr1b", FLAG_WR1, null, null);
+				Interval l2b = f.create(subinterval, "l2b", FLAG_LCK1FOR1);
+				Interval wr1b = f.create(subinterval, "wr1b", FLAG_WR1);
 				Intervals.addHb(l2b, wr1b);
 
-				Interval l2c = f.create(subinterval, "l2c", FLAG_LCK2, null, null);
+				Interval l2c = f.create(subinterval, "l2c", FLAG_LCK1FOR1);
 				
 				l2a.end.addEdgeAndAdjust(l2b.start, TEST_EDGE);
 				wr1b.end.addEdgeAndAdjust(l2c.start, TEST_EDGE);
@@ -819,50 +794,21 @@ public class TestDynamicGuard {
 				f.allResultsChecked());
 	}
 
-	@Test public void testEmbedUnembedForgotLock() {
-		final DgIntervalFactory f = new DgIntervalFactory();
-		
-		Intervals.subinterval(new VoidSubinterval() {
-			@Override public String toString() { return "outer"; }
-			@Override public void run(Interval subinterval) {
-				Interval wr1a = f.create(subinterval, "wr1a", FLAG_WR1, null, null);
-				Interval em = f.create(subinterval, "em", FLAG_LCK2|FLAG_1LOCKABLEBY2, null, null);
-				Intervals.addHb(wr1a, em);
-
-				// Note: unem does not acquire LCK2, therefore it cannot unembed
-				// because dg2 will not be writable.
-				Interval unem = f.create(subinterval, "unem", FLAG_1LOCKABLEBY2, null, null);
-				Interval wr1b = f.create(subinterval, "wr1b", FLAG_WR1, null, null);
-				em.end.addEdgeAndAdjust(unem.start, ChunkList.TEST_EDGE);
-				Intervals.addHb(unem, wr1b);
-			}
-		});
-		
-		assertEquals(4, f.results.size());
-		
-		Assert.assertTrue(
-				f.results.toString(),
-				f.result("wr1a.wr1") &&
-				f.result("em.1lockableby2") &&
-				!f.result("unem.1lockableby2") &&
-				!f.result("wr1b.wr1"));
-	}
-	
 	@Test public void testUnorderedWriteAfterUnembed() {
 		final DgIntervalFactory f = new DgIntervalFactory();
 		
 		Intervals.subinterval(new VoidSubinterval() {
 			@Override public String toString() { return "outer"; }
 			@Override public void run(Interval subinterval) {
-				Interval wr1a = f.create(subinterval, "wr1a", FLAG_WR1, null, null);
-				Interval em = f.create(subinterval, "em", FLAG_LCK2|FLAG_1LOCKABLEBY2, null, null);
+				Interval wr1a = f.create(subinterval, "wr1a", FLAG_WR1);
+				Interval em = f.create(subinterval, "em", FLAG_LCK1FOR1);
 				Intervals.addHb(wr1a, em);
 
-				Interval unem = f.create(subinterval, "unem", FLAG_LCK2|FLAG_1LOCKABLEBY2, null, null);
+				Interval unem = f.create(subinterval, "unem", FLAG_LCK1FOR1);
 				em.end.addEdgeAndAdjust(unem.start, TEST_EDGE);
 				
 				// Note: this write is not ordered with respect to the unembed.
-				Interval wr1b = f.create(subinterval, "wr1b", FLAG_WR1, null, null);
+				Interval wr1b = f.create(subinterval, "wr1b", FLAG_WR1);
 				unem.end.addEdgeAndAdjust(wr1b.start, TEST_EDGE);
 			}
 		});
