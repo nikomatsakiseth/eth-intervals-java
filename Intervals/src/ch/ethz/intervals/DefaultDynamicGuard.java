@@ -185,9 +185,8 @@ implements DynamicGuard {
 		PointMirror interStart = inter.end();
 		State result = walkBack(interStart, inter);
 
-		// must either acquire same lock or happen after most recent write:
 		try {
-			if(lock != result.mrl) 
+			if(lock != result.mrl) // either acquire same lock or...
 				checkHappensAfterMostRecentWrite(interStart, inter, Role.LOCK, result);
 			checkHappensAfterActiveReads(interStart, inter, Role.LOCK, result);
 		} catch (IntervalException.DataRace err) {
