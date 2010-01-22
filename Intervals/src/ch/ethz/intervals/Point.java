@@ -13,7 +13,9 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
 import ch.ethz.intervals.ThreadPool.Worker;
 
-public abstract class Point {
+public abstract class Point 
+implements PointMirror 
+{
 	
 	public static final int OCCURRED = -1;		/** Value of {@link #waitCount} once we have occurred */
 	
@@ -96,23 +98,31 @@ public abstract class Point {
 		return i;
 	}
 	
+	@Override public final Point bound() {
+		return bound;
+	}
+	
+	public final boolean isBoundedBy(Point p) {
+		Point b = bound;
+		while(b.depth >= p.depth) 
+			b = b.bound;
+		return (b == p);
+	}
+	
 	/** True if {@code p} bounds {@code this} or one of its bounds */
-	public boolean isBoundedBy(Point p) {
-		if(depth > p.depth) {
-			for(Point b = bound; b != null; b = b.bound)
-				if(b == p)
-					return true;
-		}
+	@Override public final boolean isBoundedBy(PointMirror p) {
+		if(p instanceof Point) 
+			return isBoundedBy((Point)p);
 		return false;
 	}
 
 	/** True if {@code p == this} or {@link #isBoundedBy(Point)} */
-	public boolean isBoundedByOrEqualTo(Point p) {
+	public final boolean isBoundedByOrEqualTo(Point p) {
 		return (this == p) || isBoundedBy(p);
 	}
 
 	/** Returns true if {@code this} <i>happens before</i> {@code p} */
-	public boolean hb(final Point p) {
+	public final boolean hb(final PointMirror p) {
 		return hb(p, SPECULATIVE|TEST_EDGE);
 	}
 	
@@ -123,14 +133,14 @@ public abstract class Point {
 	
 	/** Returns true if {@code this} <i>happens before</i> {@code p},
 	 *  including speculative edges. */
-	boolean hbOrSpec(final Point p) {
+	boolean hbOrSpec(final PointMirror p) {
 		return hb(p, TEST_EDGE);
 	}
 	
 	/** true if {@code this} -> {@code p}.
 	 * @param tar another point
 	 * @param skipFlags Skips edges which have any of the flags in here. */
-	private boolean hb(final Point tar, final int skipFlags) {
+	private boolean hb(final PointMirror tar, final int skipFlags) {
 		assert tar != null;
 		
 		// XXX We currently access the list of outgoing edges with
@@ -158,7 +168,7 @@ public abstract class Point {
 		
 		// Efficiently check whether a point bounds tar or not:
 		class BoundHelper {
-			final Point[] tarBounds = tar.bounds();
+			final PointMirror[] tarBounds = Intervals.bounds(tar);
 			
 			boolean boundsTar(Point p) {
 				return p.depth < tarBounds.length && tarBounds[p.depth] == p;
@@ -502,22 +512,14 @@ public abstract class Point {
 		notifySuccessor(toImpl, false);
 	}
 
-	/** Returns an array {@code bounds} where {@code bounds[0]} == the bound at depth 0,
-	 *  {@code bounds[depth] == this} */
-	Point[] bounds() {
-		Point[] bounds = new Point[depth+1];
-		Point b = this;
-		for(int i = depth; i >= 0; i--) {
-			bounds[i] = b;
-			b = b.bound;
-		}
-		return bounds;
-	}
-
 	int numPendingExceptions() {
 		if(pendingExceptions == null)
 			return 0;
 		return pendingExceptions.size();
+	}
+
+	@Override
+	public void addHb(PointMirror pnt) {
 	}
 
 }

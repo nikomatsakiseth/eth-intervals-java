@@ -6,7 +6,7 @@ import ch.ethz.intervals.quals.Subinterval;
 
 public abstract class Interval 
 extends ThreadPool.WorkItem 
-implements Dependency, Guard
+implements Dependency, Guard, IntervalMirror
 {
 	private static final ChunkList<Interval> runMethodTerminated = ChunkList.empty();
 	
@@ -354,17 +354,44 @@ implements Dependency, Guard
 	
 	/**
 	 * True if {@code this} will hold the lock {@code lock}
-	 * when it executes.
+	 * when it executes, or it is a blocking subinterval of
+	 * someone who will.
 	 */
-	public final boolean holdsLock(Lock lock) {
-		for(LockList ll = revLocksSync(); ll != null; ll = ll.next)
-			if(ll.lock == lock)
-				return true;
+	@Override public final boolean locks(LockMirror lock) {
+		if(holdsLockItself(lock))
+			return true;
 		
 		if(parent != null && parent.line() == line())
-			return parent.holdsLock(lock);
+			return parent.locks(lock);
 		
 		return false;
 	}
-
+	
+	/**
+	 * True if {@code this} will hold the lock {@code lock}
+	 * when it executes.
+	 */
+	final boolean holdsLockItself(LockMirror lock) {
+		for(LockList ll = revLocksSync(); ll != null; ll = ll.next)
+			if(ll.lock == lock)
+				return true;
+		return false;
+	}
+	
+	@Override public PointMirror start() {
+		return start;
+	}
+	
+	@Override public PointMirror end() {
+		return end;
+	}
+	
+	@Override public void addLock(LockMirror lock) {
+		if(lock instanceof Lock) {
+			addExclusiveLock((Lock) lock);
+		} else {
+			throw new UnsupportedOperationException("Must be subtype of Lock");
+		}
+	}
+	
 }

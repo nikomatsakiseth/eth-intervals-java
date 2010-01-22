@@ -18,14 +18,12 @@ public class TestDynamicGuard {
 	public static final int FLAG_LCK1 = 1 << 0;
 	public static final int FLAG_RD1 = 1 << 1;
 	public static final int FLAG_WR1 = 1 << 2;
-	public static final int FLAG_EMBED1 = 1 << 3;
-	public static final int FLAG_UNEMBED1 = 1 << 4;
+	public static final int FLAG_1LOCKABLEBY2 = 1 << 3;
 	
 	public static final int FLAG_LCK2 = 1 << 10;
 	public static final int FLAG_RD2 = 1 << 11;
 	public static final int FLAG_WR2 = 1 << 12;	
-	public static final int FLAG_EMBED2 = 1 << 13;	
-	public static final int FLAG_UNEMBED2 = 1 << 14;	
+	public static final int FLAG_2LOCKABLEBY1 = 1 << 13;
 	
 	boolean isWritable(Guard g) {
 		try {
@@ -47,19 +45,9 @@ public class TestDynamicGuard {
 		}
 	}
 
-	boolean isEmbeddable(DynamicGuard g, Guard embedIn) {
+	boolean isLockable(DynamicGuard g, Lock l) {
 		try {
-			boolean res = g.checkEmbeddableIn(embedIn);
-			assert res;
-			return true;
-		} catch (IntervalException exc) {
-			return false;
-		}
-	}
-
-	boolean isUnembeddable(DynamicGuard g) {
-		try {
-			boolean res = g.checkUnembeddable();
+			boolean res = g.checkLockable(l);
 			assert res;
 			return true;
 		} catch (IntervalException exc) {
@@ -130,19 +118,15 @@ public class TestDynamicGuard {
 					results.put(name + ".rd1", isReadable(dg1));
 				if((flags & FLAG_WR1) != 0) 
 					results.put(name + ".wr1", isWritable(dg1));
-				if((flags & FLAG_EMBED1) != 0)
-					results.put(name + ".embed1", isEmbeddable(dg1, dg2));
-				if((flags & FLAG_UNEMBED1) != 0)
-					results.put(name + ".unembed1", isUnembeddable(dg1));
+				if((flags & FLAG_1LOCKABLEBY2) != 0)
+					results.put(name + ".1lockableby2", isLockable(dg1, dg2));
 				
 				if((flags & FLAG_RD2) != 0) 
 					results.put(name + ".rd2", isReadable(dg2));
 				if((flags & FLAG_WR2) != 0) 
 					results.put(name + ".wr2", isWritable(dg2));
-				if((flags & FLAG_EMBED2) != 0)
-					results.put(name + ".embed2", isEmbeddable(dg2, dg1));
-				if((flags & FLAG_UNEMBED2) != 0)
-					results.put(name + ".unembed2", isUnembeddable(dg2));
+				if((flags & FLAG_2LOCKABLEBY1) != 0)
+					results.put(name + ".2lockableby1", isLockable(dg2, dg1));
 
 				if(signal != null)
 					await.countDown();
@@ -420,9 +404,12 @@ public class TestDynamicGuard {
 			@Override public void run(final Interval outer) {				
 				Interval a = f.create(outer, "a", FLAG_WR1);
 				Interval a1 = f.create(a, "a1", FLAG_RD1);
-				f.create(a, "a2", FLAG_RD1);
-				f.create(a, "a3", FLAG_RD1);
-				Interval a4 = f.create(a, "a4", FLAG_WR1);				
+				Interval a2 = f.create(a, "a2", FLAG_RD1);
+				Interval a3 = f.create(a, "a3", FLAG_RD1);
+				Interval a4 = f.create(a, "a4", FLAG_WR1);
+				Intervals.addHb(a1, a4);
+				Intervals.addHb(a2, a4);
+				Intervals.addHb(a3, a4);
 				
 				Interval b = f.create(outer, "b", FLAG_RD1);
 				
@@ -494,33 +481,18 @@ public class TestDynamicGuard {
 	}
 	
 	@Test public void testTwoWritersObtainingLocks() {
-		final List<Boolean> results = Collections.synchronizedList(new ArrayList<Boolean>());
+		final DgIntervalFactory f = new DgIntervalFactory();
 		
 		Intervals.subinterval(new VoidSubinterval() { 
-			@Override public void run(final Interval a) {
-				final DynamicGuard dg = new DynamicGuard();
-				
-				new Interval(a, "withLock1") {
-					{ Intervals.addExclusiveLock(this, dg); }
-					@Override protected void run() {
-						results.add(isWritable(dg));
-					}
-				};
-				
-				new Interval(a, "withLock2") {					
-					{ Intervals.addExclusiveLock(this, dg); }
-					@Override protected void run() {
-						results.add(isWritable(dg));
-					}
-				};
+			@Override public void run(final Interval outer) {
+				f.create(outer, "a", FLAG_LCK1|FLAG_WR1);
+				f.create(outer, "b", FLAG_LCK1|FLAG_WR1);
 			}
 		});		
 		
-		assertEquals(2, results.size());
-		
-		int i = 0;
-		assertEquals(true, results.get(i++));
-		assertEquals(true, results.get(i++));
+		Assert.assertTrue(f.result("a.wr1"));		
+		Assert.assertTrue(f.result("b.wr1"));		
+		Assert.assertTrue(f.allResultsChecked());
 	}
 	
 	@Test public void testLockingIntervalDoesNotContendWithChildren() {
@@ -671,7 +643,6 @@ public class TestDynamicGuard {
 					Interval lockChild = f.create(parent, "lockChild", FLAG_LCK1); 
 					Interval unlockChild = f.create(parent, "unlockChild", unlockFlag); 
 					
-					// Use speculative flag to enforce an ordering without actually creating HB relations:
 					if(lockFirst) 
 						lockChild.end.addEdgeAndAdjust(unlockChild.start, ChunkList.TEST_EDGE);
 					else
@@ -741,28 +712,109 @@ public class TestDynamicGuard {
 	@Test public void testEmbedUnembedSuccessfully() {
 		final DgIntervalFactory f = new DgIntervalFactory();
 		
+		// |-wr1a-| -> |-l2a-| 
+		//                      |-l2b-| -> |-wr1b-|
+		//
+		// Allowed because wr1a and wr1b are ordered through l2.
+		
 		Intervals.subinterval(new VoidSubinterval() {
 			@Override public String toString() { return "outer"; }
 			@Override public void run(Interval subinterval) {
 				Interval wr1a = f.create(subinterval, "wr1a", FLAG_WR1, null, null);
-				Interval em = f.create(subinterval, "em", FLAG_LCK2|FLAG_EMBED1, null, null);
-				Intervals.addHb(wr1a, em);
+				Interval l2a = f.create(subinterval, "l2a", FLAG_LCK2|FLAG_1LOCKABLEBY2, null, null);
+				Intervals.addHb(wr1a, l2a);
 
-				Interval unem = f.create(subinterval, "unem", FLAG_LCK2|FLAG_UNEMBED1, null, null);
+				Interval l2b = f.create(subinterval, "l2b", FLAG_LCK2|FLAG_1LOCKABLEBY2, null, null);
 				Interval wr1b = f.create(subinterval, "wr1b", FLAG_WR1, null, null);
-				em.end.addEdgeAndAdjust(unem.start, ChunkList.TEST_EDGE);
-				Intervals.addHb(unem, wr1b);
+				Intervals.addHb(l2b, wr1b);
+
+				l2a.end.addEdgeAndAdjust(l2b.start, TEST_EDGE);
 			}
 		});
-		
-		assertEquals(4, f.results.size());
 		
 		Assert.assertTrue(
 				f.results.toString(),
 				f.result("wr1a.wr1") &&
-				f.result("em.embed1") &&
-				f.result("unem.unembed1") &&
-				f.result("wr1b.wr1"));
+				f.result("l2a.1lockableby2") &&
+				f.result("l2b.1lockableby2") &&
+				f.result("wr1b.wr1") &&
+				f.allResultsChecked());
+	}
+
+	@Test public void testEmbedUnembedExtraLock() {
+		final DgIntervalFactory f = new DgIntervalFactory();
+		
+		//
+		// |-wr1a-| -> |-l2a-| 
+		//                      |-l2b-| -> |-wr1b-|
+		//                                     |-l3b-|
+		//
+		// Illegal because l3b and wr1b conflict.
+		
+		Intervals.subinterval(new VoidSubinterval() {
+			@Override public String toString() { return "outer"; }
+			@Override public void run(Interval subinterval) {
+				Interval wr1a = f.create(subinterval, "wr1a", FLAG_WR1, null, null);
+				Interval l2a = f.create(subinterval, "l2a", FLAG_LCK2|FLAG_1LOCKABLEBY2, null, null);
+				Intervals.addHb(wr1a, l2a);
+
+				Interval l2b = f.create(subinterval, "l2b", FLAG_LCK2|FLAG_1LOCKABLEBY2, null, null);
+				Interval wr1b = f.create(subinterval, "wr1b", FLAG_WR1, null, null);
+				Intervals.addHb(l2b, wr1b);
+
+				Interval l2c = f.create(subinterval, "l2c", FLAG_LCK2|FLAG_1LOCKABLEBY2, null, null);
+				
+				l2a.end.addEdgeAndAdjust(l2b.start, TEST_EDGE);
+				wr1b.end.addEdgeAndAdjust(l2c.start, TEST_EDGE);
+			}
+		});
+		
+		Assert.assertTrue(
+				f.results.toString(),
+				f.result("wr1a.wr1") &&
+				f.result("l2a.1lockableby2") &&
+				f.result("l2b.1lockableby2") &&
+				!f.result("l2c.1lockableby2") &&
+				f.result("wr1b.wr1") &&
+				f.allResultsChecked());
+	}
+	
+	@Test public void testEmbedUnembedExtraLockWithoutLockableBy() {
+		final DgIntervalFactory f = new DgIntervalFactory();
+		
+		//
+		// |-wr1a-| -> |-l2a-| 
+		//                      |-l2b-| -> |-wr1b-|
+		//                                     |-l3b-|
+		//
+		// In contrast to testEmbedUnembedExtraLock, 
+		// Legal because l3b never tries to access dg1!
+		
+		Intervals.subinterval(new VoidSubinterval() {
+			@Override public String toString() { return "outer"; }
+			@Override public void run(Interval subinterval) {
+				Interval wr1a = f.create(subinterval, "wr1a", FLAG_WR1, null, null);
+				Interval l2a = f.create(subinterval, "l2a", FLAG_LCK2|FLAG_1LOCKABLEBY2, null, null);
+				Intervals.addHb(wr1a, l2a);
+
+				Interval l2b = f.create(subinterval, "l2b", FLAG_LCK2|FLAG_1LOCKABLEBY2, null, null);
+				Interval wr1b = f.create(subinterval, "wr1b", FLAG_WR1, null, null);
+				Intervals.addHb(l2b, wr1b);
+
+				Interval l2c = f.create(subinterval, "l2c", FLAG_LCK2, null, null);
+				
+				l2a.end.addEdgeAndAdjust(l2b.start, TEST_EDGE);
+				wr1b.end.addEdgeAndAdjust(l2c.start, TEST_EDGE);
+			}
+		});
+		
+		Assert.assertTrue(
+				f.results.toString(),
+				f.result("wr1a.wr1") &&
+				f.result("l2a.1lockableby2") &&
+				f.result("l2b.1lockableby2") &&
+				f.result("wr1b.wr1") &&
+				f.allResultsChecked());
 	}
 
 	@Test public void testEmbedUnembedForgotLock() {
@@ -772,12 +824,12 @@ public class TestDynamicGuard {
 			@Override public String toString() { return "outer"; }
 			@Override public void run(Interval subinterval) {
 				Interval wr1a = f.create(subinterval, "wr1a", FLAG_WR1, null, null);
-				Interval em = f.create(subinterval, "em", FLAG_LCK2|FLAG_EMBED1, null, null);
+				Interval em = f.create(subinterval, "em", FLAG_LCK2|FLAG_1LOCKABLEBY2, null, null);
 				Intervals.addHb(wr1a, em);
 
 				// Note: unem does not acquire LCK2, therefore it cannot unembed
 				// because dg2 will not be writable.
-				Interval unem = f.create(subinterval, "unem", FLAG_UNEMBED1, null, null);
+				Interval unem = f.create(subinterval, "unem", FLAG_1LOCKABLEBY2, null, null);
 				Interval wr1b = f.create(subinterval, "wr1b", FLAG_WR1, null, null);
 				em.end.addEdgeAndAdjust(unem.start, ChunkList.TEST_EDGE);
 				Intervals.addHb(unem, wr1b);
@@ -789,39 +841,9 @@ public class TestDynamicGuard {
 		Assert.assertTrue(
 				f.results.toString(),
 				f.result("wr1a.wr1") &&
-				f.result("em.embed1") &&
-				!f.result("unem.unembed1") &&
+				f.result("em.1lockableby2") &&
+				!f.result("unem.1lockableby2") &&
 				!f.result("wr1b.wr1"));
-	}
-
-	@Test public void testEmbedUnembedWriteOrdered() {
-		final DgIntervalFactory f = new DgIntervalFactory();
-		
-		Intervals.subinterval(new VoidSubinterval() {
-			@Override public String toString() { return "outer"; }
-			@Override public void run(Interval subinterval) {
-				Interval wr1a = f.create(subinterval, "wr1a", FLAG_WR1, null, null);
-				Interval em = f.create(subinterval, "em", FLAG_WR2|FLAG_EMBED1, null, null);
-				Intervals.addHb(wr1a, em);
-
-				Interval unem = f.create(subinterval, "unem", FLAG_WR2|FLAG_UNEMBED1, null, null);
-				Intervals.addHb(em, unem);
-				
-				Interval wr1b = f.create(subinterval, "wr1b", FLAG_WR1, null, null);
-				Intervals.addHb(unem, wr1b);
-			}
-		});
-		
-		assertEquals(6, f.results.size());
-		
-		Assert.assertTrue(
-				f.results.toString(),
-				f.result("wr1a.wr1") &&
-				f.result("em.wr2") &&
-				f.result("em.embed1") &&
-				f.result("unem.wr2") &&
-				f.result("unem.unembed1") &&
-				f.result("wr1b.wr1"));
 	}
 	
 	@Test public void testUnorderedWriteAfterUnembed() {
@@ -831,10 +853,10 @@ public class TestDynamicGuard {
 			@Override public String toString() { return "outer"; }
 			@Override public void run(Interval subinterval) {
 				Interval wr1a = f.create(subinterval, "wr1a", FLAG_WR1, null, null);
-				Interval em = f.create(subinterval, "em", FLAG_LCK2|FLAG_EMBED1, null, null);
+				Interval em = f.create(subinterval, "em", FLAG_LCK2|FLAG_1LOCKABLEBY2, null, null);
 				Intervals.addHb(wr1a, em);
 
-				Interval unem = f.create(subinterval, "unem", FLAG_LCK2|FLAG_UNEMBED1, null, null);
+				Interval unem = f.create(subinterval, "unem", FLAG_LCK2|FLAG_1LOCKABLEBY2, null, null);
 				em.end.addEdgeAndAdjust(unem.start, TEST_EDGE);
 				
 				// Note: this write is not ordered with respect to the unembed.
@@ -848,8 +870,8 @@ public class TestDynamicGuard {
 		Assert.assertTrue(
 				f.results.toString(),
 				f.result("wr1a.wr1") &&
-				f.result("em.embed1") &&
-				f.result("unem.unembed1") &&
+				f.result("em.1lockableby2") &&
+				f.result("unem.1lockableby2") &&
 				!f.result("wr1b.wr1"));
 	}
 }

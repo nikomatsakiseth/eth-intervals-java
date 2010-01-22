@@ -3,7 +3,7 @@ package ch.ethz.intervals;
 
 public class Lock
 extends /*@Writer("this.constructor")*/ LockBase 
-implements Guard
+implements Guard, LockMirror
 {
 	private final String name;
 	
@@ -25,7 +25,7 @@ implements Guard
 	@Override
 	public boolean checkWritable() {
 		Current current = Current.get();
-		if(current.inter == null || !current.inter.holdsLock(this))
+		if(current.inter == null || !current.inter.locks(this))
 			throw new IntervalException.LockNotHeld(this, current.inter);
 		return true;
 	}

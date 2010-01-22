@@ -2,6 +2,10 @@ package ch.ethz.intervals;
 
 import static ch.ethz.intervals.ChunkList.NORMAL;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
 /** Static methods for creating and manipulating intervals. */
 public class Intervals {
 	
@@ -335,6 +339,29 @@ public class Intervals {
 	static Line line(Interval parent) {
 		if(parent == null) return Line.rootLine;
 		return parent.line();
+	}
+	
+	/** Returns an array {@code bounds} where {@code bounds[0]} == the bound at depth 0,
+	 *  {@code bounds[depth] == this} */
+	public static PointMirror[] bounds(PointMirror pointMirror) {
+		if(pointMirror instanceof Point) {
+			Point b = (Point)pointMirror;
+			Point[] bounds = new Point[b.depth+1];
+			for(int i = b.depth; i >= 0; i--) {
+				bounds[i] = b;
+				b = b.bound;
+			}
+			return bounds;			
+		} else {
+			List<PointMirror> lst = new ArrayList<PointMirror>();
+			PointMirror bnd = pointMirror;
+			while(bnd != null) {
+				lst.add(bnd);
+				bnd = bnd.bound();
+			}
+			Collections.reverse(lst);
+			return lst.toArray(new PointMirror[lst.size()]);
+		}
 	}
 	
 }

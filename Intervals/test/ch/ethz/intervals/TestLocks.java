@@ -32,7 +32,7 @@ public class TestLocks {
 
 		@Override protected void run() {
 			Assert.assertTrue(lock.checkWritable());
-			Assert.assertTrue(this.holdsLock(lock));
+			Assert.assertTrue(this.locks(lock));
 			list.add(id);
 		}
 	}
