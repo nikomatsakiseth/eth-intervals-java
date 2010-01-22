@@ -1,4 +1,7 @@
-package ch.ethz.intervals;
+package ch.ethz.intervals.mirror;
+
+import ch.ethz.intervals.Guard;
+import ch.ethz.intervals.Interval;
 
 /** 
  * Mirror class representing intervals.  {@link Guard} implementations should

@@ -1,6 +1,9 @@
 package ch.ethz.intervals;
 
 import ch.ethz.intervals.ThreadPool.Worker;
+import ch.ethz.intervals.mirror.IntervalMirror;
+import ch.ethz.intervals.mirror.LockMirror;
+import ch.ethz.intervals.mirror.PointMirror;
 import ch.ethz.intervals.quals.Requires;
 import ch.ethz.intervals.quals.Subinterval;
 

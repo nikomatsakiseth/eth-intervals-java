@@ -1,4 +1,7 @@
-package ch.ethz.intervals;
+package ch.ethz.intervals.mirror;
+
+import ch.ethz.intervals.Guard;
+import ch.ethz.intervals.Point;
 
 /** 
  * Mirror class representing points.  {@link Guard} implementations should

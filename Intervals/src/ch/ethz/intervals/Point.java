@@ -12,6 +12,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
 import ch.ethz.intervals.ThreadPool.Worker;
+import ch.ethz.intervals.mirror.PointMirror;
 
 public abstract class Point 
 implements PointMirror 

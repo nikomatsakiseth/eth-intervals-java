@@ -6,6 +6,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import ch.ethz.intervals.mirror.PointMirror;
+
 /** Static methods for creating and manipulating intervals. */
 public class Intervals {
 	

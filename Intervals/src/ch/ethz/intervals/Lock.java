@@ -1,5 +1,7 @@
 package ch.ethz.intervals;
 
+import ch.ethz.intervals.mirror.LockMirror;
+
 
 public class Lock
 extends /*@Writer("this.constructor")*/ LockBase 
