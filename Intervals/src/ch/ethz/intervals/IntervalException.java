@@ -1,6 +1,6 @@
 package ch.ethz.intervals;
 
-import ch.ethz.intervals.guard.DefaultDynamicGuard;
+import ch.ethz.intervals.guard.ReadTrackingDynamicGuard;
 import ch.ethz.intervals.guard.Guard;
 import ch.ethz.intervals.mirror.IntervalMirror;
 import ch.ethz.intervals.mirror.LockMirror;
@@ -74,7 +74,7 @@ public abstract class IntervalException extends RuntimeException {
 		}		
 	}
 	
-	/** Indicates that a data race was detected on a {@link DefaultDynamicGuard} */
+	/** Indicates that a data race was detected on a {@link ReadTrackingDynamicGuard} */
 	public static class DataRace extends IntervalException {
 		public abstract static class Role { }
 		private static class NamedRole extends Role {

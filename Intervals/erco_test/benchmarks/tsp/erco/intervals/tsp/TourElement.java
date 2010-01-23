@@ -7,11 +7,11 @@ package erco.intervals.tsp;
  * @version $Id: TourElement.java 2094 2003-01-30 09:41:18Z praun $
  * @author Florian Schneider
  */
-import ch.ethz.intervals.guard.DefaultDynamicGuard;
+import ch.ethz.intervals.guard.ReadTrackingDynamicGuard;
 import ch.ethz.intervals.quals.GuardedBy;
 
 public class TourElement {
-	final DefaultDynamicGuard dg = new DefaultDynamicGuard();
+	final ReadTrackingDynamicGuard dg = new ReadTrackingDynamicGuard();
     @GuardedBy("dg") private int[] prefix=new int[Tsp.MAX_TOUR_SIZE];
     @GuardedBy("dg") private int conn;
     @GuardedBy("dg") private int last;

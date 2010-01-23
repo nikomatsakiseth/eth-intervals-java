@@ -1,14 +1,11 @@
 package ch.ethz.intervals.guard;
 
 import ch.ethz.intervals.IntervalException;
-import ch.ethz.intervals.Point;
 import ch.ethz.intervals.IntervalException.DataRace;
 import ch.ethz.intervals.IntervalException.DataRace.Role;
 import ch.ethz.intervals.mirror.IntervalMirror;
 import ch.ethz.intervals.mirror.LockMirror;
 import ch.ethz.intervals.mirror.PointMirror;
-import ch.ethz.intervals.util.ChunkList;
-
 
 /**
  * Dynamic guards monitor field accesses dynamically to guarantee 
@@ -16,22 +13,25 @@ import ch.ethz.intervals.util.ChunkList;
  * to data sharing the same dynamic guard <em>happen before</em>
  * all other writes as well as any reads.  
  * 
- * <p>Whenever there are multiple reads which are not ordered by
- * <i>happens before</i> relations, the next write must occur
- * after the mutual bound of all reads, as defined by
- * {@link Point#mutualBound(Point)}.
+ * <p>This class serves as an abstract base class for other dynamic
+ * checkers. It keeps track of the active and most recent intervals
+ * to write or lock as well as any active readers.  
+ * 
+ * <p>This class is intended to be customized 
+ * with respect to the amount of detail it tracks on the active readers:
+ * the type parameter {@code R} defines the type of the state that is
+ * being used, and several abstract methods manipulate the state to add
+ * readers or check for conflicts.  Note that {@code R} is always 
+ * reset to {@code null} to indicate that there are no readers at all. 
  */
-public class DefaultDynamicGuard 
-implements DynamicGuard {
+abstract class WriteTrackingDynamicGuard<R> implements DynamicGuard {
 	
-	private final String name;
-	
-	private final static class Owner {
+	final static class Owner {
 		final PointMirror end;
 		final LockMirror lock;
 		final Owner prev;
 		
-		private Owner(PointMirror bound, LockMirror lock, Owner prev) {
+		Owner(PointMirror bound, LockMirror lock, Owner prev) {
 			this.end = bound;
 			this.lock = lock;
 			this.prev = prev;
@@ -41,33 +41,35 @@ implements DynamicGuard {
 			return (end == null) || inter.end().isBoundedBy(end);
 		}
 	}
+
+	static final Owner rootOwner = new Owner(null, null, null);
 	
-	private static final Owner rootOwner = new Owner(null, null, null); 
+	private final String name;
 	
-	private final static class State {
+	protected static final class State<R> {
 		Owner owner;
 		PointMirror mrw;
 		LockMirror mrl;
-		ChunkList<PointMirror> activeReads;
+		R activeReads;
 	}
 	
 	/** current owner */
-	Owner owner = rootOwner;
+	Owner owner = WriteTrackingDynamicGuard.rootOwner;
 	
 	/** end of most recent write within current owner */
 	PointMirror mrw = null;
 	
 	/** end of potentially active reads within current owner */
-	ChunkList<PointMirror> activeReads = null;
+	R activeReads = null;
 	
-	public DefaultDynamicGuard() {
+	public WriteTrackingDynamicGuard() {
 		this(null);
 	}
 	
-	public DefaultDynamicGuard(String name) {
+	public WriteTrackingDynamicGuard(String name) {
 		this.name = name;
 	}
-	
+
 	@Override public String toString() {
 		if(name != null)
 			return name;
@@ -83,15 +85,15 @@ implements DynamicGuard {
 	 * <li> Drops any active reads which were bounded by a popped owner. 
 	 * </ul>  
 	 */
-	private State walkBack(PointMirror mr, IntervalMirror inter) {
-		State result = new State();
+	private State<R> walkBack(PointMirror mr, IntervalMirror inter) {
+		State<R> result = new State<R>();
 		if(owner.bounds(inter)) {
 			result.owner = owner;
 			result.mrw = mrw;
 			result.mrl = null;
 			result.activeReads = activeReads;			
 		} else {
-			Owner o = owner;
+			WriteTrackingDynamicGuard.Owner o = owner;
 			do {
 				result.mrw = o.end;
 				result.mrl = o.lock;
@@ -103,7 +105,7 @@ implements DynamicGuard {
 		return result;
 	}
 	
-	private Role mrRole(State result) {
+	private Role mrRole(State<R> result) {
 		return (result.mrl != null ? new DataRace.LockRole(result.mrl) : DataRace.WRITE);
 	}
 	
@@ -111,31 +113,36 @@ implements DynamicGuard {
 			final PointMirror mr,
 			final IntervalMirror inter, 
 			final Role interRole,
-			State result) 
+			State<R> result) 
 	{
 		if(result.mrw != null && !result.mrw.hbeq(mr))
 			throw new IntervalException.DataRace(this, interRole, inter, mrRole(result), result.mrw);
 	}
 
-	private void checkHappensAfterActiveReads(
+	/** Adds an active reader to the read set.
+	 * 
+	 *  @code reads the previous set of readers.  This value may be modified in place
+	 *  if desired.
+	 *  @code interEnd the bound of the reader to add to the read set
+	 *  
+	 *  @returns the new read set */
+	protected abstract R addActiveReadBoundedBy(R reads, PointMirror interEnd);
+
+	/** Checks whether the given interval happens after all the reads represented
+	 *  by the read set {@code reads}.  
+	 *  
+	 *  @param mr the most recent point within {@code inter} that has occurred
+	 *  @param inter the accessing interval
+	 *  @param interRole the role of the accessing interval (read, write, etc)
+	 *  @param reads the set of reads
+	 *  
+	 *  @throws IntervalException if an error is detected
+	 */
+	protected abstract void checkHappensAfterActiveReads(
 			final PointMirror mr,
 			final IntervalMirror inter, 
 			final Role interRole,
-			State result) 
-	{
-		final PointMirror interEnd = inter.end();
-		if(result.activeReads != null) {
-			new ChunkList.Iterator<PointMirror>(result.activeReads) {
-				@Override public void doForEach(PointMirror rd, int _) {
-					if(rd != interEnd && !rd.hbeq(mr))
-						throw new IntervalException.DataRace(
-								DefaultDynamicGuard.this, 
-								interRole, inter,
-								DataRace.READ, rd);
-				}
-			};
-		}
-	}
+			final R reads);
 	
 	@Override
 	public synchronized IntervalException checkReadable(PointMirror mr, IntervalMirror inter) {
@@ -145,7 +152,7 @@ implements DynamicGuard {
 		if(owner.end == interEnd)
 			return null;
 		
-		State result = walkBack(mr, inter);		
+		State<R> result = walkBack(mr, inter);		
 		try {
 			checkHappensAfterMostRecentWrite(mr, inter, DataRace.READ, result);
 		} catch (IntervalException.DataRace err) {
@@ -155,11 +162,10 @@ implements DynamicGuard {
 		// read is permitted:
 		owner = result.owner;
 		mrw = result.mrw;
-		activeReads = ChunkList.add(result.activeReads, interEnd, ChunkList.NO_FLAGS);
+		activeReads = addActiveReadBoundedBy(result.activeReads, interEnd);
 		return null;
 	}
 	
-
 	@Override
 	public synchronized IntervalException checkWritable(final PointMirror mr, final IntervalMirror inter) {
 		PointMirror interEnd = inter.end();
@@ -168,17 +174,17 @@ implements DynamicGuard {
 		if(owner.end == interEnd)
 			return null;
 		
-		State result = walkBack(mr, inter);
+		State<R> result = walkBack(mr, inter);
 		
 		try {
 			checkHappensAfterMostRecentWrite(mr, inter, DataRace.WRITE, result);
-			checkHappensAfterActiveReads(mr, inter, DataRace.WRITE, result);
+			checkHappensAfterActiveReads(mr, inter, DataRace.WRITE, result.activeReads);
 		} catch (IntervalException.DataRace err) {
 			return err;
 		}
 		
 		// write is permitted:
-		owner = new Owner(interEnd, null, result.owner);
+		owner = new WriteTrackingDynamicGuard.Owner(interEnd, null, result.owner);
 		mrw = null;
 		activeReads = null;
 		return null;
@@ -189,19 +195,19 @@ implements DynamicGuard {
 		assert lock != null;
 		
 		PointMirror interStart = inter.end();
-		State result = walkBack(interStart, inter);
+		State<R> result = walkBack(interStart, inter);
 
 		try {
 			DataRace.Role role = new DataRace.LockRole(lock);
 			if(lock != result.mrl) // either acquire same lock or...
 				checkHappensAfterMostRecentWrite(interStart, inter, role, result);
-			checkHappensAfterActiveReads(interStart, inter, role, result);
+			checkHappensAfterActiveReads(interStart, inter, role, result.activeReads);
 		} catch (IntervalException.DataRace err) {
 			return err;
 		}
 		
 		// lock is permitted:
-		owner = new Owner(inter.end(), lock, result.owner);
+		owner = new WriteTrackingDynamicGuard.Owner(inter.end(), lock, result.owner);
 		mrw = null;
 		activeReads = null;
 		return null;

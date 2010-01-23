@@ -22,7 +22,7 @@ import ch.ethz.intervals.quals.WrittenDuring;
  * written by the {@link Interval#run()} method of {@code inter}, but they
  * may be read by an interval which {@code inter} <em>happens before</em>.\
  * 
- * <li>{@link DefaultDynamicGuard}: Fields guarded by a dynamic guard are dynamically monitored
+ * <li>{@link ReadTrackingDynamicGuard}: Fields guarded by a dynamic guard are dynamically monitored
  * for data-race violations.  Every write must <em>happen before</em> all later writes
  * and reads.  
  * 
@@ -30,8 +30,8 @@ import ch.ethz.intervals.quals.WrittenDuring;
  *
  * <p>To indicate the guard for a field, use a {@link GuardedBy} or {@link WrittenDuring}
  * annotation.  Note that guard annotations are only enforced when using our 
- * {@code Javac} plugin.  All guard types except {@link DefaultDynamicGuard} are enforced statically; 
- * violations of {@link DefaultDynamicGuard} are enforced dynamically and the required instrumentation
+ * {@code Javac} plugin.  All guard types except {@link ReadTrackingDynamicGuard} are enforced statically; 
+ * violations of {@link ReadTrackingDynamicGuard} are enforced dynamically and the required instrumentation
  * is automatically inserted by the plugin.
  * 
  * <p>If the compiler plugin cannot statically prove the safety of your program,

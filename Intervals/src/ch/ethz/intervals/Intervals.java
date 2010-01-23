@@ -374,6 +374,24 @@ public class Intervals {
 		}
 	}
 	
+	public static PointMirror mutualBound(PointMirror one, PointMirror two) {
+		if(one instanceof Point && two instanceof Point) {
+			return ((Point)one).mutualBound((Point) two);
+		} else {
+			PointMirror oneBounds[] = bounds(one);
+			
+			PointMirror b = two;
+			while(b != null) {
+				for(int i = 0; i < oneBounds.length; i++) 
+					if(oneBounds[i] == b)
+						return b;
+				b = b.bound();
+			}
+			
+			return null;
+		}
+	}
+
 	/**
 	 * Convenience method for asserting that the current interval is readable.
 	 * Intended to be used like: {@code assert checkReadable(guard);}

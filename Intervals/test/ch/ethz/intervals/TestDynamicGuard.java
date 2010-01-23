@@ -8,13 +8,13 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
 
 import org.junit.Assert;
 import org.junit.Test;
 
 import ch.ethz.intervals.IntervalException.DataRace;
-import ch.ethz.intervals.guard.DefaultDynamicGuard;
+import ch.ethz.intervals.guard.ReadSummarizingDynamicGuard;
+import ch.ethz.intervals.guard.ReadTrackingDynamicGuard;
 import ch.ethz.intervals.guard.Guard;
 import ch.ethz.intervals.util.ChunkList;
 
@@ -54,8 +54,9 @@ public class TestDynamicGuard {
 		public final Lock l1 = new Lock("l1");
 		public final Lock l2 = new Lock("l2");
 		
-		public final DefaultDynamicGuard dg1 = new DefaultDynamicGuard("dg1");
-		public final DefaultDynamicGuard dg2 = new DefaultDynamicGuard("dg2");
+		public final ReadTrackingDynamicGuard dg1 = new ReadTrackingDynamicGuard("dg1");
+		
+		public final ReadSummarizingDynamicGuard dg2 = new ReadSummarizingDynamicGuard("dg2");
 		
 		public final Map<String, Boolean> results = 
 			Collections.synchronizedMap(new HashMap<String, Boolean>());
@@ -135,7 +136,7 @@ public class TestDynamicGuard {
 		
 		Intervals.subinterval(new VoidSubinterval() { 
 			@Override public void run(Interval a) {
-				final DefaultDynamicGuard dg = new DefaultDynamicGuard();
+				final ReadTrackingDynamicGuard dg = new ReadTrackingDynamicGuard();
 				
 				final Interval a1 = new Interval(a, "a1") {
 					@Override protected void run() {
@@ -193,7 +194,7 @@ public class TestDynamicGuard {
 		
 		Intervals.subinterval(new VoidSubinterval() { 
 			@Override public void run(Interval a) {
-				final DefaultDynamicGuard dg = new DefaultDynamicGuard();
+				final ReadTrackingDynamicGuard dg = new ReadTrackingDynamicGuard();
 				
 				Intervals.subinterval(new VoidSubinterval() {
 					@Override public String toString() { return "a1"; }
@@ -250,7 +251,7 @@ public class TestDynamicGuard {
 		
 		Intervals.subinterval(new VoidSubinterval() { 
 			@Override public void run(Interval a) {
-				final DefaultDynamicGuard dg = new DefaultDynamicGuard();
+				final ReadTrackingDynamicGuard dg = new ReadTrackingDynamicGuard();
 				
 				results.add(isReadable(dg));
 				results.add(isWritable(dg));
@@ -310,7 +311,7 @@ public class TestDynamicGuard {
 		
 		Intervals.subinterval(new VoidSubinterval() { 
 			@Override public void run(final Interval a) {
-				final DefaultDynamicGuard dg = new DefaultDynamicGuard();
+				final ReadTrackingDynamicGuard dg = new ReadTrackingDynamicGuard();
 				
 				final Interval a1 = new Interval(a, "a1") {
 					@Override protected void run() {
@@ -421,7 +422,7 @@ public class TestDynamicGuard {
 		
 		Intervals.subinterval(new VoidSubinterval() { 
 			@Override public void run(final Interval a) {
-				final DefaultDynamicGuard dg = new DefaultDynamicGuard();
+				final ReadTrackingDynamicGuard dg = new ReadTrackingDynamicGuard();
 				
 				final Interval a1 = new Interval(a) {
 					@Override public String toString() { return "a1"; }
@@ -567,6 +568,51 @@ public class TestDynamicGuard {
 				f.result("reader2.rd1") && 
 				f.result("writer0.rd1") &&
 				f.result("writer0.wr1"));
+	}	
+	
+	@Test public void testTrackingAndSummarizingManyReaders() {
+		final DgIntervalFactory f = new DgIntervalFactory();
+		
+		Intervals.subinterval(new VoidSubinterval() { 
+			@Override public void run(final Interval a) {		
+				Interval b1 = f.create(a, "b1", 0);
+				
+				Interval wr1 = f.create(b1, "wr1", FLAG_WR1|FLAG_WR2);
+				
+				Interval reader0 = f.create(b1, "reader0", FLAG_RD1|FLAG_RD2);
+				Interval reader1 = f.create(b1, "reader1", FLAG_RD1|FLAG_RD2);
+				Intervals.addHb(wr1, reader0);
+				Intervals.addHb(wr1, reader1);
+				
+				Interval wr2 = f.create(b1, "wr2", FLAG_WR1|FLAG_WR2);
+				Intervals.addHb(reader0, wr2);
+				Intervals.addHb(reader1, wr2);	
+				
+				Interval b2 = f.create(a, "b2", FLAG_WR1|FLAG_WR2);
+				Intervals.addHb(b1, b2);
+			}
+		});		
+		
+		Assert.assertTrue(
+				
+				// The tracking version succeeds:
+				f.result("wr1.wr1") &&
+				f.result("reader0.rd1") &&
+				f.result("reader1.rd1") &&
+				f.result("wr2.wr1") &&
+				f.result("b2.wr1") &&
+				
+				// The summarizing version fails to
+				// allow wr2, because the mutual
+				// bound of reader0 and reader1 is b1.end,
+				// but it does allow b2:
+				f.result("wr1.wr2") &&
+				f.result("reader0.rd2") &&
+				f.result("reader1.rd2") &&
+				!f.result("wr2.wr2") &&
+				f.result("b2.wr2") &&
+				
+				f.allResultsChecked());
 	}	
 	
 	@Test public void testWriteHandoff() {

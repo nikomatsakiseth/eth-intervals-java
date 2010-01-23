@@ -6,7 +6,7 @@ import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.Lock;
 import ch.ethz.intervals.SubintervalTask;
 import ch.ethz.intervals.VoidSubinterval;
-import ch.ethz.intervals.guard.DefaultDynamicGuard;
+import ch.ethz.intervals.guard.ReadTrackingDynamicGuard;
 import ch.ethz.intervals.quals.GuardedBy;
 import ch.ethz.intervals.quals.Requires;
 import ch.ethz.intervals.quals.Writable;
@@ -23,11 +23,11 @@ public class TspSolver extends Interval {
 
 	static final boolean debug = Tsp.debug;
 		
-	static final DefaultDynamicGuard MinLock = new DefaultDynamicGuard("MinLock");
+	static final ReadTrackingDynamicGuard MinLock = new ReadTrackingDynamicGuard("MinLock");
 	@GuardedBy("MinLock") static int MinTourLen; 
 	@GuardedBy("MinLock") static int[] MinTour = new int[Tsp.MAX_TOUR_SIZE];		
 	
-	static final DefaultDynamicGuard TourLock = new DefaultDynamicGuard("TourLock");
+	static final ReadTrackingDynamicGuard TourLock = new ReadTrackingDynamicGuard("TourLock");
 
 	static int[][] weights = new int[Tsp.MAX_TOUR_SIZE][Tsp.MAX_TOUR_SIZE];
 	@GuardedBy("TourLock") static int TourStackTop;

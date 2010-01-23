@@ -10,7 +10,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Assert;
 import org.junit.Test;
 
-import ch.ethz.intervals.guard.DefaultDynamicGuard;
+import ch.ethz.intervals.guard.ReadTrackingDynamicGuard;
 
 /**
  * Bounded-Buffer Producer Consumer example using arrays.
@@ -30,7 +30,7 @@ public class TestBBPCArrayWithDynamicGuards {
 	int[] produced = new int[M];
 	
 	public class BoxedInterval {
-		private final DefaultDynamicGuard dg = new DefaultDynamicGuard();
+		private final ReadTrackingDynamicGuard dg = new ReadTrackingDynamicGuard();
 		private Interval interval;
 		
 		public Interval get() {
