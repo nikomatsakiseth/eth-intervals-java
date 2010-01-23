@@ -13,6 +13,7 @@ import java.util.concurrent.CountDownLatch;
 import org.junit.Assert;
 import org.junit.Test;
 
+import ch.ethz.intervals.IntervalException.DataRace;
 import ch.ethz.intervals.guard.Guard;
 
 public class TestDynamicGuard {
@@ -48,11 +49,11 @@ public class TestDynamicGuard {
 	}
 
 	class DgIntervalFactory {
-		public final Lock l1 = new Lock();
-		public final Lock l2 = new Lock();
+		public final Lock l1 = new Lock("l1");
+		public final Lock l2 = new Lock("l2");
 		
-		public final DefaultDynamicGuard dg1 = new DefaultDynamicGuard();
-		public final DefaultDynamicGuard dg2 = new DefaultDynamicGuard();
+		public final DefaultDynamicGuard dg1 = new DefaultDynamicGuard("dg1");
+		public final DefaultDynamicGuard dg2 = new DefaultDynamicGuard("dg2");
 		
 		public final Map<String, Boolean> results = 
 			Collections.synchronizedMap(new HashMap<String, Boolean>());
@@ -640,7 +641,7 @@ public class TestDynamicGuard {
 			
 			IntervalException.DataRace dre = (IntervalException.DataRace)e.getCause();
 			Assert.assertEquals(f.dg1, dre.dg);
-			Assert.assertEquals(IntervalException.DataRace.Role.LOCK, dre.interloperRole);
+			Assert.assertEquals("LOCK(l1)", dre.interloperRole.toString());
 			Assert.assertEquals("lockChild", dre.interloper.toString());
 			Assert.assertEquals("unlockChild.end", dre.ownerBound.toString());
 			return false; // lock failed
@@ -712,8 +713,6 @@ public class TestDynamicGuard {
 		Assert.assertTrue(
 				f.results.toString(),
 				f.result("wr1a.wr1") &&
-				f.result("l1a.1lockableby2") &&
-				f.result("l1b.1lockableby2") &&
 				f.result("wr1b.wr1") &&
 				f.allResultsChecked());
 	}
@@ -728,30 +727,37 @@ public class TestDynamicGuard {
 		//
 		// Illegal because l3b and wr1b conflict.
 		
-		Intervals.subinterval(new VoidSubinterval() {
-			@Override public String toString() { return "outer"; }
-			@Override public void run(Interval subinterval) {
-				Interval wr1a = f.create(subinterval, "wr1a", FLAG_WR1);
-				Interval l2a = f.create(subinterval, "l2a", FLAG_LCK1FOR1);
-				Intervals.addHb(wr1a, l2a);
-
-				Interval l2b = f.create(subinterval, "l2b", FLAG_LCK1FOR1);
-				Interval wr1b = f.create(subinterval, "wr1b", FLAG_WR1);
-				Intervals.addHb(l2b, wr1b);
-
-				Interval l2c = f.create(subinterval, "l2c", FLAG_LCK1FOR1);
-				
-				l2a.end.addEdgeAndAdjust(l2b.start, TEST_EDGE);
-				wr1b.end.addEdgeAndAdjust(l2c.start, TEST_EDGE);
-			}
-		});
+		try {
+			Intervals.subinterval(new VoidSubinterval() {
+				@Override public String toString() { return "outer"; }
+				@Override public void run(Interval subinterval) {
+					Interval wr1a = f.create(subinterval, "wr1a", FLAG_WR1);
+					Interval l2a = f.create(subinterval, "l2a", FLAG_LCK1FOR1);
+					Intervals.addHb(wr1a, l2a);
+	
+					Interval l2b = f.create(subinterval, "l2b", FLAG_LCK1FOR1);
+					Interval wr1b = f.create(subinterval, "wr1b", FLAG_WR1);
+					Intervals.addHb(l2b, wr1b);
+	
+					Interval l2c = f.create(subinterval, "l2c", FLAG_WR1|FLAG_LCK1FOR1);
+					
+					l2a.end.addEdgeAndAdjust(l2b.start, TEST_EDGE);
+					wr1b.end.addEdgeAndAdjust(l2c.start, TEST_EDGE);
+				}
+			});
+			Assert.fail("l2c did not fail");
+		} catch (RethrownException err) {
+			IntervalException.DataRace dr = (DataRace) err.getCause();
+			Assert.assertEquals("dg1", dr.dg.toString());
+			Assert.assertEquals("LOCK(l1)", dr.interloperRole.toString()); 
+			Assert.assertEquals("l2c", dr.interloper.toString()); 
+			Assert.assertEquals(DataRace.WRITE, dr.ownerRole); 
+			Assert.assertEquals("wr1b.end", dr.ownerBound.toString()); 
+		}
 		
 		Assert.assertTrue(
 				f.results.toString(),
 				f.result("wr1a.wr1") &&
-				f.result("l2a.1lockableby2") &&
-				f.result("l2b.1lockableby2") &&
-				!f.result("l2c.1lockableby2") &&
 				f.result("wr1b.wr1") &&
 				f.allResultsChecked());
 	}
@@ -762,10 +768,11 @@ public class TestDynamicGuard {
 		//
 		// |-wr1a-| -> |-l2a-| 
 		//                      |-l2b-| -> |-wr1b-|
-		//                                     |-l3b-|
+		//                                     |-l2c-|
 		//
 		// In contrast to testEmbedUnembedExtraLock, 
-		// Legal because l3b never tries to access dg1!
+		// Legal because l2c acquires the same lock but for
+		// a different guard.
 		
 		Intervals.subinterval(new VoidSubinterval() {
 			@Override public String toString() { return "outer"; }
@@ -778,7 +785,7 @@ public class TestDynamicGuard {
 				Interval wr1b = f.create(subinterval, "wr1b", FLAG_WR1);
 				Intervals.addHb(l2b, wr1b);
 
-				Interval l2c = f.create(subinterval, "l2c", FLAG_LCK1FOR1);
+				Interval l2c = f.create(subinterval, "l2c", FLAG_WR2|FLAG_LCK1FOR2);
 				
 				l2a.end.addEdgeAndAdjust(l2b.start, TEST_EDGE);
 				wr1b.end.addEdgeAndAdjust(l2c.start, TEST_EDGE);
@@ -788,9 +795,8 @@ public class TestDynamicGuard {
 		Assert.assertTrue(
 				f.results.toString(),
 				f.result("wr1a.wr1") &&
-				f.result("l2a.1lockableby2") &&
-				f.result("l2b.1lockableby2") &&
 				f.result("wr1b.wr1") &&
+				f.result("l2c.wr2") &&
 				f.allResultsChecked());
 	}
 
@@ -801,10 +807,10 @@ public class TestDynamicGuard {
 			@Override public String toString() { return "outer"; }
 			@Override public void run(Interval subinterval) {
 				Interval wr1a = f.create(subinterval, "wr1a", FLAG_WR1);
-				Interval em = f.create(subinterval, "em", FLAG_LCK1FOR1);
+				Interval em = f.create(subinterval, "em", FLAG_LCK1FOR1|FLAG_WR1);
 				Intervals.addHb(wr1a, em);
 
-				Interval unem = f.create(subinterval, "unem", FLAG_LCK1FOR1);
+				Interval unem = f.create(subinterval, "unem", FLAG_LCK1FOR1|FLAG_WR1);
 				em.end.addEdgeAndAdjust(unem.start, TEST_EDGE);
 				
 				// Note: this write is not ordered with respect to the unembed.
@@ -813,13 +819,12 @@ public class TestDynamicGuard {
 			}
 		});
 		
-		assertEquals(4, f.results.size());
-		
 		Assert.assertTrue(
 				f.results.toString(),
 				f.result("wr1a.wr1") &&
-				f.result("em.1lockableby2") &&
-				f.result("unem.1lockableby2") &&
-				!f.result("wr1b.wr1"));
+				f.result("em.wr1") &&
+				f.result("unem.wr1") &&
+				!f.result("wr1b.wr1") &&
+				f.allResultsChecked());
 	}
 }

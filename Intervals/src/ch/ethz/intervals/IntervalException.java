@@ -75,7 +75,25 @@ public abstract class IntervalException extends RuntimeException {
 	
 	/** Indicates that a data race was detected on a {@link DefaultDynamicGuard} */
 	public static class DataRace extends IntervalException {
-		enum Role { READ, WRITE, LOCK, EMBED };
+		abstract static class Role { }
+		private static class NamedRole extends Role {
+			private final String name;
+			NamedRole(String name) {
+				this.name = name;
+			}
+			@Override public String toString() { return name; }
+		}
+		public static final Role READ = new NamedRole("READ");
+		public static final Role WRITE = new NamedRole("WRITE");
+		public static class LockRole extends Role {
+			public final LockMirror lock;
+			
+			public LockRole(LockMirror lock) {
+				this.lock = lock;
+			}
+
+			@Override public String toString() { return "LOCK("+lock+")"; }
+		}
 
 		public final Guard dg;      			/** Guard on which the race occurred. */
 		

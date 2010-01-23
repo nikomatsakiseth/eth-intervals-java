@@ -1,5 +1,6 @@
 package ch.ethz.intervals;
 
+import ch.ethz.intervals.IntervalException.DataRace;
 import ch.ethz.intervals.IntervalException.DataRace.Role;
 import ch.ethz.intervals.guard.DynamicGuard;
 import ch.ethz.intervals.mirror.IntervalMirror;
@@ -66,7 +67,9 @@ implements DynamicGuard {
 	}
 	
 	@Override public String toString() {
-		return name;
+		if(name != null)
+			return name;
+		return super.toString();
 	}
 	
 	/**
@@ -99,7 +102,7 @@ implements DynamicGuard {
 	}
 	
 	private Role mrRole(State result) {
-		return (result.mrl != null ? Role.LOCK : Role.WRITE);
+		return (result.mrl != null ? new DataRace.LockRole(result.mrl) : DataRace.WRITE);
 	}
 	
 	private void checkHappensAfterMostRecentWrite(
@@ -118,14 +121,15 @@ implements DynamicGuard {
 			final Role interRole,
 			State result) 
 	{
+		final PointMirror interEnd = inter.end();
 		if(result.activeReads != null) {
 			new ChunkList.Iterator<PointMirror>(result.activeReads) {
 				@Override public void doForEach(PointMirror rd, int _) {
-					if(!rd.hbeq(mr))
+					if(rd != interEnd && !rd.hbeq(mr))
 						throw new IntervalException.DataRace(
 								DefaultDynamicGuard.this, 
 								interRole, inter,
-								Role.READ, rd);
+								DataRace.READ, rd);
 				}
 			};
 		}
@@ -141,7 +145,7 @@ implements DynamicGuard {
 		
 		State result = walkBack(mr, inter);		
 		try {
-			checkHappensAfterMostRecentWrite(mr, inter, Role.READ, result);
+			checkHappensAfterMostRecentWrite(mr, inter, DataRace.READ, result);
 		} catch (IntervalException.DataRace err) {
 			return err;
 		}
@@ -165,8 +169,8 @@ implements DynamicGuard {
 		State result = walkBack(mr, inter);
 		
 		try {
-			checkHappensAfterMostRecentWrite(mr, inter, Role.WRITE, result);
-			checkHappensAfterActiveReads(mr, inter, Role.WRITE, result);
+			checkHappensAfterMostRecentWrite(mr, inter, DataRace.WRITE, result);
+			checkHappensAfterActiveReads(mr, inter, DataRace.WRITE, result);
 		} catch (IntervalException.DataRace err) {
 			return err;
 		}
@@ -186,9 +190,10 @@ implements DynamicGuard {
 		State result = walkBack(interStart, inter);
 
 		try {
+			DataRace.Role role = new DataRace.LockRole(lock);
 			if(lock != result.mrl) // either acquire same lock or...
-				checkHappensAfterMostRecentWrite(interStart, inter, Role.LOCK, result);
-			checkHappensAfterActiveReads(interStart, inter, Role.LOCK, result);
+				checkHappensAfterMostRecentWrite(interStart, inter, role, result);
+			checkHappensAfterActiveReads(interStart, inter, role, result);
 		} catch (IntervalException.DataRace err) {
 			return err;
 		}
