@@ -120,7 +120,7 @@ implements PointMirror
 	public final boolean isBoundedBy(Point p) {
 		if(bound != null) {
 			Point b = bound;
-			while(b.depth >= p.depth) 
+			while(b.depth > p.depth) 
 				b = b.bound;
 			return (b == p);
 		}
