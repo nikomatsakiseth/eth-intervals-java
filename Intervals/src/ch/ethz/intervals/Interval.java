@@ -7,6 +7,8 @@ import ch.ethz.intervals.mirror.LockMirror;
 import ch.ethz.intervals.mirror.PointMirror;
 import ch.ethz.intervals.quals.Requires;
 import ch.ethz.intervals.quals.Subinterval;
+import ch.ethz.intervals.util.ChunkList;
+import ch.ethz.intervals.util.LittleLinkedList;
 
 public abstract class Interval 
 extends ThreadPool.WorkItem 

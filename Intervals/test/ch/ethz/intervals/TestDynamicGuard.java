@@ -1,6 +1,6 @@
 package ch.ethz.intervals;
 
-import static ch.ethz.intervals.ChunkList.TEST_EDGE;
+import static ch.ethz.intervals.util.ChunkList.TEST_EDGE;
 import static org.junit.Assert.assertEquals;
 
 import java.util.ArrayList;
@@ -14,7 +14,9 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import ch.ethz.intervals.IntervalException.DataRace;
+import ch.ethz.intervals.guard.DefaultDynamicGuard;
 import ch.ethz.intervals.guard.Guard;
+import ch.ethz.intervals.util.ChunkList;
 
 public class TestDynamicGuard {
 	

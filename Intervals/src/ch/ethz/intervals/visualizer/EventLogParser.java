@@ -13,9 +13,9 @@ import java.util.Scanner;
 import javax.swing.ProgressMonitor;
 import javax.swing.SwingWorker;
 
+import ch.ethz.intervals.visualizer.EventLog.AddLock;
 import ch.ethz.intervals.visualizer.EventLog.Arrive;
 import ch.ethz.intervals.visualizer.EventLog.Edge;
-import ch.ethz.intervals.visualizer.EventLog.AddLock;
 import ch.ethz.intervals.visualizer.EventLog.NewInterval;
 import ch.ethz.intervals.visualizer.EventLog.Schedule;
 

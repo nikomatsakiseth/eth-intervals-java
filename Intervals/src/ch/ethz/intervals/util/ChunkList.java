@@ -1,6 +1,18 @@
-package ch.ethz.intervals;
+package ch.ethz.intervals.util;
 
-class ChunkList<T> implements Cloneable {
+/**
+ * A utility class for efficiently representing lists of items along with
+ * a few associated flag bits.  The lists resemble functional linked lists
+ * in many ways, but they are not immutable.  They consist of a linked list of
+ * chunks, each chunk stores a small, fixed number of elements.  This drastically
+ * improves memory consumption for longer lists, while still being very concise for
+ * short lists.  The empty list is represented simply by a {@code null} pointer.
+ * Use the static method {@link ChunkList#add(ChunkList, Object, int)}
+ * to prepend objects to the list (appending is not supported).  Iteration is performed
+ * by instantiating an anonymous subtype of 
+ * {@link ChunkList.Iterator} or {@link ChunkList.InterruptibleIterator}.
+ */
+public class ChunkList<T> implements Cloneable {
 	
 	
 	// Flags for edges:
@@ -121,7 +133,21 @@ class ChunkList<T> implements Cloneable {
 		assert false : "No speculative edge found!";
 	}
 	
-	static abstract class InterruptibleIterator<T> {
+	/**
+	 * Used to iterate through a {@link ChunkList}.  Use like so:
+	 * <pre>
+	 *   ChunkList<T> theList;
+	 *   new ChunkList.Iterator<T>(theList) {
+	 *     public boolean forEach(T item, int flags) {
+	 *       if(should break out of the loop)
+	 *         return true;
+	 *       else if(should continue to the next item)
+	 *         return false; 
+	 *     }
+	 *   }
+	 * </pre>
+	 */
+	public static abstract class InterruptibleIterator<T> {
 		
 		public InterruptibleIterator(ChunkList<T> list) {
 			while(list != null) {
@@ -150,7 +176,17 @@ class ChunkList<T> implements Cloneable {
 		
 	}
 
-	static abstract class Iterator<T> extends InterruptibleIterator<T> {
+	/**
+	 * A version of {@link InterruptibleIterator} that does
+	 * not support breaking out of the loop.  Use like so:
+	 * <pre>
+	 *   ChunkList<T> theList;
+	 *   new ChunkList.Iterator<T>(theList) {
+	 *     public void doForEach(T item, int flags) { ... }
+	 *   }
+	 * </pre>
+	 */
+	public static abstract class Iterator<T> extends InterruptibleIterator<T> {
 		
 		public Iterator(ChunkList<T> list) {
 			super(list);

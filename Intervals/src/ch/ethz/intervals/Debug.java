@@ -7,6 +7,7 @@ import java.util.List;
 import ch.ethz.intervals.IndexedInterval.Subtask;
 import ch.ethz.intervals.ThreadPool.WorkItem;
 import ch.ethz.intervals.ThreadPool.Worker;
+import ch.ethz.intervals.util.ChunkList;
 
 class Debug {
 	

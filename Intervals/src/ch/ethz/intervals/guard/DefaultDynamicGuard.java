@@ -1,11 +1,13 @@
-package ch.ethz.intervals;
+package ch.ethz.intervals.guard;
 
+import ch.ethz.intervals.IntervalException;
+import ch.ethz.intervals.Point;
 import ch.ethz.intervals.IntervalException.DataRace;
 import ch.ethz.intervals.IntervalException.DataRace.Role;
-import ch.ethz.intervals.guard.DynamicGuard;
 import ch.ethz.intervals.mirror.IntervalMirror;
 import ch.ethz.intervals.mirror.LockMirror;
 import ch.ethz.intervals.mirror.PointMirror;
+import ch.ethz.intervals.util.ChunkList;
 
 
 /**

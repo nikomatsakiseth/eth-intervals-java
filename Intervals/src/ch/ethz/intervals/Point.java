@@ -1,9 +1,9 @@
 package ch.ethz.intervals;
 
-import static ch.ethz.intervals.ChunkList.SPECULATIVE;
-import static ch.ethz.intervals.ChunkList.TEST_EDGE;
-import static ch.ethz.intervals.ChunkList.WAITING;
-import static ch.ethz.intervals.ChunkList.speculative;
+import static ch.ethz.intervals.util.ChunkList.SPECULATIVE;
+import static ch.ethz.intervals.util.ChunkList.TEST_EDGE;
+import static ch.ethz.intervals.util.ChunkList.WAITING;
+import static ch.ethz.intervals.util.ChunkList.speculative;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -13,6 +13,7 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
 import ch.ethz.intervals.ThreadPool.Worker;
 import ch.ethz.intervals.mirror.PointMirror;
+import ch.ethz.intervals.util.ChunkList;
 
 public final class Point 
 implements PointMirror 

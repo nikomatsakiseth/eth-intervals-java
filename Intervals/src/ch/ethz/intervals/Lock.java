@@ -1,5 +1,6 @@
 package ch.ethz.intervals;
 
+import ch.ethz.intervals.guard.DefaultDynamicGuard;
 import ch.ethz.intervals.guard.Guard;
 import ch.ethz.intervals.mirror.IntervalMirror;
 import ch.ethz.intervals.mirror.LockMirror;
@@ -29,11 +30,6 @@ implements Guard, LockMirror
 		return String.format("Lock(%x)", System.identityHashCode(this));
 	}
 	
-	/** @see DefaultDynamicGuard#checkLockableByReturningException(Interval) */
-	IntervalException checkLockableByReturningException(Interval inter) {
-		return null;
-	}
-
 	@Override
 	public IntervalException checkLockable(IntervalMirror interval, LockMirror lock) {
 		if(lock != this)

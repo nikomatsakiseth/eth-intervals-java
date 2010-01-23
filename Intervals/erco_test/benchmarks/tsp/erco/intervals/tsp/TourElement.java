@@ -1,6 +1,5 @@
 package erco.intervals.tsp;
 
-import ch.ethz.intervals.DefaultDynamicGuard;
 /*
  * Copyright (C) 2000 by ETHZ/INF/CS
  * All rights reserved
@@ -8,6 +7,7 @@ import ch.ethz.intervals.DefaultDynamicGuard;
  * @version $Id: TourElement.java 2094 2003-01-30 09:41:18Z praun $
  * @author Florian Schneider
  */
+import ch.ethz.intervals.guard.DefaultDynamicGuard;
 import ch.ethz.intervals.quals.GuardedBy;
 
 public class TourElement {

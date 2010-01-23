@@ -1,6 +1,6 @@
 package ch.ethz.intervals;
 
-import static ch.ethz.intervals.ChunkList.NORMAL;
+import static ch.ethz.intervals.util.ChunkList.NORMAL;
 
 import java.util.ArrayList;
 import java.util.Collections;

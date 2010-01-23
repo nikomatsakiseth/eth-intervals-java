@@ -1,12 +1,12 @@
 package erco.intervals.tsp;
 
 import ch.ethz.intervals.Dependency;
-import ch.ethz.intervals.DefaultDynamicGuard;
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.Lock;
 import ch.ethz.intervals.SubintervalTask;
 import ch.ethz.intervals.VoidSubinterval;
+import ch.ethz.intervals.guard.DefaultDynamicGuard;
 import ch.ethz.intervals.quals.GuardedBy;
 import ch.ethz.intervals.quals.Requires;
 import ch.ethz.intervals.quals.Writable;
