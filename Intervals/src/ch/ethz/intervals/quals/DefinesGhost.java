@@ -7,5 +7,5 @@ package ch.ethz.intervals.quals;
     ghost can be linked to.
 */
 public @interface DefinesGhost {
-	public String type() default "ch.ethz.intervals.Guard";
+	public String type() default "ch.ethz.intervals.guard.Guard";
 }

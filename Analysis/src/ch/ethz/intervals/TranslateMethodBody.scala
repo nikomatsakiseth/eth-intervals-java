@@ -137,7 +137,7 @@ class TranslateMethodBody(log: Log, ttf: TranslateTypeFactory, mtree: MethodTree
     
     // ___ Entrypoint _______________________________________________________
     
-    def translate = log.indentedRes("translateMethodBody(%s)", mtree) {            
+    private def translate = log.indentedRes("translateMethodBody(%s)", mtree) {            
         
         // ___ Method environment, parameters ___________________________________
         val elem_mthd = TU.elementFromDeclaration(mtree)
@@ -199,7 +199,7 @@ class TranslateMethodBody(log: Log, ttf: TranslateTypeFactory, mtree: MethodTree
         sealed abstract class TargetScopeKind extends ScopeKind {
             def blk_tar: MutableBlock
         }
-        sealed case class Continue(blk_tar: MutableBlock)
+        sealed case class Continue(blk_tar: MutableBlock) extends TargetScopeKind
         sealed abstract class Break extends TargetScopeKind
         sealed case class AnonBreak(blk_tar: MutableBlock) extends Break
         sealed case class BlockBreak(blk_tar: MutableBlock) extends Break
@@ -214,10 +214,8 @@ class TranslateMethodBody(log: Log, ttf: TranslateTypeFactory, mtree: MethodTree
         def withScopes(newScopes: List[Scope])(func: => Unit) {
             val oldScopes = scopes
             try {
-                log.indented("inScope(%s, %s)", kind, tree) {
-                    scopes = newScopes
-                    func                                    
-                }
+                scopes = newScopes
+                func                                    
             } finally {
                 scopes = oldScopes                
             }            
@@ -226,7 +224,7 @@ class TranslateMethodBody(log: Log, ttf: TranslateTypeFactory, mtree: MethodTree
         // Execute func with Scope(kind) in-scope, then restore scopes
         def inScope(kind: ScopeKind, tree: Tree)(func: => Unit) = 
             withScopes(Scope(kind, treeLabels.get(tree)) :: scopes) {
-                func
+                log.indented("inScope(%s, %s)", kind, tree) { func }
             }
         
         // ___ Statement Constructors ___________________________________________
@@ -434,7 +432,7 @@ class TranslateMethodBody(log: Log, ttf: TranslateTypeFactory, mtree: MethodTree
                         stmt(blockTree)
                     }
                     passThru(tl)
-                    
+                
                 case hd :: tl =>
                     transferFunc(hd) match {
                         case Some(blk_tar) =>
@@ -443,98 +441,98 @@ class TranslateMethodBody(log: Log, ttf: TranslateTypeFactory, mtree: MethodTree
                         case None =>
                             passThru(tl)
                     }
-                    
+                
                 case List() =>
             }
             
             passThru(scopes)
         }
 
-        null
-    }
-
-    // Transfer control to the nearest in-scope catch
-    def mustThrow(tree: Tree) {
-        transfer(tree) {
-            case Scope(Catch(target), _) => Some(target)
-            case _ => None
-        }    
-    }
+        // Transfer control to the nearest in-scope catch
+        def mustThrow(tree: Tree) {
+            transfer(tree) {
+                case Scope(Catch(target), _) => Some(target)
+                case _ => None
+            }    
+        }
     
-    def mayThrow(tree: Tree) {
-        val blk_throw = goto(tree, fork(tree))
-        val blk_noThrow = goto(tree, fork(tree))
+        def mayThrow(tree: Tree) {
+            val blk_throw = goto(tree, fork(tree))
+            val blk_noThrow = goto(tree, fork(tree))
         
-        start(blk_throw)
-        mustThrow(tree)
+            start(blk_throw)
+            mustThrow(tree)
         
-        start(blk_noThrow)
-    }
+            start(blk_noThrow)
+        }
     
-    // Generates statements equivalent to 'tree'
-    def stmt(tree: StatementTree): Unit = tree match {
-        case tree: AssertTree =>
-            rvalue(tree.getCondition)
+        // Generates statements equivalent to 'tree'
+        def stmt(tree: StatementTree): Unit = tree match {
+            case tree: AssertTree =>
+                rvalue(tree.getCondition)
             
-        case tree: BlockTree =>
-            val blk_break = fork(tree)
-            inScope(BlockBreak(blk_break), tree) {
-                tree.getStatements.foreach(stmt)
-                goto(tree, blk_break)
-            }
-            start(blk_break)
-            
-        case tree: BreakTree =>
-            nullToOption(tree.getLabel) match {
-                case None => // "break;" transfers to the nearest AnonBreak w/ any label:
-                    transfer(tree) {
-                        case Scope(b: AnonBreak, _) => Some(b.blk_tar)
-                        case _ => None                        
-                    }
-                case Some(l) => // "break l;" transfers to the nearest break w/ label l:
-                    transfer(tree) {
-                        case Scope(b: Break, Some(l1)) if (l == l1) => Some(b.blk_tar)
-                        case _ => None
-                    }
-            }
-            
-        case tree: ClassTree => throw new Unhandled(tree) // XXX inner classes
-
-        case tree: ContinueTree =>
-            nullToOption(tree.getLabel) match {
-                case None => // "continue;" transfers to the nearest Continue w/ any label:
-                    transfer(tree) {
-                        case Scope(Continue(blk_tar), _) => Some(blk_tar)
-                        case _ => None            
-                    }
-                    
-                case Some(l) => // "continue l;" transfers to the nearest Continue w/ label l:
-                    transfer(tree) {
-                        case Scope(Continue(blk_tar), Some(l1)) if (l == l1) => Some(blk_tar)
-                        case _ => None
-                    }
-            }
-            
-        case tree: DoWhileLoopTree =>
-            val blk_break = fork(tree)
-            val blk_body = start(goto(tree, fork(tree)))
-            
-            inScope(AnonBreak(blk_break), tree) {
-                inScope(Continue(blk_body), tree) {
-                    stmt(tree.getStatement)
-                    rvalue(tree.getCondition)
-                    goto(tree, blk_body)
+            case tree: BlockTree =>
+                val blk_break = fork(tree)
+                inScope(BlockBreak(blk_break), tree) {
+                    tree.getStatements.foreach(stmt)
+                    goto(tree, blk_break)
                 }
-            }
+                start(blk_break)
             
-            start(blk_break)
+            case tree: BreakTree =>
+                nullToOption(tree.getLabel) match {
+                    case None => // "break;" transfers to the nearest AnonBreak w/ any label:
+                        transfer(tree) {
+                            case Scope(b: AnonBreak, _) => Some(b.blk_tar)
+                            case _ => None                        
+                        }
+                    case Some(l) => // "break l;" transfers to the nearest break w/ label l:
+                        transfer(tree) {
+                            case Scope(b: Break, Some(l1)) if (l == l1) => Some(b.blk_tar)
+                            case _ => None
+                        }
+                }
             
-        case tree: EmptyStatementTree => ()
-        
-        case tree: EnhancedForLoopTree => throw new Unhandled(tree) // XXX enhanced for loops
-        
-        case tree: ExpressionStatementTree => rvalue(tree.getExpression)
+            case tree: ClassTree => throw new Unhandled(tree) // XXX inner classes
 
-    }    
-    
+            case tree: ContinueTree =>
+                nullToOption(tree.getLabel) match {
+                    case None => // "continue;" transfers to the nearest Continue w/ any label:
+                        transfer(tree) {
+                            case Scope(Continue(blk_tar), _) => Some(blk_tar)
+                            case _ => None            
+                        }
+                    
+                    case Some(l) => // "continue l;" transfers to the nearest Continue w/ label l:
+                        transfer(tree) {
+                            case Scope(Continue(blk_tar), Some(l1)) if (l == l1) => Some(blk_tar)
+                            case _ => None
+                        }
+                }
+            
+            case tree: DoWhileLoopTree =>
+                val blk_break = fork(tree)
+                val blk_body = start(goto(tree, fork(tree)))
+            
+                inScope(AnonBreak(blk_break), tree) {
+                    inScope(Continue(blk_body), tree) {
+                        stmt(tree.getStatement)
+                        rvalue(tree.getCondition)
+                        goto(tree, blk_body)
+                    }
+                }
+            
+                start(blk_break)
+            
+            case tree: EmptyStatementTree => ()
+        
+            case tree: EnhancedForLoopTree => throw new Unhandled(tree) // XXX enhanced for loops
+        
+            case tree: ExpressionStatementTree => rvalue(tree.getExpression)
+
+        }
+        
+        stmt(mtree.getBody)
+        blks
+    }
 }

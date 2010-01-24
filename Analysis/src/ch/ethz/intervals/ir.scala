@@ -484,7 +484,7 @@ object ir {
     //    (During testing, the definitions in cds_default are used)
     val c_object = ir.ClassName("java.lang.Object")
     val c_interval = ir.ClassName("ch.ethz.intervals.Interval")
-    val c_guard = ir.ClassName("ch.ethz.intervals.Guard")
+    val c_guard = ir.ClassName("ch.ethz.intervals.guard.Guard")
     val c_point = ir.ClassName("ch.ethz.intervals.Point")
     val c_lock = ir.ClassName("ch.ethz.intervals.Lock")
 

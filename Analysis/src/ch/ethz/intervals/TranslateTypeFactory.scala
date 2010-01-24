@@ -191,20 +191,20 @@ class TranslateTypeFactory(
     sealed case class GhostAnnDecl(f: ir.FieldName, annty: AnnotatedTypeMirror) extends GhostAnn
     sealed case class GhostAnnValue(f: ir.FieldName, value: String) extends GhostAnn
     
-    def categorizeGhostAnnot(am: AnnotationMirror) = {
-        val elem = am.getAnnotationType.asElement
-        if(elem.getAnnotation(classOf[DefinesGhost]) == null) GhostAnnNone
-        else {
+    def categorizeGhostAnnot(am: AnnotationMirror) =
+        log.indentedRes("categorizeGhostAnnot(%s)", am) {
             val elem = am.getAnnotationType.asElement
-            val value = annValue(am)
-            if(value == "") {
-                val ghostTypeString = elem.getAnnotation(classOf[DefinesGhost]).`type`
-                val ghostAnnty = AnnTyParser(ghostTypeString)
-                GhostAnnDecl(f(elem), ghostAnnty)
-            } else
-                GhostAnnValue(f(elem), value)
+            if(elem.getAnnotation(classOf[DefinesGhost]) == null) GhostAnnNone
+            else {
+                val value = annValue(am)
+                if(value == "") {
+                    val ghostTypeString = elem.getAnnotation(classOf[DefinesGhost]).`type`
+                    val ghostAnnty = AnnTyParser(ghostTypeString)
+                    GhostAnnDecl(f(elem), ghostAnnty)
+                } else
+                    GhostAnnValue(f(elem), value)
+            }            
         }
-    }
     
     def addGhostFieldsGivenValueInAnnotations(
         m0: Map[ir.FieldName, String], 
@@ -434,6 +434,14 @@ class TranslateTypeFactory(
         def apply(env: TranslateEnv) = new AnnotParser(env)
     }
     
+    object ElemLookup extends PartialFunction[String, TypeElement] {
+        def apply(nm: String) =
+            elements.getTypeElement(nm)
+            
+        def isDefinedAt(nm: String) =
+            apply(nm) != null
+    }
+    
     class AnnTyParser extends BaseParser {
         def p = null // Unused here.
         
@@ -441,7 +449,7 @@ class TranslateTypeFactory(
         //     Eventually could be improved to allow annotations,
         //     use imports, and in numerous other ways.
         def di = repsep(ident, ".")     ^^ { case idents => ".".join(idents) }
-        def elem = di                   ^^ { case s => elements.getTypeElement(s) }
+        def elem = di                   ^? ( ElemLookup, (nm => "No such type: " + nm) )
         def annty = elem                ^^ { case e => getAnnotatedType(e) }
     }
 
