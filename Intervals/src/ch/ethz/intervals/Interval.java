@@ -51,15 +51,20 @@ implements Dependency, Guard, IntervalMirror
 		end = new Point(name, Point.FLAG_END, parentEnd, 2, this);
 		start = new Point(name, Point.NO_FLAGS, end, 2, this);		
 
-		State parentState = parent.addChildInterval(this);
+		State parentState;
+		if(parent != null)
+			parentState = parent.addChildInterval(this);
+		else 
+			parentState = State.PAR; // Root interval always in PAR state.
+		
 		if(!parentState.permitsNewChildren)
 			throw new IntervalException.ParPhaseCompleted(parent);			
 		if(!parentState.willSignalChild)
 			start.addWaitCountUnsync(-1);
 		if(parentState.childrenCancelled)
-			this.state = State.CANCEL_WAIT;
+			state = State.CANCEL_WAIT;
 		else 
-			this.state = State.WAIT;
+			state = State.WAIT;
 		
 		unscheduled = current;
 		current.addUnscheduled(this);
@@ -89,7 +94,7 @@ implements Dependency, Guard, IntervalMirror
 	 *   
 	 *  @param errors An immutable set of errors which occurred.
 	 *  @returns the set of errors to propogate forward, or {@code null} for none. */
-	protected Set<Throwable> catchErrors(Set<Throwable> errors) {
+	protected Set<? extends Throwable> catchErrors(Set<Throwable> errors) {
 		return errors;
 	}
 
@@ -228,21 +233,21 @@ implements Dependency, Guard, IntervalMirror
 	
 	/* State diagram for intervals:
 	 * 
-	 *  WAIT --------(1)-> LOCK -> RUN --> PAR -------(2)----> END
+	 *  WAIT --------(1)-> LOCK -> RUN --> PAR --------(2)----> END
 	 *   |                  |       |        |                  ^
 	 *   |                  |       |        +--(error,2)--+    | (no errors)
 	 *   |                  |       |                      |    | 
-	 * (cancel)             +----(error)-> CATCH_PAR -(2)--+-> CATCH
+	 * (cancel)             +----(error)-> CATCH_PAR --(2)-+--> CATCH
 	 *   |                                                      | 
 	 *   |                                                      | (errors)
 	 *   v                                                      v
-	 *  CANCEL_WAIT -(1)----------------> CANCEL_PAR -(2)----> ERROR_END
+	 *  CANCEL_WAIT -(1)-----------------> CANCEL_PAR -(2)----> ERROR_END
 	 *  
 	 * (1) Wait count of start reached zero
 	 * (2) Wait count of end reached zero
 	 * 
-	 * Start occurs upon entering RUN or CANCEL_PAR state.
-	 * End occurs upon entering END or ERROR_END state.
+	 * Start point occurs upon exiting LOCK or CANCEL_WAIT state.
+	 * End point occurs upon entering END or ERROR_END state.
 	 */
 	private static final int PERMITS_CHILDREN = 1;
 	private static final int WILL_SIGNAL_CHILDREN = 2;
@@ -427,7 +432,7 @@ implements Dependency, Guard, IntervalMirror
 	
 	
 	private PSet<Throwable> makePSet(
-			Set<Throwable> catchErrors,
+			Set<? extends Throwable> catchErrors,
 			PSet<Throwable> errors) 
 	{
 		if(catchErrors == null)
