@@ -1,17 +1,19 @@
 package ch.ethz.intervals;
 
+import java.util.Set;
+
 
 
 
 final class SubintervalImpl<R> extends Interval {
 
 	SubintervalTask<R> task;
-	R result;
+	private R result;
+	private Set<Throwable> errors;
 
 	SubintervalImpl(String name, Interval superInterval, SubintervalTask<R> task) 
 	{
 		super(name, superInterval, Point.FLAG_SYNCHRONOUS, 0, 2);
-		assert end.maskExceptions();
 		this.task = task;
 		
 		// Build up a list of locks to acquire.  Be careful in 
@@ -20,7 +22,7 @@ final class SubintervalImpl<R> extends Interval {
 		try {
 			locks = task.locks();
 		} catch(Throwable thr) {
-			start.addPendingException(thr);
+			addVertExceptionUnsyc(thr);
 			locks = null;
 		}		
 		if(locks != null) {
@@ -31,6 +33,12 @@ final class SubintervalImpl<R> extends Interval {
 			setRevLocksUnsync(lockList);
 		}
 	}
+	
+	@Override
+	protected Set<Throwable> catchErrors(Set<Throwable> errors) {
+		this.errors = errors;
+		return null;
+	}
 
 	@Override
 	public String toString() {
@@ -40,6 +48,12 @@ final class SubintervalImpl<R> extends Interval {
 	@Override
 	protected void run() {
 		result = task.run(this);
+	}
+	
+	R readResultOrRethrowErrors() {
+		if(errors != null)
+			throw new RethrownException(errors);
+		return result;
 	}
 
 }

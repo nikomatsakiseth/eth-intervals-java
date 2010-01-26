@@ -5,7 +5,6 @@ import static ch.ethz.intervals.util.ChunkList.TEST_EDGE;
 import static ch.ethz.intervals.util.ChunkList.WAITING;
 import static ch.ethz.intervals.util.ChunkList.speculative;
 
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Set;
@@ -24,7 +23,11 @@ implements PointMirror
 	
 	public static final int FLAGS_SYNCHRONOUS_END = FLAG_END | FLAG_SYNCHRONOUS;	
 
-	public static final int OCCURRED = -1;		/** Value of {@link #waitCount} once we have occurred */
+	/** Value of {@link #waitCount} if we have occurred without any errors. */
+	public static final int OCCURRED_WITHOUT_ERROR = -1;
+	
+	/** Value of {@link #waitCount} if we have occurred with uncaught exceptions. */
+	public static final int OCCURRED_WITH_ERROR = -2;
 	
 	private static AtomicIntegerFieldUpdater<Point> waitCountUpdater =
 		AtomicIntegerFieldUpdater.newUpdater(Point.class, "waitCount");
@@ -35,10 +38,7 @@ implements PointMirror
 	final int depth;							/** depth of bound + 1 */
 	
 	private ChunkList<Point> outEdges;          /** Linked list of outgoing edges from this point. */
-	private volatile int waitCount;           	/** Number of preceding points that have not arrived.  
-	                                              	Set to {@link #OCCURRED} when this has occurred. 
-	                                              	Modified only through {@link #waitCountUpdater}. */
-	private Set<Throwable> pendingExceptions; 	/** Exception(s) that occurred while executing the task or in some preceding point. */
+	private volatile int waitCount;           	/** Number of preceding points that have not arrived. */	                                              	
 	private Interval interval;            	  	/** Interval which owns this point.  Set to {@code null} when the point occurs. */
 
 	Point(String name, int flags, Point bound, int waitCount, Interval interval) {
@@ -62,18 +62,31 @@ implements PointMirror
 		return (flags & FLAG_SYNCHRONOUS) == FLAG_SYNCHRONOUS;
 	}
 
-	final boolean maskExceptions() {
-		return (flags & (FLAGS_SYNCHRONOUS_END)) == FLAGS_SYNCHRONOUS_END;
-	}
-	
 	final synchronized ChunkList<Point> outEdgesSync() {
 		return outEdges;
 	}
+	
+	final private boolean didOccur(int wc) {
+		return wc < 0;
+	}
 
 	final boolean didOccur() {
-		return waitCount == OCCURRED;
+		return didOccur(waitCount);
 	}
 	
+	final boolean didOccurWithoutError() {
+		return (waitCount == OCCURRED_WITHOUT_ERROR);
+	}
+
+	final boolean didOccurWithError() {
+		return (waitCount == OCCURRED_WITH_ERROR);
+	}
+
+	private void cancel() {
+		assert !didOccur();
+		interval.cancel();
+	}
+
 	/** 
 	 * Returns the interval with which this point is associated or
 	 * null if this point has occurred.  Note that returning non-null  
@@ -271,7 +284,7 @@ implements PointMirror
 
 	/** When a preceding point (or something else we were waiting for)
 	 *  occurs, this method is invoked.  Once {@link #waitCount} 
-	 *  reaches 0, invokes {@link Interval#didReachWaitCountZero(Point, boolean)}.
+	 *  reaches 0, invokes {@link Interval#didReachWaitCountZero(Point)}.
 	 *  
 	 *  @param cnt the number of preceding things that occurred,
 	 *  should always be positive and non-zero */
@@ -290,20 +303,24 @@ implements PointMirror
 	/** Invoked by {@link #arrive(int)} when wait count reaches zero,
 	 *  but also from {@link Intervals#subinterval(SubintervalTask)} */
 	void didReachWaitCountZero() {
-		interval.didReachWaitCountZero(this, (pendingExceptions != null));
+		interval.didReachWaitCountZero(this);
 	}
 	
-	/** Invoked by {@link #interval} once all pending locks
-	 *  are acquired. Each point occurs precisely once. */
-	final void occur() {
+	/** Invoked by {@link #interval} after wait count reaches zero.
+	 *  Each point occurs precisely once.  
+	 *  
+	 *  @param withError true if there were uncaught exceptions that propagate to this point. */
+	final void occur(boolean withError) {
 		assert waitCount == 0;
+		
+		int newWaitCount = (withError ? OCCURRED_WITH_ERROR : OCCURRED_WITHOUT_ERROR);
 
 		// Save copies of our outgoing edges at the time we occurred:
 		//      They may be modified further while we are notifying successors.
 		final ChunkList<Point> outEdges;
 		synchronized(this) {
 			outEdges = this.outEdges;
-			this.waitCount = OCCURRED;
+			this.waitCount = newWaitCount;
 			if(bound == null) // If this is (or could be) a root subinterval...
 				notifyAll();  // ...someone might be wait()ing on us!
 		}
@@ -317,34 +334,25 @@ implements PointMirror
 		if(outEdges != null) {
 			new ChunkList.Iterator<Point>(outEdges) {
 				public void doForEach(Point toPoint, int flags) {
-					if(ChunkList.waiting(flags))
+					if(ChunkList.waiting(flags)) {
 						notifySuccessor(toPoint, true);
+					}
 				}
 			};
 		}
 		if(bound != null)
 			notifySuccessor(bound, true);
-		else
-			notifyRootEnd();
 		
-		interval.didOccur(this, (pendingExceptions != null));
+		interval.didOccur(this);
 		interval = null;
-	}
-	
-	private void notifyRootEnd() {
-		// what should we do if an exception is never caught?
-		if(pendingExceptions != null && !maskExceptions()) {
-			for(Throwable t : pendingExceptions)
-				t.printStackTrace();
-		}
 	}
 	
 	/** Takes the appropriate action to notify a successor {@code pnt}
 	 *  that {@code this} has occurred.  Propagates exceptions and 
 	 *  optionally invokes {@link #arrive(int)}. */
 	private void notifySuccessor(Point pnt, boolean arrive) {
-		if(!maskExceptions() && pendingExceptions != null)
-			pnt.addPendingExceptions(pendingExceptions);
+		if(pnt != bound && didOccurWithError())
+			pnt.cancel();
 		if(arrive)
 			pnt.arrive(1);
 	}
@@ -397,41 +405,12 @@ implements PointMirror
 				synchronized(this) {
 					wc = waitCount;
 				}
-				if(wc == OCCURRED)
+				if(didOccur(wc))
 					return;
 				if(!worker.doWork(false))
 					Thread.yield();				
 			}
 		}
-	}
-
-	/** Checks if a pending throwable is stored and throws a
-	 *  {@link RethrownException} if so. */
-	void checkAndRethrowPendingException() {
-		if(pendingExceptions != null)
-			throw new RethrownException(pendingExceptions);				
-	}
-	
-	/** Adds {@code thr} to {@link #pendingExceptions} */
-	synchronized void addPendingException(Throwable thr) {
-		assert !didOccur() : "Cannot add a pending exception after pnt occurs!";
-		
-		// Using a PSet<> would really be better here:
-		if(pendingExceptions == null)
-			pendingExceptions = Collections.singleton(thr);
-		else if(pendingExceptions.size() == 1) {
-			pendingExceptions = new HashSet<Throwable>(pendingExceptions);
-			pendingExceptions.add(thr);
-		} else {
-			pendingExceptions.add(thr);
-		}
-	}
-
-
-	/** Invoked when a child interval has thrown the exceptions {@code thr}. */
-	synchronized void addPendingExceptions(Set<Throwable> thr) {
-		for(Throwable t : thr)
-			addPendingException(t);
 	}
 
 	/** Simply adds an outgoing edge, without acquiring locks or performing any
@@ -452,12 +431,7 @@ implements PointMirror
 	 */
 	void addEdgeAfterOccurredWithoutException(Point targetPnt, int edgeFlags) {
 		synchronized(this) {
-			assert didOccur();
-			
-			// In some cases, pendingExceptions may be non-null if this was a 
-			// subinterval which rethrew the exceptions and had them caught.
-			assert maskExceptions() || pendingExceptions == null;
-			
+			assert didOccurWithoutError();			
 			primAddOutEdge(targetPnt, edgeFlags);
 		}
 	}
@@ -528,12 +502,6 @@ implements PointMirror
 		// need to invoke accept():
 		assert didOccur();	
 		notifySuccessor(toImpl, false);
-	}
-
-	int numPendingExceptions() {
-		if(pendingExceptions == null)
-			return 0;
-		return pendingExceptions.size();
 	}
 
 	@Override

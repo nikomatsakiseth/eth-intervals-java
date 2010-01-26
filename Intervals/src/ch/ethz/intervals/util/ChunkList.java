@@ -177,8 +177,8 @@ public class ChunkList<T> implements Cloneable {
 	}
 
 	/**
-	 * A version of {@link InterruptibleIterator} that does
-	 * not support breaking out of the loop.  Use like so:
+	 * An iterator that does not support breaking out of the loop.  
+	 * Use like so:
 	 * <pre>
 	 *   ChunkList<T> theList;
 	 *   new ChunkList.Iterator<T>(theList) {

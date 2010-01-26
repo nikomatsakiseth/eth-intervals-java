@@ -254,15 +254,6 @@ public class Intervals {
 	public static void schedule() {
 		Current.get().schedule();
 	}
-
-	/** Waits for {@code ep} to complete and returns its result.
-	 *  Resets the currentInterval afterwards. */
-	static void join(Point pnt) {
-		if(Debug.ENABLED)
-			Debug.join(pnt);
-		pnt.join();
-		pnt.checkAndRethrowPendingException();
-	}
 	
 	/**
 	 * Creates a new interval which executes during the current interval.
@@ -278,23 +269,12 @@ public class Intervals {
 		// This could be made more optimized, but it will do for now:
 		Current current = Current.get();
 		
-		String name;
-		Throwable nameThrowable;
-		try {
-			name = task.toString();
-			nameThrowable = null;
-		} catch (Throwable thr) {
-			name = null;
-			nameThrowable = thr;
-		}
+		String name = task.toString(); // WARNING: user code may throw an exception
 		
 		SubintervalImpl<R> subinterval = new SubintervalImpl<R>(name, current.inter, task);
 		
 		if(current.mr != null && current.mr != current.start())
 			current.mr.addEdgeAfterOccurredWithoutException(subinterval.start, NORMAL);
-		
-		if(nameThrowable != null)
-			subinterval.start.addPendingException(nameThrowable);
 		
 		if(Debug.ENABLED)
 			Debug.subInterval(subinterval, task.toString());	
@@ -304,14 +284,10 @@ public class Intervals {
 		
 		// Generally, at this point start will have occurred; but not
 		// if the subinterval acquires locks.
-		// assert subinterval.start.didOccur();
-		
-		try {
-			join(subinterval.end); // may throw an exception
-			return subinterval.result;
-		} finally {
-			current.updateMostRecent(subinterval.end);			
-		}
+		// assert subinterval.start.didOccur();		
+		subinterval.end.join();
+		current.updateMostRecent(subinterval.end);
+		return subinterval.readResultOrRethrowErrors();
 	}		
 	
 	/**

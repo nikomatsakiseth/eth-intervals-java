@@ -41,7 +41,7 @@ public class TestInterval {
 		public final List<Integer> id;
 		
 		public AddTask(Dependency dep, List<List<Integer>> list, Integer... ids) {
-			super(dep);
+			super(dep, "Add("+Arrays.asList(ids)+")");
 			this.id = Arrays.asList(ids);
 			this.list = list;
 		}
@@ -51,11 +51,6 @@ public class TestInterval {
 		{
 			debug("%s", toString());
 			list.add(id);
-		}
-		
-		@Override
-		public String toString() {
-			return "AddTask("+id+")";
 		}
 		
 	}
@@ -74,8 +69,10 @@ public class TestInterval {
 		for (int i = 0; i < repeat; i++) {
 			final List<List<Integer>> list = Collections.synchronizedList(new ArrayList<List<Integer>>());
 			Intervals.subinterval(new VoidSubinterval() {
+				@Override public String toString() { return "parentInterval"; }
 				public void run(final Interval parentInterval) {
 					Intervals.subinterval(new VoidSubinterval() {
+						@Override public String toString() { return "childInterval"; }
 						public void run(final Interval childInterval) {							
 							Interval after = new AddTask(parentInterval, list, 2);
 							Intervals.addHb(childInterval.end, after.start);

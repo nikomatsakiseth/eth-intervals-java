@@ -5,6 +5,7 @@ import java.util.Collections;
 import java.util.List;
 
 import ch.ethz.intervals.IndexedInterval.Subtask;
+import ch.ethz.intervals.Interval.State;
 import ch.ethz.intervals.ThreadPool.WorkItem;
 import ch.ethz.intervals.ThreadPool.Worker;
 import ch.ethz.intervals.util.ChunkList;
@@ -94,8 +95,8 @@ class Debug {
 		
 		public String toString() {
 			final StringBuilder sb = new StringBuilder();
-			sb.append(String.format("OCCUR %s errors %d%s bound %s succs", 
-					point, point.numPendingExceptions(), (point.maskExceptions() ? " (masked)" : ""), point.bound));
+			sb.append(String.format("OCCUR %s withError %s bound %s succs", 
+					point, point.didOccurWithError(), point.bound));
 			
 			new ChunkList.Iterator<Point>(list) {
 				public void doForEach(Point toPoint, int flags) {
@@ -510,6 +511,28 @@ class Debug {
 	public static void lockFree(LockBase lockBase) {
 		if(ENABLED_LOCK)
 			addEvent(new LockFreeEvent(lockBase));
+	}
+
+	static class TransitionEvent extends Event {
+		public final Interval inter;
+		public final Interval.State oldState;
+		public final Interval.State newState;
+
+		private TransitionEvent(Interval inter, State oldState, State newState) {
+			this.inter = inter;
+			this.oldState = oldState;
+			this.newState = newState;
+		}
+
+		public String toString() {
+			return String.format("TRANSITION %s to %s from %s",
+					inter, newState, oldState);
+		}
+	}
+
+	public static void transition(Interval inter, State oldState, State newState) {
+		if(ENABLED_WAIT_COUNTS)
+			addEvent(new TransitionEvent(inter, oldState, newState));
 	}
 	
 }

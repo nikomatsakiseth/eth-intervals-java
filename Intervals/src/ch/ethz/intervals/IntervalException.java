@@ -161,5 +161,19 @@ public abstract class IntervalException extends RuntimeException {
 			return "Guard " + guard + " cannot be locked by " + lock;
 		}
 	}
+	
+	public static class ParPhaseCompleted extends IntervalException {
+		public final IntervalMirror interval;
+		
+		ParPhaseCompleted(IntervalMirror interval) {
+			this.interval = interval;
+		}
+		
+		@Override public String toString() {
+			return "The parallel phase of " + interval + " has completed.  No new children can be created.";
+		}
+	}
+
+
 
 }

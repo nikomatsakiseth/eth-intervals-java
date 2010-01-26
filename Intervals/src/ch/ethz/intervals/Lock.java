@@ -1,6 +1,5 @@
 package ch.ethz.intervals;
 
-import ch.ethz.intervals.guard.ReadTrackingDynamicGuard;
 import ch.ethz.intervals.guard.Guard;
 import ch.ethz.intervals.mirror.IntervalMirror;
 import ch.ethz.intervals.mirror.LockMirror;
