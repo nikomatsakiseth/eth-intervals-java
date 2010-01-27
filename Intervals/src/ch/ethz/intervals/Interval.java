@@ -308,7 +308,7 @@ implements Dependency, Guard, IntervalMirror
 	 *  Locking policy:
 	 *  <ul>
 	 *  <li> The only time that the state is externally affected is when pred. and parents invoke
-	 *       {@link #cancel()} during the waiting period (i.e., before ref count of start reaches 0).
+	 *       {@link #cancel(Point)} during the waiting period (i.e., before ref count of start reaches 0).
 	 *       No lock is required here because they are all setting {@code state} to the same value,
 	 *       and the requisite HAPPENS BEFORE relation is established by them decrementing the ref count
 	 *       of start anyhow.
@@ -318,6 +318,14 @@ implements Dependency, Guard, IntervalMirror
 	 *  </ul> 
 	 */
 	private State state;
+	
+	/**
+	 * True if our end point was cancelled.  This occurs when some predecessor of our
+	 * end point (but not one of our children) dies with an error.  Unlike a predecessor
+	 * of our start point, this does not cause our interval to be skipped, but it
+	 * does affect the final state of the end point.
+	 */
+	private boolean endCanceled;
 	
 	/** Exceptions from this interval or its subintervals that have propagated
 	 *  up to us.  
@@ -386,10 +394,21 @@ implements Dependency, Guard, IntervalMirror
 		return state;
 	}
 	
-	synchronized void cancel() {
+	synchronized void cancel(Point pnt) {
 		// See declaration for state field for a discussion of why no lock is needed here.
-		assert state == State.WAIT || state == State.CANCEL_WAIT;
-		transitionUnsync(State.CANCEL_WAIT);
+		if(pnt == start) {
+			switch(state) {
+			case WAIT:
+				transitionUnsync(State.CANCEL_WAIT);
+				break;
+			case CANCEL_WAIT:
+				return;
+			default:
+				throw new IntervalException.InternalError("cancel() of start in unexpected state " + state);
+			}
+		} else {
+			endCanceled = true;
+		}
 	}
 
 	void addVertExceptionUnsyc(Throwable thr) {
@@ -491,10 +510,10 @@ implements Dependency, Guard, IntervalMirror
 						throw new RethrownException(errors);
 					}
 				} 
-				end.occur(hasUncaughtExceptions);
+				end.occur(hasUncaughtExceptions || endCanceled);
 			} else {
 				assert state == State.PAR;
-				end.occur(false);
+				end.occur(endCanceled);
 			}
 			break;
 			
@@ -662,7 +681,7 @@ implements Dependency, Guard, IntervalMirror
 			new ChunkList.Iterator<Interval>(pending) {
 				@Override public void doForEach(Interval child, int flags) {
 					if(newState.childrenCancelled)
-						child.cancel();
+						child.cancel(child.start);
 					child.start.arrive(1);
 				}
 			};

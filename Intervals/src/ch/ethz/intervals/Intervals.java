@@ -170,6 +170,14 @@ public class Intervals {
 		if(from == null)
 			return;
 		
+		// Avoid edges that duplicate the bound.  Besides
+		// saving space, this check lets us guarantee that
+		// walking the outEdges from a point never leads to its
+		// bound.  We rely on this in error propagation code,
+		// since the bound is somewhat special.
+		if(from.isBoundedBy(to))
+			return; 
+		
 		current.checkEdgeEndPointsProperlyBound(from, to);
 		
 		// Optimistically add edge (though it may cause a cycle!):

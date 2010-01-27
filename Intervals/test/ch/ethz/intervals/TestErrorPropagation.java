@@ -108,7 +108,7 @@ public class TestErrorPropagation {
 			Intervals.subinterval(new VoidSubinterval() {
 				public void run(Interval subinterval) {
 					Interval err = new ThrowExceptionTask(subinterval);
-					Interval inc = new IncTask(subinterval, integer);
+					Interval inc = new IncTask(subinterval, "inc", integer);
 					Intervals.addHb(err, inc);
 				}
 			});
@@ -140,7 +140,7 @@ public class TestErrorPropagation {
 							assert !thr.end.didOccur();
 							
 							// Insert a new child (should never execute):
-							new IncTask(thr, integer);
+							new IncTask(thr, "skipped", integer);
 						}
 					};
 				}
@@ -148,6 +148,98 @@ public class TestErrorPropagation {
 			Assert.fail("Exception not thrown");
 		} catch (RethrownException e) {
 			Assert.assertEquals("inc task executed", 0, integer.get());
+		}
+	}
+	
+	private boolean containsSubtypeOf(Iterable<? extends Object> coll, Class<?> cls) {
+		for(Object o : coll) {
+			if(cls.isInstance(o))
+				return true;
+		}
+		return false;
+	}
+	
+	/**
+	 * Tests that returning an empty set causes no exceptions to be thrown.
+	 */
+	@Test public void addingChildrenDuringCatchErrorsIsUncool() {
+		try {
+			Intervals.subinterval(new VoidSubinterval() {
+				public void run(Interval subinterval) {
+					new ThrowExceptionTask(subinterval) {
+						@Override protected Set<? extends Throwable> catchErrors(Set<Throwable> errors) {
+							new EmptyInterval(this, "willCauseAnError");
+							return null;
+						}
+					};
+				}
+			});
+			Assert.fail("Exception not thrown");
+		} catch (RethrownException e) {
+			Assert.assertEquals(2, e.allErrors().size()); // both the original exc and new exc are carried over
+			Assert.assertTrue(containsSubtypeOf(e.allErrors(), TestException.class)); // original exc
+			Assert.assertTrue(containsSubtypeOf(e.allErrors(), IntervalException.ParPhaseCompleted.class)); // new exc
+		}
+	}
+	
+	/**
+	 * Check that when an error propagates from a pred of the
+	 * end point, the interval is not cancelled but its successors
+	 * are.
+	 */
+	@Test public void predecessorsOfEndThatDie() {
+		final AtomicInteger integer = new AtomicInteger();
+		try {
+			Intervals.subinterval(new VoidSubinterval() {
+				public void run(Interval subinterval) {
+					Interval thr = new ThrowExceptionTask(subinterval);
+					Interval a = new IncTask(subinterval, "a", integer, 1);
+					Interval b = new IncTask(subinterval, "b", integer, 10);
+					
+					Intervals.addHb(a, b);
+					Intervals.addHb(a.start, thr.start);
+					Intervals.addHb(thr.end, a.end);
+				}
+			});
+			Assert.fail("Exception not thrown");
+		} catch (RethrownException e) {
+			Assert.assertEquals(1, e.allErrors().size()); // both the original exc and new exc are carried over
+			Assert.assertTrue(containsSubtypeOf(e.allErrors(), TestException.class)); // original exc
+			Assert.assertEquals(1, integer.get()); // a ran, but not b 
+		}
+	}
+	
+	/**
+	 * Check that when an interval has both internal errors
+	 * and errors that propagate to its end point, both sets 
+	 * of errors reach the parent, and catchErrors() is called.
+	 */
+	@Test public void predecessorsOfEndThatDieAndInternalErrorsToo() {
+		final AtomicInteger integer = new AtomicInteger();
+		try {
+			Intervals.subinterval(new VoidSubinterval() {
+				public void run(Interval subinterval) {
+					Interval thr = new ThrowExceptionTask(subinterval);
+					Interval a = new ThrowExceptionTask(subinterval) {
+						@Override protected Set<? extends Throwable> catchErrors(
+								Set<Throwable> errors) 
+						{
+							return Collections.singleton(new UnsupportedOperationException());
+						}						
+					};
+					Interval b = new IncTask(subinterval, "b", integer, 10);
+					
+					Intervals.addHb(a, b);
+					Intervals.addHb(a.start, thr.start);
+					Intervals.addHb(thr.end, a.end);
+				}
+			});
+			Assert.fail("Exception not thrown");
+		} catch (RethrownException e) {
+			Assert.assertEquals(2, e.allErrors().size()); // both the original exc and new exc are carried over
+			Assert.assertTrue(containsSubtypeOf(e.allErrors(), TestException.class)); // exc from thr
+			Assert.assertTrue(containsSubtypeOf(e.allErrors(), UnsupportedOperationException.class)); //  exc from a
+			Assert.assertEquals(0, integer.get()); // b did not run (doubly so :) 
 		}
 	}
 	
@@ -314,7 +406,7 @@ public class TestErrorPropagation {
 		try {
 			subinterval(new VoidSubinterval() {
 				public void run(final Interval subinterval) {	
-					new IncTask(subinterval, i);
+					new IncTask(subinterval, "inc", i);
 					Interval b = new EmptyInterval(subinterval, "b");
 					Intervals.addHb(b.end, a.start);
 				}			
@@ -336,7 +428,7 @@ public class TestErrorPropagation {
 		try {
 			subinterval(new VoidSubinterval() {
 				public void run(final Interval subinterval) {
-					new IncTask(subinterval, i);
+					new IncTask(subinterval, "inc", i);
 					Interval a = new EmptyInterval(subinterval, "a");
 					Interval b = new EmptyInterval(subinterval, "b");
 					Intervals.addHb(a.end, b.start);
@@ -358,10 +450,10 @@ public class TestErrorPropagation {
 		final AtomicInteger cnt = new AtomicInteger();
 		subinterval(new VoidSubinterval() {			
 			public void run(final Interval subinterval) {
-				Interval a = new IncTask(subinterval, cnt);
-				Interval b = new IncTask(subinterval, cnt);
-				Interval c = new IncTask(subinterval, cnt);
-				Interval d = new IncTask(subinterval, cnt);
+				Interval a = new IncTask(subinterval, "a", cnt);
+				Interval b = new IncTask(subinterval, "b", cnt);
+				Interval c = new IncTask(subinterval, "c", cnt);
+				Interval d = new IncTask(subinterval, "d", cnt);
 				
 				Intervals.addHb(a.end, c.start);
 				Intervals.addHb(d.end, b.start);
@@ -389,10 +481,10 @@ public class TestErrorPropagation {
 			@Override public void run(final Interval subinterval) {				
 				new Interval(subinterval, "child") {		
 					@Override protected void run() {
-						Interval a = new IncTask(subinterval, cnt);
-						Interval b = new IncTask(subinterval, cnt);
-						Interval c = new IncTask(subinterval, cnt);
-						Interval d = new IncTask(subinterval, cnt);
+						Interval b = new IncTask(subinterval, "a", cnt);
+						Interval a = new IncTask(subinterval, "b", cnt);
+						Interval c = new IncTask(subinterval, "c", cnt);
+						Interval d = new IncTask(subinterval, "d", cnt);
 						
 						Intervals.addHb(a.end, c.start);
 						Intervals.addHb(d.end, b.start);

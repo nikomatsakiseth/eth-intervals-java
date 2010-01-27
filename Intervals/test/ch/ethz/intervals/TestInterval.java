@@ -21,15 +21,23 @@ public class TestInterval {
 	
 	static class IncTask extends Interval {
 		public final AtomicInteger i;
+		public final int amnt;
 
-		public IncTask(Dependency dep, AtomicInteger i) {
-			super(dep);
+		public IncTask(Dependency dep, String name, AtomicInteger i) {
+			super(dep, name);
 			this.i = i;
+			this.amnt = 1;
+		}
+
+		public IncTask(Dependency dep, String name, AtomicInteger i, int amnt) {
+			super(dep, name);
+			this.i = i;
+			this.amnt = amnt;
 		}
 
 		@Override
 		public void run() {
-			i.getAndIncrement();
+			i.addAndGet(amnt);
 		}		
 	}
 	
@@ -97,7 +105,7 @@ public class TestInterval {
 		Intervals.subinterval(new VoidSubinterval() {
 			public void run(Interval _) {
 				for(int i = 0; i < c; i++)
-					new IncTask(Intervals.child(), cnt);
+					new IncTask(Intervals.child(), "c"+i, cnt);
 			}			
 		});
 		Assert.assertEquals(cnt.get(), c);
@@ -113,7 +121,7 @@ public class TestInterval {
 		Intervals.subinterval(new VoidSubinterval() {
 			public void run(Interval _) {
 				for(int i = 0; i < c; i++) {
-					new IncTask(Intervals.child(), cnt).schedule();
+					new IncTask(Intervals.child(), "c"+i, cnt).schedule();
 				}
 			}
 			
@@ -132,7 +140,7 @@ public class TestInterval {
 			public void run(Interval _) {
 				Interval future = new EmptyInterval(Intervals.child(), "during");
 				for(int i = 0; i < c; i++)
-					new IncTask(future, cnt);
+					new IncTask(future, "c"+i, cnt);
 			}
 			
 		});

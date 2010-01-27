@@ -84,7 +84,7 @@ implements PointMirror
 
 	private void cancel() {
 		assert !didOccur();
-		interval.cancel();
+		interval.cancel(this);
 	}
 
 	/** 
