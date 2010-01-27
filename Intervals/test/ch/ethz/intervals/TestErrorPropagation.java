@@ -193,19 +193,50 @@ public class TestErrorPropagation {
 			Intervals.subinterval(new VoidSubinterval() {
 				public void run(Interval subinterval) {
 					Interval thr = new ThrowExceptionTask(subinterval);
-					Interval a = new IncTask(subinterval, "a", integer, 1);
-					Interval b = new IncTask(subinterval, "b", integer, 10);
+					Interval x = new IncTask(subinterval, "x", integer, 1);
+					Interval y = new IncTask(subinterval, "y", integer, 10);
+					Interval z = new IncTask(subinterval, "z", integer, 100);
 					
-					Intervals.addHb(a, b);
-					Intervals.addHb(a.start, thr.start);
-					Intervals.addHb(thr.end, a.end);
+					Intervals.addHb(x, z);
+					Intervals.addHb(x.start, thr.start);
+					Intervals.addHb(thr.end, x.end);
 				}
 			});
 			Assert.fail("Exception not thrown");
 		} catch (RethrownException e) {
 			Assert.assertEquals(1, e.allErrors().size()); // both the original exc and new exc are carried over
 			Assert.assertTrue(containsSubtypeOf(e.allErrors(), TestException.class)); // original exc
-			Assert.assertEquals(1, integer.get()); // a ran, but not b 
+			Assert.assertEquals(11, integer.get()); // x and y ran, but not z 
+		}
+	}
+	
+	/**
+	 * 
+	 */
+	@Test public void predecessorsOfSubintervalEndThatDie() {
+		
+		//
+		//             |---x---| --> |--z--|
+		// |--thr--| --> |-y-|
+		
+		final AtomicInteger integer = new AtomicInteger();
+		try {
+			Intervals.subinterval(new VoidSubinterval() {
+				public void run(Interval subinterval) {
+					Interval thr = new ThrowExceptionTask(subinterval);
+					Interval x = new IncTask(subinterval, "x", integer, 1);
+					Interval y = new IncTask(x, "y", integer, 10);
+					Interval z = new IncTask(subinterval, "z", integer, 100);
+					
+					Intervals.addHb(thr, y);
+					Intervals.addHb(x, z);
+				}
+			});
+			Assert.fail("Exception not thrown");
+		} catch (RethrownException e) {
+			Assert.assertEquals(1, e.allErrors().size()); // both the original exc and new exc are carried over
+			Assert.assertTrue(containsSubtypeOf(e.allErrors(), TestException.class)); // original exc
+			Assert.assertEquals(1, integer.get()); // x ran, but not y or z 
 		}
 	}
 	

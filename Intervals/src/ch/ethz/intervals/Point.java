@@ -351,8 +351,22 @@ implements PointMirror
 	 *  that {@code this} has occurred.  Propagates exceptions and 
 	 *  optionally invokes {@link #arrive(int)}. */
 	private void notifySuccessor(Point pnt, boolean arrive) {
-		if(pnt != bound && didOccurWithError())
-			pnt.cancel();
+		if(didOccurWithError()) {
+			/* No need to deliver the error to our bound:
+			 * - If we originated the error, it's a vertical error delivered by us.
+			 * - If someone else with same bound originated error, it's a vertical error
+			 *   delivered by them.
+			 * - If someone else with a greater bound than us did so, it was done when
+			 *   the error was delivered to us.
+			 * But we do need to deliver to anyone up to but not including
+			 * the bound.  See {@link TestErrorPropagation#predecessorsOfSubintervalEndThatDie()}
+			 * for reason why. */
+			Point p = pnt;
+			while(p != bound) {
+				p.cancel();
+				p = p.bound;
+			}
+		}
 		if(arrive)
 			pnt.arrive(1);
 	}
