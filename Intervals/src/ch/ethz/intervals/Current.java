@@ -107,6 +107,20 @@ class Current {
 		local.set(prev);
 	}
 
+	void checkCanAddChild(Interval parent) {
+		if(SAFETY_CHECKS) {
+			if(isUnscheduled(parent.start))
+				return;
+			if(inter == null)
+				throw new NotInRootIntervalException();
+			if(inter.end.isBoundedByOrEqualTo(parent.end))
+				return;
+			if(inter.end.hbeq(parent.start))
+				return;
+			throw new EdgeNeededException(inter.end, parent.start);
+		}
+	}
+
 	void checkCanAddDep(Point to) {		
 		if(SAFETY_CHECKS) {
 			if(isUnscheduled(to))

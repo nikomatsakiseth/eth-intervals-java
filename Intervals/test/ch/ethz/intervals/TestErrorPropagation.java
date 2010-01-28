@@ -357,7 +357,7 @@ public class TestErrorPropagation {
 		Intervals.addHb(b.start, a.end);
 	}
 	
-	@Test(expected=EdgeNeededException.class) 
+	@Test(expected=NotInRootIntervalException.class) 
 	public void raceConditionInBeforeGeneratesError3() {
 		final Interval a = new EmptyInterval(Intervals.root(), "a");
 		Intervals.schedule();

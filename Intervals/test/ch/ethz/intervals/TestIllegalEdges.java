@@ -1,5 +1,7 @@
 package ch.ethz.intervals;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -37,7 +39,8 @@ public class TestIllegalEdges {
 				Interval a12 = new EmptyInterval(a1, "a12"); 
 				Interval a2 = new EmptyInterval(a, "a2"); 
 				Interval b = new EmptyInterval(Intervals.root(), "a");
-
+				
+				// Permitted because it is a duplicate:
 				addIllegalEdge(a12.end, a1.end, MustBeBoundedByException.class);
 				
 				addLegalEdge(a1.end, a2.start);
@@ -103,4 +106,25 @@ public class TestIllegalEdges {
 		});
 	}
 
+	@Test public void testIllegalToCreateChildEvenWithEdgeToEnd() {
+		final AtomicInteger integer = new AtomicInteger();
+		try {
+			Intervals.subinterval(new VoidSubinterval() {			
+				@Override public void run(Interval subinterval) {
+					final Interval a = new TestInterval.IncTask(subinterval, "a", integer);
+					
+					new Interval(subinterval, "b") {
+						@Override protected void run() {
+							new TestInterval.IncTask(a, "a1", integer, 10);
+						}
+					};
+				}
+			});
+			Assert.fail();
+		} catch (RethrownException e) {
+			Assert.assertTrue(e.getCause() instanceof EdgeNeededException);
+		}
+		Assert.assertEquals(1, integer.get()); // a should execute
+	}
+	
 }

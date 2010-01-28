@@ -44,7 +44,8 @@ implements Dependency, Guard, IntervalMirror
 		//     path current.start->bnd was already added.
 		// (2) Bound is current.end.  current.start->current.end.
 		// (3) A path exists from current.end -> bnd.  Same as (2).
-		if(parentEnd != null) current.checkCanAddDep(parentEnd);	
+		if(parent != null)
+			current.checkCanAddChild(parent);
 		
 		this.name = name;
 		this.parent = parent;
