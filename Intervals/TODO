@@ -1,10 +1,5 @@
-* DynamicGuard-- avoid "accidental" HB!  Consider:
+* Loosen new interval requirements
 
-	c -> a (l)
-	b (l) -> d
-	
-	if a happens to go first, then c ~> d
-	if b happens to go first, then c ~/> d
-	
-	D'oh!  I think we only want to consider lock edges very specially,
-	or else just ignore them in the hb() checks.
+We could permit new interval creation so long as the end of the creator
+happens before the end of a descendent of the parent.  But I'm not sure
+if it's worth the trouble.
