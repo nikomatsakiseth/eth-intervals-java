@@ -3,3 +3,7 @@
 We could permit new interval creation so long as the end of the creator
 happens before the end of a descendent of the parent.  But I'm not sure
 if it's worth the trouble.
+
+* Propagate errors through locks
+
+But how to know when it's caught?
