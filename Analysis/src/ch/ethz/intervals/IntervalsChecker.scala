@@ -35,6 +35,7 @@ import ch.ethz.intervals.log.Log
 class IntervalsChecker extends SourceChecker {
 
     var logStack: LogStack = null
+    def indexLog = logStack.indexLog
     def log = logStack.log
 
     override def init(env: ProcessingEnvironment) = {
@@ -61,13 +62,13 @@ class IntervalsChecker extends SourceChecker {
     override def typeProcess(
         telem: TypeElement,
         treePath: TreePath
-    ) = log.indented("typeProcess(%s,%s)".format(telem, treePath)) {
+    ) = indexLog.indented("IntervalsChecker.typeProcess(%s,%s)".format(telem, treePath)) {
         telem.getKind match {
             case EK.CLASS | EK.INTERFACE | EK.ENUM => {
                 currentRoot = treePath.getCompilationUnit
                 currentPath = treePath        
                 val ttf = createFactory(currentRoot)
-                val tctx = new TranslateContext(log, ttf)
+                val tctx = new TranslateContext(logStack, ttf)
                 
                 val classTree = treePath.getLeaf.asInstanceOf[ClassTree]
                 val refdElems = referenceClosure(classTree)

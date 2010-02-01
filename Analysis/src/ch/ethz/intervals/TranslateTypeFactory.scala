@@ -33,6 +33,7 @@ class TranslateTypeFactory(
     root: CompilationUnitTree
 ) extends AnnotatedTypeFactory(checker, root) {
     import logStack.log
+    import logStack.indexLog
     
     // ___ Useful constants _________________________________________________
     
@@ -217,7 +218,9 @@ class TranslateTypeFactory(
         }    
         
     def ghostFieldsGivenValueInAnnotations(ams: List[AnnotationMirror]) =
-        addGhostFieldsGivenValueInAnnotations(Map.empty, ams)
+        log.indentedRes("ghostFieldsGivenValueInAnnotations(%s)", ams) {
+            addGhostFieldsGivenValueInAnnotations(Map.empty, ams)
+        }        
     
     def addGhostFieldsGivenValueOnElem(
         m0: Map[ir.FieldName, String], 
@@ -226,20 +229,26 @@ class TranslateTypeFactory(
         addGhostFieldsGivenValueInAnnotations(m0, elem0.getAnnotationMirrors.toList)
     
     def ghostFieldsGivenValueOnElem(elem: Element) =
-        addGhostFieldsGivenValueOnElem(Map.empty, elem)
+        log.indentedRes("ghostFieldsGivenValueOnElem(%s)", elem) {
+            addGhostFieldsGivenValueOnElem(Map.empty, elem)
+        }
         
     def addGhostFieldsDeclaredOnElem(
         m0: Map[ir.FieldName, AnnotatedTypeMirror], 
         elem0: Element
     ): Map[ir.FieldName, AnnotatedTypeMirror] = 
-        elem0.getAnnotationMirrors.map(categorizeGhostAnnot).foldLeft(m0) { 
-            case (m, GhostAnnNone) => m
-            case (m, GhostAnnDecl(f, annty)) => m + Pair(f, annty)
-            case (m, GhostAnnValue(f, _)) => m - f
-        }    
+        log.indentedRes("addGhostFieldsDeclaredOnElem(%s)", elem0) {
+            elem0.getAnnotationMirrors.map(categorizeGhostAnnot).foldLeft(m0) { 
+                case (m, GhostAnnNone) => m
+                case (m, GhostAnnDecl(f, annty)) => m + Pair(f, annty)
+                case (m, GhostAnnValue(f, _)) => m - f
+            }    
+        }
     
     def ghostFieldsDeclaredOnElem(elem: Element) =
-        addGhostFieldsDeclaredOnElem(Map.empty, elem)
+        log.indentedRes("ghostFieldsDeclaredOnElem(%s)", elem) {
+            addGhostFieldsDeclaredOnElem(Map.empty, elem)
+        }
         
     def addGhostFieldsDeclaredOnElemAndSuperelems(
         m0: Map[ir.FieldName, AnnotatedTypeMirror], 
@@ -267,10 +276,14 @@ class TranslateTypeFactory(
         elemOfType(ty).foldLeft(m0)(addGhostFieldsDeclaredOnElemAndSuperelems)
     
     def ghostFieldsDeclaredOnElemAndSuperelems(elem: Element) =
-        addGhostFieldsDeclaredOnElemAndSuperelems(Map.empty, elem)
+        log.indentedRes("ghostFieldsDeclaredOnElemAndSuperelems(%s)", elem) {
+            addGhostFieldsDeclaredOnElemAndSuperelems(Map.empty, elem)
+        }
     
     def ghostFieldsDeclaredOnTyAndSupertypes(ty: TypeMirror) =
-        addGhostFieldsDeclaredOnTyAndSupertypes(Map.empty, ty)
+        log.indentedRes("ghostFieldsDeclaredOnTyAndSupertypes(%s)", ty) {
+            addGhostFieldsDeclaredOnTyAndSupertypes(Map.empty, ty)
+        }
     
     // ___ Environment ______________________________________________________
     
@@ -287,7 +300,7 @@ class TranslateTypeFactory(
     
     val emptyEnv = TranslateEnv(NullPosition, Map.empty, Map.empty)
 
-    def elemEnv(elem: Element): TranslateEnv =
+    def elemEnv(elem: Element): TranslateEnv = log.indented("elemEnv(%s)", elem) {
         elem.getKind match {
             case EK.PACKAGE =>
                 emptyEnv
@@ -350,9 +363,12 @@ class TranslateTypeFactory(
 
                 var m_lvs = env_cls.m_lvs
                 m_lvs += Pair("method", (ir.p_mthd, annty_interval))
-                eelem.getParameters.foldLeft(m_lvs) { case (m, velem) =>
-                    m + Pair(elem.getSimpleName.toString, (lv(velem).path, getAnnotatedType(velem)))
+                m_lvs = eelem.getParameters.foldLeft(m_lvs) { case (m, velem) =>
+                    m + Pair(
+                        velem.getSimpleName.toString, 
+                        (lv(velem).path, getAnnotatedType(velem)))
                 }
+                log.map("Local variables", m_lvs)
 
                 // ----------------------------------------------------------------------
                 // "Defaults:"
@@ -361,13 +377,15 @@ class TranslateTypeFactory(
                 // we may allow defaults to be specified on a method level, however.
 
                 var m_defaultWghosts = env_cls.m_defaultWghosts
+                log.map("default wghosts", m_defaultWghosts)
 
                 TranslateEnv(ElementPosition(eelem), m_lvs, m_defaultWghosts)                
             }
             
             case _ =>
                 elemEnv(elem.getEnclosingElement)
-        }
+        }            
+    }
 
     // ___ Parsing __________________________________________________________
     //
@@ -624,43 +642,49 @@ class TranslateTypeFactory(
         }
     
     def intFieldDecl(velem: VariableElement) = 
-        at(ElementPosition(velem), dummyFieldDecl(velem)) {
-            val env = elemEnv(velem)
-            ir.ReifiedFieldDecl(
-                ir.noAttrs,
-                wtref(env)(getAnnotatedType(velem)),
-                f(velem),  
-                fieldGuard(env)(velem)          
-            )        
+        indexLog.indented("Field: %s", qualName(velem)) {
+            at(ElementPosition(velem), dummyFieldDecl(velem)) {
+                val env = elemEnv(velem)
+                ir.ReifiedFieldDecl(
+                    ir.noAttrs,
+                    wtref(env)(getAnnotatedType(velem)),
+                    f(velem),  
+                    fieldGuard(env)(velem)          
+                )        
+            }
         }
         
     def intArgDecl(velem: VariableElement) =
-        at(ElementPosition(velem), dummyLvDecl(velem)) {
-            ir.LvDecl(
-                lv(velem),
-                wtref(elemEnv(velem))(getAnnotatedType(velem))
-            )
+        indexLog.indented("Arg: %s", qualName(velem)) {
+            at(ElementPosition(velem), dummyLvDecl(velem)) {
+                ir.LvDecl(
+                    lv(velem),
+                    wtref(elemEnv(velem))(getAnnotatedType(velem))
+                )
+            }
         }
         
     def intMethodDecl(as0: ir.Attrs, eelem: ExecutableElement) = 
-        at(ElementPosition(eelem), dummyMethodDecl(eelem)) {
-            val env_mthd = elemEnv(eelem)
-            val annty = getAnnotatedType(eelem)
-            val as1 = 
-                if(eelem.getAnnotation(classOf[Constructor]) != null) as0.withCtor
-                else as0
-            ir.MethodDecl(
-                /* attrs:  */ as1,
-                /* wt_ret: */ wtref(env_mthd)(annty.getReturnType), 
-                /* name:   */ m(eelem), 
-                /* args:   */ eelem.getParameters.map(intArgDecl).toList,
-                /* reqs:   */ reqs(eelem),
-                /* blocks: */ Array(ir.Block(List(), List(), List()))
-            )
+        indexLog.indented("Method: %s()", qualName(eelem)) {
+            at(ElementPosition(eelem), dummyMethodDecl(eelem)) {
+                val env_mthd = elemEnv(eelem)
+                val annty = getAnnotatedType(eelem)
+                val as1 = 
+                    if(eelem.getAnnotation(classOf[Constructor]) != null) as0.withCtor
+                    else as0
+                ir.MethodDecl(
+                    /* attrs:  */ as1,
+                    /* wt_ret: */ wtref(env_mthd)(annty.getReturnType), 
+                    /* name:   */ m(eelem), 
+                    /* args:   */ eelem.getParameters.map(intArgDecl).toList,
+                    /* reqs:   */ reqs(eelem),
+                    /* blocks: */ Array(ir.Block(List(), List(), List()))
+                )
+            }
         }
     
     def intClassDecl(filter: (Element => Boolean), telem: TypeElement): ir.ClassDecl = 
-        log.indentedRes("headerClassDecl: %s", telem) {
+        indexLog.indented("class %s", qualName(telem)) {
             at(ElementPosition(telem), dummyClassDecl(telem)) {
                 val enclElems = telem.getEnclosedElements
                 val ctorDecls = EF.constructorsIn(enclElems).filter(filter).map(intMethodDecl(ir.ctorAttrs, _))
@@ -719,33 +743,27 @@ class TranslateTypeFactory(
     }
     
     override def annotateImplicit(elem: Element, atm: AnnotatedTypeMirror) {
-        log.indented("annotateImplicit[Element](%s, %s)", elem, atm) {
-            elem.getKind match {
-                case EK.CLASS | EK.INTERFACE | EK.ENUM | EK.ANNOTATION_TYPE =>
+        elem.getKind match {
+            case EK.CLASS | EK.INTERFACE | EK.ENUM | EK.ANNOTATION_TYPE =>
 /*                    val objParams = objParametersInScope(elem)
-                    atm.clearAnnotations
-                    objParams.foreach { case objParam => log.indented("default annot: %s", objParam) {
-                        log("env=%s", env)
-                        val ab = new AnnotationBuilder(env, objParam.name)
-                        ab.setValue("value", shortFieldName(objParam))
-                        val am = ab.build()
-                        atm.addAnnotation(am)
-                    } }*/
-                case _ =>
-            }
-            log("Result=%s", atm)
+                atm.clearAnnotations
+                objParams.foreach { case objParam => log.indented("default annot: %s", objParam) {
+                    log("env=%s", env)
+                    val ab = new AnnotationBuilder(env, objParam.name)
+                    ab.setValue("value", shortFieldName(objParam))
+                    val am = ab.build()
+                    atm.addAnnotation(am)
+                } }*/
+            case _ =>
         }
     }
 
     override def annotateImplicit(tree: Tree, atm: AnnotatedTypeMirror) {
-        log.indented("annotateImplicit[Tree](%s, %s)", tree, atm) {
-            tree.getKind match {
-                case TRK.CLASS =>
-                    val elem = TU.elementFromDeclaration(tree.asInstanceOf[ClassTree])
-                    annotateImplicit(elem, atm)
-                case _ =>
-            }
-            log("Result=%s", atm)
+        tree.getKind match {
+            case TRK.CLASS =>
+                val elem = TU.elementFromDeclaration(tree.asInstanceOf[ClassTree])
+                annotateImplicit(elem, atm)
+            case _ =>
         }
     }       
 }

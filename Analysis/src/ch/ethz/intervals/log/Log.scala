@@ -149,12 +149,14 @@ object Log {
             <HTML>
             <HEAD>
                 <TITLE>Debug log<TITLE>
-                <SCRIPT LANGUAGE='JavaScript' SRC='http://smallcultfollowing.com/mktree/mktree.js'></SCRIPT>
-                <LINK REL="stylesheet" HREF='http://smallcultfollowing.com/mktree/mktree-debug.css'>
+                <!-- <SCRIPT LANGUAGE='JavaScript' SRC='http://smallcultfollowing.com/mktree/mktree.js'></SCRIPT> -->
+                <!-- <LINK REL="stylesheet" HREF='http://smallcultfollowing.com/mktree/mktree-debug.css'> -->
             </HEAD>
             <BODY>
-            <a href='#' class='button' onClick='expandTree("tree1");return false;'>Expand All Nodes</a><br>
+            <!--
+            <a class='button' href='#' onClick='expandTree("tree1");return false;'>Expand All Nodes</a><br>
             <a class='button' href='#' onClick='collapseTree("tree1"); return false;'>Collapse All Nodes</a><br>
+            -->
             <UL class='mktree' id='tree1'>
             """)
             
@@ -184,10 +186,12 @@ object Log {
         
         def rawIndent {
             outWriter.println("<ul>")
+            detailsLog.foreach(_.rawIndent)
         }
         
         def rawUndent {
             outWriter.println("</ul>")
+            detailsLog.foreach(_.rawUndent)
         }
         
         def escape(s0: String) = {

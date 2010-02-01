@@ -7,7 +7,7 @@ class LogStack(mainLog: Log) {
     
     // ___ Logging __________________________________________________________
     
-    var splitLog = mainLog.splitLog(getClass.getName)
+    var splitLog = mainLog.splitLog("Check")
     def indexLog = splitLog.indexLog
     def log = splitLog.detailLog
     

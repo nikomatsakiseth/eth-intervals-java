@@ -5,6 +5,10 @@ import ch.ethz.intervals.log.Log
 import ch.ethz.intervals.log.SplitLog
 
 abstract class CheckPhase(val prog: Prog) {
+    import prog.logStack
+    import prog.logStack.indexLog
+    import prog.logStack.log
+    
     // ___ Class-check ordering _____________________________________________
     def checkClassDecl(cd: ir.ClassDecl)
     val userClassNames = Set(prog.cds_user.map(_.name): _*)
@@ -17,5 +21,8 @@ abstract class CheckPhase(val prog: Prog) {
             checkedClasses += cd.name
         }
     }    
-    def checkProg = prog.cds_user.foreach(checkClassDeclAfterSuperclasses)
+    def checkProg = 
+        logStack.withSplitLog(indexLog.splitLog(getClass.getName)) {
+            prog.cds_user.foreach(checkClassDeclAfterSuperclasses)            
+        }
 }

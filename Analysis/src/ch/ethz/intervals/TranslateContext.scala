@@ -7,16 +7,19 @@ import checkers.util.{TreeUtils => TU}
 
 import javax.lang.model.element._
 
-import ch.ethz.intervals.log.Log
+import ch.ethz.intervals.log.LogStack
 
 class TranslateContext(
-    val log: Log,
+    val logStack: LogStack,
     val ttf: TranslateTypeFactory
 ) {
+    import logStack.indexLog
+    import logStack.log
+    
     val cds = new ListBuffer[ir.ClassDecl]()
     
     def addClassInterface(elem: TypeElement, referencedElements: (Element => Boolean)) =
-        log.indented("addClassInterface(%s, ...)", elem) {
+        indexLog.indented("TranslateContext.addClassInterface(%s, ...)", elem) {
             val cd = ttf.intClassDecl(referencedElements, elem)
             cds += cd
             log.classDecl("Result: ", cd)
