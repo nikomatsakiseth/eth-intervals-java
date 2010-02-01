@@ -14,7 +14,7 @@ class CheckAll(prog: Prog) {
             case List() => "success"
             case (nm, chk) :: tl =>
                 chk.checkProg
-                if(prog.errors.isEmpty) checkPhases(tl)
+                if(prog.logStack.errors.isEmpty) checkPhases(tl)
                 else nm
         }
         checkPhases(allPhases)        

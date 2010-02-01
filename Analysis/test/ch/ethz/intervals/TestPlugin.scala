@@ -19,7 +19,10 @@ import javax.tools.JavaCompiler
 import javax.tools.StandardJavaFileManager
 import javax.tools.ToolProvider
 
+import ch.ethz.intervals.log.LogDirectory
+
 class TestPlugin extends JUnitSuite {
+    import TestAll.DEBUG_DIR
     
     def fileName(jfo: JavaFileObject) =
         if(jfo == null) "null"
@@ -64,17 +67,22 @@ class TestPlugin extends JUnitSuite {
             if(debug) List("-g")
             else List()
             
+        val procOpts = 
+            List(
+                "-AINTERVALS_DEBUG_DIR="+DEBUG_DIR,
+    			"-processor", classOf[IntervalsChecker].getName
+            )
+            
         val opts = 
             List(
                 "-nowarn",
                 "-d", binDir,
     			"-Xlint:-unchecked",
     			"-Xlint:-deprecation",
-    			"-processor", classOf[IntervalsChecker].getName,
     			"-classpath", classpath.mkString(":"),
     			"-Xbootclasspath/p:%s".format(bclasspath.mkString(":")),
     			"-sourcepath", sourcepath
-            ) ++ isolatedOpts ++ debugOpts
+            ) ++ isolatedOpts ++ procOpts ++ debugOpts
     }
     val unitTest = JdkConfig(
         /* dir: */              "test-plugin", 
@@ -121,7 +129,7 @@ class TestPlugin extends JUnitSuite {
         var expErrorsRemaining = expErrors
         var matchedErrors = 0
         
-        val log = new Log.TmpHtmlLog()
+        val log = new LogDirectory(DEBUG_DIR).indexLog
         
         log("jfos: %s", jfos)
         log.indented("javac opts") { config.opts.foreach(log.apply) }
@@ -151,7 +159,7 @@ class TestPlugin extends JUnitSuite {
         } catch {
             case t: Throwable => // only print log if test fails:
                 System.out.println("Error matching output for failed test:")
-                System.out.println(log.outURI)
+                System.out.println(log.uri)
                 throw t            
         }
     }
@@ -167,7 +175,12 @@ class TestPlugin extends JUnitSuite {
     }
     
     @Test 
-    def testPlugin() {
+    def testParseReqs() {
         javac(unitTest, "basic/ParseReqs.java")        
+    }
+    
+    @Test 
+    def testBbpc() {
+        javac(unitTest, "bbpc/Producer.java")
     }
 }

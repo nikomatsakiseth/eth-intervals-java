@@ -2,12 +2,12 @@ package ch.ethz.intervals
 
 import Util._
 
-abstract class ComputeRelations(prog: Prog) 
-extends TracksEnvironment(prog)
+abstract class ComputeRelations(prog: Prog) extends TracksEnvironment(prog)
 {
-    import prog.log
+    import prog.logStack.log
+    import prog.logStack.indexLog
+    import prog.logStack.at    
     import prog.classDecl
-    import prog.at
     import prog.isSubclass
     import prog.freshVarName
     
@@ -89,7 +89,7 @@ extends TracksEnvironment(prog)
                     val tqs = teePee(ir.noAttrs, qs)
                     
                     if(cd.attrs.interface)
-                        throw new ir.IrError("intervals.new.interface", t.c)
+                        throw new CheckFailure("intervals.new.interface", t.c)
                     
                     addLvDecl(x, t, None)
                     val tp_x = teePee(x.path)                                        
@@ -202,7 +202,7 @@ extends TracksEnvironment(prog)
                     ps.map { case p0 =>
                         val p1 = subst.path(p0)
                         if(p1.lv == lv_outOfScope)
-                            throw new ir.IrError("intervals.must.assign.first", p0)
+                            throw new CheckFailure("intervals.must.assign.first", p0)
                         p1
                     }
             

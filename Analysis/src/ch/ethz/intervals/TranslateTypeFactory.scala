@@ -25,12 +25,14 @@ import java.util.{List => jList}
 import Util._
 import quals.DefinesGhost
 import ch.ethz.intervals.quals._
+import ch.ethz.intervals.log.LogStack
 
 class TranslateTypeFactory(
-    log: Log,
+    logStack: LogStack,
     checker: IntervalsChecker,
     root: CompilationUnitTree
 ) extends AnnotatedTypeFactory(checker, root) {
+    import logStack.log
     
     // ___ Useful constants _________________________________________________
     
@@ -48,18 +50,23 @@ class TranslateTypeFactory(
         def reportObject: Object
     }
     
+    class DummyPositional(pos: DummyPosition, tag: String) extends Positional {
+        setPos(pos)
+        override def toString = "%s(%s)".format(tag, pos)
+    }
+    
     case object NullPosition extends DummyPosition {
         def reportObject = null
     }
     
     case class TreePosition(tree: Tree) extends DummyPosition {
         def reportObject = tree
-        override def toString = "(tree %s)".format(tree)
+        override def toString = "TreePosition(%s)".format(tree)
     }
     
     case class ElementPosition(elem: Element) extends DummyPosition {
         def reportObject = elem
-        override def toString = "(element %s)".format(qualName(elem))
+        override def toString = "ElementPosition(%s)".format(qualName(elem))
     }
     
     def report(e: ir.Error) = {
@@ -68,15 +75,8 @@ class TranslateTypeFactory(
         checker.report(Result.failure(e.msg, e.args: _*), pos.reportObject)
     }
     
-    def at[R](p: DummyPosition, default: => R)(func: => R) = {
-        try {
-            log.indentedRes("At: %s", p.reportObject) { func }
-        } catch {
-            case err: ir.IrError =>
-                report(err.toError(p))
-                default
-        }
-    }
+    def at[R](p: DummyPosition, default: => R)(func: => R) =
+        logStack.at(new DummyPositional(p, "At"), default)(func)
 
     // ___ Misc. Helpers ____________________________________________________
     
@@ -385,7 +385,7 @@ class TranslateTypeFactory(
             parserLog("startPath(%s)", id)
             env.m_lvs.get(id) match {
                 case Some((p, annty)) => ParsePath(p, annty)
-                case None => throw ir.IrError("intervals.no.such.variable", id)
+                case None => throw new CheckFailure("intervals.no.such.variable", id)
             }
         }
         
@@ -410,11 +410,11 @@ class TranslateTypeFactory(
                         case List() => 
                             findField(pp.annty, id) match {
                                 case Some(annty_id) => ParsePath(pp.p + f_id, annty_id)                                    
-                                case None => throw new ir.IrError("intervals.no.such.field", f_id)
+                                case None => throw new CheckFailure("intervals.no.such.field", f_id)
                             }
                             
                         // Multiple matches, error:
-                        case fs => throw ir.IrError("intervals.ambig.ghost", fs.mkString(", "))
+                        case fs => throw new CheckFailure("intervals.ambig.ghost", fs.mkString(", "))
                     }
             }
         }

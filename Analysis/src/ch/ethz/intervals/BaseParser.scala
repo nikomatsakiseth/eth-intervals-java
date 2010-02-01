@@ -47,7 +47,7 @@ abstract class BaseParser extends StandardTokenParsers {
     def parseToResult[A](p: Parser[A])(text: String) = 
         parse(p)(text) match {
             case Success(v, _) => v
-            case n: NoSuccess => throw new ir.IrError("intervals.parse.error", n.toString)            
+            case n: NoSuccess => throw new CheckFailure("intervals.parse.error", n.toString)
         }            
     
     def comma[A](p: Parser[A]): Parser[List[A]] = repsep(p, ",")

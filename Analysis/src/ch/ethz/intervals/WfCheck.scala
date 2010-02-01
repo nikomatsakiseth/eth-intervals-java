@@ -1,11 +1,12 @@
 package ch.ethz.intervals
 
 // First pass-- basic sanity checks.
-class WfCheck(val prog: Prog) 
-extends TracksEnvironment(prog) {
-    import prog.log
+class WfCheck(prog: Prog) extends TracksEnvironment(prog) 
+{
+    import prog.logStack.log
+    import prog.logStack.indexLog
+    import prog.logStack.at
     import prog.classDecl
-    import prog.at
     import prog.isSubclass
     import prog.ghostFieldDecls
     import prog.thisTref
@@ -18,7 +19,7 @@ extends TracksEnvironment(prog) {
     
     def checkIsSubclass(wt: ir.WcTypeRef, cs: ir.ClassName*) {
         if(!cs.exists(isSubclass(wt, _)))
-            throw new ir.IrError("intervals.expected.subclass.of.any", wt.c, cs)
+            throw new CheckFailure("intervals.expected.subclass.of.any", wt.c, cs)
     }
     
     def checkPathWfAndSubclass(as: ir.Attrs, p: ir.Path, cs: ir.ClassName*): Unit = {
@@ -59,12 +60,12 @@ extends TracksEnvironment(prog) {
         
     def checkLengths(l1: List[_], l2: List[_], msg: String) = preservesEnv {
         if(l1.length != l2.length)
-            throw new ir.IrError(msg, l1.length, l2.length)
+            throw new CheckFailure(msg, l1.length, l2.length)
     }
     
     def checkWfWt(wt: ir.WcTypeRef) {
         wt.wghosts.foldLeft(List[ir.FieldName]()) {
-            case (l, wg) if l.contains(wg.f) => throw new ir.IrError("intervals.duplicate.ghost", wg.f)
+            case (l, wg) if l.contains(wg.f) => throw new CheckFailure("intervals.duplicate.ghost", wg.f)
             case (l, wg) => wg.f :: l
         }
         
@@ -73,7 +74,7 @@ extends TracksEnvironment(prog) {
         val lgfd = ghostFieldDecls(wt.c)
         def notDefined(wg: ir.WcGhost) = !lgfd.exists(_.name == wg.f)        
         wt.wghosts.find(notDefined) match {
-            case Some(wg) => throw new ir.IrError("intervals.no.such.ghost", wt.c, wg.f)
+            case Some(wg) => throw new CheckFailure("intervals.no.such.ghost", wt.c, wg.f)
             case None =>
         }
 
@@ -99,7 +100,7 @@ extends TracksEnvironment(prog) {
                     val tp_o = teePee(reified, p_o)
                     substdFieldDecl(tp_o, f) match {
                         case ir.GhostFieldDecl(_, _) =>
-                            throw new ir.IrError("intervals.not.reified", tp_o.wt.c, f)
+                            throw new CheckFailure("intervals.not.reified", tp_o.wt.c, f)
                         
                         case ir.ReifiedFieldDecl(_, wt, _, p_guard) =>
                             addLvDecl(x, wt, None)
@@ -111,7 +112,7 @@ extends TracksEnvironment(prog) {
                     val tp_o = teePee(reified, p_o)
                     substdFieldDecl(tp_o, f) match {
                         case ir.GhostFieldDecl(_, _) =>
-                            throw new ir.IrError("intervals.not.reified", tp_o.wt.c, f)
+                            throw new CheckFailure("intervals.not.reified", tp_o.wt.c, f)
                         
                         case ir.ReifiedFieldDecl(_, _, _, _) =>
                     }
@@ -132,14 +133,14 @@ extends TracksEnvironment(prog) {
                 
                 case ir.StmtNew(x, t, m, qs) =>
                     if(classDecl(t.c).attrs.interface)
-                        throw new ir.IrError("intervals.new.interface", t.c)
+                        throw new CheckFailure("intervals.new.interface", t.c)
                     checkWfWt(t)
                     checkPathsWf(ghostOk, t.ghosts.map(_.p))
                     val tqs = teePee(reified, qs)
                     
                     // Check that all ghosts on the type C being instantiated are given a value:
                     prog.ghostFieldDecls(t.c).find(f => t.oghost(f.name).isEmpty) match {
-                        case Some(f) => throw new ir.IrError("intervals.no.value.for.ghost", f)
+                        case Some(f) => throw new CheckFailure("intervals.no.value.for.ghost", f)
                         case None =>
                     }
                     
@@ -207,7 +208,7 @@ extends TracksEnvironment(prog) {
     def checkGoto(blks: Array[ir.Block], succ: ir.Goto) =
         at(succ, ()) {
             if(succ.b < 0 || succ.b >= blks.length)
-                throw new ir.IrError("intervals.invalid.blk.id", succ.b)
+                throw new CheckFailure("intervals.invalid.blk.id", succ.b)
             checkLengths(blks(succ.b).args, succ.ps, "intervals.succ.args")
             checkPathsWf(reified, succ.ps)        
         }
@@ -294,7 +295,7 @@ extends TracksEnvironment(prog) {
                 // Check that ghosts are not shadowed from a super class:                
                 prog.strictSuperclasses(cd.name).foreach { c =>
                     if(classDecl(c).fields.exists(_.name == gfd.name))
-                        throw ir.IrError("intervals.shadowed.ghost", c, gfd.name)
+                        throw new CheckFailure("intervals.shadowed.ghost", c, gfd.name)
                 }
                 
                 checkWfWt(gfd.wt)
@@ -304,7 +305,7 @@ extends TracksEnvironment(prog) {
     def checkFieldDecl(cd: ir.ClassDecl)(priorNames: Set[ir.FieldName], fd: ir.FieldDecl) = 
         at(fd, priorNames) {
             if(priorNames(fd.name))
-                throw new ir.IrError("intervals.duplicate.field", fd.name)
+                throw new CheckFailure("intervals.duplicate.field", fd.name)
             fd match {
                 case rfd: ir.ReifiedFieldDecl => checkReifiedFieldDecl(cd, rfd)
                 case gfd: ir.GhostFieldDecl => checkGhostFieldDecl(cd, gfd)
@@ -317,7 +318,7 @@ extends TracksEnvironment(prog) {
     def checkIsInterface(c: ir.ClassName) {
         val cd = classDecl(c)
         if(!cd.attrs.interface) 
-            throw new ir.IrError("intervals.superType.not.interface", c)
+            throw new CheckFailure("intervals.superType.not.interface", c)
     }
     
     def checkInterfaceSuperclass(c: ir.ClassName) {
@@ -328,7 +329,7 @@ extends TracksEnvironment(prog) {
     def checkInterfaceConstructorDecl(cd: ir.ClassDecl, md: ir.MethodDecl) =
         at(md, ()) {
             if(!md.blocks.deepEquals(ir.md_ctor_interface.blocks))
-                throw new ir.IrError("intervals.invalid.ctor.in.interface")
+                throw new CheckFailure("intervals.invalid.ctor.in.interface")
             // TODO Check other parts of constructor signature. (Very low priority)
         }
     
@@ -341,7 +342,7 @@ extends TracksEnvironment(prog) {
                 // TODO Is this everything?
                 cd.superClasses.foreach(checkInterfaceSuperclass)
                 if(!cd.fields.isEmpty)
-                    throw new ir.IrError("intervals.interface.with.fields")
+                    throw new CheckFailure("intervals.interface.with.fields")
                 cd.ctors.foreach(checkInterfaceConstructorDecl(cd, _))
                 cd.methods.foreach(checkInterfaceMethodDecl(cd, _))
             }
@@ -350,7 +351,7 @@ extends TracksEnvironment(prog) {
     def checkIsNotInterface(c: ir.ClassName) {
         val cd_super = classDecl(c)
         if(cd_super.attrs.interface) 
-            throw new ir.IrError("intervals.superType.interface", c)
+            throw new CheckFailure("intervals.superType.interface", c)
     }
 
     def checkNoninterfaceClassDecl(cd: ir.ClassDecl) = 

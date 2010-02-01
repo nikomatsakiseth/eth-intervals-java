@@ -7,10 +7,12 @@ import org.junit.Assert._
 import org.junit.Test
 import org.junit.Before
 import Util._
+import ch.ethz.intervals.log.LogDirectory
 
 case class ExpError(msg: String, args: List[String])
 
 class TestAnalysis extends JUnitSuite { 
+    import TestAll.DEBUG_DIR
     
     // ___ Test running infrastructure ______________________________________
     
@@ -28,7 +30,7 @@ class TestAnalysis extends JUnitSuite {
     )
     
     def runTest(errorPhase: String, text0: String) {
-        val log = new Log.TmpHtmlLog()
+        val log = new LogDirectory(DEBUG_DIR).indexLog
         try {
             val text = substs.foldLeft(text0) { case (t, (a, b)) => t.replace(a, b) }
             
@@ -83,7 +85,7 @@ class TestAnalysis extends JUnitSuite {
         } catch {
             case t: Throwable => // only print log if test fails:
                 System.out.println("Debugging output for failed test:")
-                System.out.println(log.outURI)
+                System.out.println(log.uri)
                 throw t
         }        
     }

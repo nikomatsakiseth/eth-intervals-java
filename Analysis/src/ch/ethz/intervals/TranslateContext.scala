@@ -7,6 +7,8 @@ import checkers.util.{TreeUtils => TU}
 
 import javax.lang.model.element._
 
+import ch.ethz.intervals.log.Log
+
 class TranslateContext(
     val log: Log,
     val ttf: TranslateTypeFactory

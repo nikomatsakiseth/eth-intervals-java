@@ -10,6 +10,7 @@ import checkers.util.{TreeUtils => TU}
 import checkers.util.{AnnotationUtils => AU}
 import checkers.util.{InternalUtils => IU}
 
+import javax.annotation.processing.ProcessingEnvironment
 import javax.lang.model.element._
 import javax.lang.model.element.{ElementKind => EK}
 import javax.lang.model.`type`._
@@ -25,13 +26,34 @@ import scala.collection.immutable.Set
 import scala.collection.mutable.{Set => MutableSet}
 import scala.collection.jcl.Conversions._
 
+import java.io.File
+
+import ch.ethz.intervals.log.LogStack
+import ch.ethz.intervals.log.LogDirectory
+import ch.ethz.intervals.log.Log
+
 class IntervalsChecker extends SourceChecker {
-    
-    val log = new Log.TmpHtmlLog()
-    println("Debugging output at: %s".format(log.outURI))
+
+    var logStack: LogStack = null
+    def log = logStack.log
+
+    override def init(env: ProcessingEnvironment) = {
+        super.init(env)
+        
+        logStack = new LogStack(
+            env.getOptions.get("INTERVALS_DEBUG_DIR") match {
+                case null => 
+                    Log.DevNullLog
+                case dir =>
+                    val logDirectory = new LogDirectory(new File(dir))
+                    println("Debugging output at: %s".format(logDirectory.indexURI))
+                    logDirectory.indexLog
+            }
+        )
+    }
         
     override def createFactory(root: CompilationUnitTree): TranslateTypeFactory =
-        new TranslateTypeFactory(log, this, root)
+        new TranslateTypeFactory(logStack, this, root)
         
     override def createSourceVisitor(root: CompilationUnitTree) =
         null

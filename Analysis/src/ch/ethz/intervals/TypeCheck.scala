@@ -7,12 +7,12 @@ import scala.collection.mutable.ListBuffer
 import scala.util.parsing.input.Positional
 import Util._
 
-class TypeCheck(val prog: Prog) 
-extends ComputeRelations(prog)
+class TypeCheck(prog: Prog) extends ComputeRelations(prog)
 {    
-    import prog.log
+    import prog.logStack.log
+    import prog.logStack.indexLog
+    import prog.logStack.at
     import prog.classDecl
-    import prog.at
     import prog.thisTref
     import prog.typeOriginallyDefiningMethod
     import prog.overriddenMethodSigs
@@ -81,7 +81,7 @@ extends ComputeRelations(prog)
     /// wt(tp_sub) <: wt_sup
     def checkIsSubtype(tp_sub: ir.TeePee, wt_sup: ir.WcTypeRef) {
         if(!isSubtype(tp_sub, wt_sup))
-            throw new ir.IrError("intervals.expected.subtype", tp_sub.p, tp_sub.wt, wt_sup)
+            throw new CheckFailure("intervals.expected.subtype", tp_sub.p, tp_sub.wt, wt_sup)
     }
     
     // ___ Checking method bodies ___________________________________________
@@ -102,7 +102,7 @@ extends ComputeRelations(prog)
     
     def checkReqFulfilled(req: ir.Req) {
         if(!isReqFulfilled(req))
-            throw new ir.IrError("intervals.requirement.not.met", req)
+            throw new CheckFailure("intervals.requirement.not.met", req)
     }
     
     def checkArgumentTypes(msig: ir.MethodSig, tqs: List[ir.TeePee]) =
@@ -110,17 +110,17 @@ extends ComputeRelations(prog)
     
     def checkReadable(tp_guard: ir.TeePee) {
         if(!isReadableBy(tp_guard, tp_cur))
-            throw new ir.IrError("intervals.not.readable", tp_guard.p)
+            throw new CheckFailure("intervals.not.readable", tp_guard.p)
     }
     
     def checkWritable(tp_guard: ir.TeePee) {
         if(!isWritableBy(tp_guard, tp_cur))
-            throw new ir.IrError("intervals.not.writable", tp_guard.p)
+            throw new CheckFailure("intervals.not.writable", tp_guard.p)
     }
         
     def checkNoInvalidated() {
         if(!env.ps_invalidated.isEmpty)
-            throw new ir.IrError(
+            throw new CheckFailure(
                 "intervals.must.assign.first", 
                 env.ps_invalidated.mkEnglishString)        
     }
@@ -144,7 +144,7 @@ extends ComputeRelations(prog)
         
         // If method is not a constructor method, receiver must be constructed:
         if(!msig.as.ctor && tp.wt.as.ctor) 
-            throw new ir.IrError("intervals.rcvr.must.be.constructed", tp.p)
+            throw new CheckFailure("intervals.rcvr.must.be.constructed", tp.p)
             
         // Arguments must have correct type and requirements must be fulfilled:
         checkArgumentTypes(msig, tqs)
@@ -169,7 +169,7 @@ extends ComputeRelations(prog)
                     val tp_o = teePee(ir.noAttrs, p_o)
                     substdFieldDecl(tp_o, f) match {
                         case ir.GhostFieldDecl(_, _) =>
-                            throw new ir.IrError("intervals.not.reified", tp_o.wt.c, f)
+                            throw new CheckFailure("intervals.not.reified", tp_o.wt.c, f)
                         
                         case ir.ReifiedFieldDecl(_, wt, _, p_guard) =>
                             val tp_guard = teePee(ir.ghostAttrs, p_guard)                    
@@ -182,7 +182,7 @@ extends ComputeRelations(prog)
                     
                     substdFieldDecl(tp_o, f) match {
                         case ir.GhostFieldDecl(_, _) => 
-                            throw new ir.IrError("intervals.not.reified", tp_o.wt.c, f)
+                            throw new CheckFailure("intervals.not.reified", tp_o.wt.c, f)
                         
                         case ir.ReifiedFieldDecl(_, wt, _, p_guard) =>
                             val tp_guard = teePee(ir.ghostAttrs, p_guard)
@@ -204,7 +204,7 @@ extends ComputeRelations(prog)
                     val tqs = teePee(ir.noAttrs, qs)
                     
                     if(cd.attrs.interface)
-                        throw new ir.IrError("intervals.new.interface", t.c)
+                        throw new CheckFailure("intervals.new.interface", t.c)
                         
                     // Check Ghost Types:           
                     savingEnv {
@@ -296,7 +296,7 @@ extends ComputeRelations(prog)
     def checkArgumentTypesNonvariant(args_sub: List[ir.LvDecl], args_sup: List[ir.LvDecl]) {
         foreachzip(args_sub, args_sup) { case (arg_sub, arg_sup) =>
             if(arg_sub.wt != arg_sup.wt)
-                throw new ir.IrError(
+                throw new CheckFailure(
                     "intervals.override.param.type.changed", 
                     arg_sub.name, arg_sub.wt, arg_sup.wt)
         }        
@@ -304,7 +304,7 @@ extends ComputeRelations(prog)
     
     def checkReturnTypeCovariant(wt_sub: ir.WcTypeRef, wt_sup: ir.WcTypeRef) {
         if(!isSubtype(freshTp(wt_sub), wt_sup))
-            throw new ir.IrError(
+            throw new CheckFailure(
                 "intervals.override.ret.type.changed", wt_sub, wt_sup)
     }
     
@@ -312,7 +312,7 @@ extends ComputeRelations(prog)
         reqs_sup.foreach(addReq)
         reqs_sub.foreach { req_sub =>
             if(!isReqFulfilled(req_sub))
-                throw new ir.IrError("intervals.override.adds.req", req_sub)
+                throw new CheckFailure("intervals.override.adds.req", req_sub)
         }        
     }
     
@@ -449,7 +449,7 @@ extends ComputeRelations(prog)
                 else if(tp_guard.wt.c == ir.c_guard)
                     addDeclaredWritableBy(tp_guard, tp_cur)
                 else
-                    throw new ir.IrError("intervals.invalid.guard.type", tp_guard.wt)                    
+                    throw new CheckFailure("intervals.invalid.guard.type", tp_guard.wt)                    
                 
                 // Check that each dependent path is legal:
                 fd.wt.dependentPaths.foreach { p_full_dep => 
@@ -462,7 +462,7 @@ extends ComputeRelations(prog)
                                 case ir.Path(lv, List(f)) if lv == ir.lv_this => 
                                     val tp_dep = teePee(p_dep)
                                     if(!tp_dep.isConstant && !cd.fields.exists(_.name == f))
-                                        throw new ir.IrError(
+                                        throw new CheckFailure(
                                             "intervals.illegal.type.dep",
                                             tp_dep.p, tp_guard.p)
 
@@ -470,7 +470,7 @@ extends ComputeRelations(prog)
                                     check(ir.Path(lv, rev_fs))
                                     val tp_dep = teePee(p_dep)
                                     if(!tp_dep.isConstant)
-                                        throw new ir.IrError(
+                                        throw new CheckFailure(
                                             "intervals.illegal.type.dep",
                                             tp_dep.p, tp_guard.p)
                             }
@@ -487,7 +487,7 @@ extends ComputeRelations(prog)
                 // Check that ghosts are not shadowed from a super class:
                 strictSuperclasses(cd.name).foreach { c =>
                     if(classDecl(c).fields.exists(_.name == gfd.name))
-                        throw ir.IrError("intervals.shadowed.ghost", c, gfd.name)
+                        throw new CheckFailure("intervals.shadowed.ghost", c, gfd.name)
                 }
             }
         }
@@ -495,7 +495,7 @@ extends ComputeRelations(prog)
     def checkFieldDecl(cd: ir.ClassDecl)(priorNames: Set[ir.FieldName], fd: ir.FieldDecl) = 
         at(fd, priorNames) {
             if(priorNames(fd.name))
-                throw new ir.IrError("intervals.duplicate.field", fd.name)
+                throw new CheckFailure("intervals.duplicate.field", fd.name)
             fd match {
                 case rfd: ir.ReifiedFieldDecl => checkReifiedFieldDecl(cd, rfd)
                 case gfd: ir.GhostFieldDecl => checkGhostFieldDecl(cd, gfd)

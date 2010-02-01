@@ -6,24 +6,27 @@ import scala.collection.immutable.ListSet
 import scala.collection.immutable.Map
 
 import Util._
+import ch.ethz.intervals.log.Log
+import ch.ethz.intervals.log.LogStack
 
 class Prog(
-    val log: Log,
+    val mainLog: Log,
     val cds_user: List[ir.ClassDecl]
 ) {
-    val classDecls = cds_user ++ ir.cds_default
+    val logStack = new LogStack(mainLog)
+    import logStack.log
+    def errors = logStack.errors
+
+    // ___ Class table ______________________________________________________
     
-    // ______________________________________________________________________
-    // Class Table
-    
+    val classDecls = cds_user ++ ir.cds_default    
     val classTable = Util.nameMap[ir.ClassName, ir.ClassDecl](classDecls)
     def classDecl(c: ir.ClassName) = classTable.get(c) match {
         case Some(cd) => cd
-        case None => throw ir.IrError("intervals.no.such.class", c)
+        case None => throw new CheckFailure("intervals.no.such.class", c)
     }
     
-    // ______________________________________________________________________
-    // Computed Results
+    // ___ Computed results _________________________________________________
     //
     // When we check a class, we store the exported environments from each 
     // of its constructors in this table.  These can be used by subclasses.
@@ -33,8 +36,7 @@ class Prog(
         ((ir.c_interval, ir.m_init), ir.Env.empty)
     )
     
-    // ______________________________________________________________________
-    // Fresh Variables
+    // ___ Fresh variables __________________________________________________
     
     private var counter = 0
     def fresh(nm: String) = {
@@ -45,27 +47,7 @@ class Prog(
     
     def freshVarName = ir.VarName(fresh("tmp"))
     
-    // ______________________________________________________________________
-    // Errors
-    
-    var errors = ListSet.empty[ir.Error] // use a list set to keep ordering
-    
-    def report(err: ir.Error) {
-        log("Error: %s", err)
-        errors += err
-    }
-
-    def at[R](loc: Positional, default: R)(g: => R): R = 
-        log.indentedRes(loc) {
-            try { g } catch {
-                case err: ir.IrError =>
-                    report(err.toError(loc.pos))
-                    default
-            }            
-        }
-        
-    // ______________________________________________________________________
-    // Basic Type Operations: Finding fields, methods, supertypes
+    // ___ Basic type operations ____________________________________________
     
     // Is c_sub an erased subtype of class c_sup?
     def isSubclass(c_sub: ir.ClassName, c_sup: ir.ClassName): Boolean = {
@@ -166,7 +148,7 @@ class Prog(
                     }
                 }
             search(c0) match {
-                case None => throw ir.IrError("intervals.no.such.field", c0, f)
+                case None => throw new CheckFailure("intervals.no.such.field", c0, f)
                 case Some(fd) => fd
             }
         }            

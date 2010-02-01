@@ -30,9 +30,14 @@ import java.util.{List => jList}
 import Util._
 import quals.DefinesGhost
 import ch.ethz.intervals.quals._
+import ch.ethz.intervals.log.LogStack
 
-class TranslateMethodBody(log: Log, ttf: TranslateTypeFactory, mtree: MethodTree) {
+class TranslateMethodBody(logStack: LogStack, ttf: TranslateTypeFactory, mtree: MethodTree) 
+{
+    import logStack.log
+    import logStack.at
     import ttf.TreePosition
+    import ttf.DummyPositional
     import ttf.DummyPosition
     import ttf.getAnnotatedType
     import ttf.f
@@ -57,7 +62,7 @@ class TranslateMethodBody(log: Log, ttf: TranslateTypeFactory, mtree: MethodTree
     
     def chkPath(wp: ir.WcPath) = wp match {
         case p: ir.Path => p
-        case _ => throw new ir.IrError("intervals.wildcard.not.perm", wp)
+        case _ => throw new CheckFailure("intervals.wildcard.not.perm", wp)
     }
     
     def chkGhost(wg: ir.WcGhost) = 
@@ -66,17 +71,8 @@ class TranslateMethodBody(log: Log, ttf: TranslateTypeFactory, mtree: MethodTree
     def chkTref(wt: ir.WcTypeRef): ir.TypeRef =
         ir.TypeRef(wt.c, wt.wghosts.map(chkGhost), wt.as)
         
-    def at[R](treePos: Tree, tag: String, defFunc: => R)(func: => R) = {
-        try {
-            log.indentedRes("%s(%s)", tag, treePos) {
-                func
-            }
-        } catch {
-            case err: ir.IrError =>
-                ttf.report(err.toError(TreePosition(treePos)))
-                defFunc
-        } 
-    }
+    def at[R](treePos: Tree, tag: String, defFunc: => R)(func: => R) =
+        logStack.at(new DummyPositional(TreePosition(treePos), tag), defFunc)(func)
     
     // ___ Symbols and Versions _____________________________________________
     
@@ -132,7 +128,8 @@ class TranslateMethodBody(log: Log, ttf: TranslateTypeFactory, mtree: MethodTree
         val gotos = new ListBuffer[ir.Goto]()
         def env: ttf.TranslateEnv = null // TODO
         
-        def addStmt(treePos: Tree, stmt: ir.Stmt) = stmts += setPos(TreePosition(treePos), stmt)
+        def addStmt(treePos: Tree, stmt: ir.Stmt) = 
+            stmts += setPos(TreePosition(treePos), stmt)
     } 
     
     // ___ Entrypoint _______________________________________________________

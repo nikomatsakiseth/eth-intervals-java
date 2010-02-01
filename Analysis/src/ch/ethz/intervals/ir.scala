@@ -129,12 +129,6 @@ object ir {
         override def toString = "%s(%s)".format(msg, args.mkString(", "))
     }
     
-    case class IrError(msg: String, args: Any*) 
-    extends RuntimeException {
-        def toError(pos: Position) = Error(pos, msg, args.map(_.toString).toArray)
-        override def toString = "%s(%s)".format(msg, args.mkString(", "))        
-    }
-    
     // ___ Abstract syntax tree _____________________________________________
     
     sealed case class ClassDecl(

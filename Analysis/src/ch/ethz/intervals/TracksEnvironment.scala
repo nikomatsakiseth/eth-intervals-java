@@ -7,13 +7,12 @@ import scala.collection.mutable.ListBuffer
 import scala.util.parsing.input.Positional
 import Util._
 
-abstract class TracksEnvironment(prog: Prog) 
-extends CheckPhase {
-    
-    import prog.log
+abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
+    import prog.logStack.log
+    import prog.logStack.indexLog
+    import prog.logStack.at    
     import prog.isSubclass
     import prog.classDecl
-    import prog.at
     
     // ______________________________________________________________________
     // Current Environment
@@ -68,7 +67,7 @@ extends CheckPhase {
     /// \see setPerm()
     def addPerm(x: ir.VarName, tq: ir.TeePee): Unit =
         env.perm.get(x) match {
-            case Some(_) => throw new ir.IrError("intervals.shadowed", x)
+            case Some(_) => throw new CheckFailure("intervals.shadowed", x)
             case None => setPerm(x, tq)
         }    
 
@@ -330,7 +329,7 @@ extends CheckPhase {
                 val subst = ghostSubstOfTeePee(tp) + PathSubst.vp(msig.args.map(_.name), tqs.map(_.p))
                 subst.methodSig(msig)
             case None =>
-                throw ir.IrError("intervals.no.such.ctor", tp.wt.c, m)
+                throw new CheckFailure("intervals.no.such.ctor", tp.wt.c, m)
         }
     }
 
@@ -341,7 +340,7 @@ extends CheckPhase {
                 val subst = ghostSubstOfTeePee(tp) + PathSubst.vp(msig.args.map(_.name), tqs.map(_.p))
                 subst.methodSig(msig)        
             case None =>
-                throw ir.IrError("intervals.no.such.method", tp.wt.c, m)
+                throw new CheckFailure("intervals.no.such.method", tp.wt.c, m)
         }
     }
 
@@ -414,7 +413,7 @@ extends CheckPhase {
                 case ir.Path(lv, List()) => // all local variables should be in env.perm
                     env.perm.get(lv) match {
                         case Some(tp) => tp
-                        case None => throw new ir.IrError("intervals.no.such.variable", lv)
+                        case None => throw new CheckFailure("intervals.no.such.variable", lv)
                     }
 
                 case ir.Path(lv, f :: rev_fs) =>
@@ -452,7 +451,7 @@ extends CheckPhase {
         val tp = teePee(p)
         val unwanted = tp.as.diff(as)
         if(!unwanted.isEmpty)
-            throw new ir.IrError("intervals.illegal.path.attr", p, unwanted.mkEnglishString)
+            throw new CheckFailure("intervals.illegal.path.attr", p, unwanted.mkEnglishString)
         tp
     }
 
@@ -467,7 +466,7 @@ extends CheckPhase {
     def tp_this = teePee(ir.p_this)    
     def tp_super = // tp_super always refers to the FIRST supertype
         prog.sups(cap(tp_this)) match {
-            case List() => throw new ir.IrError("intervals.no.supertype", tp_this.wt)
+            case List() => throw new CheckFailure("intervals.no.supertype", tp_this.wt)
             case t_super :: _ => ir.TeePee(t_super, ir.p_this, tp_this.as)
         }
 
