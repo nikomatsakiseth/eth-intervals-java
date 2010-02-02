@@ -512,21 +512,23 @@ class TranslateTypeFactory(
     }
     
     def wtref(env: TranslateEnv)(annty: AnnotatedTypeMirror) = {
-        val c = erasedTy(annty.getUnderlyingType)
-        annty.getKind match {
-            case TK.DECLARED => {
-                val tattrs = 
-                    if(annty.hasAnnotation(classOf[Constructor])) ir.ctorAttrs
-                    else ir.noAttrs                
-                ir.WcTypeRef(c, wghosts(env)(annty), tattrs)
-            }
-        
-            case TK.ARRAY =>
-                ir.WcTypeRef(c, wghosts(env)(annty), ir.noAttrs)
-                        
-            case _ =>
-                ir.TypeRef(c, List(), ir.noAttrs)            
-        }            
+        log.indentedRes("wtref(%s)", annty) {
+            val c = erasedTy(annty.getUnderlyingType)
+            annty.getKind match {
+                case TK.DECLARED => {
+                    val tattrs = 
+                        if(annty.hasAnnotation(classOf[Constructor])) ir.ctorAttrs
+                        else ir.noAttrs                
+                    ir.WcTypeRef(c, wghosts(env)(annty), tattrs)
+                }
+
+                case TK.ARRAY =>
+                    ir.WcTypeRef(c, wghosts(env)(annty), ir.noAttrs)
+
+                case _ =>
+                    ir.TypeRef(c, List(), ir.noAttrs)            
+            }                        
+        }
     }
     
     // ___ Requirements _____________________________________________________

@@ -9,29 +9,53 @@ abstract class Log {
     // ___ Abstract methods defined by subclass _____________________________
     
     def uri: String
-    def ifEnabled(f: => Unit): Unit   // Executes f iff rawWrite() does something.
-    def rawWrite(html: String): Unit  // Prints HTML to the log (if enabled).
-    def rawIndent(): Unit             // Indents later messages.
-    def rawUndent(): Unit             // Undents later messages.
-    def escape(s: String): String     // Escapes into HTML.
+    def ifEnabled(f: => Unit): Unit     // Executes f iff rawWrite() does something.
+    def rawStart(html: String): String  // Starts a log message with body 'html'.  Returns the id of this element.
+    def rawClose(): Unit                // Finishes a log message.
+    def escape(s: String): String       // Escapes into HTML.
     
     // ___ Sublogs __________________________________________________________
     
     def log(name: String): Log            // Creates a new log, inserting a link into this one.
     def splitLog(name: String): SplitLog  // Creates a new split log, inserting a link into this one.
 
+    // ___ Raw methods to add to the log ____________________________________
+    
+    def rawWrite(html: String): String = {
+        val id = rawStart(html)
+        rawClose
+        id
+    }
+    
+    def rawStart(fmt: String, args: List[Any]): String = {
+        def toLogString(o: Any) = o match {
+            case null => escape("null")
+            case elem: Element => escape("%s[%s]".format(elem.getKind, qualName(elem)))
+            case tree: Tree => escape("%s[%s]".format(tree.getKind, prefix(tree.toString)))
+            case _ => escape(o.toString)
+        }
+
+        val strs = args.map(toLogString).toArray[String]
+        rawStart(escape(fmt).format(strs: _*))
+    }    
+    
+    def rawWrite(fmt: String, args: List[Any]): String = {
+        val id = rawStart(fmt, args)
+        rawClose
+        id
+    }
+    
     // ___ Indentation ______________________________________________________
     def indented[R](fmt: String, arg0: Any, args: Any*)(f: => R): R = {
         try {
-            apply(fmt, arg0, args: _*)
-            rawIndent
+            ifEnabled { rawStart(fmt, (arg0 :: args.toList)) }
             f 
         } catch {
             case t: Throwable => 
                 apply("Error = %s".format(t))
                 throw t
         } finally { 
-            rawUndent
+            rawClose
         }
     }
     
@@ -39,8 +63,7 @@ abstract class Log {
     
     def indentedRes[R](fmt: String, arg0: Any, args: Any*)(f: => R): R = {
         try {
-            apply(fmt, arg0, args: _*)
-            rawIndent
+            ifEnabled { rawStart(fmt, (arg0 :: args.toList)) }
             val result = f
             apply("Result = %s", result)
             result
@@ -49,7 +72,7 @@ abstract class Log {
                 apply("Error = %s".format(t))
                 throw t
         } finally {
-            rawUndent
+            rawClose
         }
     }
     
@@ -69,18 +92,10 @@ abstract class Log {
     }
     
     def apply(fmt: String, arg0: Any, args: Any*): Unit = ifEnabled {
-        def toLogString(o: Any) = o match {
-            case null => escape("null")
-            case elem: Element => escape("%s[%s]".format(elem.getKind, qualName(elem)))
-            case tree: Tree => escape("%s[%s]".format(tree.getKind, prefix(tree.toString)))
-            case _ => escape(o.toString)
-        }
-
-        val strs = (arg0 :: args.toList).map(toLogString).toArray[String]
-        rawWrite(escape(fmt).format(strs: _*))
+        rawWrite(fmt, (arg0 :: args.toList))
     }
     
-    def env(lbl: Any, env: ir.TcEnv) = ifEnabled {
+    def env(lbl: Any, env: ir.TcEnv): Unit = ifEnabled {
         indented("%s", lbl) {
             apply("ps_cur: %s", env.ps_cur)
             apply("wt_ret: %s", env.wt_ret)
@@ -95,21 +110,21 @@ abstract class Log {
         }
     }
     
-    def map(lbl: Any, m: Iterable[(Any, Any)]) = ifEnabled {
+    def map(lbl: Any, m: Iterable[(Any, Any)]): Unit = ifEnabled {
         indented("%s", lbl) {
             for((k, v) <- m)
                 apply("%s: %s", k, v)
         }
     }
     
-    def rel(lbl: Any, n: String, r: Relation[_, _]) = ifEnabled {
+    def rel(lbl: Any, n: String, r: Relation[_, _]): Unit = ifEnabled {
         indented("%s", lbl) {
             for((k, v) <- r.elements)
                 apply("%s %s %s", k, n, v)
         }
     }
     
-    def classDecl(lbl: Any, cd: ir.ClassDecl) = ifEnabled {
+    def classDecl(lbl: Any, cd: ir.ClassDecl): Unit = ifEnabled {
         indented("%s%s", lbl, cd) {
             cd.rfds.foreach(apply)
             cd.ctors.foreach(methodDecl("", _))
@@ -117,14 +132,14 @@ abstract class Log {
         }
     }
             
-    def methodDecl(lbl: Any, md: ir.MethodDecl) = ifEnabled {
+    def methodDecl(lbl: Any, md: ir.MethodDecl): Unit = ifEnabled {
         indented("%s%s", lbl, md) {
             md.blocks.indices.foreach(b =>
                     block("%s: ".format(b), md.blocks(b)))
         }
     }
             
-    def block(lbl: Any, blk: ir.Block) = ifEnabled {
+    def block(lbl: Any, blk: ir.Block): Unit = ifEnabled {
         indented("%s%s", lbl, blk) {
             blk.stmts.foreach(apply)
             blk.gotos.foreach(apply)
@@ -142,50 +157,125 @@ object Log {
     ) extends Log {
         def uri = outFile.toURI.toString
         
+        val backgroundColors = List(
+            "CCCCCC", // Gray
+            "BBBBBB", // Gray
+            "AAAAAA", // Gray
+            "CC99CC", // Purple
+            "CC9966", // Tan
+            "88AAFF", // Blue
+            "99FFCC", // Aquamarine
+            "CC9999"  // Pink
+        )
+        var currentColor = -1
+        
+        def nextColor = {
+            currentColor = (currentColor + 1) % backgroundColors.length
+            backgroundColors(currentColor)
+        }
+        
         val outWriter = {
             val pw = new java.io.PrintWriter(outFile)
             
             pw.print("""
             <HTML>
             <HEAD>
-                <TITLE>Debug log<TITLE>
-                <SCRIPT LANGUAGE='JavaScript' SRC='http://smallcultfollowing.com/2010/collapse-html-lists/outline.js'></SCRIPT>
-                <LINK REL='stylesheet' HREF='http://smallcultfollowing.com/2010/collapse-html-lists/outline.css'>
+                <TITLE>Debug log</TITLE>
+                <SCRIPT type='text/javascript'>
+                    function toggleId(id)
+                    {
+                        var target = document.getElementById(id);
+                        var kids = target.childNodes;
+                        var openedKids = false;
+                        var closedKids = false;
+                        for(var i = 0; (i < kids.length); i++) {
+                            var kid = kids[i];
+                            if(kid.className == 'log') {
+                                if(kid.style.display == 'none') {
+                                    kid.style.display = 'block';
+                                    openedKids = true;
+                                } else {
+                                    kid.style.display = 'none';
+                                    closedKids = true;
+                                }
+                            }
+                        }
+                        
+                        if(openedKids) {
+                            target.style.opacity = 1.0;
+                        } else if (closedKids) {
+                            target.style.opacity = 0.25;                            
+                        }
+                    }
+                </SCRIPT>
+                <STYLE>
+                    DIV.log {
+                        border-width: thin;
+                        border-style: solid;
+                        margin-top: .1cm;
+                        margin-bottom: .1cm;
+                        margin-left: .3cm;
+                    }
+                    A:hover {
+                        text-decoration: underline;
+                    }
+                    A:link {
+                        text-decoration: none;
+                    }
+                    A:visited {
+                        text-decoration: none;
+                    }
+                </STYLE>
             </HEAD>
-            <BODY onLoad='outlineInit()'>
-            <UL class='outline'>
+            <BODY>
+            <DIV id='id0'>            
             """)
             
             pw
         }
         
-        private var links = 0
-        override def rawWrite(msg: String) {            
-            detailsLog match {
-                case None =>
-                    outWriter.print("<li> ")
-                    outWriter.println(msg)
-                    
-                case Some(l) =>
-                    outWriter.print(
-                        "<li> %s <a href='%s#l%d' target='details'>&rarr;</a>".format(
-                            msg, l.uri, links))
-                    l.rawWrite(
-                        "<a name='l%d'> <i>%s</i>".format(
-                            links, msg))
-                    links = links + 1
+        private var ids = 0
+        private var idStack = List("id0")
+                
+        private def pushId() {
+            ids = ids + 1
+            val id = "id" + ids
+            idStack = id :: idStack            
+        }
+        
+        private def popId() {
+            idStack = idStack.tail
+        }
+        
+        override def rawStart(msg: String) = {
+            pushId()            
+            val parentId = idStack.tail.head
+            val id = idStack.head
+            
+            outWriter.print(
+                (
+                    "<DIV id='%s' class='log' style='background-color: #%s'>"+
+                    "<A href='#%s'>&#8689;</A>&nbsp;"+
+                    "<A href='#%s' class='collapse' onclick='toggleId(\"%s\")'>%s</A>"
+                ).format(
+                    id, nextColor, 
+                    parentId,
+                    id, id, msg
+                ))            
+             
+            detailsLog.foreach { l =>
+                val linkId = l.rawWrite("<I>%s</I>".format(msg))
+                outWriter.println("<A href='%s#%s' target='details'>&rarr;</A>".format(l.uri, linkId))
             }
+            
             outWriter.flush
+            
+            id
         }
         
-        def rawIndent {
-            outWriter.println("<ul>")
-            detailsLog.foreach(_.rawIndent)
-        }
-        
-        def rawUndent {
-            outWriter.println("</ul>")
-            detailsLog.foreach(_.rawUndent)
+        def rawClose {
+            popId()
+            outWriter.println("</DIV>")
         }
         
         def escape(s0: String) = {
@@ -232,9 +322,8 @@ object Log {
     
     object DevNullLog extends Log {
         def uri = ""
-        def rawWrite(msg: String) { }
-        def rawIndent { }
-        def rawUndent { }
+        def rawStart(html: String) = ""
+        def rawClose() { }
         def escape(s: String) = s
         def ifEnabled(f: => Unit): Unit = ()
         def log(name: String) = this
