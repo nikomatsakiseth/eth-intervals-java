@@ -149,19 +149,13 @@ object Log {
             <HTML>
             <HEAD>
                 <TITLE>Debug log<TITLE>
-                <!-- <SCRIPT LANGUAGE='JavaScript' SRC='http://smallcultfollowing.com/mktree/mktree.js'></SCRIPT> -->
-                <!-- <LINK REL="stylesheet" HREF='http://smallcultfollowing.com/mktree/mktree-debug.css'> -->
+                <SCRIPT LANGUAGE='JavaScript' SRC='http://smallcultfollowing.com/2010/collapse-html-lists/outline.js'></SCRIPT>
+                <LINK REL='stylesheet' HREF='http://smallcultfollowing.com/2010/collapse-html-lists/outline.css'>
             </HEAD>
-            <BODY>
-            <!--
-            <a class='button' href='#' onClick='expandTree("tree1");return false;'>Expand All Nodes</a><br>
-            <a class='button' href='#' onClick='collapseTree("tree1"); return false;'>Collapse All Nodes</a><br>
-            -->
-            <UL class='mktree' id='tree1'>
+            <BODY onLoad='outlineInit()'>
+            <UL class='outline'>
             """)
             
-            // For the future, if we tag an <LI ID="foo">, we can use:
-            // <A class='button' href='#' onClick='expandToItem("tree1","login"); return false;'>Expand to a certain location</A><br>
             pw
         }
         
@@ -174,8 +168,8 @@ object Log {
                     
                 case Some(l) =>
                     outWriter.print(
-                        "<li> <a href='%s#l%d' target='details'>%s</a>".format(
-                            l.uri, links, msg))
+                        "<li> %s <a href='%s#l%d' target='details'>&rarr;</a>".format(
+                            msg, l.uri, links))
                     l.rawWrite(
                         "<a name='l%d'> <i>%s</i>".format(
                             links, msg))

@@ -17,6 +17,7 @@ compile:
 	$(SBT) compile test-compile 2>&1 | col -b
 
 test:
+	rm -rf debug-logs/*
 	$(SBT) test-compile
 	JAVA_HOME="${JAVA_HOME}" \
 	JAVA_OPTS="-cp ${CLASSPATH} -Xbootclasspath/p:lib/jsr308-all-1.04.jar" \
