@@ -159,10 +159,10 @@ object Log {
         
         val backgroundColors = List(
             "CCCCCC", // Gray
-            "BBBBBB", // Gray
-            "AAAAAA", // Gray
             "CC99CC", // Purple
+            "BBBBBB", // Gray
             "CC9966", // Tan
+            "AAAAAA", // Gray
             "88AAFF", // Blue
             "99FFCC", // Aquamarine
             "CC9999"  // Pink
@@ -256,11 +256,12 @@ object Log {
                 (
                     "<DIV id='%s' class='log' style='background-color: #%s'>"+
                     "<A href='#%s'>&#8689;</A>&nbsp;"+
-                    "<A href='#%s' class='collapse' onclick='toggleId(\"%s\")'>%s</A>"
+                    //"<A href='#%s' class='collapse' onclick='toggleId(\"%s\")'>%s</A>"
+                    "<SPAN class='msg' onclick='toggleId(\"%s\")'>%s</SPAN>"
                 ).format(
                     id, nextColor, 
                     parentId,
-                    id, id, msg
+                    id, msg
                 ))            
              
             detailsLog.foreach { l =>

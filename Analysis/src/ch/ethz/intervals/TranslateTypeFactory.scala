@@ -241,7 +241,7 @@ class TranslateTypeFactory(
             elem0.getAnnotationMirrors.map(categorizeGhostAnnot).foldLeft(m0) { 
                 case (m, GhostAnnNone) => m
                 case (m, GhostAnnDecl(f, annty)) => m + Pair(f, annty)
-                case (m, GhostAnnValue(f, _)) => m - f
+                case (m, GhostAnnValue(_, _)) => m
             }    
         }
     
@@ -632,15 +632,17 @@ class TranslateTypeFactory(
     }
     
     def fieldGuard(env: TranslateEnv)(velem: VariableElement) = 
-        at(ElementPosition(velem), ir.p_this_creator) {
-            val s_guard = 
-                if(velem.getAnnotation(classOf[WrittenDuring]) != null)
-                    velem.getAnnotation(classOf[WrittenDuring]).value
-                else if(velem.getAnnotation(classOf[GuardedBy]) != null)
-                    velem.getAnnotation(classOf[GuardedBy]).value
-                else
-                    ir.p_this_creator.toString
-            AnnotParser(env).path(s_guard)
+        log.indentedRes("fieldGuard(%s)", velem) {
+            at(ElementPosition(velem), ir.p_this_creator) {
+                val s_guard = 
+                    if(velem.getAnnotation(classOf[WrittenDuring]) != null)
+                        velem.getAnnotation(classOf[WrittenDuring]).value
+                    else if(velem.getAnnotation(classOf[GuardedBy]) != null)
+                        velem.getAnnotation(classOf[GuardedBy]).value
+                    else
+                        ir.p_this_creator.toString
+                AnnotParser(env).path(s_guard)
+            }            
         }
     
     def intFieldDecl(velem: VariableElement) = 
