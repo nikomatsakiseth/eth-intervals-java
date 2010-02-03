@@ -10,9 +10,9 @@ A	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.sc
 A	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^            class A extends Object<creator: this.constructor> {$/;"	classes	line:611
 A	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^            class A extends Object<creator: this.constructor> {$/;"	classes	line:671
 A	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^            class A<Interval a><Interval b> extends Object<creator: this.constructor> $/;"	classes	line:468
-AnnTyParser	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    class AnnTyParser extends BaseParser {$/;"	classes	line:463
-AnnotParser	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    class AnnotParser(env: TranslateEnv) extends BaseParser {$/;"	classes	line:397
-AnonBreak	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        sealed case class AnonBreak(blk_tar: MutableBlock) extends Break$/;"	classes	line:201
+AnnTyParser	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    class AnnTyParser extends BaseParser {$/;"	classes	line:511
+AnnotParser	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    class AnnotParser(env: TranslateEnv) extends BaseParser {$/;"	classes	line:445
+AnonBreak	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        sealed case class AnonBreak(mblk_tar: MutableBlock) extends Break$/;"	classes	line:206
 Attr	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    sealed abstract class Attr(c: String, val adj: String) {$/;"	classes	line:57
 Attrs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    sealed case class Attrs(private val s: Set[Attr]) {$/;"	classes	line:71
 B	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^            class B extends A {$/;"	classes	line:679
@@ -32,8 +32,8 @@ BaseMultiMap	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.
 BaseParser	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/BaseParser.scala	/^abstract class BaseParser extends StandardTokenParsers {$/;"	classes	line:11
 BaseSubst	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/BaseSubst.scala	/^abstract class BaseSubst {$/;"	classes	line:3
 Block	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    sealed case class Block($/;"	classes	line:217
-BlockBreak	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        sealed case class BlockBreak(blk_tar: MutableBlock) extends Break$/;"	classes	line:202
-Break	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        sealed abstract class Break extends TargetScopeKind$/;"	classes	line:200
+BlockBreak	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        sealed case class BlockBreak(mblk_tar: MutableBlock) extends Break$/;"	classes	line:207
+Break	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        sealed abstract class Break extends TargetScopeKind$/;"	classes	line:205
 C	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^            class C extends B {$/;"	classes	line:686
 C	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^            class C extends Object {$/;"	classes	line:1037
 C	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^            class C extends Object {$/;"	classes	line:1068
@@ -41,7 +41,7 @@ C	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.sc
 C1	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^            class C1<Lock l1> extends Object {$/;"	classes	line:1118
 C2	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^            class C2<Lock l2> extends C1 {$/;"	classes	line:1124
 CLASSPATH	/Users/niko/git/intervals-java/Analysis/Makefile	/^CLASSPATH=$(subst .jar ,.jar:,${JARFILES}):${TARGETCLASSPATH}$/;"	macro	line:7
-Catch	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        case class Catch(blk_tar: MutableBlock) extends TargetScopeKind$/;"	classes	line:203
+Catch	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        case class Catch(mblk_tar: MutableBlock) extends TargetScopeKind$/;"	classes	line:208
 CheckPhase	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/CheckPhase.scala	/^abstract class CheckPhase(val prog: Prog) {$/;"	classes	line:7
 Class	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^            class Class extends Object {$/;"	classes	line:1283
 ClassDecl	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    sealed case class ClassDecl($/;"	classes	line:134
@@ -50,7 +50,7 @@ ComputeRelations	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/C
 ConsData	/Users/niko/git/intervals-java/Analysis/test-plugin/src/bbpc/ConsData.java	/^public class ConsData {$/;"	class	line:6
 ConsData	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^            class ConsData extends Object {$/;"	classes	line:1392
 Consumer	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^            class Consumer extends Interval {$/;"	classes	line:1434
-Continue	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        sealed case class Continue(blk_tar: MutableBlock) extends TargetScopeKind$/;"	classes	line:199
+Continue	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        sealed case class Continue(mblk_tar: MutableBlock) extends TargetScopeKind$/;"	classes	line:204
 Ctor	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^            class Ctor extends Object<creator: this.constructor> {$/;"	classes	line:232
 Ctor	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^            class Ctor extends Object<creator: this.constructor> {$/;"	classes	line:692
 D	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^            class D<Interval a><Lock b><Lock c><Interval d> extends Object { $/;"	classes	line:1130
@@ -73,12 +73,16 @@ ElementVisitor	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Int
 EquivMap	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^    class EquivMap[K](size: Int, _m: Map[K, Set[K]])$/;"	classes	line:344
 Error	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    sealed case class Error($/;"	classes	line:124
 ExpError	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^case class ExpError(msg: String, args: List[String])$/;"	classes	line:12
-ExprVersion	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^    sealed case class ExprVersion(sym: Symbol, p: ir.Path) extends Version$/;"	classes	line:104
+ExprVersion	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        sealed case class ExprVersion(sym: Symbol, p: ir.Path) extends Version$/;"	classes	line:108
 ExtendedInit	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^            class ExtendedInit<Interval init> extends Object<creator: this.init> {$/;"	classes	line:744
 FewerReqs	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^            class FewerReqs extends A$/;"	classes	line:480
 FieldDecl	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    sealed abstract class FieldDecl extends Positional {$/;"	classes	line:192
 FieldName	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    case class FieldName(name: String) extends Name(name) {$/;"	classes	line:116
-Finally	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        sealed case class Finally(block: Option[BlockTree]) extends ScopeKind$/;"	classes	line:195
+Finally	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        sealed case class Finally(block: Option[BlockTree]) extends ScopeKind$/;"	classes	line:200
+Foo	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    \/\/     @SomeField class Foo { ... }$/;"	classes	line:293
+Foo	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    \/\/   class Foo { ... }$/;"	classes	line:250
+Foo	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    \/\/ declaration.  For example, the class Foo: $/;"	classes	line:248
+Foo	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    \/\/ the class Foo:$/;"	classes	line:292
 Foo	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^            class Foo extends Interval {$/;"	classes	line:284
 Foo	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^            class Foo extends Interval {$/;"	classes	line:384
 Foo	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^            class Foo extends Interval {$/;"	classes	line:436
@@ -120,14 +124,14 @@ MethodName	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scal
 MethodSig	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    sealed case class MethodSig($/;"	classes	line:174
 Monitor	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^            class Monitor extends Object<creator: this.constructor> {$/;"	classes	line:779
 MultiMap	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^    class MultiMap[K,V](size: Int, _m: Map[K, Set[V]])$/;"	classes	line:331
-MutableBlock	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^    private class MutableBlock($/;"	classes	line:120
+MutableBlock	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        class MutableBlock($/;"	classes	line:124
 Name	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    sealed abstract class Name(name: String) {$/;"	classes	line:103
-Object	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        \/\/ if the class Object is not specified explicitly, its type is supplied$/;"	classes	line:726
+Object	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        \/\/ if the class Object is not specified explicitly, its type is supplied$/;"	classes	line:825
 Object	/Users/niko/git/intervals-java/Analysis/test-plugin/jdk/java/lang/Object.java	/^    public Object() {}$/;"	method	line:10
 Object	/Users/niko/git/intervals-java/Analysis/test-plugin/jdk/java/lang/Object.java	/^public class Object {$/;"	class	line:8
 Ok	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^            class Ok extends Object, IFoo {$/;"	classes	line:1189
-ParamVersion	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^    sealed case class ParamVersion(sym: Symbol, ver: Int) extends Version {$/;"	classes	line:99
-ParsePath	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    case class ParsePath(p: ir.Path, annty: AnnotatedTypeMirror)$/;"	classes	line:394
+ParamVersion	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        sealed case class ParamVersion(sym: Symbol, ver: Int) extends Version {$/;"	classes	line:103
+ParsePath	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    case class ParsePath(p: ir.Path, annty: AnnotatedTypeMirror)$/;"	classes	line:442
 ParseReqs	/Users/niko/git/intervals-java/Analysis/test-plugin/src/basic/ParseReqs.java	/^public class ParseReqs {$/;"	class	line:7
 Path	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    sealed case class Path($/;"	classes	line:344
 ProdData	/Users/niko/git/intervals-java/Analysis/test-plugin/src/bbpc/ProdData.java	/^public class ProdData {$/;"	class	line:6
@@ -148,8 +152,8 @@ SCALAC	/Users/niko/git/intervals-java/Analysis/Makefile	/^SCALAC=fsc$/;"	macro	l
 SameReqs	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^            class SameReqs extends A$/;"	classes	line:493
 ScalaIterable	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^    class ScalaIterable[E](i: java.lang.Iterable[E]) extends Iterable[E] {$/;"	classes	line:465
 ScalaIterator	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^    class ScalaIterator[E](i: java.util.Iterator[E]) extends Iterator[E] {$/;"	classes	line:460
-Scope	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        case class Scope(scopeKind: ScopeKind, label: Option[Name]) $/;"	classes	line:205
-ScopeKind	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        sealed abstract class ScopeKind$/;"	classes	line:194
+Scope	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        case class Scope(scopeKind: ScopeKind, label: Option[Name]) $/;"	classes	line:210
+ScopeKind	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        sealed abstract class ScopeKind$/;"	classes	line:199
 Stmt	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    sealed abstract class Stmt extends Positional$/;"	classes	line:232
 StmtCall	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    sealed case class StmtCall(x: VarName, p: Path, m: MethodName, qs: List[Path]) extends Stmt {$/;"	classes	line:239
 StmtCast	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    sealed case class StmtCast(x: VarName, wt: WcTypeRef, q: Path) extends Stmt {$/;"	classes	line:248
@@ -170,20 +174,20 @@ Sub1	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis
 Sub2	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^            class Sub2 extends Super$/;"	classes	line:361
 Super	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^            class Super extends Interval $/;"	classes	line:329
 Super	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^            class Super$/;"	classes	line:1337
-Symbol	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^    sealed class Symbol(val name: String, val wtref: ir.WcTypeRef) {$/;"	classes	line:79
-SymbolTable	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^    def SymbolTable(names: List[String], vers: List[Version]): SymbolTable =$/;"	methods	line:107
-SymbolTable	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^    type SymbolTable = Map[String, Version]$/;"	types	line:106
+Symbol	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        sealed class Symbol(val name: String, val wtref: ir.WcTypeRef) {$/;"	classes	line:83
+SymbolTable	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def SymbolTable(names: List[String], vers: List[Version]): SymbolTable =$/;"	methods	line:111
+SymbolTable	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        type SymbolTable = Map[String, Version]$/;"	types	line:110
 TARGETCLASSPATH	/Users/niko/git/intervals-java/Analysis/Makefile	/^TARGETCLASSPATH=target\/classes:target\/test-classes$/;"	macro	line:6
 TARGETCLASSPATH=target/classes	/Users/niko/git/intervals-java/Analysis/Makefile	/^TARGETCLASSPATH=target\/classes:target\/test-classes$/;"	targets	line:6
-TargetScopeKind	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        sealed abstract class TargetScopeKind extends ScopeKind {$/;"	classes	line:196
+TargetScopeKind	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        sealed abstract class TargetScopeKind extends ScopeKind {$/;"	classes	line:201
 TcEnv	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    sealed case class TcEnv($/;"	classes	line:384
 TeePee	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    sealed case class TeePee($/;"	classes	line:362
 TracksEnvironment	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {$/;"	classes	line:10
-TranslateEnv	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    case class TranslateEnv($/;"	classes	line:290
+TranslateEnv	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    case class TranslateEnv($/;"	classes	line:338
 TreePosition	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    case class TreePosition(tree: Tree) extends DummyPosition {$/;"	classes	line:63
 TreeVisitor	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IntervalsChecker.scala	/^    class TreeVisitor extends TreeScanner[Void, Void] {$/;"	classes	line:99
 TypeRef	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    sealed case class TypeRef($/;"	classes	line:298
-Unhandled	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^    class Unhandled(val tree: Tree) $/;"	classes	line:47
+Unhandled	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        class Unhandled(val tree: Tree) $/;"	classes	line:51
 UnsupportedReqs1	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^            class UnsupportedReqs1 extends A $/;"	classes	line:521
 UnsupportedReqs2	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^            class UnsupportedReqs2 extends A$/;"	classes	line:533
 UnsupportedReqs3	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^            class UnsupportedReqs3 extends A$/;"	classes	line:545
@@ -196,7 +200,7 @@ UtilPairList	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.
 UtilPairSeq	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^    case class UtilPairSeq[Q,R](i: Seq[(Q,R)]) {$/;"	classes	line:54
 UtilString	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^    case class UtilString(s: String) {$/;"	classes	line:17
 VarName	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    case class VarName(name: String) extends Name(name) {$/;"	classes	line:111
-Version	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^    abstract class Version {$/;"	classes	line:95
+Version	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        abstract class Version {$/;"	classes	line:99
 WcGhost	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    sealed case class WcGhost(f: FieldName, wp: ir.WcPath) {$/;"	classes	line:278
 WcHb	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    sealed case class WcHb(lp: List[Path], lq: List[Path]) extends WcPath {$/;"	classes	line:324
 WcLockedBy	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    sealed case class WcLockedBy(lp: List[Path]) extends WcPath {$/;"	classes	line:338
@@ -211,7 +215,7 @@ _1	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^  
 _2	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^        def _2 = i.map(_._2)$/;"	methods	line:50
 _2	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^        def _2 = i.map(_._2)$/;"	methods	line:56
 a1	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Relation.scala	/^            val a1 = mapFunc(a)$/;"	constants	line:30
-ab	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                    val ab = new AnnotationBuilder(env, objParam.name)$/;"	constants	line:756
+ab	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                    val ab = new AnnotationBuilder(env, objParam.name)$/;"	constants	line:855
 accumulate	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Prog.scala	/^        def accumulate(sc: Set[ir.ClassName], c: ir.ClassName): Set[ir.ClassName] = {$/;"	methods	line:65
 actErrors	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestPlugin.scala	/^        val actErrors = diagnostics.getDiagnostics.toList.map(diagToDiagError).sort(_ < _)$/;"	constants	line:127
 addArg	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^    def addArg(arg: ir.LvDecl) =$/;"	methods	line:80
@@ -219,7 +223,7 @@ addBlock	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ComputeRe
 addCall	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ComputeRelations.scala	/^    def addCall(x: ir.VarName, tp: ir.TeePee, m: ir.MethodName, tqs: List[ir.TeePee]) {$/;"	methods	line:24
 addCallMsig	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ComputeRelations.scala	/^    def addCallMsig(tp: ir.TeePee, msig: ir.MethodSig, tqs: List[ir.TeePee]) {$/;"	methods	line:16
 addCheckedArg	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/WfCheck.scala	/^    def addCheckedArg(arg: ir.LvDecl) {$/;"	methods	line:185
-addClassImplementation	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateContext.scala	/^    def addClassImplementation(tree: ClassTree) = { $/;"	methods	line:28
+addClassImplementation	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateContext.scala	/^    def addClassImplementation(tree: ClassTree) = $/;"	methods	line:28
 addClassInterface	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateContext.scala	/^    def addClassInterface(elem: TypeElement, referencedElements: (Element => Boolean)) =$/;"	methods	line:21
 addDeclaredReadableBy	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^    def addDeclaredReadableBy(tp: ir.TeePee, tq: ir.TeePee): Unit = $/;"	methods	line:119
 addDeclaredWritableBy	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^    def addDeclaredWritableBy(tp: ir.TeePee, tq: ir.TeePee): Unit = $/;"	methods	line:127
@@ -230,12 +234,11 @@ addDependentPaths	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/
 addDependentPaths	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^        def addDependentPaths(s: Set[Path]) = s ++ lp$/;"	methods	line:339
 addDependentPaths	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^        def addDependentPaths(s: Set[Path]): Set[Path]$/;"	methods	line:309
 addDependentPaths	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^        def addDependentPaths(s: Set[ir.Path]) = s + this$/;"	methods	line:351
+addElemAndSuperelems	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def addElemAndSuperelems[K,V]($/;"	methods	line:224
 addElements	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IntervalsChecker.scala	/^        def addElements($/;"	methods	line:167
-addGhostFieldsDeclaredOnElem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def addGhostFieldsDeclaredOnElem($/;"	methods	line:236
-addGhostFieldsDeclaredOnElemAndSuperelems	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def addGhostFieldsDeclaredOnElemAndSuperelems($/;"	methods	line:253
-addGhostFieldsDeclaredOnTyAndSupertypes	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def addGhostFieldsDeclaredOnTyAndSupertypes($/;"	methods	line:272
-addGhostFieldsGivenValueInAnnotations	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def addGhostFieldsGivenValueInAnnotations($/;"	methods	line:210
-addGhostFieldsGivenValueOnElem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def addGhostFieldsGivenValueOnElem($/;"	methods	line:225
+addGhostFieldsBoundInAnnotations	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def addGhostFieldsBoundInAnnotations($/;"	methods	line:253
+addGhostFieldsBoundOnElem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def addGhostFieldsBoundOnElem($/;"	methods	line:268
+addGhostFieldsDeclaredOnElem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def addGhostFieldsDeclaredOnElem($/;"	methods	line:297
 addHbInter	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^    def addHbInter(tp: ir.TeePee, tq: ir.TeePee): Unit = $/;"	methods	line:111
 addHbPnt	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^    def addHbPnt(tp: ir.TeePee, tq: ir.TeePee): Unit = $/;"	methods	line:103
 addInvalidated	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^    def addInvalidated(p: ir.Path) =$/;"	methods	line:93
@@ -244,57 +247,59 @@ addLvDecl	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEn
 addPerm	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^    def addPerm(x: ir.VarName, tq: ir.TeePee): Unit =$/;"	methods	line:68
 addReq	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^    def addReq(req: ir.Req) = $/;"	methods	line:258
 addStatement	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ComputeRelations.scala	/^    def addStatement(stmt: ir.Stmt): Unit =$/;"	methods	line:30
-addStmt	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def addStmt(treePos: Tree, stmt: ir.Stmt) = $/;"	methods	line:131
+addStmt	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            def addStmt(treePos: Tree, stmt: ir.Stmt) = $/;"	methods	line:135
 addSubintervalOf	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^    def addSubintervalOf(tp: ir.TeePee, tq: ir.TeePee): Unit = $/;"	methods	line:136
 addTemp	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^    def addTemp(p: ir.Path, q: ir.Path) =$/;"	methods	line:83
 addThis	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/WfCheck.scala	/^    def addThis(cd: ir.ClassDecl, attrs: ir.Attrs) {$/;"	methods	line:274
+addTyAndSupertypes	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def addTyAndSupertypes[K,V]($/;"	methods	line:213
 addType	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IntervalsChecker.scala	/^	def addType(referencedElements: MutableSet[Element], tm: TypeMirror): Unit =$/;"	methods	line:87
 addUserDeclaredReadableBy	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^    def addUserDeclaredReadableBy(tp: ir.TeePee, tq: ir.TeePee) {$/;"	methods	line:248
 addUserDeclaredWritableBy	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^    def addUserDeclaredWritableBy(tp: ir.TeePee, tq: ir.TeePee) {$/;"	methods	line:243
 addUserHb	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^    def addUserHb(tp0: ir.TeePee, tq0: ir.TeePee) = $/;"	methods	line:235
 addUserSubintervalOf	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^    def addUserSubintervalOf(tp: ir.TeePee, tq: ir.TeePee) {$/;"	methods	line:253
-addr	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                            val addr = lvalue(tree.getExpression)$/;"	constants	line:409
-addr	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val addr = lvalue(tree.getVariable)$/;"	constants	line:323
-addr	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val addr = lvalue(tree.getVariable)$/;"	constants	line:336
+addr	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                            val addr = lvalue(tree.getExpression)$/;"	constants	line:414
+addr	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val addr = lvalue(tree.getVariable)$/;"	constants	line:328
+addr	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val addr = lvalue(tree.getVariable)$/;"	constants	line:341
 adj	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    sealed abstract class Attr(c: String, val adj: String) {$/;"	constants	line:57
 all	/Users/niko/git/intervals-java/Analysis/Makefile	/^all: test$/;"	targets	line:11
 allPathAttrs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    val allPathAttrs = Attrs(ListSet(AttrGhost, AttrMutable))$/;"	constants	line:98
 allPhases	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/CheckAll.scala	/^        val allPhases = List[(String, CheckPhase)]($/;"	constants	line:9
-am	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                    val am = ab.build()$/;"	constants	line:758
+am	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                    val am = ab.build()$/;"	constants	line:857
 and	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^                \/\/ it is not declared in the same class and it is not constant $/;"	classes	line:992
 annField	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def annField(am: AnnotationMirror, fldName: String) = $/;"	methods	line:102
 annValue	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def annValue(am: AnnotationMirror) = $/;"	methods	line:106
-annotateImplicit	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    override def annotateImplicit(elem: Element, atm: AnnotatedTypeMirror) {$/;"	methods	line:749
-annotateImplicit	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    override def annotateImplicit(tree: Tree, atm: AnnotatedTypeMirror) {$/;"	methods	line:765
-annotateInheritedFromClass	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    override def annotateInheritedFromClass(atm: AnnotatedTypeMirror) {$/;"	methods	line:719
-annty	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            val annty = getAnnotatedType(etree)$/;"	constants	line:293
-annty	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        val annty = ttf.getAnnotatedType(elem)$/;"	constants	line:112
-annty	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val annty = getAnnotatedType(eelem)$/;"	constants	line:675
-annty	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        def annty = elem                ^^ { case e => getAnnotatedType(e) }$/;"	methods	line:471
+annotateImplicit	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    override def annotateImplicit(elem: Element, atm: AnnotatedTypeMirror) {$/;"	methods	line:848
+annotateImplicit	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    override def annotateImplicit(tree: Tree, atm: AnnotatedTypeMirror) {$/;"	methods	line:864
+annotateInheritedFromClass	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    override def annotateInheritedFromClass(atm: AnnotatedTypeMirror) {$/;"	methods	line:818
+annty	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            val annty = getAnnotatedType(etree)$/;"	constants	line:298
+annty	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            val annty = ttf.getAnnotatedType(elem)$/;"	constants	line:116
+annty	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val annty = getAnnotatedType(eelem)$/;"	constants	line:723
+annty	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        def annty = elem                ^^ { case e => getAnnotatedType(e) }$/;"	methods	line:519
 annty_interval	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    val annty_interval = getAnnotatedType(elem_interval)$/;"	constants	line:42
-annty_this	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val annty_this = getAnnotatedType(telem)$/;"	constants	line:312
+annty_this	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val annty_this = getAnnotatedType(telem)$/;"	constants	line:360
 anonLv	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IrParser.scala	/^    def anonLv = {$/;"	methods	line:79
 apply	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/BaseParser.scala	/^                def apply(in: Reader[Char]) = {$/;"	methods	line:21
 apply	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Relation.scala	/^    def apply(a: T) = mmap(a)$/;"	methods	line:17
-apply	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        def apply(env: TranslateEnv) = new AnnotParser(env)$/;"	methods	line:452
-apply	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        def apply(nm: String) =$/;"	methods	line:456
-apply	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        def apply(s: String): AnnotatedTypeMirror =$/;"	methods	line:475
+apply	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^    def apply($/;"	methods	line:37
+apply	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        def apply(env: TranslateEnv) = new AnnotParser(env)$/;"	methods	line:500
+apply	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        def apply(nm: String) =$/;"	methods	line:504
+apply	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        def apply(s: String): AnnotatedTypeMirror =$/;"	methods	line:523
 apply	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^        def apply(k: K) = get(k) match {$/;"	methods	line:233
 apply	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/Log.scala	/^    def apply(fmt: String, arg0: Any, args: Any*): Unit = ifEnabled {$/;"	methods	line:94
 apply	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/Log.scala	/^    def apply(v: Any): Unit = ifEnabled {$/;"	methods	line:83
 argName	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        def argName(tm: TypeMirror): String = tm.getKind match {$/;"	methods	line:157
 argNames	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        val argNames = argTypes.map(argName)$/;"	constants	line:162
 as	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^        override val as: Attrs$/;"	constants	line:301
-as1	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val as1 = $/;"	constants	line:676
 as_f	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^        val as_f = \/\/ determine if f is immutable in current method:$/;"	constants	line:394
-at	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^    def at[R](treePos: Tree, tag: String, defFunc: => R)(func: => R) =$/;"	methods	line:74
+at	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def at[R](treePos: Tree, tag: String, defFunc: => R)(func: => R) =$/;"	methods	line:78
 at	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def at[R](p: DummyPosition, default: => R)(func: => R) =$/;"	methods	line:79
 at	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/LogStack.scala	/^    def at[R](loc: Positional, default: => R)(g: => R): R = $/;"	methods	line:32
 attr	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IrParser.scala	/^    def attr = ($/;"	methods	line:36
 attrs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IrParser.scala	/^    def attrs = rep(attr)                       ^^ { case la => ir.Attrs(Set(la: _*)) }$/;"	methods	line:40
+attrs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val attrs = $/;"	constants	line:724
 autoParamNames	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            val autoParamNames = new ListBuffer[String]()$/;"	constants	line:161
-autoParamNames	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        val autoParamNames: List[String],$/;"	constants	line:122
-b	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        val b: Int,$/;"	constants	line:121
+autoParamNames	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            val autoParamNames: List[String],$/;"	constants	line:126
+b	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            val b: Int,$/;"	constants	line:125
 b1	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Relation.scala	/^            val b1 = mapFunc(b)$/;"	constants	line:31
 backgroundColors	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/Log.scala	/^        val backgroundColors = List($/;"	constants	line:160
 basic	/Users/niko/git/intervals-java/Analysis/test-plugin/src/basic/ParseReqs.java	/^package basic;$/;"	package	line:1
@@ -305,22 +310,11 @@ bbpc	/Users/niko/git/intervals-java/Analysis/test-plugin/src/bbpc/Producer.java	
 bbpcData	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^    def bbpcData() {$/;"	methods	line:1373
 binDir	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestPlugin.scala	/^        val binDir = "%s\/bin-test".format(dir)$/;"	constants	line:57
 blk	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ComputeRelations.scala	/^                val blk = blks(b)$/;"	constants	line:229
-blk	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        var blk = blks(0)$/;"	local variables	line:153
-blk_body	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                val blk_body = start(goto(tree, fork(tree)))$/;"	constants	line:512
-blk_break	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                val blk_break = fork(tree)$/;"	constants	line:472
-blk_break	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                val blk_break = fork(tree)$/;"	constants	line:511
-blk_f	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val blk_f = goto(tree, fork(tree))$/;"	constants	line:344
-blk_j	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val blk_j = fork(tree, (wt, lv))$/;"	constants	line:349
-blk_noThrow	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            val blk_noThrow = goto(tree, fork(tree))$/;"	constants	line:458
-blk_t	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val blk_t = goto(tree, fork(tree))$/;"	constants	line:343
-blk_tar	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            def blk_tar: MutableBlock$/;"	methods	line:197
 blk_tar	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^                val blk_tar = blks(succ.b)$/;"	constants	line:131
-blk_throw	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            val blk_throw = goto(tree, fork(tree))$/;"	constants	line:457
-blk_uncaught	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        val blk_uncaught = fork(mtree)$/;"	constants	line:207
-blks	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        val blks = new ArrayBuffer[MutableBlock]()$/;"	constants	line:151
 block	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IrParser.scala	/^    def block = ($/;"	methods	line:120
 block	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/Log.scala	/^    def block(lbl: Any, blk: ir.Block): Unit = ifEnabled {$/;"	methods	line:142
 blockGotoCheckTypes	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^    def blockGotoCheckTypes() {$/;"	methods	line:1280
+blocks	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                    val blocks = TranslateMethodBody(logStack, this, mtree)$/;"	constants	line:776
 bs_exit	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^        val bs_exit = blks.indices.toList.filter(b =>$/;"	constants	line:350
 c	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IrParser.scala	/^    def c = repsep(ident, ".")                  ^^ { $/;"	methods	line:53
 c	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Prog.scala	/^        val c = counter$/;"	constants	line:43
@@ -328,7 +322,7 @@ c	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Prog.scala	/^   
 c	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Prog.scala	/^    \/\/\/ For a class c with ghost fields F, yields a type c<F: this.F>$/;"	classes	line:119
 c	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Prog.scala	/^    \/\/\/ For a class c with ghost fields F, yields a type c<F: this.F>{as}$/;"	classes	line:113
 c	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Prog.scala	/^    \/\/\/ Ghosts F'#F defined on the class c are not substituted.$/;"	classes	line:96
-c	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^            val c = erasedTy(annty.getUnderlyingType)$/;"	constants	line:516
+c	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^            val c = erasedTy(annty.getUnderlyingType)$/;"	constants	line:564
 c	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^                \/\/ (2) p_dep = this.f' and f' is declared in class c (not a supertype!)$/;"	classes	line:427
 c	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^                \/\/ The type of a field f with guard p_g in class c $/;"	classes	line:424
 c	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^        override val c: ClassName,$/;"	constants	line:299
@@ -341,8 +335,8 @@ c_point	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/
 c_scalar	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    val c_scalar = ir.ClassName("scalar")  \/\/ Represents any scalar value.$/;"	constants	line:488
 c_sup	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Prog.scala	/^    \/\/ Is c_sub an erased subtype of class c_sup?$/;"	classes	line:52
 c_void	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    val c_void = ir.ClassName("void")      \/\/ Represents void values.$/;"	constants	line:489
-call	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def call(treePos: Tree, p: ir.Path, m: ir.MethodName, qs: ir.Path*) = {$/;"	methods	line:229
-callUnit	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def callUnit(treePos: Tree, p: ir.Path, m: ir.MethodName, qs: ir.Path*) {$/;"	methods	line:235
+call	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def call(treePos: Tree, p: ir.Path, m: ir.MethodName, qs: ir.Path*) = {$/;"	methods	line:234
+callUnit	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def callUnit(treePos: Tree, p: ir.Path, m: ir.MethodName, qs: ir.Path*) {$/;"	methods	line:240
 cap	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^    def cap(tp: ir.TeePee): ir.TypeRef = preservesEnv {$/;"	methods	line:314
 categorizeGhostAnnot	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def categorizeGhostAnnot(am: AnnotationMirror) =$/;"	methods	line:195
 cd	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ComputeRelations.scala	/^                    val cd = classDecl(t.c)$/;"	constants	line:88
@@ -355,6 +349,7 @@ cd	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Prog.scala	/^  
 cd	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Prog.scala	/^        val cd = classDecl(c)$/;"	constants	line:190
 cd	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^        val cd = classDecl(tp.wt.c)$/;"	constants	line:305
 cd	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^        val cd = classDecl(tp_o.wt.c)$/;"	constants	line:489
+cd	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateContext.scala	/^            val cd = ttf.implClassDecl(tree)$/;"	constants	line:31
 cd	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateContext.scala	/^            val cd = ttf.intClassDecl(referencedElements, elem)$/;"	constants	line:23
 cd	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^                    val cd = classDecl(t.c)$/;"	constants	line:203
 cd	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/WfCheck.scala	/^        val cd = classDecl(c)$/;"	constants	line:319
@@ -423,10 +418,10 @@ checkWPathWf	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/WfChe
 checkWfWt	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/WfCheck.scala	/^    def checkWfWt(wt: ir.WcTypeRef) {$/;"	methods	line:66
 checkWritable	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^    def checkWritable(tp_guard: ir.TeePee) {$/;"	methods	line:116
 checkedClasses	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/CheckPhase.scala	/^    val checkedClasses = MutableSet.empty[ir.ClassName]$/;"	constants	line:15
-chkGhost	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^    def chkGhost(wg: ir.WcGhost) = $/;"	methods	line:68
-chkPath	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^    def chkPath(wp: ir.WcPath) = wp match {$/;"	methods	line:63
-chkTref	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^    def chkTref(wt: ir.WcTypeRef): ir.TypeRef =$/;"	methods	line:71
-classAttrs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def classAttrs(telem: TypeElement) = telem.getKind match {$/;"	methods	line:629
+chkGhost	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def chkGhost(wg: ir.WcGhost) = $/;"	methods	line:72
+chkPath	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def chkPath(wp: ir.WcPath) = wp match {$/;"	methods	line:67
+chkTref	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def chkTref(wt: ir.WcTypeRef): ir.TypeRef =$/;"	methods	line:75
+classAttrs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def classAttrs(telem: TypeElement) = telem.getKind match {$/;"	methods	line:677
 classDecl	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IrParser.scala	/^    def classDecl = positioned($/;"	methods	line:156
 classDecl	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Prog.scala	/^    def classDecl(c: ir.ClassName) = classTable.get(c) match {$/;"	methods	line:24
 classDecl	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/Log.scala	/^    def classDecl(lbl: Any, cd: ir.ClassDecl): Unit = ifEnabled {$/;"	methods	line:127
@@ -467,20 +462,20 @@ counter	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/LogDir
 cr	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^    def cr(text: String) {$/;"	methods	line:99
 createFactory	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IntervalsChecker.scala	/^    override def createFactory(root: CompilationUnitTree): TranslateTypeFactory =$/;"	methods	line:56
 createSourceVisitor	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IntervalsChecker.scala	/^    override def createSourceVisitor(root: CompilationUnitTree) =$/;"	methods	line:59
-createSymbol	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^    def createSymbol(env: ttf.TranslateEnv)(vtree: VariableTree): Symbol = {$/;"	methods	line:110
+createSymbol	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def createSymbol(env: ttf.TranslateEnv)(vtree: VariableTree): Symbol = {$/;"	methods	line:114
 cross	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^        def cross[J](js: UtilIterable[J]): Iterable.Projection[(I,J)] = $/;"	methods	line:136
 cross	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^    def cross[I](is: List[Iterable[I]]): List[List[I]] = is match {$/;"	methods	line:158
 ctor	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^        def ctor = s.contains(AttrCtor)$/;"	methods	line:77
 ctor	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^        def ctor = withAttrs(as.withCtor)$/;"	methods	line:305
 ctorAttrs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    val ctorAttrs = Attrs(ListSet(AttrCtor))$/;"	constants	line:94
-ctorDecls	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val ctorDecls = EF.constructorsIn(enclElems).filter(filter).map(intMethodDecl(ir.ctorAttrs, _))$/;"	constants	line:694
+ctorDecls	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val ctorDecls = EF.constructorsIn(enclElems).filter(filter).map(intMethodDecl)$/;"	constants	line:743
 ctr	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IrParser.scala	/^        val ctr = counter$/;"	constants	line:80
 currentColor	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/Log.scala	/^        var currentColor = -1$/;"	local variables	line:170
 d	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/LogDirectory.scala	/^        val d = uniqueFile(baseDirectory, System.nanoTime.toString)$/;"	constants	line:17
 data	/Users/niko/git/intervals-java/Analysis/test-plugin/src/bbpc/Data.java	/^	public Object data;$/;"	field	line:4
 data	/Users/niko/git/intervals-java/Analysis/test-plugin/src/bbpc/ProdData.java	/^	public Data data;$/;"	field	line:7
 debugOpts	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestPlugin.scala	/^        val debugOpts =$/;"	constants	line:66
-declGhosts	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^            val declGhosts = elemOfAnnty(pp.annty).map(ghostFieldsDeclaredOnElemAndSuperelems).getOrElse(Map.empty)            $/;"	constants	line:412
+declGhosts	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^            val declGhosts = elemOfAnnty(pp.annty).map(ghostFieldsDeclaredOnElemAndSuperelems).getOrElse(Map.empty)            $/;"	constants	line:460
 declaredReadableBy	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^    def declaredReadableBy(tp: ir.TeePee, tq: ir.TeePee): Boolean = $/;"	methods	line:191
 declaredWritableBy	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^    def declaredWritableBy(tp: ir.TeePee, tq: ir.TeePee): Boolean = $/;"	methods	line:196
 defaultValue	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^        override protected def defaultValue(k: K) =$/;"	methods	line:335
@@ -493,34 +488,35 @@ dependentOn	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.sca
 dependentPaths	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^        def dependentPaths =$/;"	methods	line:294
 detailLog	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/SplitLog.scala	/^class SplitLog(val indexLog: Log, val detailLog: Log) {$/;"	constants	line:3
 detailsLog	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/Log.scala	/^            val detailsLog = new HtmlLog(logDirectory, rf, None)$/;"	constants	line:318
-di	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        def di = repsep(ident, ".")     ^^ { case idents => ".".join(idents) }$/;"	methods	line:469
+di	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        def di = repsep(ident, ".")     ^^ { case idents => ".".join(idents) }$/;"	methods	line:517
 diagToDiagError	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestPlugin.scala	/^    def diagToDiagError(diag: Diagnostic[_ <: JavaFileObject]) = $/;"	methods	line:45
 diagnostics	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestPlugin.scala	/^        val diagnostics = new DiagnosticCollector[JavaFileObject]$/;"	constants	line:170
 diff	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^        def diff(as: Attrs): Set[Attr] = s -- as.s$/;"	methods	line:86
 dir	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/LogDirectory.scala	/^    val dir: File = {$/;"	constants	line:16
 directSupertys	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def directSupertys(telem: TypeElement) =$/;"	methods	line:98
-dotIdent	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        def dotIdent = "."~ident        ^^ { case _~s => s }$/;"	methods	line:398
+dotIdent	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        def dotIdent = "."~ident        ^^ { case _~s => s }$/;"	methods	line:446
 dotf	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IrParser.scala	/^    def dotf = "."~f                            ^^ { case _~f => f }$/;"	methods	line:65
-dummyClassDecl	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def dummyClassDecl(telem: TypeElement) = $/;"	methods	line:599
-dummyFieldDecl	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def dummyFieldDecl(velem: VariableElement) =$/;"	methods	line:581
-dummyLvDecl	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def dummyLvDecl(velem: VariableElement) =$/;"	methods	line:575
-dummyLvalue	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def dummyLvalue(p: ir.Path) { }$/;"	methods	line:251
-dummyMethodDecl	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def dummyMethodDecl(eelem: ExecutableElement) =$/;"	methods	line:589
+dummyClassDecl	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def dummyClassDecl(telem: TypeElement) = $/;"	methods	line:647
+dummyFieldDecl	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def dummyFieldDecl(velem: VariableElement) =$/;"	methods	line:629
+dummyLvDecl	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def dummyLvDecl(velem: VariableElement) =$/;"	methods	line:623
+dummyLvalue	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def dummyLvalue(p: ir.Path) { }$/;"	methods	line:256
+dummyMethodDecl	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def dummyMethodDecl(eelem: ExecutableElement) =$/;"	methods	line:637
 duplicateGhostsInSameType	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^    def duplicateGhostsInSameType() {$/;"	methods	line:1357
-eelem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val eelem = elem.asInstanceOf[ExecutableElement]$/;"	constants	line:355
+eelem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val eelem = elem.asInstanceOf[ExecutableElement]$/;"	constants	line:403
+eelem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^            val eelem = TU.elementFromDeclaration(mtree)$/;"	constants	line:772
 elem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IntervalsChecker.scala	/^            val elem = TU.elementFromDeclaration(tree)$/;"	constants	line:127
 elem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IntervalsChecker.scala	/^            val elem = TU.elementFromDeclaration(tree)$/;"	constants	line:133
-elem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val elem = IU.constructor(tree)$/;"	constants	line:396
-elem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val elem = TU.elementFromUse(tree)$/;"	constants	line:363
-elem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val elem = TU.elementFromUse(tree)$/;"	constants	line:379
-elem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val elem = TU.elementFromUse(tree)$/;"	constants	line:388
-elem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val elem = TU.elementFromUse(tree).asInstanceOf[VariableElement]$/;"	constants	line:263
-elem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val elem = TU.elementFromUse(tree).asInstanceOf[VariableElement]$/;"	constants	line:281
-elem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        val elem = TU.elementFromDeclaration(vtree)$/;"	constants	line:111
-elem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val elem = TU.elementFromDeclaration(tree.asInstanceOf[ClassTree])$/;"	constants	line:768
+elem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val elem = IU.constructor(tree)$/;"	constants	line:401
+elem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val elem = TU.elementFromUse(tree)$/;"	constants	line:368
+elem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val elem = TU.elementFromUse(tree)$/;"	constants	line:384
+elem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val elem = TU.elementFromUse(tree)$/;"	constants	line:393
+elem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val elem = TU.elementFromUse(tree).asInstanceOf[VariableElement]$/;"	constants	line:268
+elem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val elem = TU.elementFromUse(tree).asInstanceOf[VariableElement]$/;"	constants	line:286
+elem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            val elem = TU.elementFromDeclaration(vtree)$/;"	constants	line:115
+elem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val elem = TU.elementFromDeclaration(tree.asInstanceOf[ClassTree])$/;"	constants	line:867
 elem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^            val elem = am.getAnnotationType.asElement$/;"	constants	line:197
-elem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        def elem = di                   ^? ( ElemLookup, (nm => "No such type: " + nm) )$/;"	methods	line:470
-elemEnv	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def elemEnv(elem: Element): TranslateEnv = log.indented("elemEnv(%s)", elem) {$/;"	methods	line:303
+elem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        def elem = di                   ^? ( ElemLookup, (nm => "No such type: " + nm) )$/;"	methods	line:518
+elemEnv	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def elemEnv(elem: Element): TranslateEnv = log.indented("elemEnv(%s)", elem) {$/;"	methods	line:351
 elemKind	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def elemKind(annty: AnnotatedTypeMirror): Option[ElementKind] =$/;"	methods	line:109
 elemOfAnnty	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def elemOfAnnty(annty: AnnotatedTypeMirror): Option[TypeElement] =$/;"	methods	line:121
 elemOfType	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def elemOfType(ty: TypeMirror): Option[TypeElement] =$/;"	methods	line:115
@@ -531,7 +527,7 @@ elements	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Relation.
 elements	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^                def elements = mm.iterator$/;"	methods	line:319
 elements	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^        def elements = new ScalaIterator(i.iterator)$/;"	methods	line:466
 elements	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^        def elements: Iterator[(K, V)] = iterator$/;"	methods	line:313
-elems_fields	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val elems_fields = EF.fieldsIn(elements.getAllMembers(telem))$/;"	constants	line:325
+elems_fields	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val elems_fields = EF.fieldsIn(elements.getAllMembers(telem))$/;"	constants	line:373
 elems_owner_fields	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val elems_owner_fields = EF.fieldsIn(elements.getAllMembers(elem_owner))$/;"	constants	line:182
 elems_param	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        val elems_param = mtree.getParameters.map(TU.elementFromDeclaration).toList$/;"	constants	line:143
 empty	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IntransitiveRelation.scala	/^    def empty = IntransitiveRelation.empty$/;"	methods	line:12
@@ -543,30 +539,31 @@ empty	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/
 empty	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^        def empty[K, V] = $/;"	methods	line:340
 empty	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^        def empty[K] = $/;"	methods	line:353
 empty	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^        val empty = ir.TcEnv($/;"	constants	line:429
-emptyAnnots	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val emptyAnnots = superAtm.getAnnotations.filter(isEmptyAnnot)$/;"	constants	line:736
-emptyEnv	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    val emptyEnv = TranslateEnv(NullPosition, Map.empty, Map.empty)$/;"	constants	line:301
+emptyAnnots	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val emptyAnnots = superAtm.getAnnotations.filter(isEmptyAnnot)$/;"	constants	line:835
+emptyEnv	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    val emptyEnv = TranslateEnv(NullPosition, Map.empty, Map.empty)$/;"	constants	line:349
 emptySubst	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^    def emptySubst[A]: Subst[A] = Map.empty.withDefault(p => p)$/;"	methods	line:204
-enclElems	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val enclElems = telem.getEnclosedElements$/;"	constants	line:693
+enclElems	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val enclElems = telem.getEnclosedElements$/;"	constants	line:742
+enclElems	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val enclElems = telem.getEnclosedElements$/;"	constants	line:798
 enclosing	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    \/\/ Returns 'elem' if it is a class, otherwise the class enclosing 'elem' (or null)$/;"	classes	line:84
 enclosing	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    \/\/ Returns 'elem' if it is a package, otherwise the package enclosing 'elem'$/;"	packages	line:87
 end	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^        def end = this + f_end        $/;"	methods	line:357
 endsWith	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^        def endsWith(m: List[E]) =$/;"	methods	line:85
 env	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^    var env = ir.Env.empty$/;"	local variables	line:22
-env	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def env: ttf.TranslateEnv = null \/\/ TODO$/;"	methods	line:129
-env	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val env = elemEnv(telem)$/;"	constants	line:698
-env	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val env = elemEnv(velem)$/;"	constants	line:651
+env	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            def env: ttf.TranslateEnv = null \/\/ TODO$/;"	methods	line:133
+env	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val env = elemEnv(telem)$/;"	constants	line:747
+env	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val env = elemEnv(velem)$/;"	constants	line:699
 env	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/Log.scala	/^    def env(lbl: Any, env: ir.TcEnv): Unit = ifEnabled {$/;"	methods	line:98
 env_all_ctors	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^                val env_all_ctors = ir.Env.intersect(envs_ctor)$/;"	constants	line:520
-env_cls	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val env_cls = elemEnv(eelem.getEnclosingElement)$/;"	constants	line:356
+env_cls	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val env_cls = elemEnv(eelem.getEnclosingElement)$/;"	constants	line:404
 env_mthd	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ComputeRelations.scala	/^            val env_mthd = env$/;"	constants	line:150
 env_mthd	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        val env_mthd = ttf.elemEnv(elem_mthd)$/;"	constants	line:142
-env_mthd	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val env_mthd = elemEnv(eelem)$/;"	constants	line:674
+env_mthd	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val env_mthd = elemEnv(eelem)$/;"	constants	line:722
 env_pred	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ComputeRelations.scala	/^                val env_pred = outs(b_pred)                    $/;"	constants	line:157
-environment	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^            \/\/ Computing class environment:$/;"	classes	line:309
+environment	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^            \/\/ Computing class environment:$/;"	classes	line:357
 envs_ctor	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^                val envs_ctor = cd.ctors.map(checkNoninterfaceConstructorDecl(cd, _))$/;"	constants	line:519
 equals	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Relation.scala	/^    override def equals(that: Any) = $/;"	methods	line:36
 equiv	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^    def equiv(tp: ir.TeePee, tq: ir.TeePee): Boolean = $/;"	methods	line:155
-erasedTy	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def erasedTy(ty: TypeMirror): ir.ClassName =$/;"	methods	line:484
+erasedTy	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def erasedTy(ty: TypeMirror): ir.ClassName =$/;"	methods	line:532
 err	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/LogStack.scala	/^                    val err = failure.toError(loc.pos)$/;"	constants	line:36
 errorRegex	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestPlugin.scala	/^        val errorRegex = "\/\/ (\\\\^*)ERROR (.*)".r$/;"	constants	line:103
 errors	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Prog.scala	/^    def errors = logStack.errors$/;"	methods	line:18
@@ -582,7 +579,7 @@ expErrors	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestPlu
 expErrorsRemaining	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestPlugin.scala	/^        var expErrorsRemaining = expErrors$/;"	local variables	line:129
 expectedErrors	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestPlugin.scala	/^    def expectedErrors(jfos: List[JavaFileObject]): List[DiagError] = {$/;"	methods	line:101
 exportedCtorEnvs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Prog.scala	/^    var exportedCtorEnvs = Map($/;"	local variables	line:34
-extendPath	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        def extendPath(pp: ParsePath, id: String) = {$/;"	methods	line:410
+extendPath	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        def extendPath(pp: ParsePath, id: String) = {$/;"	methods	line:458
 extendedInit	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^    def extendedInit() {$/;"	methods	line:741
 extractAssumptions	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^    def extractAssumptions($/;"	methods	line:266
 f	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IrParser.scala	/^    def f = ($/;"	methods	line:47
@@ -593,9 +590,9 @@ f	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/Log.scala	/^
 f	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/LogDirectory.scala	/^        var f = new File(directory, name)$/;"	local variables	line:7
 f_creator	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    val f_creator = ir.FieldName("ch.ethz.intervals.quals.Creator")$/;"	constants	line:463
 f_ctor	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    val f_ctor = ir.FieldName("constructor")$/;"	constants	line:465
-f_elem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                    val f_elem = f(elem)$/;"	constants	line:327
+f_elem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                    val f_elem = f(elem)$/;"	constants	line:375
 f_end	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    val f_end = ir.FieldName("end")$/;"	constants	line:466
-f_id	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^            val f_id = ir.FieldName(id)$/;"	constants	line:413
+f_id	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^            val f_id = ir.FieldName(id)$/;"	constants	line:461
 f_start	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    val f_start = ir.FieldName("start")$/;"	constants	line:464
 f_super	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    val f_super = ir.FieldName("super")$/;"	constants	line:467
 failPhase	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^            val failPhase = new CheckAll(prog).check$/;"	constants	line:54
@@ -603,8 +600,8 @@ fds_linked	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksE
 fds_maybe_linked	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^        val fds_maybe_linked = lrfd.filter { rfd => isLinkedWt(p_f, rfd.wt) }$/;"	constants	line:499
 fieldDecl	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/BaseSubst.scala	/^    def fieldDecl(fd: ir.FieldDecl) = fd match {$/;"	methods	line:40
 fieldDecl	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Prog.scala	/^    def fieldDecl(c0: ir.ClassName, f: ir.FieldName): ir.FieldDecl = {$/;"	methods	line:136
-fieldDecls	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val fieldDecls = EF.fieldsIn(enclElems).filter(filter).map(intFieldDecl)$/;"	constants	line:696
-fieldGuard	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def fieldGuard(env: TranslateEnv)(velem: VariableElement) = $/;"	methods	line:634
+fieldDecls	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val fieldDecls = EF.fieldsIn(enclElems).filter(filter).map(intFieldDecl)$/;"	constants	line:745
+fieldGuard	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def fieldGuard(env: TranslateEnv)(velem: VariableElement) = $/;"	methods	line:682
 fieldsTypesWf	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^    def fieldsTypesWf()$/;"	methods	line:1089
 file	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/LogDirectory.scala	/^    def file(n: String, ext: String) = new File(uniqueFile(dir, n) + "." + ext)$/;"	methods	line:23
 fileLines	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestPlugin.scala	/^            val fileLines = fileText.split('\\n')$/;"	constants	line:106
@@ -628,13 +625,13 @@ foreachcross	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.
 foreachzip	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^    def foreachzip[A,B](as: List[A], bs: List[B])(f: Function2[A, B, Unit]) =$/;"	methods	line:376
 fork	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def fork(treePos: Tree, xtra: (ir.WcTypeRef, ir.VarName)*): MutableBlock = {$/;"	methods	line:158
 fresh	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Prog.scala	/^    def fresh(nm: String) = {$/;"	methods	line:42
-freshName	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^    def freshName(prefix: String) = {$/;"	methods	line:56
+freshName	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def freshName(prefix: String) = {$/;"	methods	line:60
 freshTp	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^    def freshTp(wt: ir.WcTypeRef) = {$/;"	methods	line:74
-freshVar	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^    def freshVar() = ir.VarName(freshName("jv"))$/;"	methods	line:60
+freshVar	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def freshVar() = ir.VarName(freshName("jv"))$/;"	methods	line:64
 freshVarName	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Prog.scala	/^    def freshVarName = ir.VarName(fresh("tmp"))$/;"	methods	line:48
 fs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^        def fs = rev_fs.reverse$/;"	methods	line:347
 fs_defd	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Prog.scala	/^            val fs_defd = cd.ghosts.map(_.f)            $/;"	constants	line:91
-fs_relevant	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        val fs_relevant = ghostFieldsDeclaredOnTyAndSupertypes(annty.getUnderlyingType).keySet$/;"	constants	line:506
+fs_relevant	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        val fs_relevant = ghostFieldsDeclaredOnTyAndSupertypes(annty.getUnderlyingType).keySet$/;"	constants	line:554
 g	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IrParser.scala	/^    def g = "<"~f~":"~p~">"                     ^^ { case _~f~_~p~_ => ir.Ghost(f, p) }    $/;"	methods	line:67
 g	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^        def g(p: P) = {$/;"	methods	line:401
 get	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^        def get(k: K) = _m.get(k)$/;"	methods	line:231
@@ -651,16 +648,18 @@ ghost	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^ 
 ghost	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^        def ghost = s.contains(AttrGhost)$/;"	methods	line:80
 ghostAnnty	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                    val ghostAnnty = AnnTyParser(ghostTypeString)$/;"	constants	line:203
 ghostAttrs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    val ghostAttrs = Attrs(ListSet(AttrGhost))$/;"	constants	line:95
-ghostDecls	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val ghostDecls = ghostFieldsDeclaredOnElem(telem).map { case (f, annty) =>$/;"	constants	line:699
+ghostDecls	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val ghostDecls = ghostFieldsDeclaredOnElem(telem).map { case (f, annty) =>$/;"	constants	line:748
 ghostFieldDecl	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/BaseSubst.scala	/^    def ghostFieldDecl(fd: ir.GhostFieldDecl) =$/;"	methods	line:34
 ghostFieldDecl	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IrParser.scala	/^    def ghostFieldDecl = positioned($/;"	methods	line:147
 ghostFieldDecls	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Prog.scala	/^    def ghostFieldDecls(c_0: ir.ClassName): List[ir.GhostFieldDecl] =$/;"	methods	line:74
-ghostFields	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val ghostFields = ghostFieldsDeclaredOnElemAndSuperelems(telem)$/;"	constants	line:331
-ghostFieldsDeclaredOnElem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def ghostFieldsDeclaredOnElem(elem: Element) =$/;"	methods	line:248
-ghostFieldsDeclaredOnElemAndSuperelems	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def ghostFieldsDeclaredOnElemAndSuperelems(elem: Element) =$/;"	methods	line:278
-ghostFieldsDeclaredOnTyAndSupertypes	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def ghostFieldsDeclaredOnTyAndSupertypes(ty: TypeMirror) =$/;"	methods	line:283
-ghostFieldsGivenValueInAnnotations	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def ghostFieldsGivenValueInAnnotations(ams: List[AnnotationMirror]) =$/;"	methods	line:220
-ghostFieldsGivenValueOnElem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def ghostFieldsGivenValueOnElem(elem: Element) =$/;"	methods	line:231
+ghostFields	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val ghostFields = ghostFieldsDeclaredOnElemAndSuperelems(telem)$/;"	constants	line:379
+ghostFieldsBoundInAnnotations	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def ghostFieldsBoundInAnnotations(ams: List[AnnotationMirror]) =$/;"	methods	line:263
+ghostFieldsBoundOnElem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def ghostFieldsBoundOnElem(elem: Element) =$/;"	methods	line:274
+ghostFieldsBoundOnElemAndSuperelems	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def ghostFieldsBoundOnElemAndSuperelems(elem: Element) =$/;"	methods	line:279
+ghostFieldsBoundOnTyAndSupertypes	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def ghostFieldsBoundOnTyAndSupertypes(ty: TypeMirror) =$/;"	methods	line:284
+ghostFieldsDeclaredOnElem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def ghostFieldsDeclaredOnElem(elem: Element) =$/;"	methods	line:309
+ghostFieldsDeclaredOnElemAndSuperelems	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def ghostFieldsDeclaredOnElemAndSuperelems(elem: Element) =$/;"	methods	line:314
+ghostFieldsDeclaredOnTyAndSupertypes	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def ghostFieldsDeclaredOnTyAndSupertypes(ty: TypeMirror) =$/;"	methods	line:319
 ghostOk	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/WfCheck.scala	/^    val ghostOk = ir.ghostAttrs.withMutable$/;"	constants	line:17
 ghostSubstOfTeePee	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^    def ghostSubstOfTeePee(tp: ir.TeePee): PathSubst = preservesEnv {$/;"	methods	line:304
 ghostSubstOfType	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Prog.scala	/^    def ghostSubstOfType(t: ir.TypeRef): PathSubst = $/;"	methods	line:98
@@ -669,12 +668,12 @@ ghostTypeString	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Tr
 ghostTypesFields	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^    def ghostTypesFields()$/;"	methods	line:944
 ghostTypesLocals	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^    def ghostTypesLocals()$/;"	methods	line:909
 ghosts	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^    def ghosts(tp: ir.TeePee): List[ir.Ghost] = preservesEnv {$/;"	methods	line:293
-ghosts	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val ghosts = ghostFieldsGivenValueOnElem(telem).map { case (f, s) =>$/;"	constants	line:701
+ghosts	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val ghosts = ghostFieldsBoundOnElem(telem).map { case (f, s) =>$/;"	constants	line:750
 ghosts	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^        val ghosts: List[Ghost],$/;"	constants	line:300
 goto	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IrParser.scala	/^    def goto = positioned($/;"	methods	line:116
-goto	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def goto(treePos: Tree, blk_tar: MutableBlock, ps_xtra: ir.Path*) = {$/;"	methods	line:185
-gotos	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        val gotos = new ListBuffer[ir.Goto]()$/;"	constants	line:128
-happensReq	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        def happensReq(annot: Happens) =$/;"	methods	line:554
+goto	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def goto(treePos: Tree, mblk_tar: MutableBlock, ps_xtra: ir.Path*) = {$/;"	methods	line:190
+gotos	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            val gotos = new ListBuffer[ir.Goto]()$/;"	constants	line:132
+happensReq	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        def happensReq(annot: Happens) =$/;"	methods	line:602
 hasNext	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^        def hasNext = i.hasNext$/;"	methods	line:451
 hasNext	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^        def hasNext = i.hasNext$/;"	methods	line:461
 hasPrefix	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^        def hasPrefix(p: ir.Path) =$/;"	methods	line:353
@@ -693,9 +692,13 @@ ifEnabled	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/Log.
 ifEnabled	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/Log.scala	/^    def ifEnabled(f: => Unit): Unit     \/\/ Executes f iff rawWrite() does something.$/;"	methods	line:12
 illegalClassInReq	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^    def illegalClassInReq$/;"	methods	line:1027
 illegalLinkedFields	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^    def illegalLinkedFields()$/;"	methods	line:968
+implClassDecl	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def implClassDecl(ctree: ClassTree): ir.ClassDecl = {$/;"	methods	line:792
+implMethodDecl	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def implMethodDecl(tree: Tree, mdecls: List[ir.MethodDecl]): List[ir.MethodDecl] = tree match {$/;"	methods	line:770
+implementation	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    \/\/ The class implementation includes all the classes method bodies.$/;"	classes	line:768
+implementation	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    \/\/ ___ Translating the class implementation _____________________________$/;"	classes	line:766
 in	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^        cd: ir.ClassDecl,          \/\/ class in which the method is declared$/;"	classes	line:357
 in	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/WfCheck.scala	/^        cd: ir.ClassDecl,          \/\/ class in which the method is declared$/;"	classes	line:226
-inScope	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def inScope(kind: ScopeKind, tree: Tree)(func: => Unit) = $/;"	methods	line:222
+inScope	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def inScope(kind: ScopeKind, tree: Tree)(func: => Unit) = $/;"	methods	line:227
 indented	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/Log.scala	/^    def indented[R](fmt: String, arg0: Any, args: Any*)(f: => R): R = {$/;"	methods	line:49
 indented	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/Log.scala	/^    def indented[R](str: Any)(f: => R): R = indented("%s", str)(f)$/;"	methods	line:62
 indentedRes	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/Log.scala	/^    def indentedRes[R](fmt: Any)(f: => R): R = indentedRes("%s", fmt)(f)$/;"	methods	line:79
@@ -713,14 +716,16 @@ inheritedAssumptionsOnlyIncludeTemporarilyAliasedFields	/Users/niko/git/interval
 init	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IntervalsChecker.scala	/^    override def init(env: ProcessingEnvironment) = {$/;"	methods	line:41
 ins	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ComputeRelations.scala	/^            val ins = Array.make(blks.length, env_mthd)$/;"	constants	line:151
 ins	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/DataFlow.scala	/^    val ins = Array.make(blks.length, empty)$/;"	constants	line:15
-intArgDecl	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def intArgDecl(velem: VariableElement) =$/;"	methods	line:661
-intClassDecl	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def intClassDecl(filter: (Element => Boolean), telem: TypeElement): ir.ClassDecl = $/;"	methods	line:690
-intFieldDecl	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def intFieldDecl(velem: VariableElement) = $/;"	methods	line:648
-intMethodDecl	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def intMethodDecl(as0: ir.Attrs, eelem: ExecutableElement) = $/;"	methods	line:671
+intArgDecl	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def intArgDecl(velem: VariableElement) =$/;"	methods	line:709
+intCdecl	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val intCdecl = intClassDecl(ctree)$/;"	constants	line:797
+intClassDecl	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def intClassDecl(filter: (Element => Boolean), telem: TypeElement): ir.ClassDecl = $/;"	methods	line:739
+intFieldDecl	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def intFieldDecl(velem: VariableElement) = $/;"	methods	line:696
+intMdecl	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                    val intMdecl = intMethodDecl(eelem)$/;"	constants	line:775
+intMethodDecl	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def intMethodDecl(eelem: ExecutableElement) = $/;"	methods	line:719
 integer	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IrParser.scala	/^    def integer = numericLit                    ^^ { case s => s.toInt }$/;"	methods	line:32
 inter	/Users/niko/git/intervals-java/Analysis/test-plugin/src/basic/ParseReqs.java	/^	Interval inter;$/;"	field	line:9
-interface	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    \/\/ The class interface includes all fields, methods, constructors, etc$/;"	classes	line:626
-interface	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    \/\/ ___ Translating the class interface __________________________________$/;"	classes	line:624
+interface	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    \/\/ The class interface includes all fields, methods, constructors, etc$/;"	classes	line:674
+interface	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    \/\/ ___ Translating the class interface __________________________________$/;"	classes	line:672
 interface	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^        def interface = s.contains(AttrInterface)$/;"	methods	line:74
 interfaceAttrs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    val interfaceAttrs = Attrs(ListSet(AttrInterface))$/;"	constants	line:97
 interfaceInheritance	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^    def interfaceInheritance() {$/;"	methods	line:1174
@@ -731,8 +736,8 @@ inv	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^ 
 is	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^        def is(func: Function2[ir.TeePee, ir.TeePee, Boolean], ps: List[ir.Path], qs: List[ir.Path]) = {$/;"	methods	line:90
 isClassType	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def isClassType(annty: AnnotatedTypeMirror) =$/;"	methods	line:127
 isConstant	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^        def isConstant: Boolean = !as.mutable$/;"	methods	line:365
-isDefinedAt	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        def isDefinedAt(nm: String) =$/;"	methods	line:459
-isEmptyAnnot	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                def isEmptyAnnot(am: AnnotationMirror) =$/;"	methods	line:734
+isDefinedAt	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        def isDefinedAt(nm: String) =$/;"	methods	line:507
+isEmptyAnnot	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                def isEmptyAnnot(am: AnnotationMirror) =$/;"	methods	line:833
 isInterfaceType	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def isInterfaceType(annty: AnnotatedTypeMirror) =$/;"	methods	line:124
 isLinkedWt	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^    def isLinkedWt(p: ir.Path, wt: ir.WcTypeRef) = preservesEnv {$/;"	methods	line:479
 isMthdParamVer	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def isMthdParamVer(v: Version) = vers_mthdParam.contains(v)$/;"	methods	line:146
@@ -773,7 +778,7 @@ kids	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/Log.scala
 kset0	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^            val kset0 = this(k)$/;"	constants	line:243
 kset1	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^            val kset1 = f(kset0)$/;"	constants	line:244
 len	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^                val len = list.length$/;"	constants	line:143
-level	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                \/\/ At the class level, paths may begin with "this" or any of the fields, $/;"	classes	line:317
+level	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                \/\/ At the class level, paths may begin with "this" or any of the fields, $/;"	classes	line:365
 lexical	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/BaseParser.scala	/^    override val lexical = new StdLexical {$/;"	constants	line:14
 lf	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/Log.scala	/^            val lf = logDirectory.newFile("html")$/;"	constants	line:299
 lg_tp	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^        val lg_tp = ghosts(tp)$/;"	constants	line:306
@@ -787,7 +792,7 @@ list	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^
 list2UtilList	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^    implicit def list2UtilList[Q](i: List[Q]) = UtilList(i)$/;"	methods	line:91
 list2UtilPairList	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^    implicit def list2UtilPairList[Q,R](i: List[(Q,R)]) = UtilPairList(i)$/;"	methods	line:52
 list2UtilPairSeq	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^    implicit def list2UtilPairSeq[Q,R](i: Seq[(Q,R)]) = UtilPairSeq(i)$/;"	methods	line:58
-load	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def load(treePos: Tree, p: ir.Path, f: ir.FieldName) = {$/;"	methods	line:239
+load	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def load(treePos: Tree, p: ir.Path, f: ir.FieldName) = {$/;"	methods	line:244
 locks	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^    def locks(tp: ir.TeePee, tq: ir.TeePee): Boolean = $/;"	methods	line:201
 log	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IntervalsChecker.scala	/^    def log = logStack.log$/;"	methods	line:39
 log	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/Log.scala	/^        def log(name: String) = this$/;"	methods	line:330
@@ -805,9 +810,9 @@ longest	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala
 lrfd	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^        val lrfd = cd.fields.foldLeft(List[ir.ReifiedFieldDecl]()) {$/;"	constants	line:493
 ltp_locks	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ComputeRelations.scala	/^                    val ltp_locks = teePee(ir.noAttrs, addCheckedArglocks)$/;"	constants	line:122
 lv	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IrParser.scala	/^    def lv = ident                              ^^ { case i => ir.VarName(i) }$/;"	methods	line:46
-lv	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val lv = freshVar$/;"	constants	line:347
-lv	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val lv = freshVar$/;"	constants	line:395
-lv	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        val lv = ir.VarName(sym.name + "[" + ver + "]") $/;"	constants	line:100
+lv	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val lv = freshVar$/;"	constants	line:352
+lv	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val lv = freshVar$/;"	constants	line:400
+lv	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            val lv = ir.VarName(sym.name + "[" + ver + "]") $/;"	constants	line:104
 lv	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def lv(velem: VariableElement): ir.VarName =$/;"	methods	line:140
 lv	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^        val lv = prog.freshVarName$/;"	constants	line:75
 lvDecl	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/BaseSubst.scala	/^    def lvDecl(lv: ir.LvDecl) = $/;"	methods	line:45
@@ -819,32 +824,33 @@ lv_new	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^
 lv_outOfScope	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ComputeRelations.scala	/^                val lv_outOfScope = ir.VarName(prog.fresh("outOfScope"))$/;"	constants	line:165
 lv_root	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    val lv_root = ir.VarName("root")$/;"	constants	line:451
 lv_this	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    val lv_this = ir.VarName("this")$/;"	constants	line:448
-lvalue	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def lvalue(etree: ExpressionTree): (ir.Path => Unit) = at(etree, "lvalue", dummyLvalue(_)) {$/;"	methods	line:255
+lvalue	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def lvalue(etree: ExpressionTree): (ir.Path => Unit) = at(etree, "lvalue", dummyLvalue(_)) {$/;"	methods	line:260
 lvdecl	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IrParser.scala	/^    def lvdecl = ($/;"	methods	line:74
 lvn_msig	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^        val lvn_msig = msig.args.map(_.name)$/;"	constants	line:321
 lvs_tar	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^                val lvs_tar = blk_tar.args.map(_.name)$/;"	constants	line:132
 m	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IrParser.scala	/^    def m = ident                               ^^ { case i => ir.MethodName(i) }$/;"	methods	line:44
 m	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/PathSubst.scala	/^class PathSubst(private val m: Map[ir.Path, ir.Path]) extends BaseSubst {$/;"	constants	line:5
-m	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val m = ttf.m(elem)$/;"	constants	line:390
-m	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val m = ttf.m(elem)$/;"	constants	line:398
+m	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val m = ttf.m(elem)$/;"	constants	line:395
+m	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val m = ttf.m(elem)$/;"	constants	line:403
 m	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def m(eelem: ExecutableElement): ir.MethodName = {$/;"	methods	line:174
 m	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def m(methodName: String, argTypes: List[TypeMirror]): ir.MethodName = {$/;"	methods	line:153
 m	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def m(methodName: String, etm: ExecutableType): ir.MethodName = {$/;"	methods	line:170
-m1	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val m1 = addGhostFieldsDeclaredOnTyAndSupertypes(m0, telem.getSuperclass)$/;"	constants	line:261
+m1	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val m1 = addTyAndSupertypes(elemFunc)(m0, telem.getSuperclass)$/;"	constants	line:234
 m1	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^            val m1 = _m.filter { case (k, v) => f(k) }$/;"	constants	line:296
 m1	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^            val m1 = _m.transform((k,v) => f(k, v))$/;"	constants	line:302
-m2	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val m2 = telem.getInterfaces.foldLeft(m1)(addGhostFieldsDeclaredOnTyAndSupertypes)$/;"	constants	line:262
-m_annty_str	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        val m_annty_str = ghostFieldsGivenValueInAnnotations(annty.getAnnotations.toList)$/;"	constants	line:502
-m_annty_wp	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        val m_annty_wp = m_annty_str.transform { case (_, v) => AnnotParser(env).wpath(v) }$/;"	constants	line:503
+m2	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val m2 = telem.getInterfaces.foldLeft(m1)(addTyAndSupertypes(elemFunc))$/;"	constants	line:235
+m_annty_str	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        val m_annty_str = ghostFieldsBoundInAnnotations(annty.getAnnotations.toList)$/;"	constants	line:550
+m_annty_wp	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        val m_annty_wp = m_annty_str.transform { case (_, v) => AnnotParser(env).wpath(v) }$/;"	constants	line:551
 m_arrayGet	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    val m_arrayGet = ir.MethodName("arrayGet")$/;"	constants	line:473
 m_arraySet	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    val m_arraySet = ir.MethodName("arraySet")$/;"	constants	line:474
-m_comb	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        val m_comb = m_defaultWghosts ++ m_annty_wp        $/;"	constants	line:510
-m_defaultWghosts	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                var m_defaultWghosts = Map.empty[ir.FieldName, ir.WcPath]$/;"	local variables	line:344
-m_defaultWghosts	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                var m_defaultWghosts = env_cls.m_defaultWghosts$/;"	local variables	line:379
-m_defaultWghosts	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        val m_defaultWghosts = env.m_defaultWghosts.filter { case (f, _) => fs_relevant(f) }$/;"	constants	line:507
+m_comb	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        val m_comb = m_defaultWghosts ++ m_annty_wp        $/;"	constants	line:558
+m_decl	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^            val m_decl = ghostFieldsDeclaredOnTyAndSupertypes(ty)$/;"	constants	line:330
+m_defaultWghosts	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                var m_defaultWghosts = Map.empty[ir.FieldName, ir.WcPath]$/;"	local variables	line:392
+m_defaultWghosts	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                var m_defaultWghosts = env_cls.m_defaultWghosts$/;"	local variables	line:427
+m_defaultWghosts	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        val m_defaultWghosts = env.m_defaultWghosts.filter { case (f, _) => fs_relevant(f) }$/;"	constants	line:555
 m_init	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    val m_init = ir.MethodName("<init>")$/;"	constants	line:469
-m_lvs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                var m_lvs = Map.empty[String, (ir.Path, AnnotatedTypeMirror)]$/;"	local variables	line:323
-m_lvs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                var m_lvs = env_cls.m_lvs$/;"	local variables	line:364
+m_lvs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                var m_lvs = Map.empty[String, (ir.Path, AnnotatedTypeMirror)]$/;"	local variables	line:371
+m_lvs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                var m_lvs = env_cls.m_lvs$/;"	local variables	line:412
 m_run	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    val m_run = ir.MethodName("run")$/;"	constants	line:471
 m_toScalar	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    val m_toScalar = ir.MethodName("toScalar")$/;"	constants	line:470
 m_toString	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    val m_toString = ir.MethodName("toString()")$/;"	constants	line:475
@@ -878,14 +884,28 @@ map_2	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/
 matched	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^            var matched = 0$/;"	local variables	line:56
 matchedErrors	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestPlugin.scala	/^        var matchedErrors = 0$/;"	local variables	line:130
 max	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ComputeRelations.scala	/^            var max = 20$/;"	local variables	line:247
-maxVersion	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        var maxVersion = 0$/;"	local variables	line:80
-mayThrow	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def mayThrow(tree: Tree) {$/;"	methods	line:456
+maxVersion	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            var maxVersion = 0$/;"	local variables	line:84
+mayThrow	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def mayThrow(tree: Tree) {$/;"	methods	line:461
+mblk_body	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                val mblk_body = start(goto(tree, fork(tree)))$/;"	constants	line:517
+mblk_break	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                val mblk_break = fork(tree)$/;"	constants	line:477
+mblk_break	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                val mblk_break = fork(tree)$/;"	constants	line:516
+mblk_cur	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        var mblk_cur = mblks(0)$/;"	local variables	line:153
+mblk_f	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val mblk_f = goto(tree, fork(tree))$/;"	constants	line:349
+mblk_j	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val mblk_j = fork(tree, (wt, lv))$/;"	constants	line:354
+mblk_noThrow	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            val mblk_noThrow = goto(tree, fork(tree))$/;"	constants	line:463
+mblk_t	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val mblk_t = goto(tree, fork(tree))$/;"	constants	line:348
+mblk_tar	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            def mblk_tar: MutableBlock$/;"	methods	line:202
+mblk_throw	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            val mblk_throw = goto(tree, fork(tree))$/;"	constants	line:462
+mblk_uncaught	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        val mblk_uncaught = fork(mtree)$/;"	constants	line:212
+mblks	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        val mblks = new ArrayBuffer[MutableBlock]()$/;"	constants	line:151
 md_ctor_interface	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    val md_ctor_interface = $/;"	constants	line:512
+members	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val members = ctree.getMembers.toList$/;"	constants	line:799
 memoize	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^    def memoize[P,Q](f: (P => Q)) = {$/;"	methods	line:399
 methodBody	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IrParser.scala	/^    def methodBody = ($/;"	methods	line:126
 methodDecl	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IrParser.scala	/^    def methodDecl = positioned($/;"	methods	line:133
 methodDecl	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/Log.scala	/^    def methodDecl(lbl: Any, md: ir.MethodDecl): Unit = ifEnabled {$/;"	methods	line:135
-methodDecls	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val methodDecls = EF.methodsIn(enclElems).filter(filter).map(intMethodDecl(ir.noAttrs, _))$/;"	constants	line:695
+methodDecls	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val methodDecls = EF.methodsIn(enclElems).filter(filter).map(intMethodDecl)$/;"	constants	line:744
+methodDecls	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val methodDecls = members.foldRight(List[ir.MethodDecl]())(implFieldDecl)$/;"	constants	line:800
 methodSig	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/BaseSubst.scala	/^    def methodSig(msig: ir.MethodSig) =$/;"	methods	line:49
 methodSig	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Prog.scala	/^    def methodSig(c0: ir.ClassName, m: ir.MethodName): Option[ir.MethodSig] = {$/;"	methods	line:158
 mkCommaString	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^        def mkCommaString = is.mkString(", ")$/;"	methods	line:139
@@ -908,7 +928,7 @@ msig_ctor	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/WfCheck.
 msig_ctor	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/WfCheck.scala	/^                    val msig_ctor = substdCtorSig(tp_x, m, tqs)$/;"	constants	line:150
 msig_sup	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^                        val msig_sup = substArgsInMethodSig(msig_sup_0, md.args.map(_.name))$/;"	constants	line:383
 multipleInheritance	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^    def multipleInheritance() {$/;"	methods	line:834
-mustThrow	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def mustThrow(tree: Tree) {$/;"	methods	line:449
+mustThrow	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def mustThrow(tree: Tree) {$/;"	methods	line:454
 mutable	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^        def mutable = s.contains(AttrMutable)$/;"	methods	line:83
 mutableAttrs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    val mutableAttrs = Attrs(ListSet(AttrMutable))$/;"	constants	line:96
 mutableHbRelations	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^    def mutableHbRelations$/;"	methods	line:1058
@@ -927,26 +947,26 @@ next	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^
 nextCdata	/Users/niko/git/intervals-java/Analysis/test-plugin/src/bbpc/ConsData.java	/^	public @Creator("nextCons") ConsData nextCdata;$/;"	field	line:8
 nextColor	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/Log.scala	/^        def nextColor = {$/;"	methods	line:172
 nextCons	/Users/niko/git/intervals-java/Analysis/test-plugin/src/bbpc/ConsData.java	/^	public Interval nextCons;$/;"	field	line:7
-nextExprVersion	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def nextExprVersion(p: ir.Path) =$/;"	methods	line:89
-nextParamVersion	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def nextParamVersion = {$/;"	methods	line:83
+nextExprVersion	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            def nextExprVersion(p: ir.Path) =$/;"	methods	line:93
+nextParamVersion	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            def nextParamVersion = {$/;"	methods	line:87
 nextPdata	/Users/niko/git/intervals-java/Analysis/test-plugin/src/bbpc/ProdData.java	/^	public @Creator("nextProd") ProdData nextPdata;$/;"	field	line:10
 nextProd	/Users/niko/git/intervals-java/Analysis/test-plugin/src/bbpc/ProdData.java	/^	public Interval nextProd;$/;"	field	line:9
-nm	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^    def nm(elem: Element) = elem.getSimpleName.toString$/;"	methods	line:61
+nm	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def nm(elem: Element) = elem.getSimpleName.toString$/;"	methods	line:65
 nm	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val nm = elements.getName(s)$/;"	constants	line:183
-nm_elem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val nm_elem = nm(elem)$/;"	constants	line:364
+nm_elem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val nm_elem = nm(elem)$/;"	constants	line:369
 noAttrs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    val noAttrs = Attrs(ListSet.empty)$/;"	constants	line:93
 not	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^    def not(b: Boolean) = !b$/;"	methods	line:393
 notDefined	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/WfCheck.scala	/^        def notDefined(wg: ir.WcGhost) = !lgfd.exists(_.name == wg.f)        $/;"	methods	line:75
-nullStmt	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def nullStmt(etree: ExpressionTree) = {$/;"	methods	line:309
+nullStmt	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def nullStmt(etree: ExpressionTree) = {$/;"	methods	line:314
 nullToOption	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^    def nullToOption[A <: AnyRef](a: A) =$/;"	methods	line:444
 nullopt	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^    def nullopt[A <: AnyRef](a: A) =$/;"	methods	line:395
-objParams	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^\/*                    val objParams = objParametersInScope(elem)$/;"	constants	line:752
+objParams	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^\/*                    val objParams = objParametersInScope(elem)$/;"	constants	line:851
 offset	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestPlugin.scala	/^                        val offset = m.end(1) - m.start(1)$/;"	constants	line:111
 oghost	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^        def oghost(f: FieldName) = ghosts.find(_.f == f).map(_.p)$/;"	methods	line:304
 oldEnv	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^        val oldEnv = env$/;"	constants	line:26
 oldEnv	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^        val oldEnv = env$/;"	constants	line:32
 oldLog	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/LogStack.scala	/^        val oldLog = splitLog$/;"	constants	line:15
-oldScopes	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            val oldScopes = scopes$/;"	constants	line:212
+oldScopes	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            val oldScopes = scopes$/;"	constants	line:217
 oldSize	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IntervalsChecker.scala	/^            val oldSize = resultSet.size$/;"	constants	line:171
 op_canon	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ComputeRelations.scala	/^                            val op_canon = $/;"	constants	line:51
 openedKids	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/Log.scala	/^                        var openedKids = false;$/;"	local variables	line:189
@@ -969,17 +989,17 @@ overriddenMethodsCannotAddRequirements	/Users/niko/git/intervals-java/Analysis/t
 owghost	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^        def owghost(f: FieldName) = wghosts.find(_.f == f).map(_.wp)$/;"	methods	line:293
 p	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/BaseParser.scala	/^    def p: Parser[ir.Path]$/;"	methods	line:55
 p	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IrParser.scala	/^    def p = lv~rep(dotf)                        ^^ { case lv~fs => lv ++ fs }$/;"	methods	line:66
-p	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                        val p = rvalue(tree.getExpression)$/;"	constants	line:381
-p	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val p = nullStmt(tree)$/;"	constants	line:405
-p	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val p = rvalue(tree.getExpression)$/;"	constants	line:258
-p	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val p = rvalue(tree.getExpression)$/;"	constants	line:318
-p	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val p = rvalueIfNotStatic(elem, tree.getExpression)$/;"	constants	line:283
-p	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val p = rvalueIfNotStatic(elem, tree.getMethodSelect)$/;"	constants	line:389
-p	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            val p = rvalue(etree)$/;"	constants	line:292
-p	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        val p = lv.path        $/;"	constants	line:101
-p	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        val p: ir.Path        $/;"	constants	line:97
-p	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        def p = null \/\/ Unused here.$/;"	methods	line:464
-p	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        def p = pp                      ^^ { case pp => pp.p }$/;"	methods	line:400
+p	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                        val p = rvalue(tree.getExpression)$/;"	constants	line:386
+p	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val p = nullStmt(tree)$/;"	constants	line:410
+p	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val p = rvalue(tree.getExpression)$/;"	constants	line:263
+p	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val p = rvalue(tree.getExpression)$/;"	constants	line:323
+p	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val p = rvalueIfNotStatic(elem, tree.getExpression)$/;"	constants	line:288
+p	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val p = rvalueIfNotStatic(elem, tree.getMethodSelect)$/;"	constants	line:394
+p	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            val p = lv.path        $/;"	constants	line:105
+p	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            val p = rvalue(etree)$/;"	constants	line:297
+p	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            val p: ir.Path        $/;"	constants	line:101
+p	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        def p = null \/\/ Unused here.$/;"	methods	line:512
+p	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        def p = pp                      ^^ { case pp => pp.p }$/;"	methods	line:448
 p1	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ComputeRelations.scala	/^                        val p1 = subst.path(p0)$/;"	constants	line:192
 p1	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ComputeRelations.scala	/^                        val p1 = subst.path(p0)$/;"	constants	line:203
 p_ctor	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    val p_ctor = gfd_ctor.thisPath$/;"	constants	line:500
@@ -996,33 +1016,33 @@ p_this	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^
 p_this_creator	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    val p_this_creator = gfd_creator.thisPath$/;"	constants	line:506
 pairs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^    def pairs[I](lst: List[I]): List[(I, I)] = lst match {$/;"	methods	line:168
 paramDecls	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            val paramDecls = new ListBuffer[ir.LvDecl]()$/;"	constants	line:162
-paramDecls	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        val paramDecls: List[ir.LvDecl],$/;"	constants	line:123
+paramDecls	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            val paramDecls: List[ir.LvDecl],$/;"	constants	line:127
 parentId	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/Log.scala	/^            val parentId = idStack.tail.head$/;"	constants	line:252
 parse	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/BaseParser.scala	/^    def parse[A](p: Parser[A])(text: String) = {$/;"	methods	line:42
 parseToResult	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/BaseParser.scala	/^    def parseToResult[A](p: Parser[A])(text: String) = $/;"	methods	line:47
-parser	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val parser = new AnnTyParser()$/;"	constants	line:477
-parser	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        val parser = AnnotParser(elemEnv(elem))$/;"	constants	line:537
+parser	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val parser = new AnnTyParser()$/;"	constants	line:525
+parser	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        val parser = AnnotParser(elemEnv(elem))$/;"	constants	line:585
 parser	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^            val parser = new IrParser()$/;"	constants	line:44
-parserLog	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    val parserLog = log \/\/ log is inherited from BaseParser, so create an alias$/;"	constants	line:396
-passThru	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            def passThru(ss: List[Scope]): Unit = ss match {$/;"	methods	line:426
+parserLog	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    val parserLog = log \/\/ log is inherited from BaseParser, so create an alias$/;"	constants	line:444
+passThru	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            def passThru(ss: List[Scope]): Unit = ss match {$/;"	methods	line:431
 path	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/BaseSubst.scala	/^    def path(p: ir.Path): ir.Path$/;"	methods	line:4
 path	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/PathSubst.scala	/^    def path(p: ir.Path): ir.Path =$/;"	methods	line:10
-path	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        def path(s: String): ir.Path = $/;"	methods	line:440
+path	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        def path(s: String): ir.Path = $/;"	methods	line:488
 path	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^        def path = ir.Path(this, List())$/;"	methods	line:112
 pdata	/Users/niko/git/intervals-java/Analysis/test-plugin/src/bbpc/Producer.java	/^	final @Creator("this") ProdData pdata;$/;"	field	line:12
 pkgElem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^                    val pkgElem = elem.asInstanceOf[PackageElement]$/;"	constants	line:421
 plusMany	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^        def plusMany(k: K, v: Iterable[V]) = mapKey(k, _ ++ v)$/;"	methods	line:256
 popCurrent	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^    def popCurrent(p_cur: ir.Path) =$/;"	methods	line:44
 popId	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/Log.scala	/^        private def popId() {$/;"	methods	line:246
-pos	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        val pos: DummyPosition$/;"	constants	line:125
+pos	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            val pos: DummyPosition$/;"	constants	line:129
 pos	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        val pos = e.pos.asInstanceOf[DummyPosition]$/;"	constants	line:75
 pos	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^                        val pos = error.pos$/;"	constants	line:65
-postDirectSuperType	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def postDirectSuperType(superAtm: AnnotatedTypeMirror) {$/;"	methods	line:725
-postDirectSuperTypes	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    override def postDirectSuperTypes(atm: AnnotatedTypeMirror, superAtms: jList[_ <: AnnotatedTypeMirror]) {$/;"	methods	line:743
+postDirectSuperType	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def postDirectSuperType(superAtm: AnnotatedTypeMirror) {$/;"	methods	line:824
+postDirectSuperTypes	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    override def postDirectSuperTypes(atm: AnnotatedTypeMirror, superAtms: jList[_ <: AnnotatedTypeMirror]) {$/;"	methods	line:842
 postWords	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^        def postWords = "".join(" ", s.map(_.adj), "")$/;"	methods	line:89
 pp	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/PathSubst.scala	/^    def pp(p: ir.Path, q: ir.Path): PathSubst = $/;"	methods	line:20
 pp	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/PathSubst.scala	/^    def pp(ps: List[ir.Path], qs: List[ir.Path]): PathSubst =$/;"	methods	line:22
-pp	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        def pp = ident~rep(dotIdent)    ^^ { case s~ss => ss.foldLeft(startPath(s))(extendPath)}$/;"	methods	line:399
+pp	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        def pp = ident~rep(dotIdent)    ^^ { case s~ss => ss.foldLeft(startPath(s))(extendPath)}$/;"	methods	line:447
 preWords	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^        def preWords = "".join("", s.map(_.adj), " ")$/;"	methods	line:88
 preds	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ComputeRelations.scala	/^            val preds = Array.make(blks.length, List[(Int, ir.Goto)]())$/;"	constants	line:144
 preds	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/DataFlow.scala	/^    val preds = Array.make(blks.length, List[(Int, ir.Goto)]())$/;"	constants	line:12
@@ -1031,28 +1051,28 @@ preservesEnv	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Track
 procBlock	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ComputeRelations.scala	/^            def procBlock(b: Int) = savingEnv {$/;"	methods	line:228
 procOpts	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestPlugin.scala	/^        val procOpts = $/;"	constants	line:70
 prog	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^            val prog = new Prog(log, cds)$/;"	constants	line:52
-ps_auto	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            val ps_auto = blk_tar.autoParamNames.map(nm => blk.symtab(nm).p)$/;"	constants	line:186
+ps_auto	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            val ps_auto = mblk_tar.autoParamNames.map(nm => mblk_cur.symtab(nm).p)$/;"	constants	line:191
 ps_goto	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ComputeRelations.scala	/^                val ps_goto = goto.ps$/;"	constants	line:179
 pushCurrent	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^    def pushCurrent(p_cur: ir.Path) =$/;"	methods	line:39
 pushId	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/Log.scala	/^        private def pushId() {$/;"	methods	line:240
 pw	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/Log.scala	/^            val pw = new java.io.PrintWriter(f)            $/;"	constants	line:302
 pw	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/Log.scala	/^            val pw = new java.io.PrintWriter(outFile)$/;"	constants	line:178
-q	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val q = rvalue(tree.getExpression)$/;"	constants	line:324
-q	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val q = rvalue(tree.getIndex)$/;"	constants	line:259
-q	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val q = rvalue(tree.getIndex)$/;"	constants	line:319
-q	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val q = rvalue(tree.getTrueExpression)$/;"	constants	line:352
+q	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val q = rvalue(tree.getExpression)$/;"	constants	line:329
+q	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val q = rvalue(tree.getIndex)$/;"	constants	line:264
+q	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val q = rvalue(tree.getIndex)$/;"	constants	line:324
+q	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val q = rvalue(tree.getTrueExpression)$/;"	constants	line:357
 q	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^                    val q = f(p)$/;"	constants	line:405
 q1	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ComputeRelations.scala	/^                        val q1 = subst.path(q0)$/;"	constants	line:193
-qs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val qs = tree.getArguments.map(rvalue)$/;"	constants	line:391
-qs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val qs = tree.getArguments.map(rvalue).toList$/;"	constants	line:399
+qs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val qs = tree.getArguments.map(rvalue)$/;"	constants	line:396
+qs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val qs = tree.getArguments.map(rvalue).toList$/;"	constants	line:404
 qualName	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^    def qualName(elem: Element): String = {$/;"	methods	line:432
 qualNameSb	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^    def qualNameSb(sb: StringBuilder, elem: Element) {$/;"	methods	line:415
 quoteRegex	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    val quoteRegex = "[^a-zA-Z0-9_]".r$/;"	constants	line:102
-r	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val r = nullStmt(tree)$/;"	constants	line:337
-r	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val r = rvalue(tree.getFalseExpression)$/;"	constants	line:356
-r	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            val r = freshVar$/;"	constants	line:230
-r	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            val r = freshVar$/;"	constants	line:240
-r	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            val r = freshVar$/;"	constants	line:310
+r	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val r = nullStmt(tree)$/;"	constants	line:342
+r	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val r = rvalue(tree.getFalseExpression)$/;"	constants	line:361
+r	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            val r = freshVar$/;"	constants	line:235
+r	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            val r = freshVar$/;"	constants	line:245
+r	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            val r = freshVar$/;"	constants	line:315
 r	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^                    val r = fn(hd)$/;"	constants	line:77
 rawClose	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/Log.scala	/^        def rawClose {$/;"	methods	line:277
 rawClose	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/Log.scala	/^        def rawClose() { }$/;"	methods	line:327
@@ -1063,7 +1083,7 @@ rawStart	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/Log.s
 rawStart	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/Log.scala	/^    def rawStart(html: String): String  \/\/ Starts a log message with body 'html'.  Returns the id of this element.$/;"	methods	line:13
 rawWrite	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/Log.scala	/^    def rawWrite(fmt: String, args: List[Any]): String = {$/;"	methods	line:42
 rawWrite	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/Log.scala	/^    def rawWrite(html: String): String = {$/;"	methods	line:24
-readableReq	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        def readableReq(annot: Readable) =$/;"	methods	line:544
+readableReq	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        def readableReq(annot: Readable) =$/;"	methods	line:592
 refdElems	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IntervalsChecker.scala	/^                val refdElems = referenceClosure(classTree)$/;"	constants	line:74
 referenceClosure	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IntervalsChecker.scala	/^    def referenceClosure(tree: ClassTree): MutableSet[Element] = {$/;"	methods	line:166
 referencedElements	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IntervalsChecker.scala	/^        val referencedElements = MutableSet.empty[Element]$/;"	constants	line:100
@@ -1084,18 +1104,18 @@ reportObject	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Trans
 req	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/BaseSubst.scala	/^    def req(r: ir.Req) = r match {$/;"	methods	line:27
 req	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IrParser.scala	/^    def req = positioned($/;"	methods	line:108
 reqs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IrParser.scala	/^    def reqs = rep(req)$/;"	methods	line:114
-reqs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def reqs(elem: Element): List[ir.Req] = {$/;"	methods	line:536
+reqs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def reqs(elem: Element): List[ir.Req] = {$/;"	methods	line:584
 result	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/Log.scala	/^            val result = f$/;"	constants	line:67
 resultSet	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IntervalsChecker.scala	/^        val resultSet = MutableSet.empty[Element]$/;"	constants	line:183
 rf	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/Log.scala	/^            val rf = logDirectory.newFile("html")$/;"	constants	line:300
 rfd	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^        val rfd = prog.fieldDecl(tp.wt.c, f)$/;"	constants	line:320
 rfds	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^        def rfds = fields.flatMap {$/;"	methods	line:149
 runTest	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^    def runTest(errorPhase: String, text0: String) {$/;"	methods	line:32
-rvalue	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def rvalue(etree: ExpressionTree): ir.Path = at(etree, "result", nullStmt(etree)) {$/;"	methods	line:315
-rvalueIfNotStatic	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def rvalueIfNotStatic(elem: Element, etree: ExpressionTree): ir.Path =$/;"	methods	line:302
+rvalue	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def rvalue(etree: ExpressionTree): ir.Path = at(etree, "result", nullStmt(etree)) {$/;"	methods	line:320
+rvalueIfNotStatic	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def rvalueIfNotStatic(elem: Element, etree: ExpressionTree): ir.Path =$/;"	methods	line:307
 s	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    sealed case class Attrs(private val s: Set[Attr]) {$/;"	constants	line:71
 s	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/Log.scala	/^            var s = s0$/;"	local variables	line:283
-s_guard	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val s_guard = $/;"	constants	line:637
+s_guard	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val s_guard = $/;"	constants	line:685
 savingEnv	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^    def savingEnv[R](g: => R): R = {$/;"	methods	line:25
 sb	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        val sb = new StringBuilder()$/;"	constants	line:154
 sb	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^                val sb = new StringBuffer            $/;"	constants	line:24
@@ -1103,12 +1123,12 @@ sb	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^  
 scalaToJava	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^    implicit def scalaToJava[E](i: Iterable[E]): java.lang.Iterable[E] = new JavaIterable(i)$/;"	methods	line:469
 scalarRegister	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^            class scalarRegister extends Monitor {$/;"	classes	line:789
 scanBodyOf	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IntervalsChecker.scala	/^        def scanBodyOf(tree: ClassTree) {$/;"	methods	line:102
-scopes	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        var scopes: List[Scope] = List(Scope(Catch(blk_uncaught), None)) \/\/ always a catch block in scope$/;"	local variables	line:208
+scopes	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        var scopes: List[Scope] = List(Scope(Catch(mblk_uncaught), None)) \/\/ always a catch block in scope$/;"	local variables	line:213
 search	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Prog.scala	/^            def search(c: ir.ClassName): Option[ir.FieldDecl] = $/;"	methods	line:138
 search	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Prog.scala	/^            def search(c: ir.ClassName): Option[ir.MethodSig] = {$/;"	methods	line:160
 setPerm	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^    def setPerm(x: ir.VarName, tq: ir.TeePee): Unit = $/;"	methods	line:61
-setPos	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^    def setPos[X <: Positional](pos: DummyPosition, v: X) = {$/;"	methods	line:50
-setPos	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        def setPos[X <: Positional](v: X) = {$/;"	methods	line:295
+setPos	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def setPos[X <: Positional](pos: DummyPosition, v: X) = {$/;"	methods	line:54
+setPos	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        def setPos[X <: Positional](v: X) = {$/;"	methods	line:343
 setWtRet	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^    def setWtRet(wt_ret: ir.WcTypeRef) = {$/;"	methods	line:55
 shadowGhostsInSuperType	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^    def shadowGhostsInSuperType() {$/;"	methods	line:1334
 shortFieldName	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def shortFieldName(f: ir.FieldName) = {$/;"	methods	line:144
@@ -1122,20 +1142,20 @@ splitLog	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/Log.s
 splitLog	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/Log.scala	/^    def splitLog(name: String): SplitLog  \/\/ Creates a new split log, inserting a link into this one.$/;"	methods	line:20
 splitLog	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/LogStack.scala	/^    var splitLog = mainLog.splitLog("Check")$/;"	local variables	line:10
 srcDir	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestPlugin.scala	/^        val srcDir = "%s\/src".format(dir)$/;"	constants	line:56
-start	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def start(blk_new: MutableBlock) = {$/;"	methods	line:178
+start	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def start(mblk_new: MutableBlock) = {$/;"	methods	line:183
 start	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^        def start = this + f_start$/;"	methods	line:356
-startPath	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        def startPath(id: String): ParsePath = {$/;"	methods	line:402
+startPath	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        def startPath(id: String): ParsePath = {$/;"	methods	line:450
 step	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^            val step = in(from).flatMap(in) \/\/ x -> p -> step$/;"	constants	line:361
 stmt	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IrParser.scala	/^    def stmt: Parser[ir.Stmt] = positioned($/;"	methods	line:92
-stmt	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def stmt(tree: StatementTree): Unit = tree match {$/;"	methods	line:467
-stmts	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        val stmts = new ListBuffer[ir.Stmt]()$/;"	constants	line:127
-store	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def store(treePos: Tree, p: ir.Path, f: ir.FieldName, q: ir.Path) = {$/;"	methods	line:245
+stmt	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def stmt(tree: StatementTree): Unit = tree match {$/;"	methods	line:472
+stmts	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            val stmts = new ListBuffer[ir.Stmt]()$/;"	constants	line:131
+store	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def store(treePos: Tree, p: ir.Path, f: ir.FieldName, q: ir.Path) = {$/;"	methods	line:250
 strictSuperclasses	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Prog.scala	/^    def strictSuperclasses(c0: ir.ClassName): Set[ir.ClassName] = {$/;"	methods	line:64
 string2UtilString	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^    implicit def string2UtilString(s: String) = UtilString(s)$/;"	methods	line:41
 strs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/Log.scala	/^        val strs = args.map(toLogString).toArray[String]$/;"	constants	line:38
 subMany	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^        def subMany(k: K, v: Iterable[V]) = mapKey(k, _ -- v)$/;"	methods	line:257
 subinterval	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^    def subinterval() {$/;"	methods	line:776
-subintervalReq	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        def subintervalReq(annot: Subinterval) =$/;"	methods	line:539
+subintervalReq	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        def subintervalReq(annot: Subinterval) =$/;"	methods	line:587
 subsetOf	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^        def subsetOf(c: UtilIterator[Q]) =$/;"	methods	line:126
 subst	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ComputeRelations.scala	/^                val subst = new PathSubst(map2)$/;"	constants	line:185
 subst	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Prog.scala	/^                            val subst = superSubstOfClass(c)$/;"	constants	line:144
@@ -1158,7 +1178,7 @@ substs	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalys
 success	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^    def success(text: String) {$/;"	methods	line:107
 success	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestPlugin.scala	/^        val success = compiler.getTask(null, fileManager, diagnostics, config.opts, null, compUnits).call$/;"	constants	line:173
 superCtors	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^    def superCtors() {$/;"	methods	line:561
-superDatm	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^            val superDatm = superAtm.asInstanceOf[AnnotatedDeclaredType]$/;"	constants	line:731
+superDatm	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^            val superDatm = superAtm.asInstanceOf[AnnotatedDeclaredType]$/;"	constants	line:830
 superInterval	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^    def superInterval() {$/;"	methods	line:608
 superSubstOfClass	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Prog.scala	/^    def superSubstOfClass(c: ir.ClassName) = {$/;"	methods	line:105
 superToken	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/BaseParser.scala	/^            val superToken = super.token$/;"	constants	line:16
@@ -1166,14 +1186,14 @@ superTypePreservesGhosts	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/in
 superintervals	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^    def superintervals(tp: ir.TeePee): Set[ir.Path] = {$/;"	methods	line:182
 supertypesOfClass	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Prog.scala	/^    def supertypesOfClass(c: ir.ClassName) = log.indentedRes("supertypesOfClass(%s)", c) {$/;"	methods	line:123
 sups	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Prog.scala	/^    def sups(t: ir.TypeRef): List[ir.TypeRef] = log.indentedRes("sups(%s)", t) {$/;"	methods	line:130
-sym	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                                val sym = blk.symtab(nm(elem)).sym$/;"	constants	line:267
-sym	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        val sym: Symbol$/;"	constants	line:96
+sym	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                                val sym = mblk_cur.symtab(nm(elem)).sym$/;"	constants	line:272
+sym	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            val sym: Symbol$/;"	constants	line:100
 syms_mthdParam	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        val syms_mthdParam = mtree.getParameters.map(createSymbol(env_mthd)).toList$/;"	constants	line:144
 symtab	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            var symtab = symtab_mthdParam \/\/ always start with method parameters as the basis$/;"	local variables	line:159
-symtab	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        var symtab: SymbolTable,$/;"	local variables	line:124
+symtab	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            var symtab: SymbolTable,$/;"	local variables	line:128
 symtab_mthdParam	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        val symtab_mthdParam = SymbolTable(elems_param.map(nm), vers_mthdParam)$/;"	constants	line:147
 t	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IrParser.scala	/^    def t = c~rep(g)                            ^^ { case c~lg => ir.TypeRef(c, lg, ir.noAttrs) }$/;"	methods	line:68
-t	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val t = chkTref(wtref(tree))$/;"	constants	line:397
+t	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val t = chkTref(wtref(tree))$/;"	constants	line:402
 t_guard	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    val t_guard = ir.TypeRef(c_guard, List(), ir.noAttrs)$/;"	constants	line:510
 t_interval	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    val t_interval = ir.TypeRef(c_interval, List(), ir.noAttrs)$/;"	constants	line:494
 t_lock	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^    val t_lock = ir.TypeRef(c_lock, List(), ir.noAttrs)$/;"	constants	line:496
@@ -1190,7 +1210,7 @@ t_void	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^
 tab	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^        val tab = new HashMap[P,Q]()$/;"	constants	line:400
 tag	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^            val tag = "\/\/ ERROR "$/;"	constants	line:38
 target	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/Log.scala	/^                        var target = document.getElementById(id);$/;"	local variables	line:187
-tattrs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                    val tattrs = $/;"	constants	line:519
+tattrs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                    val tattrs = $/;"	constants	line:567
 tc	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TransitiveRelation.scala	/^    lazy val tc = $/;"	constants	line:10
 tc	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^    def tc(text: String) {$/;"	methods	line:103
 tctx	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IntervalsChecker.scala	/^                val tctx = new TranslateContext(logStack, ttf)$/;"	constants	line:71
@@ -1199,9 +1219,10 @@ teePee	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvir
 teePee	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^    def teePee(p_1: ir.Path): ir.TeePee = log.indentedRes("teePee(%s)", p_1) {$/;"	methods	line:408
 teePee	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^    def teePee(ps: List[ir.Path]): List[ir.TeePee] = $/;"	methods	line:446
 teePeeAdd	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^                def teePeeAdd(add: Function2[ir.TeePee, ir.TeePee, Unit], ps: List[ir.Path], qs: List[ir.Path]) = {$/;"	methods	line:261
-telem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val telem = elem.asInstanceOf[TypeElement]$/;"	constants	line:260
-telem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val telem = elem.asInstanceOf[TypeElement]$/;"	constants	line:311
-telem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val telem = ty.asInstanceOf[DeclaredType].asElement.asInstanceOf[TypeElement]$/;"	constants	line:487
+telem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val telem = elem.asInstanceOf[TypeElement]$/;"	constants	line:233
+telem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val telem = elem.asInstanceOf[TypeElement]$/;"	constants	line:359
+telem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val telem = ty.asInstanceOf[DeclaredType].asElement.asInstanceOf[TypeElement]$/;"	constants	line:535
+telem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        val telem = TU.elementFromDeclaration(ctree)$/;"	constants	line:793
 tempKeys	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^                val tempKeys = env.temp.map(_._1).toList$/;"	constants	line:275
 tempValues	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^                val tempValues = env.temp.map(_._2).toList$/;"	constants	line:276
 test	/Users/niko/git/intervals-java/Analysis/Makefile	/^test:$/;"	targets	line:20
@@ -1220,12 +1241,12 @@ thisTref	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Prog.scal
 toError	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/CheckFailure.scala	/^    def toError(pos: Position) = ir.Error(pos, msg, args.map(_.toString).toArray)$/;"	methods	line:6
 toIdent	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^        def toIdent =$/;"	methods	line:104
 toLogString	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/Log.scala	/^        def toLogString(o: Any) = o match {$/;"	methods	line:31
-toLvDecl	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def toLvDecl = ir.LvDecl(lv, sym.wtref)$/;"	methods	line:102
+toLvDecl	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            def toLvDecl = ir.LvDecl(lv, sym.wtref)$/;"	methods	line:106
 toMap	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^        def toMap = _m$/;"	methods	line:227
 toSet	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^        def toSet: Set[(K, V)] = {$/;"	methods	line:315
 toString	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/CheckFailure.scala	/^    override def toString = "%s(%s)".format(msg, args.mkString(", "))        $/;"	methods	line:7
-toString	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def toString(etree: ExpressionTree) {$/;"	methods	line:291
-toString	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        override def toString = "Symbol(%s)".format(name)$/;"	methods	line:92
+toString	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            override def toString = "Symbol(%s)".format(name)$/;"	methods	line:96
+toString	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def toString(etree: ExpressionTree) {$/;"	methods	line:296
 toString	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        override def toString = "%s(%s)".format(tag, pos)$/;"	methods	line:56
 toString	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        override def toString = "ElementPosition(%s)".format(qualName(elem))$/;"	methods	line:70
 toString	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        override def toString = "TreePosition(%s)".format(tree)$/;"	methods	line:65
@@ -1337,10 +1358,9 @@ tqs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/WfCheck.scala	
 tqs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/WfCheck.scala	/^                    val tqs = teePee(reified, qs)$/;"	constants	line:122
 tqs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/WfCheck.scala	/^                    val tqs = teePee(reified, qs)$/;"	constants	line:129
 tqs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/WfCheck.scala	/^                    val tqs = teePee(reified, qs)$/;"	constants	line:139
-transfer	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def transfer(treePos: Tree)(transferFunc: (Scope => Option[MutableBlock])) {$/;"	methods	line:425
+transfer	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def transfer(treePos: Tree)(transferFunc: (Scope => Option[MutableBlock])) {$/;"	methods	line:430
 transitiveClosure	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^    def transitiveClosure[V](in: MultiMap[V, V]): MultiMap[V, V] = {$/;"	methods	line:358
-translate	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^    private def translate = log.indentedRes("translateMethodBody(%s)", mtree) {            $/;"	methods	line:137
-treeLabels	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        val treeLabels = MutableMap[Tree, Name]() \/\/ track labels assigned to different tree nodes$/;"	constants	line:209
+treeLabels	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        val treeLabels = MutableMap[Tree, Name]() \/\/ track labels assigned to different tree nodes$/;"	constants	line:214
 tref	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/BaseSubst.scala	/^    def tref(t: ir.TypeRef) = $/;"	methods	line:9
 ttf	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IntervalsChecker.scala	/^                val ttf = createFactory(currentRoot)$/;"	constants	line:70
 ttf	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateContext.scala	/^    val ttf: TranslateTypeFactory$/;"	constants	line:14
@@ -1348,7 +1368,8 @@ tv	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IntervalsChecke
 typeElemKinds	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IntervalsChecker.scala	/^                val typeElemKinds = Set(EK.CLASS, EK.INTERFACE, EK.ENUM, EK.ANNOTATION_TYPE)$/;"	constants	line:79
 typeOriginallyDefiningMethod	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Prog.scala	/^    def typeOriginallyDefiningMethod(c: ir.ClassName, m: ir.MethodName): Option[ir.TypeRef] = {$/;"	methods	line:177
 typeProcess	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IntervalsChecker.scala	/^    override def typeProcess($/;"	methods	line:62
-unique	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^    var unique = 0$/;"	local variables	line:55
+unboundGhostFieldsDeclaredOnTyAndSupertypes	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def unboundGhostFieldsDeclaredOnTyAndSupertypes(ty: TypeMirror) =$/;"	methods	line:328
+unique	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        var unique = 0$/;"	local variables	line:59
 uniqueFile	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/LogDirectory.scala	/^    private def uniqueFile(directory: File, name: String) = {        $/;"	methods	line:6
 unitTest	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestPlugin.scala	/^    val unitTest = JdkConfig($/;"	constants	line:87
 untilTick	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/BaseParser.scala	/^                def untilTick(prefix: String, in: Reader[Char]): (String, Reader[Char]) =$/;"	methods	line:18
@@ -1360,7 +1381,7 @@ userClassNames	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Che
 userHb	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^    def userHb(tp0: ir.TeePee, tq0: ir.TeePee) = $/;"	methods	line:227
 userHbPair	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^    def userHbPair(tp0: ir.TeePee, tq0: ir.TeePee): Option[(ir.TeePee, ir.TeePee)] = $/;"	methods	line:214
 value	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val value = annValue(am)$/;"	constants	line:200
-ver	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                                val ver = sym.nextExprVersion(q)$/;"	constants	line:268
+ver	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                                val ver = sym.nextExprVersion(q)$/;"	constants	line:273
 ver1	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                val ver1 = ver0.sym.nextParamVersion$/;"	constants	line:164
 vers_mthdParam	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        val vers_mthdParam = syms_mthdParam.map(_.nextParamVersion)$/;"	constants	line:145
 visitClass	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IntervalsChecker.scala	/^        override def visitClass(tree: ClassTree, v: Void): Void = {$/;"	methods	line:107
@@ -1380,7 +1401,7 @@ vv	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/PathSubst.scala
 wf	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^    def wf(text: String) {$/;"	methods	line:95
 wg	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IrParser.scala	/^    def wg = "<"~f~":"~wp~">"                   ^^ { case _~f~_~wp~_ => ir.WcGhost(f, wp) }    $/;"	methods	line:71
 wghost	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/BaseSubst.scala	/^    def wghost(g: ir.WcGhost) =$/;"	methods	line:21
-wghosts	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def wghosts(env: TranslateEnv)(annty: AnnotatedTypeMirror) = {$/;"	methods	line:500
+wghosts	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def wghosts(env: TranslateEnv)(annty: AnnotatedTypeMirror) = {$/;"	methods	line:548
 withAttrs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^        def withAttrs(as: Attrs) = ir.WcTypeRef(c, wghosts, as)$/;"	methods	line:292
 withAttrs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^        override def withAttrs(as: Attrs) = ir.TypeRef(c, ghosts, as)$/;"	methods	line:303
 withCtor	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^        def withCtor = this + AttrCtor$/;"	methods	line:78
@@ -1395,7 +1416,7 @@ withMutable	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.sca
 withPerm	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^        def withPerm(perm: Map[ir.VarName, ir.TeePee]) = TcEnv(ps_cur, wt_ret, perm, temp, ps_invalidated, readable, writable, hb, subinterval, locks)$/;"	methods	line:398
 withReadable	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^        def withReadable(readable: IntransitiveRelation[Path]) = TcEnv(ps_cur, wt_ret, perm, temp, ps_invalidated, readable, writable, hb, subinterval, locks)$/;"	methods	line:401
 withRet	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^        def withRet(wt_ret: ir.WcTypeRef) = TcEnv(ps_cur, wt_ret, perm, temp, ps_invalidated, readable, writable, hb, subinterval, locks)$/;"	methods	line:397
-withScopes	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def withScopes(newScopes: List[Scope])(func: => Unit) {$/;"	methods	line:211
+withScopes	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def withScopes(newScopes: List[Scope])(func: => Unit) {$/;"	methods	line:216
 withSplitLog	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/LogStack.scala	/^    def withSplitLog[R](newSplitLog: SplitLog)(func: => Unit) = {$/;"	methods	line:14
 withSubinterval	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^        def withSubinterval(subinterval: TransitiveRelation[Path]) = TcEnv(ps_cur, wt_ret, perm, temp, ps_invalidated, readable, writable, hb, subinterval, locks)$/;"	methods	line:404
 withTemp	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^        def withTemp(temp: Map[ir.Path, ir.Path]) = TcEnv(ps_cur, wt_ret, perm, temp, ps_invalidated, readable, writable, hb, subinterval, locks)$/;"	methods	line:399
@@ -1403,15 +1424,15 @@ withWritable	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.sc
 wp	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/BaseParser.scala	/^    def wp = ($/;"	methods	line:57
 wp	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IrParser.scala	/^    override def wp = super.wp                  \/\/ Defined in BaseParser$/;"	methods	line:70
 wpath	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/BaseSubst.scala	/^    def wpath(wp: ir.WcPath) = wp match {$/;"	methods	line:12
-wpath	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        def wpath(s: String): ir.WcPath = $/;"	methods	line:445
-writableReq	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        def writableReq(annot: Writable) =$/;"	methods	line:549
+wpath	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        def wpath(s: String): ir.WcPath = $/;"	methods	line:493
+writableReq	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^        def writableReq(annot: Writable) =$/;"	methods	line:597
 wt	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IrParser.scala	/^    def wt = c~rep(wg)~attrs                    ^^ { case c~lwg~la => ir.WcTypeRef(c, lwg, la) }$/;"	methods	line:72
-wt	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val wt = wtref(etree)$/;"	constants	line:348
+wt	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^                    val wt = wtref(etree)$/;"	constants	line:353
 wt	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^        val wt: WcTypeRef$/;"	constants	line:193
 wtref	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/BaseSubst.scala	/^    def wtref(wt: ir.WcTypeRef) =$/;"	methods	line:24
-wtref	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def wtref(etree: ExpressionTree) = {$/;"	methods	line:298
-wtref	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        val wtref = ttf.wtref(env)(annty)$/;"	constants	line:113
-wtref	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^    sealed class Symbol(val name: String, val wtref: ir.WcTypeRef) {$/;"	constants	line:79
-wtref	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def wtref(env: TranslateEnv)(annty: AnnotatedTypeMirror) = {$/;"	methods	line:514
+wtref	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            val wtref = ttf.wtref(env)(annty)$/;"	constants	line:117
+wtref	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        def wtref(etree: ExpressionTree) = {$/;"	methods	line:303
+wtref	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^        sealed class Symbol(val name: String, val wtref: ir.WcTypeRef) {$/;"	constants	line:83
+wtref	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def wtref(env: TranslateEnv)(annty: AnnotatedTypeMirror) = {$/;"	methods	line:562
 wts_tar	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^                val wts_tar = blk_tar.args.map(arg => subst.wtref(arg.wt))$/;"	constants	line:135
 xs_args	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ComputeRelations.scala	/^                val xs_args = blks(b_succ).args.map(_.name)$/;"	constants	line:178

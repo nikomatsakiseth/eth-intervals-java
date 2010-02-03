@@ -207,58 +207,20 @@ class TranslateTypeFactory(
             }            
         }
     
-    def addGhostFieldsGivenValueInAnnotations(
-        m0: Map[ir.FieldName, String], 
-        ams: List[AnnotationMirror]
-    ): Map[ir.FieldName, String] =
-        ams.map(categorizeGhostAnnot).foldLeft(m0) { 
-            case (m, GhostAnnNone) => m
-            case (m, GhostAnnDecl(_, _)) => m
-            case (m, GhostAnnValue(f, s)) => m + Pair(f, s)
-        }    
-        
-    def ghostFieldsGivenValueInAnnotations(ams: List[AnnotationMirror]) =
-        log.indentedRes("ghostFieldsGivenValueInAnnotations(%s)", ams) {
-            addGhostFieldsGivenValueInAnnotations(Map.empty, ams)
-        }        
-    
-    def addGhostFieldsGivenValueOnElem(
-        m0: Map[ir.FieldName, String], 
-        elem0: Element
-    ): Map[ir.FieldName, String] = 
-        addGhostFieldsGivenValueInAnnotations(m0, elem0.getAnnotationMirrors.toList)
-    
-    def ghostFieldsGivenValueOnElem(elem: Element) =
-        log.indentedRes("ghostFieldsGivenValueOnElem(%s)", elem) {
-            addGhostFieldsGivenValueOnElem(Map.empty, elem)
-        }
-        
-    def addGhostFieldsDeclaredOnElem(
-        m0: Map[ir.FieldName, AnnotatedTypeMirror], 
-        elem0: Element
-    ): Map[ir.FieldName, AnnotatedTypeMirror] = 
-        log.indentedRes("addGhostFieldsDeclaredOnElem(%s)", elem0) {
-            elem0.getAnnotationMirrors.map(categorizeGhostAnnot).foldLeft(m0) { 
-                case (m, GhostAnnNone) => m
-                case (m, GhostAnnDecl(f, annty)) => m + Pair(f, annty)
-                case (m, GhostAnnValue(_, _)) => m
-            }    
-        }
-    
-    def ghostFieldsDeclaredOnElem(elem: Element) =
-        log.indentedRes("ghostFieldsDeclaredOnElem(%s)", elem) {
-            addGhostFieldsDeclaredOnElem(Map.empty, elem)
-        }
-        
+    // Higher-level function that folds elemFunc over
+    // every element in 'ty' and its supertypes, progressively
+    // adding to the map 'm0' and returning the final result.
     def addTyAndSupertypes[K,V](
         elemFunc: ((Map[K,V], Element) => Map[K,V])
     )(
         m0: Map[K,V],
         ty: TypeMirror
-    ): Map[K,V] = {
+    ): Map[K,V] =
         elemOfType(ty).foldLeft(m0)(addElemAndSuperelems(elemFunc))        
-    }
         
+    // Higher-level function that folds elemFunc over
+    // elem and the elements of its supertypes, progressively
+    // adding to the map 'm0' and returning the final result.
     def addElemAndSuperelems[K,V](
         elemFunc: ((Map[K,V], Element) => Map[K,V])
     )(
@@ -279,25 +241,96 @@ class TranslateTypeFactory(
                 Map.empty
         }        
     }
+    
+    // ______ Bound Ghost Fields ____________________________________________
+    //
+    // Bound ghost fields are those ghost fields given a value on the class
+    // declaration.  For example, the class Foo: 
+    //   @Creator("this.constructor")
+    //   class Foo { ... }
+    // binds the ghost field Creator to "this.constructor".
+
+    def addGhostFieldsBoundInAnnotations(
+        m0: Map[ir.FieldName, String], 
+        ams: List[AnnotationMirror]
+    ): Map[ir.FieldName, String] =
+        ams.map(categorizeGhostAnnot).foldLeft(m0) { 
+            case (m, GhostAnnNone) => m
+            case (m, GhostAnnDecl(_, _)) => m
+            case (m, GhostAnnValue(f, s)) => m + Pair(f, s)
+        }    
         
-    def addGhostFieldsDeclaredOnElemAndSuperelems(
-        m0: Map[ir.FieldName, AnnotatedTypeMirror], 
-        elem: Element
-    ) = addElemAndSuperelems(addGhostFieldsDeclaredOnElem)(m0, elem)
+    def ghostFieldsBoundInAnnotations(ams: List[AnnotationMirror]) =
+        log.indentedRes("ghostFieldsBoundInAnnotations(%s)", ams) {
+            addGhostFieldsBoundInAnnotations(Map.empty, ams)
+        }        
     
-    def addGhostFieldsDeclaredOnTyAndSupertypes(
-        m0: Map[ir.FieldName, AnnotatedTypeMirror], 
-        ty: TypeMirror
-    ) = addTyAndSupertypes(addGhostFieldsDeclaredOnElem)(m0, ty)
+    def addGhostFieldsBoundOnElem(
+        m0: Map[ir.FieldName, String], 
+        elem0: Element
+    ): Map[ir.FieldName, String] = 
+        addGhostFieldsBoundInAnnotations(m0, elem0.getAnnotationMirrors.toList)
     
+    def ghostFieldsBoundOnElem(elem: Element) =
+        log.indentedRes("ghostFieldsBoundOnElem(%s)", elem) {
+            addGhostFieldsBoundOnElem(Map.empty, elem)
+        }
+        
+    def ghostFieldsBoundOnElemAndSuperelems(elem: Element) =
+        log.indentedRes("ghostFieldsBoundOnElemAndSuperelems(%s)", elem) {
+            addElemAndSuperelems(addGhostFieldsBoundOnElem)(Map.empty, elem)
+        }
+                
+    def ghostFieldsBoundOnTyAndSupertypes(ty: TypeMirror) =
+        log.indentedRes("ghostFieldsBoundOnTyAndSupertypes(%s)", ty) {
+            addTyAndSupertypes(addGhostFieldsBoundOnElem)(Map.empty, ty)
+        }
+        
+    // ______ Declared Ghost Fields _________________________________________
+    //
+    // Declared ghost fields are just all ghost fields declared.  For example,
+    // the class Foo:
+    //     @SomeField class Foo { ... }
+    // declares the ghost field SomeField.  It also inherits the ghost field
+    // Creator, declared on its supertype Object.
+
+    def addGhostFieldsDeclaredOnElem(
+        m0: Map[ir.FieldName, AnnotatedTypeMirror], 
+        elem0: Element
+    ): Map[ir.FieldName, AnnotatedTypeMirror] = 
+        log.indentedRes("addGhostFieldsDeclaredOnElem(%s)", elem0) {
+            elem0.getAnnotationMirrors.map(categorizeGhostAnnot).foldLeft(m0) { 
+                case (m, GhostAnnNone) => m
+                case (m, GhostAnnDecl(f, annty)) => m + Pair(f, annty)
+                case (m, GhostAnnValue(_, _)) => m
+            }    
+        }
+    
+    def ghostFieldsDeclaredOnElem(elem: Element) =
+        log.indentedRes("ghostFieldsDeclaredOnElem(%s)", elem) {
+            addGhostFieldsDeclaredOnElem(Map.empty, elem)
+        }
+                
     def ghostFieldsDeclaredOnElemAndSuperelems(elem: Element) =
         log.indentedRes("ghostFieldsDeclaredOnElemAndSuperelems(%s)", elem) {
-            addGhostFieldsDeclaredOnElemAndSuperelems(Map.empty, elem)
+            addElemAndSuperelems(addGhostFieldsDeclaredOnElem)(Map.empty, elem)
         }
     
     def ghostFieldsDeclaredOnTyAndSupertypes(ty: TypeMirror) =
         log.indentedRes("ghostFieldsDeclaredOnTyAndSupertypes(%s)", ty) {
-            addGhostFieldsDeclaredOnTyAndSupertypes(Map.empty, ty)
+            addTyAndSupertypes(addGhostFieldsDeclaredOnElem)(Map.empty, ty)
+        }
+    
+    // ______ Unbound Ghost Fields __________________________________________
+    //
+    // An unbound ghost field is one that is declared but not yet bound.
+    
+    def unboundGhostFieldsDeclaredOnTyAndSupertypes(ty: TypeMirror) =
+        log.indentedRes("unboundGhostFieldsDeclaredOnTyAndSupertypes(%s)", ty) {
+            val m_decl = ghostFieldsDeclaredOnTyAndSupertypes(ty)
+            ghostFieldsBoundOnTyAndSupertypes(ty).foldLeft(m_decl) { case (m, (f, _)) =>
+                m - f
+            }
         }
     
     // ___ Environment ______________________________________________________
@@ -514,7 +547,7 @@ class TranslateTypeFactory(
         
     def wghosts(env: TranslateEnv)(annty: AnnotatedTypeMirror) = {
         // Find and parse the explicit annotations given on the type:
-        val m_annty_str = ghostFieldsGivenValueInAnnotations(annty.getAnnotations.toList)
+        val m_annty_str = ghostFieldsBoundInAnnotations(annty.getAnnotations.toList)
         val m_annty_wp = m_annty_str.transform { case (_, v) => AnnotParser(env).wpath(v) }
         
         // Find the default annotations that are relevant to this type:
@@ -683,16 +716,17 @@ class TranslateTypeFactory(
             }
         }
         
-    def intMethodDecl(as0: ir.Attrs, eelem: ExecutableElement) = 
-        indexLog.indented("Method: %s()", qualName(eelem)) {
+    def intMethodDecl(eelem: ExecutableElement) = 
+        indexLog.indented("Method Inter: %s()", qualName(eelem)) {
             at(ElementPosition(eelem), dummyMethodDecl(eelem)) {
                 val env_mthd = elemEnv(eelem)
                 val annty = getAnnotatedType(eelem)
-                val as1 = 
-                    if(eelem.getAnnotation(classOf[Constructor]) != null) as0.withCtor
-                    else as0
+                val attrs = 
+                    if(eelem.getAnnotation(classOf[Constructor]) != null) ir.ctorAttrs
+                    else if(eelem.getKind == EK.CONSTRUCTOR) ir.ctorAttrs
+                    else ir.noAttrs
                 ir.MethodDecl(
-                    /* attrs:  */ as1,
+                    /* attrs:  */ attrs,
                     /* wt_ret: */ wtref(env_mthd)(annty.getReturnType), 
                     /* name:   */ m(eelem), 
                     /* args:   */ eelem.getParameters.map(intArgDecl).toList,
@@ -703,17 +737,17 @@ class TranslateTypeFactory(
         }
     
     def intClassDecl(filter: (Element => Boolean), telem: TypeElement): ir.ClassDecl = 
-        indexLog.indented("class %s (interface)", qualName(telem)) {
+        indexLog.indented("Class Inter: %s", qualName(telem)) {
             at(ElementPosition(telem), dummyClassDecl(telem)) {
                 val enclElems = telem.getEnclosedElements
-                val ctorDecls = EF.constructorsIn(enclElems).filter(filter).map(intMethodDecl(ir.ctorAttrs, _))
-                val methodDecls = EF.methodsIn(enclElems).filter(filter).map(intMethodDecl(ir.noAttrs, _))
+                val ctorDecls = EF.constructorsIn(enclElems).filter(filter).map(intMethodDecl)
+                val methodDecls = EF.methodsIn(enclElems).filter(filter).map(intMethodDecl)
                 val fieldDecls = EF.fieldsIn(enclElems).filter(filter).map(intFieldDecl)
                 
                 val env = elemEnv(telem)
                 val ghostDecls = ghostFieldsDeclaredOnElem(telem).map { case (f, annty) =>
                     ir.GhostFieldDecl(wtref(env)(annty), f) }        
-                val ghosts = ghostFieldsGivenValueOnElem(telem).map { case (f, s) =>
+                val ghosts = ghostFieldsBoundOnElem(telem).map { case (f, s) =>
                     ir.Ghost(f, AnnotParser(env).path(s)) }
         
                 ir.ClassDecl(
@@ -733,20 +767,50 @@ class TranslateTypeFactory(
     //
     // The class implementation includes all the classes method bodies.
     
-    //def implMethodDecl(mtree: MethodTree): ir.ClassDecl = {
-    //    
-    //}
-    
+    def implMethodDecl(tree: Tree, mdecls: List[ir.MethodDecl]): List[ir.MethodDecl] = tree match {
+        case mtree: MethodTree =>
+            val eelem = TU.elementFromDeclaration(mtree)
+            indexLog.indented("Method Impl: %s()", qualName(eelem)) {
+                at(TreePosition(mtree), dummyMethodDecl(eelem) :: mdecls) {
+                    val intMdecl = intMethodDecl(eelem)
+                    val blocks = TranslateMethodBody(logStack, env, this, mtree)
+                
+                    ir.MethodDecl(
+                        intMdecl.attrs,
+                        intMdecl.wt_ret,
+                        intMdecl.name,
+                        intMdecl.args,
+                        intMdecl.reqs,
+                        blocks
+                    ) :: mdecls
+                }
+            }
+            
+        case _ => mdecls
+    }
+     
     def implClassDecl(ctree: ClassTree): ir.ClassDecl = {
         val telem = TU.elementFromDeclaration(ctree)
-        intClassDecl((_ => true), telem)
-        //indexLog.indented("class %s (implementation)", qualName(telem)) {
-        //    at(TreePosition(ctree), dummyClassDecl(telem)) {
-        //        // Fields are the same for the interface and the implementation:
-        //        val enclElems = telem.getEnclosedElements
-        //        val fieldDecls = EF.fieldsIn(enclElems).filter(filter).map(intFieldDecl)                
-        //    }
-        //}        
+        indexLog.indented("Class Impl %s", qualName(telem)) {
+            at(TreePosition(ctree), dummyClassDecl(telem)) {
+                // Fields are the same for the interface and the implementation:
+                val intCdecl = intClassDecl((_ => true), telem)
+                val enclElems = telem.getEnclosedElements
+                val members = ctree.getMembers.toList
+                val methodDecls = members.foldRight(List[ir.MethodDecl]())(implMethodDecl)
+                
+                ir.ClassDecl(
+                    intCdecl.attrs,
+                    intCdecl.name,
+                    intCdecl.superClasses,
+                    intCdecl.ghosts,
+                    intCdecl.reqs,
+                    intCdecl.ctors,
+                    intCdecl.fields,
+                    methodDecls
+                )
+            }
+        }        
     }
     
     // ___ AnnotatedTypeFactory methods _____________________________________
