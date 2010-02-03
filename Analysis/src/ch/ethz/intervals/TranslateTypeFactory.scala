@@ -250,30 +250,45 @@ class TranslateTypeFactory(
             addGhostFieldsDeclaredOnElem(Map.empty, elem)
         }
         
-    def addGhostFieldsDeclaredOnElemAndSuperelems(
-        m0: Map[ir.FieldName, AnnotatedTypeMirror], 
+    def addTyAndSupertypes[K,V](
+        elemFunc: ((Map[K,V], Element) => Map[K,V])
+    )(
+        m0: Map[K,V],
+        ty: TypeMirror
+    ): Map[K,V] = {
+        elemOfType(ty).foldLeft(m0)(addElemAndSuperelems(elemFunc))        
+    }
+        
+    def addElemAndSuperelems[K,V](
+        elemFunc: ((Map[K,V], Element) => Map[K,V])
+    )(
+        m0: Map[K,V],
         elem: Element
-    ): Map[ir.FieldName, AnnotatedTypeMirror] = {
+    ): Map[K,V] = {
         elem.getKind match {
             case EK.CLASS | EK.INTERFACE | EK.ENUM | EK.ANNOTATION_TYPE =>
                 // Extract decls from supertypes:
                 val telem = elem.asInstanceOf[TypeElement]
-                val m1 = addGhostFieldsDeclaredOnTyAndSupertypes(m0, telem.getSuperclass)
-                val m2 = telem.getInterfaces.foldLeft(m1)(addGhostFieldsDeclaredOnTyAndSupertypes)
+                val m1 = addTyAndSupertypes(elemFunc)(m0, telem.getSuperclass)
+                val m2 = telem.getInterfaces.foldLeft(m1)(addTyAndSupertypes(elemFunc))
                 
                 // Process annotations on this class:
-                addGhostFieldsDeclaredOnElem(m2, telem)
+                elemFunc(m2, telem)
                 
             case _ =>
                 Map.empty
-        }
+        }        
     }
+        
+    def addGhostFieldsDeclaredOnElemAndSuperelems(
+        m0: Map[ir.FieldName, AnnotatedTypeMirror], 
+        elem: Element
+    ) = addElemAndSuperelems(addGhostFieldsDeclaredOnElem)(m0, elem)
     
     def addGhostFieldsDeclaredOnTyAndSupertypes(
         m0: Map[ir.FieldName, AnnotatedTypeMirror], 
         ty: TypeMirror
-    ): Map[ir.FieldName, AnnotatedTypeMirror] = 
-        elemOfType(ty).foldLeft(m0)(addGhostFieldsDeclaredOnElemAndSuperelems)
+    ) = addTyAndSupertypes(addGhostFieldsDeclaredOnElem)(m0, ty)
     
     def ghostFieldsDeclaredOnElemAndSuperelems(elem: Element) =
         log.indentedRes("ghostFieldsDeclaredOnElemAndSuperelems(%s)", elem) {
@@ -688,7 +703,7 @@ class TranslateTypeFactory(
         }
     
     def intClassDecl(filter: (Element => Boolean), telem: TypeElement): ir.ClassDecl = 
-        indexLog.indented("class %s", qualName(telem)) {
+        indexLog.indented("class %s (interface)", qualName(telem)) {
             at(ElementPosition(telem), dummyClassDecl(telem)) {
                 val enclElems = telem.getEnclosedElements
                 val ctorDecls = EF.constructorsIn(enclElems).filter(filter).map(intMethodDecl(ir.ctorAttrs, _))
@@ -714,6 +729,26 @@ class TranslateTypeFactory(
             }            
         }
         
+    // ___ Translating the class implementation _____________________________
+    //
+    // The class implementation includes all the classes method bodies.
+    
+    //def implMethodDecl(mtree: MethodTree): ir.ClassDecl = {
+    //    
+    //}
+    
+    def implClassDecl(ctree: ClassTree): ir.ClassDecl = {
+        val telem = TU.elementFromDeclaration(ctree)
+        intClassDecl((_ => true), telem)
+        //indexLog.indented("class %s (implementation)", qualName(telem)) {
+        //    at(TreePosition(ctree), dummyClassDecl(telem)) {
+        //        // Fields are the same for the interface and the implementation:
+        //        val enclElems = telem.getEnclosedElements
+        //        val fieldDecls = EF.fieldsIn(enclElems).filter(filter).map(intFieldDecl)                
+        //    }
+        //}        
+    }
+    
     // ___ AnnotatedTypeFactory methods _____________________________________
     
     override def annotateInheritedFromClass(atm: AnnotatedTypeMirror) {

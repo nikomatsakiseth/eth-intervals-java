@@ -11,6 +11,7 @@ CLASSPATH=$(subst .jar ,.jar:,${JARFILES}):${TARGETCLASSPATH}
 all: test
 
 clean:
+	rm -rf debug-logs/*
 	$(SBT) clean
 
 compile:

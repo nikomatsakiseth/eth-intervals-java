@@ -25,8 +25,12 @@ class TranslateContext(
             log.classDecl("Result: ", cd)
         }
     
-    def addClassImplementation(tree: ClassTree) = { 
-        addClassInterface(TU.elementFromDeclaration(tree), _ => true)
-    }
+    def addClassImplementation(tree: ClassTree) = 
+        indexLog.indented("TranslateContext.addClassImplementation(tree)", tree) {
+            //new TranslateMethodBody(logStack, ttf, )
+            val cd = ttf.implClassDecl(tree)
+            cds += cd
+            log.classDecl("Result: ", cd)
+        }
     
 }
