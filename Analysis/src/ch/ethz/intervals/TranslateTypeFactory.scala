@@ -551,7 +551,7 @@ class TranslateTypeFactory(
         val m_annty_wp = m_annty_str.transform { case (_, v) => AnnotParser(env).wpath(v) }
         
         // Find the default annotations that are relevant to this type:
-        val fs_relevant = ghostFieldsDeclaredOnTyAndSupertypes(annty.getUnderlyingType).keySet
+        val fs_relevant = unboundGhostFieldsDeclaredOnTyAndSupertypes(annty.getUnderlyingType).keySet
         val m_defaultWghosts = env.m_defaultWghosts.filter { case (f, _) => fs_relevant(f) }
         
         // Combine the two, giving precedence to the explicit annotations:

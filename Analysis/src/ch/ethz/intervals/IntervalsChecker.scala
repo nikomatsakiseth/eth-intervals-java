@@ -73,12 +73,23 @@ class IntervalsChecker extends SourceChecker {
                 val classTree = treePath.getLeaf.asInstanceOf[ClassTree]
                 val refdElems = referenceClosure(classTree)
                 
-                tctx.addClassImplementation(classTree) // XXX Supertypes?
-    			refdElems -= TU.elementFromDeclaration(classTree)
+                indexLog.indented("Build IR") {
+                    tctx.addClassImplementation(classTree) // XXX Supertypes?
+        			refdElems -= TU.elementFromDeclaration(classTree)                    
+        			
+                    val typeElemKinds = Set(EK.CLASS, EK.INTERFACE, EK.ENUM, EK.ANNOTATION_TYPE)
+                    refdElems.filter(e => typeElemKinds(e.getKind)).foreach(refdElem =>
+                        tctx.addClassInterface(refdElem.asInstanceOf[TypeElement], refdElems))
+                }
                 
-                val typeElemKinds = Set(EK.CLASS, EK.INTERFACE, EK.ENUM, EK.ANNOTATION_TYPE)
-                refdElems.filter(e => typeElemKinds(e.getKind)).foreach(refdElem =>
-                    tctx.addClassInterface(refdElem.asInstanceOf[TypeElement], refdElems))
+                indexLog.indented("Constructed IR") {
+                    tctx.cds.foreach { cd =>
+                        indexLog.indented("Class %s", cd.name) {
+                            log.classDecl("Generated: ", cd)
+                        }
+                    }
+                }
+                
             }
             case _ => ()
         }
