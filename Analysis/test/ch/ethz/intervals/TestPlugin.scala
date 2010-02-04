@@ -68,12 +68,9 @@ class TestPlugin extends JUnitSuite {
             else List()
             
         val procOpts = 
-            List(
-                "-AINTERVALS_DEBUG_DIR="+DEBUG_DIR,
-    			"-processor", classOf[IntervalsChecker].getName
-            )
+            List("-processor", classOf[IntervalsChecker].getName)
             
-        val opts = 
+        val opts =
             List(
                 "-nowarn",
                 "-d", binDir,
@@ -118,21 +115,19 @@ class TestPlugin extends JUnitSuite {
     }
     
     def compareAndReport(
+        logDirectory: LogDirectory,
         config: JdkConfig,
         diagnostics: DiagnosticCollector[JavaFileObject],
         jfos: List[JavaFileObject],
         success: Boolean
-    ) = {
+    ) = logDirectory.mainSplitLog.indexLog.indented("compareAndReport()") {
+        val log = logDirectory.mainSplitLog.detailLog
+        
         val expErrors = expectedErrors(jfos).sort(_ < _)
         val actErrors = diagnostics.getDiagnostics.toList.map(diagToDiagError).sort(_ < _)
         
         var expErrorsRemaining = expErrors
         var matchedErrors = 0
-        
-        val log = new LogDirectory(DEBUG_DIR).indexLog
-        
-        log("jfos: %s", jfos)
-        log.indented("javac opts") { config.opts.foreach(log.apply) }
         
         try {
             log.indented("Expected Errors") { expErrors.foreach(log.apply) }
@@ -164,23 +159,38 @@ class TestPlugin extends JUnitSuite {
         }
     }
     
-    def javac(config: JdkConfig, fileNames: String*) = {
+    def javac(config: JdkConfig, testName: String, fileName0: String, otherFileNames: String*) = {
+        // Create debug directory for this test and subdirectory for the checker:
+        val logDirectory = LogDirectory.newLogDirectory(DEBUG_DIR, testName)
+        val log = logDirectory.detailLog
+        val checkerDebugDir = LogDirectory.newFile(logDirectory.dir, "IntervalsChecker", "")
+        val opts = "-AINTERVALS_DEBUG_DIR=%s".format(checkerDebugDir) :: config.opts
+        logDirectory.indexLog.linkTo(
+            new File(checkerDebugDir, "index.html").toURI.toString, 
+            "IntervalsChecker logs")
+        
+        // Determine list of filenames and get JavaFileObjects:
+        val fileNames = (fileName0 :: otherFileNames.toList).toArray
         val files = fileNames.map(fileName => new File("%s/%s".format(config.srcDir, fileName)))
         val compiler = ToolProvider.getSystemJavaCompiler
         val diagnostics = new DiagnosticCollector[JavaFileObject]
         val fileManager = compiler.getStandardFileManager(diagnostics, null, null)
         val compUnits = fileManager.getJavaFileObjects(files: _*)
-        val success = compiler.getTask(null, fileManager, diagnostics, config.opts, null, compUnits).call
-        compareAndReport(config, diagnostics, javaToScala(compUnits).toList, success.booleanValue)
+        
+        // Invoke javac and compare results:
+        log("compUnits: %s", compUnits)
+        log.indented("javac opts") { opts.foreach(log.apply) }        
+        val success = compiler.getTask(null, fileManager, diagnostics, opts, null, compUnits).call
+        compareAndReport(logDirectory, config, diagnostics, javaToScala(compUnits).toList, success.booleanValue)
     }
     
     @Test 
     def testParseReqs() {
-        javac(unitTest, "basic/ParseReqs.java")        
+        javac(unitTest, "testParseReqs", "basic/ParseReqs.java")        
     }
     
     @Test 
     def testBbpc() {
-        javac(unitTest, "bbpc/Producer.java")
+        javac(unitTest, "testBbpc", "bbpc/Producer.java")
     }
 }

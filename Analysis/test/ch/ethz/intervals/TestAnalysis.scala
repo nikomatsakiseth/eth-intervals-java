@@ -8,6 +8,7 @@ import org.junit.Test
 import org.junit.Before
 import Util._
 import ch.ethz.intervals.log.LogDirectory
+import ch.ethz.intervals.log.LogStack
 
 case class ExpError(msg: String, args: List[String])
 
@@ -30,7 +31,10 @@ class TestAnalysis extends JUnitSuite {
     )
     
     def runTest(errorPhase: String, text0: String) {
-        val log = new LogDirectory(DEBUG_DIR).indexLog
+        val logDirectory = LogDirectory.newLogDirectory(DEBUG_DIR, "TestAnalysis")
+        val logStack = new LogStack(logDirectory.mainSplitLog)
+        val indexLog = logDirectory.indexLog
+        val log = logDirectory.indexLog
         try {
             val text = substs.foldLeft(text0) { case (t, (a, b)) => t.replace(a, b) }
             
@@ -49,7 +53,7 @@ class TestAnalysis extends JUnitSuite {
                     case parser.Success(cds, _) =>
                         cds
                 }            
-            val prog = new Prog(log, cds)
+            val prog = new Prog(logStack, cds)
             
             val failPhase = new CheckAll(prog).check
         
@@ -58,7 +62,7 @@ class TestAnalysis extends JUnitSuite {
                 expErrors.foreach { case ((error, idx)) => log("Line %s: %s", idx, error) }
             }
             log.indented("Encountered Errors: ") {                
-                for(error <- prog.errors) {
+                for(error <- logStack.errors) {
                     log.indented(
                         error
                     ) {
@@ -69,9 +73,9 @@ class TestAnalysis extends JUnitSuite {
                         
                         expErrors.find(_._2.toInt == pos.line.toInt) match {
                             case None => 
-                                log("Unexpected Error!")
+                                indexLog("Unexpected Error!")
                             case Some((msg, _)) if error.toString != msg.trim =>
-                                log("Unexpected Message (not '%s')!", msg.trim)
+                                indexLog("Unexpected Message (not '%s')!", msg.trim)
                             case Some(_) =>
                                 matched = matched + 1
                         }
@@ -85,7 +89,7 @@ class TestAnalysis extends JUnitSuite {
         } catch {
             case t: Throwable => // only print log if test fails:
                 System.out.println("Debugging output for failed test:")
-                System.out.println(log.uri)
+                System.out.println(logDirectory.mainSplitLog.uri)
                 throw t
         }        
     }

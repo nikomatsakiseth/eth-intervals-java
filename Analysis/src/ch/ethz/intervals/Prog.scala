@@ -10,10 +10,9 @@ import ch.ethz.intervals.log.Log
 import ch.ethz.intervals.log.LogStack
 
 class Prog(
-    val mainLog: Log,
+    val logStack: LogStack,
     val cds_user: List[ir.ClassDecl]
 ) {
-    val logStack = new LogStack(mainLog)
     import logStack.log
     def errors = logStack.errors
 

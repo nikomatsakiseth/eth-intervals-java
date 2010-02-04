@@ -31,6 +31,7 @@ import java.io.File
 import ch.ethz.intervals.log.LogStack
 import ch.ethz.intervals.log.LogDirectory
 import ch.ethz.intervals.log.Log
+import ch.ethz.intervals.log.SplitLog
 
 class IntervalsChecker extends SourceChecker {
 
@@ -44,11 +45,10 @@ class IntervalsChecker extends SourceChecker {
         logStack = new LogStack(
             env.getOptions.get("INTERVALS_DEBUG_DIR") match {
                 case null => 
-                    Log.DevNullLog
+                    SplitLog.devNullSplitLog
                 case dir =>
                     val logDirectory = new LogDirectory(new File(dir))
-                    println("Debugging output at: %s".format(logDirectory.indexURI))
-                    logDirectory.indexLog
+                    logDirectory.mainSplitLog
             }
         )
     }

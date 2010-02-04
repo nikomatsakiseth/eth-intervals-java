@@ -3,11 +3,11 @@ package ch.ethz.intervals.log
 import scala.collection.immutable.ListSet
 import scala.util.parsing.input.Positional
 
-class LogStack(mainLog: Log) {
+class LogStack(mainLog: SplitLog) {
     
     // ___ Logging __________________________________________________________
     
-    var splitLog = mainLog.splitLog("Check")
+    var splitLog = mainLog
     def indexLog = splitLog.indexLog
     def log = splitLog.detailLog
     
@@ -25,7 +25,9 @@ class LogStack(mainLog: Log) {
     var errors = ListSet.empty[ir.Error] // use a list set to keep ordering
     
     def report(err: ir.Error) {
-        mainLog("Error: %s", err)
+        indexLog("Error: %s", err)
+        if(mainLog != splitLog)
+            mainLog.indexLog.linkTo(splitLog.uri, "Error %s", err)        
         errors += err
     }
         
@@ -34,11 +36,9 @@ class LogStack(mainLog: Log) {
             try { g } catch {
                 case failure: CheckFailure =>
                     val err = failure.toError(loc.pos)
-                    indexLog("Error %s", err)
                     report(err)
                     default
             }
         }    
         
 }
-
