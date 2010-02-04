@@ -4,10 +4,6 @@ TODO LIST
 Bugs and ToDos
 --------------
 
-(*) Make supertypes ERASED, and add "ghost defns" to the class that apply equally?
-    Or is that a front-end issue?  Not really, because it comes up with interfaces and 
-    the like.
-
 (*) Check in multiple inheritance that all paths lead to the same set of ghost 
     parameters.  Alternatively, make sure that all paths are fulfilled.
     Latter technique is "cooler" (then, for ex., a class modelling an empty set
@@ -59,21 +55,15 @@ Features
     If a class declared, for example, that two of its fields f and g have a HB relationship,
     then this would link f and g.  We can use the existing linked fields mechanisms to ensure
     that they are written together.
-
-(*) Change implicit "contructor" ghost to be a ghost with the same name as the current class.
-
-    Then every class defines @X("this.super") where X is a supertype.  .super is a bit funny,
-    it's really an existential reference to an interval which is known to be in the past.
-    Both .X and .super are overly special that way.
     
 (*) Static fields, methods
 
 Translator Features
 -------------------
 
-(*) Primary guard
+(*) User-specifiable primary guard
 
-(*) Defaults for ghosts which have been given a value, and not just ghost parameters?
+(*) Defaults for bound ghosts or just unbound ghosts?
 
 (*) Allow user specified defaults.  
 
@@ -89,6 +79,22 @@ Translator Features
 
 Things to Think About
 ---------------------
+
+(*) Replace constructors with static methods, moving constructors into translator
+
+(*) hb relations to arbitrary Guards
+
+    Right now something like @Creator("hb this") doesn't work because Creator is 
+    typed as Guard, not Interval, and we can't add hb relations to something of type
+    Guard.  This tripped me up for a while on Producer (particularly since no error
+    message was generated).
+    
+    It would be nice to allow this: after all, the only kind of Guard it could
+    be, in that case, is an Interval, and it couldn't have been stored if it didn't
+    meet the criteria.
+    
+    For now, however, I made the Producer example pass by doing @Creator("readableBy this").
+    This is arguably better anyhow.
 
 (*) Package-Level Ghosts
 
