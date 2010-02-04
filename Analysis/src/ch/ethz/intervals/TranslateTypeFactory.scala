@@ -610,14 +610,20 @@ class TranslateTypeFactory(
                 annot.before.map(parser.path).toList, 
                 annot.after.map(parser.path).toList)
         
+        // n.b.: The order in which we process the different
+        // kinds of requirements CAN be significant.
+        // Processing hb first may permit us to realize that
+        // a field is constant and thus allow requirements
+        // that reference it.
+        
         elem.getAnnotation(classOf[Requires]) match {
             case null => List()
             case annot => 
                 List[ir.Req]() ++
-                annot.subinterval.map(subintervalReq) ++
+                annot.happens.map(happensReq) ++
                 annot.readable.map(readableReq) ++
                 annot.writable.map(writableReq) ++
-                annot.happens.map(happensReq)
+                annot.subinterval.map(subintervalReq)
         }
     }   
     

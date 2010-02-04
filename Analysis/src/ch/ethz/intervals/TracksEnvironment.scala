@@ -191,17 +191,20 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
 
     def declaredReadableBy(tp: ir.TeePee, tq: ir.TeePee): Boolean = 
         log.indentedRes("%s readable by %s?", tp, tq) {
-            env.readable.contains(tp.p, tq.p)
+            env.readable.contains(tp.p, tq.p) ||
+            superintervals(tq).exists(env.readable.contains(tp.p, _))
         }
 
     def declaredWritableBy(tp: ir.TeePee, tq: ir.TeePee): Boolean = 
         log.indentedRes("%s writable by %s?", tp, tq) {
-            env.writable.contains(tp.p, tq.p)
+            env.writable.contains(tp.p, tq.p) ||
+            superintervals(tq).exists(env.writable.contains(tp.p, _))
         }
 
     def locks(tp: ir.TeePee, tq: ir.TeePee): Boolean = 
         log.indentedRes("%s locks %s?", tp, tq) {
-            env.locks.contains(tp.p, tq.p) || superintervals(tp).exists(env.locks.contains(_, tq.p))
+            env.locks.contains(tp.p, tq.p) || 
+            superintervals(tp).exists(env.locks.contains(_, tq.p))
         }        
 
     def isWritableBy(tp: ir.TeePee, tq: ir.TeePee): Boolean =
@@ -213,7 +216,7 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
         }
 
     def userHbPair(tp0: ir.TeePee, tq0: ir.TeePee): Option[(ir.TeePee, ir.TeePee)] = 
-        log.indentedRes("checkedHbPair(%s,%s)", tp0, tq0) {
+        log.indentedRes("userHbPair(%s,%s)", tp0, tq0) {
             def makePoint(tp: ir.TeePee, f: ir.FieldName) =
                 if(isSubclass(tp.wt, ir.c_point)) Some(tp)
                 else if(isSubclass(tp.wt, ir.c_interval)) Some(ir.TeePee(ir.t_point, tp.p + f, tp.as))
@@ -234,7 +237,7 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
         }
         
     def addUserHb(tp0: ir.TeePee, tq0: ir.TeePee) = 
-        log.indented("checkAndAddHb(%s,%s)", tp0, tq0) {
+        log.indented("addUserHb(%s,%s)", tp0, tq0) {
             userHbPair(tp0, tq0) match {
                 case Some((tp1, tq1)) => addHbPnt(tp1, tq1)
                 case None =>

@@ -8,7 +8,7 @@ import ch.ethz.intervals.quals.Subinterval;
 
 public class Producer extends Interval {
 	
-	final @Creator("hb this") ConsData cdata;
+	final @Creator("readableBy this") ConsData cdata;
 	final @Creator("this") ProdData pdata;
 	
 	public Producer(Interval c, @Creator("c") ConsData cdata) {
