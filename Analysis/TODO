@@ -33,6 +33,10 @@ Bugs and ToDos
 
     Would make it a bit more painful to write tests, but might simplify our lives in other ways,
     and would allow us to have dotted identifiers wherever we like.  
+    
+(*) Java Generics
+
+    Particularly needed for supporting arrays.
  
 Features
 --------
