@@ -35,11 +35,11 @@ class TranslateTypeFactory(
     import logStack.log
     import logStack.indexLog
     
-    // ___ Useful constants _________________________________________________
-    
-    // These constants are only safe because Interval has no ghosts.
-    val elem_interval = elements.getTypeElement(classOf[Interval].getName)
-    val annty_interval = getAnnotatedType(elem_interval)
+    val processingEnvironment = env
+    val wke = new WellKnownElements(
+        processingEnvironment.getElementUtils, 
+        processingEnvironment.getTypeUtils)
+    def annty_interval = getAnnotatedType(wke.Interval.elem) // safe only b/c it has no unbound ghosts
     
     // ___ Positions ________________________________________________________
     
@@ -70,10 +70,12 @@ class TranslateTypeFactory(
         override def toString = "ElementPosition(%s)".format(qualName(elem))
     }
     
-    def report(e: ir.Error) = {
-        log("Error: %s", e)        
-        val pos = e.pos.asInstanceOf[DummyPosition]
-        checker.report(Result.failure(e.msg, e.args: _*), pos.reportObject)
+    def reportErrorsFromLogStack() {
+        logStack.errors.foreach { e =>
+            log("Error: %s", e)        
+            val pos = e.pos.asInstanceOf[DummyPosition]
+            checker.report(Result.failure(e.msg, e.args: _*), pos.reportObject)            
+        }
     }
     
     def at[R](p: DummyPosition, default: => R)(func: => R) =
@@ -96,7 +98,16 @@ class TranslateTypeFactory(
 
     // All supertypes, class first then interfaces.
     def directSupertys(telem: TypeElement) =
-        telem.getSuperclass :: telem.getInterfaces.toList
+        if(telem.getKind == EK.INTERFACE) {
+            telem.getInterfaces.toList match {
+                case List() => List(wke.Object.ty)
+                case lst => lst
+            }
+        } else if (telem == wke.Object.elem) {
+            telem.getInterfaces.toList
+        } else {
+            telem.getSuperclass :: telem.getInterfaces.toList            
+        }
         
     // Extracts the 'fldName'() argument from 'am' as a String.
     def annField(am: AnnotationMirror, fldName: String) = 
@@ -339,12 +350,7 @@ class TranslateTypeFactory(
         pos: Position,
         m_lvs: Map[String, (ir.Path, AnnotatedTypeMirror)],
         m_defaultWghosts: Map[ir.FieldName, ir.WcPath]
-    ) {
-        def setPos[X <: Positional](v: X) = {
-            v.setPos(pos)
-            v
-        }
-    }
+    )
     
     val emptyEnv = TranslateEnv(NullPosition, Map.empty, Map.empty)
 
@@ -687,6 +693,8 @@ class TranslateTypeFactory(
                         velem.getAnnotation(classOf[WrittenDuring]).value
                     else if(velem.getAnnotation(classOf[GuardedBy]) != null)
                         velem.getAnnotation(classOf[GuardedBy]).value
+                    else if(EU.isFinal(velem))
+                        ir.p_ctor.toString
                     else
                         ir.p_this_creator.toString
                 AnnotParser(env).path(s_guard)
@@ -702,7 +710,7 @@ class TranslateTypeFactory(
                     wtref(env)(getAnnotatedType(velem)),
                     f(velem),  
                     fieldGuard(env)(velem)          
-                )        
+                ).withPos(env.pos)
             }
         }
         
@@ -732,7 +740,7 @@ class TranslateTypeFactory(
                     /* args:   */ eelem.getParameters.map(intArgDecl).toList,
                     /* reqs:   */ reqs(eelem),
                     /* blocks: */ Array(ir.Block(List(), List(), List()))
-                )
+                ).withPos(env_mthd.pos)
             }
         }
     
@@ -759,7 +767,7 @@ class TranslateTypeFactory(
                     /* Ctor:    */  ctorDecls.toList,
                     /* Fields:  */  (ghostDecls ++ fieldDecls).toList,
                     /* Methods: */  methodDecls.toList
-                )
+                ).withPos(env.pos)
             }            
         }
         
@@ -773,7 +781,7 @@ class TranslateTypeFactory(
             indexLog.indented("Method Impl: %s()", qualName(eelem)) {
                 at(TreePosition(mtree), dummyMethodDecl(eelem) :: mdecls) {
                     val intMdecl = intMethodDecl(eelem)
-                    val blocks = TranslateMethodBody(logStack, env, this, mtree)
+                    val blocks = TranslateMethodBody(logStack, processingEnvironment, this, mtree)
                 
                     ir.MethodDecl(
                         intMdecl.attrs,
@@ -782,7 +790,7 @@ class TranslateTypeFactory(
                         intMdecl.args,
                         intMdecl.reqs,
                         blocks
-                    ) :: mdecls
+                    ).withPos(TreePosition(mtree)) :: mdecls
                 }
             }
             
@@ -808,7 +816,7 @@ class TranslateTypeFactory(
                     intCdecl.ctors,
                     intCdecl.fields,
                     methodDecls
-                )
+                ).withPos(TreePosition(ctree))
             }
         }        
     }

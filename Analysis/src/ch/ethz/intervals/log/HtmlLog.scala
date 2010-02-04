@@ -119,6 +119,11 @@ class HtmlLog(
         id
     }
     
+    private def closeDiv = {
+        popId()
+        outWriter.println("</DIV>")        
+    }
+    
     private def writeLink(uri: String, target: String) = {
         outWriter.println("<A href='%s' target='%s'>&rarr;</A>".format(uri, target))            
     }
@@ -126,7 +131,7 @@ class HtmlLog(
     override def rawStart(msg: String) = {
         val id = openDiv(msg)
         detailsLog.foreach { l =>
-            val linkId = l.rawWrite("<I>%s</I>".format(msg))
+            val linkId = l.rawStart("<I>%s</I>".format(msg))
             writeLink(l.uri + "#" + linkId, "details")
         }
         outWriter.flush
@@ -134,15 +139,18 @@ class HtmlLog(
     }
     
     def rawClose {
-        popId()
-        outWriter.println("</DIV>")
+        closeDiv
+        detailsLog.foreach { l =>
+            l.rawClose()
+        }
+        outWriter.flush            
     }
     
     override def rawLinkTo(uri: String, msg: String) {
         val id = openDiv(msg)
         writeLink(uri, "_top")
+        closeDiv
         outWriter.flush            
-        rawClose
     }
     
     def escape(s0: String) = HtmlLog.escape(s0)
@@ -151,13 +159,13 @@ class HtmlLog(
     
     def log(name: String) = {
         val f = logDirectory.newFile(".html")
-        rawWrite("<a href='%s' target='_top'>%s</a>".format(f.getName, escape(name)))
+        linkTo(f.getName, name)
         new HtmlLog(logDirectory, f, None)
     }
     
     def splitLog(name: String) = {
-        val sl = SplitLog.newFrameset(logDirectory, System.nanoTime.toString)            
-        rawWrite("<a href='%s' target='_top'>%s</a>".format(sl.uri, escape(name)))
+        val sl = SplitLog.newFrameset(logDirectory, System.nanoTime.toString)
+        linkTo(sl.uri, name)
         sl
     }
 }

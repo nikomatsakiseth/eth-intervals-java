@@ -154,7 +154,7 @@ class TestPlugin extends JUnitSuite {
         } catch {
             case t: Throwable => // only print log if test fails:
                 System.out.println("Error matching output for failed test:")
-                System.out.println(log.uri)
+                System.out.println(logDirectory.mainSplitLog.uri)
                 throw t            
         }
     }
@@ -187,6 +187,11 @@ class TestPlugin extends JUnitSuite {
     @Test 
     def testParseReqs() {
         javac(unitTest, "testParseReqs", "basic/ParseReqs.java")        
+    }
+    
+    @Test 
+    def testWriteFromWrongInterval() {
+        javac(unitTest, "testWriteFromWrongInterval", "basic/WriteFromWrongInterval.java")        
     }
     
     @Test 

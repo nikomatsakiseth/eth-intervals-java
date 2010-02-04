@@ -12,6 +12,7 @@ class TypeCheck(prog: Prog) extends ComputeRelations(prog)
     import prog.logStack.log
     import prog.logStack.indexLog
     import prog.logStack.at
+    import prog.logStack.indexAt
     import prog.classDecl
     import prog.thisTref
     import prog.typeOriginallyDefiningMethod
@@ -126,7 +127,7 @@ class TypeCheck(prog: Prog) extends ComputeRelations(prog)
     }
 
     def checkGoto(blks: Array[ir.Block], succ: ir.Goto) {
-        at(succ, ()) {
+        indexAt(succ, ()) {
             log.indented(succ) {
                 val blk_tar = blks(succ.b)
                 val lvs_tar = blk_tar.args.map(_.name)
@@ -157,7 +158,7 @@ class TypeCheck(prog: Prog) extends ComputeRelations(prog)
     }
     
     def checkStatement(stmt: ir.Stmt): Unit = 
-        at(stmt, ()) {
+        indexAt(stmt, ()) {
             stmt match {                  
                 case ir.StmtSuperCtor(m, qs) =>
                     val tp = tp_super
@@ -358,7 +359,7 @@ class TypeCheck(prog: Prog) extends ComputeRelations(prog)
         env_ctor_assum: ir.TcEnv,  // relations established by the ctor
         md: ir.MethodDecl          // method to check
     ) = 
-        at(md, ()) {
+        indexAt(md, ()) {
             savingEnv {
                 // Define special vars "method" and "this":
                 addPerm(ir.lv_mthd, ir.TeePee(ir.t_interval, ir.p_mthd, ir.ghostAttrs))
@@ -395,7 +396,7 @@ class TypeCheck(prog: Prog) extends ComputeRelations(prog)
         }
         
     def checkNoninterfaceConstructorDecl(cd: ir.ClassDecl, md: ir.MethodDecl) = 
-        at(md, ir.Env.empty) {
+        indexAt(md, ir.Env.empty) {
             savingEnv {
                 // Define special vars "method" (== this.constructor) and "this":
                 addPerm(ir.lv_mthd, ir.TeePee(ir.t_interval, ir.gfd_ctor.thisPath, ir.ghostAttrs))
@@ -417,7 +418,7 @@ class TypeCheck(prog: Prog) extends ComputeRelations(prog)
         }
     
     def checkReifiedFieldDecl(cd: ir.ClassDecl, fd: ir.ReifiedFieldDecl) = 
-        at(fd, ()) {
+        indexAt(fd, ()) {
             savingEnv {
                 // Rules:
                 //
@@ -482,7 +483,7 @@ class TypeCheck(prog: Prog) extends ComputeRelations(prog)
         }
     
     def checkGhostFieldDecl(cd: ir.ClassDecl, gfd: ir.GhostFieldDecl) = 
-        at(gfd, ()) {
+        indexAt(gfd, ()) {
             log.indented(gfd) {
                 // Check that ghosts are not shadowed from a super class:
                 strictSuperclasses(cd.name).foreach { c =>
@@ -493,7 +494,7 @@ class TypeCheck(prog: Prog) extends ComputeRelations(prog)
         }
         
     def checkFieldDecl(cd: ir.ClassDecl)(priorNames: Set[ir.FieldName], fd: ir.FieldDecl) = 
-        at(fd, priorNames) {
+        indexAt(fd, priorNames) {
             if(priorNames(fd.name))
                 throw new CheckFailure("intervals.duplicate.field", fd.name)
             fd match {
@@ -501,19 +502,19 @@ class TypeCheck(prog: Prog) extends ComputeRelations(prog)
                 case gfd: ir.GhostFieldDecl => checkGhostFieldDecl(cd, gfd)
             }
             priorNames + fd.name
-        }
+        }            
         
     // ___ Classes and interfaces ___________________________________________
     
     def checkInterfaceClassDecl(cd: ir.ClassDecl) =
-        at(cd, ()) {
+        indexAt(cd, ()) {
             savingEnv {
                 cd.methods.foreach(checkMethodDecl(cd, ir.Env.empty, _))
             }
-        }
+        }            
         
     def checkNoninterfaceClassDecl(cd: ir.ClassDecl) = 
-        at(cd, ()) {
+        indexAt(cd, ()) {
             savingEnv {
                 cd.fields.foldLeft(Set.empty[ir.FieldName])(checkFieldDecl(cd))                
                 val envs_ctor = cd.ctors.map(checkNoninterfaceConstructorDecl(cd, _))

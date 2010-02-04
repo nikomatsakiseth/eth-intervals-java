@@ -11,14 +11,15 @@ import ch.ethz.intervals.log.LogStack
 
 class Prog(
     val logStack: LogStack,
-    val cds_user: List[ir.ClassDecl]
+    val cds_user: List[ir.ClassDecl],
+    val cds_sys: List[ir.ClassDecl]
 ) {
     import logStack.log
     def errors = logStack.errors
 
     // ___ Class table ______________________________________________________
     
-    val classDecls = cds_user ++ ir.cds_default    
+    val classDecls = cds_user ++ cds_sys    
     val classTable = Util.nameMap[ir.ClassName, ir.ClassDecl](classDecls)
     def classDecl(c: ir.ClassName) = classTable.get(c) match {
         case Some(cd) => cd

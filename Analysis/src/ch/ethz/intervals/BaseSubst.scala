@@ -1,5 +1,7 @@
 package ch.ethz.intervals
 
+import Util._
+
 abstract class BaseSubst {
     def path(p: ir.Path): ir.Path
     
@@ -24,18 +26,18 @@ abstract class BaseSubst {
     def wtref(wt: ir.WcTypeRef) =
         ir.WcTypeRef(wt.c, wt.wghosts.map(wghost), wt.as)
         
-    def req(r: ir.Req) = r match {
+    def req(r: ir.Req) = (r match {
         case ir.ReqWritableBy(lp, lq) => ir.ReqWritableBy(lp.map(path), lq.map(path))
         case ir.ReqReadableBy(lp, lq) => ir.ReqReadableBy(lp.map(path), lq.map(path))
         case ir.ReqSubintervalOf(lp, lq) => ir.ReqSubintervalOf(lp.map(path), lq.map(path))
         case ir.ReqHb(lp, lq) => ir.ReqHb(lp.map(path), lq.map(path))
-    }
+    }).withPos(r.pos)
         
     def ghostFieldDecl(fd: ir.GhostFieldDecl) =
-        ir.GhostFieldDecl(wtref(fd.wt), fd.name)
+        ir.GhostFieldDecl(wtref(fd.wt), fd.name).withPos(fd.pos)
         
     def reifiedFieldDecl(fd: ir.ReifiedFieldDecl) =
-        ir.ReifiedFieldDecl(fd.as, wtref(fd.wt), fd.name, path(fd.p_guard))
+        ir.ReifiedFieldDecl(fd.as, wtref(fd.wt), fd.name, path(fd.p_guard)).withPos(fd.pos)
         
     def fieldDecl(fd: ir.FieldDecl) = fd match {
         case gfd: ir.GhostFieldDecl => ghostFieldDecl(gfd)

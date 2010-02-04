@@ -5,6 +5,7 @@ import scala.collection.immutable.ListSet
 import scala.collection.immutable.Stack
 import scala.util.parsing.input.Positional
 import scala.util.parsing.input.Position
+import scala.util.parsing.input.NoPosition
 import Util._
 
     
@@ -51,6 +52,18 @@ code.
 */
 
 object ir {
+
+    // ___ Positional AST Nodes _____________________________________________
+    
+    abstract class PositionalAst extends Positional {
+        def setDefaultPos(p: Position) {
+            if(!this.hasPos)
+                setPos(p)
+            setDefaultPosOnChildren()
+        }
+        
+        def setDefaultPosOnChildren(): Unit
+    }
     
     // ___ Attributes attached to paths, types, methods _____________________
     
@@ -140,7 +153,7 @@ object ir {
         ctors: List[MethodDecl],
         fields: List[FieldDecl],
         methods: List[MethodDecl]
-    ) extends Positional {
+    ) extends PositionalAst {
         def gfds = fields.flatMap {
             case gfd: GhostFieldDecl => List(gfd)
             case _ => List()
@@ -150,6 +163,13 @@ object ir {
             case rfd: ReifiedFieldDecl => List(rfd)
             case _ => List()
         }
+        
+        def setDefaultPosOnChildren() {
+            reqs.foreach(_.setDefaultPos(pos))
+            ctors.foreach(_.setDefaultPos(pos))
+            fields.foreach(_.setDefaultPos(pos))
+            methods.foreach(_.setDefaultPos(pos))
+        }        
         
         override def toString =
             "%sclass %s%s extends %s%s%s".format(
@@ -163,8 +183,13 @@ object ir {
         args: List[LvDecl],
         reqs: List[Req],
         blocks: Array[Block] // See notes on CFG structure at the top of this file.
-    ) extends Positional {
+    ) extends PositionalAst {
         def msig(t_rcvr: TypeRef) = MethodSig(t_rcvr, attrs, args, reqs, wt_ret)
+        
+        def setDefaultPosOnChildren() {
+            reqs.foreach(_.setDefaultPos(pos))
+            blocks.foreach(_.setDefaultPos(pos))
+        }
         
         override def toString =
             "%s%s %s(%s)%s".format(
@@ -189,11 +214,14 @@ object ir {
         override def toString = "%s %s".format(wt, name)
     }
 
-    sealed abstract class FieldDecl extends Positional {
+    sealed abstract class FieldDecl extends PositionalAst {
         val wt: WcTypeRef
         val name: FieldName
         
         def thisPath = name.thisPath
+        
+        def setDefaultPosOnChildren() {
+        }        
     }
     
     sealed case class GhostFieldDecl(
@@ -220,16 +248,25 @@ object ir {
         gotos: List[Goto]
     ) {
         override def toString = "block(%s)".format(args.mkString(", "))
+        
+        def setDefaultPos(p: Position) {
+            stmts.foreach(_.setDefaultPos(p))
+            gotos.foreach(_.setDefaultPos(p))
+        }
     }
     
     sealed case class Goto(
         b: Int,
         ps: List[ir.Path]
-    ) extends Positional {
+    ) extends PositionalAst {
         override def toString = "goto %s(%s);".format(b, ps)
+        
+        def setDefaultPosOnChildren() { }        
     }
     
-    sealed abstract class Stmt extends Positional
+    sealed abstract class Stmt extends PositionalAst {
+        def setDefaultPosOnChildren() { }        
+    }
     sealed case class StmtSuperCtor(m: ir.MethodName, qs: List[Path]) extends Stmt {
         override def toString = "super %s(%s)".format(m, qs)
     }
@@ -367,7 +404,9 @@ object ir {
         override def toString = "[%s: %s %s]".format(p, wt, as)
     }
     
-    sealed abstract class Req extends Positional
+    sealed abstract class Req extends PositionalAst {
+        def setDefaultPosOnChildren() { }        
+    }
     sealed case class ReqWritableBy(lp: List[Path], lq: List[Path]) extends Req {
         override def toString = "requires %s writable by %s".format(lp.mkString(", "), lq.mkString(", "))
     }
@@ -472,7 +511,7 @@ object ir {
     
     val m_arrayGet = ir.MethodName("arrayGet")
     val m_arraySet = ir.MethodName("arraySet")
-    val m_toString = ir.MethodName("toString()")
+    val m_toString = ir.MethodName("toString") // used only in unit testing
     
     // Special types understood by the system:
     //    (During testing, the definitions in cds_default are used)
@@ -481,19 +520,21 @@ object ir {
     val c_guard = ir.ClassName("ch.ethz.intervals.guard.Guard")
     val c_point = ir.ClassName("ch.ethz.intervals.Point")
     val c_lock = ir.ClassName("ch.ethz.intervals.Lock")
+    val c_string = ir.ClassName("java.lang.String") // used only in unit testing
 
     // Types used to translate Java constructs into classes:
     //    These types are not treated specially by the type system,
     //    but we provide default, synthetic definitions.
     val c_scalar = ir.ClassName("scalar")  // Represents any scalar value.
     val c_void = ir.ClassName("void")      // Represents void values.
-    val c_array = ir.ClassName("array")    // Represents arrays.
+    val c_array = ir.ClassName("array")    // Represents arrays.    
     
     val t_void = ir.TypeRef(c_void, List(), ir.noAttrs)
     val t_scalar = ir.TypeRef(c_scalar, List(), ir.noAttrs)
     val t_interval = ir.TypeRef(c_interval, List(), ir.noAttrs)
     val t_point = ir.TypeRef(c_point, List(), ir.noAttrs)
     val t_lock = ir.TypeRef(c_lock, List(), ir.noAttrs)
+    val t_string = ir.TypeRef(c_string, List(), ir.noAttrs)
 
     // Synthetic ghost fields .ctor and .super:
     val gfd_ctor = GhostFieldDecl(t_interval, f_ctor)
@@ -525,7 +566,32 @@ object ir {
             )
         )
     
-    val cds_default = List(
+    // Two "classes" used to represent the type void and scalar data.
+    val cds_special = List(
+        ClassDecl(
+            /* Attrs:   */  noAttrs,
+            /* Name:    */  c_void,
+            /* Extends: */  List(),
+            /* Ghosts:  */  List(),
+            /* Reqs:    */  List(),
+            /* Ctor:    */  List(),
+            /* Fields:  */  List(),
+            /* Methods: */  List()
+        ),
+        ClassDecl(
+            /* Attrs:   */  noAttrs,
+            /* Name:    */  c_scalar,
+            /* Extends: */  List(),
+            /* Ghosts:  */  List(),
+            /* Reqs:    */  List(),
+            /* Ctor:    */  List(),
+            /* Fields:  */  List(),
+            /* Methods: */  List()
+        )
+    )
+    
+    // Simplified versions of built-in classes used in our unit tests.
+    val cds_unit_test = List(
         ClassDecl(
             /* Attrs:   */  noAttrs,
             /* Name:    */  c_object,
@@ -552,8 +618,8 @@ object ir {
             /* Methods: */  List(
                 MethodDecl(
                     /* attrs:  */ noAttrs,
-                    /* wt_ret: */ t_scalar, 
-                    /* name:   */ m_toScalar, 
+                    /* wt_ret: */ t_string, 
+                    /* name:   */ m_toString, 
                     /* args:   */ List(),
                     /* reqs:   */ List(ir.ReqReadableBy(List(gfd_creator.thisPath), List(p_mthd))),
                     /* blocks: */ Array(
@@ -568,30 +634,7 @@ object ir {
         ),
         ClassDecl(
             /* Attrs:   */  noAttrs,
-            /* Name:    */  c_void,
-            /* Extends: */  List(c_object),
-            /* Ghosts:  */  List(Ghost(f_creator, p_ctor)),
-            /* Reqs:    */  List(),
-            /* Ctor:    */  List(MethodDecl(
-                    /* attrs:  */ ctorAttrs,
-                    /* wt_ret: */ t_void, 
-                    /* name:   */ m_init, 
-                    /* args:   */ List(),
-                    /* reqs:   */ List(),
-                    /* blocks: */ Array(
-                        Block(
-                            /* args:  */ List(),
-                            /* stmts: */ List(ir.StmtSuperCtor(m_init, List())),
-                            /* goto:  */ List()
-                        )
-                    )
-                )),
-            /* Fields:  */  List(),
-            /* Methods: */  List()
-        ),
-        ClassDecl(
-            /* Attrs:   */  noAttrs,
-            /* Name:    */  c_scalar,
+            /* Name:    */  c_string,
             /* Extends: */  List(c_object),
             /* Ghosts:  */  List(Ghost(f_creator, p_ctor)),
             /* Reqs:    */  List(),
@@ -722,5 +765,15 @@ object ir {
             /* Methods: */  List()
         )
     )
+    
+    val builtinPosition = new Position {
+        override def <(that: Position) = this != that
+        def column = 1
+        def line = 1
+        def lineContents = "<built-in>"
+        override def toString = "<built-in>"
+    }
+    cds_special.foreach(_.setDefaultPos(builtinPosition))
+    cds_unit_test.foreach(_.setDefaultPos(builtinPosition))
    
 }

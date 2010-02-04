@@ -90,6 +90,15 @@ class IntervalsChecker extends SourceChecker {
                     }
                 }
                 
+                indexLog.indented("Run type checker") {
+                    val prog = tctx.createProg
+                    new CheckAll(prog).check                  
+                }
+                
+                indexLog.indented("Reporting Errors") {
+                    ttf.reportErrorsFromLogStack()
+                }
+                
             }
             case _ => ()
         }

@@ -9,8 +9,27 @@ import javax.lang.model.element.{ElementKind => EK}
 import javax.lang.model.element.PackageElement
 import javax.lang.model.element.TypeElement
 
+import scala.util.parsing.input.Positional
+import scala.util.parsing.input.Position
+import scala.util.parsing.input.NoPosition
+
 object Util {
     
+    class WithPositional[P <: Positional](instance: P) {
+        def hasPos = instance.pos != NoPosition
+        
+        def withPos(pos: Position): P = {
+            instance.setPos(pos)
+            instance
+        }
+    }
+    
+    implicit def positional2WithPositional[P <: Positional](instance: P) =
+        new WithPositional[P](instance)
+        
+    def withPos[P <: Positional](p: Position, instance: P) = 
+        instance.withPos(p)
+
     // ____________________________________________________________
     // Extensions to String
     

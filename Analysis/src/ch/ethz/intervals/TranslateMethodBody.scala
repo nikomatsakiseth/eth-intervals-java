@@ -37,7 +37,7 @@ object TranslateMethodBody
 {
     def apply(
         logStack: LogStack, 
-        env: ProcessingEnvironment,
+        processingEnvironment: ProcessingEnvironment,
         ttf: TranslateTypeFactory, 
         mtree: MethodTree
     ): Array[ir.Block] = logStack.log.indentedRes("translateMethodBody(%s)", mtree) {
@@ -52,11 +52,6 @@ object TranslateMethodBody
 
         class Unhandled(val tree: Tree) 
         extends RuntimeException("Could not handle: "+tree.getKind+" "+tree)
-
-        def setPos[X <: Positional](pos: DummyPosition, v: X) = {
-            v.setPos(pos)
-            v
-        }
 
         var unique = 0
         def freshName(prefix: String) = {
@@ -133,7 +128,9 @@ object TranslateMethodBody
         }
 
         // ___ Well-known methods _______________________________________________
-        val wke = new WellKnownElements(env.getElementUtils, env.getTypeUtils)
+        val wke = new WellKnownElements(
+            processingEnvironment.getElementUtils, 
+            processingEnvironment.getTypeUtils)
         
         // ___ Method environment, parameters ___________________________________
         val elem_mthd = TU.elementFromDeclaration(mtree)
@@ -165,7 +162,7 @@ object TranslateMethodBody
             }
 
             def addStmt(treePos: Tree, stmt: ir.Stmt) = 
-                stmts += setPos(TreePosition(treePos), stmt)
+                stmts += withPos(TreePosition(treePos), stmt)
         } 
 
         // ___ Current block ____________________________________________________
@@ -211,7 +208,7 @@ object TranslateMethodBody
         // variables and also the additional values 'ps_xtra'.  Returns 'mblk_tar'.
         def goto(treePos: Tree, mblk_tar: MutableBlock, ps_xtra: ir.Path*) = {
             val ps_auto = mblk_tar.autoParamNames.map(nm => mblk_cur.symtab(nm).p)
-            mblk_cur.gotos += setPos(TreePosition(treePos), ir.Goto(mblk_tar.b, ps_auto ++ ps_xtra))
+            mblk_cur.gotos += withPos(TreePosition(treePos), ir.Goto(mblk_tar.b, ps_auto ++ ps_xtra))
             mblk_tar // just convenient
         }
 
@@ -403,8 +400,8 @@ object TranslateMethodBody
                 case tree: AssignmentTree => // lvalue = q
                     val addr = lvalue(tree.getVariable)
                     val q = rvalue(tree.getExpression)
-                    addr(q)
-                    rvalue(tree.getVariable) // I don't think this is 100% correct...but it'll do.
+                    addr(q)                    
+                    rvalue(tree.getVariable) // Result of an assignment is the LHS.
 
                 case tree: BinaryTree => // p + q (or some other operator)
                     toString(tree.getLeftOperand)
@@ -417,7 +414,7 @@ object TranslateMethodBody
                     val addr = lvalue(tree.getVariable)
                     val r = nullStmt(tree)
                     addr(r)
-                    r
+                    rvalue(tree.getVariable) // Result of an assignment is the LHS.
 
                 case tree: ConditionalExpressionTree => // p = (cond ? q : r)
                     rvalue(tree.getCondition) // we don't really need to use the condition

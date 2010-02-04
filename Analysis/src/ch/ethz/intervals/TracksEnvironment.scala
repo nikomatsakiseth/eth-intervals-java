@@ -256,8 +256,8 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
     }
     
     def addReq(req: ir.Req) = 
-        at(req, ()) {
-            log.indented("addReq(%s)", req) {
+        log.indented("addReq(%s)", req) {
+            at(req, ()) {
                 def teePeeAdd(add: Function2[ir.TeePee, ir.TeePee, Unit], ps: List[ir.Path], qs: List[ir.Path]) = {
                     val tps = teePee(ir.ghostAttrs, ps)
                     val tqs = teePee(ir.ghostAttrs, qs)

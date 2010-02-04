@@ -2,6 +2,7 @@ package ch.ethz.intervals
 
 import scala.util.parsing.combinator.syntactical.StandardTokenParsers
 import scala.util.parsing.input.Reader
+import scala.util.parsing.input.NoPosition
 import scala.util.parsing.syntax.Tokens
 import scala.util.parsing.syntax.StdTokens
 import scala.util.parsing.combinator.lexical.StdLexical
@@ -56,6 +57,7 @@ class IrParser extends BaseParser {
         case List("Guard") => ir.c_guard
         case List("Point") => ir.c_point
         case List("Lock") => ir.c_lock
+        case List("String") => ir.c_string
         case List("scalar") => ir.c_scalar
         case List("void") => ir.c_void
         case List("array") => ir.c_array
