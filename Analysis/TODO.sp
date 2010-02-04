@@ -13,14 +13,16 @@ ______ Bugs __________________________________________________________
   If all preds have the same effective mapping, but some in temp and some in pred, the succ should have the mapping in temp.
   for example:
     
-    if(...) {
-        b = ...; // immutable object
-        a = b.f; // permanent!
-    } else {
-        b = ...; // mutable object
-        a = b.f; // temporary
+    {
+        if(...) {
+            b = ...; // immutable object
+            a = b.f; // permanent!
+        } else {
+            b = ...; // mutable object
+            a = b.f; // temporary
+        }
+        // safe if b.f→a temporarily        
     }
-    // safe if b.f→a temporarily
     
 - Unify the syntax between the plugin parser and testing parser
 
@@ -37,7 +39,7 @@ ______ Bugs __________________________________________________________
  
 ______ Features ______________________________________________________
 
-- @Is annotations on methods and variable declarations
+- \@Is annotations on methods and variable declarations
 
 - Assertions
 
@@ -50,7 +52,7 @@ ______ Features ______________________________________________________
 
 - Javac plugin
 
-- Requires in class bodies, declarations--
+- Requires in class bodies, declarations.
 
   If a class declared, for example, that two of its fields f and g have a HB relationship,
   then this would link f and g.  We can use the existing linked fields mechanisms to ensure
@@ -67,11 +69,12 @@ ______ Translator Features ___________________________________________
 - Allow user specified defaults.  
 
   Perhaps something like:
-  
-  @Defaults({
-      @Default(Foo.class, "this.some.path")
-  })
-  @Foo class Class {
+  {
+      @Defaults({
+          @Default(Foo.class, "this.some.path")
+      })
+      @Foo class Class {
+      }      
   }
     
 - Improve parsing of annty to allow for annotations, imports, etc
@@ -82,7 +85,7 @@ ______ Things to Think About _________________________________________
 
 - hb relations to arbitrary Guards
 
-  Right now something like @Creator("hb this") doesn't work because Creator is 
+  Right now something like {\@Creator("hb this")} doesn't work because Creator is 
   typed as Guard, not Interval, and we can't add hb relations to something of type
   Guard.  This tripped me up for a while on Producer (particularly since no error
   message was generated).
@@ -91,7 +94,7 @@ ______ Things to Think About _________________________________________
   be, in that case, is an Interval, and it couldn't have been stored if it didn't
   meet the criteria.
   
-  For now, however, I made the Producer example pass by doing @Creator("readableBy this").
+  For now, however, I made the Producer example pass by doing {\@Creator("readableBy this")}.
   This is arguably better anyhow.
 
 - Package-Level Ghosts
@@ -106,7 +109,7 @@ ______ Things to Think About _________________________________________
   For example, lock AND written during.  This way, you could have shared data accessed by
   locks up to a point, where it becomes read-only without locks.
 
-- Ensures declarations-- (?)
+- Ensures declarations
 
   In place of the current inference, we should add ensures declarations on constructors
   (or potentially other methods).  These ensures declarations could be inferred by the
@@ -116,7 +119,7 @@ ______ Things to Think About _________________________________________
 - Iterated linked fields
 
   Right now we screen out linked fields whose guards are known not to
-  have happened-- but can we also screen out fields whose guards are
+  have happened \-\-- but can we also screen out fields whose guards are
   themselves guarded by intervals that have not happened?  Maybe???
   Does that even make sense????
     
