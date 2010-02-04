@@ -99,10 +99,11 @@ Things to Think About
 (*) Package-Level Ghosts
 
     Before we found the idea of package-level regions quite useful.  Are they still useful?
-    How do they fit in with ghosts-as-fields?  Are they declared implicitly at the base of
-    the type hierarchy?  That's a bit strange.
+    How do they fit in with ghosts-as-fields?  Could have a synthetic interface for every package.
+    Each class implements the interface for the package in which it is declared.  Seems
+    like it could work.
         
-(*) Allow multiple guards (or a guard predicate of some kind)
+(*) Allow multiple guards (or a more complex guard predicate of some kind)
 
     For example, lock AND written during.  This way, you could have shared data accessed by
     locks up to a point, where it becomes read-only without locks.
