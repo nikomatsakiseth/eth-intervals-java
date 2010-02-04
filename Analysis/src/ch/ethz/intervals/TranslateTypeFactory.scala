@@ -775,25 +775,27 @@ class TranslateTypeFactory(
     //
     // The class implementation includes all the classes method bodies.
     
-    def implMethodDecl(tree: Tree, mdecls: List[ir.MethodDecl]): List[ir.MethodDecl] = tree match {
+    def implMethodDecl(ek: ElementKind)(tree: Tree, mdecls: List[ir.MethodDecl]): List[ir.MethodDecl] = tree match {
         case mtree: MethodTree =>
             val eelem = TU.elementFromDeclaration(mtree)
-            indexLog.indented("Method Impl: %s()", qualName(eelem)) {
-                at(TreePosition(mtree), dummyMethodDecl(eelem) :: mdecls) {
-                    val intMdecl = intMethodDecl(eelem)
-                    val blocks = TranslateMethodBody(logStack, processingEnvironment, this, mtree)
-                
-                    ir.MethodDecl(
-                        intMdecl.attrs,
-                        intMdecl.wt_ret,
-                        intMdecl.name,
-                        intMdecl.args,
-                        intMdecl.reqs,
-                        blocks
-                    ).withPos(TreePosition(mtree)) :: mdecls
-                }
-            }
-            
+            if(eelem.getKind == ek) {
+                indexLog.indented("Method Impl: %s()", qualName(eelem)) {
+                    at(TreePosition(mtree), dummyMethodDecl(eelem) :: mdecls) {
+                        val intMdecl = intMethodDecl(eelem)
+                        val blocks = TranslateMethodBody(logStack, processingEnvironment, this, mtree)
+
+                        ir.MethodDecl(
+                            intMdecl.attrs,
+                            intMdecl.wt_ret,
+                            intMdecl.name,
+                            intMdecl.args,
+                            intMdecl.reqs,
+                            blocks
+                        ).withPos(TreePosition(mtree)) :: mdecls
+                    }
+                }                
+            } else
+                mdecls
         case _ => mdecls
     }
      
@@ -805,7 +807,8 @@ class TranslateTypeFactory(
                 val intCdecl = intClassDecl((_ => true), telem)
                 val enclElems = telem.getEnclosedElements
                 val members = ctree.getMembers.toList
-                val methodDecls = members.foldRight(List[ir.MethodDecl]())(implMethodDecl)
+                val ctorDecls = members.foldRight(List[ir.MethodDecl]())(implMethodDecl(EK.CONSTRUCTOR))
+                val methodDecls = members.foldRight(List[ir.MethodDecl]())(implMethodDecl(EK.METHOD))
                 
                 ir.ClassDecl(
                     intCdecl.attrs,
@@ -813,7 +816,7 @@ class TranslateTypeFactory(
                     intCdecl.superClasses,
                     intCdecl.ghosts,
                     intCdecl.reqs,
-                    intCdecl.ctors,
+                    ctorDecls,
                     intCdecl.fields,
                     methodDecls
                 ).withPos(TreePosition(ctree))

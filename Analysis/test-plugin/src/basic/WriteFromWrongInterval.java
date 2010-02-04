@@ -22,12 +22,12 @@ public class WriteFromWrongInterval {
 	@Requires(subinterval=@Subinterval(of="x"))	
 	protected void duringX() {
 	    xString = "x";
-	    yString = "y"; // ERROR XXX
+	    yString = "y"; // ERROR (intervals.not.writable)
 	}
 
 	@Requires(subinterval=@Subinterval(of="y"))	
 	protected void duringY() {
-	    xString = "x"; // ERROR XXX
+	    xString = "x"; // ERROR (intervals.not.writable)
 	    yString = "y";
 	}
 

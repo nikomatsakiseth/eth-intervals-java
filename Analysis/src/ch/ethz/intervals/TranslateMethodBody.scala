@@ -400,8 +400,15 @@ object TranslateMethodBody
                 case tree: AssignmentTree => // lvalue = q
                     val addr = lvalue(tree.getVariable)
                     val q = rvalue(tree.getExpression)
-                    addr(q)                    
-                    rvalue(tree.getVariable) // Result of an assignment is the LHS.
+                    addr(q)      
+                    
+                    // Strictly speaking, the result ought to be
+                    // rvalue(tree.getVariable), but that generates
+                    // annoying double errors if the assignment
+                    // is illegal.  The only problem with using q is that its
+                    // type may be a subtype of the LHS.  Oh well.
+                    // We COULD insert an upcast, but it hardly seems worth it.
+                    q 
 
                 case tree: BinaryTree => // p + q (or some other operator)
                     toString(tree.getLeftOperand)

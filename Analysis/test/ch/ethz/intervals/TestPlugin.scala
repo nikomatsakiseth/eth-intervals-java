@@ -107,7 +107,7 @@ class TestPlugin extends JUnitSuite {
                     case Some(m) => 
                         val offset = m.end(1) - m.start(1)
                         val text = fileLine.slice(m.start(2), m.end(2))
-                        expErrors = DiagError(jfo, idx - offset, text) :: expErrors
+                        expErrors = DiagError(jfo, idx - offset + 1, text) :: expErrors
                 }
             }
         }

@@ -129,8 +129,8 @@ abstract class Log {
     def classDecl(lbl: Any, cd: ir.ClassDecl): Unit = ifEnabled {
         indented("%s%s", lbl, cd) {
             cd.rfds.foreach(apply)
-            cd.ctors.foreach(methodDecl("", _))
-            cd.methods.foreach(methodDecl("", _))
+            cd.ctors.foreach(methodDecl("[Ctor] ", _))
+            cd.methods.foreach(methodDecl("[Mthd] ", _))
         }
     }
             
