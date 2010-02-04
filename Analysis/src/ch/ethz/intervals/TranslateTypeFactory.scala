@@ -854,18 +854,13 @@ class TranslateTypeFactory(
     }
     
     override def annotateImplicit(elem: Element, atm: AnnotatedTypeMirror) {
-        elem.getKind match {
-            case EK.CLASS | EK.INTERFACE | EK.ENUM | EK.ANNOTATION_TYPE =>
-/*                    val objParams = objParametersInScope(elem)
-                atm.clearAnnotations
-                objParams.foreach { case objParam => log.indented("default annot: %s", objParam) {
-                    log("env=%s", env)
-                    val ab = new AnnotationBuilder(env, objParam.name)
-                    ab.setValue("value", shortFieldName(objParam))
-                    val am = ab.build()
-                    atm.addAnnotation(am)
-                } }*/
-            case _ =>
+        log.indented("annotateImplicit(%s,%s)", elem, atm) {
+            elem.getKind match {
+                case EK.CLASS | EK.INTERFACE | EK.ENUM | EK.ANNOTATION_TYPE =>
+                    atm.clearAnnotations
+                case _ =>
+            }            
+            log("Result: %s", atm)
         }
     }
 
