@@ -8,7 +8,9 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
     import prog.logStack.at
     import prog.classDecl
     import prog.isSubclass
-    import prog.ghostFieldDecls
+    import prog.ghostFieldsDeclaredOnClassAndSuperclasses
+    import prog.ghostFieldsBoundOnClassAndSuperclasses
+    import prog.unboundGhostFieldsOnClassAndSuperclasses
     import prog.thisTref
     import prog.typeOriginallyDefiningMethod
         
@@ -71,8 +73,8 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
         
         wt.wghosts.map(_.wp).foreach(checkWPathWf)
 
-        val lgfd = ghostFieldDecls(wt.c)
-        def notDefined(wg: ir.WcGhost) = !lgfd.exists(_.name == wg.f)        
+        val gfds_unbound = unboundGhostFieldsOnClassAndSuperclasses(wt.c)
+        def notDefined(wg: ir.WcGhost) = !gfds_unbound.exists(_.name == wg.f)        
         wt.wghosts.find(notDefined) match {
             case Some(wg) => throw new CheckFailure("intervals.no.such.ghost", wt.c, wg.f)
             case None =>
@@ -139,7 +141,8 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                     val tqs = teePee(reified, qs)
                     
                     // Check that all ghosts on the type C being instantiated are given a value:
-                    prog.ghostFieldDecls(t.c).find(f => t.oghost(f.name).isEmpty) match {
+                    val gfds_unbound = unboundGhostFieldsOnClassAndSuperclasses(t.c)
+                    gfds_unbound.find(f => t.oghost(f.name).isEmpty) match {
                         case Some(f) => throw new CheckFailure("intervals.no.value.for.ghost", f)
                         case None =>
                     }

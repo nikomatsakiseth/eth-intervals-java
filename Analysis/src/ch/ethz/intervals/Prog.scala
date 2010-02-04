@@ -68,29 +68,45 @@ class Prog(
         accumulate(Set.empty, c0) - c0
     }
     
-    // Collection of all ghost fields declared on type 'c_0'.
-    // A ghost field from a supertype c_1 is included so long as there is path
-    // from c_0 to c_1 that does not define the value of the ghost.
-    def ghostFieldDecls(c_0: ir.ClassName): List[ir.GhostFieldDecl] =
-        log.indentedRes("ghostFieldDecls(%s)", c_0) {
-            val cd = classDecl(c_0)
-            log("ghosts: %s", cd.ghosts)
-            
-            // Ghosts declared on cd:
-            val gfds_cd = cd.fields.foldLeft[Set[ir.GhostFieldDecl]](ListSet.empty) { 
-                case (s, gfd: ir.GhostFieldDecl) => s + gfd
-                case (s, _) => s
-            }
-            
-            // + Ghosts declared on its supertypes:
-            val gfds_super = cd.superClasses.foldLeft(gfds_cd) { case (s, c) => 
-                s ++ ghostFieldDecls(c)
-            }
-            
-            // - Ghosts defined in cd:
-            val fs_defd = cd.ghosts.map(_.f)            
-            gfds_super.filter(gfd => !fs_defd.contains(gfd.name)).toList
+    /// Higher-order function that takes a func 'func' which adds
+    /// values of type X for a given class.  'func' is applied
+    /// to 'c' and all its supertypes in a bottom-up fashion starting
+    /// from Object.
+    def addClassAndSuperclasses[X](
+        func: ((X, ir.ClassName) => X)
+    )(
+        set0: X, c: ir.ClassName
+    ): X = {
+        val cd = classDecl(c)
+        val set1 = cd.superClasses.foldLeft(set0)(addClassAndSuperclasses(func))
+        func(set1, c)
+    }
+    
+    /// Adds the ghost fields declared on class 'c' (not its supertypes).
+    def addGhostFieldsDeclaredOnClass(gfds0: Set[ir.GhostFieldDecl], c: ir.ClassName) =
+        classDecl(c).fields.foldLeft(gfds0) {
+            case (gfds, gfd: ir.GhostFieldDecl) => gfds + gfd
+            case (gfds, _) => gfds
         }
+
+    /// All ghost field declared on c or one of its superclasses.
+    def ghostFieldsDeclaredOnClassAndSuperclasses(c: ir.ClassName) =
+        addClassAndSuperclasses(addGhostFieldsDeclaredOnClass)(ListSet.empty, c)
+    
+    /// Adds the ghost fields bound on 'c' (not its supertypes).
+    def addGhostFieldsBoundOnClass(fs0: Set[ir.FieldName], c: ir.ClassName) =
+        classDecl(c).ghosts.foldLeft(fs0) { case (fs, g) => fs + g.f }
+        
+    /// All ghost field bound on c or one of its superclasses.
+    def ghostFieldsBoundOnClassAndSuperclasses(c: ir.ClassName) =
+        addClassAndSuperclasses(addGhostFieldsBoundOnClass)(ListSet.empty, c)
+        
+    /// All ghost fields declared on c or a superclass which have not been bound.
+    def unboundGhostFieldsOnClassAndSuperclasses(c: ir.ClassName) = {
+        val gfds = ghostFieldsDeclaredOnClassAndSuperclasses(c)
+        val boundFields = ghostFieldsBoundOnClassAndSuperclasses(c)
+        gfds.filter(gfd => !boundFields(gfd.name))
+    }
     
     /// For a type 't=c<F: P>' creates a substitution '[this.F→P]'.
     /// Ghosts F'#F defined on the class c are not substituted.
@@ -110,13 +126,13 @@ class Prog(
         )        
     }
 
-    /// For a class c with ghost fields F, yields a type c<F: this.F>{as}
+    /// For a class c with unbound ghost fields F, yields a type c<F: this.F>{as}
     def thisTref(cd: ir.ClassDecl, as: ir.Attrs): ir.TypeRef = {
-        val gfds = ghostFieldDecls(cd.name)
+        val gfds = unboundGhostFieldsOnClassAndSuperclasses(cd.name).toList
         ir.TypeRef(cd.name, gfds.map(_.ghost), as)
     }    
 
-    /// For a class c with ghost fields F, yields a type c<F: this.F>
+    /// For a class c with unbound ghost fields F, yields a type c<F: this.F>
     def thisTref(cd: ir.ClassDecl): ir.TypeRef =
         thisTref(cd, ir.noAttrs)
         

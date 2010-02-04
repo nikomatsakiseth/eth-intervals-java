@@ -166,9 +166,25 @@ class IntervalsChecker extends SourceChecker {
         }
         
         override def visitType(elem: TypeElement, v: Void): Void = {
-            elem.getInterfaces.foreach(addType(referencedElements, _))
-            addType(referencedElements, elem.getSuperclass)
-            null // don't visit enclosed elements
+            log.indented("visitType(%s)", elem) {
+                elem.getInterfaces.foreach(addType(referencedElements, _))
+                addType(referencedElements, elem.getSuperclass)
+
+                // n.b.: we visit only the (non-private) enclosed fields; 
+                // if any of the methods are actually invoked, we'll visit 
+                // them then.  This helps to keep the size of the closure under control.  
+                // We'd prefer not to visit the fields either, but they may
+                // be referenced from paths and other things not visible to us.
+                EF.fieldsIn(elem.getEnclosedElements).foreach { velem =>
+                    if(!velem.getModifiers.contains(Modifier.PRIVATE)) {
+                        log("Including field: %s", velem)
+                        referencedElements += velem
+                    } else {                        
+                        log("Skipping private field: %s", velem)
+                    }
+                }
+            }
+            null // don't visit other enclosed elements
         }
         
         override def visitTypeParameter(elem: TypeParameterElement, v: Void): Void = {
@@ -199,10 +215,12 @@ class IntervalsChecker extends SourceChecker {
             }
         }
         
-        val tv = new TreeVisitor()
-        val resultSet = MutableSet.empty[Element]
-        tv.scanBodyOf(tree)
-        addElements(resultSet, tv.referencedElements)
+        indexLog.indented("referenceClosure") {
+            val tv = new TreeVisitor()
+            val resultSet = MutableSet.empty[Element]
+            tv.scanBodyOf(tree)
+            addElements(resultSet, tv.referencedElements)            
+        }
     }
     
 }

@@ -587,7 +587,17 @@ object ir {
             /* Ctor:    */  List(),
             /* Fields:  */  List(),
             /* Methods: */  List()
-        )
+        ),
+        ClassDecl(
+            /* Attrs:   */  noAttrs,
+            /* Name:    */  c_array,
+            /* Extends: */  List(),
+            /* Ghosts:  */  List(),
+            /* Reqs:    */  List(),
+            /* Ctor:    */  List(),
+            /* Fields:  */  List(),
+            /* Methods: */  List()
+        )        
     )
     
     // Simplified versions of built-in classes used in our unit tests.

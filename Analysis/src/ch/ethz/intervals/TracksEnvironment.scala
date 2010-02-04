@@ -13,6 +13,7 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
     import prog.logStack.at    
     import prog.isSubclass
     import prog.classDecl
+    import prog.unboundGhostFieldsOnClassAndSuperclasses
     
     // ______________________________________________________________________
     // Current Environment
@@ -291,10 +292,11 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
     /// Any wildcards or missing ghosts in tp.wt are replaced with a path based on 'tp'.
     /// So if tp.wt was Foo<f: ?><g: q>, the result would be List(<f: p.f>, <g: q>) where p = tp.p.
     def ghosts(tp: ir.TeePee): List[ir.Ghost] = preservesEnv {
-        prog.ghostFieldDecls(tp.wt.c).map { gfd =>
+        val gfds_unbound = unboundGhostFieldsOnClassAndSuperclasses(tp.wt.c).toList
+        gfds_unbound.map { gfd =>
             tp.wt.owghost(gfd.name) match {
-                case Some(p: ir.Path) => ir.Ghost(gfd.name, p)
-                case _ => ir.Ghost(gfd.name, tp.p + gfd.name)
+                case Some(p: ir.Path) => ir.Ghost(gfd.name, p) // Defined explicitly.
+                case _ => ir.Ghost(gfd.name, tp.p + gfd.name)  // Wildcard or undefined.
             }
         }
     }
