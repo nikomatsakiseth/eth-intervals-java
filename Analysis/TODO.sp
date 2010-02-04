@@ -39,16 +39,16 @@ ______ Bugs __________________________________________________________
  
 ______ Features ______________________________________________________
 
-- \@Is annotations on methods and variable declarations
+- {\@Is} annotations on methods and variable declarations
 
 - Assertions
 
-  a hb b              user's pnt.hb(pnt)
-  a locks b           user's foo.holdsLock(bar)
-  a readableBy b      user's foo.isReadable() translates to "foo readableBy method"
-  a writableBy b      user's foo.isWritable() translates to "foo writableBy method"
-  a == b              creates a temporary alias from b to a?
-  a == b->p           creates a temporary alias from b->p to a
+  || a hb b              | user's pnt.hb(pnt) ||
+  || a locks b           | user's foo.holdsLock(bar) ||
+  || a readableBy b      | user's foo.isReadable() translates to "foo readableBy method" ||
+  || a writableBy b      | user's foo.isWritable() translates to "foo writableBy method" ||
+  || a == b              | creates a temporary alias from b to a? ||
+  || a == b->p           | creates a temporary alias from b->p to a ||
 
 - Javac plugin
 
