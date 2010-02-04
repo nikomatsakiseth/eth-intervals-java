@@ -234,22 +234,22 @@ object ir {
         override def toString = "super %s(%s)".format(m, qs)
     }
     sealed case class StmtSuperCall(x: VarName, m: MethodName, qs: List[Path]) extends Stmt {
-        override def toString = "%s = super->%s(%s)".format(x, m, qs)
+        override def toString = "%s = super->%s(%s)".format(x.toIdent, m, qs)
     }
     sealed case class StmtCall(x: VarName, p: Path, m: MethodName, qs: List[Path]) extends Stmt {
-        override def toString = "%s = %s->%s(%s)".format(x, p, m, qs)        
+        override def toString = "%s = %s->%s(%s)".format(x.toIdent, p, m, qs)        
     }
     sealed case class StmtGetField(x: VarName, p: Path, f: FieldName) extends Stmt {
-        override def toString = "%s = %s->%s".format(x, p, f)
+        override def toString = "%s = %s->%s".format(x.toIdent, p, f)
     }
     sealed case class StmtNew(x: VarName, t: TypeRef, m: ir.MethodName, qs: List[Path]) extends Stmt {
-        override def toString = "%s = new %s %s(%s);".format(x, t, m, qs.mkString(", "))
+        override def toString = "%s = new %s %s(%s);".format(x.toIdent, t, m, qs.mkString(", "))
     }
     sealed case class StmtCast(x: VarName, wt: WcTypeRef, q: Path) extends Stmt {
-        override def toString = "%s = (%s)%s;".format(x, wt, q)
+        override def toString = "%s = (%s)%s;".format(x.toIdent, wt, q)
     }
     sealed case class StmtNull(x: VarName, wt: WcTypeRef) extends Stmt {
-        override def toString = "%s = (%s)null;".format(x, wt)
+        override def toString = "%s = (%s)null;".format(x.toIdent, wt)
     }
     sealed case class StmtReturn(p: Path) extends Stmt {
         override def toString = "return %s;".format(p)        

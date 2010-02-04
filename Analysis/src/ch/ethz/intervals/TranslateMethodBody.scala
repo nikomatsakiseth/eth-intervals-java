@@ -84,11 +84,15 @@ object TranslateMethodBody
 
         sealed class Symbol(val name: String, val annty: AnnotatedTypeMirror, val wtref: ir.WcTypeRef) {
             var maxVersion = 0
+            
+            // Version of the symbol provided as a method parameter.
+            def globalVersion =
+                GlobalVersion(this, ir.VarName(name))
 
             // Version of the symbol provided as a block parameter.
-            def nextParamVersion = {
+            def nextLocalVersion = {
                 maxVersion += 1
-                ParamVersion(this, maxVersion)
+                LocalVersion(this, maxVersion)
             }
 
             // Version of the symbol resulting form an assignment.
@@ -101,13 +105,21 @@ object TranslateMethodBody
         abstract class Version {
             val sym: Symbol
             val p: ir.Path        
+            val isLocal: Boolean
         }    
-        sealed case class ParamVersion(sym: Symbol, ver: Int) extends Version {
+        sealed case class GlobalVersion(sym: Symbol, lv: ir.VarName) extends Version {
+            val p = lv.path
+            val isLocal = false
+        }
+        sealed case class LocalVersion(sym: Symbol, ver: Int) extends Version {
             val lv = ir.VarName(sym.name + "[" + ver + "]")
             val p = lv.path        
+            val isLocal = true
             def toLvDecl = ir.LvDecl(lv, sym.wtref)
         }
-        sealed case class ExprVersion(sym: Symbol, p: ir.Path) extends Version
+        sealed case class ExprVersion(sym: Symbol, p: ir.Path) extends Version {
+            val isLocal = true
+        }
 
         type SymbolTable = Map[String, Version]
         def SymbolTable(names: List[String], vers: List[Version]): SymbolTable =
@@ -129,8 +141,7 @@ object TranslateMethodBody
         val env_mthd = ttf.elemEnv(elem_mthd)
         val elems_param = mtree.getParameters.map(TU.elementFromDeclaration).toList
         val syms_mthdParam = mtree.getParameters.map(createSymbol(env_mthd)).toList
-        val vers_mthdParam = syms_mthdParam.map(_.nextParamVersion)
-        def isMthdParamVer(v: Version) = vers_mthdParam.contains(v)
+        val vers_mthdParam = syms_mthdParam.map(_.globalVersion)
         val symtab_mthdParam = SymbolTable(elems_param.map(nm), vers_mthdParam)
 
         // ___ Mutable blocks ___________________________________________________
@@ -171,8 +182,8 @@ object TranslateMethodBody
 
             val autoParamNames = new ListBuffer[String]()
             val paramDecls = new ListBuffer[ir.LvDecl]()
-            for((name, ver0) <- mblk_cur.symtab if !isMthdParamVer(ver0)) {
-                val ver1 = ver0.sym.nextParamVersion
+            for((name, ver0) <- mblk_cur.symtab if ver0.isLocal) {
+                val ver1 = ver0.sym.nextLocalVersion
                 autoParamNames += name
                 paramDecls += ver1.toLvDecl
                 symtab += Pair(name, ver1)
@@ -598,7 +609,7 @@ object TranslateMethodBody
             case tree: VariableTree =>
                 val sym = createSymbol(mblk_cur.env(tree))(tree)
                 val ver = tree.getInitializer match {
-                    case null => sym.nextParamVersion
+                    case null => sym.nextLocalVersion
                     case expr => 
                         val p = rvalue(expr)
                         sym.nextExprVersion(p)
