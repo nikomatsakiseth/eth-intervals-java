@@ -653,7 +653,7 @@ class TranslateTypeFactory(
             /* name:   */ m(eelem), 
             /* args:   */ eelem.getParameters.map(dummyLvDecl).toList,
             /* reqs:   */ List(),
-            /* blocks: */ Array(ir.Block(List(), List(), List()))
+            /* body:   */ ir.stmt_empty
         )
 
     def dummyClassDecl(telem: TypeElement) = 
@@ -663,20 +663,7 @@ class TranslateTypeFactory(
             /* Extends: */  List(),
             /* Ghosts:  */  List(),
             /* Reqs:    */  List(),
-            /* Ctor:    */  List(ir.MethodDecl(
-                    /* attrs:  */ ir.ctorAttrs,
-                    /* wt_ret: */ ir.t_void, 
-                    /* name:   */ ir.m_init, 
-                    /* args:   */ List(),
-                    /* reqs:   */ List(),
-                    /* blocks: */ Array(
-                        ir.Block(
-                            /* args:  */ List(),
-                            /* stmts: */ List(ir.StmtSuperCtor(ir.m_init, List())),
-                            /* goto:  */ List()
-                        )
-                    )
-                )),
+            /* Ctor:    */  List(ir.md_ctor_interface),
             /* Fields:  */  List(),
             /* Methods: */  List()
         )    
@@ -745,7 +732,7 @@ class TranslateTypeFactory(
                     /* name:   */ m(eelem), 
                     /* args:   */ eelem.getParameters.map(intArgDecl).toList,
                     /* reqs:   */ reqs(eelem),
-                    /* blocks: */ Array(ir.Block(List(), List(), List()))
+                    /* body:   */ ir.stmt_empty
                 ).withPos(env_mthd.pos)
             }
         }
