@@ -37,8 +37,6 @@ ___ Assumptions ______________________________________________________
 
 We currently assume but do not check:
 
-- The method CFG is dominated by block 0 
-- Every subinterval push dominates and is post dominated by a corresponding subinterval pop
 - Every path through a CFG leads to a return or throw statement (unless the method is void in 
     the Java code)
 - The fact that return (and to some extent throw) does not have normal successors is encoded in the CFG 
@@ -142,7 +140,7 @@ object ir {
         override def toString = "%s(%s)".format(msg, args.mkString(", "))
     }
     
-    // ___ Abstract syntax tree _____________________________________________
+    // ___ Declarations in the AST __________________________________________
     
     sealed case class ClassDecl(
         attrs: Attrs,       
@@ -182,13 +180,13 @@ object ir {
         name: MethodName,
         args: List[LvDecl],
         reqs: List[Req],
-        blocks: Array[Block] // See notes on CFG structure at the top of this file.
+        body: Stmt
     ) extends PositionalAst {
         def msig(t_rcvr: TypeRef) = MethodSig(t_rcvr, attrs, args, reqs, wt_ret)
         
         def setDefaultPosOnChildren() {
             reqs.foreach(_.setDefaultPos(pos))
-            blocks.foreach(_.setDefaultPos(pos))
+            body.setDefaultPos(pos)
         }
         
         override def toString =
@@ -242,28 +240,7 @@ object ir {
         override def toString = "%s%s %s requires %s".format(as.preWords, wt, name, p_guard)
     }
     
-    sealed case class Block(
-        args: List[LvDecl],
-        stmts: List[Stmt],
-        gotos: List[Goto]
-    ) {
-        override def toString = "block(%s)".format(args.mkString(", "))
-        
-        def setDefaultPos(p: Position) {
-            stmts.foreach(_.setDefaultPos(p))
-            gotos.foreach(_.setDefaultPos(p))
-        }
-    }
-    
-    sealed case class Goto(
-        b: Int,
-        ps: List[ir.Path]
-    ) extends PositionalAst {
-        override def toString = "goto %s(%s);".format(b, ps)
-        
-        def setDefaultPosOnChildren() { }        
-    }
-    
+    // ______ Leaf Statements _______________________________________________
     sealed abstract class Stmt extends PositionalAst {
         def setDefaultPosOnChildren() { }        
     }
@@ -294,19 +271,89 @@ object ir {
     sealed case class StmtSetField(p: Path, f: FieldName, q: Path) extends Stmt {
         override def toString = "%s->%s = %s;".format(p, f, q)
     }
-    sealed case class StmtSubintervalPush(x: VarName, addCheckedArglocks: List[Path]) extends Stmt {
-        override def toString = "subinterval push %s locks %s".format(x, addCheckedArglocks.mkString(", "))
-    }
-    sealed case class StmtSubintervalPop(x: VarName) extends Stmt {
-        override def toString = "subinterval pop %s".format(x)
-    }
     sealed case class StmtHb(p: Path, q: Path) extends Stmt {
         override def toString = "%s hb %s;".format(p, q)        
     }
     sealed case class StmtLocks(p: Path, q: Path) extends Stmt {
         override def toString = "%s locks %s;".format(p, q)        
     }
+    
+    // ______ Branching _____________________________________________________
+    //
+    // StmtBreak and StmtContinue are used to indicate a branch 
+    // in or out of a compound statement.  StmtCondBreak indicates
+    // a conditional break.  It does not identify the conditions in
+    // which the break occurs, as it's not really relevant to our 
+    // type check.
+    //
+    // All three statements use an integer to identify 
+    // their target: the number indicates how far up the parent stack we 
+    // must go (0 == immediate parent).
+    //
+    // Our breaks and continues are somewhat different from in Java:
+    // (1) They take arguments which indicate the values supplied to the
+    //     SSA arguments on the target block.
+    // (2) They are fully explicit: for example, loop bodies always end
+    //     in CONTINUE.  
+    
+    sealed case class StmtCondBreak(i: Int, ps: List[Path]) extends Stmt {
+        override def toString = "break %d(%s);".format(i, ", ".join(ps))
+    }
+    sealed case class StmtBreak(i: Int, ps: List[Path]) extends Stmt {
+        override def toString = "break %d(%s);".format(i, ", ".join(ps))
+    }
+    sealed case class StmtContinue(i: Int, ps: List[Path]) extends Stmt {
+        override def toString = "continue %d(%s);".format(i, ", ".join(ps))
+    }
+    
+    // ______ Flow Control and Compound Statements __________________________
+    //
+    // Compound statements define internal control flow.  When a compound 
+    // statement terminates, it will define a set of variables called defines,
+    // which in traditional SSA would be the phi-nodes at the start of the 
+    // next compound node.  Since all exits from a compound node are made
+    // explicit via a StmtBreak statement, the arguments to the StmtBreak
+    // match up with these defines variables.
+    //
+    // In addition, the Loop compound statement defines a set of arguments
+    // and their initial values.  These are loop variables whose value is 
+    // set on every iteration to the arguments of the StmtContinue.
+    
+    sealed case class StmtCompound(kind: CompoundKind, defines: List[LvDecl]) extends Stmt {
+        def setDefaultPosOnChildren() {
+            kind.substmts.foreach(_.setDefaultPos(pos))
+        }
+        override def toString = "%s => (%s)".format(kind, ", ".join(defines))
+    }
+    sealed abstract class CompoundKind {
+        def substmts: List[Stmt]
+    }
+    sealed case class Seq(stmts: List[Stmt]) extends CompoundKind {
+        override def toString = "Seq"
+        def substmts = stmts
+    }
+    sealed case class Switch(stmts: List[Stmt]) extends CompoundKind {
+        override def toString = "Switch"
+        def substmts = stmts
+    }
+    sealed case class Loop(args: List[LvDecl], ps_initial: List[ir.Path], stmt_body: Stmt) extends CompoundKind {
+        override def toString = "Loop(%s)".format(
+            ", ".join(args.zip(ps_initial).map { case (lv, p) =>
+                "%s = %s".format(lv, p) }))
+        def substmts = List(stmt_body)
+    }
+    sealed case class Subinterval(x: VarName, ps_locks: List[Path], stmt_body: Stmt) extends CompoundKind {
+        override def toString = "Subinterval[%s]".format(x)
+        def substmts = List(stmt_body)
+    }
+    sealed case class TryCatch(stmt_try: Stmt, stmt_catch: Stmt) extends CompoundKind {
+        override def toString = "TryCatch"
+        def substmts = List(stmt_try, stmt_catch)
+    }
+    
+    val stmt_empty = StmtCompound(Seq(List(StmtBreak(0, List()))), List())
 
+    // ______ Miscellaneous _________________________________________________
     def isSuperCtor(s: Stmt) = s match {
         case StmtSuperCtor(_, _) => true
         case _ => false
@@ -432,6 +479,18 @@ object ir {
         subinterval: TransitiveRelation[Path],  // (p, q) means interval p is a subinterval of interval q
         locks: IntransitiveRelation[Path]       // (p, q) means interval p locks lock q        
     ) {
+        def addPerm(x: ir.VarName, tq: ir.TeePee) =
+            perm.get(x) match {
+                case Some(_) => throw new CheckFailure("intervals.shadowed", x)
+                case None => withPerm(perm + Pair(x, tq))
+            }    
+        
+        def addArg(arg: LvDecl) =
+            addPerm(arg.name, ir.TeePee(arg.wt, arg.name.path, noAttrs))        
+        
+        def addArgs(args: List[LvDecl]) =
+            args.foldLeft(this) { case (e, a) => e.addArg(a) }
+        
         def withCurrent(ps_cur: List[ir.Path]) = TcEnv(ps_cur, wt_ret, perm, temp, ps_invalidated, readable, writable, hb, subinterval, locks)
         def withRet(wt_ret: ir.WcTypeRef) = TcEnv(ps_cur, wt_ret, perm, temp, ps_invalidated, readable, writable, hb, subinterval, locks)
         def withPerm(perm: Map[ir.VarName, ir.TeePee]) = TcEnv(ps_cur, wt_ret, perm, temp, ps_invalidated, readable, writable, hb, subinterval, locks)
@@ -557,13 +616,7 @@ object ir {
             /* name:   */ m_init, 
             /* args:   */ List(),
             /* reqs:   */ List(),
-            /* blocks: */ Array(
-                Block(
-                    /* args:  */ List(),
-                    /* stmts: */ List(ir.StmtSuperCtor(m_init, List())),
-                    /* goto:  */ List()
-                )
-            )
+            /* body:   */ ir.StmtSuperCtor(m_init, List())
         )
     
     // Two "classes" used to represent the type void and scalar data.
@@ -614,33 +667,15 @@ object ir {
                     /* name:   */ m_init, 
                     /* args:   */ List(),
                     /* reqs:   */ List(),
-                    /* blocks: */ Array(
-                        Block(
-                            /* args:  */ List(),
-                            /* stmts: */ List(ir.StmtSuperCtor(m_init, List())),
-                            /* goto:  */ List()
-                        )
-                    )
-                )),
-            /* Fields:  */  List(
-                    ir.gfd_creator
-                ),
-            /* Methods: */  List(
-                MethodDecl(
+                    /* body:   */ stmt_empty)),
+            /* Fields:  */  List(ir.gfd_creator),
+            /* Methods: */  List(MethodDecl(
                     /* attrs:  */ noAttrs,
                     /* wt_ret: */ t_string, 
                     /* name:   */ m_toString, 
                     /* args:   */ List(),
                     /* reqs:   */ List(ir.ReqReadableBy(List(gfd_creator.thisPath), List(p_mthd))),
-                    /* blocks: */ Array(
-                        Block(
-                            /* args:  */ List(),
-                            /* stmts: */ List(),
-                            /* goto:  */ List()
-                        )
-                    )
-                )
-            )
+                    /* body:   */ stmt_empty))
         ),
         ClassDecl(
             /* Attrs:   */  noAttrs,
@@ -654,14 +689,7 @@ object ir {
                     /* name:   */ m_init, 
                     /* args:   */ List(),
                     /* reqs:   */ List(),
-                    /* blocks: */ Array(
-                        Block(
-                            /* args:  */ List(),
-                            /* stmts: */ List(ir.StmtSuperCtor(m_init, List())),
-                            /* goto:  */ List()
-                        )
-                    )
-                )),
+                    /* body:   */ ir.StmtSuperCtor(m_init, List()))),
             /* Fields:  */  List(),
             /* Methods: */  List()
         ),
@@ -677,33 +705,17 @@ object ir {
                     /* name:   */ m_init, 
                     /* args:   */ List(),
                     /* reqs:   */ List(),
-                    /* blocks: */ Array(
-                        Block(
-                            /* args:  */ List(),
-                            /* stmts: */ List(ir.StmtSuperCtor(m_init, List())),
-                            /* goto:  */ List()
-                        )
-                    )
-                )),
+                    /* body:   */ ir.StmtSuperCtor(m_init, List()))),
             /* Fields:  */  List(
                 ReifiedFieldDecl(noAttrs, t_point, f_start, gfd_ctor.thisPath),
                 ReifiedFieldDecl(noAttrs, t_point, f_end, gfd_ctor.thisPath)),
-            /* Methods: */  List(
-                MethodDecl(
+            /* Methods: */  List(MethodDecl(
                     /* attrs:  */ noAttrs,
                     /* wt_ret: */ t_void, 
                     /* name:   */ m_run, 
                     /* args:   */ List(),
                     /* reqs:   */ List(ir.ReqSubintervalOf(List(p_mthd), List(p_this))),
-                    /* blocks: */ Array(
-                        Block(
-                            /* args:  */ List(),
-                            /* stmts: */ List(),
-                            /* goto:  */ List()
-                        )
-                    )
-                )
-            )            
+                    /* body:   */ stmt_empty))
         ),
         ClassDecl(
             /* Attrs:   */  noAttrs,
@@ -717,14 +729,7 @@ object ir {
                     /* name:   */ m_init, 
                     /* args:   */ List(),
                     /* reqs:   */ List(),
-                    /* blocks: */ Array(
-                        Block(
-                            /* args:  */ List(),
-                            /* stmts: */ List(ir.StmtSuperCtor(m_init, List())),
-                            /* goto:  */ List()
-                        )
-                    )
-                )),
+                    /* body:   */ ir.StmtSuperCtor(m_init, List()))),
             /* Fields:  */  List(),
             /* Methods: */  List()
         ),
@@ -740,14 +745,7 @@ object ir {
                     /* name:   */ m_init, 
                     /* args:   */ List(),
                     /* reqs:   */ List(),
-                    /* blocks: */ Array(
-                        Block(
-                            /* args:  */ List(),
-                            /* stmts: */ List(ir.StmtSuperCtor(m_init, List())),
-                            /* goto:  */ List()
-                        )
-                    )
-                )),
+                    /* body:   */ ir.StmtSuperCtor(m_init, List()))),                    
             /* Fields:  */  List(),
             /* Methods: */  List()
         ),
@@ -763,14 +761,7 @@ object ir {
                     /* name:   */ m_init, 
                     /* args:   */ List(),
                     /* reqs:   */ List(),
-                    /* blocks: */ Array(
-                        Block(
-                            /* args:  */ List(),
-                            /* stmts: */ List(ir.StmtSuperCtor(m_init, List())),
-                            /* goto:  */ List()
-                        )
-                    )
-                )),
+                    /* body:   */ ir.StmtSuperCtor(m_init, List()))),
             /* Fields:  */  List(),
             /* Methods: */  List()
         )

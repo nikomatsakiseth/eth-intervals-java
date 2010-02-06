@@ -7,7 +7,7 @@ import scala.collection.mutable.ListBuffer
 import scala.util.parsing.input.Positional
 import Util._
 
-class TypeCheck(prog: Prog) extends ComputeRelations(prog)
+class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
 {    
     import prog.logStack.log
     import prog.logStack.indexLog
@@ -85,6 +85,28 @@ class TypeCheck(prog: Prog) extends ComputeRelations(prog)
             throw new CheckFailure("intervals.expected.subtype", tp_sub.p, tp_sub.wt, wt_sup)
     }
     
+    // ___ Statement Stack __________________________________________________
+    //
+    // When checking method bodies, we use the statement stack to 
+    // track the enclosing statements and handle loops, etc.
+    
+    class StmtStack(
+        val stmt: ir.StmtCompound,
+        val env_in: ir.TcEnv
+    ) {
+        var oenv_continue: Option[ir.TcEnv] = None  // only applies to While
+        var oenv_break: Option[ir.TcEnv] = None     // applies to all
+    }
+    
+    private var ss_cur = List[StmtStack]()
+    
+    def withStmt[R](stmt: ir.StmtCompound, env_in: ir.TcEnv)(func: => R) = {
+        ss_cur = new StmtStack(stmt, env_in) :: ss_cur
+        try { func } finally {
+            ss_cur = ss_cur.tail
+        }
+    }
+    
     // ___ Checking method bodies ___________________________________________
     
     def isReqFulfilled(req: ir.Req): Boolean = log.indentedRes("isReqFulfilled(%s)", req) {
@@ -126,19 +148,6 @@ class TypeCheck(prog: Prog) extends ComputeRelations(prog)
                 env.ps_invalidated.mkEnglishString)        
     }
 
-    def checkGoto(blks: Array[ir.Block], succ: ir.Goto) {
-        indexAt(succ, ()) {
-            log.indented(succ) {
-                val blk_tar = blks(succ.b)
-                val lvs_tar = blk_tar.args.map(_.name)
-                val tps = teePee(ir.noAttrs, succ.ps)
-                val subst = PathSubst.vp(lvs_tar, tps.map(_.p))
-                val wts_tar = blk_tar.args.map(arg => subst.wtref(arg.wt))
-                foreachzip(tps, wts_tar)(checkIsSubtype)                
-            }
-        }
-    }
-    
     def checkCallMsig(tp: ir.TeePee, msig: ir.MethodSig, tqs: List[ir.TeePee]) {
         // Cannot invoke a method when there are outstanding invalidated fields:
         checkNoInvalidated()
@@ -150,95 +159,303 @@ class TypeCheck(prog: Prog) extends ComputeRelations(prog)
         // Arguments must have correct type and requirements must be fulfilled:
         checkArgumentTypes(msig, tqs)
         msig.reqs.foreach(checkReqFulfilled)
+        
+        // Any method call disrupts potential temporary assocations:
+        //     We make these disruptions before checking return value, 
+        //     in case they would affect the type.  Haven't thought through
+        //     if this can happen or not, but this would be the right time anyhow.
+        clearTemp()        
     }
     
-    def checkCall(tp: ir.TeePee, m: ir.MethodName, tqs: List[ir.TeePee]) {
+    def checkCall(x: ir.VarName, tp: ir.TeePee, m: ir.MethodName, tqs: List[ir.TeePee]) {
         val msig = substdMethodSig(tp, m, tqs)
         checkCallMsig(tp, msig, tqs)
+        addLvDecl(x, msig.wt_ret, None)
     }
     
-    def checkStatement(stmt: ir.Stmt): Unit = 
-        indexAt(stmt, ()) {
-            stmt match {                  
-                case ir.StmtSuperCtor(m, qs) =>
-                    val tp = tp_super
-                    val tqs = teePee(ir.noAttrs, qs)
-                    val msig_ctor = substdCtorSig(tp, m, tqs)
-                    checkCallMsig(tp_super, msig_ctor, tqs)
-                    
-                case ir.StmtGetField(_, p_o, f) =>
-                    val tp_o = teePee(ir.noAttrs, p_o)
-                    substdFieldDecl(tp_o, f) match {
-                        case ir.GhostFieldDecl(_, _) =>
-                            throw new CheckFailure("intervals.not.reified", tp_o.wt.c, f)
-                        
-                        case ir.ReifiedFieldDecl(_, wt, _, p_guard) =>
-                            val tp_guard = teePee(ir.ghostAttrs, p_guard)                    
-                            checkReadable(tp_guard)
-                    }                    
-                    
-                case ir.StmtSetField(p_o, f, p_v) =>
-                    val tp_o = teePee(ir.noAttrs, p_o)
-                    val tp_v = teePee(ir.noAttrs, p_v)
-                    
-                    substdFieldDecl(tp_o, f) match {
-                        case ir.GhostFieldDecl(_, _) => 
-                            throw new CheckFailure("intervals.not.reified", tp_o.wt.c, f)
-                        
-                        case ir.ReifiedFieldDecl(_, wt, _, p_guard) =>
-                            val tp_guard = teePee(ir.ghostAttrs, p_guard)
-                            checkWritable(tp_guard)                    
-                            checkIsSubtype(tp_v, wt)
-                    }
-                        
-                case ir.StmtCall(_, p, m, qs) =>
-                    val tp = teePee(ir.noAttrs, p)
-                    val tqs = teePee(ir.noAttrs, qs)
-                    checkCall(tp, m, tqs)
-        
-                case ir.StmtSuperCall(_, m, qs) =>
-                    val tqs = teePee(ir.noAttrs, qs)
-                    checkCall(tp_super, m, tqs)
-                
-                case ir.StmtNew(x, t, m, qs) =>
-                    val cd = classDecl(t.c)
-                    val tqs = teePee(ir.noAttrs, qs)
-                    
-                    if(cd.attrs.interface)
-                        throw new CheckFailure("intervals.new.interface", t.c)
-                        
-                    // Check Ghost Types:           
-                    savingEnv {
-                        addLvDecl(x, t, None)
-                        val tp_x = teePee(x.path)
-                        t.ghosts.foreach { g =>
-                            val gfd = substdFieldDecl(tp_x, g.f)
-                            val tp = teePee(g.p)
-                            checkIsSubtype(tp, gfd.wt)
-                        }                        
-                                        
-                        val msig_ctor = substdCtorSig(tp_x, m, tqs)
-                        checkCallMsig(teePee(x.path), msig_ctor, tqs)
-                    }
-                    
-                case ir.StmtCast(_, _, _) => ()
-                    // TODO Validate casts?  Issue warnings at least?
-                    
-                case ir.StmtNull(_, _) => ()
-                    
-                case ir.StmtReturn(p) =>
-                    val tp = teePee(ir.noAttrs, p)
-                    checkIsSubtype(tp, env.wt_ret)
-                    
-                case ir.StmtHb(_, _) => () // Wf checks that args are intervals or points                    
-                
-                case ir.StmtLocks(_, _) => () // Wf checks that args are interval/lock
-                
-                case ir.StmtSubintervalPush(_, _) => ()
-                
-                case ir.StmtSubintervalPop(_) => ()
-            }
+    def mapEnv(
+        env_in: ir.TcEnv,
+        decls: List[ir.LvDecl],
+        tps: List[ir.TeePee]
+    ): ir.TcEnv = {
+        // ______________________________________________________________________
+        // Check that tps have the correct types.
+        decls.zip(tps).foreach { case (ir.LvDecl(x, wt), tp) =>
+            checkIsSubtype(tp, wt)
         }
+        
+        // ______________________________________________________________________
+        // Create a substitution which maps:
+        // (1) Method-scope variables to themselves
+        // (2) Arguments to the goto() to their respective parameters
+        // (3) Everything else to "lv_outOfScope"
+
+        val lv_outOfScope = ir.VarName(prog.fresh("outOfScope"))
+
+        // Map all vars to outOfScope (unless overridden later)
+        val map0 = env.perm.keys.foldLeft(Map.empty[ir.Path, ir.Path]) { case (m, x) =>
+            m + Pair(x.path, lv_outOfScope.path)
+        }
+    
+        // Map variables shared with env_in to themselves:            
+        val map1 = env_in.perm.keys.foldLeft(map0) { case (m, x) => 
+            m + Pair(x.path, x.path)
+        }
+
+        // Map arguments 'tps' to 'decls':
+        val xs_args = decls.map(_.name)
+        val map2 = tps.zip(xs_args).foldLeft(map1) { case (m, (tp, x)) =>
+            m + Pair(tp.p, x.path) 
+        }
+
+        // Map everything else to lv_outOfScope:
+        val subst = new PathSubst(map2)
+
+        // ______________________________________________________________________
+        // Apply map to relations and keep only those not affecting lv_outOfScope
+
+        def mapMap(map: Map[ir.Path, ir.Path]) =
+            map.elements.foldLeft(Map.empty[ir.Path, ir.Path]) { case (r, (p0, q0)) =>
+                val p1 = subst.path(p0)
+                val q1 = subst.path(q0)
+                if(p1.lv != lv_outOfScope && q1.lv != lv_outOfScope) r + Pair(p1, q1)
+                else r
+            }
+
+        def mapRelation[R <: Relation[ir.Path, R]](rel: R) =
+            rel.mapFilter(subst.path, (_.lv != lv_outOfScope))
+    
+        def mapInvalidated(ps: Set[ir.Path]) =
+            ps.map { case p0 =>
+                val p1 = subst.path(p0)
+                if(p1.lv == lv_outOfScope)
+                    throw new CheckFailure("intervals.must.assign.first", p0)
+                p1
+            }
+
+        env_in
+        .addArgs(decls)
+        .withTemp(mapMap(env.temp))
+        .withInvalidated(mapInvalidated(env.ps_invalidated))
+        .withReadable(mapRelation(env.readable))
+        .withWritable(mapRelation(env.writable))
+        .withHb(mapRelation(env.hb))
+        .withSubinterval(mapRelation(env.subinterval))
+        .withLocks(mapRelation(env.locks))
+    }
+    
+    def intersect(oenv1: Option[ir.TcEnv], env2: ir.TcEnv) = oenv1 match {
+        case None => Some(env2)
+        case Some(env1) => Some(env1 ** env2)
+    }
+
+    def mergeBreakEnv(idx: Int, tps: List[ir.TeePee]) {
+        val ss = ss_cur(idx)
+        
+        val env_map = mapEnv(ss.env_in, ss.stmt.defines, tps)
+        ss.oenv_break = intersect(ss.oenv_break, env_map)
+    }
+        
+    def mergeContinueEnv(idx: Int, tps: List[ir.TeePee]) {
+        val ss = ss_cur(idx)
+        ss.stmt.kind match {
+            case ir.Loop(args, _, _) =>
+                val env_map = mapEnv(ss.env_in, args, tps)
+                ss.oenv_continue = intersect(ss.oenv_continue, env_map)
+            case _ =>
+                throw new CheckFailure(
+                    "intervals.internal.error",
+                    "continue to non-loop: %s".format(ss))
+        }
+    }
+    
+    def checkHeadCompoundStatement() {
+        val ss = ss_cur.head
+        val stmt_compound = ss.stmt
+        
+        val ft = stmt_compound.kind match {
+            case ir.Seq(stmts) =>
+                stmts.foreach(checkStatement)
+
+            case ir.Switch(stmts) =>
+                val env_initial = env
+                stmts.foreach { stmt =>
+                    // If the previous stmt breaks, then 
+                    // env == env_initial and this line has no effect.
+                    setEnv(env ** env_initial)
+                    checkStatement(stmt)
+                }
+                
+            case ir.Loop(args, ps_initial, stmt_body) =>
+                def iterate(env_continue_before: ir.TcEnv) {
+                    // Break env is recomputed each iteration:
+                    ss.oenv_break = None
+                    
+                    // Perform an iteration:
+                    setEnv(env_continue_before)  
+                    checkStatement(stmt_body)
+                    
+                    // Repeat until steady state is reached:
+                    val env_continue_after = ss.oenv_continue.get
+                    if(env_continue_before != env_continue_after)
+                        iterate(env_continue_after)
+                }
+                val tps_initial = teePee(ir.noAttrs, ps_initial)
+                mergeContinueEnv(0, tps_initial)
+                iterate(ss.oenv_continue.get)
+                
+            case ir.Subinterval(x, ps_locks, stmt_body) =>
+                val tps_locks = teePee(ir.noAttrs, ps_locks)                    
+                addLvDecl(x, ir.t_interval, None)                
+                val tp_x = teePee(x.path)
+                addSubintervalOf(tp_x, tp_cur)
+                tps_locks.foreach(addLocks(tp_x, _))
+                withCurrent(x.path) {
+                    checkStatement(stmt_body)
+                }
+                
+            case ir.TryCatch(stmt_try, stmt_catch) =>
+                savingEnv { checkStatement(stmt_try) }
+                
+                // Catch conservatively assumes try failed immediately:
+                savingEnv { checkStatement(stmt_catch) }
+        }
+
+        ss.oenv_break match {
+            case None => // control flow never really comes this way...
+                setEnv(ss.env_in) // ...use safe approx.
+            case Some(env_break) => 
+                setEnv(env_break)
+        }
+    }
+    
+    def checkStatement(stmt: ir.Stmt) = indexAt(stmt, ()) {
+        stmt match {   
+            case stmt_compound: ir.StmtCompound =>
+                withStmt(stmt_compound, env) {
+                    checkHeadCompoundStatement()
+                }
+                           
+            case ir.StmtSuperCtor(m, qs) =>
+                val tp = tp_super
+                val tqs = teePee(ir.noAttrs, qs)
+                val msig_ctor = substdCtorSig(tp, m, tqs)
+                checkCallMsig(tp_super, msig_ctor, tqs)
+                
+                // Supertype must have been processed first:
+                log("Supertype: %s", tp)
+                setEnv(env + prog.exportedCtorEnvs((tp.wt.c, m)))
+                
+            case ir.StmtGetField(x, p_o, f) =>
+                val tp_o = teePee(ir.noAttrs, p_o)
+                substdFieldDecl(tp_o, f) match {
+                    case ir.GhostFieldDecl(_, _) =>
+                        throw new CheckFailure("intervals.not.reified", tp_o.wt.c, f)
+                    
+                    case ir.ReifiedFieldDecl(_, wt, _, p_guard) =>
+                        val tp_guard = teePee(ir.ghostAttrs, p_guard)                    
+                        checkReadable(tp_guard)
+                        
+                        val p_f = tp_o.p + f // Canonical path of f; valid as f is not a ghost.
+
+                        val op_canon = 
+                            if(hbInter(tp_guard, tp_cur)) { // Constant:
+                                Some(p_f)
+                            } else { // Non-constant:
+                                addTemp(p_f, x.path) // Record that p.f == vd, for now.
+                                None
+                            }
+
+                        addLvDecl(x, wt, op_canon)
+                }                    
+                
+            case ir.StmtSetField(p_o, f, p_v) =>
+                val tp_o = teePee(ir.noAttrs, p_o)
+                val tp_v = teePee(ir.noAttrs, p_v)
+                
+                substdFieldDecl(tp_o, f) match {
+                    case ir.GhostFieldDecl(_, _) => 
+                        throw new CheckFailure("intervals.not.reified", tp_o.wt.c, f)
+                    
+                    case ir.ReifiedFieldDecl(_, wt, _, p_guard) =>
+                        val tp_guard = teePee(ir.ghostAttrs, p_guard)
+                        checkWritable(tp_guard)                    
+                        checkIsSubtype(tp_v, wt)
+                        
+                        val p_f = tp_o.p + f // Canonical path of f; valid as f is not a ghost.
+                        addTemp(p_f, tp_v.p)
+                
+                        removeInvalidated(p_f)
+                        linkedPaths(tp_o, f).foreach(addInvalidated)                            
+                }
+                    
+            case ir.StmtCall(x, p, m, qs) =>
+                val tp = teePee(ir.noAttrs, p)
+                val tqs = teePee(ir.noAttrs, qs)
+                checkCall(x, tp, m, tqs)
+    
+            case ir.StmtSuperCall(x, m, qs) =>
+                val tqs = teePee(ir.noAttrs, qs)
+                checkCall(x, tp_super, m, tqs)
+            
+            case ir.StmtNew(x, t, m, qs) =>
+                val cd = classDecl(t.c)
+                val tqs = teePee(ir.noAttrs, qs)
+                
+                if(cd.attrs.interface)
+                    throw new CheckFailure("intervals.new.interface", t.c)
+                    
+                // Check Ghost Types:           
+                savingEnv {
+                    addLvDecl(x, t, None)
+                    val tp_x = teePee(x.path)
+                    t.ghosts.foreach { g =>
+                        val gfd = substdFieldDecl(tp_x, g.f)
+                        val tp = teePee(g.p)
+                        checkIsSubtype(tp, gfd.wt)
+                    }                        
+                                    
+                    val msig_ctor = substdCtorSig(tp_x, m, tqs)
+                    checkCallMsig(teePee(x.path), msig_ctor, tqs)
+                }
+                
+            case ir.StmtCast(x, wt, q) => ()
+                // TODO Validate casts?  Issue warnings at least?
+                addLvDecl(x, wt, None)
+                
+            case ir.StmtNull(x, wt) => 
+                addLvDecl(x, wt, None)
+                
+            case ir.StmtReturn(p) =>
+                val tp = teePee(ir.noAttrs, p)
+                checkIsSubtype(tp, env.wt_ret)
+                setEnv(ss_cur.head.env_in)
+                
+            case ir.StmtHb(p, q) =>
+                val tp = teePee(ir.noAttrs, p)
+                val tq = teePee(ir.noAttrs, q)
+                addUserHb(tp, tq)
+            
+            case ir.StmtLocks(p, q) =>
+                val tp = teePee(ir.noAttrs, p)
+                val tq = teePee(ir.noAttrs, q)
+                addLocks(tp, tq)
+            
+            case ir.StmtCondBreak(i, ps) =>
+                val tps = teePee(ir.noAttrs, ps)
+                mergeBreakEnv(i, tps)
+
+            case ir.StmtBreak(i, ps) =>
+                val tps = teePee(ir.noAttrs, ps)
+                mergeBreakEnv(i, tps)
+                setEnv(ss_cur.head.env_in)
+            
+            case ir.StmtContinue(i, ps) =>
+                val tps = teePee(ir.noAttrs, ps)
+                mergeContinueEnv(i, tps)
+                setEnv(ss_cur.head.env_in)
+        }
+    }
     
         
     // ___ Inter-method assumptions _________________________________________
@@ -331,29 +548,12 @@ class TypeCheck(prog: Prog) extends ComputeRelations(prog)
         )                
     }
     
-    // Final environment: the environment on exit from the block
-    def checkBlocks(blks: Array[ir.Block], ins: Array[ir.TcEnv], outs: Array[ir.TcEnv]) {
-        blks.indices.foreach { b =>
-            log.indented("%s: %s", b, blks(b)) {
-                savingEnv {
-                    env = ins(b)
-                    log.env("Initial environment:", env)
-                    blks(b).stmts.foreach { stmt =>
-                        checkStatement(stmt)
-                        addStatement(stmt)
-                        log.env("Environment:", env)
-                    }
-                    blks(b).gotos.foreach(checkGoto(blks, _))
-                }
-            }
-        }
-        
-        val bs_exit = blks.indices.toList.filter(b =>
-            blks(b).gotos.isEmpty) // Exit blocks are those w/ no successors
-        env = ir.Env.intersect(bs_exit.map(outs)) // Intersection of all final environments        
-        checkNoInvalidated()
+    def checkMethodBody(md: ir.MethodDecl) {
+        assert(ss_cur.isEmpty)
+        checkStatement(md.body)
+        assert(ss_cur.isEmpty)
     }
-        
+    
     def checkMethodDecl(
         cd: ir.ClassDecl,          // class in which the method is declared
         env_ctor_assum: ir.TcEnv,  // relations established by the ctor
@@ -368,8 +568,8 @@ class TypeCheck(prog: Prog) extends ComputeRelations(prog)
                 if(!md.attrs.ctor) { 
                     // For normal methods, type of this is the defining class
                     addPerm(ir.lv_this, ir.TeePee(thisTref(cd), ir.p_this, ir.noAttrs))                     
-                    addHbInter(tp_ctor, tp_cur) // ... constructor already happened
-                    env = env + env_ctor_assum          // ... add its effects on environment
+                    addHbInter(tp_ctor, tp_cur)     // ... constructor already happened
+                    setEnv(env + env_ctor_assum)    // ... add its effects on environment
                 } else {
                     // For constructor methods, type of this is the type that originally defined it
                     val t_rcvr = typeOriginallyDefiningMethod(cd.name, md.name).get
@@ -389,9 +589,7 @@ class TypeCheck(prog: Prog) extends ComputeRelations(prog)
                 }
                 
                 md.reqs.foreach(addReq)
-                
-                val (ins, outs) = iterateMethodBlocks(md.blocks)
-                checkBlocks(md.blocks, ins, outs)
+                checkMethodBody(md)
             }                     
         }
         
@@ -405,12 +603,11 @@ class TypeCheck(prog: Prog) extends ComputeRelations(prog)
 
                 // Check method body:
                 md.args.foreach(addArg)
-                md.reqs.foreach(addReq)                
-                val (ins, outs) = iterateMethodBlocks(md.blocks)
-                checkBlocks(md.blocks, ins, outs)
+                md.reqs.foreach(addReq)
+                checkMethodBody(md)
                 
                 // Compute exit assumptions and store in prog.exportedCtorEnvs:
-                env = extractAssumptions(tp_ctor, Set(ir.lv_this)) // Globally valid assums
+                setEnv(extractAssumptions(tp_ctor, Set(ir.lv_this))) // Globally valid assums
                 log.env("extracted assumptions:", env)
                 prog.exportedCtorEnvs += Pair((cd.name, md.name), env) // Store
                 env

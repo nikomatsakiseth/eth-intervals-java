@@ -16,7 +16,8 @@ class IrParser extends BaseParser {
         "return", "Rd", "Wr", "Free", "extends", 
         "requires", "super", 
         "subinterval", "push", "pop", 
-        "interface", "goto"
+        "interface", "goto",
+        "switch", "loop", "try", "catch"
     )
 
     def optd[A](p: Parser[A], d: => A) = 
@@ -89,7 +90,19 @@ class IrParser extends BaseParser {
         anonLv
     )
     
-    def optLocks = optl2("locks", comma(p))
+    def locks = optl2("locks", comma(p))
+    def loopArg = lvdecl~"="~p                      ^^ { case lv~_~p => (lv, p) }
+    def ckind: Parser[ir.CompoundKind] = (
+        "{"~rep(stmt)~"}"                           ^^ { case _~ss~_ => ir.Seq(ss) }
+    |   "switch"~"{"~rep(stmt)~"}"                  ^^ { case _~_~ss~_ => ir.Switch(ss) }
+    |   "loop"~"("~comma(loopArg)~")"~stmt          ^^ { case _~_~args~_~b => ir.Loop(args.map(_._1), args.map(_._2), b) }
+    |   "subinterval"~lv~locks~stmt                 ^^ { case _~x~ps~s => ir.Subinterval(x, ps, s) }
+    |   "try"~stmt~"catch"~stmt                     ^^ { case _~t~_~c => ir.TryCatch(t, c) }
+    )
+    
+    def stmt_compound: Parser[ir.StmtCompound] = positioned(
+        ckind~optl3("(",comma(lvdecl),")")          ^^ { case ckind~defs => ir.StmtCompound(ckind, defs) }
+    )
     
     def stmt: Parser[ir.Stmt] = positioned(
        "super"~cm~"("~comma(p)~")"~";"              ^^ { case _~m~_~ps~_~_ => ir.StmtSuperCtor(m,ps) }
@@ -102,9 +115,10 @@ class IrParser extends BaseParser {
     |   p~"->"~f~"="~p~";"                          ^^ { case p~_~f~_~q~_ => ir.StmtSetField(p, f, q) }
     |   p~"hb"~p~";"                                ^^ { case p~_~q~_ => ir.StmtHb(p, q) }
     |   p~"locks"~p~";"                             ^^ { case p~_~q~_ => ir.StmtLocks(p, q) }
-    |   "subinterval"~"push"~lv~optLocks~";"        ^^ { case _~_~x~ps~_ => ir.StmtSubintervalPush(x, ps) }
-    |   "subinterval"~"pop"~lv~";"                  ^^ { case _~_~x~_ => ir.StmtSubintervalPop(x) }
+    |   "break"~integer~"("~comma(p)~")"~";"        ^^ { case _~i~"("~ps~")"~";" => ir.StmtBreak(i, ps) }
+    |   "continue"~integer~"("~comma(p)~")"~";"     ^^ { case _~i~"("~ps~")"~";" => ir.StmtContinue(i, ps) }
     |   "return"~p~";"                              ^^ { case _~p~_ => ir.StmtReturn(p) }
+    |   stmt_compound
     )
     
     def req = positioned(
@@ -115,35 +129,18 @@ class IrParser extends BaseParser {
     )    
     def reqs = rep(req)
     
-    def goto = positioned(
-        "goto"~integer~"("~comma(p)~")"~";"         ^^ { case _~b~"("~ps~")"~";" => ir.Goto(b, ps) }
-    )
-    
-    def block = (
-        "("~comma(lvdecl)~")"~"{"~rep(stmt)~rep(goto)~"}" 
-    ) ^^ { 
-        case "("~args~")"~"{"~stmts~gotos~"}" => ir.Block(args, stmts, gotos)
-    }
-    
-    def methodBody = (
-        "{"~rep(stmt)~rep(goto)~"}"~rep(block)
-    ) ^^ {
-        case _~stmts~gotos~_~blocks =>
-            Array((ir.Block(List(), stmts, gotos) :: blocks): _*)
-    }
-    
     def methodDecl = positioned(
-        attrs~wt~m~"("~comma(lvdecl)~")"~reqs~methodBody        
+        attrs~wt~m~"("~comma(lvdecl)~")"~reqs~stmt        
     ^^ {
         case attrs~wt_ret~name~"("~args~")"~reqs~blocks =>
             ir.MethodDecl(attrs, wt_ret, name, args, reqs, blocks)
     })
     
     def constructor = positioned(
-        "constructor"~cm~"("~comma(lvdecl)~")"~reqs~methodBody
+        "constructor"~cm~"("~comma(lvdecl)~")"~reqs~stmt
     ^^ {
-        case "constructor"~m~"("~args~")"~reqs~blocks =>
-            ir.MethodDecl(ir.ctorAttrs, ir.t_void, m, args, reqs, blocks)
+        case "constructor"~m~"("~args~")"~reqs~stmt =>
+            ir.MethodDecl(ir.ctorAttrs, ir.t_void, m, args, reqs, stmt)
     })
     
     def ghostFieldDecl = positioned(

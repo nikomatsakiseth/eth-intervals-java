@@ -19,19 +19,27 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
     // Current Environment
     //
     // We use a mutable field here rather than thread the env through explicitly.
-    
-    var env = ir.Env.empty
 
+    private var env_private = ir.Env.empty
+    
+    /// Reading and modifying the environment
+    def env = env_private    
+    def setEnv(env_new: ir.TcEnv) = env_private = env_new
+    
     /// Executes g and restores the old environment afterwards:
-    def savingEnv[R](g: => R): R = {
-        val oldEnv = env
-        try { g } finally { env = oldEnv }
+    def savingEnv[R](func: => R): R = {
+        val env_old = env
+        try { func } finally { 
+            setEnv(env_old)
+        }
     }
 
     /// Checks that this function preserves the environment:
-    def preservesEnv[R](g: => R): R = {
-        val oldEnv = env
-        try { g } finally { assert(env == oldEnv) }
+    def preservesEnv[R](func: => R): R = {
+        val env_old = env
+        try { func } finally { 
+            assert(env == env_old) 
+        }
     }
 
     // ______________________________________________________________________
@@ -39,38 +47,38 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
     
     def pushCurrent(p_cur: ir.Path) =
         log.indented("pushCurrent(%s)", p_cur) {
-            env = env.withCurrent(p_cur :: env.ps_cur)
+            setEnv(env.withCurrent(p_cur :: env.ps_cur))
         }
     
     def popCurrent(p_cur: ir.Path) =
         log.indented("popCurrent(%s)", p_cur) {
             assert(env.ps_cur.head == p_cur)
-            env = env.withCurrent(env.ps_cur.tail)
+            setEnv(env.withCurrent(env.ps_cur.tail))
         }
         
-    def withCurrent[R](p_cur: ir.Path)(g: => R): R = 
+    def withCurrent[R](p_cur: ir.Path)(func: => R): R = 
         log.indented("withCurrent(%s)", p_cur) {
-            try { pushCurrent(p_cur); g } finally { popCurrent(p_cur) }            
+            pushCurrent(p_cur)
+            try { func } finally { 
+                popCurrent(p_cur) 
+            }
         }
 
     def setWtRet(wt_ret: ir.WcTypeRef) = {
-        env = env.withRet(wt_ret)
+        setEnv(env.withRet(wt_ret))
     }
 
     /// Add or overwrite a permanent mapping.
     /// Permanent mappings persist across function calls.
     def setPerm(x: ir.VarName, tq: ir.TeePee): Unit = 
         log.indented("addPerm(%s,%s)", x, tq) {
-            env = env.withPerm(env.perm + Pair(x, tq))
+            setEnv(env.withPerm(env.perm + Pair(x, tq)))
         }        
 
     /// Add but not overwrite a permanent mapping.
     /// \see setPerm()
     def addPerm(x: ir.VarName, tq: ir.TeePee): Unit =
-        env.perm.get(x) match {
-            case Some(_) => throw new CheckFailure("intervals.shadowed", x)
-            case None => setPerm(x, tq)
-        }    
+        setEnv(env.addPerm(x, tq))
 
     def addLvDecl(x: ir.VarName, wt: ir.WcTypeRef, op_canon: Option[ir.Path]) =
         addPerm(x, ir.TeePee(
@@ -78,27 +86,27 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
             op_canon.getOrElse(x.path), // default canonical path for x is just x
             ir.noAttrs))                // all local vars are (a) reified and (b) immutable
 
-    def addArg(arg: ir.LvDecl) =
-        addPerm(arg.name, ir.TeePee(arg.wt, arg.name.path, ir.noAttrs))
+    def addArg(arg: ir.LvDecl) =        
+        setEnv(env.addArg(arg))
         
     def addTemp(p: ir.Path, q: ir.Path) =
         log.indented("addTemp(%s,%s)", p, q) {
-            env = env.withTemp(env.temp + Pair(p, q))
+            setEnv(env.withTemp(env.temp + Pair(p, q)))
         }
 
     def clearTemp() =
         log.indented("clearTemp()") {
-            env = env.withTemp(Map())
+            setEnv(env.withTemp(Map()))
         }        
 
     def addInvalidated(p: ir.Path) =
         log.indented("addInvalidated(%s)", p) {
-            env = env.withInvalidated(env.ps_invalidated + p)
+            setEnv(env.withInvalidated(env.ps_invalidated + p))
         }        
 
     def removeInvalidated(p: ir.Path) =
         log.indented("removeInvalidated(%s)", p) {
-            env = env.withInvalidated(env.ps_invalidated - p)
+            setEnv(env.withInvalidated(env.ps_invalidated - p))
         }
 
     def addHbPnt(tp: ir.TeePee, tq: ir.TeePee): Unit = 
@@ -106,7 +114,7 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
             assert(tp.isConstant && tq.isConstant)
             assert(isSubclass(tp.wt, ir.c_point))
             assert(isSubclass(tq.wt, ir.c_point))
-            env = env.withHb(env.hb + (tp.p, tq.p))
+            setEnv(env.withHb(env.hb + (tp.p, tq.p)))
         }
 
     def addHbInter(tp: ir.TeePee, tq: ir.TeePee): Unit = 
@@ -114,7 +122,7 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
             assert(tp.isConstant && tq.isConstant)
             assert(isSubclass(tp.wt, ir.c_interval))
             assert(isSubclass(tq.wt, ir.c_interval))
-            env = env.withHb(env.hb + (tp.p.end, tq.p.start))
+            setEnv(env.withHb(env.hb + (tp.p.end, tq.p.start)))
         }
 
     def addDeclaredReadableBy(tp: ir.TeePee, tq: ir.TeePee): Unit = 
@@ -122,7 +130,7 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
             assert(tp.isConstant && tq.isConstant)
             assert(isSubclass(tp.wt, ir.c_guard))
             assert(isSubclass(tq.wt, ir.c_interval))
-            env = env.withReadable(env.readable + (tp.p, tq.p))
+            setEnv(env.withReadable(env.readable + (tp.p, tq.p)))
         }
 
     def addDeclaredWritableBy(tp: ir.TeePee, tq: ir.TeePee): Unit = 
@@ -131,7 +139,7 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
             //assert(tp.isConstant && tq.isConstant)
             assert(isSubclass(tp.wt, ir.c_guard))
             assert(isSubclass(tq.wt, ir.c_interval))
-            env = env.withWritable(env.writable + (tp.p, tq.p))
+            setEnv(env.withWritable(env.writable + (tp.p, tq.p)))
         }
 
     def addSubintervalOf(tp: ir.TeePee, tq: ir.TeePee): Unit = 
@@ -140,8 +148,8 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
             //assert(tp.isConstant && tq.isConstant)
             assert(isSubclass(tp.wt, ir.c_interval))
             assert(isSubclass(tq.wt, ir.c_interval))
-            env = env.withHb(env.hb + (tq.p.start, tp.p.start) + (tp.p.end, tq.p.end))
-            env = env.withSubinterval(env.subinterval + (tp.p, tq.p))
+            setEnv(env.withHb(env.hb + (tq.p.start, tp.p.start) + (tp.p.end, tq.p.end)))
+            setEnv(env.withSubinterval(env.subinterval + (tp.p, tq.p)))
         }
 
     def addLocks(tp: ir.TeePee, tq: ir.TeePee): Unit =
@@ -150,7 +158,7 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
             //assert(tp.isConstant && tq.isConstant)
             assert(isSubclass(tp.wt, ir.c_interval))
             assert(isSubclass(tq.wt, ir.c_lock))
-            env = env.withLocks(env.locks + (tp.p, tq.p))
+            setEnv(env.withLocks(env.locks + (tp.p, tq.p)))
         }
 
     def equiv(tp: ir.TeePee, tq: ir.TeePee): Boolean = 
@@ -467,6 +475,7 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
     // Note: these are not vals but defs!  This is important
     // because the outcome of teePee() depends on the env.
     def otp_cur = if(env.ps_cur.isEmpty) None else Some(teePee(env.ps_cur.head))
+    def tp_cur = otp_cur.get
     def tp_ctor = teePee(ir.gfd_ctor.thisPath)
     def tp_this = teePee(ir.p_this)    
     def tp_super = // tp_super always refers to the FIRST supertype

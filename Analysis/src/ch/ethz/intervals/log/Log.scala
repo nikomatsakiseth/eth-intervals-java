@@ -136,16 +136,19 @@ abstract class Log {
             
     def methodDecl(lbl: Any, md: ir.MethodDecl): Unit = ifEnabled {
         indented("%s%s", lbl, md) {
-            md.blocks.indices.foreach(b =>
-                    block("%s: ".format(b), md.blocks(b)))
-        }
-    }
-            
-    def block(lbl: Any, blk: ir.Block): Unit = ifEnabled {
-        indented("%s%s", lbl, blk) {
-            blk.stmts.foreach(apply)
-            blk.gotos.foreach(apply)
+            statement("", md.body)
         }
     }
     
+    def statement(lbl: Any, stmt: ir.Stmt): Unit = ifEnabled {
+        stmt match {
+            case ir.StmtCompound(kind, args) =>
+                indented("%s%s", lbl, stmt) {
+                    kind.substmts.foreach(statement("", _))
+                }
+            case _ => 
+                apply("%s%s", lbl, stmt)
+        }
+    }
+            
 }

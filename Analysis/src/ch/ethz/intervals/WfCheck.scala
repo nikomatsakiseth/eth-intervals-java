@@ -88,8 +88,14 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
     def checkCall(tp: ir.TeePee, msig: ir.MethodSig, tqs: List[ir.TeePee]) {
         checkLengths(msig.args, tqs, "intervals.wrong.number.method.arguments")        
     }
+    
+    def checkBranch(i: Int, stmts_stack: List[ir.StmtCompound], ps: List[ir.Path]) {
+        ps.foreach(checkPathWf(reified, _))
+        if(i >= stmts_stack.length)
+            throw new CheckFailure("intervals.invalid.stack.index", i, stmts_stack.length)
+    }
 
-    def checkStatement(stmt: ir.Stmt): Unit =
+    def checkStatement(stmts_stack: List[ir.StmtCompound])(stmt: ir.Stmt): Unit =
         at(stmt, ()) {
             stmt match {                  
                 case ir.StmtSuperCtor(m, qs) =>
@@ -173,17 +179,44 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                     checkPathWfAndSubclass(reified, p, ir.c_interval)
                     checkPathWfAndSubclass(reified, q, ir.c_lock)
                     
-                case ir.StmtSubintervalPush(x, addCheckedArglocks) =>
-                    checkPathsWfAndSubclass(reified, addCheckedArglocks, ir.c_lock)                    
-                    addLvDecl(x, ir.t_interval, None)                    
+                case ir.StmtBreak(i, ps) =>
+                    checkBranch(i, stmts_stack, ps)
+                    val stmt_compound = stmts_stack(i)
+                    checkLengths(stmt_compound.defines, ps, "intervals.incorrect.number.of.branch.args")
+
+                case ir.StmtCondBreak(i, ps) =>
+                    checkBranch(i, stmts_stack, ps)
+                    val stmt_compound = stmts_stack(i)
+                    checkLengths(stmt_compound.defines, ps, "intervals.incorrect.number.of.branch.args")
                     
-                case ir.StmtSubintervalPop(x) =>
-                    checkPathWfAndSubclass(reified, x.path, ir.c_interval)
+                case ir.StmtContinue(i, ps) =>
+                    checkBranch(i, stmts_stack, ps)
+                    val stmt_compound = stmts_stack(i)
+                    stmt_compound.kind match {
+                        case ir.Loop(args, _, _) =>
+                            checkLengths(args, ps, "intervals.incorrect.number.of.branch.args")
+                            
+                        case kind =>
+                            throw new CheckFailure("intervals.continue.to.nonloop", kind)
+                    }
+
+                case stmt_c: ir.StmtCompound =>
+                    stmt_c.kind match {
+                        case ir.Seq(_) =>
+                        case ir.Switch(_) =>
+                        case ir.Loop(_, ps_initial, _) =>
+                            ps_initial.foreach(checkPathWf(reified, _))
+                        case ir.Subinterval(x, ps_locks, _) =>
+                            ps_locks.foreach(checkPathWf(reified, _))
+                            addLvDecl(x, ir.t_interval, None)                            
+                        case ir.TryCatch(_, _) =>
+                    }
+                    
+                    stmt_c.kind.substmts.foreach(checkStatement(stmt_c :: stmts_stack))
+                
+                    stmt_c.defines.foreach(addArg)
             }        
         }
-    
-    def checkStatements(stmts: List[ir.Stmt]): Unit =
-        stmts.foreach(checkStatement)
     
     def addCheckedArg(arg: ir.LvDecl) {
         checkWfWt(arg.wt) 
@@ -208,23 +241,6 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
             }   
         }
     
-    def checkGoto(blks: Array[ir.Block], succ: ir.Goto) =
-        at(succ, ()) {
-            if(succ.b < 0 || succ.b >= blks.length)
-                throw new CheckFailure("intervals.invalid.blk.id", succ.b)
-            checkLengths(blks(succ.b).args, succ.ps, "intervals.succ.args")
-            checkPathsWf(reified, succ.ps)        
-        }
-    
-    def checkBlock(blks: Array[ir.Block], b: Int) =
-        log.indented("%s: %s", b, blks(b)) {
-            savingEnv {
-                blks(b).args.foreach(addCheckedArg)                
-                checkStatements(blks(b).stmts)
-                blks(b).gotos.foreach(checkGoto(blks, _))
-            }
-        }
-        
     def checkNoninterfaceMethodDecl(
         cd: ir.ClassDecl,          // class in which the method is declared
         md: ir.MethodDecl          // method to check
@@ -245,8 +261,8 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                 withCurrent(ir.p_mthd) {
                     md.args.foreach(addCheckedArg)
                     checkWfWt(md.wt_ret)                
-                    md.reqs.foreach(checkReq)      
-                    md.blocks.indices.foreach(checkBlock(md.blocks, _))                    
+                    md.reqs.foreach(checkReq)
+                    checkStatement(List())(md.body)
                 }
             }         
         }
@@ -269,7 +285,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                     // and reify it, and thus permit control-flow.  We then have to propagate
                     // p_this between blocks though (yuck).
             
-                    md.blocks.indices.foreach(checkBlock(md.blocks, _))
+                    checkStatement(List())(md.body)
                 }
             }          
         }
@@ -331,9 +347,8 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
     
     def checkInterfaceConstructorDecl(cd: ir.ClassDecl, md: ir.MethodDecl) =
         at(md, ()) {
-            if(!md.blocks.deepEquals(ir.md_ctor_interface.blocks))
+            if(md != ir.md_ctor_interface)
                 throw new CheckFailure("intervals.invalid.ctor.in.interface")
-            // TODO Check other parts of constructor signature. (Very low priority)
         }
     
     def checkInterfaceMethodDecl(cd: ir.ClassDecl, md: ir.MethodDecl) =
