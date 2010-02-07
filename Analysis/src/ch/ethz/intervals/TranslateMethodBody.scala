@@ -42,8 +42,6 @@ object TranslateMethodBody
     ): ir.StmtSeq = logStack.log.indentedRes("translateMethodBody(%s)", mtree) {
         import logStack.log
         import ttf.TreePosition
-        import ttf.DummyPositional
-        import ttf.DummyPosition
         import ttf.getAnnotatedType
         import ttf.f
         import ttf.wke
@@ -71,9 +69,6 @@ object TranslateMethodBody
 
         def chkTref(wt: ir.WcTypeRef): ir.TypeRef =
             ir.TypeRef(wt.c, wt.wghosts.map(chkGhost), wt.as)
-
-        def at[R](treePos: Tree, tag: String, defFunc: => R)(func: => R) =
-            logStack.at(new DummyPositional(TreePosition(treePos), tag), defFunc)(func)
 
         // ___ Symbols and Versions _____________________________________________
 
@@ -115,16 +110,44 @@ object TranslateMethodBody
         sealed case class ExprVersion(sym: Symbol, p: ir.Path) extends Version {
             val isLocal = true
         }
+        
+        def replacePairs(pairs: List[(String,String)])(s0: String) = {
+            pairs.foldLeft(s0) { case (s, pair) =>
+                s.replace(pair._1, pair._2)
+            }
+        }
 
-        type SymbolTable = Map[String, Version]
+        class SymbolTable(m: Map[String, Version]) {
+            def +(pair: (String, Version)) = new SymbolTable(m + pair)
+            def ++(pairs: List[(String, Version)]) = new SymbolTable(m ++ pairs)
+            def apply(s: String) = m(s)
+            def get(s: String) = m.get(s)
+            def toList = m.toList
+            def foldLeft[B](z: B)(op: ((B, (String, Version)) => B)) = m.foldLeft(z)(op)
+
+            lazy val replaceFunc: (String => String) = {
+                val pairs = m.toList.map { case (nm, ver) => (ver.p.toString, nm) }
+                replacePairs(pairs)
+            }
+        }
+        
         def SymbolTable(names: List[String], vers: List[Version]): SymbolTable =
-            Map(names.zip(vers): _*)
+            new SymbolTable(Map(names.zip(vers): _*))
 
         def createSymbol(env: ttf.TranslateEnv)(vtree: VariableTree): Symbol = {
             val elem = TU.elementFromDeclaration(vtree)
             val annty = ttf.getAnnotatedType(elem)
             val wtref = ttf.wtref(env)(annty)
             new Symbol(nm(elem), annty, wtref)
+        }
+
+        // ___ Error placement and printing _____________________________________
+        
+        def at[R](treePos: Tree, symtab: SymbolTable, tag: String, defFunc: => R)(func: => R) = {
+            logStack.at(
+                new DummyPositional(TreePosition(treePos, symtab.replaceFunc), tag), 
+                defFunc
+            )(func)            
         }
 
         // ___ Method environment, parameters ___________________________________
@@ -237,7 +260,7 @@ object TranslateMethodBody
             private val stmtsBuffer = new ListBuffer[ir.Stmt]()            
             
             def addStmt(treePos: Tree, stmt: ir.Stmt) {
-                stmtsBuffer += stmt.withPos(TreePosition(treePos))                
+                stmtsBuffer += stmt.withPos(TreePosition(treePos, symtab.replaceFunc))
             }
             
             def toStmtSeq = ir.StmtSeq(stmtsBuffer.toList)
@@ -299,7 +322,11 @@ object TranslateMethodBody
                 val m_lvs = symtab.foldLeft(env_mthd.m_lvs) { case (m, (name, ver)) =>
                     m + Pair(name, (ver.p, ver.sym.annty))
                 }
-                new ttf.TranslateEnv(TreePosition(tree), m_lvs, env_mthd.m_defaultWghosts)
+                new ttf.TranslateEnv(
+                    TreePosition(tree, symtab.replaceFunc), 
+                    m_lvs, 
+                    env_mthd.m_defaultWghosts
+                )
             }
                         
             def wtref(etree: ExpressionTree) = {
@@ -354,9 +381,10 @@ object TranslateMethodBody
                 }
 
             def assign(
-                etree_lval: ExpressionTree,
-                oetree_rval: Option[ExpressionTree]
-            ): ir.Path = at(etree_lval, "assign", nullStmt(etree_lval)) {
+                tree: Tree, // location that caused the assignment
+                etree_lval: ExpressionTree, // LHS
+                oetree_rval: Option[ExpressionTree] // optional RHS (if None, treat as null)
+            ): ir.Path = at(etree_lval, symtab, "assign", nullStmt(etree_lval)) {
                 // [1] I think that the correct result from an assignment is one
                 // with the value of RHS and type of LHS.  However, I simply return
                 // the value of the RHS, which means the type may be a subtype of the
@@ -378,6 +406,7 @@ object TranslateMethodBody
                             case EK.PARAMETER | EK.LOCAL_VARIABLE => // x = q (where x is a new version)
                                 val sym = symtab(nm(elem)).sym
                                 val ver = sym.nextExprVersion(q)
+                                addStmt(tree, ir.StmtCheckType(q, sym.wtref))
                                 symtab += Pair(nm(elem), ver)
                                 ver.p
 
@@ -469,7 +498,7 @@ object TranslateMethodBody
                 
             def rvalue(
                 etree: ExpressionTree
-            ): ir.Path = at(etree, "rvalue", nullStmt(etree)) {
+            ): ir.Path = at(etree, symtab, "rvalue", nullStmt(etree)) {
                 etree match {
                     case tree: ArrayAccessTree => // p[q]                
                         val p = rvalue(tree.getExpression)
@@ -477,7 +506,7 @@ object TranslateMethodBody
                         call(tree, p, ir.m_arrayGet, q)
 
                     case tree: AssignmentTree => // lvalue = q
-                        assign(tree.getVariable, Some(tree.getExpression))
+                        assign(tree, tree.getVariable, Some(tree.getExpression))
 
                     case tree: BinaryTree => // p + q (or some other operator)
                         toString(tree.getLeftOperand)
@@ -487,7 +516,7 @@ object TranslateMethodBody
                     case tree: CompoundAssignmentTree => // p += q
                         toString(tree.getVariable)
                         toString(tree.getExpression)
-                        assign(tree.getVariable, None)
+                        assign(tree, tree.getVariable, None)
 
                     case tree: ConditionalExpressionTree => // p = (cond ? q : r)
                         rvalue(tree.getCondition) // we don't really need to use the condition
@@ -555,7 +584,7 @@ object TranslateMethodBody
                         tree.getKind match {
                             // p++, p-- are effectively writes:
                             case TRK.POSTFIX_DECREMENT | TRK.POSTFIX_INCREMENT | TRK.PREFIX_DECREMENT | TRK.PREFIX_INCREMENT =>
-                                assign(tree.getExpression, None)
+                                assign(tree, tree.getExpression, None)
                             case _ => 
                                 nullStmt(tree)
                         }
@@ -570,7 +599,7 @@ object TranslateMethodBody
             def stmt(
                 label_tree: Option[Name],
                 tree: StatementTree
-            ): Unit = at(tree, "stmt", ()) { 
+            ): Unit = at(tree, symtab, "stmt", ()) { 
                 tree match {
                     case tree: AssertTree =>
                         rvalue(tree.getCondition)

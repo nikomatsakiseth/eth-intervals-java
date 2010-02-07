@@ -159,7 +159,7 @@ class TestPlugin extends JUnitSuite {
                                     expError.toTxmtUrl,
                                     "Skipped Error: %s", expError)
                             }
-                            expErrorsRemaining = expErrorsRemaining.drop(i)
+                            expErrorsRemaining = expErrorsRemaining.drop(i+1)
                             matchedErrors += 1
                             log.linkTo(
                                 actError.toTxmtUrl,

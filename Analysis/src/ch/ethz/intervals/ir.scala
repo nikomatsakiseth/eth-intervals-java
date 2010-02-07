@@ -250,6 +250,9 @@ object ir {
     sealed case class StmtSuperCall(x: VarName, m: MethodName, qs: List[Path]) extends Stmt {
         override def toString = "%s = super->%s(%s)".format(x.toIdent, m, qs)
     }
+    sealed case class StmtCheckType(p: ir.Path, wt: ir.WcTypeRef) extends Stmt {
+        override def toString = "%s <: %s".format(p, wt)
+    }
     sealed case class StmtCall(x: VarName, p: Path, m: MethodName, qs: List[Path]) extends Stmt {
         override def toString = "%s = %s->%s(%s)".format(x.toIdent, p, m, qs)        
     }
@@ -328,7 +331,7 @@ object ir {
         override def setDefaultPosOnChildren() {
             kind.subseqs.foreach(_.setDefaultPos(pos))
         }
-        override def toString = "%s => (%s)".format(kind, ", ".join(defines))
+        override def toString = "%s => (...)".format(kind, ", ".join(defines))
     }
     sealed abstract class CompoundKind {
         def subseqs: List[StmtSeq]
@@ -342,9 +345,7 @@ object ir {
         def subseqs = seqs
     }
     sealed case class Loop(args: List[LvDecl], ps_initial: List[ir.Path], seq: StmtSeq) extends CompoundKind {
-        override def toString = "Loop(%s)".format(
-            ", ".join(args.zip(ps_initial).map { case (lv, p) =>
-                "%s = %s".format(lv, p) }))
+        override def toString = "Loop"
         def subseqs = List(seq)
     }
     sealed case class Subinterval(x: VarName, ps_locks: List[Path], seq: StmtSeq) extends CompoundKind {
@@ -365,7 +366,7 @@ object ir {
     }
     
     sealed case class WcGhost(f: FieldName, wp: ir.WcPath) {
-        override def toString = "<%s: %s>".format(f.toIdent, wp)
+        override def toString = "@%s(%s)".format(f.name, wp)
     } 
     sealed case class Ghost(
         override val f: FieldName,
@@ -377,7 +378,7 @@ object ir {
         wghosts: List[WcGhost],
         as: Attrs
     ) {
-        override def toString = "%s%s%s".format(c, wghosts.mkString(""), as.postWords)
+        override def toString = "%s%s%s".format("".join("", wghosts, " "), c, as.postWords)
         def withAttrs(as: Attrs) = ir.WcTypeRef(c, wghosts, as)
         def owghost(f: FieldName) = wghosts.find(_.f == f).map(_.wp)
         def dependentPaths =

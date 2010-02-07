@@ -29,7 +29,7 @@ class TranslateContext(
     def addClassImplementation(tree: ClassTree) = 
         indexLog.indented("TranslateContext.addClassImplementation(tree)", tree) {
             val cd = ttf.implClassDecl(tree)
-            cd.setDefaultPos(ttf.TreePosition(tree))
+            cd.setDefaultPos(ttf.TreePosition(tree, (s => s)))
             cds += cd
             log.classDecl("Result: ", cd)
         }

@@ -180,9 +180,16 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
     ): ir.TcEnv = {
         // ----------------------------------------------------------------------
         // Check that tps have the correct types.
-        decls.zip(tps).foreach { case (ir.LvDecl(x, wt), tp) =>
-            checkIsSubtype(tp, wt)
-        }
+        
+        // XXX For now, we don't check these.  These are used
+        //     to carry SSA assignments forward, so any errors
+        //     here SHOULD already have been reported anyhow.
+        //     If re-enabling this check, uncomment the test blockBranchCheckTypes()
+        //     in TestAnalysis.scala.
+        //
+        //decls.zip(tps).foreach { case (ir.LvDecl(x, wt), tp) =>
+        //    checkIsSubtype(tp, wt)
+        //}
         
         // ----------------------------------------------------------------------
         // Create a substitution which maps:
@@ -279,6 +286,16 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
         }
     }
     
+    def computeAndLogLoopArguments(args: List[ir.LvDecl], ps_initial: List[ir.Path]) = {
+        log.indented("Loop Arguments:") {
+            args.zip(ps_initial).map { case (arg, p) =>
+                log.indented("%s = %s", arg, p) {
+                    teePee(ir.noAttrs, p)
+                }                
+            }
+        }        
+    }
+    
     def checkHeadCompoundStatement() {
         val ss = ss_cur.head
         val stmt_compound = ss.stmt
@@ -312,7 +329,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                     if(env_continue_before != env_continue_after)
                         iterate(env_continue_after)
                 }
-                val tps_initial = teePee(ir.noAttrs, ps_initial)
+                val tps_initial = computeAndLogLoopArguments(args, ps_initial)
                 mergeContinueEnv(0, tps_initial)
                 iterate(ss.oenv_continue.get)
                 
@@ -335,12 +352,20 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                 // Catch conservatively assumes try failed immediately:
                 savingEnv { checkStatementSeq(seq_catch) }
         }
+        
+        log.ifEnabled {
+            log.indented("Defines:") {
+                stmt_compound.defines.foreach(log(_))
+            }            
+        }
 
         ss.oenv_break match {
             case None => // control flow never really comes this way...
                 setEnv(ss.env_in) // ...use safe approx.
+                log("oenv_break unset, used env_in")
             case Some(env_break) => 
                 setEnv(env_break)
+                log.env("oenv_break: ", env_break)
         }
     }
     
@@ -404,6 +429,10 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                         removeInvalidated(p_f)
                         linkedPaths(tp_o, f).foreach(addInvalidated)                            
                 }
+                
+            case ir.StmtCheckType(p, wt) =>
+                val tp = teePee(ir.noAttrs, p)
+                checkIsSubtype(tp, wt)
                     
             case ir.StmtCall(x, p, m, qs) =>
                 val tp = teePee(ir.noAttrs, p)

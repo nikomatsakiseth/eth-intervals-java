@@ -65,7 +65,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
             throw new CheckFailure(msg, l1.length, l2.length)
     }
     
-    def checkWfWt(wt: ir.WcTypeRef) {
+    def checkWtrefWf(wt: ir.WcTypeRef) {
         wt.wghosts.foldLeft(List[ir.FieldName]()) {
             case (l, wg) if l.contains(wg.f) => throw new CheckFailure("intervals.duplicate.ghost", wg.f)
             case (l, wg) => wg.f :: l
@@ -125,6 +125,10 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                         case ir.ReifiedFieldDecl(_, _, _, _) =>
                     }
 
+                case ir.StmtCheckType(p, wt) =>
+                    checkPathWf(reified, p)
+                    checkWtrefWf(wt)
+
                 case ir.StmtCall(x, p, m, qs) =>
                     val tp = teePee(reified, p)
                     val tqs = teePee(reified, qs)
@@ -142,7 +146,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                 case ir.StmtNew(x, t, m, qs) =>
                     if(classDecl(t.c).attrs.interface)
                         throw new CheckFailure("intervals.new.interface", t.c)
-                    checkWfWt(t)
+                    checkWtrefWf(t)
                     checkPathsWf(ghostOk, t.ghosts.map(_.p))
                     val tqs = teePee(reified, qs)
                     
@@ -161,11 +165,11 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                     
                 case ir.StmtCast(x, wt, p) => 
                     checkPathWf(reified, p)
-                    checkWfWt(wt)
+                    checkWtrefWf(wt)
                     addLvDecl(x, wt, None)
                     
                 case ir.StmtNull(x, wt) => 
-                    checkWfWt(wt)
+                    checkWtrefWf(wt)
                     addLvDecl(x, wt, None)
                     
                 case ir.StmtReturn(op) =>
@@ -231,7 +235,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
     }
     
     def addCheckedArg(arg: ir.LvDecl) {
-        checkWfWt(arg.wt) 
+        checkWtrefWf(arg.wt) 
         addArg(arg)
     }
     
@@ -272,7 +276,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
 
                 withCurrent(ir.p_mthd) {
                     md.args.foreach(addCheckedArg)
-                    checkWfWt(md.wt_ret)                
+                    checkWtrefWf(md.wt_ret)                
                     md.reqs.foreach(checkReq)
                     checkStatementSeq(List())(md.body)
                 }
@@ -288,7 +292,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
 
                 withCurrent(ir.p_mthd) {
                     md.args.foreach { case arg => 
-                        checkWfWt(arg.wt) 
+                        checkWtrefWf(arg.wt) 
                         addPerm(arg.name, ir.TeePee(arg.wt, arg.name.path, ir.noAttrs))
                     }            
                     md.reqs.foreach(checkReq)
@@ -313,7 +317,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
             savingEnv {
                 addThis(cd, ir.ctorAttrs)
                 
-                checkWfWt(fd.wt)
+                checkWtrefWf(fd.wt)
                 checkPathWf(ghostOk, fd.p_guard)
             }
         }
@@ -329,7 +333,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                         throw new CheckFailure("intervals.shadowed.ghost", c, gfd.name)
                 }
                 
-                checkWfWt(gfd.wt)
+                checkWtrefWf(gfd.wt)
             }
         }
         

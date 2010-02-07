@@ -43,30 +43,21 @@ class TranslateTypeFactory(
     
     // ___ Positions ________________________________________________________
     
-    abstract class DummyPosition extends Position {
-        def column = System.identityHashCode(reportObject) // just return something unique-ish
-        def line = 1
-        def lineContents = "dummy"        
-        
-        def reportObject: Object
-    }
-    
-    class DummyPositional(pos: DummyPosition, tag: String) extends Positional {
-        setPos(pos)
-        override def toString = "%s(%s)".format(tag, pos)
-    }
-    
     case object NullPosition extends DummyPosition {
         def reportObject = null
+        def rewrite(s: String) = s
+        override def toString = "NullPosition(%s)"
     }
     
-    case class TreePosition(tree: Tree) extends DummyPosition {
+    case class TreePosition(tree: Tree, rewriteFunc: (String => String)) extends DummyPosition {
         def reportObject = tree
+        def rewrite(s: String) = rewriteFunc(s)
         override def toString = "TreePosition(%s)".format(tree)
     }
     
     case class ElementPosition(elem: Element) extends DummyPosition {
         def reportObject = elem
+        def rewrite(s: String) = s
         override def toString = "ElementPosition(%s)".format(qualName(elem))
     }
     
@@ -773,7 +764,7 @@ class TranslateTypeFactory(
             val eelem = TU.elementFromDeclaration(mtree)
             if(eelem.getKind == ek) {
                 indexLog.indented("Method Impl: %s()", qualName(eelem)) {
-                    at(TreePosition(mtree), dummyMethodDecl(eelem) :: mdecls) {
+                    at(ElementPosition(eelem), dummyMethodDecl(eelem) :: mdecls) {
                         val intMdecl = intMethodDecl(eelem)
                         val blocks = TranslateMethodBody(logStack, this, mtree)
 
@@ -784,7 +775,7 @@ class TranslateTypeFactory(
                             intMdecl.args,
                             intMdecl.reqs,
                             blocks
-                        ).withPos(TreePosition(mtree)) :: mdecls
+                        ).withPos(TreePosition(mtree, (s => s))) :: mdecls
                     }
                 }                
             } else
@@ -795,7 +786,7 @@ class TranslateTypeFactory(
     def implClassDecl(ctree: ClassTree): ir.ClassDecl = {
         val telem = TU.elementFromDeclaration(ctree)
         indexLog.indented("Class Impl %s", qualName(telem)) {
-            at(TreePosition(ctree), dummyClassDecl(telem)) {
+            at(ElementPosition(telem), dummyClassDecl(telem)) {
                 // Fields are the same for the interface and the implementation:
                 val intCdecl = intClassDecl((_ => true), telem)
                 val enclElems = telem.getEnclosedElements
@@ -812,7 +803,7 @@ class TranslateTypeFactory(
                     ctorDecls,
                     intCdecl.fields,
                     methodDecls
-                ).withPos(TreePosition(ctree))
+                ).withPos(TreePosition(ctree, (s => s)))
             }
         }        
     }

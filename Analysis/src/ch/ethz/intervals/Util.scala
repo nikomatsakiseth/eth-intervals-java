@@ -30,6 +30,22 @@ object Util {
     def withPos[P <: Positional](p: Position, instance: P) = 
         instance.withPos(p)
 
+    // Used to attach Javac trees and elements as positions:
+    abstract class DummyPosition extends Position {
+        def column = System.identityHashCode(reportObject) // just return something unique-ish
+        def line = 1
+        def lineContents = "dummy"        
+        
+        def rewrite(s: String): String
+        
+        def reportObject: Object
+    }
+    
+    class DummyPositional(pos: DummyPosition, tag: String) extends Positional {
+        setPos(pos)
+        override def toString = "%s(%s)".format(tag, pos)
+    }
+    
     // ____________________________________________________________
     // Extensions to String
     

@@ -81,6 +81,15 @@ ______ Translator Features ___________________________________________
 
 ______ Things to Think About _________________________________________
 
+- Remove SSA?  Or somehow fix branch/continue type checking?
+
+  Right now we don't type check the phi node assignments in SSA.  This is
+  because we do copy propagation in TranslateMethodBody, so that when there 
+  is a bad assignment x = y where y is the wrong type, this gets reported 
+  at every Phi node, which is a bit much.  To fix this however would require adding
+  Copy statements to the IR --- and if we do that, I have a feeling it would be
+  better to get rid of SSA altogether.
+
 - Replace constructors with static methods, moving constructors into translator
 
 - hb relations to arbitrary Guards

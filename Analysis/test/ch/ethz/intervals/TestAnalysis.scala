@@ -23,7 +23,7 @@ class TestAnalysis extends JUnitSuite {
     // These substitutions are performed.  They are not needed in program
     // text, but are useful in the expected error messages:
     def substs = List(
-        ("#creator", "`%s`".format(ir.f_creator.name)),
+        ("#creator", ir.f_creator.name),
         ("#Object", ir.c_object.name),
         ("#Interval", ir.c_interval.name),
         ("#Guard", ir.c_guard.name),
@@ -181,7 +181,7 @@ class TestAnalysis extends JUnitSuite {
                 void setBothWrongOrder(Interval inter, Object<creator: inter> obj) 
                 requires method subinterval this.creator
                 {
-                    this->obj = obj; // ERROR intervals.expected.subtype(obj, #Object<#creator: inter>, #Object<#creator: this.inter>)
+                    this->obj = obj; // ERROR intervals.expected.subtype(obj, @#creator(inter) #Object, @#creator(this.inter) #Object)
                     this->inter = inter;
                     return; // ERROR intervals.must.assign.first(this.obj)
                 }
@@ -966,13 +966,13 @@ class TestAnalysis extends JUnitSuite {
                 void invokeThroughInterface() {
                     foo2 = this->foo2;
                     ifoo2 = (IFoo<creator: this.creator>)foo2;
-                    ifoo2->m1(); // ERROR intervals.requirement.not.met(requires this.#creator readable by method)
+                    ifoo2->m1(); // ERROR intervals.requirement.not.met(requires this.`#creator` readable by method)
                     return;
                 }
                 
                 void invokeThroughFoo1() {
                     foo1 = this->foo1;
-                    foo1->m1(); // ERROR intervals.requirement.not.met(requires this.#creator readable by method)
+                    foo1->m1(); // ERROR intervals.requirement.not.met(requires this.`#creator` readable by method)
                     return;
                 }
                 
@@ -1074,7 +1074,7 @@ class TestAnalysis extends JUnitSuite {
                 // It's not permitted for data2 depend on this.data1.i because
                 // it is not declared in the same class and it is not constant 
                 // during this.creator (data2's guard).
-                Data2<creator: this.data1.i> data2; // ERROR intervals.illegal.type.dep(this.data1.i, this.#creator)
+                Data2<creator: this.data1.i> data2; // ERROR intervals.illegal.type.dep(this.data1.i, this.`#creator`)
             }
                         
             class Indirect2 extends Object {
@@ -1082,7 +1082,7 @@ class TestAnalysis extends JUnitSuite {
                 // ctor, because we don't know that data2 is only modified after ctor completes!
                 // See TODO for more thoughts.
                 Data1<creator: this.constructor> data1 requires this.constructor;
-                Data2<creator: this.data1.i> data2; // ERROR intervals.illegal.type.dep(this.data1.i, this.#creator)
+                Data2<creator: this.data1.i> data2; // ERROR intervals.illegal.type.dep(this.data1.i, this.`#creator`)
             }
             
             class Indirect3 extends Interval {
@@ -1203,9 +1203,9 @@ class TestAnalysis extends JUnitSuite {
                 requires this.creator writableBy method
                 {
                     obj = new C2<creator: this.d><l1: this.b><l2: this.c>();
-                    this->creatorA = obj; // ERROR intervals.expected.subtype(obj, C2<#creator: this.d><l1: this.b><l2: this.c>, #Object<#creator: this.a>)
+                    this->creatorA = obj; // ERROR intervals.expected.subtype(obj, @#creator(this.d) @l1(this.b) @l2(this.c) C2, @#creator(this.a) #Object)
                     this->l1B = obj; 
-                    this->creatorAl1B = obj; // ERROR intervals.expected.subtype(obj, C2<#creator: this.d><l1: this.b><l2: this.c>, C1<#creator: this.a><l1: this.b>)
+                    this->creatorAl1B = obj; // ERROR intervals.expected.subtype(obj, @#creator(this.d) @l1(this.b) @l2(this.c) C2, @#creator(this.a) @l1(this.b) C1)
                 } 
                 
                 void l1Wrong() 
@@ -1213,8 +1213,8 @@ class TestAnalysis extends JUnitSuite {
                 {
                     obj = new C2<creator: this.a><l1: this.c><l2: this.b>();
                     this->creatorA = obj;
-                    this->l1B = obj; // ERROR intervals.expected.subtype(obj, C2<#creator: this.a><l1: this.c><l2: this.b>, C1<l1: this.b>)
-                    this->creatorAl1B = obj; // ERROR intervals.expected.subtype(obj, C2<#creator: this.a><l1: this.c><l2: this.b>, C1<#creator: this.a><l1: this.b>)
+                    this->l1B = obj; // ERROR intervals.expected.subtype(obj, @#creator(this.a) @l1(this.c) @l2(this.b) C2, @l1(this.b) C1)
+                    this->creatorAl1B = obj; // ERROR intervals.expected.subtype(obj, @#creator(this.a) @l1(this.c) @l2(this.b) C2, @#creator(this.a) @l1(this.b) C1)
                 }                                         
             }            
             """
@@ -1335,40 +1335,43 @@ class TestAnalysis extends JUnitSuite {
         )
     }
     
-    @Test
-    def blockBranchCheckTypes() {
-        tc(
-            """
-            class Class extends Object {
-                // ----------------------------------------------------------------------
-                Object<creator: this.creator> ok(Object<creator: this.creator> a)                                 
-                {
-                    switch {
-                        {
-                            b1 = (Object<creator: this.creator>)null;
-                            break 0(b1);
-                        }
-                        {
-                            break 0(a);
-                        }
-                    } => (Object<creator: this.creator> b3);
-                    return b3;
-                }
-
-                // ----------------------------------------------------------------------
-                Object<creator: this.creator> badTypes()
-                {
-                    switch {
-                        {
-                            b1 = (Object<creator: this>)null;
-                            break 0(b1); // ERROR intervals.expected.subtype(b1, #Object<#creator: this>, #Object<#creator: this.#creator>)                            
-                        }
-                    } => (Object<creator: this.creator> b3);
-                }                
-            }
-            """
-        )
-    }
+    // XXX Turned off the checking of branch arguments because
+    //     they lead to duplicate errors being reported (one from
+    //     the original assignment, then later from SSA).
+    //@Test
+    //def blockBranchCheckTypes() {
+    //    tc(
+    //        """
+    //        class Class extends Object {
+    //            // ----------------------------------------------------------------------
+    //            Object<creator: this.creator> ok(Object<creator: this.creator> a)                                 
+    //            {
+    //                switch {
+    //                    {
+    //                        b1 = (Object<creator: this.creator>)null;
+    //                        break 0(b1);
+    //                    }
+    //                    {
+    //                        break 0(a);
+    //                    }
+    //                } => (Object<creator: this.creator> b3);
+    //                return b3;
+    //            }
+    //
+    //            // ----------------------------------------------------------------------
+    //            Object<creator: this.creator> badTypes()
+    //            {
+    //                switch {
+    //                    {
+    //                        b1 = (Object<creator: this>)null;
+    //                        break 0(b1); // ERROR intervals.expected.subtype(b1, @#creator(this) #Object, @#creator(this.`#creator`) #Object)
+    //                    }
+    //                } => (Object<creator: this.creator> b3);
+    //            }                
+    //        }
+    //        """
+    //    )
+    //}
     
     @Test
     def shadowGhostsInSuperType() {

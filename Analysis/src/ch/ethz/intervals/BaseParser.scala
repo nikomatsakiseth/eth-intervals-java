@@ -33,7 +33,7 @@ abstract class BaseParser extends StandardTokenParsers {
     lexical.delimiters += (
         "{", "}", "[", "]", "(", ")", "<", ">",
         ",", "@", "?", ":", ".", ";", "=", "->", 
-        "#", "<=", "&&", "==", "=>"
+        "#", "<=", "&&", "==", "=>", "<:"
     )
     lexical.reserved += (
         "hb", "subintervalOf", "readableBy", "writableBy", "locks"

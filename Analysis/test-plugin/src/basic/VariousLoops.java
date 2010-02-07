@@ -67,14 +67,14 @@ public class VariousLoops {
     	int j, 
     	@Creator("x") Object xObject
     ) {
-	    @Creator("hb y") Object hbYObject;
+	    @Creator("readableBy y") Object readableByYObject;
 
         // Here the loop is not statically known to
         // execute at least one iteration:
         for (int i = j; i < 1; i++) {
 	        Intervals.addHb(x, y);            
         }
-	    hbYObject = xObject; // ERROR Variable "" has type "java.lang.Object<`ch.ethz.intervals.quals.Creator`: hb this.y>" which is not a subtype of "java.lang.Object<`ch.ethz.intervals.quals.Creator`: hb this.y>".
+	    readableByYObject = xObject; // ERROR Variable "xObject" has type "@ch.ethz.intervals.quals.Creator(this.x) java.lang.Object" which is not a subtype of "@ch.ethz.intervals.quals.Creator(readableBy this.y) java.lang.Object".
 	    
 	    // Also here:
 	    int i = j;
@@ -82,14 +82,14 @@ public class VariousLoops {
 	        Intervals.addHb(x, y);
 	        i++;
 	    }
-	    hbYObject = xObject; // ERROR Variable "" has type "java.lang.Object<`ch.ethz.intervals.quals.Creator`: hb this.y>" which is not a subtype of "java.lang.Object<`ch.ethz.intervals.quals.Creator`: hb this.y>".
+	    readableByYObject = xObject; // ERROR Variable "xObject" has type "@ch.ethz.intervals.quals.Creator(this.x) java.lang.Object" which is not a subtype of "@ch.ethz.intervals.quals.Creator(readableBy this.y) java.lang.Object".
 	    
 	    // But with do-while it's ok:
 	    do {
 	        Intervals.addHb(x, y);
 	        i++;
 	    } while(i < 1);	    
-	    hbYObject = xObject; 
+	    readableByYObject = xObject; 
 	}
 	
 }

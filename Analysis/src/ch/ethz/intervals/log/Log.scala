@@ -148,10 +148,31 @@ abstract class Log {
     
     def statement(lbl: Any, stmt: ir.Stmt): Unit = ifEnabled {
         stmt match {
-            case ir.StmtCompound(kind, args) =>
-                indented("%s%s", lbl, stmt) {
-                    kind.subseqs.foreach(statementSeq("", _))
+            case ir.StmtCompound(ir.Loop(args, ps_initial, seq), defines) =>
+                indented("%s%s", lbl, "Loop") {
+                    indented("Loop Arguments") {
+                        args.zip(ps_initial).foreach { case (lvd, p) =>
+                            apply("%s = %s", lvd, p)
+                        }
+                    }
+                    statementSeq("Body: ", seq)
+                    if(!defines.isEmpty) {
+                        indented("Defines") {
+                            defines.foreach(apply)
+                        }
+                    }
                 }
+                
+            case ir.StmtCompound(kind, defines) =>
+                indented("%s%s", lbl, kind) {
+                    kind.subseqs.foreach(statementSeq("", _))
+                    if(!defines.isEmpty) {
+                        indented("Defines") {
+                            defines.foreach(apply)
+                        }
+                    }
+                }
+                
             case _ => 
                 apply("%s%s", lbl, stmt)
         }
