@@ -178,18 +178,19 @@ class TestAnalysis extends JUnitSuite {
                     return;
                 }
                 
-                void setBothWrongOrder(Interval inter, Object<creator: inter> obj) // ERROR intervals.must.assign.first(this.obj)
+                void setBothWrongOrder(Interval inter, Object<creator: inter> obj) 
                 requires method subinterval this.creator
                 {
                     this->obj = obj; // ERROR intervals.expected.subtype(obj, #Object<#creator: inter>, #Object<#creator: this.inter>)
                     this->inter = inter;
+                    return; // ERROR intervals.must.assign.first(this.obj)
                 }
                 
-                void setOneNotOk(Interval inter) // ERROR intervals.must.assign.first(this.obj)
+                void setOneNotOk(Interval inter) 
                 requires method subinterval this.creator
                 {
                     this->inter = inter;
-                    return;
+                    return; // ERROR intervals.must.assign.first(this.obj)
                 }
                 
                 void anotherMethod()
@@ -202,7 +203,7 @@ class TestAnalysis extends JUnitSuite {
                 {
                     this->inter = inter;
                     this->anotherMethod(); // ERROR intervals.must.assign.first(this.obj)
-                    this->obj = obj; // ERROR intervals.expected.subtype(obj, #Object<#creator: inter>, #Object<#creator: this.inter>)
+                    this->obj = obj; 
                     return;
                 }
                 
@@ -220,7 +221,7 @@ class TestAnalysis extends JUnitSuite {
                 {
                     this->inter = inter;
                     obj2 = new Object<creator: inter>(); // ERROR intervals.must.assign.first(this.obj)
-                    this->obj = obj; // ERROR intervals.expected.subtype(obj, #Object<#creator: inter>, #Object<#creator: this.inter>)
+                    this->obj = obj; 
                     return;
                 }
                 
@@ -257,10 +258,10 @@ class TestAnalysis extends JUnitSuite {
                 // XXX whether we should be linked to such fields: I now
                 // XXX think that if the guard of a field is writable by
                 // XXX you, then the field itself is writable, and hence linked!
-                constructor(Lock lock) { // ERROR intervals.must.assign.first(this.data)
+                constructor(Lock lock) { 
                     super();
                     this->lock = lock; // n.b.: if lock/data WERE linked, would make data invalid
-                    return;
+                    return; // ERROR intervals.must.assign.first(this.data)
                 }
             }
             """
@@ -876,7 +877,7 @@ class TestAnalysis extends JUnitSuite {
                 {
                     subinterval x locks this.lock {
                         v = this->value;                         
-                        break 1(v); // 0 == seq, 1 == subinter
+                        break 0(v); // 0 == seq, 1 == subinter
                     } => (String v1);
                     return v1;
                 }
@@ -885,7 +886,7 @@ class TestAnalysis extends JUnitSuite {
                 {
                     subinterval x locks this.lock {
                         this->value = v;
-                        break 1();
+                        break 0();
                     }
                     return;
                 }
@@ -1316,35 +1317,54 @@ class TestAnalysis extends JUnitSuite {
     }
 
     @Test
+    def blockBranchCheckIndices() {
+        wf(
+            """
+            class Class extends Object {
+                void badIndex()
+                {
+                    switch {
+                        {
+                            break 1(); // ERROR intervals.invalid.stack.index(1, 1)
+                        }
+                    } => ();
+                    return;
+                }                
+            }
+            """
+        )
+    }
+    
+    @Test
     def blockBranchCheckTypes() {
         tc(
             """
             class Class extends Object {
-                // ______________________________________________________________________
+                // ----------------------------------------------------------------------
                 Object<creator: this.creator> ok(Object<creator: this.creator> a)                                 
                 {
                     switch {
                         {
                             b1 = (Object<creator: this.creator>)null;
-                            break 1(b1);
+                            break 0(b1);
                         }
                         {
-                            break 1(a);
+                            break 0(a);
                         }
                     } => (Object<creator: this.creator> b3);
                     return b3;
                 }
 
-                // ______________________________________________________________________
-                Object<creator: this.creator> bad()
+                // ----------------------------------------------------------------------
+                Object<creator: this.creator> badTypes()
                 {
                     switch {
                         {
                             b1 = (Object<creator: this>)null;
-                            break 1(b1); // ERROR intervals.expected.subtype(b1, #Object<#creator: this>, #Object<#creator: this.#creator>)                            
+                            break 0(b1); // ERROR intervals.expected.subtype(b1, #Object<#creator: this>, #Object<#creator: this.#creator>)                            
                         }
                     } => (Object<creator: this.creator> b3);
-                }
+                }                
             }
             """
         )

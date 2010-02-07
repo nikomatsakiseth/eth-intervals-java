@@ -322,9 +322,12 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                 val tp_x = teePee(x.path)
                 addSubintervalOf(tp_x, tp_cur)
                 tps_locks.foreach(addLocks(tp_x, _))
-                withCurrent(x.path) {
-                    checkStatementSeq(seq)
-                }
+                
+                // n.b.: We don't try to pop-- that's because if
+                // statement seq returns, the environment will be reset to ss.env_in.
+                // In any case we will reset environment below so it doens't matter.
+                pushCurrent(x.path)
+                checkStatementSeq(seq)
                 
             case ir.TryCatch(seq_try, seq_catch) =>
                 savingEnv { checkStatementSeq(seq_try) }
@@ -438,6 +441,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                 addLvDecl(x, wt, None)
                 
             case ir.StmtReturn(op) =>
+                checkNoInvalidated()
                 op.foreach { p =>
                     val tp = teePee(ir.noAttrs, p)
                     checkIsSubtype(tp, env.wt_ret)                    
