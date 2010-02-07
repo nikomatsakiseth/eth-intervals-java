@@ -541,6 +541,9 @@ object TranslateMethodBody
                         val qs = tree.getArguments.map(rvalue).toList
                         addStmt(tree, ir.StmtNew(lv, t, m, qs))
                         lv.path
+                        
+                    case tree: ParenthesizedTree =>
+                        rvalue(tree.getExpression)
 
                     case tree: UnaryTree => // !p, p++, p-- etc
                         assert(getAnnotatedType(tree).getKind.isPrimitive)

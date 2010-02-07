@@ -195,6 +195,11 @@ class TestPlugin extends JUnitSuite {
     }
     
     @Test 
+    def testVariousLoops() {
+        javac(unitTest, "testVariousLoops", "basic/VariousLoops.java")        
+    }
+    
+    @Test 
     def testBbpc() {
         javac(unitTest, "testBbpc", "bbpc/Producer.java")
     }
