@@ -265,7 +265,7 @@ object ir {
     sealed case class StmtNull(x: VarName, wt: WcTypeRef) extends Stmt {
         override def toString = "%s = (%s)null;".format(x.toIdent, wt)
     }
-    sealed case class StmtReturn(p: Path) extends Stmt {
+    sealed case class StmtReturn(p: Option[Path]) extends Stmt {
         override def toString = "return %s;".format(p)        
     }
     sealed case class StmtSetField(p: Path, f: FieldName, q: Path) extends Stmt {
@@ -319,36 +319,40 @@ object ir {
     // and their initial values.  These are loop variables whose value is 
     // set on every iteration to the arguments of the StmtContinue.
     
+    sealed case class StmtSeq(stmts: List[Stmt]) {
+        override def toString = "StmtSeq(length=%d)".format(stmts.length)
+    }
+    
     sealed case class StmtCompound(kind: CompoundKind, defines: List[LvDecl]) extends Stmt {
-        def setDefaultPosOnChildren() {
+        override def setDefaultPosOnChildren() {
             kind.substmts.foreach(_.setDefaultPos(pos))
         }
         override def toString = "%s => (%s)".format(kind, ", ".join(defines))
     }
     sealed abstract class CompoundKind {
-        def substmts: List[Stmt]
+        def subseqs: List[StmtSeq]
     }
-    sealed case class Seq(stmts: List[Stmt]) extends CompoundKind {
-        override def toString = "Seq"
-        def substmts = stmts
+    sealed case class Block(seq: StmtSeq) extends CompoundKind {
+        override def toString = "Block"
+        def subseqs = List(body)
     }
-    sealed case class Switch(stmts: List[Stmt]) extends CompoundKind {
+    sealed case class Switch(seqs: List[StmtSeq]) extends CompoundKind {
         override def toString = "Switch"
-        def substmts = stmts
+        def subseqs = seqs
     }
-    sealed case class Loop(args: List[LvDecl], ps_initial: List[ir.Path], stmt_body: Stmt) extends CompoundKind {
+    sealed case class Loop(args: List[LvDecl], ps_initial: List[ir.Path], seq: StmtSeq) extends CompoundKind {
         override def toString = "Loop(%s)".format(
             ", ".join(args.zip(ps_initial).map { case (lv, p) =>
                 "%s = %s".format(lv, p) }))
-        def substmts = List(stmt_body)
+        def subseqs = List(seq)
     }
-    sealed case class Subinterval(x: VarName, ps_locks: List[Path], stmt_body: Stmt) extends CompoundKind {
+    sealed case class Subinterval(x: VarName, ps_locks: List[Path], seq: Stmt) extends CompoundKind {
         override def toString = "Subinterval[%s]".format(x)
-        def substmts = List(stmt_body)
+        def subseqs = List(seq)
     }
-    sealed case class TryCatch(stmt_try: Stmt, stmt_catch: Stmt) extends CompoundKind {
+    sealed case class TryCatch(seq_try: Stmt, seq_catch: Stmt) extends CompoundKind {
         override def toString = "TryCatch"
-        def substmts = List(stmt_try, stmt_catch)
+        def subseqs = List(seq_try, seq_catch)
     }
     
     val stmt_empty = StmtCompound(Seq(List(StmtBreak(0, List()))), List())
@@ -616,7 +620,15 @@ object ir {
             /* name:   */ m_init, 
             /* args:   */ List(),
             /* reqs:   */ List(),
-            /* body:   */ ir.StmtSuperCtor(m_init, List())
+            /* body:   */ ir.StmtCompound(
+                Seq(
+                    List(
+                        ir.StmtSuperCtor(m_init, List()),
+                        ir.StmtReturn(None)
+                    )
+                ),
+                List()
+            )            
         )
     
     // Two "classes" used to represent the type void and scalar data.
@@ -774,6 +786,7 @@ object ir {
         def lineContents = "<built-in>"
         override def toString = "<built-in>"
     }
+    md_ctor_interface.setDefaultPos(builtinPosition)
     cds_special.foreach(_.setDefaultPos(builtinPosition))
     cds_unit_test.foreach(_.setDefaultPos(builtinPosition))
    

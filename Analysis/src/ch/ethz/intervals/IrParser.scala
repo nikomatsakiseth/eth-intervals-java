@@ -16,21 +16,19 @@ class IrParser extends BaseParser {
         "return", "Rd", "Wr", "Free", "extends", 
         "requires", "super", 
         "subinterval", "push", "pop", 
-        "interface", "goto",
+        "interface", "break", "continue", "cbreak",
         "switch", "loop", "try", "catch"
     )
 
-    def optd[A](p: Parser[A], d: => A) = 
+    def optd[A](p: Parser[A], d: => A) = (
         opt(p)                                  ^^ { case None => d
                                                      case Some(l) => l }
+    )
     
-    def optl2[A](k: String, p: Parser[List[A]]) = opt(
-        k~p                                     ^^ { case _~r => r }
-    ) ^^ { case None => List(); case Some(l) => l }
-
-    def optl3[A](a: String, p: Parser[List[A]], b: String) =
-        opt(a~p~b)                              ^^ { case Some(_~l~_) => l; case None => List() }
-    
+    def optl[A](p: Parser[List[A]]) = (
+        opt(p) ^^ { case None => List(); case Some(l) => l }
+    )
+                                                     
     def integer = numericLit                    ^^ { case s => s.toInt }
     
     // Not all attributes are suitable in all contexts, but as this is an
@@ -90,7 +88,7 @@ class IrParser extends BaseParser {
         anonLv
     )
     
-    def locks = optl2("locks", comma(p))
+    def locks = optl("locks"~>comma(p))
     def loopArg = lvdecl~"="~p                      ^^ { case lv~_~p => (lv, p) }
     def ckind: Parser[ir.CompoundKind] = (
         "{"~rep(stmt)~"}"                           ^^ { case _~ss~_ => ir.Seq(ss) }
@@ -100,8 +98,10 @@ class IrParser extends BaseParser {
     |   "try"~stmt~"catch"~stmt                     ^^ { case _~t~_~c => ir.TryCatch(t, c) }
     )
     
+    def stmt_defines = optl(("=>"~"(")~>comma(lvdecl)<~(")"~";"))
+    
     def stmt_compound: Parser[ir.StmtCompound] = positioned(
-        ckind~optl3("(",comma(lvdecl),")")          ^^ { case ckind~defs => ir.StmtCompound(ckind, defs) }
+        ckind~stmt_defines                          ^^ { case ckind~defs => ir.StmtCompound(ckind, defs) }
     )
     
     def stmt: Parser[ir.Stmt] = positioned(
@@ -116,8 +116,9 @@ class IrParser extends BaseParser {
     |   p~"hb"~p~";"                                ^^ { case p~_~q~_ => ir.StmtHb(p, q) }
     |   p~"locks"~p~";"                             ^^ { case p~_~q~_ => ir.StmtLocks(p, q) }
     |   "break"~integer~"("~comma(p)~")"~";"        ^^ { case _~i~"("~ps~")"~";" => ir.StmtBreak(i, ps) }
+    |   "cbreak"~integer~"("~comma(p)~")"~";"       ^^ { case _~i~"("~ps~")"~";" => ir.StmtCondBreak(i, ps) }
     |   "continue"~integer~"("~comma(p)~")"~";"     ^^ { case _~i~"("~ps~")"~";" => ir.StmtContinue(i, ps) }
-    |   "return"~p~";"                              ^^ { case _~p~_ => ir.StmtReturn(p) }
+    |   "return"~opt(p)~";"                         ^^ { case _~p~_ => ir.StmtReturn(p) }
     |   stmt_compound
     )
     
@@ -152,14 +153,19 @@ class IrParser extends BaseParser {
     |   attrs~wt~f~";"                          ^^ { case as~wt~f~_ => ir.ReifiedFieldDecl(as, wt, f, ir.p_this_creator) }
     )
     
+    def constructors = rep(constructor)         ^^ {
+        case List() => List(ir.md_ctor_interface)
+        case ctors => ctors
+    }
+    
     def classDecl = positioned(
         attrs~"class"~c~rep(ghostFieldDecl)~
-        optl2("extends", comma(c))~
+        optl("extends"~>comma(c))~
         rep(g)~
         reqs~
         "{"~
             rep(reifiedFieldDecl)~
-            rep(constructor)~
+            constructors~
             rep(methodDecl)~
         "}"
     ^^ {

@@ -168,8 +168,14 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                     checkWfWt(wt)
                     addLvDecl(x, wt, None)
                     
-                case ir.StmtReturn(p) =>
-                    teePee(reified, p)
+                case ir.StmtReturn(op) =>
+                    op match {
+                        case Some(p) =>
+                            teePee(reified, p)
+                        
+                        case None =>
+                            checkIsSubclass(env.wt_ret, ir.c_void)
+                    }
                     
                 case ir.StmtHb(p, q) =>                
                     checkPathWfAndSubclass(reified, p, ir.c_point, ir.c_interval)
@@ -347,8 +353,10 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
     
     def checkInterfaceConstructorDecl(cd: ir.ClassDecl, md: ir.MethodDecl) =
         at(md, ()) {
-            if(md != ir.md_ctor_interface)
-                throw new CheckFailure("intervals.invalid.ctor.in.interface")
+            // This doesn't quite work: goal is just to verify that interface ctor's
+            // do not work.
+            //if(md != ir.md_ctor_interface)
+            //    throw new CheckFailure("intervals.invalid.ctor.in.interface")
         }
     
     def checkInterfaceMethodDecl(cd: ir.ClassDecl, md: ir.MethodDecl) =

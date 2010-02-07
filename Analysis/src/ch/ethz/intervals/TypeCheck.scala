@@ -178,13 +178,13 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
         decls: List[ir.LvDecl],
         tps: List[ir.TeePee]
     ): ir.TcEnv = {
-        // ______________________________________________________________________
+        // ----------------------------------------------------------------------
         // Check that tps have the correct types.
         decls.zip(tps).foreach { case (ir.LvDecl(x, wt), tp) =>
             checkIsSubtype(tp, wt)
         }
         
-        // ______________________________________________________________________
+        // ----------------------------------------------------------------------
         // Create a substitution which maps:
         // (1) Method-scope variables to themselves
         // (2) Arguments to the goto() to their respective parameters
@@ -211,7 +211,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
         // Map everything else to lv_outOfScope:
         val subst = new PathSubst(map2)
 
-        // ______________________________________________________________________
+        // ----------------------------------------------------------------------
         // Apply map to relations and keep only those not affecting lv_outOfScope
 
         def mapMap(map: Map[ir.Path, ir.Path]) =
@@ -250,22 +250,32 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
     }
 
     def mergeBreakEnv(idx: Int, tps: List[ir.TeePee]) {
-        val ss = ss_cur(idx)
-        
-        val env_map = mapEnv(ss.env_in, ss.stmt.defines, tps)
-        ss.oenv_break = intersect(ss.oenv_break, env_map)
+        log.indented("mergeBreakEnv(%s,%s)", idx, tps) {
+            val ss = ss_cur(idx)
+
+            val env_map = mapEnv(ss.env_in, ss.stmt.defines, tps)
+            log.env("env_map: ", env_map)
+            ss.oenv_break = intersect(ss.oenv_break, env_map)            
+            if(ss.oenv_break.get != env_map)
+                log.env("env_break: ", ss.oenv_break.get)
+        }
     }
         
     def mergeContinueEnv(idx: Int, tps: List[ir.TeePee]) {
-        val ss = ss_cur(idx)
-        ss.stmt.kind match {
-            case ir.Loop(args, _, _) =>
-                val env_map = mapEnv(ss.env_in, args, tps)
-                ss.oenv_continue = intersect(ss.oenv_continue, env_map)
-            case _ =>
-                throw new CheckFailure(
-                    "intervals.internal.error",
-                    "continue to non-loop: %s".format(ss))
+        log.indented("mergeContinueEnv(%s,%s)", idx, tps) {
+            val ss = ss_cur(idx)
+            ss.stmt.kind match {
+                case ir.Loop(args, _, _) =>
+                    val env_map = mapEnv(ss.env_in, args, tps)
+                    log.env("env_map: ", env_map)
+                    ss.oenv_continue = intersect(ss.oenv_continue, env_map)
+                    if(ss.oenv_continue.get != env_map)
+                        log.env("env_continue: ", ss.oenv_continue.get)
+                case _ =>
+                    throw new CheckFailure(
+                        "intervals.internal.error",
+                        "continue to non-loop: %s".format(ss))
+            }
         }
     }
     
@@ -274,27 +284,29 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
         val stmt_compound = ss.stmt
         
         val ft = stmt_compound.kind match {
-            case ir.Seq(stmts) =>
-                stmts.foreach(checkStatement)
+            case ir.Block(seq) =>
+                checkStatementSeq(seq)
 
-            case ir.Switch(stmts) =>
+            case ir.Switch(seqs) =>
                 val env_initial = env
                 stmts.foreach { stmt =>
                     // If the previous stmt breaks, then 
                     // env == env_initial and this line has no effect.
                     setEnv(env ** env_initial)
-                    checkStatement(stmt)
+                    checkStatementSeq(stmt)
                 }
                 
-            case ir.Loop(args, ps_initial, stmt_body) =>
+            case ir.Loop(args, ps_initial, seq) =>
                 def iterate(env_continue_before: ir.TcEnv) {
-                    // Break env is recomputed each iteration:
-                    ss.oenv_break = None
-                    
-                    // Perform an iteration:
-                    setEnv(env_continue_before)  
-                    checkStatement(stmt_body)
-                    
+                    log.indented("iterate()") {
+                        // Break env is recomputed each iteration:
+                        ss.oenv_break = None
+
+                        // Perform an iteration:
+                        setEnv(env_continue_before)  
+                        checkStatementSeq(seq)
+                    }
+
                     // Repeat until steady state is reached:
                     val env_continue_after = ss.oenv_continue.get
                     if(env_continue_before != env_continue_after)
@@ -304,21 +316,21 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                 mergeContinueEnv(0, tps_initial)
                 iterate(ss.oenv_continue.get)
                 
-            case ir.Subinterval(x, ps_locks, stmt_body) =>
+            case ir.Subinterval(x, ps_locks, seq) =>
                 val tps_locks = teePee(ir.noAttrs, ps_locks)                    
                 addLvDecl(x, ir.t_interval, None)                
                 val tp_x = teePee(x.path)
                 addSubintervalOf(tp_x, tp_cur)
                 tps_locks.foreach(addLocks(tp_x, _))
                 withCurrent(x.path) {
-                    checkStatement(stmt_body)
+                    checkStatementSeq(seq)
                 }
                 
-            case ir.TryCatch(stmt_try, stmt_catch) =>
-                savingEnv { checkStatement(stmt_try) }
+            case ir.TryCatch(seq_try, seq_catch) =>
+                savingEnv { checkStatementSeq(seq_try) }
                 
                 // Catch conservatively assumes try failed immediately:
-                savingEnv { checkStatement(stmt_catch) }
+                savingEnv { checkStatementSeq(seq_catch) }
         }
 
         ss.oenv_break match {
@@ -330,6 +342,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
     }
     
     def checkStatement(stmt: ir.Stmt) = indexAt(stmt, ()) {
+        log.env("Input Environment: ", env)
         stmt match {   
             case stmt_compound: ir.StmtCompound =>
                 withStmt(stmt_compound, env) {
@@ -406,18 +419,16 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                     throw new CheckFailure("intervals.new.interface", t.c)
                     
                 // Check Ghost Types:           
-                savingEnv {
-                    addLvDecl(x, t, None)
-                    val tp_x = teePee(x.path)
-                    t.ghosts.foreach { g =>
-                        val gfd = substdFieldDecl(tp_x, g.f)
-                        val tp = teePee(g.p)
-                        checkIsSubtype(tp, gfd.wt)
-                    }                        
-                                    
-                    val msig_ctor = substdCtorSig(tp_x, m, tqs)
-                    checkCallMsig(teePee(x.path), msig_ctor, tqs)
-                }
+                addLvDecl(x, t, None)
+                val tp_x = teePee(x.path)
+                t.ghosts.foreach { g =>
+                    val gfd = substdFieldDecl(tp_x, g.f)
+                    val tp = teePee(g.p)
+                    checkIsSubtype(tp, gfd.wt)
+                }                        
+                                
+                val msig_ctor = substdCtorSig(tp_x, m, tqs)
+                checkCallMsig(teePee(x.path), msig_ctor, tqs)
                 
             case ir.StmtCast(x, wt, q) => ()
                 // TODO Validate casts?  Issue warnings at least?
@@ -426,10 +437,15 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
             case ir.StmtNull(x, wt) => 
                 addLvDecl(x, wt, None)
                 
-            case ir.StmtReturn(p) =>
-                val tp = teePee(ir.noAttrs, p)
-                checkIsSubtype(tp, env.wt_ret)
-                setEnv(ss_cur.head.env_in)
+            case ir.StmtReturn(op) =>
+                op.foreach { p =>
+                    val tp = teePee(ir.noAttrs, p)
+                    checkIsSubtype(tp, env.wt_ret)                    
+                }
+                if(!ss_cur.isEmpty) {
+                    mergeBreakEnv(ss_cur.length - 1, List())
+                    setEnv(ss_cur.head.env_in)                    
+                }
                 
             case ir.StmtHb(p, q) =>
                 val tp = teePee(ir.noAttrs, p)
@@ -454,6 +470,12 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                 val tps = teePee(ir.noAttrs, ps)
                 mergeContinueEnv(i, tps)
                 setEnv(ss_cur.head.env_in)
+        }
+    }
+    
+    def checkStatementSeq(seq: ir.StmtSeq) {
+        log.indented("checkStatementSeq(%s)", seq) {
+            seq.foreach(checkStatement)            
         }
     }
     
@@ -486,10 +508,11 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
         lvs_shared: Set[ir.VarName]
     ): ir.TcEnv = savingEnv {        
         log.indented("extractAssumptions(%s,%s)", tp_mthd, lvs_shared) {
-            withCurrent(freshTp(ir.t_interval).p) {
+            withCurrent(freshTp(ir.t_interval).p) {                
                 addHbInter(tp_mthd, tp_cur)
+                
+                log.env("Input Environment: ", env)
 
-                log("temp=%s", env.temp)
                 val tempKeys = env.temp.map(_._1).toList
                 val tempValues = env.temp.map(_._2).toList
                 val mapFunc = PathSubst.pp(tempValues, tempKeys).path(_)

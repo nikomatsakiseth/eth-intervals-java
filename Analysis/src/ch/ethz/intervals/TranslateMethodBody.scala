@@ -40,7 +40,7 @@ object TranslateMethodBody
         processingEnvironment: ProcessingEnvironment,
         ttf: TranslateTypeFactory, 
         mtree: MethodTree
-    ): Array[ir.Block] = logStack.log.indentedRes("translateMethodBody(%s)", mtree) {
+    ): ir.Stmt = logStack.log.indentedRes("translateMethodBody(%s)", mtree) {
         import logStack.log
         import ttf.TreePosition
         import ttf.DummyPositional
@@ -147,19 +147,19 @@ object TranslateMethodBody
         case object ScopeKindSeq extends ScopeKind
         case object ScopeKindSwitch extends ScopeKind
         case object ScopeKindLoop extends ScopeKind
-        case class ScopeKindSubinterval(x: VarName, ps_locks: List[Path]) extends ScopeKind
+        case class ScopeKindSubinterval(x: ir.VarName, ps_locks: List[ir.Path]) extends ScopeKind
         case object ScopeKindTryCatch extends ScopeKind
                 
         abstract class BranchKind(val targets: Set[ScopeKind])
-        case object BranchBreak extends BranchKind(Set(ScopeSeq, ScopeSwitch))
-        case object BranchContinue extends BranchKind(Set(ScopeLoop))
+        case object BranchBreak extends BranchKind(Set(ScopeKindSeq, ScopeKindSwitch))
+        case object BranchContinue extends BranchKind(Set(ScopeKindLoop))
         
         class Scope(
-            val kind: ScopeKind
-            val prev: Option[Scope]
-            val label: Option[Name]
-            val symtab_in: SymbolTable
-            val defines_xtra: List[LvDecl]
+            val kind: ScopeKind,
+            val prev: Option[Scope],
+            val label: Option[Name],
+            val symtab_in: SymbolTable,
+            val defines_xtra: List[ir.LvDecl]
         ) {
             // ___ Statement List ___________________________________________________
 
@@ -170,14 +170,14 @@ object TranslateMethodBody
                 
             // ___ Counting up the stack ____________________________________________
             
-            def countUp(idx: Integer): Scope = {
+            def countUp(idx: Int): Scope = {
                 if(idx == 0) 
                     this
                 else 
                     prev.get.countUp(idx - 1)
             }
             
-            def branchIndex(branchKind: BranchKind, olabel: Option[Name]) = {
+            def branchIndex(branchKind: BranchKind, olabel: Option[Name]): Int = {
                 if(branchKind.targets(kind) && (olabel == None || olabel == label)) {
                     0 
                 } else {
@@ -198,12 +198,9 @@ object TranslateMethodBody
             var symtab = symtab_in
             
             def make_auto_defines = {
-                val buffer = new ListBuffer[(String, LvDecl)]()
-                for((name, ver0) <- symtab_in) {
-                    val ver1 = ver0.sym.nextLocalVersion
-                    buffer += (name, ver1)
+                symtab_in.toList.map { case (name, ver0) =>
+                    (name, ver0.sym.nextLocalVersion)
                 }
-                buffer.toList
             }
             
             val defines_loop = kind match {
@@ -214,7 +211,7 @@ object TranslateMethodBody
             val defines_auto = make_auto_defines
             
             def subscope(subkind: ScopeKind, sublabel: Option[Name], subxtra: ir.LvDecl*) = {
-                val res = new Scope(subkind, Some(this), sublabel, symtab, sublabel.toList)
+                val res = new Scope(subkind, Some(this), sublabel, symtab, subxtra.toList)
                 symtab ++= res.defines_auto
             }
             
@@ -254,6 +251,7 @@ object TranslateMethodBody
             }
 
             def subscope(
+                tree: Tree,
                 subkind: ScopeKind, 
                 sublabel: Option[Name], 
                 decls_xtra: ir.LvDecl*
@@ -278,15 +276,15 @@ object TranslateMethodBody
             }
             
             def uncondBreak(treePos: Tree, idx: Int, ps_xtra: ir.Path*) {
-                addStmt(treePos, ir.StmtBreak(idx, branchArguments(idx, ps_xtra)))
+                addStmt(treePos, ir.StmtBreak(idx, branchArguments(idx, ps_xtra: _*)))
             }
             
             def condBreak(treePos: Tree, idx: Int, ps_xtra: ir.Path*) {
-                addStmt(treePos, ir.StmtCondBreak(idx, branchArguments(idx, ps_xtra)))
+                addStmt(treePos, ir.StmtCondBreak(idx, branchArguments(idx, ps_xtra: _*)))
             }
             
             def uncondContinue(treePos: Tree, idx: Int) {
-                addStmt(treePos, ir.StmtContinue(idx, branchArguments(idx, List())))
+                addStmt(treePos, ir.StmtContinue(idx, branchArguments(idx)))
             }            
             
             // ___ Misc. Helper Functions ___________________________________________
@@ -308,15 +306,11 @@ object TranslateMethodBody
                 r.path
             }
 
-            def callUnit(treePos: Tree, p: ir.Path, m: ir.MethodName, qs: ir.Path*) {
-                call(treePos, p, m, qs: _*)
-            }
-
             def toString(etree: ExpressionTree) {
-                val p = rvalue(this, etree)
+                val p = rvalue(etree)
                 val annty = getAnnotatedType(etree)
                 if(!annty.getKind.isPrimitive)
-                    callUnit(etree, p, ir.m_toString)
+                    call(etree, p, ir.m_toString)
             }
             
             def nullStmt(etree: ExpressionTree) = {
@@ -351,13 +345,20 @@ object TranslateMethodBody
             def assign(
                 etree_lval: ExpressionTree,
                 oetree_rval: Option[ExpressionTree]
-            ): ir.Path = at(etree, "assign", dummyLvalue(_)) {
+            ): ir.Path = at(etree_lval, "assign", nullStmt(etree_lval)) {
+                // [1] I think that the correct result from an assignment is one
+                // with the value of RHS and type of LHS.  However, I simply return
+                // the value of the RHS, which means the type may be a subtype of the
+                // "proper" one.  Returning the LHS as an rvalue could be more correct
+                // but tends to lead to confusing double errors if the LHS is not 
+                // writable (because it's usually not readable either!)
                 etree_lval match {
                     case tree: ArrayAccessTree => // p[q] = r
                         val p = rvalue(tree.getExpression)
                         val q = rvalue(tree.getIndex)
                         val r = rvalueOrNull(etree_lval, oetree_rval)
-                        callUnit(tree, p, ir.m_arraySet, q, r)
+                        call(tree, p, ir.m_arraySet, q, r)
+                        r // See [1] above
 
                     case tree: IdentifierTree => 
                         val elem = TU.elementFromUse(tree).asInstanceOf[VariableElement]
@@ -367,9 +368,11 @@ object TranslateMethodBody
                                 val sym = symtab(nm(elem)).sym
                                 val ver = sym.nextExprVersion(q)
                                 symtab += Pair(nm(elem), ver)
+                                ver.p
 
                             case EK.FIELD => // [this.]f = q
                                 store(tree, ir.p_this, f(elem), q)
+                                q // See [1] above
 
                             case _ =>
                                 throw new Unhandled(tree)
@@ -382,9 +385,10 @@ object TranslateMethodBody
                         val p = rvalueIfNotStatic(elem, tree.getExpression)
                         val q = rvalueOrNull(etree_lval, oetree_rval)
                         store(tree, p, f(elem), q)
+                        q // See [1] above
 
-                    case _ =>
-                        throw new Unhandled(etree)                    
+                    case tree =>
+                        throw new Unhandled(tree)
                 }
             }
 
@@ -401,7 +405,7 @@ object TranslateMethodBody
                             eelem.getKind match {
                                 case EK.CONSTRUCTOR => 
                                     val qs = mitree.getArguments.map(rvalue)
-                                    mblk_cur.addStmt(
+                                    addStmt(
                                         mitree, 
                                         ir.StmtSuperCtor(m, qs.toList))
                                     ir.p_this // Dummy return value.
@@ -409,7 +413,7 @@ object TranslateMethodBody
                                 case _ => 
                                     val qs = mitree.getArguments.map(rvalue)
                                     val r = freshVar
-                                    mblk_cur.addStmt(
+                                    addStmt(
                                         mitree, 
                                         ir.StmtSuperCall(r, m, qs.toList))
                                     r.path
@@ -418,10 +422,11 @@ object TranslateMethodBody
                         case _ =>
                             // XXX Nested classes can use a different this.
                             val qs = mitree.getArguments.map(rvalue)
-                            call(mitree, ir.p_this, m, qs: _*))
+                            call(mitree, ir.p_this, m, qs: _*)
                     }
 
                 case tree: MemberSelectTree => // p.m(...)
+                    val m = ttf.m(eelem)
                     val p = rvalueIfNotStatic(eelem, tree.getExpression)
                     val qs = mitree.getArguments.map(rvalue)
                     call(mitree, p, m, qs: _*)
@@ -438,7 +443,7 @@ object TranslateMethodBody
                 // First check for intrinsics:
                 if(wke.addHb(eelem)) {
                     val qs = mitree.getArguments.map(rvalue)
-                    mblk_cur.addStmt(mitree, ir.StmtHb(qs(0), qs(1)))
+                    addStmt(mitree, ir.StmtHb(qs(0), qs(1)))
                     ir.p_this // Dummy return value.
                 } else {
                     nonIntrinsicMethodInvocation(eelem, mitree)
@@ -453,7 +458,7 @@ object TranslateMethodBody
                 
             def rvalue(
                 etree: ExpressionTree
-            ): ir.Path = at(etree, "rvalue", nullStmt(scope, etree)) {
+            ): ir.Path = at(etree, "rvalue", nullStmt(etree)) {
                 etree match {
                     case tree: ArrayAccessTree => // p[q]                
                         val p = rvalue(tree.getExpression)
@@ -480,15 +485,15 @@ object TranslateMethodBody
                         val lv_res = freshVar
                         val wt_res = wtref(etree)
                         
-                        subscope(ScopeKindSwitch, None, ir.LvDecl(lv_res, wt_res)) { scope_sw =>
-                            scope_sw.subscope(ScopeSeq, None) { scope_t =>
+                        subscope(tree, ScopeKindSwitch, None, ir.LvDecl(lv_res, wt_res)) { scope_sw =>
+                            scope_sw.subscope(tree, ScopeKindSeq, None) { scope_t =>
                                 val p_t = scope_t.rvalue(tree.getTrueExpression)                        
-                                scope_t.uncondBreak(1, p_t)
+                                scope_t.uncondBreak(tree, 1, p_t)
                             }
                             
-                            scope_sw.subscope(ScopeSeq, None) { scope_f =>
+                            scope_sw.subscope(tree, ScopeKindSeq, None) { scope_f =>
                                 val p_f = scope_f.rvalue(tree.getFalseExpression)
-                                scope_f.uncondBreak(1, p_f)                                
+                                scope_f.uncondBreak(tree, 1, p_f)                                
                             }
                         }
                         
@@ -550,152 +555,114 @@ object TranslateMethodBody
             
             def stmt(
                 label_tree: Option[Name],
-                tree: StatementTree,
-            ): Unit = at(tree, "stmt", ()) {
-                case tree: AssertTree =>
-                    rvalue(tree.getCondition)
+                tree: StatementTree
+            ): Unit = at(tree, "stmt", ()) { 
+                tree match {
+                    case tree: AssertTree =>
+                        rvalue(tree.getCondition)
 
-                case tree: BlockTree =>
-                    subscope(ScopeSeq, label_tree) { scope_blk =>
-                        tree.getStatements.foreach(scope_blk.stmt(None, _))
-                        scope_blk.uncondBreak(0)                        
-                    }
-
-                case tree: BreakTree =>
-                    val idx = branchIndex(BranchBreak, nullToOption(tree.getLabel))
-                    uncondBreak(idx)
-
-                case tree: ClassTree => 
-                    throw new Unhandled(tree) // XXX inner classes
-
-                case tree: BreakTree =>
-                    val idx = branchIndex(BranchContinue, nullToOption(tree.getLabel))
-                    uncondContinue(idx)
-
-                case tree: DoWhileLoopTree =>
-                    // The "outer" scope is the target for breaks, 
-                    // "inner" is the target for continues.
-                    subscope(ScopeSeq, label_tree) { scope_outer =>
-                        subscope(ScopeLoop, label_tree) { scope_inner =>
-                            scope_inner.stmt(None, tree.getStatement)
-                            scope_inner.rvalue(tree.getCondition)
-                            scope_inner.condBreak(1)
-                            scope_inner.uncondContinue(0)                            
+                    case tree: BlockTree =>
+                        subscope(tree, ScopeKindSeq, label_tree) { scope_blk =>
+                            tree.getStatements.foreach(scope_blk.stmt(None, _))
+                            scope_blk.uncondBreak(tree, 0)                        
                         }
-                    }
 
-                case tree: EmptyStatementTree => ()
+                    case tree: BreakTree =>
+                        val idx = branchIndex(BranchBreak, nullToOption(tree.getLabel))
+                        uncondBreak(tree, idx)
 
-                case tree: EnhancedForLoopTree => throw new Unhandled(tree) // XXX enhanced for loops
+                    case tree: ClassTree => 
+                        throw new Unhandled(tree) // XXX inner classes
 
-                case tree: ExpressionStatementTree => rvalue(tree.getExpression)
-                
-                case tree: ForLoopTree =>
-                    // Rather involved transformation:
-                    //  outer: Seq {
-                    //      <initializers>
-                    //      <condition>
-                    //      condBreak Seq;
-                    //      <statement>
-                    //      inner: Loop {
-                    //          <update>
-                    //          <condition>
-                    //          condBreak Seq;
-                    //          <statement>
-                    //          continue Loop;
-                    //      }
-                    //  }
-                    
-                    subscope(ScopeSeq, label_tree) { scope_outer =>
-                        tree.getInitializer.foreach(scope_outer.stmt(None, _))
-                        scope_outer.rvalue(tree.getCondition)
-                        scope_outer.condBreak(0)
-                        scope_outer.stmt(None, tree.getStatement)                        
-                        
-                        subscope(ScopeLoop, label_tree) { scope_inner =>
-                            tree.getUpdate.foreach(scope_inner.stmt(None, _))
-                            scope_inner.rvalue(tree.getCondition)
-                            scope_inner.condBreak(1)
-                            scope_inner.stmt(None, tree.getStatement)
-                            scope_inner.uncondContinue(0)
+                    case tree: ContinueTree =>
+                        val idx = branchIndex(BranchContinue, nullToOption(tree.getLabel))
+                        uncondContinue(tree, idx)
+
+                    case tree: DoWhileLoopTree =>
+                        // The "outer" scope is the target for breaks, 
+                        // "inner" is the target for continues.
+                        subscope(tree, ScopeKindSeq, label_tree) { scope_outer =>
+                            subscope(tree, ScopeKindLoop, label_tree) { scope_inner =>
+                                scope_inner.stmt(None, tree.getStatement)
+                                scope_inner.rvalue(tree.getCondition)
+                                scope_inner.condBreak(tree, 1)
+                                scope_inner.uncondContinue(tree, 0)
+                            }
                         }
-                    }
-                    
-                case tree: LabeledStatementTree =>
-                    stmt(tree.getStatement, Some(tree.getLabel))
 
-                case tree: VariableTree =>
-                    val sym = createSymbol(mblk_cur.env(tree))(tree)
-                    val ver = tree.getInitializer match {
-                        case null => sym.nextLocalVersion
-                        case expr => 
-                            val p = rvalue(expr)
-                            sym.nextExprVersion(p)
-                    }
-                    mblk_cur.symtab += Pair(sym.name, ver)
+                    case tree: EmptyStatementTree => ()
 
-                case tree: WhileLoopTree =>
-                    // The "outer" scope is the target for breaks, 
-                    // "inner" is the target for continues.
-                    subscope(ScopeSeq, label_tree) { scope_outer =>
-                        subscope(ScopeLoop, label_tree) { scope_inner =>
-                            scope_inner.rvalue(tree.getCondition)
-                            scope_inner.condBreak(1)
-                            scope_inner.stmt(None, tree.getStatement)
-                            scope_inner.uncondContinue(0)                            
+                    case tree: EnhancedForLoopTree => throw new Unhandled(tree) // XXX enhanced for loops
+
+                    case tree: ExpressionStatementTree => rvalue(tree.getExpression)
+
+                    case tree: ForLoopTree =>
+                        // Rather involved transformation:
+                        //  outer: Seq {
+                        //      <initializers>
+                        //      <condition>
+                        //      condBreak Seq;
+                        //      <statement>
+                        //      inner: Loop {
+                        //          <update>
+                        //          <condition>
+                        //          condBreak Seq;
+                        //          <statement>
+                        //          continue Loop;
+                        //      }
+                        //  }
+
+                        subscope(tree, ScopeKindSeq, label_tree) { scope_outer =>
+                            tree.getInitializer.foreach(scope_outer.stmt(None, _))
+                            scope_outer.rvalue(tree.getCondition)
+                            scope_outer.condBreak(tree, 0)
+                            scope_outer.stmt(None, tree.getStatement)                        
+
+                            subscope(tree, ScopeKindLoop, label_tree) { scope_inner =>
+                                tree.getUpdate.foreach(scope_inner.stmt(None, _))
+                                scope_inner.rvalue(tree.getCondition)
+                                scope_inner.condBreak(tree, 1)
+                                scope_inner.stmt(None, tree.getStatement)
+                                scope_inner.uncondContinue(tree, 0)
+                            }
                         }
-                    }
 
-                case _ => throw new Unhandled(tree)
+                    case tree: LabeledStatementTree =>
+                        stmt(Some(tree.getLabel), tree.getStatement)
 
+                    case tree: VariableTree =>
+                        val sym = createSymbol(env(tree))(tree)
+                        val ver = tree.getInitializer match {
+                            case null => sym.nextLocalVersion
+                            case expr => 
+                                val p = rvalue(expr)
+                                sym.nextExprVersion(p)
+                        }
+                        symtab += Pair(sym.name, ver)
+
+                    case tree: WhileLoopTree =>
+                        // The "outer" scope is the target for breaks, 
+                        // "inner" is the target for continues.
+                        subscope(tree, ScopeKindSeq, label_tree) { scope_outer =>
+                            subscope(tree, ScopeKindLoop, label_tree) { scope_inner =>
+                                scope_inner.rvalue(tree.getCondition)
+                                scope_inner.condBreak(tree, 1)
+                                scope_inner.stmt(None, tree.getStatement)
+                                scope_inner.uncondContinue(tree, 0)                            
+                            }
+                        }
+
+                    case _ => throw new Unhandled(tree)
+                }
             }
             
         }
         
-        // ___ fork() and goto() ________________________________________________
-        // Create and link new internal blocks, carrying along in-scope variables.
+        // ___ Building the MutableBlocks array 'mblks' _________________________
 
-
-        // Tranfers control to the closest scope for which the
-        // function returns Some(_), executing any finally scopes
-        // we find along the way.  [Note: transferFunc() must return
-        // None for any Finally scope.]  The current block upon return
-        // will execute if no corresponding scope is found (often impossible).
-        def transfer(treePos: Tree)(transferFunc: (Scope => Option[MutableBlock])) {
-            def passThru(ss: List[Scope]): Unit = ss match {
-                case Scope(Finally(Some(blockTree)), _) :: tl =>
-                    withScopes(tl) {
-                        stmt(blockTree)
-                    }
-                    passThru(tl)
-
-                case hd :: tl =>
-                    transferFunc(hd) match {
-                        case Some(mblk_tar) =>
-                            goto(treePos, mblk_tar)
-                            start(fork(treePos))
-                        case None =>
-                            passThru(tl)
-                    }
-
-                case List() =>
-            }
-
-            passThru(scopes)
-        }
-
-    // ___ Building the MutableBlocks array 'mblks' _________________________
-
-    stmt(mtree.getBody)
-
-    // ___ Converting to an Array[ir.Block] _________________________________
-
-    mblks.toArray[MutableBlock].map { mblk =>
-        ir.Block(
-            mblk.paramDecls,
-            mblk.stmts.toList,
-            mblk.gotos.toList
-        )
+        val scope0 = new Scope(ScopeKindSeq, None, None, symtab_mthdParam, List())
+        scope0.stmt(None, mtree.getBody)
+        scope0.toCompoundStmt
     }
 
 }
