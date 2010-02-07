@@ -289,11 +289,11 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
 
             case ir.Switch(seqs) =>
                 val env_initial = env
-                stmts.foreach { stmt =>
+                seqs.foreach { seq =>
                     // If the previous stmt breaks, then 
                     // env == env_initial and this line has no effect.
                     setEnv(env ** env_initial)
-                    checkStatementSeq(stmt)
+                    checkStatementSeq(seq)
                 }
                 
             case ir.Loop(args, ps_initial, seq) =>
@@ -475,7 +475,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
     
     def checkStatementSeq(seq: ir.StmtSeq) {
         log.indented("checkStatementSeq(%s)", seq) {
-            seq.foreach(checkStatement)            
+            seq.stmts.foreach(checkStatement)            
         }
     }
     
@@ -573,7 +573,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
     
     def checkMethodBody(md: ir.MethodDecl) {
         assert(ss_cur.isEmpty)
-        checkStatement(md.body)
+        checkStatementSeq(md.body)
         assert(ss_cur.isEmpty)
     }
     

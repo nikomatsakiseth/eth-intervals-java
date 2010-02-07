@@ -88,14 +88,16 @@ class IrParser extends BaseParser {
         anonLv
     )
     
+    def seq = "{"~>rep(stmt)<~"}"                   ^^ ir.StmtSeq
+    
     def locks = optl("locks"~>comma(p))
     def loopArg = lvdecl~"="~p                      ^^ { case lv~_~p => (lv, p) }
     def ckind: Parser[ir.CompoundKind] = (
-        "{"~rep(stmt)~"}"                           ^^ { case _~ss~_ => ir.Seq(ss) }
-    |   "switch"~"{"~rep(stmt)~"}"                  ^^ { case _~_~ss~_ => ir.Switch(ss) }
-    |   "loop"~"("~comma(loopArg)~")"~stmt          ^^ { case _~_~args~_~b => ir.Loop(args.map(_._1), args.map(_._2), b) }
-    |   "subinterval"~lv~locks~stmt                 ^^ { case _~x~ps~s => ir.Subinterval(x, ps, s) }
-    |   "try"~stmt~"catch"~stmt                     ^^ { case _~t~_~c => ir.TryCatch(t, c) }
+        "{"~>seq<~"}"                               ^^ ir.Block
+    |   "switch"~"{"~rep(seq)~"}"                   ^^ { case _~_~ss~_ => ir.Switch(ss) }
+    |   "loop"~"("~comma(loopArg)~")"~seq           ^^ { case _~_~args~_~b => ir.Loop(args.map(_._1), args.map(_._2), b) }
+    |   "subinterval"~lv~locks~seq                  ^^ { case _~x~ps~s => ir.Subinterval(x, ps, s) }
+    |   "try"~seq~"catch"~seq                       ^^ { case _~t~_~c => ir.TryCatch(t, c) }
     )
     
     def stmt_defines = optl(("=>"~"(")~>comma(lvdecl)<~(")"~";"))
@@ -131,17 +133,17 @@ class IrParser extends BaseParser {
     def reqs = rep(req)
     
     def methodDecl = positioned(
-        attrs~wt~m~"("~comma(lvdecl)~")"~reqs~stmt        
+        attrs~wt~m~"("~comma(lvdecl)~")"~reqs~seq        
     ^^ {
-        case attrs~wt_ret~name~"("~args~")"~reqs~blocks =>
-            ir.MethodDecl(attrs, wt_ret, name, args, reqs, blocks)
+        case attrs~wt_ret~name~"("~args~")"~reqs~seq =>
+            ir.MethodDecl(attrs, wt_ret, name, args, reqs, seq)
     })
     
     def constructor = positioned(
-        "constructor"~cm~"("~comma(lvdecl)~")"~reqs~stmt
+        "constructor"~cm~"("~comma(lvdecl)~")"~reqs~seq
     ^^ {
-        case "constructor"~m~"("~args~")"~reqs~stmt =>
-            ir.MethodDecl(ir.ctorAttrs, ir.t_void, m, args, reqs, stmt)
+        case "constructor"~m~"("~args~")"~reqs~seq =>
+            ir.MethodDecl(ir.ctorAttrs, ir.t_void, m, args, reqs, seq)
     })
     
     def ghostFieldDecl = positioned(

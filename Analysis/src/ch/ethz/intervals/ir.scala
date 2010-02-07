@@ -180,7 +180,7 @@ object ir {
         name: MethodName,
         args: List[LvDecl],
         reqs: List[Req],
-        body: Stmt
+        body: StmtSeq
     ) extends PositionalAst {
         def msig(t_rcvr: TypeRef) = MethodSig(t_rcvr, attrs, args, reqs, wt_ret)
         
@@ -320,12 +320,13 @@ object ir {
     // set on every iteration to the arguments of the StmtContinue.
     
     sealed case class StmtSeq(stmts: List[Stmt]) {
+        def setDefaultPos(pos: Position) = stmts.foreach(_.setDefaultPos(pos))
         override def toString = "StmtSeq(length=%d)".format(stmts.length)
     }
     
     sealed case class StmtCompound(kind: CompoundKind, defines: List[LvDecl]) extends Stmt {
         override def setDefaultPosOnChildren() {
-            kind.substmts.foreach(_.setDefaultPos(pos))
+            kind.subseqs.foreach(_.setDefaultPos(pos))
         }
         override def toString = "%s => (%s)".format(kind, ", ".join(defines))
     }
@@ -334,7 +335,7 @@ object ir {
     }
     sealed case class Block(seq: StmtSeq) extends CompoundKind {
         override def toString = "Block"
-        def subseqs = List(body)
+        def subseqs = List(seq)
     }
     sealed case class Switch(seqs: List[StmtSeq]) extends CompoundKind {
         override def toString = "Switch"
@@ -346,16 +347,16 @@ object ir {
                 "%s = %s".format(lv, p) }))
         def subseqs = List(seq)
     }
-    sealed case class Subinterval(x: VarName, ps_locks: List[Path], seq: Stmt) extends CompoundKind {
-        override def toString = "Subinterval[%s]".format(x)
+    sealed case class Subinterval(x: VarName, ps_locks: List[Path], seq: StmtSeq) extends CompoundKind {
+        override def toString = "Subinterval[%s locks %s]".format(x, ", ".join(ps_locks))
         def subseqs = List(seq)
     }
-    sealed case class TryCatch(seq_try: Stmt, seq_catch: Stmt) extends CompoundKind {
+    sealed case class TryCatch(seq_try: StmtSeq, seq_catch: StmtSeq) extends CompoundKind {
         override def toString = "TryCatch"
         def subseqs = List(seq_try, seq_catch)
     }
     
-    val stmt_empty = StmtCompound(Seq(List(StmtBreak(0, List()))), List())
+    val empty_method_body = StmtSeq(List())
 
     // ______ Miscellaneous _________________________________________________
     def isSuperCtor(s: Stmt) = s match {
@@ -620,15 +621,12 @@ object ir {
             /* name:   */ m_init, 
             /* args:   */ List(),
             /* reqs:   */ List(),
-            /* body:   */ ir.StmtCompound(
-                Seq(
-                    List(
-                        ir.StmtSuperCtor(m_init, List()),
-                        ir.StmtReturn(None)
-                    )
-                ),
-                List()
-            )            
+            /* body:   */ ir.StmtSeq(
+                List(
+                    ir.StmtSuperCtor(m_init, List()),
+                    ir.StmtReturn(None)
+                )
+            )
         )
     
     // Two "classes" used to represent the type void and scalar data.
@@ -679,7 +677,7 @@ object ir {
                     /* name:   */ m_init, 
                     /* args:   */ List(),
                     /* reqs:   */ List(),
-                    /* body:   */ stmt_empty)),
+                    /* body:   */ empty_method_body)),
             /* Fields:  */  List(ir.gfd_creator),
             /* Methods: */  List(MethodDecl(
                     /* attrs:  */ noAttrs,
@@ -687,7 +685,7 @@ object ir {
                     /* name:   */ m_toString, 
                     /* args:   */ List(),
                     /* reqs:   */ List(ir.ReqReadableBy(List(gfd_creator.thisPath), List(p_mthd))),
-                    /* body:   */ stmt_empty))
+                    /* body:   */ empty_method_body))
         ),
         ClassDecl(
             /* Attrs:   */  noAttrs,
@@ -695,13 +693,7 @@ object ir {
             /* Extends: */  List(c_object),
             /* Ghosts:  */  List(Ghost(f_creator, p_ctor)),
             /* Reqs:    */  List(),
-            /* Ctor:    */  List(MethodDecl(
-                    /* attrs:  */ ctorAttrs,
-                    /* wt_ret: */ t_void, 
-                    /* name:   */ m_init, 
-                    /* args:   */ List(),
-                    /* reqs:   */ List(),
-                    /* body:   */ ir.StmtSuperCtor(m_init, List()))),
+            /* Ctor:    */  List(md_ctor_interface),
             /* Fields:  */  List(),
             /* Methods: */  List()
         ),
@@ -711,23 +703,11 @@ object ir {
             /* Extends: */  List(c_object),
             /* Ghosts:  */  List(),
             /* Reqs:    */  List(),
-            /* Ctor:    */  List(MethodDecl(
-                    /* attrs:  */ ctorAttrs,
-                    /* wt_ret: */ t_void, 
-                    /* name:   */ m_init, 
-                    /* args:   */ List(),
-                    /* reqs:   */ List(),
-                    /* body:   */ ir.StmtSuperCtor(m_init, List()))),
+            /* Ctor:    */  List(md_ctor_interface),
             /* Fields:  */  List(
                 ReifiedFieldDecl(noAttrs, t_point, f_start, gfd_ctor.thisPath),
                 ReifiedFieldDecl(noAttrs, t_point, f_end, gfd_ctor.thisPath)),
-            /* Methods: */  List(MethodDecl(
-                    /* attrs:  */ noAttrs,
-                    /* wt_ret: */ t_void, 
-                    /* name:   */ m_run, 
-                    /* args:   */ List(),
-                    /* reqs:   */ List(ir.ReqSubintervalOf(List(p_mthd), List(p_this))),
-                    /* body:   */ stmt_empty))
+            /* Methods: */  List()
         ),
         ClassDecl(
             /* Attrs:   */  noAttrs,
@@ -735,15 +715,15 @@ object ir {
             /* Extends: */  List(c_object, c_guard),
             /* Ghosts:  */  List(Ghost(f_creator, p_ctor)),
             /* Reqs:    */  List(),
-            /* Ctor:    */  List(MethodDecl(
-                    /* attrs:  */ ctorAttrs,
-                    /* wt_ret: */ t_void, 
-                    /* name:   */ m_init, 
-                    /* args:   */ List(),
-                    /* reqs:   */ List(),
-                    /* body:   */ ir.StmtSuperCtor(m_init, List()))),
+            /* Ctor:    */  List(md_ctor_interface),
             /* Fields:  */  List(),
-            /* Methods: */  List()
+            /* Methods: */  List(MethodDecl(
+                    /* attrs:  */ noAttrs,
+                    /* wt_ret: */ t_void, 
+                    /* name:   */ m_run, 
+                    /* args:   */ List(),
+                    /* reqs:   */ List(ir.ReqSubintervalOf(List(p_mthd), List(p_this))),
+                    /* body:   */ empty_method_body))
         ),
         ClassDecl(
             /* Attrs:   */  noAttrs,
@@ -751,13 +731,7 @@ object ir {
             /* Extends: */  List(c_object),
             /* Ghosts:  */  List(Ghost(f_creator, p_ctor)),
             /* Reqs:    */  List(),
-            /* Ctor:    */  List(MethodDecl(
-                    /* attrs:  */ ctorAttrs,
-                    /* wt_ret: */ t_void, 
-                    /* name:   */ m_init, 
-                    /* args:   */ List(),
-                    /* reqs:   */ List(),
-                    /* body:   */ ir.StmtSuperCtor(m_init, List()))),                    
+            /* Ctor:    */  List(md_ctor_interface),
             /* Fields:  */  List(),
             /* Methods: */  List()
         ),
@@ -767,13 +741,7 @@ object ir {
             /* Extends: */  List(c_object, c_guard),
             /* Ghosts:  */  List(Ghost(f_creator, p_ctor)),
             /* Reqs:    */  List(),
-            /* Ctor:    */  List(MethodDecl(
-                    /* attrs:  */ ctorAttrs,
-                    /* wt_ret: */ t_void, 
-                    /* name:   */ m_init, 
-                    /* args:   */ List(),
-                    /* reqs:   */ List(),
-                    /* body:   */ ir.StmtSuperCtor(m_init, List()))),
+            /* Ctor:    */  List(md_ctor_interface),
             /* Fields:  */  List(),
             /* Methods: */  List()
         )

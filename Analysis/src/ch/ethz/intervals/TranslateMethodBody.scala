@@ -37,16 +37,16 @@ object TranslateMethodBody
 {
     def apply(
         logStack: LogStack, 
-        processingEnvironment: ProcessingEnvironment,
         ttf: TranslateTypeFactory, 
         mtree: MethodTree
-    ): ir.Stmt = logStack.log.indentedRes("translateMethodBody(%s)", mtree) {
+    ): ir.StmtSeq = logStack.log.indentedRes("translateMethodBody(%s)", mtree) {
         import logStack.log
         import ttf.TreePosition
         import ttf.DummyPositional
         import ttf.DummyPosition
         import ttf.getAnnotatedType
         import ttf.f
+        import ttf.wke
 
         // ___ Miscellany _______________________________________________________
 
@@ -127,12 +127,8 @@ object TranslateMethodBody
             new Symbol(nm(elem), annty, wtref)
         }
 
-        // ___ Well-known methods _______________________________________________
-        val wke = new WellKnownElements(
-            processingEnvironment.getElementUtils, 
-            processingEnvironment.getTypeUtils)
-        
         // ___ Method environment, parameters ___________________________________
+        
         val elem_mthd = TU.elementFromDeclaration(mtree)
         val elem_cls = EU.enclosingClass(elem_mthd)
         val env_mthd = ttf.elemEnv(elem_mthd)
@@ -144,46 +140,27 @@ object TranslateMethodBody
         // ___ Scopes ___________________________________________________________
         
         abstract class ScopeKind
-        case object ScopeKindSeq extends ScopeKind
+        case object ScopeKindBlock extends ScopeKind
         case object ScopeKindSwitch extends ScopeKind
         case object ScopeKindLoop extends ScopeKind
         case class ScopeKindSubinterval(x: ir.VarName, ps_locks: List[ir.Path]) extends ScopeKind
         case object ScopeKindTryCatch extends ScopeKind
                 
         abstract class BranchKind(val targets: Set[ScopeKind])
-        case object BranchBreak extends BranchKind(Set(ScopeKindSeq, ScopeKindSwitch))
+        case object BranchBreak extends BranchKind(Set(ScopeKindBlock, ScopeKindSwitch))
         case object BranchContinue extends BranchKind(Set(ScopeKindLoop))
         
         class Scope(
             val kind: ScopeKind,
-            val prev: Option[Scope],
+            val parents: List[Scope],
             val label: Option[Name],
             val symtab_in: SymbolTable,
             val defines_xtra: List[ir.LvDecl]
         ) {
-            // ___ Statement List ___________________________________________________
-
-            private val stmtsBuffer = new ListBuffer[ir.Stmt]()            
+            // ___ Subseqs __________________________________________________________
             
-            def addStmt(treePos: Tree, stmt: ir.Stmt) =
-                stmtsBuffer += stmt.withPos(TreePosition(treePos))
-                
-            // ___ Counting up the stack ____________________________________________
-            
-            def countUp(idx: Int): Scope = {
-                if(idx == 0) 
-                    this
-                else 
-                    prev.get.countUp(idx - 1)
-            }
-            
-            def branchIndex(branchKind: BranchKind, olabel: Option[Name]): Int = {
-                if(branchKind.targets(kind) && (olabel == None || olabel == label)) {
-                    0 
-                } else {
-                    1 + prev.get.branchIndex(branchKind, olabel)
-                }                
-            }
+            private val seqsBuffer = new ListBuffer[ir.StmtSeq]()
+            def addSeq(seq: ir.StmtSeq) = seqsBuffer += seq
             
             // ___ Symbol Table and Flow of Control _________________________________
             //            
@@ -194,8 +171,6 @@ object TranslateMethodBody
             //
             // Xtra definesare special purpose, anonymous defines 
             // such as the result of a (c ? t : f) expression.
-            
-            var symtab = symtab_in
             
             def make_auto_defines = {
                 symtab_in.toList.map { case (name, ver0) =>
@@ -210,23 +185,27 @@ object TranslateMethodBody
             
             val defines_auto = make_auto_defines
             
-            def subscope(subkind: ScopeKind, sublabel: Option[Name], subxtra: ir.LvDecl*) = {
-                val res = new Scope(subkind, Some(this), sublabel, symtab, subxtra.toList)
-                symtab ++= res.defines_auto
+            // ___ Subsequences _____________________________________________________            
+            
+            def subseq(func: (MutableStmtSeq => Unit)) {
+                val msubseq = new MutableStmtSeq(symtab_in, this :: parents)
+                func(msubseq)
+                addSeq(msubseq.toStmtSeq)
             }
             
-            // ___ Finalizing into a Compound Stmt __________________________________
-
+            // ___ Finalizing into a compound statement _____________________________            
+            
             def toCompoundStmt = {
                 val ckind = kind match {
-                    case ScopeKindSeq => 
-                        ir.Seq(stmtsBuffer.toList)
+                    case ScopeKindBlock => 
+                        assert(seqsBuffer.length == 1)
+                        ir.Block(seqsBuffer(0))
                         
                     case ScopeKindSwitch => 
-                        ir.Switch(stmtsBuffer.toList)
+                        ir.Switch(seqsBuffer.toList)
                         
                     case ScopeKindLoop => 
-                        assert(stmtsBuffer.length == 1)
+                        assert(seqsBuffer.length == 1)
                         
                         val args = defines_loop.map(_._2.toLvDecl)
                         
@@ -234,21 +213,38 @@ object TranslateMethodBody
                             symtab_in(nm).p
                         }
                         
-                        ir.Loop(args, ps_initial, stmtsBuffer(0))
+                        ir.Loop(args, ps_initial, seqsBuffer(0))
                         
                     case ScopeKindSubinterval(x, ps_locks) => 
-                        assert(stmtsBuffer.length == 1)
-                        ir.Subinterval(x, ps_locks, stmtsBuffer(0))
+                        assert(seqsBuffer.length == 1)
+                        ir.Subinterval(x, ps_locks, seqsBuffer(0))
                         
                     case ScopeKindTryCatch =>
-                        assert(stmtsBuffer.length == 2)
-                        ir.TryCatch(stmtsBuffer(0), stmtsBuffer(1))
+                        assert(seqsBuffer.length == 2)
+                        ir.TryCatch(seqsBuffer(0), seqsBuffer(1))
                 }
                 
                 val defines = defines_auto.map(_._2.toLvDecl) ++ defines_xtra
                 
                 ir.StmtCompound(ckind, defines)
             }
+
+        }
+        
+        class MutableStmtSeq(symtab_in: SymbolTable, scopes: List[Scope]) {
+            // ___ Statement List, Symbol Table _____________________________________
+
+            private val stmtsBuffer = new ListBuffer[ir.Stmt]()            
+            
+            def addStmt(treePos: Tree, stmt: ir.Stmt) {
+                stmtsBuffer += stmt.withPos(TreePosition(treePos))                
+            }
+            
+            def toStmtSeq = ir.StmtSeq(stmtsBuffer.toList)
+                
+            var symtab = symtab_in
+            
+            // ___ Finalizing into a Compound Stmt __________________________________
 
             def subscope(
                 tree: Tree,
@@ -258,7 +254,7 @@ object TranslateMethodBody
             )(
                 ctor_func: (Scope => Unit)
             ) = {
-                val subscope = new Scope(subkind, Some(this), sublabel, symtab, decls_xtra.toList)
+                val subscope = new Scope(subkind, scopes, sublabel, symtab, decls_xtra.toList)
                 ctor_func(subscope)
                 addStmt(tree, subscope.toCompoundStmt)
                 symtab ++= subscope.defines_auto
@@ -266,8 +262,15 @@ object TranslateMethodBody
             
             // ___ Break, Continue statements _______________________________________
             
+            def branchTarget(branchKind: BranchKind, olabel: Option[Name]): Option[Scope] = {
+                scopes.find { scope =>
+                    branchKind.targets(scope.kind) &&
+                    (olabel == None || olabel == scope.label)
+                }
+            }
+
             def branchArguments(idx: Int, ps_xtra: ir.Path*) = {
-                val scope_tar = countUp(idx)
+                val scope_tar = scopes(idx)
                 assert(scope_tar.defines_xtra.length == ps_xtra.length)                
                 val ps_auto = scope_tar.defines_auto.map { case (nm, _) =>
                     symtab(nm).p
@@ -275,15 +278,18 @@ object TranslateMethodBody
                 ps_auto ++ ps_xtra
             }
             
-            def uncondBreak(treePos: Tree, idx: Int, ps_xtra: ir.Path*) {
+            def uncondBreak(treePos: Tree, scope: Scope, ps_xtra: ir.Path*) {
+                val idx = scopes.indexOf(scope)
                 addStmt(treePos, ir.StmtBreak(idx, branchArguments(idx, ps_xtra: _*)))
             }
             
-            def condBreak(treePos: Tree, idx: Int, ps_xtra: ir.Path*) {
+            def condBreak(treePos: Tree, scope: Scope, ps_xtra: ir.Path*) {
+                val idx = scopes.indexOf(scope)
                 addStmt(treePos, ir.StmtCondBreak(idx, branchArguments(idx, ps_xtra: _*)))
             }
             
-            def uncondContinue(treePos: Tree, idx: Int) {
+            def uncondContinue(treePos: Tree, scope: Scope) {
+                val idx = scopes.indexOf(scope)
                 addStmt(treePos, ir.StmtContinue(idx, branchArguments(idx)))
             }            
             
@@ -486,15 +492,15 @@ object TranslateMethodBody
                         val wt_res = wtref(etree)
                         
                         subscope(tree, ScopeKindSwitch, None, ir.LvDecl(lv_res, wt_res)) { scope_sw =>
-                            scope_sw.subscope(tree, ScopeKindSeq, None) { scope_t =>
-                                val p_t = scope_t.rvalue(tree.getTrueExpression)                        
-                                scope_t.uncondBreak(tree, 1, p_t)
+                            scope_sw.subseq { seq_t =>
+                                val p_t = seq_t.rvalue(tree.getTrueExpression)                        
+                                seq_t.uncondBreak(tree, scope_sw, p_t)
                             }
                             
-                            scope_sw.subscope(tree, ScopeKindSeq, None) { scope_f =>
-                                val p_f = scope_f.rvalue(tree.getFalseExpression)
-                                scope_f.uncondBreak(tree, 1, p_f)                                
-                            }
+                            scope_sw.subseq { seq_f =>
+                                val p_f = seq_f.rvalue(tree.getFalseExpression)
+                                seq_f.uncondBreak(tree, scope_sw, p_f)                                
+                            }                            
                         }
                         
                         lv_res.path
@@ -562,34 +568,53 @@ object TranslateMethodBody
                         rvalue(tree.getCondition)
 
                     case tree: BlockTree =>
-                        subscope(tree, ScopeKindSeq, label_tree) { scope_blk =>
-                            tree.getStatements.foreach(scope_blk.stmt(None, _))
-                            scope_blk.uncondBreak(tree, 0)                        
+                        subscope(tree, ScopeKindBlock, label_tree) { scope_blk =>
+                            scope_blk.subseq { seq =>
+                                tree.getStatements.foreach(seq.stmt(None, _))                                
+                                seq.uncondBreak(tree, scope_blk)                        
+                            }
                         }
 
                     case tree: BreakTree =>
-                        val idx = branchIndex(BranchBreak, nullToOption(tree.getLabel))
-                        uncondBreak(tree, idx)
+                        branchTarget(BranchBreak, nullToOption(tree.getLabel)) match {
+                            case Some(scope) =>
+                                uncondBreak(tree, scope)
+                            case None =>
+                                throw new CheckFailure(
+                                    "intervals.internal.error",
+                                    "Could not find target for break %s".format(tree)
+                                )
+                        }
 
                     case tree: ClassTree => 
                         throw new Unhandled(tree) // XXX inner classes
 
                     case tree: ContinueTree =>
-                        val idx = branchIndex(BranchContinue, nullToOption(tree.getLabel))
-                        uncondContinue(tree, idx)
+                        branchTarget(BranchContinue, nullToOption(tree.getLabel)) match {
+                            case Some(scope) =>
+                                uncondContinue(tree, scope)
+                            case None =>
+                                throw new CheckFailure(
+                                    "intervals.internal.error",
+                                    "Could not find target for continue %s".format(tree)
+                                )
+                        }
 
                     case tree: DoWhileLoopTree =>
                         // The "outer" scope is the target for breaks, 
                         // "inner" is the target for continues.
-                        subscope(tree, ScopeKindSeq, label_tree) { scope_outer =>
-                            subscope(tree, ScopeKindLoop, label_tree) { scope_inner =>
-                                scope_inner.stmt(None, tree.getStatement)
-                                scope_inner.rvalue(tree.getCondition)
-                                scope_inner.condBreak(tree, 1)
-                                scope_inner.uncondContinue(tree, 0)
+                        subscope(tree, ScopeKindBlock, label_tree) { scope_outer =>
+                            scope_outer.subseq { seq_outer =>
+                                seq_outer.subscope(tree, ScopeKindLoop, label_tree) { scope_inner =>
+                                    scope_inner.subseq { seq_inner =>
+                                        seq_inner.stmt(None, tree.getStatement)
+                                        seq_inner.rvalue(tree.getCondition)
+                                        seq_inner.condBreak(tree, scope_outer)
+                                        seq_inner.uncondContinue(tree, scope_inner)                            
+                                    }
+                                }                                
                             }
                         }
-
                     case tree: EmptyStatementTree => ()
 
                     case tree: EnhancedForLoopTree => throw new Unhandled(tree) // XXX enhanced for loops
@@ -598,32 +623,36 @@ object TranslateMethodBody
 
                     case tree: ForLoopTree =>
                         // Rather involved transformation:
-                        //  outer: Seq {
+                        //  outer: Block {
                         //      <initializers>
                         //      <condition>
-                        //      condBreak Seq;
+                        //      condBreak outer;
                         //      <statement>
                         //      inner: Loop {
                         //          <update>
                         //          <condition>
-                        //          condBreak Seq;
+                        //          condBreak outer;
                         //          <statement>
-                        //          continue Loop;
+                        //          continue inner;
                         //      }
                         //  }
 
-                        subscope(tree, ScopeKindSeq, label_tree) { scope_outer =>
-                            tree.getInitializer.foreach(scope_outer.stmt(None, _))
-                            scope_outer.rvalue(tree.getCondition)
-                            scope_outer.condBreak(tree, 0)
-                            scope_outer.stmt(None, tree.getStatement)                        
+                        subscope(tree, ScopeKindBlock, label_tree) { scope_outer =>
+                            scope_outer.subseq { seq_outer =>
+                                tree.getInitializer.foreach(seq_outer.stmt(None, _))
+                                seq_outer.rvalue(tree.getCondition)
+                                seq_outer.condBreak(tree, scope_outer)
+                                seq_outer.stmt(None, tree.getStatement)                        
 
-                            subscope(tree, ScopeKindLoop, label_tree) { scope_inner =>
-                                tree.getUpdate.foreach(scope_inner.stmt(None, _))
-                                scope_inner.rvalue(tree.getCondition)
-                                scope_inner.condBreak(tree, 1)
-                                scope_inner.stmt(None, tree.getStatement)
-                                scope_inner.uncondContinue(tree, 0)
+                                seq_outer.subscope(tree, ScopeKindLoop, label_tree) { scope_inner =>
+                                    scope_inner.subseq { seq_inner =>
+                                        tree.getUpdate.foreach(seq_inner.stmt(None, _))
+                                        seq_inner.rvalue(tree.getCondition)
+                                        seq_inner.condBreak(tree, scope_outer)
+                                        seq_inner.stmt(None, tree.getStatement)
+                                        seq_inner.uncondContinue(tree, scope_inner)                                        
+                                    }
+                                }                                
                             }
                         }
 
@@ -643,26 +672,29 @@ object TranslateMethodBody
                     case tree: WhileLoopTree =>
                         // The "outer" scope is the target for breaks, 
                         // "inner" is the target for continues.
-                        subscope(tree, ScopeKindSeq, label_tree) { scope_outer =>
-                            subscope(tree, ScopeKindLoop, label_tree) { scope_inner =>
-                                scope_inner.rvalue(tree.getCondition)
-                                scope_inner.condBreak(tree, 1)
-                                scope_inner.stmt(None, tree.getStatement)
-                                scope_inner.uncondContinue(tree, 0)                            
+                        subscope(tree, ScopeKindBlock, label_tree) { scope_outer =>
+                            scope_outer.subseq { seq_outer =>
+                                seq_outer.subscope(tree, ScopeKindLoop, label_tree) { scope_inner =>
+                                    scope_inner.subseq { seq_inner =>
+                                        seq_inner.rvalue(tree.getCondition)
+                                        seq_inner.condBreak(tree, scope_outer)
+                                        seq_inner.stmt(None, tree.getStatement)
+                                        seq_inner.uncondContinue(tree, scope_inner)                            
+                                    }
+                                }                                
                             }
                         }
 
                     case _ => throw new Unhandled(tree)
                 }
-            }
-            
+            }            
         }
         
-        // ___ Building the MutableBlocks array 'mblks' _________________________
-
-        val scope0 = new Scope(ScopeKindSeq, None, None, symtab_mthdParam, List())
-        scope0.stmt(None, mtree.getBody)
-        scope0.toCompoundStmt
+        // ___ Building the method body _________________________________________
+        
+        val msubseq = new MutableStmtSeq(symtab_mthdParam, List())
+        msubseq.stmt(None, mtree.getBody)
+        msubseq.toStmtSeq
     }
 
 }

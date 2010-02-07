@@ -653,7 +653,7 @@ class TranslateTypeFactory(
             /* name:   */ m(eelem), 
             /* args:   */ eelem.getParameters.map(dummyLvDecl).toList,
             /* reqs:   */ List(),
-            /* body:   */ ir.stmt_empty
+            /* body:   */ ir.empty_method_body
         )
 
     def dummyClassDecl(telem: TypeElement) = 
@@ -732,7 +732,7 @@ class TranslateTypeFactory(
                     /* name:   */ m(eelem), 
                     /* args:   */ eelem.getParameters.map(intArgDecl).toList,
                     /* reqs:   */ reqs(eelem),
-                    /* body:   */ ir.stmt_empty
+                    /* body:   */ ir.empty_method_body
                 ).withPos(env_mthd.pos)
             }
         }
@@ -775,7 +775,7 @@ class TranslateTypeFactory(
                 indexLog.indented("Method Impl: %s()", qualName(eelem)) {
                     at(TreePosition(mtree), dummyMethodDecl(eelem) :: mdecls) {
                         val intMdecl = intMethodDecl(eelem)
-                        val blocks = TranslateMethodBody(logStack, processingEnvironment, this, mtree)
+                        val blocks = TranslateMethodBody(logStack, this, mtree)
 
                         ir.MethodDecl(
                             intMdecl.attrs,

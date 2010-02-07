@@ -136,7 +136,13 @@ abstract class Log {
             
     def methodDecl(lbl: Any, md: ir.MethodDecl): Unit = ifEnabled {
         indented("%s%s", lbl, md) {
-            statement("", md.body)
+            statementSeq("", md.body)
+        }
+    }
+    
+    def statementSeq(lbl: Any, seq: ir.StmtSeq): Unit = ifEnabled {
+        indented("%s%s", lbl, seq) {
+            seq.stmts.foreach(statement(lbl, _))
         }
     }
     
@@ -144,7 +150,7 @@ abstract class Log {
         stmt match {
             case ir.StmtCompound(kind, args) =>
                 indented("%s%s", lbl, stmt) {
-                    kind.substmts.foreach(statement("", _))
+                    kind.subseqs.foreach(statementSeq("", _))
                 }
             case _ => 
                 apply("%s%s", lbl, stmt)

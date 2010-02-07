@@ -208,7 +208,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
 
                 case stmt_c: ir.StmtCompound =>
                     stmt_c.kind match {
-                        case ir.Seq(_) =>
+                        case ir.Block(_) =>
                         case ir.Switch(_) =>
                         case ir.Loop(_, ps_initial, _) =>
                             ps_initial.foreach(checkPathWf(reified, _))
@@ -218,11 +218,15 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                         case ir.TryCatch(_, _) =>
                     }
                     
-                    stmt_c.kind.substmts.foreach(checkStatement(stmt_c :: stmts_stack))
+                    stmt_c.kind.subseqs.foreach(checkStatementSeq(stmt_c :: stmts_stack))
                 
                     stmt_c.defines.foreach(addArg)
             }        
         }
+        
+    def checkStatementSeq(stmts_stack: List[ir.StmtCompound])(seq: ir.StmtSeq) {
+        seq.stmts.foreach(checkStatement(stmts_stack))
+    }
     
     def addCheckedArg(arg: ir.LvDecl) {
         checkWfWt(arg.wt) 
@@ -268,7 +272,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                     md.args.foreach(addCheckedArg)
                     checkWfWt(md.wt_ret)                
                     md.reqs.foreach(checkReq)
-                    checkStatement(List())(md.body)
+                    checkStatementSeq(List())(md.body)
                 }
             }         
         }
@@ -291,7 +295,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                     // and reify it, and thus permit control-flow.  We then have to propagate
                     // p_this between blocks though (yuck).
             
-                    checkStatement(List())(md.body)
+                    checkStatementSeq(List())(md.body)
                 }
             }          
         }
