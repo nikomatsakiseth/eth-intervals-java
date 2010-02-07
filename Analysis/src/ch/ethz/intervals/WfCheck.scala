@@ -218,7 +218,9 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                         case ir.TryCatch(_, _) =>
                     }
                     
-                    stmt_c.kind.subseqs.foreach(checkStatementSeq(stmt_c :: stmts_stack))
+                    savingEnv {
+                        stmt_c.kind.subseqs.foreach(checkStatementSeq(stmt_c :: stmts_stack))                        
+                    }
                 
                     stmt_c.defines.foreach(addArg)
             }        

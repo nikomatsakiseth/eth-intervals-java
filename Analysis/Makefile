@@ -16,10 +16,10 @@ clean:
 
 compile:
 	$(SBT) compile test-compile 2>&1 | col -b
+	cp src/ch/ethz/intervals/messages.properties target/classes/ch/ethz/intervals
 
-test:
+test: compile
 	rm -rf debug-logs/*
-	$(SBT) test-compile
 	JAVA_HOME="${JAVA_HOME}" \
 	JAVA_OPTS="-cp ${CLASSPATH} -Xbootclasspath/p:lib/jsr308-all-1.04.jar" \
 	${SCALA} -cp ${CLASSPATH} org.scalatest.tools.Runner -oW -s \

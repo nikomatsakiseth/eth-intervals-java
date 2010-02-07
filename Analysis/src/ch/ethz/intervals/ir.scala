@@ -297,7 +297,7 @@ object ir {
     //     in CONTINUE.  
     
     sealed case class StmtCondBreak(i: Int, ps: List[Path]) extends Stmt {
-        override def toString = "break %d(%s);".format(i, ", ".join(ps))
+        override def toString = "condBreak %d(%s);".format(i, ", ".join(ps))
     }
     sealed case class StmtBreak(i: Int, ps: List[Path]) extends Stmt {
         override def toString = "break %d(%s);".format(i, ", ".join(ps))

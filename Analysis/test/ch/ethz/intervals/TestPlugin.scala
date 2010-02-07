@@ -12,12 +12,14 @@ import Util._
 import java.io.File
 
 import javax.tools.Diagnostic
+import javax.tools.Diagnostic.Kind
 import javax.tools.DiagnosticCollector
 import javax.tools.JavaFileObject
-import javax.tools.Diagnostic.Kind
 import javax.tools.JavaCompiler
 import javax.tools.StandardJavaFileManager
 import javax.tools.ToolProvider
+
+import java.net.URLEncoder
 
 import ch.ethz.intervals.log.LogDirectory
 
@@ -30,6 +32,9 @@ class TestPlugin extends JUnitSuite {
         
     case class DiagError(jfo: JavaFileObject, line: Long, msg: String) 
     extends Ordered[DiagError] {
+        // Note: column is not used for equality or other comparison purposes
+        var column: Long = 1
+        
         def compare(d: DiagError) = {
             if(fileName(jfo) != fileName(d.jfo))
                 fileName(jfo).compare(fileName(d.jfo))
@@ -39,11 +44,20 @@ class TestPlugin extends JUnitSuite {
                 msg.compare(d.msg)
         }
         
+        def toTxmtUrl = {
+            "txmt://open?url=file://%s&line=%d&column=%d".format(
+                URLEncoder.encode(jfo.toUri.getPath.toString, "UTF-8"), line, column
+            )
+        }
+        
         override def toString = 
-            "%s (%s:%d)".format(msg, fileName(jfo), line)
+            "%s (%s:%s:%s)".format(msg, fileName(jfo), line, column)
     }
-    def diagToDiagError(diag: Diagnostic[_ <: JavaFileObject]) = 
-        DiagError(diag.getSource, diag.getLineNumber, diag.getMessage(null))
+    def diagToDiagError(diag: Diagnostic[_ <: JavaFileObject]) = {
+        val d = DiagError(diag.getSource, diag.getLineNumber, diag.getMessage(null))
+        d.column = diag.getColumnNumber
+        d
+    }
     
     case class JdkConfig(
         dir: String,
@@ -136,14 +150,20 @@ class TestPlugin extends JUnitSuite {
                 actErrors.foreach { actError =>
                     expErrorsRemaining.indexOf(actError) match {
                         case -1 => // Unexpected error:
-                            log("Unexpected Error: %s", actError)
+                            log.linkTo(
+                                actError.toTxmtUrl,
+                                "Unexpected Error: %s", actError)
                         case i => // Skipped some errors
                             expErrorsRemaining.take(i).foreach { expError =>
-                                log("Skipped Error: %s", expError)
+                                log.linkTo(
+                                    expError.toTxmtUrl,
+                                    "Skipped Error: %s", expError)
                             }
                             expErrorsRemaining = expErrorsRemaining.drop(i)
                             matchedErrors += 1
-                            log("Matched Error: %s", actError)
+                            log.linkTo(
+                                actError.toTxmtUrl,
+                                "Matched Error: %s", actError)
                     }
                 }            
             }

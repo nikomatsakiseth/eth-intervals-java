@@ -319,10 +319,15 @@ object TranslateMethodBody
                     call(etree, p, ir.m_toString)
             }
             
-            def nullStmt(etree: ExpressionTree) = {
+            // Produces a fresh variable whose type is 'annty' (whose value is null)
+            def nullStmt(tree: Tree, wt: ir.WcTypeRef): ir.Path = {
                 val r = freshVar
-                addStmt(etree, ir.StmtNull(r, wtref(etree)))
+                addStmt(tree, ir.StmtNull(r, wt))
                 r.path
+            }
+            
+            def nullStmt(etree: ExpressionTree): ir.Path = {
+                nullStmt(etree, wtref(etree))
             }
             
             def load(treePos: Tree, p: ir.Path, f: ir.FieldName) = {
@@ -664,12 +669,11 @@ object TranslateMethodBody
 
                     case tree: VariableTree =>
                         val sym = createSymbol(env(tree))(tree)
-                        val ver = tree.getInitializer match {
-                            case null => sym.nextLocalVersion
-                            case expr => 
-                                val p = rvalue(expr)
-                                sym.nextExprVersion(p)
+                        val p = tree.getInitializer match {
+                            case null => nullStmt(tree, sym.wtref)
+                            case expr => rvalue(expr)
                         }
+                        val ver = sym.nextExprVersion(p)
                         symtab += Pair(sym.name, ver)
 
                     case tree: WhileLoopTree =>
