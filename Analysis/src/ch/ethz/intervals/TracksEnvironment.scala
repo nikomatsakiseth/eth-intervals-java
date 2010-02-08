@@ -24,7 +24,9 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
     
     /// Reading and modifying the environment
     def env = env_private    
+    def flow = env.flow
     def setEnv(env_new: ir.TcEnv) = env_private = env_new
+    def setFlow(flow_new: FlowEnv) = setEnv(env.withFlow(flow_new))
     
     /// Executes g and restores the old environment afterwards:
     def savingEnv[R](func: => R): R = {
@@ -91,22 +93,22 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
         
     def addTemp(p: ir.Path, q: ir.Path) =
         log.indented("addTemp(%s,%s)", p, q) {
-            setEnv(env.withTemp(env.temp + Pair(p, q)))
+            setFlow(flow.withTemp(flow.temp + Pair(p, q)))
         }
 
     def clearTemp() =
         log.indented("clearTemp()") {
-            setEnv(env.withTemp(Map()))
+            setFlow(flow.withTemp(Map()))
         }        
 
     def addInvalidated(p: ir.Path) =
         log.indented("addInvalidated(%s)", p) {
-            setEnv(env.withInvalidated(env.ps_invalidated + p))
+            setFlow(flow.withInvalidated(flow.ps_invalidated + p))
         }        
 
     def removeInvalidated(p: ir.Path) =
         log.indented("removeInvalidated(%s)", p) {
-            setEnv(env.withInvalidated(env.ps_invalidated - p))
+            setFlow(flow.withInvalidated(flow.ps_invalidated - p))
         }
 
     def addHbPnt(tp: ir.TeePee, tq: ir.TeePee): Unit = 
@@ -114,7 +116,7 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
             assert(tp.isConstant && tq.isConstant)
             assert(isSubclass(tp.wt, ir.c_point))
             assert(isSubclass(tq.wt, ir.c_point))
-            setEnv(env.withHb(env.hb + (tp.p, tq.p)))
+            setFlow(flow.withHb(flow.hb + (tp.p, tq.p)))
         }
 
     def addHbInter(tp: ir.TeePee, tq: ir.TeePee): Unit = 
@@ -122,7 +124,7 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
             assert(tp.isConstant && tq.isConstant)
             assert(isSubclass(tp.wt, ir.c_interval))
             assert(isSubclass(tq.wt, ir.c_interval))
-            setEnv(env.withHb(env.hb + (tp.p.end, tq.p.start)))
+            setFlow(flow.withHb(flow.hb + (tp.p.end, tq.p.start)))
         }
 
     def addDeclaredReadableBy(tp: ir.TeePee, tq: ir.TeePee): Unit = 
@@ -130,7 +132,7 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
             assert(tp.isConstant && tq.isConstant)
             assert(isSubclass(tp.wt, ir.c_guard))
             assert(isSubclass(tq.wt, ir.c_interval))
-            setEnv(env.withReadable(env.readable + (tp.p, tq.p)))
+            setFlow(flow.withReadable(flow.readable + (tp.p, tq.p)))
         }
 
     def addDeclaredWritableBy(tp: ir.TeePee, tq: ir.TeePee): Unit = 
@@ -139,7 +141,7 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
             //assert(tp.isConstant && tq.isConstant)
             assert(isSubclass(tp.wt, ir.c_guard))
             assert(isSubclass(tq.wt, ir.c_interval))
-            setEnv(env.withWritable(env.writable + (tp.p, tq.p)))
+            setFlow(flow.withWritable(flow.writable + (tp.p, tq.p)))
         }
 
     def addSubintervalOf(tp: ir.TeePee, tq: ir.TeePee): Unit = 
@@ -148,8 +150,8 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
             //assert(tp.isConstant && tq.isConstant)
             assert(isSubclass(tp.wt, ir.c_interval))
             assert(isSubclass(tq.wt, ir.c_interval))
-            setEnv(env.withHb(env.hb + (tq.p.start, tp.p.start) + (tp.p.end, tq.p.end)))
-            setEnv(env.withSubinterval(env.subinterval + (tp.p, tq.p)))
+            setFlow(flow.withHb(flow.hb + (tq.p.start, tp.p.start) + (tp.p.end, tq.p.end)))
+            setFlow(flow.withSubinterval(flow.subinterval + (tp.p, tq.p)))
         }
 
     def addLocks(tp: ir.TeePee, tq: ir.TeePee): Unit =
@@ -158,7 +160,7 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
             //assert(tp.isConstant && tq.isConstant)
             assert(isSubclass(tp.wt, ir.c_interval))
             assert(isSubclass(tq.wt, ir.c_lock))
-            setEnv(env.withLocks(env.locks + (tp.p, tq.p)))
+            setFlow(flow.withLocks(flow.locks + (tp.p, tq.p)))
         }
 
     def equiv(tp: ir.TeePee, tq: ir.TeePee): Boolean = 
@@ -177,7 +179,7 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
     // they should be, because we sometimes permit Locks for convenience.
     def hbPnt(tp: ir.TeePee, tq: ir.TeePee): Boolean = 
         log.indentedRes("%s hb[point] %s?", tp, tq) {
-            env.hb.contains(tp.p, tq.p)
+            flow.hb.contains(tp.p, tq.p)
         }
 
     // Note: we don't check that tp, tq are intervals, although
@@ -185,34 +187,34 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
     def hbInter(tp: ir.TeePee, tq: ir.TeePee): Boolean = 
         log.indentedRes("%s hb[inter] %s?", tp, tq) {
             logHb()
-            env.hb.contains(tp.p.end, tq.p.start)
+            flow.hb.contains(tp.p.end, tq.p.start)
         }
 
     def superintervals(tp: ir.TeePee): Set[ir.Path] = {
-        env.subinterval(tp.p)
+        flow.subinterval(tp.p)
     }
 
     def isSubintervalOf(tp: ir.TeePee, tq: ir.TeePee): Boolean = 
         log.indentedRes("%s subinterval of %s?", tp, tq) {
-            env.subinterval.contains(tp.p, tq.p)
+            flow.subinterval.contains(tp.p, tq.p)
         }
 
     def declaredReadableBy(tp: ir.TeePee, tq: ir.TeePee): Boolean = 
         log.indentedRes("%s readable by %s?", tp, tq) {
-            env.readable.contains(tp.p, tq.p) ||
-            superintervals(tq).exists(env.readable.contains(tp.p, _))
+            flow.readable.contains(tp.p, tq.p) ||
+            superintervals(tq).exists(flow.readable.contains(tp.p, _))
         }
 
     def declaredWritableBy(tp: ir.TeePee, tq: ir.TeePee): Boolean = 
         log.indentedRes("%s writable by %s?", tp, tq) {
-            env.writable.contains(tp.p, tq.p) ||
-            superintervals(tq).exists(env.writable.contains(tp.p, _))
+            flow.writable.contains(tp.p, tq.p) ||
+            superintervals(tq).exists(flow.writable.contains(tp.p, _))
         }
 
     def locks(tp: ir.TeePee, tq: ir.TeePee): Boolean = 
         log.indentedRes("%s locks %s?", tp, tq) {
-            env.locks.contains(tp.p, tq.p) || 
-            superintervals(tp).exists(env.locks.contains(_, tq.p))
+            flow.locks.contains(tp.p, tq.p) || 
+            superintervals(tp).exists(flow.locks.contains(_, tq.p))
         }        
 
     def isWritableBy(tp: ir.TeePee, tq: ir.TeePee): Boolean =
@@ -419,8 +421,8 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
 
     /// Constructs a TeePee for p_1 
     def teePee(p_1: ir.Path): ir.TeePee = log.indentedRes("teePee(%s)", p_1) {
-        if(env.temp.contains(p_1))
-            teePee(env.temp(p_1))
+        if(flow.temp.contains(p_1))
+            teePee(flow.temp(p_1))
         else 
             p_1 match {
                 case ir.Path(lv, List()) => // all local variables should be in env.perm

@@ -142,10 +142,10 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
     }
         
     def checkNoInvalidated() {
-        if(!env.ps_invalidated.isEmpty)
+        if(!env.flow.ps_invalidated.isEmpty)
             throw new CheckFailure(
                 "intervals.must.assign.first", 
-                env.ps_invalidated.mkEnglishString)        
+                env.flow.ps_invalidated.mkEnglishString)        
     }
 
     def checkCallMsig(tp: ir.TeePee, msig: ir.MethodSig, tqs: List[ir.TeePee]) {
@@ -173,11 +173,14 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
         addLvDecl(x, msig.wt_ret, None)
     }
     
-    def mapEnv(
-        env_in: ir.TcEnv,
-        decls: List[ir.LvDecl],
-        tps: List[ir.TeePee]
+    def mapAndMergeBranchEnv(
+        env_in: ir.TcEnv,       // environment on entry to the flow
+        env_brk: ir.TcEnv,      // environment at branch statement
+        decls: List[ir.LvDecl], // defined variables (phi variable declarations)
+        tps: List[ir.TeePee]    // arguments to each phi
     ): ir.TcEnv = {
+        val flow_brk = env_brk.flow
+        
         // ----------------------------------------------------------------------
         // Check that tps have the correct types.
         
@@ -200,7 +203,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
         val lv_outOfScope = ir.VarName(prog.fresh("outOfScope"))
 
         // Map all vars to outOfScope (unless overridden later)
-        val map0 = env.perm.keys.foldLeft(Map.empty[ir.Path, ir.Path]) { case (m, x) =>
+        val map0 = env_brk.perm.keys.foldLeft(Map.empty[ir.Path, ir.Path]) { case (m, x) =>
             m + Pair(x.path, lv_outOfScope.path)
         }
     
@@ -242,25 +245,29 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
 
         env_in
         .addArgs(decls)
-        .withTemp(mapMap(env.temp))
-        .withInvalidated(mapInvalidated(env.ps_invalidated))
-        .withReadable(mapRelation(env.readable))
-        .withWritable(mapRelation(env.writable))
-        .withHb(mapRelation(env.hb))
-        .withSubinterval(mapRelation(env.subinterval))
-        .withLocks(mapRelation(env.locks))
+        .withFlow(
+            FlowEnv(
+                mapMap(flow_brk.temp),
+                mapInvalidated(flow_brk.ps_invalidated),
+                mapRelation(flow_brk.readable),
+                mapRelation(flow_brk.writable),
+                mapRelation(flow_brk.hb),
+                mapRelation(flow_brk.subinterval),
+                mapRelation(flow_brk.locks)
+            )
+        )
     }
     
     def intersect(oenv1: Option[ir.TcEnv], env2: ir.TcEnv) = oenv1 match {
         case None => Some(env2)
-        case Some(env1) => Some(env1 ** env2)
+        case Some(env1) => Some(env1.intersectFlow(env2.flow))
     }
 
     def mergeBreakEnv(idx: Int, tps: List[ir.TeePee]) {
         log.indented("mergeBreakEnv(%s,%s)", idx, tps) {
             val ss = ss_cur(idx)
 
-            val env_map = mapEnv(ss.env_in, ss.stmt.defines, tps)
+            val env_map = mapAndMergeBranchEnv(ss.env_in, env, ss.stmt.defines, tps)
             log.env("env_map: ", env_map)
             ss.oenv_break = intersect(ss.oenv_break, env_map)            
             if(ss.oenv_break.get != env_map)
@@ -273,7 +280,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
             val ss = ss_cur(idx)
             ss.stmt.kind match {
                 case ir.Loop(args, _, _) =>
-                    val env_map = mapEnv(ss.env_in, args, tps)
+                    val env_map = mapAndMergeBranchEnv(ss.env_in, env, args, tps)
                     log.env("env_map: ", env_map)
                     ss.oenv_continue = intersect(ss.oenv_continue, env_map)
                     if(ss.oenv_continue.get != env_map)
@@ -309,7 +316,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                 seqs.foreach { seq =>
                     // If the previous stmt breaks, then 
                     // env == env_initial and this line has no effect.
-                    setEnv(env ** env_initial)
+                    setEnv(env.intersectFlow(env_initial.flow))
                     checkStatementSeq(seq)
                 }
                 
@@ -385,7 +392,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                 
                 // Supertype must have been processed first:
                 log("Supertype: %s", tp)
-                setEnv(env + prog.exportedCtorEnvs((tp.wt.c, m)))
+                setEnv(env.addFlow(prog.exportedCtorEnvs((tp.wt.c, m))))
                 
             case ir.StmtGetField(x, p_o, f) =>
                 val tp_o = teePee(ir.noAttrs, p_o)
@@ -539,15 +546,15 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
     def extractAssumptions(
         tp_mthd: ir.TeePee, 
         lvs_shared: Set[ir.VarName]
-    ): ir.TcEnv = savingEnv {        
+    ): FlowEnv = savingEnv {        
         log.indented("extractAssumptions(%s,%s)", tp_mthd, lvs_shared) {
             withCurrent(freshTp(ir.t_interval).p) {                
                 addHbInter(tp_mthd, tp_cur)
                 
                 log.env("Input Environment: ", env)
 
-                val tempKeys = env.temp.map(_._1).toList
-                val tempValues = env.temp.map(_._2).toList
+                val tempKeys = flow.temp.map(_._1).toList
+                val tempValues = flow.temp.map(_._2).toList
                 val mapFunc = PathSubst.pp(tempValues, tempKeys).path(_)
                 
                 def filterFunc(p: ir.Path): Boolean = 
@@ -555,12 +562,12 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                         lvs_shared(p.lv) && !teePee(p).as.mutable                
                     }
 
-                ir.Env.empty
-                    .withReadable(env.readable.mapFilter(mapFunc, filterFunc))
-                    .withWritable(env.writable.mapFilter(mapFunc, filterFunc))
-                    .withHb(env.hb.mapFilter(mapFunc, filterFunc))
-                    .withSubinterval(env.subinterval.mapFilter(mapFunc, filterFunc))
-                    .withLocks(env.locks.mapFilter(mapFunc, filterFunc))
+                FlowEnv.empty
+                    .withReadable(flow.readable.mapFilter(mapFunc, filterFunc))
+                    .withWritable(flow.writable.mapFilter(mapFunc, filterFunc))
+                    .withHb(flow.hb.mapFilter(mapFunc, filterFunc))
+                    .withSubinterval(flow.subinterval.mapFilter(mapFunc, filterFunc))
+                    .withLocks(flow.locks.mapFilter(mapFunc, filterFunc))
             }            
         }
     }
@@ -611,9 +618,9 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
     }
     
     def checkMethodDecl(
-        cd: ir.ClassDecl,          // class in which the method is declared
-        env_ctor_assum: ir.TcEnv,  // relations established by the ctor
-        md: ir.MethodDecl          // method to check
+        cd: ir.ClassDecl,           // class in which the method is declared
+        flow_ctor_assum: FlowEnv,   // relations established by the ctor
+        md: ir.MethodDecl           // method to check
     ) = 
         indexAt(md, ()) {
             savingEnv {
@@ -624,8 +631,8 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                 if(!md.attrs.ctor) { 
                     // For normal methods, type of this is the defining class
                     addPerm(ir.lv_this, ir.TeePee(thisTref(cd), ir.p_this, ir.noAttrs))                     
-                    addHbInter(tp_ctor, tp_cur)     // ... constructor already happened
-                    setEnv(env + env_ctor_assum)    // ... add its effects on environment
+                    addHbInter(tp_ctor, tp_cur)             // ... constructor already happened
+                    setEnv(env.addFlow(flow_ctor_assum))    // ... add its effects on environment
                 } else {
                     // For constructor methods, type of this is the type that originally defined it
                     val t_rcvr = typeOriginallyDefiningMethod(cd.name, md.name).get
@@ -650,7 +657,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
         }
         
     def checkNoninterfaceConstructorDecl(cd: ir.ClassDecl, md: ir.MethodDecl) = 
-        indexAt(md, ir.Env.empty) {
+        indexAt(md, FlowEnv.empty) {
             savingEnv {
                 // Define special vars "method" (== this.constructor) and "this":
                 addPerm(ir.lv_mthd, ir.TeePee(ir.t_interval, ir.gfd_ctor.thisPath, ir.ghostAttrs))
@@ -663,10 +670,10 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                 checkMethodBody(md)
                 
                 // Compute exit assumptions and store in prog.exportedCtorEnvs:
-                setEnv(extractAssumptions(tp_ctor, Set(ir.lv_this))) // Globally valid assums
-                log.env("extracted assumptions:", env)
-                prog.exportedCtorEnvs += Pair((cd.name, md.name), env) // Store
-                env
+                val flow = extractAssumptions(tp_ctor, Set(ir.lv_this)) // Globally valid assums
+                log.flow("extracted assumptions:", flow)
+                prog.exportedCtorEnvs += Pair((cd.name, md.name), flow) // Store
+                flow
             }
         }
     
@@ -762,7 +769,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
     def checkInterfaceClassDecl(cd: ir.ClassDecl) =
         indexAt(cd, ()) {
             savingEnv {
-                cd.methods.foreach(checkMethodDecl(cd, ir.Env.empty, _))
+                cd.methods.foreach(checkMethodDecl(cd, FlowEnv.empty, _))
             }
         }            
         
@@ -770,9 +777,9 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
         indexAt(cd, ()) {
             savingEnv {
                 cd.fields.foldLeft(Set.empty[ir.FieldName])(checkFieldDecl(cd))                
-                val envs_ctor = cd.ctors.map(checkNoninterfaceConstructorDecl(cd, _))
-                val env_all_ctors = ir.Env.intersect(envs_ctor)
-                cd.methods.foreach(checkMethodDecl(cd, env_all_ctors, _))                    
+                val flows_ctor = cd.ctors.map(checkNoninterfaceConstructorDecl(cd, _))
+                val flow_all_ctors = FlowEnv.intersect(flows_ctor)
+                cd.methods.foreach(checkMethodDecl(cd, flow_all_ctors, _))                    
             }
         }
             

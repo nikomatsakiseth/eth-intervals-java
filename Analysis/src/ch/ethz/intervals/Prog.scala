@@ -32,8 +32,8 @@ class Prog(
     // of its constructors in this table.  These can be used by subclasses.
     
     var exportedCtorEnvs = Map(
-        ((ir.c_object, ir.m_init), ir.Env.empty),
-        ((ir.c_interval, ir.m_init), ir.Env.empty)
+        ((ir.c_object, ir.m_init), FlowEnv.empty),
+        ((ir.c_interval, ir.m_init), FlowEnv.empty)
     )
     
     // ___ Fresh variables __________________________________________________

@@ -102,13 +102,19 @@ abstract class Log {
             apply("ps_cur: %s", env.ps_cur)
             apply("wt_ret: %s", env.wt_ret)
             map("perm:", env.perm)
-            map("temp:", env.temp)
-            apply("invalidated: %s", env.ps_invalidated)
-            rel("readable:", "readable by", env.readable)
-            rel("writable:", "writable by", env.writable)
-            rel("hb:", "hb", env.hb)
-            rel("subinterval:", "subinterval of", env.subinterval)
-            rel("locks:", "locks", env.locks)                    
+            flow("flow:", env.flow)
+        }
+    }
+    
+    def flow(lbl: Any, flow: FlowEnv): Unit = ifEnabled {
+        indented("%s", lbl) {
+            map("temp:", flow.temp)
+            apply("invalidated: %s", flow.ps_invalidated)
+            rel("readable:", "readable by", flow.readable)
+            rel("writable:", "writable by", flow.writable)
+            rel("hb:", "hb", flow.hb)
+            rel("subinterval:", "subinterval of", flow.subinterval)
+            rel("locks:", "locks", flow.locks)                    
         }
     }
     

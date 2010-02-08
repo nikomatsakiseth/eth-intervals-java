@@ -2,7 +2,6 @@ package ch.ethz.intervals
 
 import scala.collection.immutable.Set
 import scala.collection.immutable.ListSet
-import scala.collection.immutable.Stack
 import scala.util.parsing.input.Positional
 import scala.util.parsing.input.Position
 import scala.util.parsing.input.NoPosition
@@ -477,56 +476,31 @@ object ir {
         ps_cur: List[ir.Path],                  // current interval
         wt_ret: ir.WcTypeRef,                   // return type of current method
         perm: Map[ir.VarName, ir.TeePee],       // permanent equivalences, hold for duration of method
-        temp: Map[ir.Path, ir.Path],            // temporary equivalences, cleared on method call
-        ps_invalidated: Set[ir.Path],           // p is current invalid and must be reassigned                
-        readable: IntransitiveRelation[Path],   // (p, q) means guard p is readable by interval q
-        writable: IntransitiveRelation[Path],   // (p, q) means guard p is writable by interval q
-        hb: TransitiveRelation[Path],           // (p, q) means interval p hb interval q
-        subinterval: TransitiveRelation[Path],  // (p, q) means interval p is a subinterval of interval q
-        locks: IntransitiveRelation[Path]       // (p, q) means interval p locks lock q        
+        flow: FlowEnv
     ) {
-        def addPerm(x: ir.VarName, tq: ir.TeePee) =
+        def withCurrent(ps_cur: List[ir.Path]) = TcEnv(ps_cur, wt_ret, perm, flow)
+        def withRet(wt_ret: ir.WcTypeRef) = TcEnv(ps_cur, wt_ret, perm, flow)
+        def withPerm(perm: Map[ir.VarName, ir.TeePee]) = TcEnv(ps_cur, wt_ret, perm, flow)
+        def withFlow(flow: FlowEnv) = TcEnv(ps_cur, wt_ret, perm, flow)
+        
+        def addPerm(x: ir.VarName, tq: ir.TeePee) = {
             perm.get(x) match {
                 case Some(_) => throw new CheckFailure("intervals.shadowed", x)
                 case None => withPerm(perm + Pair(x, tq))
             }    
+        }
         
         def addArg(arg: LvDecl) =
             addPerm(arg.name, ir.TeePee(arg.wt, arg.name.path, noAttrs))        
         
         def addArgs(args: List[LvDecl]) =
-            args.foldLeft(this) { case (e, a) => e.addArg(a) }
-        
-        def withCurrent(ps_cur: List[ir.Path]) = TcEnv(ps_cur, wt_ret, perm, temp, ps_invalidated, readable, writable, hb, subinterval, locks)
-        def withRet(wt_ret: ir.WcTypeRef) = TcEnv(ps_cur, wt_ret, perm, temp, ps_invalidated, readable, writable, hb, subinterval, locks)
-        def withPerm(perm: Map[ir.VarName, ir.TeePee]) = TcEnv(ps_cur, wt_ret, perm, temp, ps_invalidated, readable, writable, hb, subinterval, locks)
-        def withTemp(temp: Map[ir.Path, ir.Path]) = TcEnv(ps_cur, wt_ret, perm, temp, ps_invalidated, readable, writable, hb, subinterval, locks)
-        def withInvalidated(ps_invalidated: Set[ir.Path]) = TcEnv(ps_cur, wt_ret, perm, temp, ps_invalidated, readable, writable, hb, subinterval, locks)
-        def withReadable(readable: IntransitiveRelation[Path]) = TcEnv(ps_cur, wt_ret, perm, temp, ps_invalidated, readable, writable, hb, subinterval, locks)
-        def withWritable(writable: IntransitiveRelation[Path]) = TcEnv(ps_cur, wt_ret, perm, temp, ps_invalidated, readable, writable, hb, subinterval, locks)
-        def withHb(hb: TransitiveRelation[Path]) = TcEnv(ps_cur, wt_ret, perm, temp, ps_invalidated, readable, writable, hb, subinterval, locks)
-        def withSubinterval(subinterval: TransitiveRelation[Path]) = TcEnv(ps_cur, wt_ret, perm, temp, ps_invalidated, readable, writable, hb, subinterval, locks)
-        def withLocks(locks: IntransitiveRelation[Path]) = TcEnv(ps_cur, wt_ret, perm, temp, ps_invalidated, readable, writable, hb, subinterval, locks)
-        
-        def +(env: TcEnv) =
-            withTemp(temp ++ env.temp).
-            withReadable(readable + env.readable).
-            withWritable(writable + env.writable).
-            withHb(hb + env.hb).
-            withSubinterval(subinterval + env.subinterval).
-            withLocks(locks + env.locks)
-        
-        // Intersecting two environments produces an environment with the
-        // "worst-case" assumptions of both.
-        def **(env2: TcEnv) =
-            this
-                .withTemp(temp ** env2.temp)
-                .withInvalidated(ps_invalidated ++ env2.ps_invalidated)
-                .withReadable(readable ** env2.readable)
-                .withWritable(writable ** env2.writable)
-                .withHb(hb ** env2.hb)
-                .withSubinterval(subinterval ** env2.subinterval)
-                .withLocks(locks ** env2.locks)        
+            args.foldLeft(this) { case (e, a) => e.addArg(a) }        
+            
+        def addFlow(flow1: FlowEnv) =
+            withFlow(flow + flow1)
+            
+        def intersectFlow(flow1: FlowEnv) =
+            withFlow(flow ** flow1)
     }
     
     object Env {
@@ -534,19 +508,8 @@ object ir {
             List(),
             t_void,
             Map(),
-            Map(),
-            ListSet.empty,
-            IntransitiveRelation.empty,
-            IntransitiveRelation.empty,
-            TransitiveRelation.empty,
-            TransitiveRelation.empty,
-            IntransitiveRelation.empty
-        )
-        
-        def intersect(envs: List[ir.TcEnv]) = envs match {
-            case List() => empty
-            case hd :: tl => tl.foldLeft(hd)(_ ** _)
-        }
+            FlowEnv.empty
+        )        
     }
     
     val lv_this = ir.VarName("this")
