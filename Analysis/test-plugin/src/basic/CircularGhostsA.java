@@ -9,28 +9,28 @@ import ch.ethz.intervals.quals.Creator;
 import ch.ethz.intervals.quals.GuardedBy;
 
 @DefinesGhost(type="ch.ethz.intervals.Interval")
-@interface CircularGhost1 {
+@interface CircularGhostA1 {
     public String value() default "";
 }
 
 @DefinesGhost(type="ch.ethz.intervals.Interval")
-@interface CircularGhost2 {
+@interface CircularGhostA2 {
     public String value() default "";
 }
 
-@CircularGhost1 @CircularGhost2
-class CircularGhosts {
+@CircularGhostA1 @CircularGhostA2
+class CircularGhostsA {
     
-    @GuardedBy("CircularGhost1")
+    @GuardedBy("CircularGhostA1")
     int field1;
     
-    @GuardedBy("CircularGhost2")
+    @GuardedBy("CircularGhostA2")
     int field2;
 
     void method(
-        @CircularGhost1("x.CircularGhost2") 
-        @CircularGhost2("x.CircularGhost1") 
-        CircularGhosts x
+        @CircularGhostA1("x.CircularGhostA2") 
+        @CircularGhostA2("x.CircularGhostA1") 
+        CircularGhostsA x
     ) {
         x.field1 = 10;
         x.field2 = 10;

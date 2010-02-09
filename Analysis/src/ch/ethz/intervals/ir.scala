@@ -447,7 +447,7 @@ object ir {
         override def toString = (lv :: fs).map(_.toIdent).mkString(".")
     }
     
-    /// A TeePee is a typed path.
+    // A TeePee is a typed path.
     sealed case class TeePee(
         wt: ir.WcTypeRef, p: ir.Path, as: Attrs
     ) {

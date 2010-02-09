@@ -1,5 +1,7 @@
 package ch.ethz.intervals
 
+import ch.ethz.intervals.quals.DefinesGhost
+
 import checkers.source.SourceChecker
 import checkers.source.SourceVisitor
 import checkers.types.AnnotatedTypeFactory
@@ -71,7 +73,7 @@ class IntervalsChecker extends SourceChecker {
                 val tctx = new TranslateContext(logStack, ttf)
                 
                 val classTree = treePath.getLeaf.asInstanceOf[ClassTree]
-                val refdElems = referenceClosure(classTree)
+                val refdElems = referenceClosure(ttf, classTree)
                 
                 indexLog.indented("Build IR") {
                     tctx.addClassImplementation(classTree) // XXX Supertypes?
@@ -104,19 +106,25 @@ class IntervalsChecker extends SourceChecker {
         }
     }
     
-	def addType(referencedElements: MutableSet[Element], tm: TypeMirror): Unit =
-	    tm.getKind match {
-	        case TK.ARRAY =>
-	            addType(referencedElements, tm.asInstanceOf[ArrayType].getComponentType)
-	        case TK.DECLARED =>
-	            referencedElements += tm.asInstanceOf[DeclaredType].asElement
-	        case TK.TYPEVAR =>
-	            referencedElements += tm.asInstanceOf[TypeVariable].asElement
-	        case _ =>
-	            ()
-	    }
+	def addType(referencedElements: MutableSet[Element], tm: TypeMirror): Unit = tm.getKind match {
+        case TK.ARRAY =>
+            addType(referencedElements, tm.asInstanceOf[ArrayType].getComponentType)
+        case TK.DECLARED =>
+            referencedElements += tm.asInstanceOf[DeclaredType].asElement
+        case TK.TYPEVAR =>
+            referencedElements += tm.asInstanceOf[TypeVariable].asElement
+        case _ =>
+            ()
+    }	    
 	    
-    class TreeVisitor extends TreeScanner[Void, Void] {
+	def addTypesOfAnnotations(referencedElements: MutableSet[Element], elem: Element): Unit = {
+	    elem.getAnnotationMirrors.foreach { am =>
+	        addType(referencedElements, am.getAnnotationType)
+	    }
+	}
+	
+	
+    class TreeVisitor(ttf: TranslateTypeFactory) extends TreeScanner[Void, Void] {
         val referencedElements = MutableSet.empty[Element]
         
         def scanBodyOf(tree: ClassTree) {
@@ -156,11 +164,12 @@ class IntervalsChecker extends SourceChecker {
         }
     }
     
-    class ElementVisitor extends ElementScanner6[Void, Void] {
+    class ElementVisitor(ttf: TranslateTypeFactory) extends ElementScanner6[Void, Void] {
         val referencedElements = MutableSet.empty[Element]
 
         override def visitExecutable(elem: ExecutableElement, v: Void): Void = {
             referencedElements += EU.enclosingClass(elem)
+            addTypesOfAnnotations(referencedElements, elem)
             addType(referencedElements, elem.getReturnType)
             super.scan(elem.getParameters, v)
         }
@@ -169,6 +178,17 @@ class IntervalsChecker extends SourceChecker {
             log.indented("visitType(%s)", elem) {
                 elem.getInterfaces.foreach(addType(referencedElements, _))
                 addType(referencedElements, elem.getSuperclass)
+                
+                // Look for annotation types annotated by 
+                if(elem.getKind == EK.ANNOTATION_TYPE) {
+                    val dg = elem.getAnnotation(classOf[DefinesGhost])
+                    if(dg != null) {
+                        val annty = ttf.AnnTyParser(dg.`type`)
+                        addType(referencedElements, annty.getUnderlyingType)                        
+                    }
+                } else {
+                    addTypesOfAnnotations(referencedElements, elem)                    
+                }
 
                 // n.b.: we visit only the (non-private) enclosed fields; 
                 // if any of the methods are actually invoked, we'll visit 
@@ -188,18 +208,20 @@ class IntervalsChecker extends SourceChecker {
         }
         
         override def visitTypeParameter(elem: TypeParameterElement, v: Void): Void = {
+            addTypesOfAnnotations(referencedElements, elem)
             elem.getBounds.foreach(addType(referencedElements, _))
             null
         }
         
         override def visitVariable(elem: VariableElement, v: Void): Void = {
+            addTypesOfAnnotations(referencedElements, elem)
             referencedElements += EU.enclosingClass(elem)
             addType(referencedElements, elem.asType)
             null
         }
     }
     
-    def referenceClosure(tree: ClassTree): MutableSet[Element] = {
+    def referenceClosure(ttf: TranslateTypeFactory, tree: ClassTree): MutableSet[Element] = {
         def addElements(
             resultSet: MutableSet[Element],
             newSet: MutableSet[Element]
@@ -209,14 +231,14 @@ class IntervalsChecker extends SourceChecker {
             if(resultSet.size == oldSize) {
                 resultSet
             } else {
-                val ev = new ElementVisitor()
+                val ev = new ElementVisitor(ttf)
                 newSet.foreach(ev.scan(_, null))
                 addElements(resultSet, ev.referencedElements)
             }
         }
         
         indexLog.indented("referenceClosure") {
-            val tv = new TreeVisitor()
+            val tv = new TreeVisitor(ttf)
             val resultSet = MutableSet.empty[Element]
             tv.scanBodyOf(tree)
             addElements(resultSet, tv.referencedElements)            

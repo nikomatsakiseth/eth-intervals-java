@@ -45,9 +45,12 @@ class TestPlugin extends JUnitSuite {
         }
         
         def toTxmtUrl = {
-            "txmt://open?url=file://%s&line=%d&column=%d".format(
-                URLEncoder.encode(jfo.toUri.getPath.toString, "UTF-8"), line, column
-            )
+            if(jfo != null)
+                "txmt://open?url=file://%s&line=%d&column=%d".format(
+                    URLEncoder.encode(jfo.toUri.getPath.toString, "UTF-8"), line, column
+                )
+            else
+                ""
         }
         
         override def toString = 
@@ -222,5 +225,15 @@ class TestPlugin extends JUnitSuite {
     @Test 
     def testBbpc() {
         javac(unitTest, "testBbpc", "bbpc/Producer.java")
+    }
+    
+    @Test 
+    def testCircularGhostsA() {
+        javac(unitTest, "testCircularGhostsA", "basic/CircularGhostsA.java")
+    }
+    
+    @Test 
+    def testCircularGhostsB() {
+        javac(unitTest, "testCircularGhostsB", "basic/CircularGhostsB.java")
     }
 }

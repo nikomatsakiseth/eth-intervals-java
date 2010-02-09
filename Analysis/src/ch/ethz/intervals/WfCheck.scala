@@ -235,8 +235,8 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
     }
     
     def addCheckedArg(arg: ir.LvDecl) {
-        checkWtrefWf(arg.wt) 
         addArg(arg)
+        checkWtrefWf(arg.wt) 
     }
     
     def checkReq(req: ir.Req) =

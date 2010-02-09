@@ -89,7 +89,7 @@ class TranslateTypeFactory(
 
     // All supertypes, class first then interfaces.
     def directSupertys(telem: TypeElement) =
-        if(telem.getKind == EK.INTERFACE) {
+        if(telem.getKind.isInterface) {
             telem.getInterfaces.toList match {
                 case List() => List(wke.Object.ty)
                 case lst => lst
@@ -465,7 +465,7 @@ class TranslateTypeFactory(
                 
                 // Search for a non-ambigious short-name match:
                 case None =>
-                    declGhosts.keySet.filter(f_g => shortFieldName(f_g) == f_id).toList match {                        
+                    declGhosts.keySet.filter(f_g => shortFieldName(f_g) == id).toList match {                        
                         // Single match: use the ghost
                         case List(f_g) => ParsePath(pp.p + f_g, declGhosts(f_g))
                         
@@ -664,9 +664,9 @@ class TranslateTypeFactory(
     // The class interface includes all fields, methods, constructors, etc
     // but does not include any method bodies.
     
-    def classAttrs(telem: TypeElement) = telem.getKind match {
-        case EK.INTERFACE | EK.ANNOTATION_TYPE => ir.interfaceAttrs
-        case _ => ir.noAttrs
+    def classAttrs(telem: TypeElement) = {
+        if(telem.getKind.isInterface) ir.interfaceAttrs
+        else ir.noAttrs
     }
     
     def fieldGuard(env: TranslateEnv)(velem: VariableElement) = 

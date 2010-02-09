@@ -362,68 +362,83 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
     // Helper for teePee(): Computes the teePee for a path p_0.f where f is 
     // a ghost field of (post-substitution) type wt_f.
     def ghostTeePee(tp_0: ir.TeePee, f: ir.FieldName, wt_f: ir.WcTypeRef): ir.TeePee = {
-         // Unless the type of p_0 tells us what f is mapped to,
-         // tp_f = p_0.f will be the resulting path:
-         val tp_f = ir.TeePee(wt_f, tp_0.p + f, tp_0.as.withGhost)                    
+        log.indentedRes("ghostTeePee(%s, %s, %s)", tp_0, f, wt_f) {
+            // Unless the type of p_0 tells us what f is mapped to,
+            // tp_f = p_0.f will be the resulting path:
+            val tp_f = ir.TeePee(wt_f, tp_0.p + f, tp_0.as.withGhost)                    
 
-         // Does p_0's type specify a value for ghost field f?
-         tp_0.wt.owghost(f) match {
+            // Does p_0's type specify a value for ghost field f?
+            tp_0.wt.owghost(f) match {
 
-             // p_0 had a type with a precise path like Foo<f: q>
-             // where q != p_0.f.  If q == p_0.f, this gives us no
-             // information: It only tells us p_0's shadow argument f is p_0.f.
-             // This can result from the capturing process.
-             case Some(q: ir.Path) if q != tp_f.p =>
-                 teePee(q)
+                // p_0 had a type with a precise path like Foo<f: q>
+                // where q != p_0.f.  If q == p_0.f, this gives us no
+                // information: It only tells us p_0's shadow argument f is p_0.f.
+                // This can result from the capturing process.
+                case Some(q: ir.Path) if q != tp_f.p =>
+                    log.indented("Mapped by type to %s", q) {
+                        teePee(q)                        
+                    }
 
-             // p_0 had a type like Foo<f: ps hb qs>, so canonical
-             // version is p_0.f but we add relations that ps hb p_0.f hb qs.
-             case Some(ir.WcHb(ps, qs)) => 
-                 ps.foreach { case p => addUserHb(teePee(p), tp_f) }
-                 qs.foreach { case q => addUserHb(tp_f, teePee(q)) }
-                 tp_f
+                // p_0 had a type like Foo<f: ps hb qs>, so canonical
+                // version is p_0.f but we add relations that ps hb p_0.f hb qs.
+                case Some(ir.WcHb(ps, qs)) => 
+                    log.indented("WcHb(%s, %s)", ps, qs) {
+                        ps.foreach { case p => addUserHb(teePee(p), tp_f) }
+                        qs.foreach { case q => addUserHb(tp_f, teePee(q)) }
+                        tp_f                        
+                    }
 
-             // p_0 had a type like Foo<f: ps hb qs>, so canonical
-             // version is p_0.f but we add relations that ps hb p_0.f hb qs.
-             case Some(ir.WcReadableBy(ps)) => 
-                 ps.foreach { p => addDeclaredReadableBy(tp_f, teePee(p)) }
-                 tp_f
+                // p_0 had a type like Foo<f: ps hb qs>, so canonical
+                // version is p_0.f but we add relations that ps hb p_0.f hb qs.
+                case Some(ir.WcReadableBy(ps)) => 
+                    log.indented("WcReadableBy(%s)", ps) {
+                        ps.foreach { p => addDeclaredReadableBy(tp_f, teePee(p)) }
+                        tp_f                        
+                    }
 
-             // p_0 had a type like Foo<f: ps hb qs>, so canonical
-             // version is p_0.f but we add relations that ps hb p_0.f hb qs.
-             case Some(ir.WcWritableBy(ps)) => 
-                 ps.foreach { p => addDeclaredWritableBy(tp_f, teePee(p)) }
-                 tp_f
+                // p_0 had a type like Foo<f: ps hb qs>, so canonical
+                // version is p_0.f but we add relations that ps hb p_0.f hb qs.
+                case Some(ir.WcWritableBy(ps)) => 
+                    log.indented("WcWritableBy(%s)", ps) {
+                        ps.foreach { p => addDeclaredWritableBy(tp_f, teePee(p)) }
+                        tp_f                        
+                    }
 
-             // Otherwise, just use canonical version of p_0.f with no relations.
-             case _ =>
-                 tp_f
+                // Otherwise, just use canonical version of p_0.f with no relations.
+                case _ =>
+                    tp_f
 
+            }
         }        
     }
 
     // Helper for teePee(): Computes the teePee for a path p_0.f where f is 
     // a reified field of (post-substitution) type wt_f and with guard p_guard.
     def reifiedTeePee(tp_0: ir.TeePee, f: ir.FieldName, wt_f: ir.WcTypeRef, p_guard: ir.Path): ir.TeePee = {
-        val tp_guard = teePee(p_guard)
-        val as_f = // determine if f is immutable in current method:
-            if(!tp_guard.isConstant)
-                tp_0.as.withMutable // guard not yet constant? mutable
-            else 
-                otp_cur match {
-                    case Some(tp_cur) if hbInter(tp_guard, tp_cur) => 
-                        tp_0.as
-                    case _ => // not guarded by closed interval? mutable
-                        tp_0.as.withMutable
-                }
-        ir.TeePee(wt_f, tp_0.p + f, as_f)        
+        log.indentedRes("reifiedTeePee(%s, %s, %s)", tp_0, f, wt_f) {
+            val tp_guard = teePee(p_guard)
+            val as_f = // determine if f is immutable in current method:
+                if(!tp_guard.isConstant)
+                    tp_0.as.withMutable // guard not yet constant? mutable
+                else 
+                    otp_cur match {
+                        case Some(tp_cur) if hbInter(tp_guard, tp_cur) => 
+                            tp_0.as
+                        case _ => // not guarded by closed interval? mutable
+                            tp_0.as.withMutable
+                    }
+            ir.TeePee(wt_f, tp_0.p + f, as_f)            
+        }
     }
 
     /// Constructs a TeePee for p_1 
     def teePee(p_1: ir.Path): ir.TeePee = log.indentedRes("teePee(%s)", p_1) {
-        if(flow.temp.contains(p_1))
-            teePee(flow.temp(p_1))
-        else 
+        if(flow.temp.contains(p_1)) {
+            val p_redirect = flow.temp(p_1)
+            log.indented("flow.temp redirects us to %s", p_redirect) {
+                teePee(p_redirect)                
+            }
+        } else 
             p_1 match {
                 case ir.Path(lv, List()) => // all local variables should be in env.perm
                     env.perm.get(lv) match {
