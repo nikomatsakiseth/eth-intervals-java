@@ -14,7 +14,6 @@ import scala.util.parsing.input.Position
 import scala.util.parsing.input.NoPosition
 
 object Util {
-    
     class WithPositional[P <: Positional](instance: P) {
         def hasPos = instance.pos != NoPosition
         
@@ -149,9 +148,6 @@ object Util {
         def makeFlatMap[K,V](f: Q => Iterable[(K,V)]): Map[K,V] =
             i.foldLeft(Map.empty[K,V]) { case (m, q) => f(q).foldLeft(m)(_ + _) }
             
-        def ->*(v: Iterable[Q]): (Q => Set[Q]) = // k ->* v makes a multi-substitution
-            (MultiMap.empty[Q,Q] ++ i.zip(v.elements)).toMap.withDefault(k => Set(k))
-
         def mapTo[V](v: Iterator[V]): Map[Q,V] = // k.mapTo(v) makes a map from k to v 
             Map.empty ++ i.zip(v)
         
@@ -250,156 +246,6 @@ object Util {
     def longest[A](ls: Collection[List[A]]): List[A] =
         ls.foldLeft(List[A]())((r, l) => if(r.length > l.length) r else l)
         
-        
-    abstract class BaseMultiMap[K, V, S <: BaseMultiMap[K, V, S]](val size: Int, _m: Map[K, Set[V]])
-    extends Function1[K, Set[V]] with Collection[(K, V)]
-    {
-        this: S =>
-        
-        protected def newMultiMap(size: Int, _m: Map[K, Set[V]]): S      
-        protected def defaultValue(k: K): Set[V]
-
-        def toMap = _m
-        def keys = _m.keys      
-        def keySet = _m.keySet
-        
-        def get(k: K) = _m.get(k)
-        
-        def apply(k: K) = get(k) match {
-            case None => defaultValue(k)
-            case Some(set) => set
-        }
-            
-        def inv(v: V) = _m.keys.filter(k => contains(k, v))
-            
-        def contains(k: K, v: V) = this(k).contains(v)
-        
-        def mapKey(k: K, f: (Set[V] => Set[V])) = {
-            val kset0 = this(k)
-            val kset1 = f(kset0)
-            newMultiMap(
-                size - kset0.size + kset1.size,
-                _m + Pair(k, kset1)
-            )
-        }
-                            
-        def ++*(pairs: Iterable[(K, Iterable[V])]) =
-            pairs.foldLeft(this) { case (m, (k, v)) => m.plusMany(k, v) }
-        def --*(pairs: Iterable[(K, Iterable[V])]) =
-            pairs.foldLeft(this) { case (m, (k, v)) => m.subMany(k, v) }
-
-        def plusMany(k: K, v: Iterable[V]) = mapKey(k, _ ++ v)
-        def subMany(k: K, v: Iterable[V]) = mapKey(k, _ -- v)
-        
-        def +(pair: (K, V)): S = {
-            val (k, v) = pair
-            if(!contains(k, v))
-                newMultiMap(size + 1, _m + Pair(k, this(k) + v))
-            else
-                this
-        }
-
-        def ++(pairs: Collection[(K,V)]): S =
-            pairs.foldLeft(this)(_ + _)
-
-        def ++(pairs: Iterator[(K,V)]): S =
-            pairs.foldLeft(this)(_ + _)
-
-        def -(k: K): S = {
-            get(k) match {
-                case None => this
-                case Some(set) if set.isEmpty => this
-                case Some(set) => newMultiMap(size - set.size, _m - k)
-            }
-        }
-
-        def --(ks: Iterable[K]): S =
-            ks.foldLeft(this)(_ - _)
-
-        def -(pair: (K, V)): S = {
-            val (k, v) = pair
-            if(contains(k, v))
-                newMultiMap(size - 1, _m + Pair(k, this(k) - v))
-            else
-                this
-        }
-
-        def --(pairs: Collection[(K, V)]) = 
-            pairs.foldLeft(this)(_ - _)
-            
-        def filterKeys(f: (K => Boolean)) = {
-            val m1 = _m.filter { case (k, v) => f(k) }
-            val size = m1.values.map(_.size).foldLeft(0)(_ + _) // faster way?
-            newMultiMap(size, m1)
-        }
-            
-        def mapValueSets(f: ((K, Set[V]) => Set[V])) = {
-            val m1 = _m.transform((k,v) => f(k, v))
-            val size = m1.values.map(_.size).foldLeft(0)(_ + _) // faster way?
-            newMultiMap(size, m1)            
-        }
-            
-        def filterValueSetElems(f: (V => Boolean)) =
-            mapValueSets((k, v) => v.filter(f))
-        
-        private def iterator =
-            _m.elements.flatMap { case (k, v) => v.elements.map(e => (k, e)) }
-            
-        def elements: Iterator[(K, V)] = iterator
-            
-        def toSet: Set[(K, V)] = {
-            val mm = this
-            new Set[(K,V)] {
-                def size = mm.size
-                def elements = mm.iterator
-                def empty[K] = Set.empty[K]
-                def contains(pair: (K, V)) = mm(pair._1)(pair._2)
-                def +(pair: (K, V)) = Set.empty ++ mm.iterator + pair
-                def -(pair: (K, V)) = Set.empty ++ mm.iterator - pair
-            }
-        }
-        
-        override def toString =
-            (for(k <- keys) yield k + " => " + this(k)).mkString("/")
-    }
-    
-    class MultiMap[K,V](size: Int, _m: Map[K, Set[V]])
-    extends BaseMultiMap[K,V,MultiMap[K,V]](size, _m) {
-        override protected def newMultiMap(size: Int, _m: Map[K, Set[V]]) =
-            new MultiMap[K, V](size, _m)
-        override protected def defaultValue(k: K) =
-            Set.empty
-    }
-    
-    object MultiMap {
-        def empty[K, V] = 
-            new MultiMap[K, V](0, Map.empty)
-    }
-
-    class EquivMap[K](size: Int, _m: Map[K, Set[K]])
-    extends BaseMultiMap[K,K,EquivMap[K]](size, _m) {
-        override protected def newMultiMap(size: Int, _m: Map[K, Set[K]]) =
-            new EquivMap[K](size, _m)
-        override protected def defaultValue(k: K) =
-            Set(k)
-    }
-    
-    object EquivMap {
-        def empty[K] = 
-            new EquivMap[K](0, Map.empty)
-    }
-
-    // Returns transitive closure of 'in'
-    def transitiveClosure[V](in: MultiMap[V, V]): MultiMap[V, V] = {
-        var out = in
-        for(from <- in.keySet) {
-            val step = in(from).flatMap(in) // x -> p -> step
-            out = out.plusMany(from, step)
-        }
-        if(out.size == in.size) in
-        else transitiveClosure(out)
-    }
-
     // ______________________________________________________________________
     
     def forallzip[A,B](as: List[A], bs: List[B])(f: Function2[A, B, Boolean]) =

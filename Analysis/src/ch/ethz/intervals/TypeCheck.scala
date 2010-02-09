@@ -223,37 +223,41 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
 
         // ----------------------------------------------------------------------
         // Apply map to relations and keep only those not affecting lv_outOfScope
+        
+        def inScope(p: ir.Path) = (p.lv != lv_outOfScope)
 
         def mapMap(map: Map[ir.Path, ir.Path]) =
             map.elements.foldLeft(Map.empty[ir.Path, ir.Path]) { case (r, (p0, q0)) =>
                 val p1 = subst.path(p0)
                 val q1 = subst.path(q0)
-                if(p1.lv != lv_outOfScope && q1.lv != lv_outOfScope) r + Pair(p1, q1)
+                if(inScope(p1) && inScope(q1)) r + Pair(p1, q1)
                 else r
             }
 
-        def mapRelation[R <: Relation[ir.Path, R]](rel: R) =
-            rel.mapFilter(subst.path, (_.lv != lv_outOfScope))
+        def mapPathRelation(rel: PathRelation) =
+            flow_brk.mapFilter(rel, subst.path, inScope)
     
         def mapInvalidated(ps: Set[ir.Path]) =
             ps.map { case p0 =>
                 val p1 = subst.path(p0)
-                if(p1.lv == lv_outOfScope)
+                if(inScope(p1))
+                    p1
+                else
                     throw new CheckFailure("intervals.must.assign.first", p0)
-                p1
             }
 
         env_in
         .addArgs(decls)
         .withFlow(
             FlowEnv(
+                flow_brk.nonnull.map(subst.path).filter(inScope),
                 mapMap(flow_brk.temp),
                 mapInvalidated(flow_brk.ps_invalidated),
-                mapRelation(flow_brk.readable),
-                mapRelation(flow_brk.writable),
-                mapRelation(flow_brk.hb),
-                mapRelation(flow_brk.subinterval),
-                mapRelation(flow_brk.locks)
+                mapPathRelation(flow_brk.readable),
+                mapPathRelation(flow_brk.writable),
+                mapPathRelation(flow_brk.hb),
+                mapPathRelation(flow_brk.subinterval),
+                mapPathRelation(flow_brk.locks)
             )
         )
     }
@@ -563,11 +567,11 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                     }
 
                 FlowEnv.empty
-                    .withReadable(flow.readable.mapFilter(mapFunc, filterFunc))
-                    .withWritable(flow.writable.mapFilter(mapFunc, filterFunc))
-                    .withHb(flow.hb.mapFilter(mapFunc, filterFunc))
-                    .withSubinterval(flow.subinterval.mapFilter(mapFunc, filterFunc))
-                    .withLocks(flow.locks.mapFilter(mapFunc, filterFunc))
+                    .withReadable(flow.mapFilter(flow.readable, mapFunc, filterFunc))
+                    .withWritable(flow.mapFilter(flow.writable, mapFunc, filterFunc))
+                    .withHb(flow.mapFilter(flow.hb, mapFunc, filterFunc))
+                    .withSubinterval(flow.mapFilter(flow.subinterval, mapFunc, filterFunc))
+                    .withLocks(flow.mapFilter(flow.locks, mapFunc, filterFunc))
             }            
         }
     }

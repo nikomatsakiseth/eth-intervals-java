@@ -78,7 +78,7 @@ abstract class Log {
         v match {
             case e: ir.TcEnv => env("Env", e)
             case m: Map[_, _] => map("Map", m)
-            case r: Relation[_, _] => map("Relation", r)
+            case r: PathRelation => map("PathRelation", r.mmap.map)
             case cd: ir.ClassDecl => classDecl("", cd)
             case md: ir.MethodDecl => methodDecl("", md)
             case _ => rawWrite(escape(v.toString))
@@ -125,9 +125,9 @@ abstract class Log {
         }
     }
     
-    def rel(lbl: Any, n: String, r: Relation[_, _]): Unit = ifEnabled {
+    def rel(lbl: Any, n: String, r: PathRelation): Unit = ifEnabled {
         indented("%s", lbl) {
-            for((k, v) <- r.elements)
+            for((k, v) <- r.mmap)
                 apply("%s %s %s", k, n, v)
         }
     }

@@ -179,7 +179,7 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
     // they should be, because we sometimes permit Locks for convenience.
     def hbPnt(tp: ir.TeePee, tq: ir.TeePee): Boolean = 
         log.indentedRes("%s hb[point] %s?", tp, tq) {
-            flow.hb.contains(tp.p, tq.p)
+            flow.hbPairs((tp.p, tq.p))
         }
 
     // Note: we don't check that tp, tq are intervals, although
@@ -187,34 +187,37 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
     def hbInter(tp: ir.TeePee, tq: ir.TeePee): Boolean = 
         log.indentedRes("%s hb[inter] %s?", tp, tq) {
             logHb()
-            flow.hb.contains(tp.p.end, tq.p.start)
+            flow.hbPairs((tp.p.end, tq.p.start))
         }
 
     def superintervals(tp: ir.TeePee): Set[ir.Path] = {
-        flow.subinterval(tp.p)
+        flow.subinterval.values(flow.nonnull)(tp.p)
     }
 
     def isSubintervalOf(tp: ir.TeePee, tq: ir.TeePee): Boolean = 
         log.indentedRes("%s subinterval of %s?", tp, tq) {
-            flow.subinterval.contains(tp.p, tq.p)
+            flow.subintervalPairs((tp.p, tq.p))
         }
 
     def declaredReadableBy(tp: ir.TeePee, tq: ir.TeePee): Boolean = 
         log.indentedRes("%s readable by %s?", tp, tq) {
-            flow.readable.contains(tp.p, tq.p) ||
-            superintervals(tq).exists(flow.readable.contains(tp.p, _))
+            val readablePairs = flow.readablePairs
+            readablePairs((tp.p, tq.p)) ||
+            superintervals(tq).exists(tq_sup => readablePairs((tp.p, tq_sup)))
         }
 
     def declaredWritableBy(tp: ir.TeePee, tq: ir.TeePee): Boolean = 
         log.indentedRes("%s writable by %s?", tp, tq) {
-            flow.writable.contains(tp.p, tq.p) ||
-            superintervals(tq).exists(flow.writable.contains(tp.p, _))
+            val writablePairs = flow.writablePairs
+            writablePairs((tp.p, tq.p)) ||
+            superintervals(tq).exists(tq_sup => writablePairs((tp.p, tq_sup)))
         }
 
     def locks(tp: ir.TeePee, tq: ir.TeePee): Boolean = 
         log.indentedRes("%s locks %s?", tp, tq) {
-            flow.locks.contains(tp.p, tq.p) || 
-            superintervals(tp).exists(flow.locks.contains(_, tq.p))
+            val locksPairs = flow.locksPairs
+            locksPairs((tp.p, tq.p)) || 
+            superintervals(tp).exists(tq_sup => locksPairs((tq_sup, tq.p)))
         }        
 
     def isWritableBy(tp: ir.TeePee, tq: ir.TeePee): Boolean =
