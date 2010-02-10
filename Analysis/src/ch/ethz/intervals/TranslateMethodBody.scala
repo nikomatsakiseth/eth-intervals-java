@@ -39,7 +39,7 @@ object TranslateMethodBody
         logStack: LogStack, 
         ttf: TranslateTypeFactory, 
         mtree: MethodTree
-    ): ir.StmtSeq = logStack.log.indentedRes("translateMethodBody(%s)", mtree) {
+    ): ir.StmtSeq = logStack.log.indented("translateMethodBody(%s)", mtree) {
         import logStack.log
         import ttf.TreePosition
         import ttf.getAnnotatedType

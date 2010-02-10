@@ -164,7 +164,7 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
         }
 
     def equiv(tp: ir.TeePee, tq: ir.TeePee): Boolean = 
-        log.indentedRes("%s equiv %s?", tp, tq) {
+        log.indented("%s equiv %s?", tp, tq) {
             tp.p == tq.p
         }
 
@@ -178,14 +178,14 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
     // Note: we don't check that tp, tq are points, although
     // they should be, because we sometimes permit Locks for convenience.
     def hbPnt(tp: ir.TeePee, tq: ir.TeePee): Boolean = 
-        log.indentedRes("%s hb[point] %s?", tp, tq) {
+        log.indented("%s hb[point] %s?", tp, tq) {
             flow.hbPairs((tp.p, tq.p))
         }
 
     // Note: we don't check that tp, tq are intervals, although
     // they should be, because we sometimes permit Locks for convenience.
     def hbInter(tp: ir.TeePee, tq: ir.TeePee): Boolean = 
-        log.indentedRes("%s hb[inter] %s?", tp, tq) {
+        log.indented("%s hb[inter] %s?", tp, tq) {
             logHb()
             flow.hbPairs((tp.p.end, tq.p.start))
         }
@@ -195,33 +195,33 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
     }
 
     def isSubintervalOf(tp: ir.TeePee, tq: ir.TeePee): Boolean = 
-        log.indentedRes("%s subinterval of %s?", tp, tq) {
+        log.indented("%s subinterval of %s?", tp, tq) {
             flow.subintervalPairs((tp.p, tq.p))
         }
 
     def declaredReadableBy(tp: ir.TeePee, tq: ir.TeePee): Boolean = 
-        log.indentedRes("%s readable by %s?", tp, tq) {
+        log.indented("%s readable by %s?", tp, tq) {
             val readablePairs = flow.readablePairs
             readablePairs((tp.p, tq.p)) ||
             superintervals(tq).exists(tq_sup => readablePairs((tp.p, tq_sup)))
         }
 
     def declaredWritableBy(tp: ir.TeePee, tq: ir.TeePee): Boolean = 
-        log.indentedRes("%s writable by %s?", tp, tq) {
+        log.indented("%s writable by %s?", tp, tq) {
             val writablePairs = flow.writablePairs
             writablePairs((tp.p, tq.p)) ||
             superintervals(tq).exists(tq_sup => writablePairs((tp.p, tq_sup)))
         }
 
     def locks(tp: ir.TeePee, tq: ir.TeePee): Boolean = 
-        log.indentedRes("%s locks %s?", tp, tq) {
+        log.indented("%s locks %s?", tp, tq) {
             val locksPairs = flow.locksPairs
             locksPairs((tp.p, tq.p)) || 
             superintervals(tp).exists(tq_sup => locksPairs((tq_sup, tq.p)))
         }        
 
     def isWritableBy(tp: ir.TeePee, tq: ir.TeePee): Boolean =
-        log.indentedRes("%s isWritableBy %s?", tp, tq) {
+        log.indented("%s isWritableBy %s?", tp, tq) {
             declaredWritableBy(tp, tq) ||
             equiv(tp, tq) || // interval tp writable by itself
             locks(tq, tp) || // lock tp writable by an interval tq which locks tp
@@ -229,7 +229,7 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
         }
 
     def userHbPair(tp0: ir.TeePee, tq0: ir.TeePee): Option[(ir.TeePee, ir.TeePee)] = 
-        log.indentedRes("userHbPair(%s,%s)", tp0, tq0) {
+        log.indented("userHbPair(%s,%s)", tp0, tq0) {
             def makePoint(tp: ir.TeePee, f: ir.FieldName) =
                 if(isSubclass(tp.wt, ir.c_point)) Some(tp)
                 else if(isSubclass(tp.wt, ir.c_interval)) Some(ir.TeePee(ir.t_point, tp.p + f, tp.as))
@@ -242,7 +242,7 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
         }
         
     def userHb(tp0: ir.TeePee, tq0: ir.TeePee) = 
-        log.indentedRes("userHb(%s,%s)", tp0, tq0) {
+        log.indented("userHb(%s,%s)", tp0, tq0) {
             userHbPair(tp0, tq0) match {
                 case Some((tp1, tq1)) => hbPnt(tp1, tq1)
                 case None => false
@@ -256,6 +256,12 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
                 case None =>
             }
         }
+        
+    def addNonNull(tp: ir.TeePee) {
+        log.indented("addNonNull(%s)", tp) {
+            setFlow(flow.withNonnull(flow.nonnull + tp.p))            
+        }
+    }
         
     def addUserDeclaredWritableBy(tp: ir.TeePee, tq: ir.TeePee) {
         if(isSubclass(tp.wt, ir.c_guard) && isSubclass(tq.wt, ir.c_interval))
@@ -290,7 +296,9 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
         }
         
     def isReadableBy(tp: ir.TeePee, tq: ir.TeePee): Boolean = 
-        log.indentedRes("%s isReadableBy %s?", tp, tq) {
+        log.indentedClosed("%s isReadableBy %s?", tp, tq) {
+            log.env(false, "Environment", env)
+            
             declaredReadableBy(tp, tq) ||
             hbInter(tp, tq) ||
             isWritableBy(tp, tq)            
@@ -365,13 +373,13 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
     // Helper for teePee(): Computes the teePee for a path p_0.f where f is 
     // a ghost field of (post-substitution) type wt_f.
     def ghostTeePee(tp_0: ir.TeePee, f: ir.FieldName, wt_f: ir.WcTypeRef): ir.TeePee = {
-        log.indentedRes("ghostTeePee(%s, %s, %s)", tp_0, f, wt_f) {
+        log.indented("ghostTeePee(%s, %s, %s)", tp_0, f, wt_f) {
             // Unless the type of p_0 tells us what f is mapped to,
             // tp_f = p_0.f will be the resulting path:
             val tp_f = ir.TeePee(wt_f, tp_0.p + f, tp_0.as.withGhost)                    
 
             // Does p_0's type specify a value for ghost field f?
-            tp_0.wt.owghost(f) match {
+            val tp_g = tp_0.wt.owghost(f) match {
 
                 // p_0 had a type with a precise path like Foo<f: q>
                 // where q != p_0.f.  If q == p_0.f, this gives us no
@@ -412,13 +420,19 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
                     tp_f
 
             }
+            
+            // Ghosts always point to non-null objects:
+            if(flow.nonnull(tp_0.p))
+                addNonNull(tp_g)
+                
+            tp_g
         }        
     }
 
     // Helper for teePee(): Computes the teePee for a path p_0.f where f is 
     // a reified field of (post-substitution) type wt_f and with guard p_guard.
     def reifiedTeePee(tp_0: ir.TeePee, f: ir.FieldName, wt_f: ir.WcTypeRef, p_guard: ir.Path): ir.TeePee = {
-        log.indentedRes("reifiedTeePee(%s, %s, %s)", tp_0, f, wt_f) {
+        log.indented("reifiedTeePee(%s, %s, %s)", tp_0, f, wt_f) {
             val tp_guard = teePee(p_guard)
             val as_f = // determine if f is immutable in current method:
                 if(!tp_guard.isConstant)
@@ -435,7 +449,7 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
     }
 
     /// Constructs a TeePee for p_1 
-    def teePee(p_1: ir.Path): ir.TeePee = log.indentedRes("teePee(%s)", p_1) {
+    def teePee(p_1: ir.Path): ir.TeePee = log.indented("teePee(%s)", p_1) {
         if(flow.temp.contains(p_1)) {
             val p_redirect = flow.temp(p_1)
             log.indented("flow.temp redirects us to %s", p_redirect) {

@@ -195,7 +195,7 @@ class TranslateTypeFactory(
     sealed case class GhostAnnValue(f: ir.FieldName, value: String) extends GhostAnn
     
     def categorizeGhostAnnot(am: AnnotationMirror) =
-        log.indentedRes("categorizeGhostAnnot(%s)", am) {
+        log.indented("categorizeGhostAnnot(%s)", am) {
             val elem = am.getAnnotationType.asElement
             if(elem.getAnnotation(classOf[DefinesGhost]) == null) GhostAnnNone
             else {
@@ -263,7 +263,7 @@ class TranslateTypeFactory(
         }    
         
     def ghostFieldsBoundInAnnotations(ams: List[AnnotationMirror]) =
-        log.indentedRes("ghostFieldsBoundInAnnotations(%s)", ams) {
+        log.indented("ghostFieldsBoundInAnnotations(%s)", ams) {
             addGhostFieldsBoundInAnnotations(Map.empty, ams)
         }        
     
@@ -274,17 +274,17 @@ class TranslateTypeFactory(
         addGhostFieldsBoundInAnnotations(m0, elem0.getAnnotationMirrors.toList)
     
     def ghostFieldsBoundOnElem(elem: Element) =
-        log.indentedRes("ghostFieldsBoundOnElem(%s)", elem) {
+        log.indented("ghostFieldsBoundOnElem(%s)", elem) {
             addGhostFieldsBoundOnElem(Map.empty, elem)
         }
         
     def ghostFieldsBoundOnElemAndSuperelems(elem: Element) =
-        log.indentedRes("ghostFieldsBoundOnElemAndSuperelems(%s)", elem) {
+        log.indented("ghostFieldsBoundOnElemAndSuperelems(%s)", elem) {
             addElemAndSuperelems(addGhostFieldsBoundOnElem)(Map.empty, elem)
         }
                 
     def ghostFieldsBoundOnTyAndSupertypes(ty: TypeMirror) =
-        log.indentedRes("ghostFieldsBoundOnTyAndSupertypes(%s)", ty) {
+        log.indented("ghostFieldsBoundOnTyAndSupertypes(%s)", ty) {
             addTyAndSupertypes(addGhostFieldsBoundOnElem)(Map.empty, ty)
         }
         
@@ -300,7 +300,7 @@ class TranslateTypeFactory(
         m0: Map[ir.FieldName, AnnotatedTypeMirror], 
         elem0: Element
     ): Map[ir.FieldName, AnnotatedTypeMirror] = 
-        log.indentedRes("addGhostFieldsDeclaredOnElem(%s)", elem0) {
+        log.indented("addGhostFieldsDeclaredOnElem(%s)", elem0) {
             elem0.getAnnotationMirrors.map(categorizeGhostAnnot).foldLeft(m0) { 
                 case (m, GhostAnnNone) => m
                 case (m, GhostAnnDecl(f, annty)) => m + Pair(f, annty)
@@ -309,17 +309,17 @@ class TranslateTypeFactory(
         }
     
     def ghostFieldsDeclaredOnElem(elem: Element) =
-        log.indentedRes("ghostFieldsDeclaredOnElem(%s)", elem) {
+        log.indented("ghostFieldsDeclaredOnElem(%s)", elem) {
             addGhostFieldsDeclaredOnElem(Map.empty, elem)
         }
                 
     def ghostFieldsDeclaredOnElemAndSuperelems(elem: Element) =
-        log.indentedRes("ghostFieldsDeclaredOnElemAndSuperelems(%s)", elem) {
+        log.indented("ghostFieldsDeclaredOnElemAndSuperelems(%s)", elem) {
             addElemAndSuperelems(addGhostFieldsDeclaredOnElem)(Map.empty, elem)
         }
     
     def ghostFieldsDeclaredOnTyAndSupertypes(ty: TypeMirror) =
-        log.indentedRes("ghostFieldsDeclaredOnTyAndSupertypes(%s)", ty) {
+        log.indented("ghostFieldsDeclaredOnTyAndSupertypes(%s)", ty) {
             addTyAndSupertypes(addGhostFieldsDeclaredOnElem)(Map.empty, ty)
         }
     
@@ -328,7 +328,7 @@ class TranslateTypeFactory(
     // An unbound ghost field is one that is declared but not yet bound.
     
     def unboundGhostFieldsDeclaredOnTyAndSupertypes(ty: TypeMirror) =
-        log.indentedRes("unboundGhostFieldsDeclaredOnTyAndSupertypes(%s)", ty) {
+        log.indented("unboundGhostFieldsDeclaredOnTyAndSupertypes(%s)", ty) {
             val m_decl = ghostFieldsDeclaredOnTyAndSupertypes(ty)
             ghostFieldsBoundOnTyAndSupertypes(ty).foldLeft(m_decl) { case (m, (f, _)) =>
                 m - f
@@ -483,12 +483,12 @@ class TranslateTypeFactory(
         }
         
         def path(s: String): ir.Path = 
-            parserLog.indentedRes("parse path(%s)", s) {
+            parserLog.indented("parse path(%s)", s) {
                 parseToResult(p)(s)
             }
             
         def wpath(s: String): ir.WcPath = 
-            parserLog.indentedRes("parse wpath(%s)", s) {
+            parserLog.indented("parse wpath(%s)", s) {
                 parseToResult(wp)(s)
             }
     }
@@ -518,7 +518,7 @@ class TranslateTypeFactory(
 
     object AnnTyParser {
         def apply(s: String): AnnotatedTypeMirror =
-            parserLog.indentedRes("parse annty(%s)", s) {
+            parserLog.indented("parse annty(%s)", s) {
                 val parser = new AnnTyParser()
                 parser.parseToResult(parser.annty)(s)
             }
@@ -557,7 +557,7 @@ class TranslateTypeFactory(
     }
     
     def wtref(env: TranslateEnv)(annty: AnnotatedTypeMirror) = {
-        log.indentedRes("wtref(%s)", annty) {
+        log.indented("wtref(%s)", annty) {
             val c = erasedTy(annty.getUnderlyingType)
             annty.getKind match {
                 case TK.DECLARED => {
@@ -670,7 +670,7 @@ class TranslateTypeFactory(
     }
     
     def fieldGuard(env: TranslateEnv)(velem: VariableElement) = 
-        log.indentedRes("fieldGuard(%s)", velem) {
+        log.indented("fieldGuard(%s)", velem) {
             at(ElementPosition(velem), ir.p_this_creator) {
                 val s_guard = 
                     if(velem.getAnnotation(classOf[WrittenDuring]) != null)

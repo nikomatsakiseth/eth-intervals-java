@@ -33,7 +33,7 @@ class LogStack(mainLog: SplitLog) {
     }
     
     def baseAt[R](aLog: Log, loc: Positional, default: => R)(g: => R): R = 
-        aLog.indentedRes("At: %s", loc) {
+        aLog.indented("At: %s", loc) {
             assert(loc.pos != NoPosition)
             try { g } catch {
                 case failure: CheckFailure =>

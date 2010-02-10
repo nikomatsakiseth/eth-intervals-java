@@ -24,7 +24,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
     
     /// wp <= wq
     def isSubpath(p: ir.Path, wq: ir.WcPath) = savingEnv {
-        log.indentedRes("%s <= %s?", p, wq) {                
+        log.indented("%s <= %s?", p, wq) {                
             // Here we just use teePee() without checking that the resulting
             // paths are immutable.  That's safe because we never ADD to the 
             // relations unless the teePee is immutable. 
@@ -59,7 +59,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
     
     /// t_sub <: wt_sup
     def isSubtype(t_sub: ir.TypeRef, wt_sup: ir.WcTypeRef): Boolean = preservesEnv {
-        log.indentedRes("%s <: %s?", t_sub, wt_sup) {            
+        log.indented("%s <: %s?", t_sub, wt_sup) {            
             log("t_sub.ctor=%s wt_sup.as.ctor=%s", t_sub.as.ctor, wt_sup.as.ctor)
             if(t_sub.c == wt_sup.c) {
                 (!t_sub.as.ctor || wt_sup.as.ctor) && // (t <: t ctor) but (t ctor not <: t)
@@ -109,7 +109,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
     
     // ___ Checking method bodies ___________________________________________
     
-    def isReqFulfilled(req: ir.Req): Boolean = log.indentedRes("isReqFulfilled(%s)", req) {
+    def isReqFulfilled(req: ir.Req): Boolean = log.indented("isReqFulfilled(%s)", req) {
         def is(func: Function2[ir.TeePee, ir.TeePee, Boolean], ps: List[ir.Path], qs: List[ir.Path]) = {
             val tps = teePee(ir.ghostAttrs, ps)
             val tqs = teePee(ir.ghostAttrs, qs)
@@ -272,10 +272,10 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
             val ss = ss_cur(idx)
 
             val env_map = mapAndMergeBranchEnv(ss.env_in, env, ss.stmt.defines, tps)
-            log.env("env_map: ", env_map)
+            log.env(false, "env_map: ", env_map)
             ss.oenv_break = intersect(ss.oenv_break, env_map)            
             if(ss.oenv_break.get != env_map)
-                log.env("env_break: ", ss.oenv_break.get)
+                log.env(false, "env_break: ", ss.oenv_break.get)
         }
     }
         
@@ -285,10 +285,10 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
             ss.stmt.kind match {
                 case ir.Loop(args, _, _) =>
                     val env_map = mapAndMergeBranchEnv(ss.env_in, env, args, tps)
-                    log.env("env_map: ", env_map)
+                    log.env(false, "env_map: ", env_map)
                     ss.oenv_continue = intersect(ss.oenv_continue, env_map)
                     if(ss.oenv_continue.get != env_map)
-                        log.env("env_continue: ", ss.oenv_continue.get)
+                        log.env(false, "env_continue: ", ss.oenv_continue.get)
                 case _ =>
                     throw new CheckFailure(
                         "intervals.internal.error",
@@ -348,6 +348,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                 val tps_locks = teePee(ir.noAttrs, ps_locks)                    
                 addLvDecl(x, ir.t_interval, None)                
                 val tp_x = teePee(x.path)
+                addNonNull(tp_x)
                 addSubintervalOf(tp_x, tp_cur)
                 tps_locks.foreach(addLocks(tp_x, _))
                 
@@ -376,12 +377,12 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                 log("oenv_break unset, used env_in")
             case Some(env_break) => 
                 setEnv(env_break)
-                log.env("oenv_break: ", env_break)
+                log.env(false, "oenv_break: ", env_break)
         }
     }
     
     def checkStatement(stmt: ir.Stmt) = indexAt(stmt, ()) {
-        log.env("Input Environment: ", env)
+        log.env(false, "Input Environment: ", env)
         stmt match {   
             case stmt_compound: ir.StmtCompound =>
                 withStmt(stmt_compound, env) {
@@ -400,6 +401,8 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                 
             case ir.StmtGetField(x, p_o, f) =>
                 val tp_o = teePee(ir.noAttrs, p_o)
+                addNonNull(tp_o)
+                
                 substdFieldDecl(tp_o, f) match {
                     case ir.GhostFieldDecl(_, _) =>
                         throw new CheckFailure("intervals.not.reified", tp_o.wt.c, f)
@@ -423,6 +426,8 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                 
             case ir.StmtSetField(p_o, f, p_v) =>
                 val tp_o = teePee(ir.noAttrs, p_o)
+                addNonNull(tp_o)
+                
                 val tp_v = teePee(ir.noAttrs, p_v)
                 
                 substdFieldDecl(tp_o, f) match {
@@ -447,6 +452,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                     
             case ir.StmtCall(x, p, m, qs) =>
                 val tp = teePee(ir.noAttrs, p)
+                addNonNull(tp)
                 val tqs = teePee(ir.noAttrs, qs)
                 checkCall(x, tp, m, tqs)
     
@@ -464,6 +470,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                 // Check Ghost Types:           
                 addLvDecl(x, t, None)
                 val tp_x = teePee(x.path)
+                addNonNull(tp_x)
                 t.ghosts.foreach { g =>
                     val gfd = substdFieldDecl(tp_x, g.f)
                     val tp = teePee(g.p)
@@ -555,14 +562,14 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
             withCurrent(freshTp(ir.t_interval).p) {                
                 addHbInter(tp_mthd, tp_cur)
                 
-                log.env("Input Environment: ", env)
+                log.env(false, "Input Environment: ", env)
 
                 val tempKeys = flow.temp.map(_._1).toList
                 val tempValues = flow.temp.map(_._2).toList
                 val mapFunc = PathSubst.pp(tempValues, tempKeys).path(_)
                 
                 def filterFunc(p: ir.Path): Boolean = 
-                    log.indentedRes("filterFunc(%s)", p) {
+                    log.indented("filterFunc(%s)", p) {
                         lvs_shared(p.lv) && !teePee(p).as.mutable                
                     }
 
@@ -629,18 +636,22 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
         indexAt(md, ()) {
             savingEnv {
                 // Define special vars "method" and "this":
-                addPerm(ir.lv_mthd, ir.TeePee(ir.t_interval, ir.p_mthd, ir.ghostAttrs))
+                val tp_mthd = ir.TeePee(ir.t_interval, ir.p_mthd, ir.ghostAttrs)
+                addPerm(ir.lv_mthd, tp_mthd)
                 pushCurrent(ir.p_mthd)
+                addNonNull(tp_mthd)
                 
                 if(!md.attrs.ctor) { 
                     // For normal methods, type of this is the defining class
                     addPerm(ir.lv_this, ir.TeePee(thisTref(cd), ir.p_this, ir.noAttrs))                     
+                    addNonNull(tp_this)
                     addHbInter(tp_ctor, tp_cur)             // ... constructor already happened
                     setEnv(env.addFlow(flow_ctor_assum))    // ... add its effects on environment
                 } else {
                     // For constructor methods, type of this is the type that originally defined it
                     val t_rcvr = typeOriginallyDefiningMethod(cd.name, md.name).get
                     addPerm(ir.lv_this, ir.TeePee(t_rcvr.ctor, ir.p_this, ir.noAttrs))
+                    addNonNull(tp_this)
                 }  
                 
                 md.args.foreach(addArg)
@@ -664,9 +675,12 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
         indexAt(md, FlowEnv.empty) {
             savingEnv {
                 // Define special vars "method" (== this.constructor) and "this":
-                addPerm(ir.lv_mthd, ir.TeePee(ir.t_interval, ir.gfd_ctor.thisPath, ir.ghostAttrs))
+                val tp_mthd = ir.TeePee(ir.t_interval, ir.gfd_ctor.thisPath, ir.ghostAttrs)
+                addPerm(ir.lv_mthd, tp_mthd)
                 pushCurrent(ir.p_mthd)
+                addNonNull(tp_mthd)
                 addPerm(ir.lv_this, ir.TeePee(thisTref(cd, ir.ctorAttrs), ir.p_this, ir.noAttrs))
+                addNonNull(tp_this)
 
                 // Check method body:
                 md.args.foreach(addArg)
@@ -675,7 +689,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                 
                 // Compute exit assumptions and store in prog.exportedCtorEnvs:
                 val flow = extractAssumptions(tp_ctor, Set(ir.lv_this)) // Globally valid assums
-                log.flow("extracted assumptions:", flow)
+                log.flow(false, "extracted assumptions:", flow)
                 prog.exportedCtorEnvs += Pair((cd.name, md.name), flow) // Store
                 flow
             }

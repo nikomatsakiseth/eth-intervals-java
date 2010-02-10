@@ -8,11 +8,11 @@ abstract class Log {
     // ___ Abstract methods defined by subclass _____________________________
     
     def uri: String
-    def ifEnabled(f: => Unit): Unit     // Executes f iff rawWrite() does something.
-    def rawStart(html: String): String  // Starts a log message with body 'html'.  Returns the id of this element.
-    def rawClose(): Unit                // Finishes a log message.
-    def rawLinkTo(uri: String, html: String): Unit // Starts a log message with a link to 'uri'
-    def escape(s: String): String       // Escapes into HTML.
+    def ifEnabled(f: => Unit): Unit                     // Executes f iff rawWrite() does something.
+    def rawStart(open: Boolean, html: String): String   // Starts an initially open log message with body 'html'.  Returns the id of this element.
+    def rawClose(): Unit                                // Finishes a log message.
+    def rawLinkTo(uri: String, html: String): Unit      // Starts a log message with a link to 'uri'
+    def escape(s: String): String                       // Escapes into HTML.
     
     // ___ Sublogs __________________________________________________________
     
@@ -30,20 +30,28 @@ abstract class Log {
         }
 
         val strs = args.map(toLogString).toArray[String]
-        escape(fmt).format(strs: _*)
+        try {
+            escape(fmt).format(strs: _*)
+        } catch {
+            case e: java.lang.reflect.InvocationTargetException =>
+                e.toString
+        }        
     }
     
     def rawWrite(html: String): String = {
-        val id = rawStart(html)
+        val id = rawStart(true, html)
         rawClose
         id
     }
     
     // ___ Indentation ______________________________________________________
-    def indented[R](fmt: String, arg0: Any, args: Any*)(f: => R): R = {
+    def indented[R](open: Boolean, fmt: String, arg0: Any, args: Any*)(f: => R): R = {
         try {
-            ifEnabled { rawStart(escape(fmt, (arg0 :: args.toList))) }
-            f 
+            ifEnabled { rawStart(open, escape(fmt, (arg0 :: args.toList))) }
+            val result = f
+            if(result != ()) // no need to print Unit
+                apply("Result = %s", result)
+            result
         } catch {
             case t: Throwable => 
                 apply("Error = %s".format(t))
@@ -53,30 +61,16 @@ abstract class Log {
         }
     }
     
-    def indented[R](str: Any)(f: => R): R = indented("%s", str)(f)
-    
-    def indentedRes[R](fmt: String, arg0: Any, args: Any*)(f: => R): R = {
-        try {
-            ifEnabled { rawStart(escape(fmt, (arg0 :: args.toList))) }
-            val result = f
-            apply("Result = %s", result)
-            result
-        } catch {
-            case t: Throwable => 
-                apply("Error = %s".format(t))
-                throw t
-        } finally {
-            rawClose
-        }
-    }
-    
-    def indentedRes[R](fmt: Any)(f: => R): R = indentedRes("%s", fmt)(f)
+    def indented[R](fmt: String, arg0: Any, args: Any*)(f: => R): R = indented(true, fmt, arg0, args)(f)
+    def indented[R](str: Any)(f: => R): R = indented(true, "%s", str)(f)    
+    def indentedClosed[R](fmt: String, arg0: Any, args: Any*)(f: => R): R = indented(false, fmt, arg0, args)(f)
+    def indentedClosed[R](str: Any)(f: => R): R = indented(false, "%s", str)(f)
     
     // ___ Methods to add to the log ________________________________________
     
     def apply(v: Any): Unit = ifEnabled {
         v match {
-            case e: ir.TcEnv => env("Env", e)
+            case e: ir.TcEnv => env(true, "Env", e)
             case m: Map[_, _] => map("Map", m)
             case r: PathRelation => map("PathRelation", r.mmap.map)
             case cd: ir.ClassDecl => classDecl("", cd)
@@ -97,17 +91,18 @@ abstract class Log {
         rawLinkTo(uri, escape(fmt, (arg0 :: args.toList)))
     }
     
-    def env(lbl: Any, env: ir.TcEnv): Unit = ifEnabled {
-        indented("%s", lbl) {
+    def env(open: Boolean, lbl: Any, env: ir.TcEnv): Unit = ifEnabled {
+        indented(open, "%s", lbl) {
             apply("ps_cur: %s", env.ps_cur)
             apply("wt_ret: %s", env.wt_ret)
             map("perm:", env.perm)
-            flow("flow:", env.flow)
+            flow(true, "flow:", env.flow)
         }
     }
     
-    def flow(lbl: Any, flow: FlowEnv): Unit = ifEnabled {
-        indented("%s", lbl) {
+    def flow(open: Boolean, lbl: Any, flow: FlowEnv): Unit = ifEnabled {
+        indented(open, "%s", lbl) {
+            iterable("nonnull:", flow.nonnull)
             map("temp:", flow.temp)
             apply("invalidated: %s", flow.ps_invalidated)
             rel("readable:", "readable by", flow.readable)
@@ -115,6 +110,12 @@ abstract class Log {
             rel("hb:", "hb", flow.hb)
             rel("subinterval:", "subinterval of", flow.subinterval)
             rel("locks:", "locks", flow.locks)                    
+        }
+    }
+    
+    def iterable(lbl: Any, m: Iterable[Any]): Unit = ifEnabled {
+        indented("%s", lbl) {
+            for(v <- m) apply(v)
         }
     }
     

@@ -136,23 +136,23 @@ class Prog(
     def thisTref(cd: ir.ClassDecl): ir.TypeRef =
         thisTref(cd, ir.noAttrs)
         
-    def supertypesOfClass(c: ir.ClassName) = log.indentedRes("supertypesOfClass(%s)", c) {
+    def supertypesOfClass(c: ir.ClassName) = log.indented("supertypesOfClass(%s)", c) {
         val cd = classDecl(c)
         val subst = superSubstOfClass(c)
         cd.superClasses.map { c => subst.tref(thisTref(classDecl(c))) }
     }
 
     /// supertypes of t
-    def sups(t: ir.TypeRef): List[ir.TypeRef] = log.indentedRes("sups(%s)", t) {
+    def sups(t: ir.TypeRef): List[ir.TypeRef] = log.indented("sups(%s)", t) {
         val subst = ghostSubstOfType(t)
         supertypesOfClass(t.c).map(subst.tref)
     }
     
     /// Field decl for t0::f 
     def fieldDecl(c0: ir.ClassName, f: ir.FieldName): ir.FieldDecl = {
-        log.indentedRes("fieldDecl(%s,%s)", c0, f) {
+        log.indented("fieldDecl(%s,%s)", c0, f) {
             def search(c: ir.ClassName): Option[ir.FieldDecl] = 
-                log.indentedRes("search(%s)", c) {
+                log.indented("search(%s)", c) {
                     val cd = classDecl(c)
                     cd.fields.find(_.name == f) match {
                         case Some(fd) => Some(fd)
@@ -172,7 +172,7 @@ class Prog(
 
     /// Method sig for c0::m()
     def methodSig(c0: ir.ClassName, m: ir.MethodName): Option[ir.MethodSig] = {
-        log.indentedRes("methodSig(%s,%s)", c0, m) {
+        log.indented("methodSig(%s,%s)", c0, m) {
             def search(c: ir.ClassName): Option[ir.MethodSig] = {
                 val cd = classDecl(c)
                 cd.methods.find(_.name == m) match {

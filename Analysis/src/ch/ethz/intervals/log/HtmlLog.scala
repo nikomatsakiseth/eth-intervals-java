@@ -42,7 +42,10 @@ class HtmlLog(
                     var closedKids = false;
                     for(var i = 0; (i < kids.length); i++) {
                         var kid = kids[i];
-                        if(kid.className == 'log') {
+                        if(
+                            kid.className == 'log initiallyOpen' ||
+                            kid.className == 'log initiallyClosed'
+                        ) {
                             if(kid.style.display == 'none') {
                                 kid.style.display = 'block';
                                 openedKids = true;
@@ -66,7 +69,13 @@ class HtmlLog(
                     border-style: solid;
                     margin-top: .1cm;
                     margin-bottom: .1cm;
-                    margin-left: .3cm;
+                    margin-left: .3cm;                    
+                }
+                .initiallyOpen {
+                    opacity: 1.0;                    
+                }
+                .initiallyClosed {
+                    opacity: 0.25;
                 }
                 A:hover {
                     text-decoration: underline;
@@ -87,11 +96,11 @@ class HtmlLog(
     }
     
     private var ids = 0
-    private var idStack = List("id0")
+    private var idStack = List(("id0", true))
             
-    private def pushId() {
+    private def pushId(open: Boolean) {
         ids = ids + 1
-        val id = "id" + ids
+        val id = ("id" + ids, open)
         idStack = id :: idStack            
     }
     
@@ -99,19 +108,25 @@ class HtmlLog(
         idStack = idStack.tail
     }
     
-    private def openDiv(msg: String) = {
-        pushId()            
-        val parentId = idStack.tail.head
-        val id = idStack.head
+    private def openDiv(open: Boolean, msg: String) = {
+        pushId(open)            
+        val (parentId, parentOpen) = idStack.tail.head
+        val (id, _) = idStack.head
+        val cls = 
+            if(open) "log initiallyOpen" 
+            else "log initiallyClosed"
+        val display = 
+            if(parentOpen) "block"
+            else "none"
         
         outWriter.println(
             (
-                "<DIV id='%s' class='log' style='background-color: #%s'>"+
+                "<DIV id='%s' class='%s' style='background-color: #%s; display: %s;'>"+
                 "<A href='#%s'>&#8689;</A>&nbsp;"+
                 //"<A href='#%s' class='collapse' onclick='toggleId(\"%s\")'>%s</A>"
                 "<SPAN class='msg' onclick='toggleId(\"%s\")'>%s</SPAN>"
             ).format(
-                id, nextColor, 
+                id, cls, nextColor, display,
                 parentId,
                 id, msg
             ))
@@ -128,10 +143,10 @@ class HtmlLog(
         outWriter.println("<A href='%s' target='%s'>&rarr;</A>".format(uri, target))            
     }
     
-    override def rawStart(msg: String) = {
-        val id = openDiv(msg)
+    override def rawStart(open: Boolean, msg: String) = {
+        val id = openDiv(open, msg)
         detailsLog.foreach { l =>
-            val linkId = l.rawStart("<I>%s</I>".format(msg))
+            val linkId = l.rawStart(open, "<I>%s</I>".format(msg))
             writeLink(l.uri + "#" + linkId, "details")
         }
         outWriter.flush
@@ -147,7 +162,7 @@ class HtmlLog(
     }
     
     override def rawLinkTo(uri: String, msg: String) {
-        val id = openDiv(msg)
+        val id = openDiv(true, msg)
         writeLink(uri, "_top")
         closeDiv
         outWriter.flush            
