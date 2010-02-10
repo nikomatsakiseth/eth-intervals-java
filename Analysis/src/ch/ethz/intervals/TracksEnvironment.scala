@@ -191,7 +191,7 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
         }
 
     def superintervals(tp: ir.TeePee): Set[ir.Path] = {
-        flow.subinterval.values(flow.nonnull)(tp.p)
+        flow.superintervals(tp.p)
     }
 
     def isSubintervalOf(tp: ir.TeePee, tq: ir.TeePee): Boolean = 
