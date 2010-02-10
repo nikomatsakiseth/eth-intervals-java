@@ -92,15 +92,15 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
     
     class StmtStack(
         val stmt: ir.StmtCompound,
-        val env_in: ir.TcEnv
+        val env_in: TcEnv
     ) {
-        var oenv_continue: Option[ir.TcEnv] = None  // only applies to While
-        var oenv_break: Option[ir.TcEnv] = None     // applies to all
+        var oenv_continue: Option[TcEnv] = None  // only applies to While
+        var oenv_break: Option[TcEnv] = None     // applies to all
     }
     
     private var ss_cur = List[StmtStack]()
     
-    def withStmt[R](stmt: ir.StmtCompound, env_in: ir.TcEnv)(func: => R) = {
+    def withStmt[R](stmt: ir.StmtCompound, env_in: TcEnv)(func: => R) = {
         ss_cur = new StmtStack(stmt, env_in) :: ss_cur
         try { func } finally {
             ss_cur = ss_cur.tail
@@ -174,11 +174,11 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
     }
     
     def mapAndMergeBranchEnv(
-        env_in: ir.TcEnv,       // environment on entry to the flow
-        env_brk: ir.TcEnv,      // environment at branch statement
+        env_in: TcEnv,       // environment on entry to the flow
+        env_brk: TcEnv,      // environment at branch statement
         decls: List[ir.LvDecl], // defined variables (phi variable declarations)
         tps: List[ir.TeePee]    // arguments to each phi
-    ): ir.TcEnv = {
+    ): TcEnv = {
         val flow_brk = env_brk.flow
         
         // ----------------------------------------------------------------------
@@ -262,7 +262,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
         )
     }
     
-    def intersect(oenv1: Option[ir.TcEnv], env2: ir.TcEnv) = oenv1 match {
+    def intersect(oenv1: Option[TcEnv], env2: TcEnv) = oenv1 match {
         case None => Some(env2)
         case Some(env1) => Some(env1.intersectFlow(env2.flow))
     }
@@ -325,7 +325,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                 }
                 
             case ir.Loop(args, ps_initial, seq) =>
-                def iterate(env_continue_before: ir.TcEnv) {
+                def iterate(env_continue_before: TcEnv) {
                     log.indented("iterate()") {
                         // Break env is recomputed each iteration:
                         ss.oenv_break = None

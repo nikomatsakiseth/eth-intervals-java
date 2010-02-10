@@ -70,7 +70,7 @@ abstract class Log {
     
     def apply(v: Any): Unit = ifEnabled {
         v match {
-            case e: ir.TcEnv => env(true, "Env", e)
+            case e: TcEnv => env(true, "Env", e)
             case m: Map[_, _] => map("Map", m)
             case r: PathRelation => map("PathRelation", r.mmap.map)
             case cd: ir.ClassDecl => classDecl("", cd)
@@ -91,7 +91,7 @@ abstract class Log {
         rawLinkTo(uri, escape(fmt, (arg0 :: args.toList)))
     }
     
-    def env(open: Boolean, lbl: Any, env: ir.TcEnv): Unit = ifEnabled {
+    def env(open: Boolean, lbl: Any, env: TcEnv): Unit = ifEnabled {
         indented(open, "%s", lbl) {
             apply("ps_cur: %s", env.ps_cur)
             apply("wt_ret: %s", env.wt_ret)

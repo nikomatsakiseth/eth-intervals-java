@@ -25,7 +25,7 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
     /// Reading and modifying the environment
     def env = env_private    
     def flow = env.flow
-    def setEnv(env_new: ir.TcEnv) = env_private = env_new
+    def setEnv(env_new: TcEnv) = env_private = env_new
     def setFlow(flow_new: FlowEnv) = setEnv(env.withFlow(flow_new))
     
     /// Executes g and restores the old environment afterwards:
