@@ -8,22 +8,22 @@ case class FlowEnv(
     nonnull: Set[ir.Path],          // paths known to be non-null
     temp: Map[ir.Path, ir.Path],    // temporary equivalences, cleared on method call
     ps_invalidated: Set[ir.Path],   // p is current invalid and must be reassigned                
-    readable: PathRelation,         // (p, q) means guard p is readable by interval q
-    writable: PathRelation,         // (p, q) means guard p is writable by interval q
-    hb: PathRelation,               // (p, q) means interval p hb interval q
-    subinterval: PathRelation,      // (p, q) means interval p is a subinterval of interval q
-    locks: PathRelation             // (p, q) means interval p locks lock q            
+    readableRel: PathRelation,      // (p, q) means guard p is readable by interval q
+    writableRel: PathRelation,      // (p, q) means guard p is writable by interval q
+    hbRel: PathRelation,            // (p, q) means interval p hb interval q
+    subintervalRel: PathRelation,   // (p, q) means interval p is a subinterval of interval q
+    locksRel: PathRelation          // (p, q) means interval p locks lock q            
 ) {
     // ___ Creating new flow environments ___________________________________
     
-    def withNonnull(nonnull: Set[ir.Path]) = FlowEnv(nonnull, temp, ps_invalidated, readable, writable, hb, subinterval, locks)
-    def withTemp(temp: Map[ir.Path, ir.Path]) = FlowEnv(nonnull, temp, ps_invalidated, readable, writable, hb, subinterval, locks)
-    def withInvalidated(ps_invalidated: Set[ir.Path]) = FlowEnv(nonnull, temp, ps_invalidated, readable, writable, hb, subinterval, locks)
-    def withReadable(readable: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readable, writable, hb, subinterval, locks)
-    def withWritable(writable: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readable, writable, hb, subinterval, locks)
-    def withHb(hb: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readable, writable, hb, subinterval, locks)
-    def withSubinterval(subinterval: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readable, writable, hb, subinterval, locks)
-    def withLocks(locks: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readable, writable, hb, subinterval, locks)
+    def withNonnull(nonnull: Set[ir.Path]) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, subintervalRel, locksRel)
+    def withTemp(temp: Map[ir.Path, ir.Path]) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, subintervalRel, locksRel)
+    def withInvalidated(ps_invalidated: Set[ir.Path]) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, subintervalRel, locksRel)
+    def withReadableRel(readable: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, subintervalRel, locksRel)
+    def withWritableRel(writable: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, subintervalRel, locksRel)
+    def withHbRel(hb: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, subintervalRel, locksRel)
+    def withSubintervalRel(subinterval: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, subintervalRel, locksRel)
+    def withLocksRel(locks: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, subintervalRel, locksRel)
     
     // ___ Convenience functions for taking nonnull into account ____________
     
@@ -35,15 +35,11 @@ case class FlowEnv(
         rel.mapFilter(mfunc, ffunc)
     }
     
-    def readablePairs = readable.pairs
-    def writablePairs = writable.pairs
-    def hbPairs = hb.pairs
-    def subintervalPairs = subinterval.pairs
-    def locksPairs = locks.pairs     
-    
-    def superintervals(p: ir.Path) = {
-        subinterval.values(p)
-    }        
+    def readable = readableRel.pairs
+    def writable = writableRel.pairs
+    def hb = hbRel.pairs
+    def subinterval = subintervalRel.pairs
+    def locks = locksRel.pairs     
     
     // ___ Combining flow environments ______________________________________
     
@@ -51,11 +47,11 @@ case class FlowEnv(
     def +(flow: FlowEnv) = {
         withTemp(temp ++ flow.temp).
         withInvalidated(ps_invalidated ++ flow.ps_invalidated).
-        withReadable(readable ++ flow.readable).
-        withWritable(writable ++ flow.writable).
-        withHb(hb ++ flow.hb).
-        withSubinterval(subinterval ++ flow.subinterval).
-        withLocks(locks ++ flow.locks)
+        withReadableRel(readableRel ++ flow.readableRel).
+        withWritableRel(writableRel ++ flow.writableRel).
+        withHbRel(hbRel ++ flow.hbRel).
+        withSubintervalRel(subintervalRel ++ flow.subintervalRel).
+        withLocksRel(locksRel ++ flow.locksRel)
     }
     
     // Intersecting two environments keeps what's true in both.
@@ -63,11 +59,11 @@ case class FlowEnv(
         withNonnull(nonnull ** flow2.nonnull)
         withTemp(temp ** flow2.temp).
         withInvalidated(ps_invalidated ++ flow2.ps_invalidated).
-        withReadable(readable.intersect(flow2.readable)).
-        withWritable(writable.intersect(flow2.writable)).
-        withHb(hb.intersect(flow2.hb)).
-        withSubinterval(subinterval.intersect(flow2.subinterval)).
-        withLocks(locks.intersect(flow2.locks))        
+        withReadableRel(readableRel.intersect(flow2.readableRel)).
+        withWritableRel(writableRel.intersect(flow2.writableRel)).
+        withHbRel(hbRel.intersect(flow2.hbRel)).
+        withSubintervalRel(subintervalRel.intersect(flow2.subintervalRel)).
+        withLocksRel(locksRel.intersect(flow2.locksRel))        
     }    
 }
 
@@ -77,11 +73,11 @@ object FlowEnv
         Set(),                          // nonnull
         Map(),                          // temp
         Set(),                          // ps_invalidated
-        PathRelation.intransitive,      // readable
-        PathRelation.intransitive,      // writable
-        PathRelation.transitive,        // hb
-        PathRelation.transitive,        // subinterval
-        PathRelation.intransitive       // locks
+        PathRelation.intransitive,      // readableRel
+        PathRelation.intransitive,      // writableRel
+        PathRelation.transitive,        // hbRel
+        PathRelation.transitive,        // subintervalRel
+        PathRelation.intransitive       // locksRel
     )
     
     def intersect(flows: List[FlowEnv]) = flows match {

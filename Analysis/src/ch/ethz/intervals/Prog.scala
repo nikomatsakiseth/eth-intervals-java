@@ -110,7 +110,7 @@ class Prog(
     
     /// For a type 't=c<F: P>' creates a substitution '[this.F→P]'.
     /// Ghosts F'#F defined on the class c are not substituted.
-    /// @see ghostSubstOfTeePee()
+    /// @see ghostSubstOfir.CanonPath()
     def ghostSubstOfType(t: ir.TypeRef): PathSubst = 
         PathSubst.pp(
             t.ghosts.map(g => ir.p_this + g.f),

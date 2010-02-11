@@ -25,7 +25,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
     }
     
     def checkPathWfAndSubclass(as: ir.Attrs, p: ir.Path, cs: ir.ClassName*): Unit = {
-        val tp = teePee(as, p)
+        val tp = ir.CanonPath(as, p)
         checkIsSubclass(tp.wt, cs: _*)
     }
             
@@ -33,10 +33,10 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
         ps.foreach(checkPathWfAndSubclass(as, _, cs: _*))
     
     def checkPathWf(as: ir.Attrs, p: ir.Path): Unit =
-        teePee(as, p)        
+        ir.CanonPath(as, p)        
 
     def checkPathsWf(as: ir.Attrs, ps: List[ir.Path]): Unit =
-        teePee(as, ps)        
+        ir.CanonPath(as, ps)        
         
     def checkWPathWf(wp: ir.WcPath): Unit =
         wp match {
@@ -85,7 +85,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
         // check that when the type is constructed.
     }
     
-    def checkCall(tp: ir.TeePee, msig: ir.MethodSig, tqs: List[ir.TeePee]) {
+    def checkCall(tp: ir.CanonPath, msig: ir.MethodSig, tqs: List[ir.CanonPath]) {
         checkLengths(msig.args, tqs, "intervals.wrong.number.method.arguments")        
     }
     
@@ -100,15 +100,15 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
             stmt match {                  
                 case ir.StmtSuperCtor(m, qs) =>
                     val tp = tp_super
-                    val tqs = teePee(ir.noAttrs, qs)
+                    val tqs = ir.CanonPath(ir.noAttrs, qs)
                     val msig_ctor = substdCtorSig(tp, m, tqs)
                     checkCall(tp, msig_ctor, tqs)
                     
                 case ir.StmtGetField(x, p_o, f) =>
-                    val tp_o = teePee(reified, p_o)
-                    substdFieldDecl(tp_o, f) match {
+                    val cp_o = ir.CanonPath(reified, p_o)
+                    substdFieldDecl(cp_o, f) match {
                         case ir.GhostFieldDecl(_, _) =>
-                            throw new CheckFailure("intervals.not.reified", tp_o.wt.c, f)
+                            throw new CheckFailure("intervals.not.reified", cp_o.wt.c, f)
                         
                         case ir.ReifiedFieldDecl(_, wt, _, p_guard) =>
                             addLvDecl(x, wt, None)
@@ -117,10 +117,10 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                 case ir.StmtSetField(p_o, f, p_v) =>
                     checkPathWf(reified, p_v)
                     
-                    val tp_o = teePee(reified, p_o)
-                    substdFieldDecl(tp_o, f) match {
+                    val cp_o = ir.CanonPath(reified, p_o)
+                    substdFieldDecl(cp_o, f) match {
                         case ir.GhostFieldDecl(_, _) =>
-                            throw new CheckFailure("intervals.not.reified", tp_o.wt.c, f)
+                            throw new CheckFailure("intervals.not.reified", cp_o.wt.c, f)
                         
                         case ir.ReifiedFieldDecl(_, _, _, _) =>
                     }
@@ -130,15 +130,15 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                     checkWtrefWf(wt)
 
                 case ir.StmtCall(x, p, m, qs) =>
-                    val tp = teePee(reified, p)
-                    val tqs = teePee(reified, qs)
+                    val tp = ir.CanonPath(reified, p)
+                    val tqs = ir.CanonPath(reified, qs)
                     val msig = substdMethodSig(tp, m, tqs)
                     checkCall(tp, msig, tqs)
                     addLvDecl(x, msig.wt_ret, None)                        
         
                 case ir.StmtSuperCall(x, m, qs) =>
                     val tp = tp_super
-                    val tqs = teePee(reified, qs)
+                    val tqs = ir.CanonPath(reified, qs)
                     val msig = substdMethodSig(tp, m, tqs)
                     checkCall(tp, msig, tqs)
                     addLvDecl(x, msig.wt_ret, None)                        
@@ -148,7 +148,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                         throw new CheckFailure("intervals.new.interface", t.c)
                     checkWtrefWf(t)
                     checkPathsWf(ghostOk, t.ghosts.map(_.p))
-                    val tqs = teePee(reified, qs)
+                    val tqs = ir.CanonPath(reified, qs)
                     
                     // Check that all ghosts on the type C being instantiated are given a value:
                     val gfds_unbound = unboundGhostFieldsOnClassAndSuperclasses(t.c)
@@ -159,9 +159,9 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                     
                     addLvDecl(x, t, None)
                     
-                    val tp_x = teePee(x.path)
-                    val msig_ctor = substdCtorSig(tp_x, m, tqs)
-                    checkCall(tp_x, msig_ctor, tqs)                    
+                    val cp_x = ir.CanonPath(x.path)
+                    val msig_ctor = substdCtorSig(cp_x, m, tqs)
+                    checkCall(cp_x, msig_ctor, tqs)                    
                     
                 case ir.StmtCast(x, wt, p) => 
                     checkPathWf(reified, p)
@@ -175,7 +175,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                 case ir.StmtReturn(op) =>
                     op match {
                         case Some(p) =>
-                            teePee(reified, p)
+                            ir.CanonPath(reified, p)
                         
                         case None =>
                             checkIsSubclass(env.wt_ret, ir.c_void)
@@ -264,14 +264,14 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
         at(md, ()) {
             savingEnv {
                 // Define special vars "method" and "this":
-                addPerm(ir.lv_mthd, ir.TeePee(ir.t_interval, ir.p_mthd, ir.ghostAttrs))
+                addPerm(ir.lv_mthd, ir.CanonPath(ir.t_interval, ir.p_mthd, ir.ghostAttrs))
                 if(!md.attrs.ctor) { 
                     // For normal methods, type of this is the defining class
-                    addPerm(ir.lv_this, ir.TeePee(thisTref(cd), ir.p_this, ir.noAttrs))                     
+                    addPerm(ir.lv_this, ir.CanonPath(thisTref(cd), ir.p_this, ir.noAttrs))                     
                 } else {
                     // For constructor methods, type of this is the type that originally defined it
                     val t_rcvr = typeOriginallyDefiningMethod(cd.name, md.name).get
-                    addPerm(ir.lv_this, ir.TeePee(t_rcvr.ctor, ir.p_this, ir.noAttrs))
+                    addPerm(ir.lv_this, ir.CanonPath(t_rcvr.ctor, ir.p_this, ir.noAttrs))
                 }  
 
                 withCurrent(ir.p_mthd) {
@@ -287,13 +287,13 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
         at(md, ()) {
             savingEnv {
                 // Define special vars "method" (== this.constructor) and "this":
-                addPerm(ir.lv_mthd, ir.TeePee(ir.t_interval, ir.gfd_ctor.thisPath, ir.ghostAttrs))
-                addPerm(ir.lv_this, ir.TeePee(thisTref(cd, ir.ctorAttrs), ir.p_this, ir.noAttrs))
+                addPerm(ir.lv_mthd, ir.CanonPath(ir.t_interval, ir.gfd_ctor.thisPath, ir.ghostAttrs))
+                addPerm(ir.lv_this, ir.CanonPath(thisTref(cd, ir.ctorAttrs), ir.p_this, ir.noAttrs))
 
                 withCurrent(ir.p_mthd) {
                     md.args.foreach { case arg => 
                         checkWtrefWf(arg.wt) 
-                        addPerm(arg.name, ir.TeePee(arg.wt, arg.name.path, ir.noAttrs))
+                        addPerm(arg.name, ir.CanonPath(arg.wt, arg.name.path, ir.noAttrs))
                     }            
                     md.reqs.foreach(checkReq)
             
@@ -308,7 +308,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
         
     def addThis(cd: ir.ClassDecl, attrs: ir.Attrs) {
         val t_this = thisTref(cd, attrs)
-        val tp_this = ir.TeePee(t_this, ir.p_this, ir.noAttrs)
+        val tp_this = ir.CanonPath(t_this, ir.p_this, ir.noAttrs)
         addPerm(ir.lv_this, tp_this)        
     }
     

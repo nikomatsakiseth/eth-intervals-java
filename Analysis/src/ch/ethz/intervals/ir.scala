@@ -19,7 +19,7 @@ variable or field:
 b -> block id
 lv -> local variable name
 p,q -> path
-tp,tq -> typed path (TeePee)
+tp,tq -> typed path (ir.CanonPath)
 wp,wq -> wildcard path
 f -> field name
 m -> method name
@@ -74,10 +74,6 @@ object ir {
     // Attrs for types:
     case object AttrCtor extends Attr("c", "constructor")
     
-    // Attrs for paths:
-    case object AttrGhost extends Attr("g", "ghost")
-    case object AttrMutable extends Attr("m", "mutable")
-    
     sealed case class Attrs(private val s: Set[Attr]) {
         def +(a: Attr) = Attrs(s + a)
         
@@ -86,12 +82,6 @@ object ir {
         
         def ctor = s.contains(AttrCtor)
         def withCtor = this + AttrCtor
-        
-        def ghost = s.contains(AttrGhost)
-        def withGhost = this + AttrGhost
-        
-        def mutable = s.contains(AttrMutable)
-        def withMutable = this + AttrMutable
         
         def diff(as: Attrs): Set[Attr] = s -- as.s
         
@@ -102,8 +92,6 @@ object ir {
     }
     val noAttrs = Attrs(ListSet.empty)
     val ctorAttrs = Attrs(ListSet(AttrCtor))
-    val ghostAttrs = Attrs(ListSet(AttrGhost))
-    val mutableAttrs = Attrs(ListSet(AttrMutable))
     val interfaceAttrs = Attrs(ListSet(AttrInterface))
     val allPathAttrs = Attrs(ListSet(AttrGhost, AttrMutable))
 
@@ -358,15 +346,12 @@ object ir {
     
     val empty_method_body = StmtSeq(List())
 
-    // ______ Miscellaneous _________________________________________________
-    def isSuperCtor(s: Stmt) = s match {
-        case StmtSuperCtor(_, _) => true
-        case _ => false
-    }
+    // ___ Types and Paths __________________________________________________
     
     sealed case class WcGhost(f: FieldName, wp: ir.WcPath) {
         override def toString = "@%s(%s)".format(f.name, wp)
     } 
+    
     sealed case class Ghost(
         override val f: FieldName,
         p: Path
@@ -447,14 +432,41 @@ object ir {
         override def toString = (lv :: fs).map(_.toIdent).mkString(".")
     }
     
-    // A TeePee is a typed path.
-    sealed case class TeePee(
-        wt: ir.WcTypeRef, p: ir.Path, as: Attrs
-    ) {
-        def isConstant: Boolean = !as.mutable
+    // ___ Canonical Paths __________________________________________________
+    
+    sealed abstract class CanonPath { // canon. path
+        val p: ir.Path        
+        val wt: ir.WcTypeRef
         
-        override def toString = "[%s: %s %s]".format(p, wt, as)
+        override def toString = "cp(%s: %s)".format(p, wt)
     }
+    
+    sealed case class CpLv(lv: ir.VarName, wt: ir.WcTypeRef, isGhost: Boolean) extends CanonPath {
+        val p = ir.Path(lv, List())
+        
+        override def toString = super.toString
+    }
+    
+    sealed case class CpField(cp: CanonPath, fd: ir.FieldDecl) extends CanonPath {
+        val p = cp.p + fd.name
+        val wt = fd.wt
+        
+        override def toString = super.toString
+    }
+    
+    sealed case class CpCtor(cp: CanonPath) extends CanonPath {
+        val p = cp.p + ir.f_ctor
+        
+        override def toString = super.toString
+    }
+    
+    sealed case class CpSuper(cp: CanonPath) extends CanonPath {
+        val p = cp.p + ir.f_ctor
+        
+        override def toString = super.toString
+    }
+    
+    // ___ Requirements _____________________________________________________
     
     sealed abstract class Req extends PositionalAst {
         def setDefaultPosOnChildren() { }        
@@ -470,15 +482,6 @@ object ir {
     }
     sealed case class ReqHb(lp: List[Path], lq: List[Path]) extends Req {
         override def toString = "requires %s hb %s".format(lp.mkString(", "), lq.mkString(", "))
-    }
-    
-    object Env {
-        val empty = TcEnv(
-            List(),
-            t_void,
-            Map(),
-            FlowEnv.empty
-        )        
     }
     
     val lv_this = ir.VarName("this")
