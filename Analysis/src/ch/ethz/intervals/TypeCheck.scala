@@ -653,8 +653,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                 val t_this = thisTref(cd, ir.ctorAttrs)
                 addReifiedLocal(ir.lv_this, t_this)
                 addGhostLocal(ir.lv_mthd, ir.t_interval)
-                addPerm(ir.lv_this, cp_this)
-                addPerm(ir.lv_mthd, cp_mthd)
+                val cp_mthd = env.canon(ir.p_mthd)
                 setCurrent(cp_mthd.p)
                 
                 // If an interval class, then this.ctor hb this:

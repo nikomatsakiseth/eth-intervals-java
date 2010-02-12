@@ -93,7 +93,7 @@ sealed case class TcEnv(
         withFlow(flow.withHbRel(flow.hbRel + (cp.p.end, cq.p.start)))
     }
     
-    def addDeclaredReadableBy(cp: ir.CanonPath, cq: ir.CanonPath): Unit = {
+    def addDeclaredReadableBy(cp: ir.CanonPath, cq: ir.CanonPath) = {
         log("addDeclaredReadableBy(%s, %s)", cp, cq)
         assert(!mutable(cp) && !mutable(cq))
         assert(isSubclass(cp.wt, ir.c_guard))
@@ -101,7 +101,7 @@ sealed case class TcEnv(
         withFlow(flow.withReadableRel(flow.readableRel + (cp.p, cq.p)))
     }
     
-    def addDeclaredWritableBy(cp: ir.CanonPath, cq: ir.CanonPath): Unit = {
+    def addDeclaredWritableBy(cp: ir.CanonPath, cq: ir.CanonPath) = {
         log("addDeclaredWritableBy(%s, %s)", cp, cq)
         assert(!mutable(cp) && !mutable(cq))
         assert(isSubclass(cp.wt, ir.c_guard))
@@ -109,25 +109,25 @@ sealed case class TcEnv(
         withFlow(flow.withWritableRel(flow.writableRel + (cp.p, cq.p)))
     }
     
-    def addSubintervalOf(cp: ir.CanonPath, cq: ir.CanonPath): Unit = {
+    def addSubintervalOf(cp: ir.CanonPath, cq: ir.CanonPath) = {
         log.indented("addSubintervalOf(%s, %s)", cp, cq) {
             // This assertion is not valid during checkReifiedFieldDecl():
             //assert(!mutable(cp) && !mutable(cq))
             assert(isSubclass(cp.wt, ir.c_interval))
             assert(isSubclass(cq.wt, ir.c_interval))
             withFlow(flow
-                .withHbRel(flow.hb + (cq.p.start, cp.p.start) + (cp.p.end, cq.p.end))
-                .withSubinterval(flow.subintervalRel + (cp.p, cq.p)))
+                .withHbRel(flow.hbRel + (cq.p.start, cp.p.start) + (cp.p.end, cq.p.end))
+                .withSubintervalRel(flow.subintervalRel + (cp.p, cq.p)))
         }        
     }
 
-    def addLocks(cp: ir.CanonPath, cq: ir.CanonPath): Unit = {
+    def addLocks(cp: ir.CanonPath, cq: ir.CanonPath) = {
         log.indented("addLocks(%s, %s)", cp, cq) {
             // This assertion is not valid during checkReifiedFieldDecl:
             //assert(!mutable(cp) && !mutable(cq))
             assert(isSubclass(cp.wt, ir.c_interval))
             assert(isSubclass(cq.wt, ir.c_lock))
-            setFlow(flow.withLocksRel(flow.locksRel + (cp.p, cq.p)))
+            withFlow(flow.withLocksRel(flow.locksRel + (cp.p, cq.p)))
         }        
     }
 

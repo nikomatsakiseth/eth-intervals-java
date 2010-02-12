@@ -455,12 +455,14 @@ object ir {
     
     sealed case class CpCtor(cp: CanonPath) extends CanonPath {
         val p = cp.p + ir.f_ctor
+        val wt = ir.t_interval
         
         override def toString = super.toString
     }
     
     sealed case class CpSuper(cp: CanonPath) extends CanonPath {
         val p = cp.p + ir.f_ctor
+        val wt = ir.t_interval
         
         override def toString = super.toString
     }

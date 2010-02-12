@@ -120,18 +120,18 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
     }
         
     def addUserDeclaredWritableBy(cp: ir.CanonPath, cq: ir.CanonPath) {
-        if(isSubclass(tp.wt, ir.c_guard) && isSubclass(tq.wt, ir.c_interval))
-            addDeclaredWritableBy(tp, tq)
+        if(isSubclass(cp.wt, ir.c_guard) && isSubclass(cq.wt, ir.c_interval))
+            addDeclaredWritableBy(cp, cq)
     }
     
     def addUserDeclaredReadableBy(cp: ir.CanonPath, cq: ir.CanonPath) {
-        if(isSubclass(tp.wt, ir.c_guard) && isSubclass(tq.wt, ir.c_interval))
-            addDeclaredReadableBy(tp, tq)
+        if(isSubclass(cp.wt, ir.c_guard) && isSubclass(cq.wt, ir.c_interval))
+            addDeclaredReadableBy(cp, cq)
     }
     
     def addUserSubintervalOf(cp: ir.CanonPath, cq: ir.CanonPath) {
-        if(isSubclass(tp.wt, ir.c_interval) && isSubclass(tq.wt, ir.c_interval))
-            addSubintervalOf(tp, tq)
+        if(isSubclass(cp.wt, ir.c_interval) && isSubclass(cq.wt, ir.c_interval))
+            addSubintervalOf(cp, cq)
     }
     
     def addReq(req: ir.Req) = 
