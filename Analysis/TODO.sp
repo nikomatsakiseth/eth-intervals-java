@@ -1,5 +1,9 @@
 ___ To Do List _______________________________________________________
 
+______ Don't Forget __________________________________________________
+
+- Introduce immutableIn to supplement readableBy?
+
 ______ Bugs __________________________________________________________   
 
 - Check in multiple inheritance that all paths lead to the same set of ghost parameters. Alternatively, make sure that all

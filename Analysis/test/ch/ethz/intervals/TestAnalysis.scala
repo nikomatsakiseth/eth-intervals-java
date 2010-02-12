@@ -1114,13 +1114,11 @@ class TestAnalysis extends JUnitSuite {
             class C extends Object {
                 void mthd(
                     Data<creator: readableBy method> m1, 
-                    Data<creator: readableBy method> m2, 
-                    Data<creator: hb method> c1,
-                    Data<creator: hb method> c2
+                    Data<creator: readableBy method> m2
                 ) 
-                requires c1.i hb c2.i
-                requires c1 hb c2 // ERROR intervals.expected.subclass.of.any(Data, Array(#Point, #Interval))
-                requires c1.i hb c2 // ERROR intervals.expected.subclass.of.any(Data, Array(#Point, #Interval))
+                requires m1.i hb m2.i
+                requires m1 hb m2 // ERROR intervals.expected.subclass.of.any(Data, Array(#Point, #Interval))
+                requires m1.i hb m2 // ERROR intervals.expected.subclass.of.any(Data, Array(#Point, #Interval))
                 {
                     
                 }
@@ -1141,13 +1139,10 @@ class TestAnalysis extends JUnitSuite {
             class C extends Object {
                 void mthd(
                     Data<creator: readableBy method> m1, 
-                    Data<creator: readableBy method> m2, 
-                    Data<creator: hb method> c1,
-                    Data<creator: hb method> c2
+                    Data<creator: readableBy method> m2
                 ) 
                 requires c1.i hb c2.i
                 requires m1.i hb m2.i // ERROR intervals.illegal.path.attr(m1.i, m)
-                requires c1.i hb m2.i // ERROR intervals.illegal.path.attr(m2.i, m)
                 {
                     
                 }
@@ -1423,7 +1418,7 @@ class TestAnalysis extends JUnitSuite {
             }
             
             class Producer extends Interval {
-                ConsData<creator: hb this> cdata requires this.constructor;
+                ConsData<creator: readableBy this> cdata requires this.constructor;
                 ProdData<creator: this> pdata requires this.constructor;
                 
                 constructor(Interval c, ConsData<creator: c> cdata)
@@ -1459,7 +1454,7 @@ class TestAnalysis extends JUnitSuite {
             }
             
             class Consumer extends Interval {
-                ProdData<creator: hb this> pdata requires this.constructor;
+                ProdData<creator: readableBy this> pdata requires this.constructor;
                 ConsData<creator: this> cdata requires this.constructor;
                 
                 constructor(Interval p, ProdData<creator: p> pdata)
