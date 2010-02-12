@@ -394,25 +394,6 @@ object ir {
 
         override def toString = "writableBy " + lp.mkString(", ")
     }
-    sealed case class WcHb(lp: List[Path], lq: List[Path]) extends WcPath {
-        def addDependentPaths(s: Set[Path]) = s ++ lp ++ lq
-
-        override def toString = {
-            (lp match { case List() => ""; case _ => lp.mkString(", ") + " " }) +
-            "hb" + 
-            (lq match { case List() => ""; case _ => " " + lq.mkString(", ") })
-        }
-    }
-    sealed case class WcLocks(lp: List[Path]) extends WcPath {
-        def addDependentPaths(s: Set[Path]) = s ++ lp
-
-        override def toString = "locks %s".format(lp.mkString(", "))
-    }
-    sealed case class WcLockedBy(lp: List[Path]) extends WcPath {
-        def addDependentPaths(s: Set[Path]) = s ++ lp
-
-        override def toString = "%s locks".format(lp.mkString(", "))
-    }
         
     sealed case class Path(
         lv: VarName, rev_fs: List[FieldName] // Fields stored in reverse order!

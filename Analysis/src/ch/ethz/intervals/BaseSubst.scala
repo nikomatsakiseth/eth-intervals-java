@@ -12,11 +12,8 @@ abstract class BaseSubst {
         ir.TypeRef(t.c, t.ghosts.map(ghost), t.as)
         
     def wpath(wp: ir.WcPath) = wp match {
-        case ir.WcHb(ps, qs) => ir.WcHb(ps.map(path), qs.map(path))
         case ir.WcReadableBy(ps) => ir.WcReadableBy(ps.map(path))
         case ir.WcWritableBy(ps) => ir.WcWritableBy(ps.map(path))
-        case ir.WcLocks(ps) => ir.WcLocks(ps.map(path))
-        case ir.WcLockedBy(ps) => ir.WcLockedBy(ps.map(path))
         case p: ir.Path => path(p)
     }
     
