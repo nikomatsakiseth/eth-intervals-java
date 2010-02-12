@@ -93,7 +93,7 @@ abstract class Log {
     
     def env(open: Boolean, lbl: Any, env: TcEnv): Unit = ifEnabled {
         indented(open, "%s", lbl) {
-            apply("ps_cur: %s", env.ps_cur)
+            apply("op_cur: %s", env.op_cur)
             apply("wt_ret: %s", env.wt_ret)
             map("perm:", env.perm)
             flow(true, "flow:", env.flow)
@@ -105,11 +105,11 @@ abstract class Log {
             iterable("nonnull:", flow.nonnull)
             map("temp:", flow.temp)
             apply("invalidated: %s", flow.ps_invalidated)
-            rel("readable:", "readable by", flow.readable)
-            rel("writable:", "writable by", flow.writable)
-            rel("hb:", "hb", flow.hb)
-            rel("subinterval:", "subinterval of", flow.subinterval)
-            rel("locks:", "locks", flow.locks)                    
+            rel("readable:", "readable by", flow.readableRel)
+            rel("writable:", "writable by", flow.writableRel)
+            rel("hb:", "hb", flow.hbRel)
+            rel("subinterval:", "subinterval of", flow.subintervalRel)
+            rel("locks:", "locks", flow.locksRel)
         }
     }
     

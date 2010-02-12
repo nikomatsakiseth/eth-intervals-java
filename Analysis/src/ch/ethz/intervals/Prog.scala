@@ -16,6 +16,14 @@ class Prog(
 ) {
     import logStack.log
     def errors = logStack.errors
+    
+    val env_empty = TcEnv(
+        this,
+        None,
+        ir.t_void,
+        Map(),
+        FlowEnv.empty
+    )        
 
     // ___ Class table ______________________________________________________
     

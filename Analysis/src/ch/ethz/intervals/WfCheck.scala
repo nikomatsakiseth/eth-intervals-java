@@ -14,50 +14,58 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
     import prog.thisTref
     import prog.typeOriginallyDefiningMethod
         
-    // In this check, we don't record HB information,
-    // so we permit mutable paths at all places:
-    val ghostOk = ir.ghostAttrs.withMutable
-    val reified = ir.mutableAttrs
+    def reified(p: ir.Path): ir.CanonPath = {
+        val cp = env.canon(p)
+        if(env.ghost(cp))
+            throw new CheckFailure("intervals.must.be.reified", p)
+        cp
+    }
+    
+    def rOrGhost(p: ir.Path): ir.CanonPath = {
+        env.canon(p)
+    }
     
     def checkIsSubclass(wt: ir.WcTypeRef, cs: ir.ClassName*) {
         if(!cs.exists(isSubclass(wt, _)))
             throw new CheckFailure("intervals.expected.subclass.of.any", wt.c, cs)
     }
     
-    def checkPathWfAndSubclass(as: ir.Attrs, p: ir.Path, cs: ir.ClassName*): Unit = {
-        val tp = ir.CanonPath(as, p)
-        checkIsSubclass(tp.wt, cs: _*)
+    def checkPathWfAndSubclass(
+        canonizer: (ir.Path => ir.CanonPath),
+        p: ir.Path, 
+        cs: ir.ClassName*
+    ): Unit = {
+        val cp = canonizer(p)
+        checkIsSubclass(cp.wt, cs: _*)
     }
             
-    def checkPathsWfAndSubclass(as: ir.Attrs, ps: List[ir.Path], cs: ir.ClassName*): Unit =
-        ps.foreach(checkPathWfAndSubclass(as, _, cs: _*))
-    
-    def checkPathWf(as: ir.Attrs, p: ir.Path): Unit =
-        ir.CanonPath(as, p)        
+    def checkPathsWfAndSubclass(
+        canonizer: (ir.Path => ir.CanonPath),        
+        ps: List[ir.Path], 
+        cs: ir.ClassName*
+    ): Unit =
+        ps.foreach(checkPathWfAndSubclass(canonizer, _, cs: _*))
 
-    def checkPathsWf(as: ir.Attrs, ps: List[ir.Path]): Unit =
-        ir.CanonPath(as, ps)        
+    def checkPathWf(
+        canonizer: (ir.Path => ir.CanonPath),                
+        p: ir.Path
+    ): Unit = reified(p)
         
+    def checkPathsWf(
+        canonizer: (ir.Path => ir.CanonPath),                
+        ps: List[ir.Path]
+    ): Unit = ps.foreach(checkPathWf(canonizer, _))
+    
     def checkWPathWf(wp: ir.WcPath): Unit =
         wp match {
             case ir.WcReadableBy(ps) =>
-                checkPathsWfAndSubclass(ghostOk, ps, ir.c_interval)
+                checkPathsWfAndSubclass(rOrGhost, ps, ir.c_interval)
                 
             case ir.WcWritableBy(ps) =>
-                checkPathsWfAndSubclass(ghostOk, ps, ir.c_interval)
-                
-            case ir.WcHb(ps, qs) =>
-                checkPathsWfAndSubclass(ghostOk, ps, ir.c_interval, ir.c_point)
-                checkPathsWfAndSubclass(ghostOk, qs, ir.c_interval, ir.c_point)
-                
-            case ir.WcLocks(ps) =>
-                checkPathsWfAndSubclass(ghostOk, ps, ir.c_lock)
-                
-            case ir.WcLockedBy(ps) =>
-                checkPathsWfAndSubclass(ghostOk, ps, ir.c_interval)
+                checkPathsWfAndSubclass(rOrGhost, ps, ir.c_interval)
                 
             case p: ir.Path =>
-                checkPathWf(ghostOk, p)
+                checkPathWf(rOrGhost, p)
         }
         
     def checkLengths(l1: List[_], l2: List[_], msg: String) = preservesEnv {
@@ -105,8 +113,8 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                     checkCall(tp, msig_ctor, tqs)
                     
                 case ir.StmtGetField(x, p_o, f) =>
-                    val cp_o = ir.CanonPath(reified, p_o)
-                    substdFieldDecl(cp_o, f) match {
+                    val cp_o = reified(p_o)
+                    env.substdFieldDecl(cp_o, f) match {
                         case ir.GhostFieldDecl(_, _) =>
                             throw new CheckFailure("intervals.not.reified", cp_o.wt.c, f)
                         
@@ -117,8 +125,8 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                 case ir.StmtSetField(p_o, f, p_v) =>
                     checkPathWf(reified, p_v)
                     
-                    val cp_o = ir.CanonPath(reified, p_o)
-                    substdFieldDecl(cp_o, f) match {
+                    val cp_o = reified(p_o)
+                    env.substdFieldDecl(cp_o, f) match {
                         case ir.GhostFieldDecl(_, _) =>
                             throw new CheckFailure("intervals.not.reified", cp_o.wt.c, f)
                         
@@ -134,20 +142,20 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                     val tqs = ir.CanonPath(reified, qs)
                     val msig = substdMethodSig(tp, m, tqs)
                     checkCall(tp, msig, tqs)
-                    addLvDecl(x, msig.wt_ret, None)                        
+                    addReifiedLocal(x, msig.wt_ret)
         
                 case ir.StmtSuperCall(x, m, qs) =>
                     val tp = tp_super
                     val tqs = ir.CanonPath(reified, qs)
                     val msig = substdMethodSig(tp, m, tqs)
                     checkCall(tp, msig, tqs)
-                    addLvDecl(x, msig.wt_ret, None)                        
+                    addReifiedLocal(x, msig.wt_ret)
                 
                 case ir.StmtNew(x, t, m, qs) =>
                     if(classDecl(t.c).attrs.interface)
                         throw new CheckFailure("intervals.new.interface", t.c)
                     checkWtrefWf(t)
-                    checkPathsWf(ghostOk, t.ghosts.map(_.p))
+                    checkPathsWf(rOrGhost, t.ghosts.map(_.p))
                     val tqs = ir.CanonPath(reified, qs)
                     
                     // Check that all ghosts on the type C being instantiated are given a value:
@@ -166,11 +174,11 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                 case ir.StmtCast(x, wt, p) => 
                     checkPathWf(reified, p)
                     checkWtrefWf(wt)
-                    addLvDecl(x, wt, None)
+                    addReifiedLocal(x, wt)
                     
                 case ir.StmtNull(x, wt) => 
                     checkWtrefWf(wt)
-                    addLvDecl(x, wt, None)
+                    addReifiedLocal(x, wt)
                     
                 case ir.StmtReturn(op) =>
                     op match {
@@ -243,17 +251,17 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
         at(req, ()) {
             req match {
                 case ir.ReqWritableBy(ps, qs) =>
-                    checkPathsWfAndSubclass(ghostOk, ps, ir.c_guard)
-                    checkPathsWfAndSubclass(ghostOk, qs, ir.c_interval)
+                    checkPathsWfAndSubclass(rOrGhost, ps, ir.c_guard)
+                    checkPathsWfAndSubclass(rOrGhost, qs, ir.c_interval)
                 case ir.ReqReadableBy(ps, qs) => 
-                    checkPathsWfAndSubclass(ghostOk, ps, ir.c_guard)
-                    checkPathsWfAndSubclass(ghostOk, qs, ir.c_interval)
+                    checkPathsWfAndSubclass(rOrGhost, ps, ir.c_guard)
+                    checkPathsWfAndSubclass(rOrGhost, qs, ir.c_interval)
                 case ir.ReqHb(ps, qs) => 
-                    checkPathsWfAndSubclass(ghostOk, ps, ir.c_point, ir.c_interval)
-                    checkPathsWfAndSubclass(ghostOk, qs, ir.c_point, ir.c_interval)
+                    checkPathsWfAndSubclass(rOrGhost, ps, ir.c_point, ir.c_interval)
+                    checkPathsWfAndSubclass(rOrGhost, qs, ir.c_point, ir.c_interval)
                 case ir.ReqSubintervalOf(ps, qs) => 
-                    checkPathsWfAndSubclass(ghostOk, ps, ir.c_interval)
-                    checkPathsWfAndSubclass(ghostOk, qs, ir.c_interval)
+                    checkPathsWfAndSubclass(rOrGhost, ps, ir.c_interval)
+                    checkPathsWfAndSubclass(rOrGhost, qs, ir.c_interval)
             }   
         }
     
@@ -318,7 +326,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                 addThis(cd, ir.ctorAttrs)
                 
                 checkWtrefWf(fd.wt)
-                checkPathWf(ghostOk, fd.p_guard)
+                checkPathWf(rOrGhost, fd.p_guard)
             }
         }
     

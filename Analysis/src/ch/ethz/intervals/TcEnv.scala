@@ -1,17 +1,23 @@
 package ch.ethz.intervals
 
 sealed case class TcEnv(
+    prog: Prog,
     op_cur: Option[ir.Path],                // current interval
     wt_ret: ir.WcTypeRef,                   // return type of current method
     perm: Map[ir.VarName, ir.CanonPath], // permanent equivalences, hold for duration of method
     flow: FlowEnv
 ) {
+    import prog.logStack.log
+    import prog.classDecl
+    import prog.isSubclass
+    import prog.unboundGhostFieldsOnClassAndSuperclasses
+    
     // ___ Adjusting Individual Values ______________________________________
     
-    def withCurrent(op_cur: Option[ir.Path]) = TcEnv(op_cur, wt_ret, perm, flow)
-    def withRet(wt_ret: ir.WcTypeRef) = TcEnv(op_cur, wt_ret, perm, flow)
-    def withPerm(perm: Map[ir.VarName, ir.CanonPath]) = TcEnv(op_cur, wt_ret, perm, flow)
-    def withFlow(flow: FlowEnv) = TcEnv(op_cur, wt_ret, perm, flow)
+    def withCurrent(op_cur: Option[ir.Path]) = TcEnv(prog, op_cur, wt_ret, perm, flow)
+    def withRet(wt_ret: ir.WcTypeRef) = TcEnv(prog, op_cur, wt_ret, perm, flow)
+    def withPerm(perm: Map[ir.VarName, ir.CanonPath]) = TcEnv(prog, op_cur, wt_ret, perm, flow)
+    def withFlow(flow: FlowEnv) = TcEnv(prog, op_cur, wt_ret, perm, flow)
     
     // ___ Merging Flows ____________________________________________________
     
@@ -25,7 +31,7 @@ sealed case class TcEnv(
         assert(!mutable(cp))
         perm.get(x) match {
             case Some(_) => throw new CheckFailure("intervals.shadowed", x)
-            case None => withPerm(perm + Pair(x, cq))
+            case None => withPerm(perm + Pair(x, cp))
         }
     }
     
@@ -41,12 +47,12 @@ sealed case class TcEnv(
     
     /// Define a reified local variable 'x' with type 'wt'
     def addReifiedLocal(x: ir.VarName, wt: ir.WcTypeRef) = {
-        addPerm(x, ir.CpLv(x, arg.wt, false))        
+        addPerm(x, ir.CpLv(x, wt, false))
     }
     
     /// Define a ghost local variable 'x' with type 'wt'
     def addGhostLocal(x: ir.VarName, wt: ir.WcTypeRef) = {
-        addPerm(x, ir.CpLv(x, arg.wt, true))        
+        addPerm(x, ir.CpLv(x, wt, true))        
     }
     
     /// Temporarily redirect from 'p' to 'q'
@@ -76,7 +82,7 @@ sealed case class TcEnv(
         assert(!mutable(cp) && !mutable(cq))
         assert(isSubclass(cp.wt, ir.c_point))
         assert(isSubclass(cq.wt, ir.c_point))        
-        withFlow(flow.withHb(flow.hb + (cp.p, cq.p)))        
+        withFlow(flow.withHbRel(flow.hbRel + (cp.p, cq.p)))        
     }
 
     def addHbInter(cp: ir.CanonPath, cq: ir.CanonPath) = {
@@ -84,7 +90,7 @@ sealed case class TcEnv(
         assert(!mutable(cp) && !mutable(cq))
         assert(isSubclass(cp.wt, ir.c_interval))
         assert(isSubclass(cq.wt, ir.c_interval))
-        withFlow(flow.withHb(flow.hb + (cp.p.end, cq.p.start)))
+        withFlow(flow.withHbRel(flow.hbRel + (cp.p.end, cq.p.start)))
     }
     
     def addDeclaredReadableBy(cp: ir.CanonPath, cq: ir.CanonPath): Unit = {
@@ -92,7 +98,7 @@ sealed case class TcEnv(
         assert(!mutable(cp) && !mutable(cq))
         assert(isSubclass(cp.wt, ir.c_guard))
         assert(isSubclass(cq.wt, ir.c_interval))
-        withFlow(flow.withReadable(flow.readable + (cp.p, cq.p)))
+        withFlow(flow.withReadableRel(flow.readableRel + (cp.p, cq.p)))
     }
     
     def addDeclaredWritableBy(cp: ir.CanonPath, cq: ir.CanonPath): Unit = {
@@ -100,7 +106,7 @@ sealed case class TcEnv(
         assert(!mutable(cp) && !mutable(cq))
         assert(isSubclass(cp.wt, ir.c_guard))
         assert(isSubclass(cq.wt, ir.c_interval))
-        withFlow(flow.withWritable(flow.writable + (cp.p, cq.p)))
+        withFlow(flow.withWritableRel(flow.writableRel + (cp.p, cq.p)))
     }
     
     def addSubintervalOf(cp: ir.CanonPath, cq: ir.CanonPath): Unit = {
@@ -110,8 +116,8 @@ sealed case class TcEnv(
             assert(isSubclass(cp.wt, ir.c_interval))
             assert(isSubclass(cq.wt, ir.c_interval))
             withFlow(flow
-                .withHb(flow.hb + (cq.p.start, cp.p.start) + (cp.p.end, cq.p.end))
-                .withSubinterval(flow.subinterval + (cp.p, cq.p)))
+                .withHbRel(flow.hb + (cq.p.start, cp.p.start) + (cp.p.end, cq.p.end))
+                .withSubinterval(flow.subintervalRel + (cp.p, cq.p)))
         }        
     }
 
@@ -121,7 +127,7 @@ sealed case class TcEnv(
             //assert(!mutable(cp) && !mutable(cq))
             assert(isSubclass(cp.wt, ir.c_interval))
             assert(isSubclass(cq.wt, ir.c_lock))
-            setFlow(flow.withLocks(flow.locks + (cp.p, cq.p)))
+            setFlow(flow.withLocksRel(flow.locksRel + (cp.p, cq.p)))
         }        
     }
 
@@ -148,9 +154,9 @@ sealed case class TcEnv(
         
     def addUserHb(cp0: ir.CanonPath, cq0: ir.CanonPath) = {
         log.indented("addUserHb(%s,%s)", cp0, cq0) {
-            userHbPair(cp0, tq0) match {
-                case Some((p1, q1)) => withFlow(flow.withHb(flow.hb + (p1, q1)))
-                case None =>
+            userHbPair(cp0, cq0) match {
+                case Some((p1, q1)) => withFlow(flow.withHbRel(flow.hbRel + (p1, q1)))
+                case None => this
             }
         }        
     }
@@ -167,6 +173,10 @@ sealed case class TcEnv(
         log.indented(false, "canon(%s)", p1) {
             canonicalize(Set(), p1)
         }
+        
+    def extendCanonWithReifiedField(cp: ir.CanonPath, rfd: ir.ReifiedFieldDecl) = {
+        ir.CpField(cp, rfd)
+    }
     
     private def canonicalize(vis: Set[ir.Path], p1: ir.Path): ir.CanonPath = log.indented("canonicalize(%s)", p1) {
         assert(!vis(p1))
@@ -174,27 +184,27 @@ sealed case class TcEnv(
             val p1_redirect = flow.temp(p1)
             log("temp redirect")
             canonicalize(vis + p1, p1_redirect)                
-        } else p.rev_fs match {
+        } else p1.rev_fs match {
             case List() =>
-                perm.get(p.lv) match {
+                perm.get(p1.lv) match {
                     case Some(cp) => cp
-                    case None => throw new CheckFailure("intervals.no.such.variable", p.lv)
+                    case None => throw new CheckFailure("intervals.no.such.variable", p1.lv)
                 }
                 
             case f :: rev_fs =>
-                val p0 = ir.Path(p.lv, rev_fs)      // p1 = p0.f
+                val p0 = ir.Path(p1.lv, rev_fs)      // p1 = p0.f
                 val cp0 = canonicalize(Set(), p0)
                 
                 if(f == ir.f_ctor) {                    
-                    CpCtor(cp0) // Handle p0.ctor specially
+                    ir.CpCtor(cp0) // Handle p0.ctor specially
                 } else if (f == ir.f_super) {
-                    CpSuper(cp0) // Handle p0.super specially
-                } else cSubstdFieldDecl(cp0, f) match {
+                    ir.CpSuper(cp0) // Handle p0.super specially
+                } else substdFieldDecl(cp0, f) match {
                     case gfd: ir.GhostFieldDecl =>
-                        canonicalGhostField(cp0, f, wt_f)
+                        canonicalGhostField(vis, cp0, gfd)
                     case rfd: ir.ReifiedFieldDecl =>
                         log("ReifiedFieldDecl: %s", rfd)
-                        CpField(vis, cp0, rfd)
+                        extendCanonWithReifiedField(cp0, rfd)
                 }
         }
     }
@@ -207,10 +217,10 @@ sealed case class TcEnv(
         gfd: ir.GhostFieldDecl
     ) = {
         log.indented("canonicalGhostField(%s, %s, %s)", vis, cp0, gfd) {
-            val cp1 = CpField(vis, cp0, gfd)
+            val cp1 = ir.CpField(cp0, gfd)
             
             // Does cp0's type specify a value for ghost field f?
-            cp0.wt.owghost(f) match {
+            cp0.wt.owghost(gfd.name) match {
                 // cp0 had a type with a precise path like Foo<f: q>
                 // where q has not yet been visited.  Redirect.
                 case Some(q: ir.Path) if !vis(q) =>
@@ -261,7 +271,7 @@ sealed case class TcEnv(
     }
 
     /// True if the path p is known to be nonnull
-    def isNonnull(cp: ir.CanonPath) = log.indented(false, "isNonnull(%s)?", p) {
+    def isNonnull(cp: ir.CanonPath) = log.indented(false, "isNonnull(%s)?", cp) {
         log.env(false, "Environment", this)
         flow.nonnull(cp.p)
     }
@@ -270,7 +280,7 @@ sealed case class TcEnv(
     def userHb(cp0: ir.CanonPath, cq0: ir.CanonPath) = {
         log.indented("userHb(%s,%s)", cp0, cq0) {
             userHbPair(cp0, cq0) match {
-                case Some((cp1, cq1)) => hbPnt(cp1, cq1)
+                case Some((p1, q1)) => flow.hb((p1, q1))
                 case None => false
             }
         }        
@@ -308,14 +318,16 @@ sealed case class TcEnv(
     }
     
     /// Is data guarded by 'p' immutable in the interval 'q'?
-    def isImmutableIn(cp: ir.CanonPath, cq: ir.CanonPath): Boolean = log.indented(false, "isImmutableIn(%s, %s)?", p, q) {
-        log.env(false, "Environment", this)
-        hbInter(cp, cq)
+    def isImmutableIn(cp: ir.CanonPath, cq: ir.CanonPath): Boolean = {
+        log.indented(false, "isImmutableIn(%s, %s)?", cp, cq) {
+            log.env(false, "Environment", this)
+            hbInter(cp, cq)
+        }    
     }
     
     /// Is data guarded by 'p' writable by the interval 'q'?
     def isWritableBy(cp: ir.CanonPath, cq: ir.CanonPath): Boolean = {
-        log.indented(false, "isReadableBy(%s, %s)?", p, q) {
+        log.indented(false, "isWritableBy(%s, %s)?", cp, cq) {
             log.env(false, "Environment", this)
             (
                 cp match {
@@ -338,7 +350,7 @@ sealed case class TcEnv(
     
     /// Is data guarded by 'p' readable by the interval 'q'?
     def isReadableBy(cp: ir.CanonPath, cq: ir.CanonPath): Boolean = {
-        log.indented(false, "isReadableBy(%s, %s)?", p, q) {
+        log.indented(false, "isReadableBy(%s, %s)?", cp, cq) {
             log.env(false, "Environment", this)
             (
                 cp match {
@@ -352,10 +364,18 @@ sealed case class TcEnv(
                     case _ => false
                 } 
             ) || {
+                superintervalsOrSelf(cq).exists(q => flow.readable((cp.p, q))) ||
                 flow.readable((cp.p, cq.p)) ||
                 hbInter(cp, cq) ||
                 isWritableBy(cp, cq)            
             }
+        }
+    }
+    
+    /// Did the interval cp happen before the current interval?
+    def hbNow(cp: ir.CanonPath): Boolean = {
+        log.indented(false, "hbNow(%s)", cp) {
+            hbInter(cp, canon(op_cur.get))
         }
     }
     
@@ -413,7 +433,7 @@ sealed case class TcEnv(
         
         // screen out those which cannot have been written yet (and whose 
         // value is therefore null, which is valid for any type)
-        lazy val subst = ghostSubstOfir.CanonPath(cp_o)
+        lazy val subst = cGhostSubst(cp_o)
         val ocp_cur = op_cur.map(canon)
         val fds_linked = fds_maybe_linked.filter { rfd =>
             !ocp_cur.exists(cp_cur =>
@@ -451,13 +471,13 @@ sealed case class TcEnv(
     }
 
     /// Captures cp.wt, using ghostPaths(cp) for the type args.
-    private def cap(cp: ir.CanonPath): ir.TypeRef = {
+    def cap(cp: ir.CanonPath): ir.TypeRef = {
         ir.TypeRef(cp.wt.c, cGhosts(cp), cp.wt.as)
     }
 
     private def equiv(cp: ir.CanonPath, cq: ir.CanonPath) = (cp.p == cq.p)
     
-    private def among(cp: ir.CanonPath, qs: List[ir.Paths]) = {
+    private def among(cp: ir.CanonPath, qs: List[ir.Path]) = {
         qs.exists(q => equiv(cp, canon(q)))
     }
 
@@ -501,13 +521,4 @@ sealed case class TcEnv(
     def isSubtype(cp_sub: ir.CanonPath, wt_sup: ir.WcTypeRef): Boolean = 
         isSubtype(cap(cp_sub), wt_sup)
     
-}
-
-object TcEnv {
-    val empty = TcEnv(
-        None,
-        ir.t_void,
-        Map(),
-        FlowEnv.empty
-    )        
 }

@@ -20,7 +20,7 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
     //
     // We use a mutable field here rather than thread the env through explicitly.
 
-    private var env_private = TcEnv.empty
+    private var env_private = prog.env_empty
     
     /// Reading and modifying the environment
     def env = env_private    
@@ -65,6 +65,14 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
         
     def addTemp(p: ir.Path, q: ir.Path) = {
         setEnv(env.addTemp(p, q))
+    }
+    
+    def addReifiedLocal(x: ir.VarName, wt: ir.WcTypeRef) = {
+        setEnv(env.addReifiedLocal(x, wt))
+    }
+
+    def addGhostLocal(x: ir.VarName, wt: ir.WcTypeRef) = {
+        setEnv(env.addReifiedLocal(x, wt))
     }
 
     def clearTemp() = {
@@ -176,8 +184,8 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
     def cp_ctor = env.canon(ir.gfd_ctor.thisPath)
     def cp_this = env.canon(ir.p_this)    
     def cp_super = // tp_super always refers to the FIRST supertype
-        prog.sups(cap(tp_this)) match {
-            case List() => throw new CheckFailure("intervals.no.supertype", tp_this.wt)
+        prog.sups(env.cap(cp_this)) match {
+            case List() => throw new CheckFailure("intervals.no.supertype", cp_this.wt)
             case t_super :: _ => ir.CpLv(ir.lv_this, t_super, false)
         }
 

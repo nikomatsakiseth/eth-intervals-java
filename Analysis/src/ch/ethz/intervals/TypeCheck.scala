@@ -116,9 +116,9 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
     }
     
     def checkCall(x: ir.VarName, cp: ir.CanonPath, m: ir.MethodName, cqs: List[ir.CanonPath]) {
-        val msig = substdMethodSig(cp, m, cqs)
+        val msig = env.substdMethodSig(cp, m, cqs)
         checkCallMsig(cp, msig, cqs)
-        addLvDecl(x, msig.wt_ret, None)
+        addReifiedLocal(x, msig.wt_ret)
     }
     
     def mapAndMergeBranchEnv(
@@ -201,11 +201,11 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                 flow_brk.nonnull.map(subst.path).filter(inScope),
                 mapMap(flow_brk.temp),
                 mapInvalidated(flow_brk.ps_invalidated),
-                mapPathRelation(flow_brk.readable),
-                mapPathRelation(flow_brk.writable),
-                mapPathRelation(flow_brk.hb),
-                mapPathRelation(flow_brk.subinterval),
-                mapPathRelation(flow_brk.locks)
+                mapPathRelation(flow_brk.readableRel),
+                mapPathRelation(flow_brk.writableRel),
+                mapPathRelation(flow_brk.hbRel),
+                mapPathRelation(flow_brk.subintervalRel),
+                mapPathRelation(flow_brk.locksRel)
             )
         )
     }
@@ -294,7 +294,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                 
             case ir.Subinterval(x, ps_locks, seq) =>
                 val tps_locks = immutableReified(ps_locks)                    
-                addLvDecl(x, ir.t_interval, None)
+                addReifiedLocal(x, ir.t_interval)
                 val cp_x = env.canon(x.path)
                 addNonNull(cp_x)
                 addSubintervalOf(cp_x, cp_cur)
@@ -303,7 +303,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                 // n.b.: We don't try to pop-- that's because if
                 // statement seq returns, the environment will be reset to ss.env_in.
                 // In any case we will reset environment below so it doens't matter.
-                pushCurrent(x.path)
+                setCurrent(x.path)
                 checkStatementSeq(seq)
                 
             case ir.TryCatch(seq_try, seq_catch) =>
@@ -340,7 +340,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
             case ir.StmtSuperCtor(m, qs) =>
                 val cp = cp_super
                 val cqs = immutableReified(qs)
-                val msig_ctor = substdCtorSig(cp, m, cqs)
+                val msig_ctor = env.substdCtorSig(cp, m, cqs)
                 checkCallMsig(cp_super, msig_ctor, cqs)
                 
                 // Supertype must have been processed first:
@@ -351,25 +351,21 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                 val cp_o = immutableReified(p_o)
                 addNonNull(cp_o)
                 
-                substdFieldDecl(cp_o, f) match {
-                    case ir.GhostFieldDecl(_, _) =>
+                env.substdFieldDecl(cp_o, f) match {
+                    case _: ir.GhostFieldDecl =>
                         throw new CheckFailure("intervals.not.reified", cp_o.wt.c, f)
                     
-                    case ir.ReifiedFieldDecl(_, wt, _, p_guard) =>
-                        val cp_guard = immutableGhost(p_guard)                    
+                    case rfd: ir.ReifiedFieldDecl =>
+                        val cp_guard = immutableGhost(rfd.p_guard)
                         checkReadable(cp_guard)
                         
-                        val p_f = cp_o.p + f // Canonical path of f; valid as f is not a ghost.
-
-                        val op_canon = 
-                            if(hbInter(cp_guard, cp_cur)) { // Constant:
-                                Some(p_f)
-                            } else { // Non-constant:
-                                addTemp(p_f, x.path) // Record that p.f == vd, for now.
-                                None
-                            }
-
-                        addLvDecl(x, wt, op_canon)
+                        val cp_f = env.extendCanonWithReifiedField(cp_o, rfd)
+                        if(!env.mutable(cp_f)) {
+                            addPerm(x, cp_f)                            
+                        } else {
+                            addReifiedLocal(x, rfd.wt)
+                            addTemp(cp_f.p, x.path) // Record that p.f == vd, for now.
+                        }
                 }                    
                 
             case ir.StmtSetField(p_o, f, p_v) =>
@@ -378,20 +374,20 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                 
                 val cp_v = immutableReified(p_v)
                 
-                substdFieldDecl(cp_o, f) match {
-                    case ir.GhostFieldDecl(_, _) => 
+                env.substdFieldDecl(cp_o, f) match {
+                    case _: ir.GhostFieldDecl => 
                         throw new CheckFailure("intervals.not.reified", cp_o.wt.c, f)
                     
-                    case ir.ReifiedFieldDecl(_, wt, _, p_guard) =>
-                        val cp_guard = immutableGhost(p_guard)
-                        checkWritable(cp_guard)     
-                        checkIsSubtype(cp_v, wt)
+                    case rfd: ir.ReifiedFieldDecl =>                        
+                        val cp_guard = immutableGhost(rfd.p_guard)
+                        checkWritable(cp_guard)
+                        checkIsSubtype(cp_v, rfd.wt)
                         
-                        val p_f = cp_o.p + f // Canonical path of f; valid as f is not a ghost.
-                        addTemp(p_f, cp_v.p)
+                        val cp_f = env.extendCanonWithReifiedField(cp_o, rfd)                        
+                        addTemp(cp_f.p, cp_v.p)
                 
-                        removeInvalidated(p_f)
-                        linkedPaths(cp_o, f).foreach(addInvalidated)                            
+                        removeInvalidated(cp_f.p)
+                        env.linkedPaths(cp_o, f).foreach(addInvalidated)                            
                 }
                 
             case ir.StmtCheckType(p, wt) =>
@@ -416,24 +412,24 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                     throw new CheckFailure("intervals.new.interface", t.c)
                     
                 // Check Ghost Types:           
-                addLvDecl(x, t, None)
-                val cp_x = teePee(x.path)
+                addReifiedLocal(x, t)
+                val cp_x = env.perm(x)
                 addNonNull(cp_x)
                 t.ghosts.foreach { g =>
-                    val gfd = substdFieldDecl(cp_x, g.f)
-                    val cp = teePee(g.p)
+                    val gfd = env.substdFieldDecl(cp_x, g.f)
+                    val cp = env.canon(g.p)
                     checkIsSubtype(cp, gfd.wt)
                 }                        
                                 
-                val msig_ctor = substdCtorSig(cp_x, m, cqs)
-                checkCallMsig(teePee(x.path), msig_ctor, cqs)
+                val msig_ctor = env.substdCtorSig(cp_x, m, cqs)
+                checkCallMsig(cp_x, msig_ctor, cqs)
                 
             case ir.StmtCast(x, wt, q) => ()
                 // TODO Validate casts?  Issue warnings at least?
-                addLvDecl(x, wt, None)
+                addReifiedLocal(x, wt)
                 
             case ir.StmtNull(x, wt) => 
-                addLvDecl(x, wt, None)
+                addReifiedLocal(x, wt)
                 
             case ir.StmtReturn(op) =>
                 checkNoInvalidated()
@@ -507,27 +503,26 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
         lvs_shared: Set[ir.VarName]
     ): FlowEnv = savingEnv {        
         log.indented("extractAssumptions(%s,%s)", cp_mthd, lvs_shared) {
-            withCurrent(freshTp(ir.t_interval).p) {                
-                addHbInter(cp_mthd, cp_cur)
-                
-                log.env(false, "Input Environment: ", env)
+            setCurrent(freshCp(ir.t_interval).p)
+            addHbInter(cp_mthd, cp_cur)
+            
+            log.env(false, "Input Environment: ", env)
 
-                val tempKeys = flow.temp.map(_._1).toList
-                val tempValues = flow.temp.map(_._2).toList
-                val mapFunc = PathSubst.pp(tempValues, tempKeys).path(_)
-                
-                def filterFunc(p: ir.Path): Boolean = 
-                    log.indented("filterFunc(%s)", p) {
-                        lvs_shared(p.lv) && !teePee(p).as.mutable                
-                    }
+            val tempKeys = flow.temp.map(_._1).toList
+            val tempValues = flow.temp.map(_._2).toList
+            val mapFunc = PathSubst.pp(tempValues, tempKeys).path(_)
+            
+            def filterFunc(p: ir.Path): Boolean = 
+                log.indented("filterFunc(%s)", p) {
+                    lvs_shared(p.lv) && !env.mutable(env.canon(p))
+                }
 
-                FlowEnv.empty
-                    .withReadable(flow.mapFilter(flow.readable, mapFunc, filterFunc))
-                    .withWritable(flow.mapFilter(flow.writable, mapFunc, filterFunc))
-                    .withHb(flow.mapFilter(flow.hb, mapFunc, filterFunc))
-                    .withSubinterval(flow.mapFilter(flow.subinterval, mapFunc, filterFunc))
-                    .withLocks(flow.mapFilter(flow.locks, mapFunc, filterFunc))
-            }            
+            FlowEnv.empty
+            .withReadableRel(flow.mapFilter(flow.readableRel, mapFunc, filterFunc))
+            .withWritableRel(flow.mapFilter(flow.writableRel, mapFunc, filterFunc))
+            .withHbRel(flow.mapFilter(flow.hbRel, mapFunc, filterFunc))
+            .withSubintervalRel(flow.mapFilter(flow.subintervalRel, mapFunc, filterFunc))
+            .withLocksRel(flow.mapFilter(flow.locksRel, mapFunc, filterFunc))
         }
     }
     
@@ -543,7 +538,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
     }
     
     def checkReturnTypeCovariant(wt_sub: ir.WcTypeRef, wt_sup: ir.WcTypeRef) {
-        if(!env.isSubtype(freshTp(wt_sub), wt_sup))
+        if(!env.isSubtype(freshCp(wt_sub), wt_sup))
             throw new CheckFailure(
                 "intervals.override.ret.type.changed", wt_sub, wt_sup)
     }
@@ -584,21 +579,21 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
         indexAt(md, ()) {
             savingEnv {
                 // Define special vars "method" and "this":
-                val cp_mthd = ir.CanonPath(ir.t_interval, ir.p_mthd, ir.ghostAttrs)
-                addPerm(ir.lv_mthd, cp_mthd)
-                pushCurrent(ir.p_mthd)
+                addGhostLocal(ir.lv_mthd, ir.t_interval)
+                val cp_mthd = env.perm(ir.lv_mthd)
+                setCurrent(ir.p_mthd)
                 addNonNull(cp_mthd)
                 
                 if(!md.attrs.ctor) { 
                     // For normal methods, type of this is the defining class
-                    addPerm(ir.lv_this, ir.CanonPath(thisTref(cd), ir.p_this, ir.noAttrs))                     
+                    addReifiedLocal(ir.lv_this, thisTref(cd))
                     addNonNull(cp_this)
                     addHbInter(cp_ctor, cp_cur)             // ... constructor already happened
                     setEnv(env.addFlow(flow_ctor_assum))    // ... add its effects on environment
                 } else {
                     // For constructor methods, type of this is the type that originally defined it
                     val t_rcvr = typeOriginallyDefiningMethod(cd.name, md.name).get
-                    addPerm(ir.lv_this, ir.CanonPath(t_rcvr.ctor, ir.p_this, ir.noAttrs))
+                    addReifiedLocal(ir.lv_this, t_rcvr)
                     addNonNull(cp_this)
                 }  
                 
@@ -623,11 +618,11 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
         indexAt(md, FlowEnv.empty) {
             savingEnv {
                 // Define special vars "method" (== this.constructor) and "this":
-                val cp_mthd = ir.CanonPath(ir.t_interval, ir.gfd_ctor.thisPath, ir.ghostAttrs)
+                val cp_mthd = env.canon(ir.gfd_ctor.thisPath)
                 addPerm(ir.lv_mthd, cp_mthd)
-                pushCurrent(ir.p_mthd)
+                setCurrent(ir.p_mthd)
                 addNonNull(cp_mthd)
-                addPerm(ir.lv_this, ir.CanonPath(thisTref(cd, ir.ctorAttrs), ir.p_this, ir.noAttrs))
+                addReifiedLocal(ir.lv_this, thisTref(cd, ir.ctorAttrs))
                 addNonNull(cp_this)
 
                 // Check method body:
@@ -656,19 +651,19 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                 // Note that a type is dependent on p_dep if p.F appears in the type, so 
                 // we must check all prefixes of each dependent path as well.
                 val t_this = thisTref(cd, ir.ctorAttrs)
-                val cp_this = ir.CanonPath(t_this, ir.p_this, ir.noAttrs)
-                val cp_mthd = ir.CanonPath(ir.t_interval, ir.p_mthd, ir.ghostAttrs)
+                addReifiedLocal(ir.lv_this, t_this)
+                addGhostLocal(ir.lv_mthd, ir.t_interval)
                 addPerm(ir.lv_this, cp_this)
                 addPerm(ir.lv_mthd, cp_mthd)
-                pushCurrent(cp_mthd.p)
+                setCurrent(cp_mthd.p)
                 
                 // If an interval class, then this.ctor hb this:
                 if(isSubclass(t_this, ir.c_interval))
-                    addHbInter(teePee(ir.p_ctor), cp_this)
+                    addHbInter(env.canon(ir.p_ctor), cp_this)
                 
                 // Add assumptions as though guard were satisfied.
                 // Also check that guards are typed as Interval, Lock, or just Guard
-                val cp_guard = teePee(fd.p_guard)
+                val cp_guard = env.canon(fd.p_guard)
                 if(isSubclass(cp_guard.wt, ir.c_interval))
                     addSubintervalOf(cp_cur, cp_guard) 
                 else if(isSubclass(cp_guard.wt, ir.c_lock))
@@ -687,16 +682,16 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                                     // Always permitted.
 
                                 case ir.Path(lv, List(f)) if lv == ir.lv_this => 
-                                    val cp_dep = teePee(p_dep)
-                                    if(!cp_dep.isConstant && !cd.fields.exists(_.name == f))
+                                    val cp_dep = env.canon(p_dep)
+                                    if(env.mutable(cp_dep) && !cd.fields.exists(_.name == f))
                                         throw new CheckFailure(
                                             "intervals.illegal.type.dep",
                                             cp_dep.p, cp_guard.p)
 
                                 case ir.Path(lv, f :: rev_fs) =>
                                     check(ir.Path(lv, rev_fs))
-                                    val cp_dep = teePee(p_dep)
-                                    if(!cp_dep.isConstant)
+                                    val cp_dep = env.canon(p_dep)
+                                    if(env.mutable(cp_dep))
                                         throw new CheckFailure(
                                             "intervals.illegal.type.dep",
                                             cp_dep.p, cp_guard.p)

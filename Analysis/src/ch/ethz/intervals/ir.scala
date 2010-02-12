@@ -93,7 +93,6 @@ object ir {
     val noAttrs = Attrs(ListSet.empty)
     val ctorAttrs = Attrs(ListSet(AttrCtor))
     val interfaceAttrs = Attrs(ListSet(AttrInterface))
-    val allPathAttrs = Attrs(ListSet(AttrGhost, AttrMutable))
 
     // ___ Names of variables, fields, methods, classes _____________________   
     
