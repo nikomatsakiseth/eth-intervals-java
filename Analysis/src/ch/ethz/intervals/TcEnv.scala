@@ -212,20 +212,21 @@ sealed case class TcEnv(
     // Helper for ir.CanonPath(): Computes the ir.CanonPath for a path cp0.f where f is 
     // a ghost field of (post-substitution) type wt_f.
     private def canonicalGhostField(
-        vis: Set[ir.Path],
+        vis_in: Set[ir.Path],
         cp0: ir.CanonPath, 
         gfd: ir.GhostFieldDecl
     ) = {
-        log.indented("canonicalGhostField(%s, %s, %s)", vis, cp0, gfd) {
+        log.indented("canonicalGhostField(%s, %s, %s)", vis_in, cp0, gfd) {
             val cp1 = ir.CpField(cp0, gfd)
+            val vis1 = vis_in + cp1.p
             
             // Does cp0's type specify a value for ghost field f?
             cp0.wt.owghost(gfd.name) match {
                 // cp0 had a type with a precise path like Foo<f: q>
                 // where q has not yet been visited.  Redirect.
-                case Some(q: ir.Path) if !vis(q) =>
+                case Some(q: ir.Path) if !vis1(q) =>
                     log.indented("Redirect: %s", q) {
-                        canonicalize(vis + cp1.p, q)
+                        canonicalize(vis1, q)
                     }
                     
                 case _ => cp1

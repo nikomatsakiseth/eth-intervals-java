@@ -4,6 +4,9 @@ ______ Don't Forget __________________________________________________
 
 - Introduce immutableIn to supplement readableBy?
 
+  This used to be covered by <f: hb this>.  An alternative would be
+  to keep "hb this" but just not add it to the HB relation.
+
 ______ Bugs __________________________________________________________   
 
 - Check in multiple inheritance that all paths lead to the same set of ghost parameters. Alternatively, make sure that all
