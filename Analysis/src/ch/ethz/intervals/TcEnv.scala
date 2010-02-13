@@ -376,7 +376,6 @@ sealed case class TcEnv(
                 } 
             ) || {
                 superintervalsOrSelf(cq).exists(q => flow.readable((cp.p, q))) ||
-                flow.readable((cp.p, cq.p)) ||
                 hbInter(cp, cq) ||
                 guardsDataWritableBy(cp, cq)            
             }
@@ -489,7 +488,10 @@ sealed case class TcEnv(
     private def equiv(cp: ir.CanonPath, cq: ir.CanonPath) = (cp.p == cq.p)
     
     private def among(cp: ir.CanonPath, qs: List[ir.Path]) = {
-        qs.exists(q => equiv(cp, canon(q)))
+        qs.exists { q =>
+            val cq = canon(q)
+            equiv(cp, cq) || isSubintervalOf(cp, cq)
+        }
     }
 
     // ___ Subtyping ________________________________________________________
