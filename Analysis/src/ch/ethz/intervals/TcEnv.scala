@@ -352,7 +352,7 @@ sealed case class TcEnv(
                 flow.writable((cp.p, cq.p)) ||
                 equiv(cp, cq) ||
                 locks(cp, cq) ||
-                isSubintervalOf(cp, cq)
+                isSubintervalOf(cq, cp)
             }
         }
     }    
