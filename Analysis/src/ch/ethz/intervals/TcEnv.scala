@@ -155,7 +155,9 @@ sealed case class TcEnv(
     def addUserHb(cp0: ir.CanonPath, cq0: ir.CanonPath) = {
         log.indented("addUserHb(%s,%s)", cp0, cq0) {
             userHbPair(cp0, cq0) match {
-                case Some((p1, q1)) => withFlow(flow.withHbRel(flow.hbRel + (p1, q1)))
+                case Some((p1, q1)) => 
+                    log("adding (%s,%s)", p1, q1)
+                    withFlow(flow.withHbRel(flow.hbRel + (p1, q1)))
                 case None => this
             }
         }        
@@ -362,6 +364,8 @@ sealed case class TcEnv(
                             case Some(ir.WcWritableBy(qs)) => among(cq, qs)
                             case _ => false
                         }
+                    case ir.CpCtor(cp0) => !cp0.wt.as.ctor // ctor type == ctor may not be completed
+                    case ir.CpSuper(cp0) => true
                     case _ => false
                 } 
             ) || {

@@ -618,12 +618,11 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
         indexAt(md, FlowEnv.empty) {
             savingEnv {
                 // Define special vars "method" (== this.constructor) and "this":
+                addReifiedLocal(ir.lv_this, thisTref(cd, ir.ctorAttrs))
+                addNonNull(cp_this)
                 val cp_mthd = env.canon(ir.gfd_ctor.thisPath)
                 addPerm(ir.lv_mthd, cp_mthd)
                 setCurrent(ir.p_mthd)
-                addNonNull(cp_mthd)
-                addReifiedLocal(ir.lv_this, thisTref(cd, ir.ctorAttrs))
-                addNonNull(cp_this)
 
                 // Check method body:
                 md.args.foreach(addArg)

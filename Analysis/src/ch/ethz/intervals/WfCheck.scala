@@ -57,7 +57,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
     def checkPathWf(
         canonizer: (ir.Path => ir.CanonPath),                
         p: ir.Path
-    ): Unit = reified(p)
+    ): Unit = canonizer(p)
         
     def checkPathsWf(
         canonizer: (ir.Path => ir.CanonPath),                
@@ -297,11 +297,16 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
             }         
         }
         
+    def addThis(cd: ir.ClassDecl, attrs: ir.Attrs) {
+        val t_this = thisTref(cd, attrs)
+        addReifiedLocal(ir.lv_this, t_this)
+    }
+
     def checkNoninterfaceConstructorDecl(cd: ir.ClassDecl, md: ir.MethodDecl): Unit = 
         at(md, ()) {
             savingEnv {
                 // Define special vars "method" (== this.constructor) and "this":
-                addReifiedLocal(ir.lv_mthd, thisTref(cd, ir.ctorAttrs))
+                addThis(cd, ir.ctorAttrs)                
                 val cp_ctor = env.canon(ir.gfd_ctor.thisPath)
                 addPerm(ir.lv_mthd, cp_ctor)
 
@@ -317,11 +322,6 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
             }          
         }
         
-    def addThis(cd: ir.ClassDecl, attrs: ir.Attrs) {
-        val t_this = thisTref(cd, attrs)
-        addReifiedLocal(ir.lv_this, t_this)
-    }
-    
     def checkReifiedFieldDecl(cd: ir.ClassDecl, fd: ir.ReifiedFieldDecl): Unit = 
         at(fd, ()) {
             savingEnv {

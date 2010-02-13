@@ -19,11 +19,11 @@ case class FlowEnv(
     def withNonnull(nonnull: Set[ir.Path]) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, subintervalRel, locksRel)
     def withTemp(temp: Map[ir.Path, ir.Path]) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, subintervalRel, locksRel)
     def withInvalidated(ps_invalidated: Set[ir.Path]) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, subintervalRel, locksRel)
-    def withReadableRel(readable: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, subintervalRel, locksRel)
-    def withWritableRel(writable: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, subintervalRel, locksRel)
-    def withHbRel(hb: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, subintervalRel, locksRel)
-    def withSubintervalRel(subinterval: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, subintervalRel, locksRel)
-    def withLocksRel(locks: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, subintervalRel, locksRel)
+    def withReadableRel(readableRel: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, subintervalRel, locksRel)
+    def withWritableRel(writableRel: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, subintervalRel, locksRel)
+    def withHbRel(hbRel: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, subintervalRel, locksRel)
+    def withSubintervalRel(subintervalRel: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, subintervalRel, locksRel)
+    def withLocksRel(locksRel: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, subintervalRel, locksRel)
     
     // ___ Convenience functions for taking nonnull into account ____________
     
