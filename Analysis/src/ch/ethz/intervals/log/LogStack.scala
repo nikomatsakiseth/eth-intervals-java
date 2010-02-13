@@ -10,6 +10,7 @@ class LogStack(mainLog: SplitLog) {
     
     var splitLog = mainLog
     def indexLog = splitLog.indexLog
+    def errorLog = splitLog.errorLog
     def log = splitLog.detailLog
     
     def withSplitLog[R](newSplitLog: SplitLog)(func: => Unit) = {
@@ -26,9 +27,9 @@ class LogStack(mainLog: SplitLog) {
     var errors = ListSet.empty[ir.Error] // use a list set to keep ordering
     
     def report(err: ir.Error) {
-        indexLog("Error: %s at %s", err, err.pos)
+        errorLog("Error: %s at %s", err, err.pos)
         if(mainLog != splitLog)
-            mainLog.indexLog.linkTo(splitLog.uri, "Error: %s at %s", err, err.pos)        
+            mainLog.errorLog.linkTo(splitLog.uri, "Error: %s at %s", err, err.pos)        
         errors += err
     }
     

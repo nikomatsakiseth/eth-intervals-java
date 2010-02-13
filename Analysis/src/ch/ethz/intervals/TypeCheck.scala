@@ -64,8 +64,8 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
             forallcross(cps, cqs)(func)
         }
         req match {
-            case ir.ReqWritableBy(ps, qs) => is(env.isWritableBy, ps, qs)
-            case ir.ReqReadableBy(ps, qs) => is(env.isReadableBy, ps, qs)
+            case ir.ReqWritableBy(ps, qs) => is(env.guardsDataWritableBy, ps, qs)
+            case ir.ReqReadableBy(ps, qs) => is(env.guardsDataReadableBy, ps, qs)
             case ir.ReqSubintervalOf(ps, qs) => is(env.isSubintervalOf, ps, qs)
             case ir.ReqHb(ps, qs) => is(env.userHb, ps, qs)
         }
@@ -80,12 +80,12 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
         foreachzip(cqs, msig.args.map(_.wt))(checkIsSubtype)
     
     def checkReadable(cp_guard: ir.CanonPath) {
-        if(!env.isReadableBy(cp_guard, cp_cur))
+        if(!env.guardsDataReadableBy(cp_guard, cp_cur))
             throw new CheckFailure("intervals.not.readable", cp_guard.p)
     }
     
     def checkWritable(cp_guard: ir.CanonPath) {
-        if(!env.isWritableBy(cp_guard, cp_cur))
+        if(!env.guardsDataWritableBy(cp_guard, cp_cur))
             throw new CheckFailure("intervals.not.writable", cp_guard.p)
     }
         

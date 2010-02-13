@@ -3,16 +3,18 @@ package ch.ethz.intervals.log
 class SplitLog(
     val uri: String,
     val indexLog: Log, 
+    val errorLog: Log,
     val detailLog: Log
 )    
 
 object SplitLog {
-    val devNullSplitLog = new SplitLog("", DevNullLog, DevNullLog)
+    val devNullSplitLog = new SplitLog("", DevNullLog, DevNullLog, DevNullLog)
     
     def newFrameset(logDirectory: LogDirectory, name: String) = {
         val f = logDirectory.newFile(name, ".html")
-        val lf = logDirectory.newFile(".html")
-        val rf = logDirectory.newFile(".html")
+        val indexFile = logDirectory.newFile(".html")
+        val errorFile = logDirectory.newFile(".html")
+        val detailFile = logDirectory.newFile(".html")
         
         val pw = new java.io.PrintWriter(f)            
         pw.write("""
@@ -20,16 +22,24 @@ object SplitLog {
             <head><title>%s</title></head>
             <body>
                 <frameset cols='30%%,*'>
-                    <frame src='%s' name='index'/>
+                    <frameset rows='80%%,*'>
+                        <frame src='%s' name='index'/>
+                        <frame src='%s' name='errors'/>
+                    </frameset>
                     <frame src='%s' name='details'/>
                 </frameset>
             </body>
         </html>
-        """.format(HtmlLog.escape(name), lf.getName, rf.getName))
+        """.format(
+            HtmlLog.escape(name), 
+            indexFile.getName, 
+            errorFile.getName, 
+            detailFile.getName))
         pw.close
         
-        val detailsLog = new HtmlLog(logDirectory, rf, None)
-        val indexLog = new HtmlLog(logDirectory, lf, Some(detailsLog))
-        new SplitLog(f.toURI.toString, indexLog, detailsLog)        
+        val detailLog = new HtmlLog(logDirectory, detailFile, None)
+        val errorLog = new HtmlLog(logDirectory, errorFile, Some(detailLog))
+        val indexLog = new HtmlLog(logDirectory, indexFile, Some(detailLog))
+        new SplitLog(f.toURI.toString, indexLog, errorLog, detailLog)        
     }
 }

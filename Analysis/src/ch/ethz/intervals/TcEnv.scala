@@ -313,11 +313,17 @@ sealed case class TcEnv(
     }        
     
     def isSubintervalOf(cp: ir.CanonPath, cq: ir.CanonPath) = {
-        flow.subinterval((cp.p, cq.p))
+        log.indented(false, "isSubintervalOf(%s, %s)?", cp, cq) {
+            log.env(false, "Environment", this)
+            flow.subinterval((cp.p, cq.p))
+        }
     }
     
     def locks(cp: ir.CanonPath, cq: ir.CanonPath) = {
-        superintervalsOrSelf(cp).exists { p => flow.locks((p, cq.p)) }
+        log.indented(false, "locks(%s, %s)?", cp, cq) {
+            log.env(false, "Environment", this)
+            superintervalsOrSelf(cp).exists { p => flow.locks((p, cq.p)) }
+        }
     }
     
     /// Is data guarded by 'p' immutable in the interval 'q'?
@@ -329,8 +335,8 @@ sealed case class TcEnv(
     }
     
     /// Is data guarded by 'p' writable by the interval 'q'?
-    def isWritableBy(cp: ir.CanonPath, cq: ir.CanonPath): Boolean = {
-        log.indented(false, "isWritableBy(%s, %s)?", cp, cq) {
+    def guardsDataWritableBy(cp: ir.CanonPath, cq: ir.CanonPath): Boolean = {
+        log.indented(false, "guardsDataWritableBy(%s, %s)?", cp, cq) {
             log.env(false, "Environment", this)
             (
                 cp match {
@@ -352,8 +358,8 @@ sealed case class TcEnv(
     }    
     
     /// Is data guarded by 'p' readable by the interval 'q'?
-    def isReadableBy(cp: ir.CanonPath, cq: ir.CanonPath): Boolean = {
-        log.indented(false, "isReadableBy(%s, %s)?", cp, cq) {
+    def guardsDataReadableBy(cp: ir.CanonPath, cq: ir.CanonPath): Boolean = {
+        log.indented(false, "guardsDataReadableBy(%s, %s)?", cp, cq) {
             log.env(false, "Environment", this)
             (
                 cp match {
@@ -372,7 +378,7 @@ sealed case class TcEnv(
                 superintervalsOrSelf(cq).exists(q => flow.readable((cp.p, q))) ||
                 flow.readable((cp.p, cq.p)) ||
                 hbInter(cp, cq) ||
-                isWritableBy(cp, cq)            
+                guardsDataWritableBy(cp, cq)            
             }
         }
     }
@@ -496,9 +502,9 @@ sealed case class TcEnv(
                 case q: ir.Path =>
                     equiv(cp, canon(q))
                 case ir.WcReadableBy(lq) =>
-                    lq.forall { q => isReadableBy(cp, canon(q)) }
+                    lq.forall { q => guardsDataReadableBy(cp, canon(q)) }
                 case ir.WcWritableBy(lq) =>
-                    lq.forall { q => isWritableBy(cp, canon(q)) }
+                    lq.forall { q => guardsDataWritableBy(cp, canon(q)) }
             }
         }        
     }
