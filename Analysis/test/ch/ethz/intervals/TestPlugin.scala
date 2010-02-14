@@ -231,9 +231,4 @@ class TestPlugin extends JUnitSuite {
     def testCircularGhostsA() {
         javac(unitTest, "testCircularGhostsA", "basic/CircularGhostsA.java")
     }
-    
-    @Test 
-    def testCircularGhostsB() {
-        javac(unitTest, "testCircularGhostsB", "basic/CircularGhostsB.java")
-    }
 }

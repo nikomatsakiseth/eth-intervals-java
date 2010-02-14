@@ -23,7 +23,7 @@ public class ParseReqs {
 	// Error occurs because 'interA' is not stable at the
 	// the time subinter1 runs:
 	@Requires(subinterval=@Subinterval(of="interA"))
-	void interA1() {} // ERROR (intervals.illegal.path.attr)
+	void interA1() {} // ERROR Path "this.interA" must be immutable to be used here.
 
     // ----------------------------------------------------------------------
     @GuardedBy("ParseReqsCreator")
@@ -31,11 +31,11 @@ public class ParseReqs {
 
     // Error occurs for same as reason as interA1()
     @Requires(subinterval=@Subinterval(of="interB"))
-    void interB1() {} // ERROR (intervals.illegal.path.attr)
+    void interB1() {} // ERROR Path "this.interB" must be immutable to be used here.
 
 	@Requires(
-	    subinterval=@Subinterval(of="interB"),
-	    happens=@Happens(before="ParseReqsCreator", after="method")
+	    happens=@Happens(before="ParseReqsCreator", after="method"),
+	    subinterval=@Subinterval(of="interB")
 	)
 	void interB2() {}
 
