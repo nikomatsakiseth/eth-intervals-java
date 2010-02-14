@@ -319,9 +319,11 @@ sealed case class TcEnv(
             log.env(false, "Environment", this)
             assert(!mutable(cp_from))
             assert(!mutable(cp_to))
-            assert(isSubclass(cp_from.wt, ir.c_interval))
-            assert(isSubclass(cp_to.wt, ir.c_interval))
-            bfs(canon(cp_from.p + ir.f_end), canon(cp_to.p + ir.f_start))
+            ( // Sometimes we're sloppy and invoke with wrong types:
+                isSubclass(cp_from.wt, ir.c_interval) && 
+                isSubclass(cp_to.wt, ir.c_interval) &&
+                bfs(fld(cp_from, ir.f_end), fld(cp_to, ir.f_start))
+            )
         }
     }
     

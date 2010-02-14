@@ -593,7 +593,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                 } else {
                     // For constructor methods, type of this is the type that originally defined it
                     val t_rcvr = typeOriginallyDefiningMethod(cd.name, md.name).get
-                    addReifiedLocal(ir.lv_this, t_rcvr)
+                    addReifiedLocal(ir.lv_this, t_rcvr.ctor)
                     addNonNull(cp_this)
                 }  
                 
