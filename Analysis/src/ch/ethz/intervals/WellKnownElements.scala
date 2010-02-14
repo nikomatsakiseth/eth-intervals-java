@@ -14,6 +14,12 @@ class WellKnownElements(elements: Elements, types: Types) {
         val name = elem.getQualifiedName
         val ty = elem.asType
         
+        def field(fname: String) = {
+            EF.fieldsIn(elem.getEnclosedElements).find(mem =>
+                mem.getSimpleName.contentEquals(fname)
+            ).get
+        }
+        
         def method(mname: String, argTypes: TypeInfo*) = {
             val argTypesList = argTypes.toList
             EF.methodsIn(elem.getEnclosedElements).find(mem =>

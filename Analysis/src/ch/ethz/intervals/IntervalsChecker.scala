@@ -224,7 +224,7 @@ class IntervalsChecker extends SourceChecker {
     def referenceClosure(ttf: TranslateTypeFactory, tree: ClassTree): MutableSet[Element] = {
         def addElements(
             resultSet: MutableSet[Element],
-            newSet: MutableSet[Element]
+            newSet: Iterable[Element]
         ): MutableSet[Element] = {
             val oldSize = resultSet.size
             resultSet ++= newSet
@@ -232,7 +232,10 @@ class IntervalsChecker extends SourceChecker {
                 resultSet
             } else {
                 val ev = new ElementVisitor(ttf)
-                newSet.foreach(ev.scan(_, null))
+                newSet.foreach { newElem =>
+                    log("Scanning %s", newElem)
+                    ev.scan(newElem, null)
+                }
                 addElements(resultSet, ev.referencedElements)
             }
         }
@@ -241,7 +244,16 @@ class IntervalsChecker extends SourceChecker {
             val tv = new TreeVisitor(ttf)
             val resultSet = MutableSet.empty[Element]
             tv.scanBodyOf(tree)
-            addElements(resultSet, tv.referencedElements)            
+            addElements(resultSet, tv.referencedElements)
+            
+            // Ensure that elements on which our analysis relies are present:
+            addElements(resultSet, List(
+                ttf.wke.Interval.elem,
+                ttf.wke.Interval.field("start"),
+                ttf.wke.Interval.field("end"),
+                ttf.wke.Point.elem,
+                ttf.wke.Guard.elem
+            ))
         }
     }
     
