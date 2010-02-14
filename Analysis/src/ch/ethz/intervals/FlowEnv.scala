@@ -10,7 +10,7 @@ case class FlowEnv(
     ps_invalidated: Set[ir.Path],   // p is current invalid and must be reassigned                
     readableRel: PathRelation,      // (p, q) means guard p is readable by interval q
     writableRel: PathRelation,      // (p, q) means guard p is writable by interval q
-    hbRel: PathRelation,            // (p, q) means interval p hb interval q
+    hbRel: PathRelation,            // (p, q) means point p hb point q
     subintervalRel: PathRelation,   // (p, q) means interval p is a subinterval of interval q
     locksRel: PathRelation          // (p, q) means interval p locks lock q            
 ) {

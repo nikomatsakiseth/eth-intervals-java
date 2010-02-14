@@ -61,9 +61,9 @@ abstract class Log {
         }
     }
     
-    def indented[R](fmt: String, arg0: Any, args: Any*)(f: => R): R = indented(true, fmt, arg0, args)(f)
+    def indented[R](fmt: String, arg0: Any, args: Any*)(f: => R): R = indented(true, fmt, arg0, args: _*)(f)
     def indented[R](str: Any)(f: => R): R = indented(true, "%s", str)(f)    
-    def indentedClosed[R](fmt: String, arg0: Any, args: Any*)(f: => R): R = indented(false, fmt, arg0, args)(f)
+    def indentedClosed[R](fmt: String, arg0: Any, args: Any*)(f: => R): R = indented(false, fmt, arg0, args: _*)(f)
     def indentedClosed[R](str: Any)(f: => R): R = indented(false, "%s", str)(f)
     
     // ___ Methods to add to the log ________________________________________

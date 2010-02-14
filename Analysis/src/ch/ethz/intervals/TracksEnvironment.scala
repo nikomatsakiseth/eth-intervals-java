@@ -87,10 +87,6 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
         setEnv(env.removeInvalidated(p))
     }
 
-    def addHbPnt(cp: ir.CanonPath, cq: ir.CanonPath): Unit = {
-        setEnv(env.addHbPnt(cp, cq))
-    }
-
     def addHbInter(cp: ir.CanonPath, cq: ir.CanonPath): Unit = {
         setEnv(env.addHbInter(cq, cq))
     }

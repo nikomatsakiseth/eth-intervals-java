@@ -655,46 +655,50 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                 val cp_mthd = env.canon(ir.p_mthd)
                 setCurrent(cp_mthd.p)
                 
-                // If an interval class, then this.ctor hb this:
-                if(isSubclass(t_this, ir.c_interval))
-                    addHbInter(env.canon(ir.p_ctor), cp_this)
-                
                 // Add assumptions as though guard were satisfied.
                 // Also check that guards are typed as Interval, Lock, or just Guard
                 val cp_guard = env.canon(fd.p_guard)
-                if(isSubclass(cp_guard.wt, ir.c_interval))
-                    addSubintervalOf(cp_cur, cp_guard) 
-                else if(isSubclass(cp_guard.wt, ir.c_lock))
-                    addLocks(cp_cur, cp_guard)
-                else if(cp_guard.wt.c == ir.c_guard)
-                    addDeclaredWritableBy(cp_guard, cp_cur)
-                else
-                    throw new CheckFailure("intervals.invalid.guard.type", cp_guard.wt)                    
+                log.indented("adding appr. constraints for cp_guard %s", cp_guard) {
+                    if(isSubclass(cp_guard.wt, ir.c_interval))
+                        addSubintervalOf(cp_cur, cp_guard) 
+                    else if(isSubclass(cp_guard.wt, ir.c_lock))
+                        addLocks(cp_cur, cp_guard)
+                    else if(cp_guard.wt.c == ir.c_guard)
+                        addDeclaredWritableBy(cp_guard, cp_cur)
+                    else
+                        throw new CheckFailure("intervals.invalid.guard.type", cp_guard.wt)                    
+                }
                 
                 // Check that each dependent path is legal:
                 fd.wt.dependentPaths.foreach { p_full_dep => 
                     savingEnv {
                         def check(p_dep: ir.Path) {
-                            p_dep match {
-                                case ir.Path(lv, List()) => 
-                                    // Always permitted.
+                            log.indented("check_dep_path(%s)", p_dep) {
+                                p_dep match {
+                                    case ir.Path(lv, List()) => 
+                                        // Always permitted.
+                                        log("dependent on local var")
 
-                                case ir.Path(lv, List(f)) if lv == ir.lv_this => 
-                                    val cp_dep = env.canon(p_dep)
-                                    if(env.mutable(cp_dep) && !cd.fields.exists(_.name == f))
-                                        throw new CheckFailure(
-                                            "intervals.illegal.type.dep",
-                                            cp_dep.p, cp_guard.p)
+                                    case ir.Path(lv, List(f)) if lv == ir.lv_this => 
+                                        log("dependent on another field of this")
+                                        val cp_dep = env.canon(p_dep)
+                                        if(env.mutable(cp_dep) && !cd.fields.exists(_.name == f))
+                                            throw new CheckFailure(
+                                                "intervals.illegal.type.dep",
+                                                cp_dep.p, cp_guard.p)
 
-                                case ir.Path(lv, f :: rev_fs) =>
-                                    check(ir.Path(lv, rev_fs))
-                                    val cp_dep = env.canon(p_dep)
-                                    if(env.mutable(cp_dep))
-                                        throw new CheckFailure(
-                                            "intervals.illegal.type.dep",
-                                            cp_dep.p, cp_guard.p)
+                                    case ir.Path(lv, f :: rev_fs) =>
+                                        log("misc dependency")
+                                        check(ir.Path(lv, rev_fs))
+                                        val cp_dep = env.canon(p_dep)
+                                        if(env.mutable(cp_dep))
+                                            throw new CheckFailure(
+                                                "intervals.illegal.type.dep",
+                                                cp_dep.p, cp_guard.p)
+                                }
                             }
                         }
+                        
                         check(p_full_dep)                            
                     }                   
                 }                        

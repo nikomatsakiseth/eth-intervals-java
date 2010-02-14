@@ -442,7 +442,7 @@ object ir {
     }
     
     sealed case class CpSuper(cp: CanonPath) extends CanonPath {
-        val p = cp.p + ir.f_ctor
+        val p = cp.p + ir.f_super
         val wt = ir.t_interval
         
         override def toString = super.toString

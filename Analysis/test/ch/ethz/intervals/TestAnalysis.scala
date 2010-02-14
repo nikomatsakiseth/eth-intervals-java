@@ -1128,7 +1128,7 @@ class TestAnalysis extends JUnitSuite {
     }
     
     @Test
-    def wfRequirements
+    def mutableHbRequirements
     {
         tc(
             """
@@ -1141,8 +1141,7 @@ class TestAnalysis extends JUnitSuite {
                     Data<creator: readableBy method> m1, 
                     Data<creator: readableBy method> m2
                 ) 
-                requires c1.i hb c2.i // ERROR intervals.no.such.variable(c1)
-                requires m1.i hb m2.i // ERROR intervals.illegal.path.attr(m1.i, m)
+                requires m1.i hb m2.i // ERROR intervals.must.be.immutable(m1.i)
                 {
                     
                 }
