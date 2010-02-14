@@ -289,19 +289,29 @@ sealed case class TcEnv(
         }        
     }
     
-    /// Does the point cp hb the point cq?
-    def hbPnt(cp: ir.CanonPath, cq: ir.CanonPath): Boolean = {
-        log.indented("%s hb[point] %s?", cp, cq) {
-            flow.hb((cp.p, cq.p))
-        }        
-    }
-        
     /// Does the interval cp hb the interval cq?
     def hbInter(cp: ir.CanonPath, cq: ir.CanonPath) = {
-        // Note: cp, cq won't be in flow.hb if not intervals:
-        val pEnd = cp.p + ir.f_end
-        val qStart = cq.p + ir.f_start
-        flow.hb((pEnd, qStart))
+        log.indented("%s hb[inter] %s?", cp, cq) {
+            (
+                // A constructor is considered to have happened
+                // if its base path has a non-constructor type.
+                // But we can only conclude this for the current interval
+                // XXX --- or one that happens after it.  Cycle potential?
+                op_cur.map(canon).exists(cp_cur => 
+                    equiv(cp_cur, cq) || 
+                    isSubintervalOf(cp_cur, cq)
+                ) && (cp match {
+                    case ir.CpSuper(cp0) => true
+                    case ir.CpCtor(cp0) => !cp0.wt.as.ctor
+                    case _ => false
+                })
+            ) || {
+                // Note: cp, cq won't be in flow.hb if not intervals:
+                val pEnd = cp.p + ir.f_end
+                val qStart = cq.p + ir.f_start
+                flow.hb((pEnd, qStart))                
+            }            
+        }
     }
     
     private def superintervals(cp: ir.CanonPath) = {
@@ -351,7 +361,7 @@ sealed case class TcEnv(
             ) || {
                 flow.writable((cp.p, cq.p)) ||
                 equiv(cp, cq) ||
-                locks(cp, cq) ||
+                locks(cq, cp) ||
                 isSubintervalOf(cq, cp)
             }
         }
@@ -370,8 +380,6 @@ sealed case class TcEnv(
                             case Some(ir.WcWritableBy(qs)) => among(cq, qs)
                             case _ => false
                         }
-                    case ir.CpCtor(cp0) => !cp0.wt.as.ctor // ctor type == ctor may not be completed
-                    case ir.CpSuper(cp0) => true
                     case _ => false
                 } 
             ) || {
