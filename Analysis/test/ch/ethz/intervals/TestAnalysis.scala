@@ -361,11 +361,10 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 constructor void readFinal2(Object<creator: this.final> o) 
-                requires method subinterval this
                 {
                     // This method could be invoked in the constructor,
                     // so we can't even use this.final in an attribute.
-                    o->toString(); // ERROR intervals.illegal.path.attr(this.final, m)
+                    o->toString(); // ERROR intervals.must.be.immutable(this.final)
                     return;
                 }
             }

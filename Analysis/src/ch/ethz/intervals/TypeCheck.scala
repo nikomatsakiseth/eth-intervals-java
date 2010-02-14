@@ -59,6 +59,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
     
     def isReqFulfilled(req: ir.Req): Boolean = log.indented("isReqFulfilled(%s)", req) {
         def is(func: Function2[ir.CanonPath, ir.CanonPath, Boolean], ps: List[ir.Path], qs: List[ir.Path]) = {
+            // XXX These args need not be immutable (at least not in all cases).
             val cps = immutableGhost(ps)
             val cqs = immutableGhost(qs)
             forallcross(cps, cqs)(func)
