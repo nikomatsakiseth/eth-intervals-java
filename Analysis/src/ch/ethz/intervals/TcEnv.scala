@@ -15,6 +15,9 @@ sealed case class TcEnv(
     import prog.classDecl
     import prog.isSubclass
     import prog.unboundGhostFieldsOnClassAndSuperclasses
+    import prog.ghostsOnClassAndSuperclasses
+    import prog.typeArgsOnClassAndSuperclasses
+    import prog.typeVarsDeclaredOnClassAndSuperclasses
     
     // ___ Adjusting Individual Values ______________________________________
     
@@ -362,13 +365,9 @@ sealed case class TcEnv(
         log.indented(false, "guardsDataWritableBy(%s, %s)?", cp, cq) {
             log.env(false, "Environment", this)
             (
-                cp match {
-                    case ir.CpField(cp0, ir.GhostFieldDecl(_, f)) =>
-                        cp0.wt.owghost(f) match {
-                            // Is cp a ghost declared writable by q?
-                            case Some(ir.WcWritableBy(qs)) => among(cq, qs)
-                            case _ => false
-                        }
+                owghost(cp) match {
+                    // Is cp a ghost declared writable by q?
+                    case Some(ir.WcGhost(_, ir.WcWritableBy(qs))) => among(cq, qs)
                     case _ => false
                 }
             ) || {
@@ -385,14 +384,10 @@ sealed case class TcEnv(
         log.indented(false, "guardsDataReadableBy(%s, %s)?", cp, cq) {
             log.env(false, "Environment", this)
             (
-                cp match {
-                    case ir.CpField(cp0, ir.GhostFieldDecl(_, f)) =>
-                        cp0.wt.owghost(f) match {
-                            // Is cp a ghost declared readable (or writable) by q?
-                            case Some(ir.WcReadableBy(qs)) => among(cq, qs)
-                            case Some(ir.WcWritableBy(qs)) => among(cq, qs)
-                            case _ => false
-                        }
+                owghost(cp) match {
+                    // Is cp a ghost declared readable by q or immutable in q?
+                    case Some(ir.WcGhost(_, ir.WcReadableBy(qs))) => among(cq, qs)
+                    case Some(ir.WcGhost(_, ir.WcImmutableIn(qs))) => among(cq, qs)
                     case _ => false
                 } 
             ) || {
@@ -527,7 +522,16 @@ sealed case class TcEnv(
                             None
                     }                
                 }
-            }
+            } ++ {
+                // If x is an interval, then x.ctor.end hb x.start:
+                log.indented("hbNow.end -> cur.start") {                    
+                    depoint(cp, ir.f_end) match {
+                        case Some(ir.CpField(cp0)) => ifInterval(cp0, ir.f_start)
+                        case Some(ir.CpSuper(cp0)) => ifInterval(cp0, ir.f_start)
+                        case _ => None
+                    }
+                }
+            }             
         }
         
         def search(vis: Set[ir.CanonPath], queue0: Queue[ir.CanonPath]): Boolean = {
@@ -552,33 +556,30 @@ sealed case class TcEnv(
     
     // ___ Other operations on canonical paths ______________________________
     
-    /// Returns a list of ghosts for cp.wt.
-    /// Any wildcards or missing ghosts in cp.wt are replaced with a path based on 'cp'.
-    /// So if cp.wt was Foo<f: ?><g: q>, the result would be List(<f: p.f>, <g: q>) where p = cp.p.
-    private def cGhosts(cp: ir.CanonPath): List[ir.Ghost] = {
-        val gfds_unbound = unboundGhostFieldsOnClassAndSuperclasses(cp.wt.c).toList
-        gfds_unbound.map { gfd =>
-            cp.wt.owghost(gfd.name) match {
-                case Some(p: ir.Path) => ir.Ghost(gfd.name, p) // Defined explicitly.
-                case _ => ir.Ghost(gfd.name, cp.p + gfd.name)  // Wildcard or undefined.
-            }
+    // If cp represents a ghost field, returns the WcGhost defining
+    // its value (if any).
+    private def owghost(cp: ir.CanonPath): Option[ir.WcGhost] = {
+        cp match {
+            case ir.CpField(cp0, ir.GhostFieldDecl(_, f)) =>
+                ghostsOnType(cp0.wt).find(_.name == f)
+            case ir.CpCtor(cp0) =>
+                ghostsOnType(cp0.wt).find(_.name == ir.f_ctor)
+            case ir.CpSuper(cp0) =>
+                ghostsOnType(cp0.wt).find(_.name == ir.f_super)
+            case _ =>
+                None
         }
     }
-
-    /// Creates a subst from 'cp' that includes 'this→cp.p' and also
-    /// substitutes all ghost fields 'this.F' with their correct values.
-    private def cGhostSubst(cp: ir.CanonPath): PathSubst = {
-        val cd = classDecl(cp.wt.c)
-        val gs_tp = cGhosts(cp)
-        PathSubst.pp(
-            ir.p_this :: gs_tp.map(g => ir.p_this + g.f),
-            cp.p      :: gs_tp.map(g => g.p)
-        )     
-    }
-
-    /// Captures cp.wt, using ghostPaths(cp) for the type args.
+    
     def cap(cp: ir.CanonPath): ir.TypeRef = {
-        ir.TypeRef(cp.wt.c, cGhosts(cp), cp.wt.as)
+        cp.wt match {
+            case t: ir.TypeRef => t
+            
+            case ir.WcClassType(c, wghosts, wtargs, as) =>
+                val ghosts = wghosts.flatMap(_.toOptionGhost)
+                val targs = wtargs.flatMap(_.toOptionTypeArg)
+                ir.ClassType(c, ghosts, targs, as)
+        }
     }
 
     private def equiv(cp: ir.CanonPath, cq: ir.CanonPath) = (cp.p == cq.p)
@@ -590,6 +591,68 @@ sealed case class TcEnv(
         }
     }
 
+    // ___ Operations on Types ______________________________________________
+    
+    private def addFromLowerBounds[X](
+        func: (ir.WcClassType => List[X])
+    )(
+        wt: ir.WcType
+    ): List[X] = {
+        wt match {
+            case pt: ir.PathType => 
+                resolvePathType(pt).wts_lb.flatMap(addFromLowerBounds(func))
+            case wct: ir.WcClassType => 
+                func(wct)            
+        }
+    }
+    
+    /// Returns a list of class types that are lower-bounds of wt
+    def boundingClassTypes(wt: ir.WcType): List[ir.WcClassType] = {
+        addFromLowerBounds(wct => 
+            List(wct)
+        )(wt)
+    }
+    
+    /// Given a type, returns all ghosts bound on instances of this type.
+    /// This includes ghosts in the type and also in the class the type refers to.
+    def ghostsOnType(wt: ir.WcType): List[ir.WcGhost] = {
+        addFromLowerBounds(wct =>
+            wct.wghosts ++ ghostsOnClassAndSuperclasses(wct.c)
+        )(wt)
+    }
+    
+    /// Given a type, returns all ghosts bound on instances of this type.
+    /// This includes ghosts in the type and also in the class the type refers to.
+    def typeArgsOnType(wt: ir.WcType): List[ir.WcTypeArg] = {
+        addFromLowerBounds(wct =>
+            wct.wtargs ++ typeArgsOnClassAndSuperclasses(wct.c)
+        )(wt)
+    }
+    
+    /// Returns all type variables declared on the class(es) this type refers to.
+    def typeVarsOnType(wt: ir.WcType): List[ir.TypeVarDecl] = {
+        addFromLowerBounds(wct =>
+            typeVarsDeclaredOnClassAndSuperclasses(wct.c)
+        )(wt)
+    }
+    
+    /// Returns the upper- and lower-bounds for this path type.
+    def resolvePathType(pt: ir.PathType): ir.WcTypeArg = {
+        val cp = canon(pt.p)
+        val wtargs = typeArgsOnType(cp.wt)
+        wtargs.find(_.name == pt.tv) match {
+            case Some(wtarg) => 
+                wtarg
+            case None => 
+                typeVarsOnType(cp.wt).find(_.name == pt.tv) match {
+                    case Some(tvdecl) => 
+                        ir.BoundedTypeArg(tvdecl.name, tvdecl.wts_lb, List())
+                    case None =>
+                        throw new CheckFailure("intervals.no.such.type.var", cp.wt, pt.tv)
+                }
+        }
+    }
+    
     // ___ Subtyping ________________________________________________________
     
     /// p <= wq

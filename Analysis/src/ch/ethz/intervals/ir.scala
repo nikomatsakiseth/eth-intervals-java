@@ -113,6 +113,7 @@ object ir {
     case class FieldName(name: String) extends Name(name) {
         def thisPath = p_this + this
     }
+    case class TypeVarName(name: String) extends Name(name)
     case class MethodName(name: String) extends Name(name)
     case class ClassName(name: String) extends Name(name)
     
@@ -131,6 +132,8 @@ object ir {
     sealed case class ClassDecl(
         attrs: Attrs,       
         name: ClassName,
+        typeVars: List[TypeVarDecl],
+        typeArgs: List[TypeArg],
         superClasses: List[ClassName],
         ghosts: List[Ghost],
         reqs: List[Req],
@@ -159,6 +162,11 @@ object ir {
             "%sclass %s%s extends %s%s%s".format(
                 attrs.preWords, name, "".join(gfds), superClasses.mkString(", "), "".join(" ", ghosts), "".join(" ", reqs))
     }
+    
+    sealed case class TypeVarDecl(
+        name: TypeVarName,
+        wts_lb: List[ir.WcTypeRef]
+    ) extends PositionalAst
     
     sealed case class MethodDecl(
         attrs: Attrs,       
@@ -345,54 +353,125 @@ object ir {
     
     val empty_method_body = StmtSeq(List())
 
-    // ___ Types and Paths __________________________________________________
+    // ___ Types ____________________________________________________________
+    //
+    // The type hierarchy:
+    //
+
+    sealed abstract class WcTypeRef extends WcTypeArg
     
-    sealed case class WcGhost(f: FieldName, wp: ir.WcPath) {
+    sealed trait TypeRef extends WcTypeRef
+    
+    sealed case class PathType(
+        p: ir.Path,
+        tv: ir.TypeVarName
+    ) extends TypeRef
+    
+    sealed case class WcClassType(
+        c: ir.ClassName,
+        wghosts: List[ir.WcGhost],
+        wtargs: List[ir.WcTypeArg],
+        as: ir.Attrs
+    ) {
+        override def toString = "%s%s%s".format("".join("", wghosts, " "), c, as.postWords)
+        def withAttrs(as: ir.Attrs) = ir.WcTypeRef(c, wghosts, as)
+        def dependentPaths =
+            wghosts.foldLeft(Set.empty[Path]) { (s, g) => g.wp.addDependentPaths(s) }
+    }
+    
+    sealed case class ClassType(
+        override val c: ir.ClassName,
+        val ghosts: List[ir.Ghost],
+        val targs: List[ir.TypeArg],
+        override val as: ir.Attrs
+    ) extends WcClassType(c, ghosts, as) with TypeRef {
+        override def withAttrs(as: ir.Attrs) = ir.TypeRef(c, ghosts, as)
+        def ctor = withAttrs(as.withCtor)
+    }
+    
+    // ______ Type Args _____________________________________________________
+    //
+    // A TypeArg <tv: wt> maps the type variable 'tv' to the type 'wt'.
+    // A WcTypeArg maps the type variable 'tv' to a bounded range of types.
+    
+    sealed abstract class WcTypeArg {
+        def tv: ir.TypeVarName      // bound type variable 
+        def wts_lb: List[ir.WcType] // lower bounds (must be at least 1)
+        def wts_ub: List[ir.WcType] // upper bounds
+        def toOptionTypeArg: Option[ir.TypeArg]
+    }
+    
+    sealed case class BoundedTypeArg(
+        tv: ir.TypeVarName,
+        wts_lb: List[ir.WcType],
+        wts_ub: List[ir.WcType]
+    ) extends WcTypeArg {
+        def toOptionTypeArg = None
+    }
+    
+    sealed case class TypeArg(
+        tv: ir.TypeVarName,
+        wt: ir.WcType
+    ) extends WcTypeArg {
+        def wts_lb = List(wt)
+        def wts_ub = List(wt)
+        def toOptionTypeArg = Some(this)
+    }
+    
+    // ______ Ghosts ________________________________________________________
+    //
+    // A Ghost @f(p) associates a fixed path with a given ghost field.  
+    // A WcGhost is the same but may associate a wildcard instead.
+    
+    sealed case class WcGhost(f: ir.FieldName, wp: ir.WcPath) {
         override def toString = "@%s(%s)".format(f.name, wp)
+        
+        def toOptionGhost = wp.toOptionPath.map(p => ir.Ghost(f, p))
     } 
     
     sealed case class Ghost(
         override val f: FieldName,
         p: Path
-    ) extends WcGhost(f, p)
-    
-    sealed case class WcTypeRef(
-        c: ClassName,
-        wghosts: List[WcGhost],
-        as: Attrs
-    ) {
-        override def toString = "%s%s%s".format("".join("", wghosts, " "), c, as.postWords)
-        def withAttrs(as: Attrs) = ir.WcTypeRef(c, wghosts, as)
-        def owghost(f: FieldName) = wghosts.find(_.f == f).map(_.wp)
-        def dependentPaths =
-            wghosts.foldLeft(Set.empty[Path]) { (s, g) => g.wp.addDependentPaths(s) }
+    ) extends WcGhost(f, p) {
+        override def toOptionGhost = Some(this)
     }
     
-    sealed case class TypeRef(
-        override val c: ClassName,
-        val ghosts: List[Ghost],
-        override val as: Attrs
-    ) extends WcTypeRef(c, ghosts, as) {
-        override def withAttrs(as: Attrs) = ir.TypeRef(c, ghosts, as)
-        def oghost(f: FieldName) = ghosts.find(_.f == f).map(_.p)
-        def ctor = withAttrs(as.withCtor)
-    }
+    // ______ Paths and Wildcard Paths ______________________________________
+    //
+    // A path p is a local variable followed by a sequence of fields.
+    // A wildcard path wp may also include existential references
+    // like (? readableBy p).
     
     sealed abstract class WcPath {
         def addDependentPaths(s: Set[Path]): Set[Path]
         
+        def toOptionPath: Option[ir.Path]
         def dependentOn(p: Path): Boolean =
             addDependentPaths(Set.empty).exists(_.hasPrefix(p))
     }
     sealed case class WcReadableBy(lp: List[Path]) extends WcPath {
         def addDependentPaths(s: Set[Path]) = s ++ lp
+        def toOptionPath = None
 
         override def toString = "readableBy " + lp.mkString(", ")
     }
     sealed case class WcWritableBy(lp: List[Path]) extends WcPath {
         def addDependentPaths(s: Set[Path]) = s ++ lp
+        def toOptionPath = None
 
         override def toString = "writableBy " + lp.mkString(", ")
+    }
+    sealed case class WcImmutableIn(lp: List[Path]) extends WcPath {
+        def addDependentPaths(s: Set[Path]) = s ++ lp
+        def toOptionPath = None
+
+        override def toString = "immutableIn " + lp.mkString(", ")
+    }
+    sealed case object WcHbNow extends WcPath {
+        def addDependentPaths(s: Set[Path]) = s ++ lp
+        def toOptionPath = None
+
+        override def toString = "hbNow"
     }
         
     sealed case class Path(
@@ -403,6 +482,7 @@ object ir {
         def ++(fs: List[ir.FieldName]) = fs.foldLeft(this)(_ + _)
         
         def addDependentPaths(s: Set[ir.Path]) = s + this
+        def toOptionPath = Some(this)
         
         def hasPrefix(p: ir.Path) =
             lv == p.lv && rev_fs.endsWith(p.rev_fs)
@@ -413,6 +493,10 @@ object ir {
     }
     
     // ___ Canonical Paths __________________________________________________
+    //
+    // Canonical paths are created by the environment.  If, at a given
+    // point in execution, any two paths are mapped to the same canonical 
+    // path, then those two paths represent the same object.  
     
     sealed abstract class CanonPath { // canon. path
         val p: ir.Path        
@@ -449,6 +533,9 @@ object ir {
     }
     
     // ___ Requirements _____________________________________________________
+    //
+    // Requirements are specified on method headers and allow the callee to
+    // dictate conditions to the caller which must hold on method entry.
     
     sealed abstract class Req extends PositionalAst {
         def setDefaultPosOnChildren() { }        
@@ -465,6 +552,8 @@ object ir {
     sealed case class ReqHb(lp: List[Path], lq: List[Path]) extends Req {
         override def toString = "requires %s hb %s".format(lp.mkString(", "), lq.mkString(", "))
     }
+    
+    // ___ Pre-defined Types and Constants __________________________________
     
     val lv_this = ir.VarName("this")
     val lv_new = ir.VarName("new")
