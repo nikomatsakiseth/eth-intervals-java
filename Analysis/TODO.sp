@@ -17,6 +17,11 @@ ______ Bugs __________________________________________________________
     
 - Sanity check casts or otherwise restrict them?
 
+- Canonical paths: the canon() function should really return a set of canonical paths.
+  Alternatively, a {CanonPath} instance should be a set of path, type pairs.  This way
+  [[@test-plugin/src/basic/CircularGhostA.java]] could conclude that the circular ghosts
+  are equal (which it doesn't do now).
+
 - More sophisticated merging with respect to temp/perm
 
   If all preds have the same effective mapping, but some in temp and some in pred, the succ should have the mapping in temp.
@@ -32,19 +37,6 @@ ______ Bugs __________________________________________________________
         }
         // safe if b.f→a temporarily        
     }
-    
-- Unify the syntax between the plugin parser and testing parser
-
-  Also change how we dump types when printing
-    
-- Remove Path feature and limit ourselves to local variables in the IR?
-
-  Would make it a bit more painful to write tests, but might simplify our lives in other ways,
-  and would allow us to have dotted identifiers wherever we like.  
-    
-- Java Generics
-
-  Particularly needed for supporting arrays.
  
 ______ Features ______________________________________________________
 

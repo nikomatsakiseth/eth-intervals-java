@@ -1,7 +1,5 @@
 package ch.ethz.intervals
 
-import ch.ethz.intervals.guard.Guard
-
 import javax.lang.model.util.Elements
 import javax.lang.model.util.{ElementFilter => EF}
 import javax.lang.model.util.Types
@@ -9,7 +7,7 @@ import javax.lang.model.util.Types
 import scala.collection.jcl.Conversions._
 
 class WellKnownElements(elements: Elements, types: Types) {
-    class TypeInfo(cls: Class[_]) {
+    class TypeInfo[C](val cls: Class[C]) {
         val elem = elements.getTypeElement(cls.getName)
         val name = elem.getQualifiedName
         val ty = elem.asType
@@ -20,7 +18,7 @@ class WellKnownElements(elements: Elements, types: Types) {
             ).get
         }
         
-        def method(mname: String, argTypes: TypeInfo*) = {
+        def method(mname: String, argTypes: TypeInfo[_]*) = {
             val argTypesList = argTypes.toList
             EF.methodsIn(elem.getEnclosedElements).find(mem =>
                 mem.getSimpleName.contentEquals(mname) && 
@@ -35,8 +33,9 @@ class WellKnownElements(elements: Elements, types: Types) {
     val Intervals = new TypeInfo(classOf[Intervals])
     val Interval = new TypeInfo(classOf[Interval])
     val Point = new TypeInfo(classOf[Point])
-    val Guard = new TypeInfo(classOf[Guard])
+    val Guard = new TypeInfo(classOf[ch.ethz.intervals.guard.Guard])
     val Object = new TypeInfo(classOf[Object])
+    val Unconstructed = new TypeInfo(classOf[ch.ethz.intervals.quals.Unconstructed])
     
     val addHbIntervalInterval = Intervals.method("addHb", Interval, Interval)
     val addHbIntervalPoint = Intervals.method("addHb", Interval, Point)

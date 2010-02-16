@@ -129,6 +129,12 @@ class TranslateTypeFactory(
     def isClassType(annty: AnnotatedTypeMirror) =
         elemKind(annty) == Some(ElementKind.CLASS)
         
+    def annotationMirrorOfElement(elem: Element, tm: TypeMirror) = {
+        elem.getAnnotationMirrors.find { am =>
+            types.isSameType(am.getAnnotationType, tm)
+        }
+    }
+        
     // Converts an Element to the ir.FieldName it represents.    If Element
     // is a genuine field, this is just the name of that field.  If Element
     // is an annotation (i.e., an object parameter), this is the full qualified
@@ -440,7 +446,7 @@ class TranslateTypeFactory(
     
     val parserLog = log // log is inherited from BaseParser, so create an alias
     class AnnotParser(env: TranslateEnv) extends BaseParser {
-        def p = id~rep("."~>id)         ^^ { case s~ss => ss.foldLeft(startPath(s))(extendPath).p }
+        def p = id~rep("."~>f)          ^^ { case s~ss => ss.foldLeft(startPath(s))(extendPath).p }
         
         def startPath(id: String): ParsePath = {
             parserLog("startPath(%s)", id)
@@ -450,32 +456,35 @@ class TranslateTypeFactory(
             }
         }
         
-        def extendPath(pp: ParsePath, id: String) = {
-            parserLog("extendPath(%s, %s)", pp, id)
-            val declGhosts = elemOfAnnty(pp.annty).map(ghostFieldsDeclaredOnElemAndSuperelems).getOrElse(Map.empty)            
-            val f_id = ir.FieldName(id)
-            declGhosts.get(f_id) match {
+        def extendPath(pp: ParsePath, f_ext: ir.FieldName) = {
+            parserLog("extendPath(%s, %s)", pp, f_ext)
+            val declGhosts = elemOfAnnty(pp.annty).map(ghostFieldsDeclaredOnElemAndSuperelems).getOrElse(Map.empty)
+            (declGhosts.get(f_ext), f_ext) match {
                 // Exact match:
-                case Some(annty) => ParsePath(pp.p + f_id, annty)
+                case (Some(annty), _) => 
+                    ParsePath(pp.p + f_ext, annty)
                 
-                // Built-in constructor (annoying):
-                case None if f_id == ir.f_ctor => ParsePath(pp.p + f_id, annty_interval)                    
+                // Built-in constructor intervals:
+                case (None, ir.CtorFieldName(_)) =>
+                    ParsePath(pp.p + f_ext, annty_interval)
                 
                 // Search for a non-ambigious short-name match:
-                case None =>
-                    declGhosts.keySet.filter(f_g => shortFieldName(f_g) == id).toList match {                        
+                case (None, ir.FieldName(str_ext)) =>
+                    declGhosts.keySet.filter(f_g => shortFieldName(f_g) == str_ext).toList match {
                         // Single match: use the ghost
-                        case List(f_g) => ParsePath(pp.p + f_g, declGhosts(f_g))
+                        case List(f_g) => 
+                            ParsePath(pp.p + f_g, declGhosts(f_g))
                         
                         // No matchs, search for a real field with that name:
                         case List() => 
-                            findField(pp.annty, id) match {
-                                case Some(annty_id) => ParsePath(pp.p + f_id, annty_id)                                    
-                                case None => throw new CheckFailure("intervals.no.such.field", f_id)
+                            findField(pp.annty, str_ext) match {
+                                case Some(annty_ext) => ParsePath(pp.p + f_ext, annty_ext)
+                                case None => throw new CheckFailure("intervals.no.such.field", f_ext)
                             }
                             
                         // Multiple matches, error:
-                        case fs => throw new CheckFailure("intervals.ambig.ghost", fs.mkString(", "))
+                        case fs => 
+                            throw new CheckFailure("intervals.ambig.ghost", fs.mkString(", "))
                     }
             }
         }
@@ -515,6 +524,12 @@ class TranslateTypeFactory(
     }
 
     object AnnTyParser {
+        def typeElement(s: String): TypeElement = 
+            parserLog.indented("parse elem(%s)", s) {
+                val parser = new AnnTyParser()
+                parser.parseToResult(parser.elem)(s)
+            }
+        
         def apply(s: String): AnnotatedTypeMirror =
             parserLog.indented("parse annty(%s)", s) {
                 val parser = new AnnTyParser()
@@ -554,22 +569,32 @@ class TranslateTypeFactory(
         m_comb.toList.map { case (f, wp) => ir.WcGhost(f, wp) }
     }
     
+    def unconstructed(c_ty: ir.ClassName, oam: Option[AnnotationMirror]) = {
+        oam match {
+            case None => ir.FullyConstructed
+            case Some(am) =>
+                val strings = AU.parseStringArrayValue(am, "value")
+                val elems = Set(strings.map(AnnTyParser.typeElement): _*)
+                ir.PartiallyConstructed(c_ty, elems.map(className))
+        }
+    }
+    
     def wtref(env: TranslateEnv)(annty: AnnotatedTypeMirror) = {
+        // XXX Add type arguments.
         log.indented("wtref(%s)", annty) {
             val c = erasedTy(annty.getUnderlyingType)
+            val oam = nullToOption(annty.getAnnotation(wke.Unconstructed.cls))
+            val uncons = unconstructed(c, oam)
+            
             annty.getKind match {
-                case TK.DECLARED => {
-                    val tattrs = 
-                        if(annty.hasAnnotation(classOf[Constructor])) ir.ctorAttrs
-                        else ir.noAttrs                
-                    ir.WcTypeRef(c, wghosts(env)(annty), tattrs)
-                }
+                case TK.DECLARED =>
+                    ir.WcClassType(c, wghosts(env)(annty), List(), uncons)
 
                 case TK.ARRAY =>
-                    ir.WcTypeRef(c, wghosts(env)(annty), ir.noAttrs)
+                    ir.WcClassType(c, wghosts(env)(annty), List(), uncons)
 
                 case _ =>
-                    ir.ClassType(c, List(), ir.noAttrs)            
+                    ir.WcClassType(c, List(), List(), uncons)
             }                        
         }
     }
@@ -637,10 +662,10 @@ class TranslateTypeFactory(
 
     def dummyMethodDecl(eelem: ExecutableElement) =
         ir.MethodDecl(
-            /* attrs:  */ ir.noAttrs,
             /* wt_ret: */ ir.t_void,
             /* name:   */ m(eelem), 
             /* args:   */ eelem.getParameters.map(dummyLvDecl).toList,
+            /* uncons: */ ir.FullyConstructed,
             /* reqs:   */ List(),
             /* body:   */ ir.empty_method_body
         )
@@ -649,6 +674,8 @@ class TranslateTypeFactory(
         ir.ClassDecl(
             /* Attrs:   */  classAttrs(telem),
             /* Name:    */  className(telem),
+            /* TyVars:  */  List(),
+            /* TyArgs:  */  List(),
             /* Extends: */  List(),
             /* Ghosts:  */  List(),
             /* Reqs:    */  List(),
@@ -671,14 +698,16 @@ class TranslateTypeFactory(
         log.indented("fieldGuard(%s)", velem) {
             at(ElementPosition(velem), ir.p_this_creator) {
                 val s_guard = 
-                    if(velem.getAnnotation(classOf[WrittenDuring]) != null)
+                    if(velem.getAnnotation(classOf[WrittenDuring]) != null) {
                         velem.getAnnotation(classOf[WrittenDuring]).value
-                    else if(velem.getAnnotation(classOf[GuardedBy]) != null)
+                    } else if(velem.getAnnotation(classOf[GuardedBy]) != null) {
                         velem.getAnnotation(classOf[GuardedBy]).value
-                    else if(EU.isFinal(velem))
-                        ir.p_ctor.toString
-                    else
-                        ir.p_this_creator.toString
+                    } else if(EU.isFinal(velem)) {
+                        val telem_owner = EU.enclosingClass(velem)
+                        val cn = className(telem_owner)
+                        ir.CtorFieldName(Some(cn)).thisPath.toString                        
+                    } else
+                        ir.f_creator.thisPath.toString
                 AnnotParser(env).path(s_guard)
             }            
         }
@@ -709,17 +738,16 @@ class TranslateTypeFactory(
     def intMethodDecl(eelem: ExecutableElement) = 
         indexLog.indented("Method Inter: %s()", qualName(eelem)) {
             at(ElementPosition(eelem), dummyMethodDecl(eelem)) {
+                val elem_owner = EU.enclosingClass(eelem)
                 val env_mthd = elemEnv(eelem)
                 val annty = getAnnotatedType(eelem)
-                val attrs = 
-                    if(eelem.getAnnotation(classOf[Constructor]) != null) ir.ctorAttrs
-                    else if(eelem.getKind == EK.CONSTRUCTOR) ir.ctorAttrs
-                    else ir.noAttrs
+                val am = annotationMirrorOfElement(eelem, wke.Unconstructed.ty)
+                val uncons = unconstructed(className(elem_owner), am)
                 ir.MethodDecl(
-                    /* attrs:  */ attrs,
                     /* wt_ret: */ wtref(env_mthd)(annty.getReturnType), 
                     /* name:   */ m(eelem), 
                     /* args:   */ eelem.getParameters.map(intArgDecl).toList,
+                    /* uncons: */ uncons,
                     /* reqs:   */ reqs(eelem),
                     /* body:   */ ir.empty_method_body
                 ).withPos(env_mthd.pos)
@@ -740,9 +768,13 @@ class TranslateTypeFactory(
                 val ghosts = ghostFieldsBoundOnElem(telem).map { case (f, s) =>
                     ir.Ghost(f, AnnotParser(env).path(s)) }
         
+                // XXX Type Vars, Type Args
+                
                 ir.ClassDecl(
                     /* Attrs:   */  classAttrs(telem),
                     /* Name:    */  className(telem),
+                    /* T Vars:  */  List(),
+                    /* T Args:  */  List(),
                     /* Extends: */  directSupertys(telem).map(erasedTy(_)),
                     /* Ghosts:  */  ghosts.toList,
                     /* Reqs:    */  reqs(telem),
@@ -767,10 +799,10 @@ class TranslateTypeFactory(
                         val blocks = TranslateMethodBody(logStack, this, mtree)
 
                         ir.MethodDecl(
-                            intMdecl.attrs,
                             intMdecl.wt_ret,
                             intMdecl.name,
                             intMdecl.args,
+                            intMdecl.unconstructed,
                             intMdecl.reqs,
                             blocks
                         ).withPos(TreePosition(mtree, (s => s))) :: mdecls
@@ -795,6 +827,8 @@ class TranslateTypeFactory(
                 ir.ClassDecl(
                     intCdecl.attrs,
                     intCdecl.name,
+                    intCdecl.typeVars,
+                    intCdecl.typeArgs,
                     intCdecl.superClasses,
                     intCdecl.ghosts,
                     intCdecl.reqs,

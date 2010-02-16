@@ -59,16 +59,39 @@ object TranslateMethodBody
         def freshVar() = ir.VarName(freshName("jv"))
         def nm(elem: Element) = elem.getSimpleName.toString
 
-        def chkPath(wp: ir.WcPath) = wp match {
+        // ___ Non-wildcard checking ____________________________________________
+        //
+        // When creating new objects, wildcards are not permitted.  Rather than have
+        // two parsing routines etc, we just check that the user doesn't use any.
+
+        def chkNoWcInPath(wp: ir.WcPath) = wp match {
             case p: ir.Path => p
             case _ => throw new CheckFailure("intervals.wildcard.not.perm", wp)
         }
 
-        def chkGhost(wg: ir.WcGhost) = 
-            ir.Ghost(wg.f, chkPath(wg.wp))
+        def chkNoWcInTarg(wta: ir.WcTypeArg) = wta match {
+            case ta: ir.TypeArg => ta
+            case _ => throw new CheckFailure("intervals.wildcard.not.perm", wta)
+        }
 
-        def chkTref(wt: ir.WcTypeRef): ir.TypeRef =
-            ir.TypeRef(wt.c, wt.wghosts.map(chkGhost), wt.as)
+        def chkNoWcInGhost(wg: ir.WcGhost) = 
+            ir.Ghost(wg.f, chkNoWcInPath(wg.wp))
+            
+        def chkConstructed(wu: ir.Unconstructed) = wu match {
+            case ir.FullyConstructed => wu
+            case _ => throw new CheckFailure("intervals.cannot.create.unconstructed", wu)
+        }
+
+        def chkNoWcInTref(wt: ir.WcTypeRef): ir.ClassType =
+            wt match {
+                case wct: ir.WcClassType =>
+                    ir.ClassType(
+                        wct.c, 
+                        wct.wghosts.map(chkNoWcInGhost), 
+                        wct.wtargs.map(chkNoWcInTarg), 
+                        chkConstructed(wct.unconstructed))
+                case _ => throw new CheckFailure("intervals.can.only.create.classes", wt)
+            }
 
         // ___ Symbols and Versions _____________________________________________
 
@@ -570,7 +593,7 @@ object TranslateMethodBody
                     case tree: NewClassTree => // p = new T(Q)
                         val lv = freshVar
                         val elem = IU.constructor(tree)
-                        val t = chkTref(wtref(tree))
+                        val t = chkNoWcInTref(wtref(tree))
                         val m = ttf.m(elem)
                         val qs = tree.getArguments.map(rvalue).toList
                         addStmt(tree, ir.StmtNew(lv, t, m, qs))
