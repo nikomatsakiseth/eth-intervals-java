@@ -140,8 +140,8 @@ class TestPlugin extends JUnitSuite {
     ) = logDirectory.mainSplitLog.indexLog.indented("compareAndReport()") {
         val log = logDirectory.mainSplitLog.detailLog
         
-        val expErrors = expectedErrors(jfos).sort(_ < _)
-        val actErrors = diagnostics.getDiagnostics.toList.map(diagToDiagError).sort(_ < _)
+        val expErrors = expectedErrors(jfos).sortWith(_ < _)
+        val actErrors = diagnostics.getDiagnostics.toList.map(diagToDiagError).sortWith(_ < _)
         
         var expErrorsRemaining = expErrors
         var matchedErrors = 0

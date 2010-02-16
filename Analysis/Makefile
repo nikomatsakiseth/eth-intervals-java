@@ -16,7 +16,6 @@ clean:
 
 compile:
 	$(SBT) compile test-compile 2>&1 | col -b
-	cp src/ch/ethz/intervals/messages.properties target/classes/ch/ethz/intervals
 
 test: compile
 	rm -rf debug-logs/*
