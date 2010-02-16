@@ -11,7 +11,6 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
     import prog.logStack.log
     import prog.logStack.indexLog
     import prog.logStack.at    
-    import prog.isSubclass
     import prog.classDecl
     import prog.unboundGhostFieldsOnClassAndSuperclasses
     
@@ -116,17 +115,17 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
     }
         
     def addUserDeclaredWritableBy(cp: ir.CanonPath, cq: ir.CanonPath) {
-        if(isSubclass(cp.wt, ir.c_guard) && isSubclass(cq.wt, ir.c_interval))
+        if(env.isSubclass(cp.wt, ir.c_guard) && env.isSubclass(cq.wt, ir.c_interval))
             addDeclaredWritableBy(cp, cq)
     }
     
     def addUserDeclaredReadableBy(cp: ir.CanonPath, cq: ir.CanonPath) {
-        if(isSubclass(cp.wt, ir.c_guard) && isSubclass(cq.wt, ir.c_interval))
+        if(env.isSubclass(cp.wt, ir.c_guard) && env.isSubclass(cq.wt, ir.c_interval))
             addDeclaredReadableBy(cp, cq)
     }
     
     def addUserSubintervalOf(cp: ir.CanonPath, cq: ir.CanonPath) {
-        if(isSubclass(cp.wt, ir.c_interval) && isSubclass(cq.wt, ir.c_interval))
+        if(env.isSubclass(cp.wt, ir.c_interval) && env.isSubclass(cq.wt, ir.c_interval))
             addSubintervalOf(cp, cq)
     }
     
@@ -151,9 +150,9 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
     
     def immutableReified(p: ir.Path): ir.CanonPath = {
         val cp = env.canon(p)
-        if(env.ghost(cp))
+        if(env.isGhost(cp))
             throw new CheckFailure("intervals.must.be.reified", p)
-        if(env.mutable(cp))
+        if(env.isMutable(cp))
             throw new CheckFailure("intervals.must.be.immutable", p)
         cp
     }
@@ -164,7 +163,7 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
     
     def immutableGhost(p: ir.Path) = {
         val cp = env.canon(p)
-        if(env.mutable(cp))
+        if(env.isMutable(cp))
             throw new CheckFailure("intervals.must.be.immutable", p)
         cp        
     }

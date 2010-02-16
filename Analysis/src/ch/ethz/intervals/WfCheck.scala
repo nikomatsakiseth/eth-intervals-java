@@ -7,13 +7,12 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
     import prog.logStack.indexLog
     import prog.logStack.at
     import prog.classDecl
-    import prog.isSubclass
     import prog.unboundGhostFieldsOnClassAndSuperclasses
     import prog.unboundTypeVarsDeclaredOnClassAndSuperclasses
         
     def reified(p: ir.Path): ir.CanonPath = {
         val cp = env.canon(p)
-        if(env.ghost(cp))
+        if(env.isGhost(cp))
             throw new CheckFailure("intervals.must.be.reified", p)
         cp
     }
@@ -31,7 +30,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
     }
     
     def checkIsSubclass(wt: ir.WcTypeRef, cs: ir.ClassName*) {
-        if(!cs.exists(isSubclass(wt, _)))
+        if(!cs.exists(env.isSubclass(wt, _)))
             throw new CheckFailure("intervals.expected.subclass.of.any", wt, cs)
     }
     
@@ -159,7 +158,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                     
                 case ir.StmtGetField(x, p_o, f) =>
                     val cp_o = reified(p_o)
-                    env.substdFieldDecl(cp_o, f) match {
+                    env.substdFieldDecl(cp_o.toTcp, f) match {
                         case (_, ir.GhostFieldDecl(_, _)) =>
                             throw new CheckFailure("intervals.not.reified", cp_o.wt, f)
                         
@@ -172,10 +171,10 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                     
                     val cp_o = reified(p_o)
                     env.substdFieldDecl(cp_o.toTcp, f) match {
-                        case ir.GhostFieldDecl(_, _) =>
+                        case (_, ir.GhostFieldDecl(_, _)) =>
                             throw new CheckFailure("intervals.not.reified", cp_o.wt, f)
                         
-                        case ir.ReifiedFieldDecl(_, _, _, _) =>
+                        case (_, ir.ReifiedFieldDecl(_, _, _, _)) =>
                     }
 
                 case ir.StmtCheckType(p, wt) =>
@@ -205,13 +204,13 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                     
                     // Check that all ghosts on the type C being instantiated are given a value:
                     val gfds_unbound = unboundGhostFieldsOnClassAndSuperclasses(ct.c)
-                    gfds_unbound.find(f => t.oghost(f.name).isEmpty) match {
+                    gfds_unbound.find(f => env.ghost(ct, f.name).isEmpty) match {
                         case Some(f) => throw new CheckFailure("intervals.no.value.for.ghost", f)
                         case None =>
                     }
                     
                     addReifiedLocal(x, ct)
-                    val cp_x = ir.TeeCeePee(env.canon(x.path), ct)
+                    val tcp_x = ir.TeeCeePee(env.canon(x.path), ct)
                     val msig_ctor = env.substdCtorSig(tcp_x, m, cqs)
                     checkCall(tcp_x, msig_ctor, cqs)                    
                     
@@ -309,6 +308,10 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
             }   
         }
     
+    def addThis(cd: ir.ClassDecl, unconstructed: ir.Unconstructed) {
+        addReifiedLocal(ir.lv_this, ir.WcClassType(cd.name, List(), List(), unconstructed))
+    }
+
     def checkNoninterfaceMethodDecl(
         cd: ir.ClassDecl,          // class in which the method is declared
         md: ir.MethodDecl          // method to check
@@ -317,14 +320,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
             savingEnv {
                 // Define special vars "method" and "this":
                 addGhostLocal(ir.lv_mthd, ir.t_interval)
-                if(!md.attrs.ctor) { 
-                    // For normal methods, type of this is the defining class
-                    addReifiedLocal(ir.lv_this, thisTref(cd))
-                } else {
-                    // For constructor methods, type of this is the type that originally defined it
-                    val t_rcvr = typeOriginallyDefiningMethod(cd.name, md.name).get
-                    addReifiedLocal(ir.lv_this, t_rcvr.ctor)
-                }  
+                addThis(cd, md.unconstructed)
 
                 setCurrent(ir.p_mthd)
                 md.args.foreach(addCheckedArg)
@@ -334,17 +330,12 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
             }         
         }
         
-    def addThis(cd: ir.ClassDecl, attrs: ir.Attrs) {
-        val t_this = thisTref(cd, attrs)
-        addReifiedLocal(ir.lv_this, t_this)
-    }
-
     def checkNoninterfaceConstructorDecl(cd: ir.ClassDecl, md: ir.MethodDecl): Unit = 
         at(md, ()) {
             savingEnv {
                 // Define special vars "method" (== this.constructor) and "this":
-                addThis(cd, ir.ctorAttrs)                
-                val cp_ctor = env.canon(ir.gfd_ctor.thisPath)
+                addThis(cd, ir.PartiallyConstructed(cd.name, Set()))
+                val cp_ctor = env.canon(ir.CtorFieldName(Some(cd.name)).thisPath)
                 addPerm(ir.lv_mthd, cp_ctor)
 
                 setCurrent(ir.p_mthd)
@@ -362,7 +353,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
     def checkReifiedFieldDecl(cd: ir.ClassDecl, fd: ir.ReifiedFieldDecl): Unit = 
         at(fd, ()) {
             savingEnv {
-                addThis(cd, ir.ctorAttrs)
+                addThis(cd, ir.PartiallyConstructed(cd.name, Set()))
                 
                 checkWtrefWf(fd.wt)
                 checkPathWf(rOrGhost, fd.p_guard)
@@ -372,15 +363,30 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
     def checkGhostFieldDecl(cd: ir.ClassDecl, gfd: ir.GhostFieldDecl): Unit = 
         at(gfd, ()) {
             savingEnv {
-                addThis(cd, ir.ctorAttrs)
+                addThis(cd, ir.PartiallyConstructed(cd.name, Set()))
 
                 // Check that ghosts are not shadowed from a super class:                
                 prog.strictSuperclasses(cd.name).foreach { c =>
-                    if(classDecl(c).fields.exists(_.name == gfd.name))
+                    if(classDecl(c).fields.exists(_.isNamed(gfd.name)))
                         throw new CheckFailure("intervals.shadowed.ghost", c, gfd.name)
                 }
                 
                 checkWtrefWf(gfd.wt)
+            }
+        }
+        
+    def checkTypeVarDecl(cd: ir.ClassDecl, tvd: ir.TypeVarDecl): Unit = 
+        at(tvd, ()) {
+            savingEnv {
+                addThis(cd, ir.PartiallyConstructed(cd.name, Set()))
+
+                // Check that type vars are not shadowed from a super class:                
+                prog.strictSuperclasses(cd.name).foreach { c =>
+                    if(classDecl(c).typeVars.exists(_.isNamed(tvd.name)))
+                        throw new CheckFailure("intervals.shadowed.type.var", c, tvd.name)
+                }
+                
+                tvd.wts_lb.foreach(checkWtrefWf)
             }
         }
         

@@ -65,10 +65,6 @@ class Prog(
         }
     }
     
-    // Is wt an erased subtype of class c?
-    def isSubclass(wt: ir.WcTypeRef, c: ir.ClassName): Boolean =
-        isSubclass(wt.c, c)
-        
     def strictSuperclasses(c0: ir.ClassName): Set[ir.ClassName] = {
         def accumulate(sc: Set[ir.ClassName], c: ir.ClassName): Set[ir.ClassName] = {
             classDecl(c).superClasses.foldLeft(sc + c)(accumulate)
@@ -131,12 +127,6 @@ class Prog(
         tvds.filter(tvd => !boundTypeVars(tvd.name))
     }
     
-    /// Augments ghostSubstOfType with a mapping 'this.ctor→this.super'
-    def superSubstOfClass(c: ir.ClassName) = {
-        val cd = classDecl(c)
-        PathSubst.pp(ir.p_ctor, ir.p_super)
-    }
-
     // ___ Type Hierarchy ___________________________________________________
     
     /// Supertypes:
@@ -159,7 +149,7 @@ class Prog(
     
     ///
     def searchClassAndSuperclasses[X](
-        func: (ir.WcClassType => Option[X])
+        func: (ir.ClassDecl => Option[X])
     )(
         wct: ir.WcClassType
     ): Option[(ir.WcClassType, X)] = {
@@ -190,13 +180,12 @@ class Prog(
     }
     
     /// Returns the signatures for any methods 'm' defined in the supertypes of 'c'.
-    def overriddenMethodSigs(c: ir.ClassName, m: ir.MethodName): List[ir.MethodSig] = {
+    def overriddenMethodSigs(wct: ir.WcClassType, m: ir.MethodName): List[ir.MethodSig] = {
         val cd = classDecl(c)
-        val subst = superSubstOfClass(c)
-        cd.superClasses.foldRight(List[ir.MethodSig]()) { case (c_sup, l) =>
-            methodSig(c_sup, m).map(subst.methodSig) match {
+        sups(wct).foldRight(List[ir.MethodSig]()) { case (wct_sup, l) =>
+            methodDecl(wct_sup, m) match {
                 case None => l
-                case Some(msig) => msig :: l
+                case Some((_, msig)) => msig :: l
             }
         }
     }

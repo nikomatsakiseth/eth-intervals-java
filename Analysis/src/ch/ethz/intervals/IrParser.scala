@@ -20,7 +20,7 @@ class IrParser extends BaseParser {
         "switch", "loop", "try", "catch"
     )
 
-    def optd[A](p: Parser[A], d: => A) = (
+    def optd[A](d: => A, p: Parser[A]) = (
         opt(p)                                  ^^ { case None => d
                                                      case Some(l) => l }
     )
@@ -45,13 +45,26 @@ class IrParser extends BaseParser {
     def lv = id                                 ^^ ir.VarName
     def tv = id                                 ^^ ir.TypeVarName
     
+    def uncons = optd(ir.FullyConstructed,
+        "{"~c~optl(":"~>comma(c))~"}"                  ^^ { case _~c~cs~_ => ir.PartiallyConstructed(c, Set(cs: _*)) }
+    )
+    
     def p = lv~rep("."~>f)                      ^^ { case lv~fs => lv ++ fs }
-    def g = "<"~f~":"~p~">"                     ^^ { case _~f~_~p~_ => ir.Ghost(f, p) }    
-    def t = c~rep(g)                            ^^ { case c~lg => ir.ClassType(c, lg, ir.noAttrs) }
-
+    def g = "@"~f~"("~p~")"                     ^^ { case _~f~_~p~_ => ir.Ghost(f, p) }    
+    def ta = "<"~tv~":"~wt~">"                  ^^ { case _~tv~_~wt~_ => ir.TypeArg(tv, wt) }
+    def pt = p~"."~tv                           ^^ { case p~_~tv => ir.PathType(p, tv) }
+    def ct = c~rep(g)~rep(ta)~uncons            ^^ { case c~gs~tas~u => ir.ClassType(c, gs, tas, u) }
     override def wp = super.wp                  // Defined in BaseParser
-    def wg = "<"~f~":"~wp~">"                   ^^ { case _~f~_~wp~_ => ir.WcGhost(f, wp) }    
-    def wt = c~rep(wg)~attrs                    ^^ { case c~lwg~la => ir.WcTypeRef(c, lwg, la) }
+    def wg = "@"~f~"("~wp~")"                   ^^ { case _~f~_~wp~_ => ir.WcGhost(f, wp) }    
+    def typeBounds = (
+        opt(comma(wt)<~"<:")~"?"~"<:"~comma(wt) ^^ { case oubs~_~_~lbs => ir.TypeBounds(lbs, oubs) }
+    )
+    def wta = (
+        "<"~tv~":"~typeBounds~">"               ^^ { case _~tv~_~bounds~_ => ir.BoundedTypeArg(tv, bounds) }
+    |   ta
+    )
+    def wct = c~rep(wg)~rep(wta)~uncons         ^^ { case c~lwg~la~u => ir.WcClassType(c, lwg, la, u) }
+    def wt: Parser[ir.WcTypeRef] = (wct | pt)
     
     def lvdecl = (
         wt~lv                                   ^^ { case wt~lv => ir.LvDecl(lv, wt) }
@@ -64,9 +77,8 @@ class IrParser extends BaseParser {
         ir.VarName("parser[%s]".format(ctr))
     }
     
-    def optLv = optd(
-        lv~"="                                      ^^ { case x~_ => x },
-        anonLv
+    def optLv = optd(anonLv,
+        lv~"="                                      ^^ { case x~_ => x }
     )
     
     def seq = "{"~>rep(stmt)<~"}"                   ^^ ir.StmtSeq
@@ -92,7 +104,7 @@ class IrParser extends BaseParser {
     |   optLv~p~"->"~m~"("~comma(p)~")"~";"         ^^ { case x~p~"->"~m~"("~qs~")"~_ => ir.StmtCall(x, p, m, qs) }
     |   optLv~"super"~"->"~m~"("~comma(p)~")"~";"   ^^ { case x~_~"->"~m~"("~qs~")"~_ => ir.StmtSuperCall(x, m, qs) }
     |   lv~"="~p~"->"~f~";"                         ^^ { case x~"="~p~"->"~f~_ => ir.StmtGetField(x, p, f) }
-    |   lv~"="~"new"~t~cm~"("~comma(p)~")"~";"      ^^ { case x~"="~"new"~t~m~"("~qs~")"~_ => ir.StmtNew(x, t, m, qs) }
+    |   lv~"="~"new"~ct~cm~"("~comma(p)~")"~";"     ^^ { case x~"="~"new"~ct~m~"("~qs~")"~_ => ir.StmtNew(x, ct, m, qs) }
     |   lv~"="~"("~wt~")"~p~";"                     ^^ { case x~"="~"("~wt~")"~p~";" => ir.StmtCast(x, wt, p) }
     |   lv~"="~"("~wt~")"~"null"~";"                ^^ { case x~"="~"("~wt~")"~"null"~";" => ir.StmtNull(x, wt) }
     |   p~"->"~f~"="~p~";"                          ^^ { case p~_~f~_~q~_ => ir.StmtSetField(p, f, q) }
@@ -115,22 +127,18 @@ class IrParser extends BaseParser {
     def reqs = rep(req)
     
     def methodDecl = positioned(
-        attrs~wt~m~"("~comma(lvdecl)~")"~reqs~seq        
+        wt~m~"("~comma(lvdecl)~")"~uncons~reqs~seq        
     ^^ {
-        case attrs~wt_ret~name~"("~args~")"~reqs~seq =>
-            ir.MethodDecl(attrs, wt_ret, name, args, reqs, seq)
+        case wt_ret~name~"("~args~")"~uncons~reqs~seq =>
+            ir.MethodDecl(wt_ret, name, args, uncons, reqs, seq)
     })
     
     def constructor = positioned(
         "constructor"~cm~"("~comma(lvdecl)~")"~reqs~seq
     ^^ {
         case "constructor"~m~"("~args~")"~reqs~seq =>
-            ir.MethodDecl(ir.ctorAttrs, ir.t_void, m, args, reqs, seq)
+            ir.MethodDecl(ir.t_void, m, args, ir.FullyConstructed, reqs, seq)
     })
-    
-    def ghostFieldDecl = positioned(
-        "<"~wt~f~">"                            ^^ { case _~wt~f~_ => ir.GhostFieldDecl(wt, f) }
-    )
     
     def reifiedFieldDecl = positioned(
         attrs~wt~f~"requires"~p~";"             ^^ { case as~wt~f~_~p~_ => ir.ReifiedFieldDecl(as, wt, f, p) }
@@ -142,10 +150,21 @@ class IrParser extends BaseParser {
         case ctors => ctors
     }
     
+    def typeVarDecl = positioned(
+        "<"~tv~"<:"~comma(wt)~">"               ^^ { case _~tv~_~wts~_ => ir.TypeVarDecl(tv, wts) }
+    )
+    
+    def ghostFieldDecl = positioned(
+        "@"~f~"("~wt~")"                        ^^ { case _~f~_~wt~_ => ir.GhostFieldDecl(wt, f) }
+    )
+    
     def classDecl = positioned(
-        attrs~"class"~c~rep(ghostFieldDecl)~
+        attrs~"class"~c~
+        rep(ghostFieldDecl)~
+        rep(typeVarDecl)~
         optl("extends"~>comma(c))~
         rep(g)~
+        rep(ta)~
         reqs~
         "{"~
             rep(reifiedFieldDecl)~
@@ -153,8 +172,8 @@ class IrParser extends BaseParser {
             rep(methodDecl)~
         "}"
     ^^ {
-        case attrs~"class"~name~gfds~superClasses~guards~reqs~"{"~rfds~ctors~methods~"}" =>
-            ir.ClassDecl(attrs, name, superClasses, guards, reqs, ctors, gfds ++ rfds, methods)
+        case attrs~"class"~name~gfds~tvds~superClasses~guards~targs~reqs~"{"~rfds~ctors~methods~"}" =>
+            ir.ClassDecl(attrs, name, tvds, targs, superClasses, guards, reqs, ctors, gfds ++ rfds, methods)
     })
     
     def classDecls = rep(classDecl)

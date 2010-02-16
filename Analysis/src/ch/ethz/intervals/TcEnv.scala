@@ -15,7 +15,6 @@ sealed case class TcEnv(
 ) {
     import prog.logStack.log
     import prog.classDecl
-    import prog.isSubclass
     import prog.ghostsOnClassAndSuperclasses
     import prog.typeArgsOnClassAndSuperclasses
     import prog.typeVarsDeclaredOnClassAndSuperclasses
@@ -38,7 +37,7 @@ sealed case class TcEnv(
     
     /// Add a local variable whose value is the canon path 'cp'
     def addPerm(x: ir.VarName, cp: ir.CanonPath) = {
-        assert(!mutable(cp))
+        assert(!isMutable(cp))
         perm.get(x) match {
             case Some(_) => throw new CheckFailure("intervals.shadowed", x)
             case None => withPerm(perm + Pair(x, cp))
@@ -90,7 +89,7 @@ sealed case class TcEnv(
     /// Indicates that point cp hb point cq.
     def addHbPnt(cp: ir.CanonPath, cq: ir.CanonPath) = {
         log("addHbPnt(%s,%s)", cp, cq)
-        assert(!mutable(cp) && !mutable(cq))
+        assert(!isMutable(cp) && !isMutable(cq))
         assert(isSubclass(cp.wt, ir.c_point))
         assert(isSubclass(cq.wt, ir.c_point))
         withFlow(flow.withHbRel(flow.hbRel + (cp.p, cq.p)))
@@ -99,7 +98,7 @@ sealed case class TcEnv(
     /// Indicates that interval cp hb interval cq.
     def addHbInter(cp: ir.CanonPath, cq: ir.CanonPath) = {
         log("addHbInter(%s,%s)", cp, cq)
-        assert(!mutable(cp) && !mutable(cq))
+        assert(!isMutable(cp) && !isMutable(cq))
         assert(isSubclass(cp.wt, ir.c_interval))
         assert(isSubclass(cq.wt, ir.c_interval))
         addHbPnt(fld(cp, ir.f_end), fld(cq, ir.f_start))
@@ -107,7 +106,7 @@ sealed case class TcEnv(
     
     def addDeclaredReadableBy(cp: ir.CanonPath, cq: ir.CanonPath) = {
         log("addDeclaredReadableBy(%s, %s)", cp, cq)
-        assert(!mutable(cp) && !mutable(cq))
+        assert(!isMutable(cp) && !isMutable(cq))
         assert(isSubclass(cp.wt, ir.c_guard))
         assert(isSubclass(cq.wt, ir.c_interval))
         withFlow(flow.withReadableRel(flow.readableRel + (cp.p, cq.p)))
@@ -115,7 +114,7 @@ sealed case class TcEnv(
     
     def addDeclaredWritableBy(cp: ir.CanonPath, cq: ir.CanonPath) = {
         log("addDeclaredWritableBy(%s, %s)", cp, cq)
-        assert(!mutable(cp) && !mutable(cq))
+        assert(!isMutable(cp) && !isMutable(cq))
         assert(isSubclass(cp.wt, ir.c_guard))
         assert(isSubclass(cq.wt, ir.c_interval))
         withFlow(flow.withWritableRel(flow.writableRel + (cp.p, cq.p)))
@@ -124,7 +123,7 @@ sealed case class TcEnv(
     def addSubintervalOf(cp: ir.CanonPath, cq: ir.CanonPath) = {
         log.indented("addSubintervalOf(%s, %s)", cp, cq) {
             // This assertion is not valid during checkReifiedFieldDecl():
-            //assert(!mutable(cp) && !mutable(cq))
+            //assert(!isMutable(cp) && !isMutable(cq))
             assert(isSubclass(cp.wt, ir.c_interval))
             assert(isSubclass(cq.wt, ir.c_interval))
             withFlow(flow
@@ -136,7 +135,7 @@ sealed case class TcEnv(
     def addLocks(cp: ir.CanonPath, cq: ir.CanonPath) = {
         log.indented("addLocks(%s, %s)", cp, cq) {
             // This assertion is not valid during checkReifiedFieldDecl:
-            //assert(!mutable(cp) && !mutable(cq))
+            //assert(!isMutable(cp) && !isMutable(cq))
             assert(isSubclass(cp.wt, ir.c_interval))
             assert(isSubclass(cq.wt, ir.c_lock))
             withFlow(flow.withLocksRel(flow.locksRel + (cp.p, cq.p)))
@@ -324,8 +323,8 @@ sealed case class TcEnv(
     def hbPnt(cp_from: ir.CanonPath, cp_to: ir.CanonPath) = {
         log.indented("hbPnt(%s, %s)", cp_from, cp_to) {
             log.env(false, "Environment", this)
-            assert(!mutable(cp_from))
-            assert(!mutable(cp_to))
+            assert(!isMutable(cp_from))
+            assert(!isMutable(cp_to))
             assert(isSubclass(cp_from.wt, ir.c_point))
             assert(isSubclass(cp_to.wt, ir.c_point))
             bfs(cp_from, cp_to)
@@ -336,8 +335,8 @@ sealed case class TcEnv(
     def hbInter(cp_from: ir.CanonPath, cp_to: ir.CanonPath) = {
         log.indented("hbInter(%s, %s)?", cp_from, cp_to) {
             log.env(false, "Environment", this)
-            assert(!mutable(cp_from))
-            assert(!mutable(cp_to))
+            assert(!isMutable(cp_from))
+            assert(!isMutable(cp_to))
             ( // Sometimes we're sloppy and invoke with wrong types:
                 isSubclass(cp_from.wt, ir.c_interval) && 
                 isSubclass(cp_to.wt, ir.c_interval) &&
@@ -421,7 +420,7 @@ sealed case class TcEnv(
     }
     
     /// Could the value of 'cp1' change during current interval?
-    def mutable(cp_outer: ir.CanonPath) = {
+    def isMutable(cp_outer: ir.CanonPath) = {
         def m(cp1: ir.CanonPath): Boolean = log.indented("m(%s)", cp1) {
             cp1 match {
                 // Local variables never change value once assigned:
@@ -440,17 +439,17 @@ sealed case class TcEnv(
             }            
         }
             
-        log.indented(false, "mutable(%s)", cp_outer) {
+        log.indented(false, "isMutable(%s)", cp_outer) {
             log.env(false, "Environment", this)
             m(cp_outer)
         }
     }
     
     /// Does 'cp1' represent a ghost value (i.e., an erased or non-reified value)?
-    def ghost(cp1: ir.CanonPath): Boolean = cp1 match {
+    def isGhost(cp1: ir.CanonPath): Boolean = cp1 match {
         case ir.CpLv(_, _, isGhost) => isGhost
         case ir.CpField(cp0, _: ir.GhostFieldDecl) => true
-        case ir.CpField(cp0, _: ir.ReifiedFieldDecl) => ghost(cp0)
+        case ir.CpField(cp0, _: ir.ReifiedFieldDecl) => isGhost(cp0)
         case ir.CpCtor(cp0, _) => true
     }
 
@@ -591,8 +590,8 @@ sealed case class TcEnv(
     def uImpliesConstructed(unconstructed: ir.Unconstructed, oc: Option[ir.ClassName]) = {
         (unconstructed, oc) match {
             case (ir.FullyConstructed, _) => true
-            case (ir.PartiallyConstructed(c_lb, cs_uncons), Some(c)) if isSubclass(c_lb, c) =>
-                !cs_uncons.exists(isSubclass(c, _))
+            case (ir.PartiallyConstructed(c_lb, cs_uncons), Some(c)) if prog.isSubclass(c_lb, c) =>
+                !cs_uncons.exists(prog.isSubclass(c, _))
             case _ => false
         }        
     }
@@ -636,7 +635,7 @@ sealed case class TcEnv(
     }
     
     /// Returns the binding for the ghost field 'f' on type 'cp0', if any.
-    private def ghost(wt: ir.WcTypeRef, f: ir.FieldName): Option[ir.WcGhost] = {
+    def ghost(wt: ir.WcTypeRef, f: ir.FieldName): Option[ir.WcGhost] = {
         ghosts(wt).find(_.isNamed(f))
     }
     
@@ -676,6 +675,11 @@ sealed case class TcEnv(
         }
     }
     
+    // Is wt an erased subtype of class c?
+    def isSubclass(wt: ir.WcTypeRef, c: ir.ClassName): Boolean = {
+        boundingClassTypes(wt).exists(wct => prog.isSubclass(wct.c, c))
+    }
+        
     // ___ Subtyping ________________________________________________________
     
     private def isLtUnconstructed(u_sub: ir.Unconstructed, u_sup: ir.Unconstructed) = {

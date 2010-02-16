@@ -6,6 +6,8 @@ import scala.util.parsing.syntax.Tokens
 import scala.util.parsing.syntax.StdTokens
 import scala.util.parsing.combinator.lexical.StdLexical
 
+import Util._
+
 // Common code shared by both the IrParser (used in unit testing)
 // and the AnnotParser (used in comp. plugin).
 abstract class BaseParser extends StandardTokenParsers {

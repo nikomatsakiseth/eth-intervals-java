@@ -15,7 +15,6 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
     import prog.logStack.indexAt
     import prog.classDecl
     import prog.overriddenMethodSigs
-    import prog.isSubclass
     import prog.strictSuperclasses
     
     def freshCp(wt: ir.WcTypeRef) = {
@@ -356,7 +355,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                         checkReadable(cp_guard)
                         
                         val cp_f = env.extendCanonWithReifiedField(cp_o, rfd)
-                        if(!env.mutable(cp_f)) {
+                        if(!env.isMutable(cp_f)) {
                             addPerm(x, cp_f)                            
                         } else {
                             addReifiedLocal(x, rfd.wt)
@@ -511,7 +510,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
             
             def filterFunc(p: ir.Path): Boolean = 
                 log.indented("filterFunc(%s)", p) {
-                    lvs_shared(p.lv) && !env.mutable(env.canon(p))
+                    lvs_shared(p.lv) && !env.isMutable(env.canon(p))
                 }
 
             FlowEnv.empty
@@ -595,7 +594,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                 setWtRet(md.wt_ret)
                 
                 savingEnv {
-                    overriddenMethodSigs(cd.name, md.name) foreach { msig_sup_0 => 
+                    overriddenMethodSigs(ct_this, md.name) foreach { msig_sup_0 => 
                         val msig_sup = substArgsInMethodSig(msig_sup_0, md.args.map(_.name))
                         checkArgumentTypesNonvariant(md.args, msig_sup.args)
                         checkReturnTypeCovariant(md.wt_ret, msig_sup.wt_ret)
@@ -669,11 +668,11 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                 // Also check that guards are typed as Interval, Lock, or just Guard
                 val cp_guard = env.canon(fd.p_guard)
                 log.indented("adding appr. constraints for cp_guard %s", cp_guard) {
-                    if(isSubclass(cp_guard.wt, ir.c_interval))
+                    if(env.isSubclass(cp_guard.wt, ir.c_interval))
                         addSubintervalOf(cp_cur, cp_guard) 
-                    else if(isSubclass(cp_guard.wt, ir.c_lock))
+                    else if(env.isSubclass(cp_guard.wt, ir.c_lock))
                         addLocks(cp_cur, cp_guard)
-                    else if(isSubclass(cp_guard.wt, ir.c_guard))
+                    else if(env.isSubclass(cp_guard.wt, ir.c_guard))
                         addDeclaredWritableBy(cp_guard, cp_cur)
                     else
                         throw new CheckFailure("intervals.invalid.guard.type", cp_guard.wt)                    
@@ -692,7 +691,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                                     case ir.Path(lv, List(f)) if lv == ir.lv_this => 
                                         log("dependent on another field of this")
                                         val cp_dep = env.canon(p_dep)
-                                        if(env.mutable(cp_dep) && !cd.fields.exists(_.name == f))
+                                        if(env.isMutable(cp_dep) && !cd.fields.exists(_.name == f))
                                             throw new CheckFailure(
                                                 "intervals.illegal.type.dep",
                                                 cp_dep.p, cp_guard.p)
@@ -701,7 +700,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                                         log("misc dependency")
                                         check(ir.Path(lv, rev_fs))
                                         val cp_dep = env.canon(p_dep)
-                                        if(env.mutable(cp_dep))
+                                        if(env.isMutable(cp_dep))
                                             throw new CheckFailure(
                                                 "intervals.illegal.type.dep",
                                                 cp_dep.p, cp_guard.p)
