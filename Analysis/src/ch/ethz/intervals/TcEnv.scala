@@ -8,9 +8,10 @@ import Util._
 
 sealed case class TcEnv(
     prog: Prog,
-    op_cur: Option[ir.Path],                // current interval
+    c_cur: ir.ClassName,
+    op_cur: Option[ir.Path],
     wt_ret: ir.WcTypeRef,                   // return type of current method
-    perm: Map[ir.VarName, ir.CanonPath], // permanent equivalences, hold for duration of method
+    perm: Map[ir.VarName, ir.CanonPath],    // permanent equivalences, hold for duration of method
     flow: FlowEnv
 ) {
     import prog.logStack.log
@@ -20,13 +21,6 @@ sealed case class TcEnv(
     import prog.typeVarsDeclaredOnClassAndSuperclasses
     import prog.unboundGhostFieldsOnClassAndSuperclasses
     import prog.unboundTypeVarsDeclaredOnClassAndSuperclasses
-    
-    // ___ Adjusting Individual Values ______________________________________
-    
-    def withCurrent(op_cur: Option[ir.Path]) = TcEnv(prog, op_cur, wt_ret, perm, flow)
-    def withRet(wt_ret: ir.WcTypeRef) = TcEnv(prog, op_cur, wt_ret, perm, flow)
-    def withPerm(perm: Map[ir.VarName, ir.CanonPath]) = TcEnv(prog, op_cur, wt_ret, perm, flow)
-    def withFlow(flow: FlowEnv) = TcEnv(prog, op_cur, wt_ret, perm, flow)
     
     // ___ Merging Flows ____________________________________________________
     
@@ -40,7 +34,7 @@ sealed case class TcEnv(
         assert(!isMutable(cp))
         perm.get(x) match {
             case Some(_) => throw new CheckFailure("intervals.shadowed", x)
-            case None => withPerm(perm + Pair(x, cp))
+            case None => copy(perm = perm + Pair(x, cp))
         }
     }
     
@@ -59,6 +53,11 @@ sealed case class TcEnv(
         addPerm(x, ir.CpLv(x, wt, false))
     }
     
+    /// Define a reified local variable 'x' with type 'wt'
+    def redefineReifiedLocal(x: ir.VarName, wt: ir.WcTypeRef) = {
+        copy(perm = perm + Pair(x, ir.CpLv(x, wt, false)))
+    }
+    
     /// Define a ghost local variable 'x' with type 'wt'
     def addGhostLocal(x: ir.VarName, wt: ir.WcTypeRef) = {
         addPerm(x, ir.CpLv(x, wt, true))        
@@ -67,23 +66,23 @@ sealed case class TcEnv(
     /// Temporarily redirect from 'p' to 'q'
     def addTemp(p: ir.Path, q: ir.Path) = {
         log("addTemp(%s,%s)", p, q)
-        withFlow(flow.withTemp(flow.temp + Pair(p, q)))
+        copy(flow = flow.withTemp(flow.temp + Pair(p, q)))
     }
     
     /// Clear all temporary redirects
     def clearTemp = {
         log("clearTemp")
-        withFlow(flow.withTemp(Map()))
+        copy(flow = flow.withTemp(Map()))
     }
     
     def addInvalidated(p: ir.Path) = {
         log("addInvalidated(%s)", p)
-        withFlow(flow.withInvalidated(flow.ps_invalidated + p))        
+        copy(flow = flow.withInvalidated(flow.ps_invalidated + p))        
     }
         
     def removeInvalidated(p: ir.Path) = {
         log("removeInvalidated(%s)", p)
-        withFlow(flow.withInvalidated(flow.ps_invalidated - p))        
+        copy(flow = flow.withInvalidated(flow.ps_invalidated - p))        
     }
     
     /// Indicates that point cp hb point cq.
@@ -92,7 +91,7 @@ sealed case class TcEnv(
         assert(!isMutable(cp) && !isMutable(cq))
         assert(isSubclass(cp.wt, ir.c_point))
         assert(isSubclass(cq.wt, ir.c_point))
-        withFlow(flow.withHbRel(flow.hbRel + (cp.p, cq.p)))
+        copy(flow = flow.withHbRel(flow.hbRel + (cp.p, cq.p)))
     }
     
     /// Indicates that interval cp hb interval cq.
@@ -109,7 +108,7 @@ sealed case class TcEnv(
         assert(!isMutable(cp) && !isMutable(cq))
         assert(isSubclass(cp.wt, ir.c_guard))
         assert(isSubclass(cq.wt, ir.c_interval))
-        withFlow(flow.withReadableRel(flow.readableRel + (cp.p, cq.p)))
+        copy(flow = flow.withReadableRel(flow.readableRel + (cp.p, cq.p)))
     }
     
     def addDeclaredWritableBy(cp: ir.CanonPath, cq: ir.CanonPath) = {
@@ -117,7 +116,7 @@ sealed case class TcEnv(
         assert(!isMutable(cp) && !isMutable(cq))
         assert(isSubclass(cp.wt, ir.c_guard))
         assert(isSubclass(cq.wt, ir.c_interval))
-        withFlow(flow.withWritableRel(flow.writableRel + (cp.p, cq.p)))
+        copy(flow = flow.withWritableRel(flow.writableRel + (cp.p, cq.p)))
     }
     
     def addSubintervalOf(cp: ir.CanonPath, cq: ir.CanonPath) = {
@@ -126,7 +125,7 @@ sealed case class TcEnv(
             //assert(!isMutable(cp) && !isMutable(cq))
             assert(isSubclass(cp.wt, ir.c_interval))
             assert(isSubclass(cq.wt, ir.c_interval))
-            withFlow(flow
+            copy(flow = flow
                 .withHbRel(flow.hbRel + (cq.p.start, cp.p.start) + (cp.p.end, cq.p.end))
                 .withSubintervalRel(flow.subintervalRel + (cp.p, cq.p)))
         }        
@@ -138,7 +137,7 @@ sealed case class TcEnv(
             //assert(!isMutable(cp) && !isMutable(cq))
             assert(isSubclass(cp.wt, ir.c_interval))
             assert(isSubclass(cq.wt, ir.c_lock))
-            withFlow(flow.withLocksRel(flow.locksRel + (cp.p, cq.p)))
+            copy(flow = flow.withLocksRel(flow.locksRel + (cp.p, cq.p)))
         }        
     }
 
@@ -169,7 +168,7 @@ sealed case class TcEnv(
         
     def addNonNull(cp: ir.CanonPath) = {
         log.indented("addNonNull(%s)", cp) {
-            withFlow(flow.withNonnull(flow.nonnull + cp.p))            
+            copy(flow = flow.withNonnull(flow.nonnull + cp.p))            
         }
     }
         
@@ -531,11 +530,16 @@ sealed case class TcEnv(
                 // x.super.end hb current & x.ctor.end hb current.start unless x has ctor type:
                 log.indented("x.ctor.end -> cur (%s)", op_cur) {                    
                     depoint(cp, ir.f_end) match {
+                        // Do we know that ctor occurred?
                         case Some(ir.CpCtor(cp0, oc)) if wtImpliesConstructed(cp0.wt, oc) =>
                             op_cur.map(p => canon(p + ir.f_start))
-                        case ocp => 
-                            log("Incomplete ctor: %s", ocp)
+                            
+                        // Log precise reason for failure:
+                        case Some(ir.CpCtor(cp0, oc)) => 
+                            log("Class %s not constructed in %s", oc, cp0.wt)
                             None
+                        case Some(cp0) => log("Not ctor: %s", cp0); None
+                        case None => log("Not end point"); None
                     }                
                 }
             }            

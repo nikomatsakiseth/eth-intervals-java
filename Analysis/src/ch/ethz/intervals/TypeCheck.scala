@@ -191,7 +191,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
 
         env_in
         .addArgs(decls)
-        .withFlow(
+        .copy(flow = 
             FlowEnv(
                 flow_brk.nonnull.map(subst.path).filter(inScope),
                 mapMap(flow_brk.temp),
@@ -339,6 +339,15 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                 log("tcp = %s", tcp)
                 log("msig_ctor = %s", msig_ctor)
                 checkCallMsig(tcp, msig_ctor, cqs)
+                
+                // Ctors for all supertypes now complete:
+                val ct_this = ir.ClassType(
+                    env.c_cur,
+                    List(), 
+                    List(), 
+                    ir.PartiallyConstructed(env.c_cur)
+                )
+                setEnv(env.redefineReifiedLocal(ir.lv_this, ct_this))
                 
                 // Supertype must have been processed first:
                 log("Supertype: %s", tcp)
@@ -653,12 +662,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                 //
                 // Note that a type is dependent on p_dep if p.F appears in the type, so 
                 // we must check all prefixes of each dependent path as well.
-                val ct_this = ir.ClassType(
-                    cd.name, 
-                    List(), 
-                    List(), 
-                    ir.FullyUnconstructed
-                )
+                val ct_this = ir.ClassType(cd.name, List(), List(), ir.FullyUnconstructed)
                 addReifiedLocal(ir.lv_this, ct_this)
                 addGhostLocal(ir.lv_mthd, ir.t_interval)
                 val cp_mthd = env.canon(ir.p_mthd)
@@ -756,6 +760,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
         }
             
     def checkClassDecl(cd: ir.ClassDecl) = {
+        setEnv(env.copy(c_cur = cd.name))
         if(cd.attrs.interface) checkInterfaceClassDecl(cd)
         else checkNoninterfaceClassDecl(cd)        
     }

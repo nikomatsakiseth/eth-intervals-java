@@ -787,9 +787,7 @@ object ir {
             /* Ghosts:  */  List(),
             /* Reqs:    */  List(),
             /* Ctor:    */  List(md_emptyCtor),
-            /* Fields:  */  List(
-                ReifiedFieldDecl(noAttrs, t_point, f_start, p_obj_ctor),
-                ReifiedFieldDecl(noAttrs, t_point, f_end, p_obj_ctor)),
+            /* Fields:  */  List(),
             /* Methods: */  List()
         ),
         ClassDecl(
@@ -801,7 +799,9 @@ object ir {
             /* Ghosts:  */  List(Ghost(f_creator, p_obj_ctor)),
             /* Reqs:    */  List(),
             /* Ctor:    */  List(md_emptyCtor),
-            /* Fields:  */  List(),
+            /* Fields:  */  List(
+                ReifiedFieldDecl(noAttrs, t_point, f_start, CtorFieldName(Some(c_interval)).thisPath),
+                ReifiedFieldDecl(noAttrs, t_point, f_end, CtorFieldName(Some(c_interval)).thisPath)),
             /* Methods: */  List(MethodDecl(
                     /* wt_ret: */ t_void, 
                     /* name:   */ m_run, 

@@ -19,6 +19,7 @@ class Prog(
     
     val env_empty = TcEnv(
         this,
+        ir.c_void,
         None,
         ir.t_void,
         Map(),

@@ -25,7 +25,7 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
     def env = env_private    
     def flow = env.flow
     def setEnv(env_new: TcEnv) = env_private = env_new
-    def setFlow(flow_new: FlowEnv) = setEnv(env.withFlow(flow_new))
+    def setFlow(flow_new: FlowEnv) = setEnv(env.copy(flow = flow_new))
     
     /// Executes g and restores the old environment afterwards:
     def savingEnv[R](func: => R): R = {
@@ -47,11 +47,11 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
     // Modifying the Environment
     
     def setCurrent(p_cur: ir.Path) = log.indented("pushCurrent(%s)", p_cur) {
-        setEnv(env.withCurrent(Some(p_cur)))
+        setEnv(env.copy(op_cur = Some(p_cur)))
     }
     
     def setWtRet(wt_ret: ir.WcTypeRef) = {
-        setEnv(env.withRet(wt_ret))
+        setEnv(env.copy(wt_ret = wt_ret))
     }
 
     def addPerm(x: ir.VarName, cp: ir.CanonPath): Unit = {
