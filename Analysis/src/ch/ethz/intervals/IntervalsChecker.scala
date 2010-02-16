@@ -26,7 +26,7 @@ import com.sun.source.util.TreeScanner
 
 import scala.collection.immutable.Set
 import scala.collection.mutable.{Set => MutableSet}
-import scala.collection.jcl.Conversions._
+import scala.collection.JavaConversions._
 
 import java.io.File
 
@@ -123,58 +123,55 @@ class IntervalsChecker extends SourceChecker {
 	    }
 	}
 	
-	
-    class TreeVisitor(ttf: TranslateTypeFactory) extends TreeScanner[Void, Void] {
+    class TreeExplorer(ttf: TranslateTypeFactory) extends TreeScanner[Unit, Boolean] {
         val referencedElements = MutableSet.empty[Element]
         
-        def scanBodyOf(tree: ClassTree) {
-            referencedElements += TU.elementFromDeclaration(tree)
-            super.visitClass(tree, null)            
+        override def visitClass(tree: ClassTree, r: Boolean) {
+            if(r) {
+                referencedElements += TU.elementFromDeclaration(tree)
+                super.visitClass(tree, false)                            
+            }
         }
         
-        override def visitClass(tree: ClassTree, v: Void): Void = {
-            null // don't visit nested classes
-        }
-        
-        override def visitMemberSelect(tree: MemberSelectTree, v: Void): Void = {
+        override def visitMemberSelect(tree: MemberSelectTree, r: Boolean) {
             referencedElements += TU.elementFromUse(tree)
-            super.visitMemberSelect(tree, v)
+            super.visitMemberSelect(tree, r)
         }
         
-        override def visitMethodInvocation(tree: MethodInvocationTree, v: Void): Void = {
+        override def visitMethodInvocation(tree: MethodInvocationTree, r: Boolean) {
             referencedElements += TU.elementFromUse(tree)
-            super.visitMethodInvocation(tree, v)
+            super.visitMethodInvocation(tree, r)
         }
         
-        override def visitNewClass(tree: NewClassTree, v: Void): Void = {
+        override def visitNewClass(tree: NewClassTree, r: Boolean) {
 			referencedElements += IU.constructor(tree)
-			super.visitNewClass(tree, v)
+			super.visitNewClass(tree, r)
         }
         
-        override def visitMethod(tree: MethodTree, v: Void): Void = {
+        override def visitMethod(tree: MethodTree, r: Boolean) {
             val elem = TU.elementFromDeclaration(tree)
             addType(referencedElements, elem.asType)
-            super.visitMethod(tree, v)
+            super.visitMethod(tree, r)
         }
         
-        override def visitVariable(tree: VariableTree, v: Void): Void = {
+        override def visitVariable(tree: VariableTree, r: Boolean) {
             val elem = TU.elementFromDeclaration(tree)
             addType(referencedElements, elem.asType)
-            super.visitVariable(tree, v)
+            super.visitVariable(tree, r)
         }
     }
     
-    class ElementVisitor(ttf: TranslateTypeFactory) extends ElementScanner6[Void, Void] {
+    class ElementVisitor(ttf: TranslateTypeFactory) extends ElementScanner6[Unit, Unit] {
         val referencedElements = MutableSet.empty[Element]
 
-        override def visitExecutable(elem: ExecutableElement, v: Void): Void = {
+        override def visitExecutable(elem: ExecutableElement, v: Unit) {
             referencedElements += EU.enclosingClass(elem)
             addTypesOfAnnotations(referencedElements, elem)
             addType(referencedElements, elem.getReturnType)
-            super.scan(elem.getParameters, v)
+            super.scan(elem.getParameters, ())
         }
         
-        override def visitType(elem: TypeElement, v: Void): Void = {
+        override def visitType(elem: TypeElement, v: Unit) {
             log.indented("visitType(%s)", elem) {
                 elem.getInterfaces.foreach(addType(referencedElements, _))
                 addType(referencedElements, elem.getSuperclass)
@@ -204,20 +201,19 @@ class IntervalsChecker extends SourceChecker {
                     }
                 }
             }
-            null // don't visit other enclosed elements
+            
+            // don't visit other enclosed elements
         }
         
-        override def visitTypeParameter(elem: TypeParameterElement, v: Void): Void = {
+        override def visitTypeParameter(elem: TypeParameterElement, v: Unit) {
             addTypesOfAnnotations(referencedElements, elem)
             elem.getBounds.foreach(addType(referencedElements, _))
-            null
         }
         
-        override def visitVariable(elem: VariableElement, v: Void): Void = {
+        override def visitVariable(elem: VariableElement, v: Unit) {
             addTypesOfAnnotations(referencedElements, elem)
             referencedElements += EU.enclosingClass(elem)
             addType(referencedElements, elem.asType)
-            null
         }
     }
     
@@ -234,16 +230,16 @@ class IntervalsChecker extends SourceChecker {
                 val ev = new ElementVisitor(ttf)
                 newSet.foreach { newElem =>
                     log("Scanning %s", newElem)
-                    ev.scan(newElem, null)
+                    ev.scan(newElem, ())
                 }
                 addElements(resultSet, ev.referencedElements)
             }
         }
         
         indexLog.indented("referenceClosure") {
-            val tv = new TreeVisitor(ttf)
+            val tv = new TreeExplorer(ttf)
             val resultSet = MutableSet.empty[Element]
-            tv.scanBodyOf(tree)
+            tree.accept(tv, true)
             addElements(resultSet, tv.referencedElements)
             
             // Ensure that elements on which our analysis relies are present:

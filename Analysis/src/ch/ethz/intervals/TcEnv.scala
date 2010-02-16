@@ -30,8 +30,8 @@ sealed case class TcEnv(
     
     // ___ Merging Flows ____________________________________________________
     
-    def addFlow(flow1: FlowEnv) = withFlow(flow + flow1)        
-    def intersectFlow(flow1: FlowEnv) = withFlow(flow ** flow1)
+    def addFlow(flow1: FlowEnv) = copy(flow = flow + flow1)        
+    def intersectFlow(flow1: FlowEnv) = copy(flow = flow & flow1)
         
     // ___ Local Variables __________________________________________________
     
@@ -693,7 +693,7 @@ sealed case class TcEnv(
         }
     }
     
-    private def isLtWpath(wp: ir.WcPath, wq: ir.WcPath) = {
+    private def isLtWpath(wp: ir.WcPath, wq: ir.WcPath): Boolean = {
         (wp, wq) match {
             case (p: ir.Path, q: ir.Path) =>
                 equiv(canon(p), canon(q))
@@ -709,6 +709,10 @@ sealed case class TcEnv(
                 qs.forall { q => among(canon(q), ps) }
             case (ir.WcReadableBy(ps), ir.WcReadableBy(qs)) => 
                 qs.forall { q => among(canon(q), ps) }
+                
+            case (ir.WcReadableBy(_), ir.WcWritableBy(_)) => false
+            case (ir.WcReadableBy(_), ir.Path(_, _)) => false
+            case (ir.WcWritableBy(_), ir.Path(_, _)) => false
         }
     }
         

@@ -1,10 +1,10 @@
 package ch.ethz.intervals
 
+import scala.collection.JavaConversions._
+
 import javax.lang.model.util.Elements
 import javax.lang.model.util.{ElementFilter => EF}
 import javax.lang.model.util.Types
-
-import scala.collection.jcl.Conversions._
 
 class WellKnownElements(elements: Elements, types: Types) {
     class TypeInfo[C](val cls: Class[C]) {

@@ -3,7 +3,7 @@ package ch.ethz.intervals
 import org.scalatest.junit.JUnitSuite
 import org.scalatest.FunSuite
 import scala.collection.mutable.ListBuffer
-import scala.collection.jcl.Conversions._
+import scala.collection.JavaConversions._
 import org.junit.Assert._
 import org.junit.Test
 import org.junit.Before
@@ -202,9 +202,10 @@ class TestPlugin extends JUnitSuite {
         
         // Invoke javac and compare results:
         log("compUnits: %s", compUnits)
-        log.indented("javac opts") { opts.foreach(log.apply) }        
-        val success = compiler.getTask(null, fileManager, diagnostics, opts, null, compUnits).call
-        compareAndReport(logDirectory, config, diagnostics, javaToScala(compUnits).toList, success.booleanValue)
+        log.indented("javac opts") { opts.foreach(log.apply) }
+        val optsColl = asCollection(opts)
+        val success = compiler.getTask(null, fileManager, diagnostics, optsColl, null, compUnits).call
+        compareAndReport(logDirectory, config, diagnostics, compUnits.toList, success.booleanValue)
     }
     
     @Test 

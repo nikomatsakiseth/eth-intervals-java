@@ -152,7 +152,7 @@ class TestAnalysis extends JUnitSuite {
             """
             class Linked extends #Object {
                 Interval inter requires this.creator;
-                Object<creator: this.inter> obj requires this.creator;
+                Object@#creator(this.inter) obj requires this.creator;
                 
                 constructor() 
                 requires method subinterval this.creator
@@ -161,7 +161,7 @@ class TestAnalysis extends JUnitSuite {
                     return;
                 }
                 
-                void setBothOkWhenGivenAsParameters(#Interval inter, Object<creator: inter> obj) 
+                void setBothOkWhenGivenAsParameters(#Interval inter, Object@#creator(inter) obj) 
                 requires method subinterval this.creator
                 {
                     this->inter = inter;
@@ -172,14 +172,14 @@ class TestAnalysis extends JUnitSuite {
                 void setBothOkWhenOneIsCreated(#Interval inter)
                 requires method subinterval this.creator
                 {
-                    obj = new Object<creator: inter>();
+                    obj = new Object@#creator(inter)();
                     
                     this->inter = inter;
                     this->obj = obj;
                     return;
                 }
                 
-                void setBothWrongOrder(#Interval inter, Object<creator: inter> obj) 
+                void setBothWrongOrder(#Interval inter, Object@#creator(inter) obj) 
                 requires method subinterval this.creator
                 {
                     this->obj = obj; // ERROR intervals.expected.subtype(obj, @#creator(inter) #Object, @#creator(this.inter) #Object)
@@ -199,7 +199,7 @@ class TestAnalysis extends JUnitSuite {
                     return;
                 }
                 
-                void invokingAnotherMethodInBetweenNotOk(#Interval inter, Object<creator: inter> obj) 
+                void invokingAnotherMethodInBetweenNotOk(#Interval inter, Object@#creator(inter) obj) 
                 requires method subinterval this.creator
                 {
                     this->inter = inter;
@@ -208,7 +208,7 @@ class TestAnalysis extends JUnitSuite {
                     return;
                 }
                 
-                void invokingAnotherMethodAfterIsOk(#Interval inter, Object<creator: inter> obj) 
+                void invokingAnotherMethodAfterIsOk(#Interval inter, Object@#creator(inter) obj) 
                 requires method subinterval this.creator
                 {
                     this->inter = inter;
@@ -217,21 +217,21 @@ class TestAnalysis extends JUnitSuite {
                     return;
                 }
                 
-                void creatingObjectsInBetweenNotOk(#Interval inter, Object<creator: inter> obj) 
+                void creatingObjectsInBetweenNotOk(#Interval inter, Object@#creator(inter) obj) 
                 requires method subinterval this.creator
                 {
                     this->inter = inter;
-                    obj2 = new Object<creator: inter>(); // ERROR intervals.must.assign.first(this.obj)
+                    obj2 = new Object@#creator(inter)(); // ERROR intervals.must.assign.first(this.obj)
                     this->obj = obj; 
                     return;
                 }
                 
-                void creatingObjectsAfterIsOk(#Interval inter, Object<creator: inter> obj) 
+                void creatingObjectsAfterIsOk(#Interval inter, Object@#creator(inter) obj) 
                 requires method subinterval this.creator
                 {
                     this->inter = inter;
                     this->obj = obj;
-                    obj2 = new Object<creator: inter>();
+                    obj2 = new Object@#creator(inter)();
                     return;
                 }
             }
@@ -243,17 +243,17 @@ class TestAnalysis extends JUnitSuite {
     def neverLinkedToLockWhichGuardsYou() {
         tc(
             """
-            class Data<#Lock lock> extends #Object<creator: this.lock> {                
+            class Data@lock(#Lock) extends #Object@#creator(this.lock) {                
             }
             
-            class Link extends #Object<creator: this.constructor> {
+            class Link extends #Object@#creator(this.constructor) {
                 #Lock lock requires this.constructor;
                 
                 // Although this.data's type mentions this.lock,
                 // the two fields are not linked, because
                 // updates to data can only occur when 
                 // this.lock is constant.
-                Data<lock: this.lock> data requires this.lock;
+                Data@lock(this.lock) data requires this.lock;
                 
                 // XXX This error is currently thrown.  I am re-thinking
                 // XXX whether we should be linked to such fields: I now
@@ -273,7 +273,7 @@ class TestAnalysis extends JUnitSuite {
     def constructorTypes() {
         tc(
             """
-            class Ctor extends #Object<creator: this.constructor> {
+            class Ctor extends #Object@#creator(this.constructor) {
                 
                 String c requires this.constructor;
                 
@@ -343,7 +343,7 @@ class TestAnalysis extends JUnitSuite {
                     return;
                 }
                 
-                void readFinal(Object<creator: this.final> o) 
+                void readFinal(Object@#creator(this.final) o) 
                 requires method subinterval this
                 {
                     // this.final hb this, and method is a subinterval of this,
@@ -352,7 +352,7 @@ class TestAnalysis extends JUnitSuite {
                     return;
                 }
                 
-                void readFinal1(Object<creator: this.final> o) 
+                void readFinal1(Object@#creator(this.final) o) 
                 {
                     // Here we do not require this method be
                     // invoked with method a subinterval of this,
@@ -361,7 +361,7 @@ class TestAnalysis extends JUnitSuite {
                     return;
                 }
                 
-                constructor void readFinal2(Object<creator: this.final> o) 
+                constructor void readFinal2(Object@#creator(this.final) o) 
                 {
                     // This method could be invoked in the constructor,
                     // so we can't even use this.final in an attribute.
@@ -397,7 +397,7 @@ class TestAnalysis extends JUnitSuite {
             
             class Sub1 extends Super
             {     
-                Object<creator: this.inter> obj requires this.constructor;
+                Object@#creator(this.inter) obj requires this.constructor;
                 
                 constructor(#Interval inter)
                 {
@@ -415,7 +415,7 @@ class TestAnalysis extends JUnitSuite {
             
             class Sub2 extends Super
             {     
-                Object<creator: this.inter> obj requires this.constructor;
+                Object@#creator(this.inter) obj requires this.constructor;
                 
                 constructor(#Interval inter)
                 {
@@ -466,21 +466,21 @@ class TestAnalysis extends JUnitSuite {
                     return;
                 }
                 
-                void mu(Object<creator: this.unrelated> o) 
+                void mu(Object@#creator(this.unrelated) o) 
                 requires method subinterval this
                 {
                     o->toString(); // ERROR intervals.requirement.not.met(requires this.unrelated readable by method)
                     return;
                 }
                 
-                void mr(Object<creator: this.maybeRelated> o) 
+                void mr(Object@#creator(this.maybeRelated) o) 
                 requires method subinterval this
                 {
                     o->toString(); // ERROR intervals.requirement.not.met(requires this.maybeRelated readable by method)
                     return;
                 }
                 
-                void mb(Object<creator: this.before> o) 
+                void mb(Object@#creator(this.before) o) 
                 requires method subinterval this
                 {
                     o->toString(); 
@@ -515,7 +515,7 @@ class TestAnalysis extends JUnitSuite {
                     return;
                 }
                 
-                void readFinal(Object<creator: this.final> o) 
+                void readFinal(Object@#creator(this.final) o) 
                 requires method subinterval this
                 {
                     o->toString(); // ERROR intervals.requirement.not.met(requires this.final readable by method)
@@ -530,7 +530,7 @@ class TestAnalysis extends JUnitSuite {
     def overriddenMethodsCannotAddRequirements() {
         tc(
             """
-            class A<Interval a><Interval b> extends #Object<creator: this.constructor> 
+            class A@a(#Interval)@b(#Interval) extends #Object@#creator(this.constructor) 
             {
                 void aHbB() 
                 requires this.a hb this.b
@@ -657,7 +657,7 @@ class TestAnalysis extends JUnitSuite {
     def superInterval() {
         tc(
             """
-            class A extends #Object<creator: this.constructor> {
+            class A extends #Object@#creator(this.constructor) {
                 String s requires this.constructor;
                 
                 constructor(String s) {
@@ -700,7 +700,7 @@ class TestAnalysis extends JUnitSuite {
                 }
             }     
             
-            class C extends #Object<creator: this.constructor> {
+            class C extends #Object@#creator(this.constructor) {
                 constructor() { 
                     super();
                     return;
@@ -724,7 +724,7 @@ class TestAnalysis extends JUnitSuite {
     def constructorTypesAndSubtypes() {
         tc(
             """
-            class A extends #Object<creator: this.constructor> {
+            class A extends #Object@#creator(this.constructor) {
                 
                 constructor() {
                     super();
@@ -748,7 +748,7 @@ class TestAnalysis extends JUnitSuite {
                     return;
                 }
             }
-            class Ctor extends #Object<creator: this.constructor> {
+            class Ctor extends #Object@#creator(this.constructor) {
                 
                 String c requires this.constructor;
                 
@@ -804,7 +804,7 @@ class TestAnalysis extends JUnitSuite {
     def extendedInit() {
         tc(
             """
-            class ExtendedInit<Interval init> extends #Object<creator: this.init> {
+            class ExtendedInit@init(#Interval) extends #Object@#creator(this.init) {
                 String f1 requires this.init;
                 String f2 requires this.init;
                 
@@ -842,7 +842,7 @@ class TestAnalysis extends JUnitSuite {
     def subinterval() {
         tc(
             """
-            class Monitor extends #Object<creator: this.constructor> {
+            class Monitor extends #Object@#creator(this.constructor) {
                 #Lock lock requires this.constructor;
                 
                 constructor() {
@@ -949,8 +949,8 @@ class TestAnalysis extends JUnitSuite {
             }
             
             class Bar extends #Object {
-                Foo1<creator: this.creator> foo1 requires this.constructor;
-                Foo2<creator: this.creator> foo2 requires this.constructor;
+                Foo1@#creator(this.creator) foo1 requires this.constructor;
+                Foo2@#creator(this.creator) foo2 requires this.constructor;
                 
                 constructor() {
                     super();
@@ -965,7 +965,7 @@ class TestAnalysis extends JUnitSuite {
                 
                 void invokeThroughInterface() {
                     foo2 = this->foo2;
-                    ifoo2 = (IFoo<creator: this.creator>)foo2;
+                    ifoo2 = (IFoo@#creator(this.creator))foo2;
                     ifoo2->m1(); // ERROR intervals.requirement.not.met(requires this.`#creator` readable by method)
                     return;
                 }
@@ -991,7 +991,7 @@ class TestAnalysis extends JUnitSuite {
     {
         tc(
             """
-            class Foo<String s><Lock l><Interval i> extends #Object {
+            class Foo@s(#String)@l(#Lock)@i(#Interval) extends #Object {
                 constructor() {
                     super();
                     return;
@@ -1005,15 +1005,15 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 void run() {
-                    s = (String)null;
-                    l = (Lock)null;
-                    i = (Interval)null;
+                    s = (#String)null;
+                    l = (#Lock)null;
+                    i = (#Interval)null;
                                         
-                    f1 = new Foo<s: s><l: l><i: i><creator: i>();
-                    f2 = new Foo<s: l><l: l><i: i><creator: i>(); // ERROR intervals.expected.subtype(l, #Lock, #String)
-                    f3 = new Foo<s: s><l: s><i: i><creator: i>(); // ERROR intervals.expected.subtype(s, #String, #Lock)
-                    f4 = new Foo<s: s><l: l><i: s><creator: i>(); // ERROR intervals.expected.subtype(s, #String, #Interval)
-                    f5 = new Foo<s: s><l: l><i: i><creator: s>(); // ERROR intervals.expected.subtype(s, #String, #Interval)
+                    f1 = new Foo@s(s)@l(l)@i(i)@#creator(i)();
+                    f2 = new Foo@s(l)@l(l)@i(i)@#creator(i)(); // ERROR intervals.expected.subtype(l, #Lock, #String)
+                    f3 = new Foo@s(s)@l(s)@i(i)@#creator(i)(); // ERROR intervals.expected.subtype(s, #String, #Lock)
+                    f4 = new Foo@s(s)@l(l)@i(s)@#creator(i)(); // ERROR intervals.expected.subtype(s, #String, #Interval)
+                    f5 = new Foo@s(s)@l(l)@i(i)@#creator(s)(); // ERROR intervals.expected.subtype(s, #String, #Interval)
                     return;
                 }
             }
@@ -1029,17 +1029,17 @@ class TestAnalysis extends JUnitSuite {
     {
         tc(
             """
-            class Foo<String s> extends #Object {
+            class Foo@s(#String) extends #Object {
                 constructor() {
                     super();
                     return;
                 }                
             }
             
-            class Bar<String s><Interval i> extends #Object {
-                Foo<s: this.s><creator: i> f1; 
-                Foo<s: this.i><creator: i> f2; // ERROR intervals.expected.subtype(this.i, Interval, String)
-                Foo<s: this.s><creator: s> f3; // ERROR intervals.expected.subtype(this.s, String, Interval)
+            class Bar@s(#String)@i(#Interval) extends #Object {
+                Foo@s(this.s)@#creator(i) f1; 
+                Foo@s(this.i)@#creator(i) f2; // ERROR intervals.expected.subtype(this.i, Interval, String)
+                Foo@s(this.s)@#creator(s) f3; // ERROR intervals.expected.subtype(this.s, String, Interval)
                 
                 constructor() {
                     super();
@@ -1065,7 +1065,7 @@ class TestAnalysis extends JUnitSuite {
             
             class Direct extends #Object {
                 Interval i;
-                Data2<creator: this.i> data2; // Safe, because i is in the same class.
+                Data2@#creator(this.i) data2; // Safe, because i is in the same class.
             }
             
             class Indirect1 extends #Object {
@@ -1074,29 +1074,29 @@ class TestAnalysis extends JUnitSuite {
                 // It's not permitted for data2 depend on this.data1.i because
                 // it is not declared in the same class and it is not constant 
                 // during this.creator (data2's guard).
-                Data2<creator: this.data1.i> data2; // ERROR intervals.illegal.type.dep(this.data1.i, this.`#creator`)
+                Data2@#creator(this.data1.i) data2; // ERROR intervals.illegal.type.dep(this.data1.i, this.`#creator`)
             }
                         
             class Indirect2 extends #Object {
                 // It doesn't matter that data1 is only created by the
                 // ctor, because we don't know that data2 is only modified after ctor completes!
                 // See TODO for more thoughts.
-                Data1<creator: this.constructor> data1 requires this.constructor;
-                Data2<creator: this.data1.i> data2; // ERROR intervals.illegal.type.dep(this.data1.i, this.`#creator`)
+                Data1@#creator(this.constructor) data1 requires this.constructor;
+                Data2@#creator(this.data1.i) data2; // ERROR intervals.illegal.type.dep(this.data1.i, this.`#creator`)
             }
             
             class Indirect3 extends #Interval {
                 // This is safe, because for intervals, we know that this.constructor hb this:
-                Data1<creator: this.constructor> data1 requires this.constructor;
-                Data2<creator: this.data1.i> data2 requires this;
+                Data1@#creator(this.constructor) data1 requires this.constructor;
+                Data2@#creator(this.data1.i) data2 requires this;
             }
 
             class Indirect4 extends #Object {
                 // Not safe: Constructor could load up data1 where this.data.i is the current
                 // method, store data2, then call a method on data1 which changes this.data1.i,
                 // making data2 invalid.
-                Data1<creator: this.constructor> data1 requires this.constructor;
-                Data2<creator: this.data1.i> data2 requires this.data1.i; // ERROR intervals.illegal.type.dep(this.data1.i, this.data1.i)
+                Data1@#creator(this.constructor) data1 requires this.constructor;
+                Data2@#creator(this.data1.i) data2 requires this.data1.i; // ERROR intervals.illegal.type.dep(this.data1.i, this.data1.i)
             }
             """
         )
@@ -1113,8 +1113,8 @@ class TestAnalysis extends JUnitSuite {
             
             class C extends #Object {
                 void mthd(
-                    Data<creator: readableBy method> m1, 
-                    Data<creator: readableBy method> m2
+                    Data@#creator(readableBy method) m1, 
+                    Data@#creator(readableBy method) m2
                 ) 
                 requires m1.i hb m2.i
                 requires m1 hb m2 // ERROR intervals.expected.subclass.of.any(Data, Array(#Point, #Interval))
@@ -1138,8 +1138,8 @@ class TestAnalysis extends JUnitSuite {
             
             class C extends #Object {
                 void mthd(
-                    Data<creator: readableBy method> m1, 
-                    Data<creator: readableBy method> m2
+                    Data@#creator(readableBy method) m1, 
+                    Data@#creator(readableBy method) m2
                 ) 
                 requires m1.i hb m2.i // ERROR intervals.must.be.immutable(m1.i)
                 {
@@ -1155,14 +1155,14 @@ class TestAnalysis extends JUnitSuite {
     {
         wf(
             """
-            class Foo<String s> extends #Object {
+            class Foo@s(#String) extends #Object {
             }
             
-            class Bar<String s><Interval i> extends #Object {
-                Foo<s: this.s><creator: this.i> f1; 
-                Foo<t: this.s><creator: this.i> f2; // ERROR intervals.no.such.ghost(Foo, t)
-                Foo<t: this.s><creator: i> f3; // ERROR intervals.no.such.variable(i)
-                Foo<t: this.s><creator: method> f4; // ERROR intervals.no.such.variable(method)
+            class Bar@s(#String)@i(#Interval) extends #Object {
+                Foo@s(this.s)@#creator(this.i) f1; 
+                Foo@t(this.s)@#creator(this.i) f2; // ERROR intervals.no.such.ghost(Foo, t)
+                Foo@t(this.s)@#creator(i) f3; // ERROR intervals.no.such.variable(i)
+                Foo@t(this.s)@#creator(method) f4; // ERROR intervals.no.such.variable(method)
             }
             """
         )
@@ -1173,21 +1173,21 @@ class TestAnalysis extends JUnitSuite {
     {
         tc(
             """
-            class C1<Lock l1> extends #Object {
+            class C1@l1(#Lock) extends #Object {
             }
             
-            class C2<Lock l2> extends C1 {
+            class C2@l2(#Lock) extends C1 {
             }
             
-            class D<Interval a><Lock b><Lock c><Interval d> extends #Object { 
-                Object<creator: this.a> creatorA;
-                C1<l1: this.b> l1B;
-                C1<creator: this.a><l1: this.b> creatorAl1B;
+            class D@a(#Interval)@b(#Lock)@c(#Lock)@d(#Interval) extends #Object { 
+                Object@#creator(this.a) creatorA;
+                C1@l1(this.b) l1B;
+                C1@#creator(this.a><l1: this.b) creatorAl1B;
                 
                 void ok() 
                 requires this.creator writableBy method
                 {
-                    obj = new C2<creator: this.a><l1: this.b><l2: this.c>();
+                    obj = new C2@#creator(this.a)@l1(this.b)@l2(this.c)();
                     this->creatorA = obj;
                     this->l1B = obj;
                     this->creatorAl1B = obj; 
@@ -1196,7 +1196,7 @@ class TestAnalysis extends JUnitSuite {
                 void creatorWrong() 
                 requires this.creator writableBy method
                 {
-                    obj = new C2<creator: this.d><l1: this.b><l2: this.c>();
+                    obj = new C2@#creator(this.d)@l1(this.b)@l2(this.c)();
                     this->creatorA = obj; // ERROR intervals.expected.subtype(obj, @#creator(this.d) @l1(this.b) @l2(this.c) C2, @#creator(this.a) #Object)
                     this->l1B = obj; 
                     this->creatorAl1B = obj; // ERROR intervals.expected.subtype(obj, @#creator(this.d) @l1(this.b) @l2(this.c) C2, @#creator(this.a) @l1(this.b) C1)
@@ -1205,7 +1205,7 @@ class TestAnalysis extends JUnitSuite {
                 void l1Wrong() 
                 requires this.creator writableBy method
                 {
-                    obj = new C2<creator: this.a><l1: this.c><l2: this.b>();
+                    obj = new C2@#creator(this.a)@l1(this.c)@l2(this.b)();
                     this->creatorA = obj;
                     this->l1B = obj; // ERROR intervals.expected.subtype(obj, @#creator(this.a) @l1(this.c) @l2(this.b) C2, @l1(this.b) C1)
                     this->creatorAl1B = obj; // ERROR intervals.expected.subtype(obj, @#creator(this.a) @l1(this.c) @l2(this.b) C2, @#creator(this.a) @l1(this.b) C1)
@@ -1244,14 +1244,14 @@ class TestAnalysis extends JUnitSuite {
     def hoh() {
         success(
             """
-            class Data<#Lock lock> extends #Object<creator: this.lock> {
+            class Data@lock(#Lock) extends #Object@#creator(this.lock) {
                 String fld requires this.lock;
             }
             
-            class Link extends #Object<creator: this.constructor> {
+            class Link extends #Object@#creator(this.constructor) {
                 #Lock lock requires this.constructor;
                 
-                Data<lock: this.lock> data requires this.lock;
+                Data@lock(this.lock) data requires this.lock;
                 Link nextLink requires this.lock;
                 
                 constructor() {
@@ -1260,7 +1260,7 @@ class TestAnalysis extends JUnitSuite {
                     this->lock = lock;
                     
                     subinterval x locks lock {
-                        data = (Data<lock: this.lock>)null;
+                        data = (Data@lock(this.lock))null;
                         this->data = data;                        
                         
                         nextLink = (Link)null;
@@ -1281,10 +1281,10 @@ class TestAnalysis extends JUnitSuite {
                     return;
                 }
                 
-                Data<lock: this.link.lock> transform(Data<lock: this.link.lock> inData) 
+                Data@lock(this.link.lock) transform(Data@lock(this.link.lock) inData) 
                 requires this.link.lock writableBy method
                 {
-                    outData = new Data<lock: this.link.lock>();
+                    outData = new Data@lock(this.link.lock)();
                     fld = inData->fld;
                     outData->fld = fld;
                     return outData;
@@ -1338,29 +1338,29 @@ class TestAnalysis extends JUnitSuite {
     //        """
     //        class Class extends #Object {
     //            // ----------------------------------------------------------------------
-    //            Object<creator: this.creator> ok(Object<creator: this.creator> a)                                 
+    //            Object@#creator(this.creator> ok(Object<creator: this.creator) a)                                 
     //            {
     //                switch {
     //                    {
-    //                        b1 = (Object<creator: this.creator>)null;
+    //                        b1 = (Object@#creator(this.creator))null;
     //                        break 0(b1);
     //                    }
     //                    {
     //                        break 0(a);
     //                    }
-    //                } => (Object<creator: this.creator> b3);
+    //                } => (Object@#creator(this.creator) b3);
     //                return b3;
     //            }
     //
     //            // ----------------------------------------------------------------------
-    //            Object<creator: this.creator> badTypes()
+    //            Object@#creator(this.creator) badTypes()
     //            {
     //                switch {
     //                    {
-    //                        b1 = (Object<creator: this>)null;
+    //                        b1 = (Object@#creator(this))null;
     //                        break 0(b1); // ERROR intervals.expected.subtype(b1, @#creator(this) #Object, @#creator(this.`#creator`) #Object)
     //                    }
-    //                } => (Object<creator: this.creator> b3);
+    //                } => (Object@#creator(this.creator) b3);
     //            }                
     //        }
     //        """
@@ -1372,12 +1372,12 @@ class TestAnalysis extends JUnitSuite {
         wf(
             """
             class Super
-                <Interval i> 
+                @i(#Interval) 
             extends #Object {
             }
             
             class Sub
-                <Interval i> // ERROR intervals.shadowed.ghost(Super, i)
+                @i(#Interval) // ERROR intervals.shadowed.ghost(Super, i)
             extends Super {
             }
             """            
@@ -1389,8 +1389,8 @@ class TestAnalysis extends JUnitSuite {
         wf(
             """
             class Sub
-                <Interval i>
-                <Interval i> // ERROR intervals.duplicate.field(i)
+                @i(#Interval)
+                @i(#Interval) // ERROR intervals.duplicate.field(i)
             extends #Object {
             }
             """            
@@ -1402,30 +1402,30 @@ class TestAnalysis extends JUnitSuite {
         success(
             """
             class Data extends #Object {
-                Object<creator: this.creator> o;
+                Object@#creator(this.creator) o;
             }
             
             class ProdData extends #Object {
-                Data<creator: this.creator> data;
+                Data@#creator(this.creator) data;
                 Interval nextProd;
-                ProdData<creator: this.nextProd> nextPdata;
+                ProdData@#creator(this.nextProd) nextPdata;
             }
             
             class ConsData extends #Object {
                 Interval nextCons;
-                ConsData<creator: this.nextCons> nextCdata;
+                ConsData@#creator(this.nextCons) nextCdata;
             }
             
             class Producer extends #Interval {
-                ConsData<creator: readableBy this> cdata requires this.constructor;
-                ProdData<creator: this> pdata requires this.constructor;
+                ConsData@#creator(readableBy this) cdata requires this.constructor;
+                ProdData@#creator(this) pdata requires this.constructor;
                 
-                constructor(#Interval c, ConsData<creator: c> cdata)
+                constructor(#Interval c, ConsData@#creator(c) cdata)
                 {
                     super();
                     c hb this;
                     this->cdata = cdata;
-                    pdata = new ProdData<creator: this>();
+                    pdata = new ProdData@#creator(this)();
                     this->pdata = pdata;
                     return;
                 }
@@ -1436,7 +1436,7 @@ class TestAnalysis extends JUnitSuite {
                     pdata = this->pdata;
                     cdata = this->cdata;
                     
-                    data = new Data<creator: this>(); // "produce"
+                    data = new Data@#creator(this)(); // "produce"
                     pdata->data = data;
                     
                     // Note: Non-trivial deduction here that equates
@@ -1453,15 +1453,15 @@ class TestAnalysis extends JUnitSuite {
             }
             
             class Consumer extends #Interval {
-                ProdData<creator: readableBy this> pdata requires this.constructor;
-                ConsData<creator: this> cdata requires this.constructor;
+                ProdData@#creator(readableBy this) pdata requires this.constructor;
+                ConsData@#creator(this) cdata requires this.constructor;
                 
-                constructor(#Interval p, ProdData<creator: p> pdata)
+                constructor(#Interval p, ProdData@#creator(p) pdata)
                 {
                     super();
                     p hb this;
                     this->pdata = pdata;
-                    cdata = new ConsData<creator: this>();
+                    cdata = new ConsData@#creator(this)();
                     this->cdata = cdata;
                     return;
                 }
@@ -1489,8 +1489,8 @@ class TestAnalysis extends JUnitSuite {
                 void run()
                 requires method subinterval this
                 {
-                    d0 = new ConsData<creator: this>();
-                    d1 = new ConsData<creator: this>();
+                    d0 = new ConsData@#creator(this)();
+                    d1 = new ConsData@#creator(this)();
                     d0->nextCons = this;
                     d0->nextCdata = d1;
                     

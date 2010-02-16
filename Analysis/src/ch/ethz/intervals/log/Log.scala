@@ -1,6 +1,10 @@
 package ch.ethz.intervals.log
 
-import Util._
+import ch.ethz.intervals.TcEnv
+import ch.ethz.intervals.FlowEnv
+import ch.ethz.intervals.PathRelation
+import ch.ethz.intervals.ir
+import ch.ethz.intervals.Util._
 import javax.lang.model.element.Element
 import com.sun.source.tree.Tree
 

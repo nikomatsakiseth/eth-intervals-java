@@ -1,5 +1,7 @@
 package ch.ethz.intervals.log
 
+import ch.ethz.intervals.ir
+import ch.ethz.intervals.CheckFailure
 import scala.collection.immutable.ListSet
 import scala.util.parsing.input.Positional
 import scala.util.parsing.input.NoPosition

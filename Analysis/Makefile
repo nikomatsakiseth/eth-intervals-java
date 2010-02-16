@@ -1,5 +1,5 @@
 JAVA=java
-SBT=${JAVA} -Dsbt.log.noformat=true -Xmx256M -jar sbt-launcher-0.5.1.jar
+SBT=${JAVA} -Dsbt.log.noformat=true -Xmx256M -jar sbt-launch-0.7.0.jar
 SCALAC=fsc
 SCALA=scala
 JARFILES=$(wildcard lib/*.jar)

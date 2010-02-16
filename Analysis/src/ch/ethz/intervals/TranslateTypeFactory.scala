@@ -15,7 +15,7 @@ import javax.lang.model.`type`._
 import javax.lang.model.element.{ElementKind => EK}
 import javax.lang.model.`type`.{TypeKind => TK}
 import javax.lang.model.util.{ElementFilter => EF}
-import scala.collection.jcl.Conversions._
+import scala.collection.JavaConversions._
 import scala.collection.immutable.Map
 import scala.collection.immutable.Set
 import scala.util.parsing.combinator.syntactical.StandardTokenParsers
@@ -459,18 +459,27 @@ class TranslateTypeFactory(
         def extendPath(pp: ParsePath, f_ext: ir.FieldName) = {
             parserLog("extendPath(%s, %s)", pp, f_ext)
             val declGhosts = elemOfAnnty(pp.annty).map(ghostFieldsDeclaredOnElemAndSuperelems).getOrElse(Map.empty)
-            (declGhosts.get(f_ext), f_ext) match {
+
+            // note: We use this semi-awkward 'if/else' construction
+            // to work around some bug in the scala compiler that caused
+            // its code generator to fail.
+            
+            if(declGhosts.isDefinedAt(f_ext))
                 // Exact match:
-                case (Some(annty), _) => 
-                    ParsePath(pp.p + f_ext, annty)
+                ParsePath(pp.p + f_ext, declGhosts(f_ext))
                 
+            else f_ext match {
                 // Built-in constructor intervals:
-                case (None, ir.CtorFieldName(_)) =>
-                    ParsePath(pp.p + f_ext, annty_interval)
+                case ir.CtorFieldName(_) => {
+                    ParsePath(pp.p + f_ext, annty_interval)                    
+                }
                 
                 // Search for a non-ambigious short-name match:
-                case (None, ir.FieldName(str_ext)) =>
-                    declGhosts.keySet.filter(f_g => shortFieldName(f_g) == str_ext).toList match {
+                case ir.FieldName(str_ext) => {
+                    def hasMatchingShortName(f: ir.FieldName) =
+                        shortFieldName(f) == str_ext
+                    val potentialMatches = declGhosts.keySet.filter(hasMatchingShortName).toList
+                    potentialMatches match {
                         // Single match: use the ghost
                         case List(f_g) => 
                             ParsePath(pp.p + f_g, declGhosts(f_g))
@@ -485,7 +494,8 @@ class TranslateTypeFactory(
                         // Multiple matches, error:
                         case fs => 
                             throw new CheckFailure("intervals.ambig.ghost", fs.mkString(", "))
-                    }
+                    }                    
+                }
             }
         }
         
@@ -868,7 +878,7 @@ class TranslateTypeFactory(
     
     override def postDirectSuperTypes(atm: AnnotatedTypeMirror, superAtms: jList[_ <: AnnotatedTypeMirror]) {
         log.indented("postDirectSuperTypes(%s, %s)", atm, superAtms) {          
-            convertList(superAtms).foreach(postDirectSuperType)
+            superAtms.foreach(postDirectSuperType)
         }
     }
     

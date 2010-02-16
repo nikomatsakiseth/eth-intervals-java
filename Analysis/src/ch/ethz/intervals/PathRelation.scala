@@ -17,7 +17,7 @@ case class PathRelation(
             mmap
         } else {
             def tc(m0: MultiMap[ir.Path, ir.Path]): MultiMap[ir.Path, ir.Path] = {
-                val m1 = m0.keys.foldLeft(m0) { case (m, p_from) =>
+                val m1 = m0.keysIterator.foldLeft(m0) { case (m, p_from) =>
                     val qs_immed = m0.values(p_from) // p_from -> qs_immed
                     val qs_trans = qs_immed.flatMap(m0.values) // p_from -> qs_immed -> qs_trans
                     m.plusMany(p_from, qs_trans)
@@ -41,7 +41,7 @@ case class PathRelation(
         pairs.values(p)
     }
     
-    def intersect(rel2: PathRelation) = {
+    def &(rel2: PathRelation) = {
         new PathRelation(transitive, pairs.filter(rel2.pairs))
     }
     
@@ -51,13 +51,13 @@ case class PathRelation(
     ) = {
         new PathRelation(
             transitive,
-            pairs.keys.foldLeft(MultiMap.empty[ir.Path, ir.Path]) { case (m, p) =>
+            pairs.keysIterator.foldLeft(MultiMap.empty[ir.Path, ir.Path]) { case (m, p) =>
                 val p_map = mfunc(p)
                 if(!ffunc(p_map)) {
                     m
                 } else {
                     val qs = pairs.values(p)
-                    qs.elements.map(mfunc).filter(ffunc).foldLeft(m) { case (m, q_map) => 
+                    qs.iterator.map(mfunc).filter(ffunc).foldLeft(m) { case (m, q_map) => 
                         m + Pair(p_map, q_map)
                     }
                 }

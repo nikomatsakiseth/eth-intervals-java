@@ -17,7 +17,7 @@ import javax.lang.model.`type`._
 import javax.lang.model.element.{ElementKind => EK}
 import javax.lang.model.`type`.{TypeKind => TK}
 import javax.lang.model.util.{ElementFilter => EF}
-import scala.collection.jcl.Conversions._
+import scala.collection.JavaConversions._
 import scala.collection.mutable.{Map => MutableMap}
 import scala.collection.mutable.ListBuffer
 import scala.collection.mutable.ArrayBuffer

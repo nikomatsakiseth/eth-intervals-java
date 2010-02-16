@@ -89,12 +89,6 @@ object ir {
 
     // ___ Names of variables, fields, methods, classes _____________________   
     
-    val ctor = "constructor"
-    def ctorString(oc: Option[ir.ClassName]) = oc match {
-        case Some(c) => "%s[%s]".format(ctor, c.name)
-        case None => ctor
-    }
-    
     val quoteRegex = "[^a-zA-Z0-9._]".r
     sealed abstract class Name(name: String) {
         override def toString = 
@@ -109,10 +103,27 @@ object ir {
     sealed case class FieldName(name: String) extends Name(name) {
         def thisPath = p_this + this
     }
-    sealed case class CtorFieldName(oc: Option[ir.ClassName]) extends FieldName(ctorString(oc))
     sealed case class TypeVarName(name: String) extends Name(name)
     sealed case class MethodName(name: String) extends Name(name)
     sealed case class ClassName(name: String) extends Name(name)
+    
+    val ctor = "constructor"
+    object CtorFieldName extends (Option[ir.ClassName] => ir.FieldName) {
+        def apply(oc: Option[ir.ClassName]) = oc match {
+            case None => ir.FieldName(ctor)
+            case Some(c) => ir.FieldName("%s[%s]".format(ctor, c))
+        }
+        
+        def unapply(f: ir.FieldName): Option[Option[ir.ClassName]] = {
+            if(f.name == ctor) {
+                Some(None)
+            } else {
+                "%s\\[(.*)\\]$".format(ctor).r.findPrefixMatchOf(f.name).map(m =>
+                    Some(ClassName(m.group(1)))
+                )
+            }
+        }
+    }
     
     // ___ Error reporting __________________________________________________
     
@@ -168,6 +179,8 @@ object ir {
     ) extends PositionalAst {
         def isNamed(tv: TypeVarName) = (name == tv)
         def typeArgOf(p: ir.Path) = ir.TypeArg(name, ir.PathType(p, name))
+        
+        def setDefaultPosOnChildren() { }
     }
     
     sealed case class MethodDecl(
@@ -426,12 +439,25 @@ object ir {
             WcClassType(c, wghosts, wtargs, u)
     }
     
-    sealed case class ClassType(
-        override val c: ir.ClassName,
+    sealed class ClassType(
+        c: ir.ClassName,
         val ghosts: List[ir.Ghost],
         val targs: List[ir.TypeArg],
-        override val unconstructed: Unconstructed
+        unconstructed: Unconstructed
     ) extends WcClassType(c, ghosts, targs, unconstructed) with TypeRef
+    
+    object ClassType {
+        def apply(c: ir.ClassName, ghosts: List[ir.Ghost], targs: List[ir.TypeArg], unconstructed: Unconstructed) = {
+            new ClassType(c, ghosts, targs, unconstructed)
+        }
+        
+        def unapply(ref: AnyRef): Option[(ir.ClassName, List[ir.Ghost], List[ir.TypeArg], Unconstructed)] = {
+            ref match {
+                case ct: ClassType => Some(ct.c, ct.ghosts, ct.targs, ct.unconstructed)
+                case _ => None
+            }
+        }
+    }
     
     // ______ Type Bounds ___________________________________________________
     
@@ -477,15 +503,15 @@ object ir {
         override def toString = "@%s(%s)".format(f.name, wp)
         
         def isNamed(n: FieldName) = (f == n)        
-        
-        def toOptionGhost = wp.toOptionPath.map(p => ir.Ghost(f, p))
     } 
     
-    sealed case class Ghost(
-        override val f: FieldName,
-        p: Path
-    ) extends WcGhost(f, p) {
-        override def toOptionGhost = Some(this)
+    sealed class Ghost(
+        f: FieldName,
+        val p: Path
+    ) extends WcGhost(f, p)
+    
+    object Ghost {
+        def apply(f: FieldName, p: Path) = new Ghost(f, p)
     }
     
     // ______ Paths and Wildcard Paths ______________________________________

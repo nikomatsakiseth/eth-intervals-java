@@ -1,5 +1,6 @@
 package ch.ethz.intervals
 
+import scala.collection.IterableView
 import scala.collection.immutable.Map
 import scala.collection.immutable.Set
 import scala.collection.mutable.HashMap
@@ -40,9 +41,9 @@ object Util {
         def reportObject: Object
     }
     
-    class DummyPositional(pos: DummyPosition, tag: String) extends Positional {
-        setPos(pos)
-        override def toString = "%s(%s)".format(tag, pos)
+    class DummyPositional(dpos: DummyPosition, tag: String) extends Positional {
+        setPos(dpos)
+        override def toString = "%s(%s)".format(tag, dpos)
     }
     
     // ____________________________________________________________
@@ -50,7 +51,7 @@ object Util {
     
     case class UtilString(s: String) {
         def join(itemPrefix: String, iterable: Iterable[Any], itemSuffix: String): String =
-            join(itemPrefix, iterable.elements, itemSuffix)
+            join(itemPrefix, iterable.iterator, itemSuffix)
         def join(itemPrefix: String, elements: Iterator[Any], itemSuffix: String): String = {
             if(!elements.hasNext)
                 ""
@@ -152,7 +153,7 @@ object Util {
             Map.empty ++ i.zip(v)
         
         def mapTo[V](v: Seq[V]): Map[Q,V] =
-            Map.empty ++ i.zip(v.elements)
+            Map.empty ++ i.zip(v.iterator)
             
         def subsetOf(c: UtilIterator[Q]) =
             i.forall(c.i contains _)
@@ -160,12 +161,12 @@ object Util {
         def intersects(c: UtilIterator[Q]) =
             i.exists(c.i contains _)
     }
-    implicit def iterable2UtilIterator[Q](i: Iterable[Q]) = UtilIterator(i.elements)
+    implicit def iterable2UtilIterator[Q](i: Iterable[Q]) = UtilIterator(i.iterator)
     implicit def iterator2UtilIterator[Q](i: Iterator[Q]) = UtilIterator(i)
     
     case class UtilIterable[I](is: Iterable[I]) {
-        def cross[J](js: UtilIterable[J]): Iterable.Projection[(I,J)] = 
-            for(i <- is.projection; j <- js.is.projection) yield (i,j)
+        def cross[J](js: UtilIterable[J]): IterableView[(I,J), _] = 
+            for(i <- is.view; j <- js.is.view) yield (i,j)
             
         def mkCommaString = is.mkString(", ")
             
@@ -202,7 +203,7 @@ object Util {
         case hd :: tl => tl.foldRight(pairs(tl)) { case (i, l) => (hd, i) :: l }
     }
     
-    def firstlast[A](l: List[A]) = (l.first, l.last)
+    def firstlast[A](l: List[A]) = (l.head, l.last)
     
     // ____________________________________________________________
     // Extensions to and utilities for Map: We do a lot of mapping, after all.
@@ -216,8 +217,8 @@ object Util {
         
         // Intersection of two maps (m, m1) is a map containing (k→v) only if 
         // (k→v)∈m & (k→v)∈m1.
-        def **(m1: Map[K, V]) = {
-            m0.elements.foldLeft(m0.empty[V]) { case (m, (k, v)) =>
+        def &(m1: Map[K, V]) = {
+            m0.iterator.foldLeft(m0.empty) { case (m, (k, v)) =>
                 m1.get(k) match {
                     case Some(v1) if v == v1 => m + Pair(k, v)
                     case _ => m
@@ -243,9 +244,6 @@ object Util {
     def nameMap[N, I <: { def name: N }](l: List[I]): Map[N, I] =
         makeMap(l.map(i => (i.name, i)))
 
-    def longest[A](ls: Collection[List[A]]): List[A] =
-        ls.foldLeft(List[A]())((r, l) => if(r.length > l.length) r else l)
-        
     // ______________________________________________________________________
     
     def forallzip[A,B](as: List[A], bs: List[B])(f: Function2[A, B, Boolean]) =
@@ -262,10 +260,10 @@ object Util {
     // ______________________________________________________________________
 
     def intersect[A](sets: Iterable[Set[A]]): Set[A] = {
-        val iter = sets.elements
+        val iter = sets.iterator
         if(iter.hasNext) {
             val first = iter.next
-            iter.foldLeft(first)(_ ** _)
+            iter.foldLeft(first)(_ & _)
         } else {
             Set.empty
         }
@@ -328,26 +326,26 @@ object Util {
 
     // ___ JCL Conversions __________________________________________________
     
-    class JavaIterator[E](i: Iterator[E]) extends java.util.Iterator[E] {
-        def hasNext = i.hasNext
-        def next = i.next
-        def remove = throw new UnsupportedOperationException()
-    }
-    
-    class JavaIterable[E](i: Iterable[E]) extends java.lang.Iterable[E] {
-        def iterator = new JavaIterator(i.elements)
-    }
-    
-    class ScalaIterator[E](i: java.util.Iterator[E]) extends Iterator[E] {
-        def hasNext = i.hasNext
-        def next = i.next
-    }
-    
-    class ScalaIterable[E](i: java.lang.Iterable[E]) extends Iterable[E] {
-        def elements = new ScalaIterator(i.iterator)
-    }
-    
-    implicit def scalaToJava[E](i: Iterable[E]): java.lang.Iterable[E] = new JavaIterable(i)
-    implicit def javaToScala[E](i: java.lang.Iterable[E]): Iterable[E] = new ScalaIterable(i)
+    //class JavaIterator[E](i: Iterator[E]) extends java.util.Iterator[E] {
+    //    def hasNext = i.hasNext
+    //    def next = i.next
+    //    def remove = throw new UnsupportedOperationException()
+    //}
+    //
+    //class JavaIterable[E](i: Iterable[E]) extends java.lang.Iterable[E] {
+    //    def iterator = new JavaIterator(i.iterator)
+    //}
+    //
+    //class ScalaIterator[E](i: java.util.Iterator[E]) extends Iterator[E] {
+    //    def hasNext = i.hasNext
+    //    def next = i.next
+    //}
+    //
+    //class ScalaIterable[E](i: java.lang.Iterable[E]) extends Iterable[E] {
+    //    def iterator = new ScalaIterator(i.iterator)
+    //}
+    //
+    //implicit def scalaToJava[E](i: Iterable[E]): java.lang.Iterable[E] = new JavaIterable(i)
+    //implicit def javaToScala[E](i: java.lang.Iterable[E]): Iterable[E] = new ScalaIterable(i)
             
 }

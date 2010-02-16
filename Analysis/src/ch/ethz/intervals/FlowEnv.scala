@@ -55,15 +55,15 @@ case class FlowEnv(
     }
     
     // Intersecting two environments keeps what's true in both.
-    def **(flow2: FlowEnv) = {
-        withNonnull(nonnull ** flow2.nonnull)
-        withTemp(temp ** flow2.temp).
+    def &(flow2: FlowEnv) = {
+        withNonnull(nonnull & flow2.nonnull)
+        withTemp(temp & flow2.temp).
         withInvalidated(ps_invalidated ++ flow2.ps_invalidated).
-        withReadableRel(readableRel.intersect(flow2.readableRel)).
-        withWritableRel(writableRel.intersect(flow2.writableRel)).
-        withHbRel(hbRel.intersect(flow2.hbRel)).
-        withSubintervalRel(subintervalRel.intersect(flow2.subintervalRel)).
-        withLocksRel(locksRel.intersect(flow2.locksRel))        
+        withReadableRel(readableRel & flow2.readableRel).
+        withWritableRel(writableRel & flow2.writableRel).
+        withHbRel(hbRel & flow2.hbRel).
+        withSubintervalRel(subintervalRel & flow2.subintervalRel).
+        withLocksRel(locksRel & flow2.locksRel)
     }    
 }
 
@@ -82,6 +82,6 @@ object FlowEnv
     
     def intersect(flows: List[FlowEnv]) = flows match {
         case List() => empty
-        case hd :: tl => tl.foldLeft(hd)(_ ** _)
+        case hd :: tl => tl.foldLeft(hd)(_ & _)
     }    
 }

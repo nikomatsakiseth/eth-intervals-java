@@ -4,7 +4,7 @@ import scala.collection.immutable.Map
 import scala.collection.immutable.Set
 
 case class MultiMap[K, V](
-    size: Int,
+    override val size: Int,
     map: Map[K, Set[V]]
 ) extends Set[(K, V)] {
     
@@ -18,7 +18,7 @@ case class MultiMap[K, V](
     }
     
     def plusMap(mmap: MultiMap[K, V]) = {
-        mmap.map.elements.foldLeft(this) { case (m, (k, vs)) =>
+        mmap.map.iterator.foldLeft(this) { case (m, (k, vs)) =>
             m.plusMany(k, vs)
         }
     }
@@ -50,7 +50,7 @@ case class MultiMap[K, V](
     
     def contains(pair: (K, V)) = values(pair._1)(pair._2)
     
-    def keys = map.keys
+    def keysIterator = map.keysIterator
     
     def keySet = map.keySet
 
@@ -61,7 +61,7 @@ case class MultiMap[K, V](
         }
     }
     
-    def elements = for(k <- map.keys; v <- map(k).elements) yield (k, v)
+    def iterator = for(k <- map.keysIterator; v <- map(k).iterator) yield (k, v)
     
 }
 

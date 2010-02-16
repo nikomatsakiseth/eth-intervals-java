@@ -146,12 +146,12 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
         val lv_outOfScope = ir.VarName(prog.fresh("outOfScope"))
 
         // Map all vars to outOfScope (unless overridden later)
-        val map0 = env_brk.perm.keys.foldLeft(Map.empty[ir.Path, ir.Path]) { case (m, x) =>
+        val map0 = env_brk.perm.keysIterator.foldLeft(Map.empty[ir.Path, ir.Path]) { case (m, x) =>
             m + Pair(x.path, lv_outOfScope.path)
         }
     
         // Map variables shared with env_in to themselves:            
-        val map1 = env_in.perm.keys.foldLeft(map0) { case (m, x) => 
+        val map1 = env_in.perm.keysIterator.foldLeft(map0) { case (m, x) => 
             m + Pair(x.path, x.path)
         }
 
@@ -170,7 +170,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
         def inScope(p: ir.Path) = (p.lv != lv_outOfScope)
 
         def mapMap(map: Map[ir.Path, ir.Path]) =
-            map.elements.foldLeft(Map.empty[ir.Path, ir.Path]) { case (r, (p0, q0)) =>
+            map.iterator.foldLeft(Map.empty[ir.Path, ir.Path]) { case (r, (p0, q0)) =>
                 val p1 = subst.path(p0)
                 val q1 = subst.path(q0)
                 if(inScope(p1) && inScope(q1)) r + Pair(p1, q1)
