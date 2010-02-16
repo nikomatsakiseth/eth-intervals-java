@@ -5,51 +5,80 @@ import Util._
 abstract class BaseSubst {
     def path(p: ir.Path): ir.Path
     
-    def ghost(g: ir.Ghost) =
+    def ghost(g: ir.Ghost): ir.Ghost =
         ir.Ghost(g.f, path(g.p))
-    
-    def tref(t: ir.TypeRef) = 
-        ir.TypeRef(t.c, t.ghosts.map(ghost), t.as)
         
-    def wpath(wp: ir.WcPath) = wp match {
+    def pathType(pt: ir.PathType): ir.PathType =
+        ir.PathType(path(pt.p), pt.tv)
+    
+    def classType(ct: ir.ClassType): ir.ClassType =
+        ir.ClassType(ct.c, ct.ghosts.map(ghost), ct.targs.map(typeArg), ct.unconstructed)
+        
+    def wcClassType(wct: ir.WcClassType): ir.WcClassType =
+        ir.WcClassType(wct.c, wct.wghosts.map(wghost), wct.wtargs.map(wcTypeArg), wct.unconstructed)
+        
+    def tref(t: ir.TypeRef): ir.TypeRef = t match {
+        case pt: ir.PathType => pathType(pt)
+        case ct: ir.ClassType => classType(ct)
+    }
+    
+    def wcTref(wt: ir.WcTypeRef): ir.WcTypeRef = wt match {
+        case t: ir.TypeRef => tref(t)
+        case wct: ir.WcClassType => wcClassType(wct)
+    }
+    
+    def typeArg(ta: ir.TypeArg): ir.TypeArg = {
+        ir.TypeArg(ta.tv, wcTref(ta.wt))
+    }
+    
+    def typeBounds(bounds: ir.TypeBounds) = bounds match {
+        case ir.TypeBounds(wts_lb, owts_ub) =>
+            ir.TypeBounds(wts_lb.map(wcTref), owts_ub.map(_.map(wcTref)))
+    }
+        
+    def wcTypeArg(wta: ir.WcTypeArg): ir.WcTypeArg = wta match {
+        case ir.BoundedTypeArg(tv, bounds) =>
+            ir.BoundedTypeArg(tv, typeBounds(bounds))
+        case ta: ir.TypeArg => 
+            typeArg(ta)
+    }
+        
+    def wpath(wp: ir.WcPath): ir.WcPath = wp match {
         case ir.WcReadableBy(ps) => ir.WcReadableBy(ps.map(path))
         case ir.WcWritableBy(ps) => ir.WcWritableBy(ps.map(path))
         case p: ir.Path => path(p)
     }
     
-    def wghost(g: ir.WcGhost) =
+    def wghost(g: ir.WcGhost): ir.WcGhost =
         ir.WcGhost(g.f, wpath(g.wp))
     
-    def wtref(wt: ir.WcTypeRef) =
-        ir.WcTypeRef(wt.c, wt.wghosts.map(wghost), wt.as)
-        
-    def req(r: ir.Req) = (r match {
+    def req(r: ir.Req): ir.Req = (r match {
         case ir.ReqWritableBy(lp, lq) => ir.ReqWritableBy(lp.map(path), lq.map(path))
         case ir.ReqReadableBy(lp, lq) => ir.ReqReadableBy(lp.map(path), lq.map(path))
         case ir.ReqSubintervalOf(lp, lq) => ir.ReqSubintervalOf(lp.map(path), lq.map(path))
         case ir.ReqHb(lp, lq) => ir.ReqHb(lp.map(path), lq.map(path))
     }).withPos(r.pos)
         
-    def ghostFieldDecl(fd: ir.GhostFieldDecl) =
-        ir.GhostFieldDecl(wtref(fd.wt), fd.name).withPos(fd.pos)
+    def ghostFieldDecl(fd: ir.GhostFieldDecl): ir.GhostFieldDecl =
+        ir.GhostFieldDecl(wcTref(fd.wt), fd.name).withPos(fd.pos)
         
-    def reifiedFieldDecl(fd: ir.ReifiedFieldDecl) =
-        ir.ReifiedFieldDecl(fd.as, wtref(fd.wt), fd.name, path(fd.p_guard)).withPos(fd.pos)
+    def reifiedFieldDecl(fd: ir.ReifiedFieldDecl): ir.ReifiedFieldDecl =
+        ir.ReifiedFieldDecl(fd.as, wcTref(fd.wt), fd.name, path(fd.p_guard)).withPos(fd.pos)
         
-    def fieldDecl(fd: ir.FieldDecl) = fd match {
+    def fieldDecl(fd: ir.FieldDecl): ir.FieldDecl = fd match {
         case gfd: ir.GhostFieldDecl => ghostFieldDecl(gfd)
         case rfd: ir.ReifiedFieldDecl => reifiedFieldDecl(rfd)
     }    
 
-    def lvDecl(lv: ir.LvDecl) = 
-        ir.LvDecl(lv.name, wtref(lv.wt))
+    def lvDecl(lv: ir.LvDecl): ir.LvDecl = 
+        ir.LvDecl(lv.name, wcTref(lv.wt))
 
     // XXX Respect potential capture
-    def methodSig(msig: ir.MethodSig) =
+    def methodSig(msig: ir.MethodSig): ir.MethodSig =
         ir.MethodSig(
-            tref(msig.t_rcvr),
-            msig.as,
+            wcClassType(msig.wct_rcvr),
             msig.args.map(lvDecl), 
+            msig.unconstructed,
             msig.reqs.map(req),
-            wtref(msig.wt_ret))        
+            wcTref(msig.wt_ret))        
 }

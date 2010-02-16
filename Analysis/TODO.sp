@@ -6,6 +6,8 @@ ______ Don't Forget __________________________________________________
 
   This used to be covered by <f: hb this>.  An alternative would be
   to keep "hb this" but just not add it to the HB relation.
+  
+- Check type args in wf check
 
 ______ Bugs __________________________________________________________   
 

@@ -12,7 +12,7 @@ import Util._
 class IrParser extends BaseParser {
     
     lexical.reserved += (
-        "class", "new", "constructor", "null", 
+        "class", "new", ir.ctor, "null", 
         "return", "Rd", "Wr", "Free", "extends", 
         "requires", "super", 
         "subinterval", "push", "pop", 
@@ -34,8 +34,7 @@ class IrParser extends BaseParser {
     // Not all attributes are suitable in all contexts, but as this is an
     // internal IR we don't prevent irrelevant attributes from being added:
     def attr = (
-        "constructor"                           ^^ { case _ => ir.AttrCtor }    
-    |   "interface"                             ^^ { case _ => ir.AttrInterface }
+        "interface"                             ^^ { case _ => ir.AttrInterface }
     )
     def attrs = rep(attr)                       ^^ { case la => ir.Attrs(Set(la: _*)) }
     
@@ -43,30 +42,12 @@ class IrParser extends BaseParser {
     // but sometimes we apply some conversions to internal names:
     def m = ident                               ^^ { case i => ir.MethodName(i) }
     def cm = opt(m)                             ^^ { case Some(m) => m; case None => ir.m_init }
-    def lv = ident                              ^^ { case i => ir.VarName(i) }
-    def f = (
-        "constructor"                           ^^ { case _ => ir.f_ctor }
-    |   ident                                   ^^ { 
-        case "creator" => ir.f_creator
-        case i => ir.FieldName(i) }
-    )
-    def c = repsep(ident, ".")                  ^^ { 
-        case List("Object") => ir.c_object
-        case List("Interval") => ir.c_interval
-        case List("Guard") => ir.c_guard
-        case List("Point") => ir.c_point
-        case List("Lock") => ir.c_lock
-        case List("String") => ir.c_string
-        case List("scalar") => ir.c_scalar
-        case List("void") => ir.c_void
-        case List("array") => ir.c_array
-        case idents => ir.ClassName(".".join(idents)) 
-    }
+    def lv = id                                 ^^ ir.VarName
+    def tv = id                                 ^^ ir.TypeVarName
     
-    def dotf = "."~f                            ^^ { case _~f => f }
-    def p = lv~rep(dotf)                        ^^ { case lv~fs => lv ++ fs }
+    def p = lv~rep("."~>f)                      ^^ { case lv~fs => lv ++ fs }
     def g = "<"~f~":"~p~">"                     ^^ { case _~f~_~p~_ => ir.Ghost(f, p) }    
-    def t = c~rep(g)                            ^^ { case c~lg => ir.TypeRef(c, lg, ir.noAttrs) }
+    def t = c~rep(g)                            ^^ { case c~lg => ir.ClassType(c, lg, ir.noAttrs) }
 
     override def wp = super.wp                  // Defined in BaseParser
     def wg = "<"~f~":"~wp~">"                   ^^ { case _~f~_~wp~_ => ir.WcGhost(f, wp) }    

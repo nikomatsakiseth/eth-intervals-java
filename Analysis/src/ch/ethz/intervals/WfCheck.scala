@@ -8,11 +8,8 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
     import prog.logStack.at
     import prog.classDecl
     import prog.isSubclass
-    import prog.ghostFieldsDeclaredOnClassAndSuperclasses
-    import prog.ghostFieldsBoundOnClassAndSuperclasses
     import prog.unboundGhostFieldsOnClassAndSuperclasses
-    import prog.thisTref
-    import prog.typeOriginallyDefiningMethod
+    import prog.unboundTypeVarsDeclaredOnClassAndSuperclasses
         
     def reified(p: ir.Path): ir.CanonPath = {
         val cp = env.canon(p)
@@ -35,7 +32,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
     
     def checkIsSubclass(wt: ir.WcTypeRef, cs: ir.ClassName*) {
         if(!cs.exists(isSubclass(wt, _)))
-            throw new CheckFailure("intervals.expected.subclass.of.any", wt.c, cs)
+            throw new CheckFailure("intervals.expected.subclass.of.any", wt, cs)
     }
     
     def checkPathWfAndSubclass(
@@ -81,27 +78,67 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
             throw new CheckFailure(msg, l1.length, l2.length)
     }
     
-    def checkWtrefWf(wt: ir.WcTypeRef) {
+    def checkWghostsWf(wt: ir.WcClassType) {
+        // Note: we don't check that the arguments
+        // match the various ghost bounds etc.  We just
+        // check that when the type is constructed.
+        
         wt.wghosts.foldLeft(List[ir.FieldName]()) {
             case (l, wg) if l.contains(wg.f) => throw new CheckFailure("intervals.duplicate.ghost", wg.f)
             case (l, wg) => wg.f :: l
         }
-        
+
         wt.wghosts.map(_.wp).foreach(checkWPathWf)
 
+        // Every ghost should be for some unbound ghost field:
         val gfds_unbound = unboundGhostFieldsOnClassAndSuperclasses(wt.c)
-        def notDefined(wg: ir.WcGhost) = !gfds_unbound.exists(_.name == wg.f)        
-        wt.wghosts.find(notDefined) match {
-            case Some(wg) => throw new CheckFailure("intervals.no.such.ghost", wt.c, wg.f)
-            case None =>
+        def unexpected(wg: ir.WcGhost) = !gfds_unbound.exists(_.isNamed(wg.f))        
+        wt.wghosts.find(unexpected).foreach { wg =>
+            throw new CheckFailure("intervals.no.such.ghost", wt.c, wg.f)
         }
-
-        // Note: we don't check that the arguments
-        // match the various ghost bounds etc.  We just
-        // check that when the type is constructed.
     }
     
-    def checkCall(tp: ir.CanonPath, msig: ir.MethodSig, cqs: List[ir.CanonPath]) {
+    def checkWtargWf(wta: ir.WcTypeArg) = wta match {
+        case ir.BoundedTypeArg(tv, bounds) =>
+            bounds.wts_lb.foreach(checkWtrefWf)
+            bounds.owts_ub.foreach(_.foreach(checkWtrefWf))
+            
+        case ir.TypeArg(tv, wt) =>
+            checkWtrefWf(wt)
+    }
+    
+    def checkWtargsWf(wt: ir.WcClassType) {
+        wt.wtargs.foldLeft(List[ir.TypeVarName]()) {
+            case (l, wta) if l.contains(wta.tv) => throw new CheckFailure("intervals.duplicate.type.var", wta.tv)
+            case (l, wta) => wta.tv :: l            
+        }
+        
+        wt.wtargs.foreach(checkWtargWf)
+        
+        // Every type arg should be for some unbound type variable:
+        val tvds_unbound = unboundTypeVarsDeclaredOnClassAndSuperclasses(wt.c)
+        def unexpected(wta: ir.WcTypeArg) = !tvds_unbound.exists(_.isNamed(wta.tv))
+        wt.wtargs.find(unexpected).foreach { wta =>
+            throw new CheckFailure("intervals.no.such.type.var", wt.c, wta.tv)            
+        }
+    }
+    
+    def checkWtrefWf(wt: ir.WcTypeRef) {
+        wt match {
+            case pt: ir.PathType =>
+                val cp = rOrGhost(pt.p)
+                val tvds = env.typeVarsDeclaredOnType(cp.wt)
+                tvds.find(_.isNamed(pt.tv)) match {
+                    case None => throw new CheckFailure("intervals.no.such.type.var", cp.wt, pt.tv)
+                    case Some(_) =>
+                }
+            
+            case wt: ir.WcClassType =>
+                checkWghostsWf(wt)
+        }
+    }
+    
+    def checkCall(tcp: ir.TeeCeePee[ir.WcTypeRef], msig: ir.MethodSig, cqs: List[ir.CanonPath]) {
         checkLengths(msig.args, cqs, "intervals.wrong.number.method.arguments")        
     }
     
@@ -115,18 +152,18 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
         at(stmt, ()) {
             stmt match {                  
                 case ir.StmtSuperCtor(m, qs) =>
-                    val cp = cp_super
+                    val tcp = tcp_super
                     val cqs = qs.map(reified)
-                    val msig_ctor = env.substdCtorSig(cp, m, cqs)
-                    checkCall(cp, msig_ctor, cqs)
+                    val msig_ctor = env.substdCtorSig(tcp, m, cqs)
+                    checkCall(tcp, msig_ctor, cqs)
                     
                 case ir.StmtGetField(x, p_o, f) =>
                     val cp_o = reified(p_o)
                     env.substdFieldDecl(cp_o, f) match {
-                        case ir.GhostFieldDecl(_, _) =>
-                            throw new CheckFailure("intervals.not.reified", cp_o.wt.c, f)
+                        case (_, ir.GhostFieldDecl(_, _)) =>
+                            throw new CheckFailure("intervals.not.reified", cp_o.wt, f)
                         
-                        case ir.ReifiedFieldDecl(_, wt, _, p_guard) =>
+                        case (_, ir.ReifiedFieldDecl(_, wt, _, p_guard)) =>
                             addReifiedLocal(x, wt)
                     }                    
                     
@@ -134,9 +171,9 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                     checkPathWf(reified, p_v)
                     
                     val cp_o = reified(p_o)
-                    env.substdFieldDecl(cp_o, f) match {
+                    env.substdFieldDecl(cp_o.toTcp, f) match {
                         case ir.GhostFieldDecl(_, _) =>
-                            throw new CheckFailure("intervals.not.reified", cp_o.wt.c, f)
+                            throw new CheckFailure("intervals.not.reified", cp_o.wt, f)
                         
                         case ir.ReifiedFieldDecl(_, _, _, _) =>
                     }
@@ -146,37 +183,37 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                     checkWtrefWf(wt)
 
                 case ir.StmtCall(x, p, m, qs) =>
-                    val cp = reified(p)
+                    val tcp = reified(p).toTcp
                     val cqs = reified(qs)
-                    val msig = env.substdMethodSig(cp, m, cqs)
-                    checkCall(cp, msig, cqs)
+                    val msig = env.substdMethodSig(tcp, m, cqs)
+                    checkCall(tcp, msig, cqs)
                     addReifiedLocal(x, msig.wt_ret)
         
                 case ir.StmtSuperCall(x, m, qs) =>
-                    val cp = cp_super
+                    val tcp = tcp_super
                     val cqs = reified(qs)
-                    val msig = env.substdMethodSig(cp, m, cqs)
-                    checkCall(cp, msig, cqs)
+                    val msig = env.substdMethodSig(tcp, m, cqs)
+                    checkCall(tcp, msig, cqs)
                     addReifiedLocal(x, msig.wt_ret)
                 
-                case ir.StmtNew(x, t, m, qs) =>
-                    if(classDecl(t.c).attrs.interface)
-                        throw new CheckFailure("intervals.new.interface", t.c)
-                    checkWtrefWf(t)
-                    checkPathsWf(rOrGhost, t.ghosts.map(_.p))
+                case ir.StmtNew(x, ct, m, qs) =>
+                    if(classDecl(ct.c).attrs.interface)
+                        throw new CheckFailure("intervals.new.interface", ct.c)
+                    checkWtrefWf(ct)
+                    checkPathsWf(rOrGhost, ct.ghosts.map(_.p))
                     val cqs = reified(qs)
                     
                     // Check that all ghosts on the type C being instantiated are given a value:
-                    val gfds_unbound = unboundGhostFieldsOnClassAndSuperclasses(t.c)
+                    val gfds_unbound = unboundGhostFieldsOnClassAndSuperclasses(ct.c)
                     gfds_unbound.find(f => t.oghost(f.name).isEmpty) match {
                         case Some(f) => throw new CheckFailure("intervals.no.value.for.ghost", f)
                         case None =>
                     }
                     
-                    addReifiedLocal(x, t)
-                    val cp_x = env.canon(x.path)
-                    val msig_ctor = env.substdCtorSig(cp_x, m, cqs)
-                    checkCall(cp_x, msig_ctor, cqs)                    
+                    addReifiedLocal(x, ct)
+                    val cp_x = ir.TeeCeePee(env.canon(x.path), ct)
+                    val msig_ctor = env.substdCtorSig(tcp_x, m, cqs)
+                    checkCall(tcp_x, msig_ctor, cqs)                    
                     
                 case ir.StmtCast(x, wt, p) => 
                     checkPathWf(reified, p)

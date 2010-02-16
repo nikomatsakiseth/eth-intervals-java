@@ -440,9 +440,7 @@ class TranslateTypeFactory(
     
     val parserLog = log // log is inherited from BaseParser, so create an alias
     class AnnotParser(env: TranslateEnv) extends BaseParser {
-        def dotIdent = "."~ident        ^^ { case _~s => s }
-        def pp = ident~rep(dotIdent)    ^^ { case s~ss => ss.foldLeft(startPath(s))(extendPath)}
-        def p = pp                      ^^ { case pp => pp.p }
+        def p = id~rep("."~>id)         ^^ { case s~ss => ss.foldLeft(startPath(s))(extendPath).p }
         
         def startPath(id: String): ParsePath = {
             parserLog("startPath(%s)", id)
@@ -571,7 +569,7 @@ class TranslateTypeFactory(
                     ir.WcTypeRef(c, wghosts(env)(annty), ir.noAttrs)
 
                 case _ =>
-                    ir.TypeRef(c, List(), ir.noAttrs)            
+                    ir.ClassType(c, List(), ir.noAttrs)            
             }                        
         }
     }

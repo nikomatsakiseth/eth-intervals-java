@@ -177,12 +177,11 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
     // because the outcome of ir.CanonPath() depends on the env.
     def ocp_cur = env.op_cur.map(env.canon)
     def cp_cur = ocp_cur.get
-    def cp_ctor = env.canon(ir.gfd_ctor.thisPath)
     def cp_this = env.canon(ir.p_this)    
-    def cp_super = // tp_super always refers to the FIRST supertype
-        prog.sups(env.cap(cp_this)) match {
+    def tcp_super = // tp_super always refers to the FIRST supertype
+        prog.sups(cp_this.wt.asInstanceOf[ir.WcClassType]) match {
             case List() => throw new CheckFailure("intervals.no.supertype", cp_this.wt)
-            case t_super :: _ => ir.CpLv(ir.lv_this, t_super, false)
+            case wt_super :: _ => ir.TeeCeePee(cp_this, wt_super)
         }
 
 }

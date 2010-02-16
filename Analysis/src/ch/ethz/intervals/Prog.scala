@@ -106,10 +106,10 @@ class Prog(
         addClassAndSuperclasses(addGhostsOnClass)(ListSet.empty, c)        
         
     /// Type variables declared:
-    def addTypeVarsDeclaredOnClass(s0: Set[ir.TypeVar], c: ir.ClassName) =
-        s0 ++ classDecl(c).typears        
+    def addTypeVarsDeclaredOnClass(s0: Set[ir.TypeVarDecl], c: ir.ClassName) =
+        s0 ++ classDecl(c).typeVars        
     def typeVarsDeclaredOnClassAndSuperclasses(c: ir.ClassName) =
-        addClassAndSuperclasses(addClassAndSuperclasses)(ListSet.empty, c)
+        addClassAndSuperclasses(addTypeVarsDeclaredOnClass)(ListSet.empty, c)
         
     /// Type arguments (bound type variables) on a class:
     def addTypeArgsOnClass(s0: Set[ir.TypeArg], c: ir.ClassName) =
@@ -125,7 +125,7 @@ class Prog(
     }
     
     /// All type variables declared on c or a superclass which have not been bound.
-    def unboundTypeVarsOnClassAndSuperclasses(c: ir.ClassName) = {
+    def unboundTypeVarsDeclaredOnClassAndSuperclasses(c: ir.ClassName) = {
         val tvds = typeVarsDeclaredOnClassAndSuperclasses(c)
         val boundTypeVars = typeArgsOnClassAndSuperclasses(c).map(_.tv)
         tvds.filter(tvd => !boundTypeVars(tvd.name))
@@ -137,81 +137,57 @@ class Prog(
         PathSubst.pp(ir.p_ctor, ir.p_super)
     }
 
-    /// For a class c with unbound ghost fields F, yields a type c<F: this.F>{as}
-    def thisTref(cd: ir.ClassDecl, as: ir.Attrs): ir.TypeRef = {
-        val gfds = unboundGhostFieldsOnClassAndSuperclasses(cd.name).toList
-        ir.TypeRef(cd.name, gfds.map(_.ghost), as)
-    }    
-
-    /// For a class c with unbound ghost fields F, yields a type c<F: this.F>
-    def thisTref(cd: ir.ClassDecl): ir.TypeRef =
-        thisTref(cd, ir.noAttrs)
-        
     // ___ Type Hierarchy ___________________________________________________
     
     /// Supertypes:
     def supertypesOfClass(c: ir.ClassName) = log.indented("supertypesOfClass(%s)", c) {
         val cd = classDecl(c)
         cd.superClasses.map { c => 
-            ir.ClassType(c, ir.Ghost(ir.f_ctor, ), cd.ghosts, cd.typeArgs, ir.noAttrs)
+            ir.ClassType(c, cd.ghosts, cd.typeArgs, ir.FullyConstructed)
         }
     }
-    def sups(ct0: ir.ClassType) = log.indented("sups(%s)", ct0) {
-        supertypesOfClass(ct0.c).map { ct =>
-            ir.ClassType(ct.c, t.ghosts ++ cd.ghosts, t.typeArgs ++ cd.typeArgs, ct.as)
+    def sups(wct: ir.WcClassType) = log.indented("sups(%s)", wct) {
+        supertypesOfClass(wct.c).map { ct_sup =>
+            ir.WcClassType(
+                ct_sup.c,
+                wct.wghosts ++ ct_sup.ghosts, 
+                wct.wtargs ++ ct_sup.targs, 
+                wct.unconstructed
+            )
         }
     }
     
     ///
     def searchClassAndSuperclasses[X](
-        func: ((ir.ClassDecl) => Option[X])
+        func: (ir.WcClassType => Option[X])
     )(
-        ct: ir.ClassType, 
-    ): Option[(ir.ClassType, X)] = {
-        val cd = classDecl(ct)
+        wct: ir.WcClassType
+    ): Option[(ir.WcClassType, X)] = {
+        val cd = classDecl(wct.c)
         func(cd) match {
             case Some(x) =>
-                Some((ct, x))
+                Some((wct, x))
                 
             case None =>
-                sups(ct).firstSomeReturned(searchClassAndSuperclasses(func))
+                sups(wct).firstSomeReturned(searchClassAndSuperclasses(func))
         }
     }
     
     /// Field decl for t0::f 
-    def fieldDecl(ct0: ir.ClassType, f: ir.FieldName): ir.FieldDecl = {
+    def fieldDecl(wct0: ir.WcClassType, f: ir.FieldName): Option[(ir.WcClassType, ir.FieldDecl)] = {
         log.indented("fieldDecl(%s,%s)", ct0, f) {
-            def extractField(ct1: ir.ClassType, cd: ir.ClassDecl) =
-                cd.fields.find(_.name == f)
-                
-            searchClassAndSuperclasses(extractField)(ct) match {
-                case Some((_, fd)) => fd
-                case None => throw new CheckFailure("intervals.no.such.field", c0, f)
-            }
+            def extractField(cd: ir.ClassDecl) = cd.fields.find(_.name == f)                
+            searchClassAndSuperclasses(extractField)(ct)
         }            
     }
 
-    /// Method sig for c0::m()
-    def methodSig(ct0: ir.ClassType, m: ir.MethodName): Option[ir.MethodSig] = {
-        log.indented("methodSig(%s,%s)", ct0, m) {
-            def extractMethod(cd: ir.ClassDecl) =
-                cd.methods.find(_.name == f).map(_.msig(thisTref(cd)))
-                
-            searchClassAndSuperclasses(extractMethod)(ct).map(_._2)
+    /// Method decl for c0::m()
+    def methodDecl(wct0: ir.WcClassType, m: ir.MethodName): Option[(ir.WcClassType, ir.MethodDecl)] = {
+        log.indented("methodSig(%s,%s)", wct0, m) {
+            def extractMethod(cd: ir.ClassDecl) = cd.methods.find(_.name == f)
+            searchClassAndSuperclasses(extractMethod)(ct)
         }
     }
-    
-    /// Returns the (potentially super-)type that defined the method 'm' in the class 'c'
-    def typeOriginallyDefiningMethod(c: ir.ClassName, m: ir.MethodName): Option[ir.TypeRef] = {
-        val cd = classDecl(c)
-        val subst = superSubstOfClass(c)
-        cd.superClasses.firstSomeReturned(c_sup => 
-            typeOriginallyDefiningMethod(c_sup, m).map(subst.tref)
-        ).orElse(
-            if(cd.methods.exists(_.name == m)) Some(thisTref(cd))
-            else None
-        )
-    }    
     
     /// Returns the signatures for any methods 'm' defined in the supertypes of 'c'.
     def overriddenMethodSigs(c: ir.ClassName, m: ir.MethodName): List[ir.MethodSig] = {

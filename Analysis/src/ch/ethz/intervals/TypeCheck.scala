@@ -14,8 +14,6 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
     import prog.logStack.at
     import prog.logStack.indexAt
     import prog.classDecl
-    import prog.thisTref
-    import prog.typeOriginallyDefiningMethod
     import prog.overriddenMethodSigs
     import prog.isSubclass
     import prog.strictSuperclasses
@@ -29,7 +27,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
         
     /// wt(cp_sub) <: wt_sup
     def checkIsSubtype(cp_sub: ir.CanonPath, wt_sup: ir.WcTypeRef) {
-        if(!env.isSubtype(cp_sub, wt_sup))
+        if(!env.pathHasType(cp_sub, wt_sup))
             throw new CheckFailure("intervals.expected.subtype", cp_sub.p, cp_sub.wt, wt_sup)
     }
     
@@ -97,15 +95,12 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                 env.flow.ps_invalidated.mkEnglishString)        
     }
 
-    def checkCallMsig(cp: ir.CanonPath, msig: ir.MethodSig, cqs: List[ir.CanonPath]) {
+    def checkCallMsig(tcp: ir.TeeCeePee[_], msig: ir.MethodSig, cqs: List[ir.CanonPath]) {
         // Cannot invoke a method when there are outstanding invalidated fields:
         checkNoInvalidated()
-        
-        // If method is not a constructor method, receiver must be constructed:
-        if(!msig.as.ctor && cp.wt.as.ctor) 
-            throw new CheckFailure("intervals.rcvr.must.be.constructed", cp.p)
             
-        // Arguments must have correct type and requirements must be fulfilled:
+        // Receiver/Arguments must have correct type and requirements must be fulfilled:
+        checkIsSubtype(tcp.cp, msig.wct_rcvr)
         checkArgumentTypes(msig, cqs)
         msig.reqs.foreach(checkReqFulfilled)
         
@@ -116,9 +111,9 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
         clearTemp()        
     }
     
-    def checkCall(x: ir.VarName, cp: ir.CanonPath, m: ir.MethodName, cqs: List[ir.CanonPath]) {
-        val msig = env.substdMethodSig(cp, m, cqs)
-        checkCallMsig(cp, msig, cqs)
+    def checkCall(x: ir.VarName, tcp: ir.TeeCeePee[ir.WcTypeRef], m: ir.MethodName, cqs: List[ir.CanonPath]) {
+        val msig = env.substdMethodSig(tcp, m, cqs)
+        checkCallMsig(tcp, msig, cqs)
         addReifiedLocal(x, msig.wt_ret)
     }
     
@@ -339,24 +334,24 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                 }
                            
             case ir.StmtSuperCtor(m, qs) =>
-                val cp = cp_super
+                val tcp = tcp_super
                 val cqs = immutableReified(qs)
-                val msig_ctor = env.substdCtorSig(cp, m, cqs)
-                checkCallMsig(cp_super, msig_ctor, cqs)
+                val msig_ctor = env.substdCtorSig(tcp, m, cqs)
+                checkCallMsig(tcp, msig_ctor, cqs)
                 
                 // Supertype must have been processed first:
-                log("Supertype: %s", cp)
-                setEnv(env.addFlow(prog.exportedCtorEnvs((cp.wt.c, m))))
+                log("Supertype: %s", tcp)
+                setEnv(env.addFlow(prog.exportedCtorEnvs((tcp.ty.c, m))))
                 
             case ir.StmtGetField(x, p_o, f) =>
                 val cp_o = immutableReified(p_o)
                 addNonNull(cp_o)
                 
-                env.substdFieldDecl(cp_o, f) match {
-                    case _: ir.GhostFieldDecl =>
-                        throw new CheckFailure("intervals.not.reified", cp_o.wt.c, f)
+                env.substdFieldDecl(cp_o.toTcp, f) match {
+                    case (_, _: ir.GhostFieldDecl) =>
+                        throw new CheckFailure("intervals.not.reified", cp_o.wt, f)
                     
-                    case rfd: ir.ReifiedFieldDecl =>
+                    case (_, rfd: ir.ReifiedFieldDecl) =>
                         val cp_guard = immutableGhost(rfd.p_guard)
                         checkReadable(cp_guard)
                         
@@ -375,11 +370,11 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                 
                 val cp_v = immutableReified(p_v)
                 
-                env.substdFieldDecl(cp_o, f) match {
-                    case _: ir.GhostFieldDecl => 
-                        throw new CheckFailure("intervals.not.reified", cp_o.wt.c, f)
+                env.substdFieldDecl(cp_o.toTcp, f) match {
+                    case (_, _: ir.GhostFieldDecl) => 
+                        throw new CheckFailure("intervals.not.reified", cp_o.wt, f)
                     
-                    case rfd: ir.ReifiedFieldDecl =>                        
+                    case (tcp_o, rfd: ir.ReifiedFieldDecl) =>
                         val cp_guard = immutableGhost(rfd.p_guard)
                         checkWritable(cp_guard)
                         checkIsSubtype(cp_v, rfd.wt)
@@ -388,7 +383,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                         addTemp(cp_f.p, cp_v.p)
                 
                         removeInvalidated(cp_f.p)
-                        env.linkedPaths(cp_o, f).foreach(addInvalidated)                            
+                        env.linkedPaths(tcp_o, f).foreach(addInvalidated)                            
                 }
                 
             case ir.StmtCheckType(p, wt) =>
@@ -399,31 +394,32 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                 val cp = immutableReified(p)
                 addNonNull(cp)
                 val cqs = immutableReified(qs)
-                checkCall(x, cp, m, cqs)
+                checkCall(x, cp.toTcp, m, cqs)
     
             case ir.StmtSuperCall(x, m, qs) =>
                 val cqs = immutableReified(qs)
-                checkCall(x, cp_super, m, cqs)
+                checkCall(x, tcp_super, m, cqs)
             
-            case ir.StmtNew(x, t, m, qs) =>
-                val cd = classDecl(t.c)
+            case ir.StmtNew(x, ct, m, qs) =>
+                val cd = classDecl(ct.c)
                 val cqs = immutableReified(qs)
                 
                 if(cd.attrs.interface)
-                    throw new CheckFailure("intervals.new.interface", t.c)
+                    throw new CheckFailure("intervals.new.interface", ct.c)
                     
                 // Check Ghost Types:           
-                addReifiedLocal(x, t)
+                addReifiedLocal(x, ct)
                 val cp_x = env.perm(x)
+                val tcp_x = ir.TeeCeePee(cp_x, ct)
                 addNonNull(cp_x)
-                t.ghosts.foreach { g =>
-                    val gfd = env.substdFieldDecl(cp_x, g.f)
+                ct.ghosts.foreach { g =>
+                    val (_, gfd) = env.substdFieldDecl(tcp_x, g.f)
                     val cp = env.canon(g.p)
                     checkIsSubtype(cp, gfd.wt)
                 }                        
                                 
-                val msig_ctor = env.substdCtorSig(cp_x, m, cqs)
-                checkCallMsig(cp_x, msig_ctor, cqs)
+                val msig_ctor = env.substdCtorSig(tcp_x, m, cqs)
+                checkCallMsig(tcp_x, msig_ctor, cqs)
                 
             case ir.StmtCast(x, wt, q) => ()
                 // TODO Validate casts?  Issue warnings at least?
@@ -539,7 +535,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
     }
     
     def checkReturnTypeCovariant(wt_sub: ir.WcTypeRef, wt_sup: ir.WcTypeRef) {
-        if(!env.isSubtype(freshCp(wt_sub), wt_sup))
+        if(!env.pathHasType(freshCp(wt_sub), wt_sup))
             throw new CheckFailure(
                 "intervals.override.ret.type.changed", wt_sub, wt_sup)
     }
@@ -558,11 +554,11 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
         val nameMap = Map(lvn_msig.zip(lvn): _*)
         val subst = PathSubst.vv(lvn_msig, lvn)
         ir.MethodSig(
-            subst.tref(msig.t_rcvr),
-            msig.as,
-            msig.args.map { lv => ir.LvDecl(nameMap(lv.name), subst.wtref(lv.wt)) },
+            subst.wcClassType(msig.wct_rcvr),
+            msig.args.map { lv => ir.LvDecl(nameMap(lv.name), subst.wcTref(lv.wt)) },
+            msig.unconstructed,
             msig.reqs.map(subst.req),
-            subst.wtref(msig.wt_ret)
+            subst.wcTref(msig.wt_ret)
         )                
     }
     
@@ -585,18 +581,15 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                 setCurrent(ir.p_mthd)
                 addNonNull(cp_mthd)
                 
-                if(!md.attrs.ctor) { 
-                    // For normal methods, type of this is the defining class
-                    addReifiedLocal(ir.lv_this, thisTref(cd))
-                    addNonNull(cp_this)
-                    addHbInter(cp_ctor, cp_cur)             // ... constructor already happened
-                    setEnv(env.addFlow(flow_ctor_assum))    // ... add its effects on environment
-                } else {
-                    // For constructor methods, type of this is the type that originally defined it
-                    val t_rcvr = typeOriginallyDefiningMethod(cd.name, md.name).get
-                    addReifiedLocal(ir.lv_this, t_rcvr.ctor)
-                    addNonNull(cp_this)
-                }  
+                // For normal methods, type of this is the defining class
+                val ct_this = ir.ClassType(cd.name, List(), List(), md.unconstructed)
+                addReifiedLocal(ir.lv_this, ct_this)
+                addNonNull(cp_this)
+                
+                if(env.wtImpliesConstructed(ct_this, None)) {
+                    // constructor already happened, so add its effects on the environment:
+                    setEnv(env.addFlow(flow_ctor_assum))
+                }
                 
                 md.args.foreach(addArg)
                 setWtRet(md.wt_ret)
@@ -619,10 +612,21 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
         indexAt(md, FlowEnv.empty) {
             savingEnv {
                 // Define special vars "method" (== this.constructor) and "this":
-                addReifiedLocal(ir.lv_this, thisTref(cd, ir.ctorAttrs))
+                // XXX In reality, should be FullyUnconstructed() and then switch
+                //     to PartiallyConstructed after the super ctor.
+                val ct_this = ir.ClassType(
+                    cd.name, 
+                    List(), 
+                    List(), 
+                    ir.PartiallyConstructed(cd.name, Set(cd.name))
+                )
+                addReifiedLocal(ir.lv_this, ct_this)
                 addNonNull(cp_this)
-                val cp_mthd = env.canon(ir.gfd_ctor.thisPath)
-                addPerm(ir.lv_mthd, cp_mthd)
+                
+                // Method == this.constructor[cd.name]
+                val p_ctor = ir.CtorFieldName(Some(cd.name)).thisPath
+                val cp_ctor = env.canon(p_ctor)
+                addPerm(ir.lv_mthd, cp_ctor)
                 setCurrent(ir.p_mthd)
 
                 // Check method body:
@@ -650,8 +654,13 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                 //
                 // Note that a type is dependent on p_dep if p.F appears in the type, so 
                 // we must check all prefixes of each dependent path as well.
-                val t_this = thisTref(cd, ir.ctorAttrs)
-                addReifiedLocal(ir.lv_this, t_this)
+                val ct_this = ir.ClassType(
+                    cd.name, 
+                    List(), 
+                    List(), 
+                    ir.PartiallyConstructed(cd.name, Set(cd.name))
+                )
+                addReifiedLocal(ir.lv_this, ct_this)
                 addGhostLocal(ir.lv_mthd, ir.t_interval)
                 val cp_mthd = env.canon(ir.p_mthd)
                 setCurrent(cp_mthd.p)
@@ -664,14 +673,14 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                         addSubintervalOf(cp_cur, cp_guard) 
                     else if(isSubclass(cp_guard.wt, ir.c_lock))
                         addLocks(cp_cur, cp_guard)
-                    else if(cp_guard.wt.c == ir.c_guard)
+                    else if(isSubclass(cp_guard.wt, ir.c_guard))
                         addDeclaredWritableBy(cp_guard, cp_cur)
                     else
                         throw new CheckFailure("intervals.invalid.guard.type", cp_guard.wt)                    
                 }
                 
                 // Check that each dependent path is legal:
-                fd.wt.dependentPaths.foreach { p_full_dep => 
+                env.dependentPaths(fd.wt).foreach { p_full_dep => 
                     savingEnv {
                         def check(p_dep: ir.Path) {
                             log.indented("check_dep_path(%s)", p_dep) {
