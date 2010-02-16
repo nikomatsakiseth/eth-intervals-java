@@ -582,10 +582,14 @@ class TranslateTypeFactory(
     def unconstructed(c_ty: ir.ClassName, oam: Option[AnnotationMirror]) = {
         oam match {
             case None => ir.FullyConstructed
-            case Some(am) =>
-                val strings = AU.parseStringArrayValue(am, "value")
-                val elems = Set(strings.map(AnnTyParser.typeElement): _*)
-                ir.PartiallyConstructed(c_ty, elems.map(className))
+            case Some(am) =>            
+                val string = AU.parseStringValue(am, "value").trim
+                if(string == "")
+                    ir.FullyUnconstructed
+                else {
+                    val elem = AnnTyParser.typeElement(string)
+                    ir.PartiallyConstructed(className(elem))
+                }
         }
     }
     
@@ -689,7 +693,7 @@ class TranslateTypeFactory(
             /* Extends: */  List(),
             /* Ghosts:  */  List(),
             /* Reqs:    */  List(),
-            /* Ctor:    */  List(ir.md_ctor_interface),
+            /* Ctor:    */  List(ir.md_emptyCtor),
             /* Fields:  */  List(),
             /* Methods: */  List()
         )    

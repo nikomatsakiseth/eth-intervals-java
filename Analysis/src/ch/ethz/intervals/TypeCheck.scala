@@ -336,6 +336,8 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                 val tcp = tcp_super
                 val cqs = immutableReified(qs)
                 val msig_ctor = env.substdCtorSig(tcp, m, cqs)
+                log("tcp = %s", tcp)
+                log("msig_ctor = %s", msig_ctor)
                 checkCallMsig(tcp, msig_ctor, cqs)
                 
                 // Supertype must have been processed first:
@@ -611,13 +613,11 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
         indexAt(md, FlowEnv.empty) {
             savingEnv {
                 // Define special vars "method" (== this.constructor) and "this":
-                // XXX In reality, should be FullyUnconstructed() and then switch
-                //     to PartiallyConstructed after the super ctor.
                 val ct_this = ir.ClassType(
                     cd.name, 
                     List(), 
                     List(), 
-                    ir.PartiallyConstructed(cd.name, Set(cd.name))
+                    md.unconstructed
                 )
                 addReifiedLocal(ir.lv_this, ct_this)
                 addNonNull(cp_this)
@@ -657,7 +657,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                     cd.name, 
                     List(), 
                     List(), 
-                    ir.PartiallyConstructed(cd.name, Set(cd.name))
+                    ir.FullyUnconstructed
                 )
                 addReifiedLocal(ir.lv_this, ct_this)
                 addGhostLocal(ir.lv_mthd, ir.t_interval)

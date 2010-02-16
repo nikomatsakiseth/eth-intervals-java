@@ -46,7 +46,8 @@ class IrParser extends BaseParser {
     def tv = id                                 ^^ ir.TypeVarName
     
     def uncons = optd(ir.FullyConstructed,
-        "{"~c~optl(":"~>comma(c))~"}"                  ^^ { case _~c~cs~_ => ir.PartiallyConstructed(c, Set(cs: _*)) }
+        "{"~"}"                                 ^^ { case _ => ir.FullyUnconstructed }
+    |   "{"~>c<~"}"                             ^^ ir.PartiallyConstructed
     )
     
     def p = lv~rep("."~>f)                      ^^ { case lv~fs => lv ++ fs }
@@ -137,7 +138,7 @@ class IrParser extends BaseParser {
         "constructor"~cm~"("~comma(lvdecl)~")"~reqs~seq
     ^^ {
         case "constructor"~m~"("~args~")"~reqs~seq =>
-            ir.MethodDecl(ir.t_void, m, args, ir.FullyConstructed, reqs, seq)
+            ir.MethodDecl(ir.t_void, m, args, ir.FullyUnconstructed, reqs, seq)
     })
     
     def reifiedFieldDecl = positioned(
@@ -146,7 +147,7 @@ class IrParser extends BaseParser {
     )
     
     def constructors = rep(constructor)         ^^ {
-        case List() => List(ir.md_ctor_interface)
+        case List() => List(ir.md_emptyCtor)
         case ctors => ctors
     }
     
@@ -173,7 +174,9 @@ class IrParser extends BaseParser {
         "}"
     ^^ {
         case attrs~"class"~name~gfds~tvds~superClasses~guards~targs~reqs~"{"~rfds~ctors~methods~"}" =>
-            ir.ClassDecl(attrs, name, tvds, targs, superClasses, guards, reqs, ctors, gfds ++ rfds, methods)
+            ir.ClassDecl(
+                attrs, name, tvds, targs, superClasses, guards, reqs, 
+                ctors, gfds ++ rfds, methods)
     })
     
     def classDecls = rep(classDecl)

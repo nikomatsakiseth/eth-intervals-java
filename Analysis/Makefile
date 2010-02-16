@@ -3,7 +3,8 @@ SBT=${JAVA} -Dsbt.log.noformat=true -Xmx256M -jar sbt-launch-0.7.0.jar
 SCALAC=fsc
 SCALA=scala
 JARFILES=$(wildcard lib/*.jar)
-TARGETCLASSPATH=target/classes:target/test-classes
+TARGET=target/scala_2.8.0.Beta1
+TARGETCLASSPATH=${TARGET}/classes:${TARGET}/test-classes
 CLASSPATH=$(subst .jar ,.jar:,${JARFILES}):${TARGETCLASSPATH}
 
 .PHONY: all clean compile test

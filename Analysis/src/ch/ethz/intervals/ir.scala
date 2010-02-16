@@ -381,30 +381,28 @@ object ir {
 
     // ___ Unconstructed Sets _______________________________________________
     //
-    // Tracks which constructors have completed.  We distinguish between a
-    // "fully constructucted" object, in which all constructors have completed,
-    // and a "partially constructed" object, in which some constructors may not
-    // have completed.  In some cases, we might know that all statically visible
-    // types have been constructed, but not know that the object AS A WHOLE is
-    // constructed.  For example, let x be a Foo object where 
-    // the Object constructor has completed but Foo constructor has not.  Then
-    // the state of x is PartiallyConstructed(Foo, Set(Foo)).  But if Foo were upcast
-    // to Object its state might be PartiallyConstructed(Object, Set()): all superclasses
-    // of Object are constructed, but the object as a whole is not.
+    // Tracks which constructors have completed. 
     
     sealed abstract class Unconstructed {
         def toSuffixString: String        
     }
     
+    // All constructors completed (the default in normal Java code).
     case object FullyConstructed extends Unconstructed {
-        def toSuffixString = ""
+        override def toString = "FullyConstructed"
+        override def toSuffixString = ""
     }
     
-    case class PartiallyConstructed(
-        c_lb: ir.ClassName,
-        cs_incomplete: Set[ir.ClassName]
-    ) extends Unconstructed {
-        def toSuffixString = "Unconstructed(%s, %s)".format(c_lb, ", ".join(cs_incomplete))        
+    // No constructors completed.
+    case object FullyUnconstructed extends Unconstructed {
+        override def toString = "{}"
+        override def toSuffixString = " " + toString
+    }
+    
+    // Supertypes of 'c' are constructed but not 'c' itself.
+    case class PartiallyConstructed(c: ir.ClassName) extends Unconstructed {
+        override def toString = "{%s}".format(c)
+        override def toSuffixString = " " + toString
     }
     
     // ___ Types ____________________________________________________________
@@ -687,12 +685,12 @@ object ir {
     val t_object = ir.ClassType(c_object, List(), List(), ir.FullyConstructed)
     val t_guard = ir.ClassType(c_guard, List(), List(), ir.FullyConstructed)
     
-    val md_ctor_interface = 
+    val md_emptyCtor = 
         MethodDecl(
             /* wt_ret: */ t_void, 
             /* name:   */ m_init, 
             /* args:   */ List(),
-            /* u:      */ FullyConstructed, // not relevant to ctors
+            /* u:      */ ir.FullyUnconstructed,
             /* reqs:   */ List(),
             /* body:   */ ir.StmtSeq(
                 List(
@@ -756,7 +754,7 @@ object ir {
                     /* wt_ret: */ t_void, 
                     /* name:   */ m_init, 
                     /* args:   */ List(),
-                    /* u:      */ FullyConstructed, // not relevant to ctors
+                    /* u:      */ FullyUnconstructed,
                     /* reqs:   */ List(),
                     /* body:   */ empty_method_body)),
             /* Fields:  */  List(ir.gfd_creator),
@@ -776,7 +774,7 @@ object ir {
             /* Extends: */  List(c_object),
             /* Ghosts:  */  List(Ghost(f_creator, p_obj_ctor)),
             /* Reqs:    */  List(),
-            /* Ctor:    */  List(md_ctor_interface),
+            /* Ctor:    */  List(md_emptyCtor),
             /* Fields:  */  List(),
             /* Methods: */  List()
         ),
@@ -788,7 +786,7 @@ object ir {
             /* Extends: */  List(c_object),
             /* Ghosts:  */  List(),
             /* Reqs:    */  List(),
-            /* Ctor:    */  List(md_ctor_interface),
+            /* Ctor:    */  List(md_emptyCtor),
             /* Fields:  */  List(
                 ReifiedFieldDecl(noAttrs, t_point, f_start, p_obj_ctor),
                 ReifiedFieldDecl(noAttrs, t_point, f_end, p_obj_ctor)),
@@ -802,7 +800,7 @@ object ir {
             /* Extends: */  List(c_object, c_guard),
             /* Ghosts:  */  List(Ghost(f_creator, p_obj_ctor)),
             /* Reqs:    */  List(),
-            /* Ctor:    */  List(md_ctor_interface),
+            /* Ctor:    */  List(md_emptyCtor),
             /* Fields:  */  List(),
             /* Methods: */  List(MethodDecl(
                     /* wt_ret: */ t_void, 
@@ -820,7 +818,7 @@ object ir {
             /* Extends: */  List(c_object),
             /* Ghosts:  */  List(Ghost(f_creator, p_obj_ctor)),
             /* Reqs:    */  List(),
-            /* Ctor:    */  List(md_ctor_interface),
+            /* Ctor:    */  List(md_emptyCtor),
             /* Fields:  */  List(),
             /* Methods: */  List()
         ),
@@ -832,7 +830,7 @@ object ir {
             /* Extends: */  List(c_object, c_guard),
             /* Ghosts:  */  List(Ghost(f_creator, p_obj_ctor)),
             /* Reqs:    */  List(),
-            /* Ctor:    */  List(md_ctor_interface),
+            /* Ctor:    */  List(md_emptyCtor),
             /* Fields:  */  List(),
             /* Methods: */  List()
         )
@@ -845,7 +843,7 @@ object ir {
         def lineContents = "<built-in>"
         override def toString = "<built-in>"
     }
-    md_ctor_interface.setDefaultPos(builtinPosition)
+    md_emptyCtor.setDefaultPos(builtinPosition)
     cds_special.foreach(_.setDefaultPos(builtinPosition))
     cds_unit_test.foreach(_.setDefaultPos(builtinPosition))
    

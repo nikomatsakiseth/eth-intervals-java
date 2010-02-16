@@ -334,7 +334,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
         at(md, ()) {
             savingEnv {
                 // Define special vars "method" (== this.constructor) and "this":
-                addThis(cd, ir.PartiallyConstructed(cd.name, Set()))
+                addThis(cd, ir.FullyUnconstructed)
                 val cp_ctor = env.canon(ir.CtorFieldName(Some(cd.name)).thisPath)
                 addPerm(ir.lv_mthd, cp_ctor)
 
@@ -353,7 +353,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
     def checkReifiedFieldDecl(cd: ir.ClassDecl, fd: ir.ReifiedFieldDecl): Unit = 
         at(fd, ()) {
             savingEnv {
-                addThis(cd, ir.PartiallyConstructed(cd.name, Set()))
+                addThis(cd, ir.FullyUnconstructed)
                 
                 checkWtrefWf(fd.wt)
                 checkPathWf(rOrGhost, fd.p_guard)
@@ -363,7 +363,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
     def checkGhostFieldDecl(cd: ir.ClassDecl, gfd: ir.GhostFieldDecl): Unit = 
         at(gfd, ()) {
             savingEnv {
-                addThis(cd, ir.PartiallyConstructed(cd.name, Set()))
+                addThis(cd, ir.FullyUnconstructed)
 
                 // Check that ghosts are not shadowed from a super class:                
                 prog.strictSuperclasses(cd.name).foreach { c =>
@@ -378,7 +378,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
     def checkTypeVarDecl(cd: ir.ClassDecl, tvd: ir.TypeVarDecl): Unit = 
         at(tvd, ()) {
             savingEnv {
-                addThis(cd, ir.PartiallyConstructed(cd.name, Set()))
+                addThis(cd, ir.FullyUnconstructed)
 
                 // Check that type vars are not shadowed from a super class:                
                 prog.strictSuperclasses(cd.name).foreach { c =>
@@ -418,7 +418,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
         at(md, ()) {
             // This doesn't quite work: goal is just to verify that interface ctor's
             // do not work.
-            //if(md != ir.md_ctor_interface)
+            //if(md != ir.md_emptyCtor)
             //    throw new CheckFailure("intervals.invalid.ctor.in.interface")
         }
     

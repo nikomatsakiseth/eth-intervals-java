@@ -589,10 +589,14 @@ sealed case class TcEnv(
     
     def uImpliesConstructed(unconstructed: ir.Unconstructed, oc: Option[ir.ClassName]) = {
         (unconstructed, oc) match {
-            case (ir.FullyConstructed, _) => true
-            case (ir.PartiallyConstructed(c_lb, cs_uncons), Some(c)) if prog.isSubclass(c_lb, c) =>
-                !cs_uncons.exists(prog.isSubclass(c, _))
-            case _ => false
+            case (ir.FullyConstructed, _) => 
+                true
+            case (ir.FullyUnconstructed, _) =>
+                false
+            case (ir.PartiallyConstructed(c_uncons), Some(c)) =>
+                c_uncons != c && prog.isSubclass(c, c_uncons)
+            case _ => 
+                false
         }        
     }
     
@@ -685,11 +689,13 @@ sealed case class TcEnv(
     private def isLtUnconstructed(u_sub: ir.Unconstructed, u_sup: ir.Unconstructed) = {
         (u_sub, u_sup) match {
             case (ir.FullyConstructed, _) => true
+            case (_, ir.FullyUnconstructed) => true
+            
             case (_, ir.FullyConstructed) => false
-            case (ir.PartiallyConstructed(c_lb, cs_incomplete), _) =>
-                !uImpliesConstructed(u_sup, Some(c_lb)) &&
-                cs_incomplete.forall(c_incomplete => 
-                    !uImpliesConstructed(u_sup, Some(c_incomplete)))
+            case (ir.FullyUnconstructed, _) => false
+            
+            case (ir.PartiallyConstructed(c_sub), ir.PartiallyConstructed(c_sup)) =>
+                prog.isSubclass(c_sub, c_sup)
         }
     }
     
