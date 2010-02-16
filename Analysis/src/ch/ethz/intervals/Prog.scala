@@ -164,28 +164,28 @@ class Prog(
     }
     
     /// Field decl for t0::f 
-    def fieldDecl(wct0: ir.WcClassType, f: ir.FieldName): Option[(ir.WcClassType, ir.FieldDecl)] = {
-        log.indented("fieldDecl(%s,%s)", ct0, f) {
-            def extractField(cd: ir.ClassDecl) = cd.fields.find(_.name == f)                
-            searchClassAndSuperclasses(extractField)(ct)
+    def fieldDecl(wct: ir.WcClassType, f: ir.FieldName): Option[(ir.WcClassType, ir.FieldDecl)] = {
+        log.indented("fieldDecl(%s,%s)", wct, f) {
+            def extractField(cd: ir.ClassDecl) = cd.fields.find(_.isNamed(f))
+            searchClassAndSuperclasses(extractField)(wct)
         }            
     }
 
     /// Method decl for c0::m()
-    def methodDecl(wct0: ir.WcClassType, m: ir.MethodName): Option[(ir.WcClassType, ir.MethodDecl)] = {
-        log.indented("methodSig(%s,%s)", wct0, m) {
-            def extractMethod(cd: ir.ClassDecl) = cd.methods.find(_.name == f)
-            searchClassAndSuperclasses(extractMethod)(ct)
+    def methodDecl(wct: ir.WcClassType, m: ir.MethodName): Option[(ir.WcClassType, ir.MethodDecl)] = {
+        log.indented("methodSig(%s,%s)", wct, m) {
+            def extractMethod(cd: ir.ClassDecl) = cd.methods.find(_.isNamed(m))
+            searchClassAndSuperclasses(extractMethod)(wct)
         }
     }
     
     /// Returns the signatures for any methods 'm' defined in the supertypes of 'c'.
     def overriddenMethodSigs(wct: ir.WcClassType, m: ir.MethodName): List[ir.MethodSig] = {
-        val cd = classDecl(c)
+        val cd = classDecl(wct.c)
         sups(wct).foldRight(List[ir.MethodSig]()) { case (wct_sup, l) =>
             methodDecl(wct_sup, m) match {
                 case None => l
-                case Some((_, msig)) => msig :: l
+                case Some((wct_rcvr, md)) => md.msig(wct_rcvr) :: l
             }
         }
     }
