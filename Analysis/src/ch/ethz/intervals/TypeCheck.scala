@@ -479,7 +479,22 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
     
     def checkStatementSeq(env0: TcEnv, seq: ir.StmtSeq) = {
         log.indented("checkStatementSeq(%s)", seq) {
-            seq.stmts.foldLeft(env0)(checkStatement)   
+            val cp_curOnEntry = env0.cp_cur
+            val (cp_seqInterval, env1) = env0.freshCp(ir.t_interval)
+            var env = env1.addSubintervalOf(cp_seqInterval, env1.cp_cur)
+            env = env.withCurrent(cp_seqInterval)
+            
+            seq.stmts.foldLeft[Option[ir.CanonPath]](None) { (ocp_prevInterval, stmt) =>
+                val (cp_stmtInterval, env2) = env.freshCp(ir.t_interval)
+                env = env2.addSubintervalOf(cp_stmtInterval, cp_seqInterval)
+                ocp_prevInterval.foreach { cp_prevInterval =>
+                    env = env.addHbInter(cp_prevInterval, cp_stmtInterval)
+                }
+                env = env.withCurrent(cp_stmtInterval)
+                Some(cp_stmtInterval)
+            }
+            
+            env.withCurrent(cp_curOnEntry)
         }
     }
     
