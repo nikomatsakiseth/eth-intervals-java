@@ -68,6 +68,9 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
             case ir.WcWritableBy(ps) =>
                 checkPathsWfAndSubclass(rOrGhost, ps, ir.c_interval)
                 
+            case ir.WcHbNow(ps) =>
+                checkPathsWfAndSubclass(rOrGhost, ps, ir.c_interval)
+                
             case p: ir.Path =>
                 checkPathWf(rOrGhost, p)
         }
@@ -308,8 +311,8 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
             }   
         }
     
-    def addThis(cd: ir.ClassDecl, unconstructed: ir.Unconstructed) {
-        addReifiedLocal(ir.lv_this, ir.WcClassType(cd.name, List(), List(), unconstructed))
+    def addThis(cd: ir.ClassDecl) {
+        addReifiedLocal(ir.lv_this, ir.WcClassType(cd.name, List(), List()))
     }
 
     def checkNoninterfaceMethodDecl(
@@ -320,9 +323,9 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
             savingEnv {
                 // Define special vars "method" and "this":
                 addGhostLocal(ir.lv_mthd, ir.t_interval)
-                addThis(cd, md.unconstructed)
+                addThis(cd)
 
-                setCurrent(ir.p_mthd)
+                setCurrent(env.canon(ir.p_mthd))
                 md.args.foreach(addCheckedArg)
                 checkWtrefWf(md.wt_ret)                
                 md.reqs.foreach(checkReq)
@@ -334,11 +337,11 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
         at(md, ()) {
             savingEnv {
                 // Define special vars "method" (== this.constructor) and "this":
-                addThis(cd, ir.FullyUnconstructed)
-                val cp_ctor = env.canon(ir.CtorFieldName(Some(cd.name)).thisPath)
+                addThis(cd)
+                val cp_ctor = env.canon(ir.ClassCtorFieldName(cd.name).thisPath)
                 addPerm(ir.lv_mthd, cp_ctor)
 
-                setCurrent(ir.p_mthd)
+                setCurrent(env.canon(ir.p_mthd))
                 md.args.foreach(addCheckedArg)
                 md.reqs.foreach(checkReq)
         
@@ -353,7 +356,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
     def checkReifiedFieldDecl(cd: ir.ClassDecl, fd: ir.ReifiedFieldDecl): Unit = 
         at(fd, ()) {
             savingEnv {
-                addThis(cd, ir.FullyUnconstructed)
+                addThis(cd)
                 
                 checkWtrefWf(fd.wt)
                 checkPathWf(rOrGhost, fd.p_guard)
@@ -363,7 +366,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
     def checkGhostFieldDecl(cd: ir.ClassDecl, gfd: ir.GhostFieldDecl): Unit = 
         at(gfd, ()) {
             savingEnv {
-                addThis(cd, ir.FullyUnconstructed)
+                addThis(cd)
 
                 // Check that ghosts are not shadowed from a super class:                
                 prog.strictSuperclasses(cd.name).foreach { c =>
@@ -378,7 +381,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
     def checkTypeVarDecl(cd: ir.ClassDecl, tvd: ir.TypeVarDecl): Unit = 
         at(tvd, ()) {
             savingEnv {
-                addThis(cd, ir.FullyUnconstructed)
+                addThis(cd)
 
                 // Check that type vars are not shadowed from a super class:                
                 prog.strictSuperclasses(cd.name).foreach { c =>

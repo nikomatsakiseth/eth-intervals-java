@@ -46,8 +46,8 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
     // ______________________________________________________________________
     // Modifying the Environment
     
-    def setCurrent(p_cur: ir.Path) = log.indented("pushCurrent(%s)", p_cur) {
-        setEnv(env.copy(op_cur = Some(p_cur)))
+    def setCurrent(cp_cur: ir.CanonPath) = log.indented("setCurrent(%s)", cp_cur) {
+        setEnv(env.copy(ocp_cur = Some(cp_cur)))
     }
     
     def setWtRet(wt_ret: ir.WcTypeRef) = {
@@ -174,8 +174,7 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
     
     // Note: these are not vals but defs!  This is important
     // because the outcome of ir.CanonPath() depends on the env.
-    def ocp_cur = env.op_cur.map(env.canon)
-    def cp_cur = ocp_cur.get
+    def cp_cur = env.ocp_cur.get
     def cp_this = env.canon(ir.p_this)    
     def tcp_super = // tp_super always refers to the FIRST supertype
         prog.sups(cp_this.wt.asInstanceOf[ir.WcClassType]) match {

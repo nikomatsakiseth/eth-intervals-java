@@ -12,10 +12,10 @@ abstract class BaseSubst {
         ir.PathType(path(pt.p), pt.tv)
     
     def classType(ct: ir.ClassType): ir.ClassType =
-        ir.ClassType(ct.c, ct.ghosts.map(ghost), ct.targs.map(typeArg), ct.unconstructed)
+        ir.ClassType(ct.c, ct.ghosts.map(ghost), ct.targs.map(typeArg))
         
     def wcClassType(wct: ir.WcClassType): ir.WcClassType =
-        ir.WcClassType(wct.c, wct.wghosts.map(wghost), wct.wtargs.map(wcTypeArg), wct.unconstructed)
+        ir.WcClassType(wct.c, wct.wghosts.map(wghost), wct.wtargs.map(wcTypeArg))
         
     def wcTref(wt: ir.WcTypeRef): ir.WcTypeRef = wt match {
         case pt: ir.PathType => pathType(pt)
@@ -42,6 +42,7 @@ abstract class BaseSubst {
     def wpath(wp: ir.WcPath): ir.WcPath = wp match {
         case ir.WcReadableBy(ps) => ir.WcReadableBy(ps.map(path))
         case ir.WcWritableBy(ps) => ir.WcWritableBy(ps.map(path))
+        case ir.WcHbNow(ps) => ir.WcHbNow(ps.map(path))
         case p: ir.Path => path(p)
     }
     
@@ -74,7 +75,6 @@ abstract class BaseSubst {
         ir.MethodSig(
             wcClassType(msig.wct_rcvr),
             msig.args.map(lvDecl), 
-            msig.unconstructed,
             msig.reqs.map(req),
             wcTref(msig.wt_ret))        
 }

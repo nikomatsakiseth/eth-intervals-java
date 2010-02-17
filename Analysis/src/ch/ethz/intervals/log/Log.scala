@@ -97,7 +97,7 @@ abstract class Log {
     
     def env(open: Boolean, lbl: Any, env: TcEnv): Unit = ifEnabled {
         indented(open, "%s", lbl) {
-            apply("op_cur: %s", env.op_cur)
+            apply("ocp_cur: %s", env.ocp_cur)
             apply("wt_ret: %s", env.wt_ret)
             map("perm:", env.perm)
             flow(true, "flow:", env.flow)

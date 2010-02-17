@@ -140,22 +140,17 @@ class TranslateTypeFactory(
     // is an annotation (i.e., an object parameter), this is the full qualified
     // name of that annotation class.
     def f(elem: Element): ir.FieldName =
-        elem.getKind match {
-            case EK.FIELD => ir.FieldName(elem.getSimpleName().toString())
-            case _ => ir.FieldName(qualName(elem))              
-        }
+        ir.PlainFieldName(qualName(elem))              
         
     def lv(velem: VariableElement): ir.VarName =
         ir.VarName(velem.getSimpleName.toString)
         
     // Given a field name like "a.b.c", returns "c"
-    def shortFieldName(f: ir.FieldName) = {
-        if(!f.name.contains(".")) 
-            f.name
-        else {
-            val idx = f.name.lastIndexOf('.')
-            f.name.substring(idx+1)
-        }
+    def shortFieldName(f: ir.FieldName) = f match {
+        case ir.PlainFieldName(name) if name.contains(".") =>
+            val idx = name.lastIndexOf(".")
+            name.substring(idx+1)
+        case _ => f.toString
     }
     
     def m(methodName: String, argTypes: List[TypeMirror]): ir.MethodName = {
@@ -376,12 +371,16 @@ class TranslateTypeFactory(
                 val elems_fields = EF.fieldsIn(elements.getAllMembers(telem))
                 m_lvs = elems_fields.foldLeft(m_lvs) { case (m, elem) =>
                     val f_elem = f(elem)
-                    m + Pair(f_elem.name, (f_elem.thisPath, atypes.asMemberOf(annty_this, elem))) 
+                    m + Pair(
+                        shortFieldName(f_elem), 
+                        (f_elem.thisPath, atypes.asMemberOf(annty_this, elem))) 
                 }
 
                 val ghostFields = ghostFieldsDeclaredOnElemAndSuperelems(telem)
                 m_lvs = ghostFields.foldLeft(m_lvs) { case (m, (f, annty)) =>
-                    m + Pair(shortFieldName(f), (f.thisPath, annty)) 
+                    m + Pair(
+                        shortFieldName(f), 
+                        (f.thisPath, annty)) 
                 }
 
                 m_lvs = m_lvs + Pair(ir.lv_this.name, (ir.p_this, annty_this))
@@ -470,12 +469,13 @@ class TranslateTypeFactory(
                 
             else f_ext match {
                 // Built-in constructor intervals:
-                case ir.CtorFieldName(_) => {
+                case ir.ClassCtorFieldName(_) =>
                     ParsePath(pp.p + f_ext, annty_interval)                    
-                }
+                case _ if f_ext == ir.f_objCtor =>
+                    ParsePath(pp.p + f_ext, annty_interval)                    
                 
                 // Search for a non-ambigious short-name match:
-                case ir.FieldName(str_ext) => {
+                case ir.PlainFieldName(str_ext) =>
                     def hasMatchingShortName(f: ir.FieldName) =
                         shortFieldName(f) == str_ext
                     val potentialMatches = declGhosts.keySet.filter(hasMatchingShortName).toList
@@ -495,7 +495,6 @@ class TranslateTypeFactory(
                         case fs => 
                             throw new CheckFailure("intervals.ambig.ghost", fs.mkString(", "))
                     }                    
-                }
             }
         }
         
@@ -602,13 +601,13 @@ class TranslateTypeFactory(
             
             annty.getKind match {
                 case TK.DECLARED =>
-                    ir.WcClassType(c, wghosts(env)(annty), List(), uncons)
+                    ir.WcClassType(c, wghosts(env)(annty), List())
 
                 case TK.ARRAY =>
-                    ir.WcClassType(c, wghosts(env)(annty), List(), uncons)
+                    ir.WcClassType(c, wghosts(env)(annty), List())
 
                 case _ =>
-                    ir.WcClassType(c, List(), List(), uncons)
+                    ir.WcClassType(c, List(), List())
             }                        
         }
     }
@@ -679,7 +678,6 @@ class TranslateTypeFactory(
             /* wt_ret: */ ir.t_void,
             /* name:   */ m(eelem), 
             /* args:   */ eelem.getParameters.map(dummyLvDecl).toList,
-            /* uncons: */ ir.FullyConstructed,
             /* reqs:   */ List(),
             /* body:   */ ir.empty_method_body
         )
@@ -719,7 +717,7 @@ class TranslateTypeFactory(
                     } else if(EU.isFinal(velem)) {
                         val telem_owner = EU.enclosingClass(velem)
                         val cn = className(telem_owner)
-                        ir.CtorFieldName(Some(cn)).thisPath.toString                        
+                        ir.ClassCtorFieldName(cn).thisPath.toString                        
                     } else
                         ir.f_creator.thisPath.toString
                 AnnotParser(env).path(s_guard)
@@ -756,12 +754,10 @@ class TranslateTypeFactory(
                 val env_mthd = elemEnv(eelem)
                 val annty = getAnnotatedType(eelem)
                 val am = annotationMirrorOfElement(eelem, wke.Unconstructed.ty)
-                val uncons = unconstructed(className(elem_owner), am)
                 ir.MethodDecl(
                     /* wt_ret: */ wtref(env_mthd)(annty.getReturnType), 
                     /* name:   */ m(eelem), 
                     /* args:   */ eelem.getParameters.map(intArgDecl).toList,
-                    /* uncons: */ uncons,
                     /* reqs:   */ reqs(eelem),
                     /* body:   */ ir.empty_method_body
                 ).withPos(env_mthd.pos)
@@ -816,7 +812,6 @@ class TranslateTypeFactory(
                             intMdecl.wt_ret,
                             intMdecl.name,
                             intMdecl.args,
-                            intMdecl.unconstructed,
                             intMdecl.reqs,
                             blocks
                         ).withPos(TreePosition(mtree, (s => s))) :: mdecls

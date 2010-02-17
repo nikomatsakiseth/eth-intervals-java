@@ -38,7 +38,7 @@ abstract class BaseParser extends StandardTokenParsers {
         "#", "<=", "&&", "==", "=>", "<:"
     )
     lexical.reserved += (
-        "hb", "subintervalOf", "readableBy", "writableBy", "locks"
+        "hbNow", "hb", "subintervalOf", "readableBy", "writableBy", "subintervalOf", "locks"
     )
     
     def parse[A](p: Parser[A])(text: String) = {
@@ -56,12 +56,13 @@ abstract class BaseParser extends StandardTokenParsers {
     
     def id = (
             ident
-        |   "("~>repsep(ident, ".")<~")"            ^^ { ids => ".".join(ids) }
+        |   "("~>repsep(ident, ".")<~")"        ^^ { case ids => ".".join(ids) }
     )
     
     def f = (
-        ir.ctor~>opt("["~>c<~"]")               ^^ ir.CtorFieldName
-    |   id                                      ^^ ir.FieldName 
+        ir.ctor~>"["~>c<~"]"                    ^^ ir.ClassCtorFieldName
+    |   ir.ctor                                 ^^^ ir.f_objCtor
+    |   id                                      ^^ ir.PlainFieldName 
     )
     
     def c = id                                  ^^ ir.ClassName
@@ -70,8 +71,9 @@ abstract class BaseParser extends StandardTokenParsers {
     
     def wp = (
         p
-    |   "readableBy"~comma(p)                   ^^ { case _~ps => ir.WcReadableBy(ps) }
-    |   "writableBy"~comma(p)                   ^^ { case _~ps => ir.WcWritableBy(ps) }
+    |   opt("?")~>"readableBy"~>comma(p)        ^^ ir.WcReadableBy
+    |   opt("?")~>"writableBy"~>comma(p)        ^^ ir.WcWritableBy
+    |   opt("?")~>"hbNow"~>comma(p)             ^^ ir.WcHbNow
     )
                                         
 }

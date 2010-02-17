@@ -77,19 +77,13 @@ object TranslateMethodBody
         def chkNoWcInGhost(wg: ir.WcGhost) = 
             ir.Ghost(wg.f, chkNoWcInPath(wg.wp))
             
-        def chkConstructed(wu: ir.Unconstructed) = wu match {
-            case ir.FullyConstructed => wu
-            case _ => throw new CheckFailure("intervals.cannot.create.unconstructed", wu)
-        }
-
         def chkNoWcInTref(wt: ir.WcTypeRef): ir.ClassType =
             wt match {
                 case wct: ir.WcClassType =>
                     ir.ClassType(
                         wct.c, 
                         wct.wghosts.map(chkNoWcInGhost), 
-                        wct.wtargs.map(chkNoWcInTarg), 
-                        chkConstructed(wct.unconstructed))
+                        wct.wtargs.map(chkNoWcInTarg))
                 case _ => throw new CheckFailure("intervals.can.only.create.classes", wt)
             }
 

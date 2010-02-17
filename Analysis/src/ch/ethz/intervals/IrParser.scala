@@ -45,16 +45,11 @@ class IrParser extends BaseParser {
     def lv = id                                 ^^ ir.VarName
     def tv = id                                 ^^ ir.TypeVarName
     
-    def uncons = optd(ir.FullyConstructed,
-        "{"~"}"                                 ^^ { case _ => ir.FullyUnconstructed }
-    |   "{"~>c<~"}"                             ^^ ir.PartiallyConstructed
-    )
-    
     def p = lv~rep("."~>f)                      ^^ { case lv~fs => lv ++ fs }
     def g = "@"~f~"("~p~")"                     ^^ { case _~f~_~p~_ => ir.Ghost(f, p) }    
     def ta = "<"~tv~":"~wt~">"                  ^^ { case _~tv~_~wt~_ => ir.TypeArg(tv, wt) }
     def pt = p~"."~tv                           ^^ { case p~_~tv => ir.PathType(p, tv) }
-    def ct = c~rep(g)~rep(ta)~uncons            ^^ { case c~gs~tas~u => ir.ClassType(c, gs, tas, u) }
+    def ct = c~rep(g)~rep(ta)                   ^^ { case c~gs~tas => ir.ClassType(c, gs, tas) }
     override def wp = super.wp                  // Defined in BaseParser
     def wg = "@"~f~"("~wp~")"                   ^^ { case _~f~_~wp~_ => ir.WcGhost(f, wp) }    
     def typeBounds = (
@@ -64,7 +59,7 @@ class IrParser extends BaseParser {
         "<"~tv~":"~typeBounds~">"               ^^ { case _~tv~_~bounds~_ => ir.BoundedTypeArg(tv, bounds) }
     |   ta
     )
-    def wct = c~rep(wg)~rep(wta)~uncons         ^^ { case c~lwg~la~u => ir.WcClassType(c, lwg, la, u) }
+    def wct = c~rep(wg)~rep(wta)                ^^ { case c~lwg~la => ir.WcClassType(c, lwg, la) }
     def wt: Parser[ir.WcTypeRef] = (wct | pt)
     
     def lvdecl = (
@@ -128,17 +123,17 @@ class IrParser extends BaseParser {
     def reqs = rep(req)
     
     def methodDecl = positioned(
-        wt~m~"("~comma(lvdecl)~")"~uncons~reqs~seq        
+        wt~m~"("~comma(lvdecl)~")"~reqs~seq        
     ^^ {
-        case wt_ret~name~"("~args~")"~uncons~reqs~seq =>
-            ir.MethodDecl(wt_ret, name, args, uncons, reqs, seq)
+        case wt_ret~name~"("~args~")"~reqs~seq =>
+            ir.MethodDecl(wt_ret, name, args, reqs, seq)
     })
     
     def constructor = positioned(
-        "constructor"~cm~"("~comma(lvdecl)~")"~reqs~seq
+        ir.ctor~cm~"("~comma(lvdecl)~")"~reqs~seq
     ^^ {
-        case "constructor"~m~"("~args~")"~reqs~seq =>
-            ir.MethodDecl(ir.t_void, m, args, ir.FullyUnconstructed, reqs, seq)
+        case _~m~"("~args~")"~reqs~seq =>
+            ir.MethodDecl(ir.t_void, m, args, reqs, seq)
     })
     
     def reifiedFieldDecl = positioned(

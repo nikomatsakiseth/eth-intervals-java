@@ -59,11 +59,14 @@ class Prog(
     // ___ Basic type operations ____________________________________________
     
     // Is c_sub an erased subtype of class c_sup?
+    def isStrictSubclass(c_sub: ir.ClassName, c_sup: ir.ClassName): Boolean = {
+        val cd_sub = classDecl(c_sub)
+        cd_sub.superClasses.exists { c => isSubclass(c, c_sup) }
+    }
+    
+    // Is c_sub an erased subtype of class c_sup?
     def isSubclass(c_sub: ir.ClassName, c_sup: ir.ClassName): Boolean = {
-        (c_sub == c_sup) || {            
-            val cd_sub = classDecl(c_sub)
-            cd_sub.superClasses.exists { c => isSubclass(c, c_sup) }
-        }
+        (c_sub == c_sup) || isStrictSubclass(c_sub, c_sup)
     }
     
     def strictSuperclasses(c0: ir.ClassName): Set[ir.ClassName] = {
@@ -134,7 +137,7 @@ class Prog(
     def supertypesOfClass(c: ir.ClassName) = log.indented("supertypesOfClass(%s)", c) {
         val cd = classDecl(c)
         cd.superClasses.map { c => 
-            ir.ClassType(c, cd.ghosts, cd.typeArgs, ir.FullyConstructed)
+            ir.ClassType(c, cd.ghosts, cd.typeArgs)
         }
     }
     def sups(wct: ir.WcClassType) = log.indented("sups(%s)", wct) {
@@ -142,8 +145,7 @@ class Prog(
             ir.WcClassType(
                 ct_sup.c,
                 wct.wghosts ++ ct_sup.ghosts, 
-                wct.wtargs ++ ct_sup.targs, 
-                wct.unconstructed
+                wct.wtargs ++ ct_sup.targs
             )
         }
     }
@@ -160,7 +162,7 @@ class Prog(
                 Some((wct, x))
                 
             case None =>
-                sups(wct).firstSomeReturned(searchClassAndSuperclasses(func))
+                sups(wct).firstSomeReturned(searchClassAndSuperclasses(func) _)
         }
     }
     

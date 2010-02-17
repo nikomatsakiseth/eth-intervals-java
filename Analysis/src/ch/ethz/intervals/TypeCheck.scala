@@ -298,7 +298,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                 // n.b.: We don't try to pop-- that's because if
                 // statement seq returns, the environment will be reset to ss.env_in.
                 // In any case we will reset environment below so it doens't matter.
-                setCurrent(x.path)
+                setCurrent(cp_x)
                 checkStatementSeq(seq)
                 
             case ir.TryCatch(seq_try, seq_catch) =>
@@ -344,8 +344,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                 val ct_this = ir.ClassType(
                     env.c_cur,
                     List(), 
-                    List(), 
-                    ir.PartiallyConstructed(env.c_cur)
+                    List()
                 )
                 setEnv(env.redefineReifiedLocal(ir.lv_this, ct_this))
                 
@@ -510,7 +509,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
         lvs_shared: Set[ir.VarName]
     ): FlowEnv = savingEnv {        
         log.indented("extractAssumptions(%s,%s)", cp_mthd, lvs_shared) {
-            setCurrent(freshCp(ir.t_interval).p)
+            setCurrent(freshCp(ir.t_interval))
             addHbInter(cp_mthd, cp_cur)
             
             log.env(false, "Input Environment: ", env)
@@ -566,7 +565,6 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
         ir.MethodSig(
             subst.wcClassType(msig.wct_rcvr),
             msig.args.map { lv => ir.LvDecl(nameMap(lv.name), subst.wcTref(lv.wt)) },
-            msig.unconstructed,
             msig.reqs.map(subst.req),
             subst.wcTref(msig.wt_ret)
         )                
@@ -588,18 +586,13 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                 // Define special vars "method" and "this":
                 addGhostLocal(ir.lv_mthd, ir.t_interval)
                 val cp_mthd = env.perm(ir.lv_mthd)
-                setCurrent(ir.p_mthd)
+                setCurrent(cp_mthd)
                 addNonNull(cp_mthd)
                 
                 // For normal methods, type of this is the defining class
-                val ct_this = ir.ClassType(cd.name, List(), List(), md.unconstructed)
+                val ct_this = ir.ClassType(cd.name, List(), List())
                 addReifiedLocal(ir.lv_this, ct_this)
                 addNonNull(cp_this)
-                
-                if(env.wtImpliesConstructed(ct_this, None)) {
-                    // constructor already happened, so add its effects on the environment:
-                    setEnv(env.addFlow(flow_ctor_assum))
-                }
                 
                 md.args.foreach(addArg)
                 setWtRet(md.wt_ret)
@@ -614,6 +607,14 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                 }
                 
                 md.reqs.foreach(addReq)
+                
+                // If constructor already happened, add its effects on the environment:
+                // XXX Could check for other supertypes if we wanted...
+                val p_cdCtor = ir.ClassCtorFieldName(cd.name).thisPath
+                if(env.hbInter(env.canon(p_cdCtor), cp_mthd)) {
+                    setEnv(env.addFlow(flow_ctor_assum))
+                }                
+                
                 checkMethodBody(md)
             }                     
         }
@@ -625,17 +626,16 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                 val ct_this = ir.ClassType(
                     cd.name, 
                     List(), 
-                    List(), 
-                    md.unconstructed
+                    List()
                 )
                 addReifiedLocal(ir.lv_this, ct_this)
                 addNonNull(cp_this)
                 
                 // Method == this.constructor[cd.name]
-                val p_ctor = ir.CtorFieldName(Some(cd.name)).thisPath
+                val p_ctor = ir.ClassCtorFieldName(cd.name).thisPath
                 val cp_ctor = env.canon(p_ctor)
                 addPerm(ir.lv_mthd, cp_ctor)
-                setCurrent(ir.p_mthd)
+                setCurrent(env.canon(ir.p_mthd))
 
                 // Check method body:
                 md.args.foreach(addArg)
@@ -662,11 +662,11 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
                 //
                 // Note that a type is dependent on p_dep if p.F appears in the type, so 
                 // we must check all prefixes of each dependent path as well.
-                val ct_this = ir.ClassType(cd.name, List(), List(), ir.FullyUnconstructed)
+                val ct_this = ir.ClassType(cd.name, List(), List())
                 addReifiedLocal(ir.lv_this, ct_this)
                 addGhostLocal(ir.lv_mthd, ir.t_interval)
                 val cp_mthd = env.canon(ir.p_mthd)
-                setCurrent(cp_mthd.p)
+                setCurrent(cp_mthd)
                 
                 // Add assumptions as though guard were satisfied.
                 // Also check that guards are typed as Interval, Lock, or just Guard
