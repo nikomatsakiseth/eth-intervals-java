@@ -28,10 +28,14 @@ sealed case class TcEnv(
     def addFlow(flow1: FlowEnv) = copy(flow = flow + flow1)        
     def intersectFlow(flow1: FlowEnv) = copy(flow = flow & flow1)
         
-    // ___ Local Variables __________________________________________________
+    // ___ Modifying the Environment ________________________________________
+    
+    def withReturnType(wt_ret: ir.WcTypeRef) = copy(wt_ret = wt_ret)
+    
+    def withCurrent(cp_cur: ir.CanonPath) = copy(ocp_cur = Some(cp_cur))
     
     /// Add a local variable whose value is the canon path 'cp'
-    def addPerm(x: ir.VarName, cp: ir.CanonPath) = {
+    def addPerm(x: ir.VarName, cp: ir.CanonPath): TcEnv = {
         assert(!isMutable(cp))
         perm.get(x) match {
             case Some(_) => throw new CheckFailure("intervals.shadowed", x)
@@ -46,32 +50,39 @@ sealed case class TcEnv(
     
     /// Define local variables according to the given decls
     def addArgs(args: List[ir.LvDecl]) = {
-        args.foldLeft(this) { case (e, a) => e.addArg(a) }        
+        args.foldLeft(this)(_ addArg _)
     }
     
-    /// Define a reified local variable 'x' with type 'wt'
+    /// Define a reified local variable `x` with type `wt`
     def addReifiedLocal(x: ir.VarName, wt: ir.WcTypeRef) = {
         addPerm(x, ir.CpLv(x, wt, false))
     }
     
-    /// Define a reified local variable 'x' with type 'wt'
+    /// Define a reified local variable `x` with type `wt`
     def redefineReifiedLocal(x: ir.VarName, wt: ir.WcTypeRef) = {
         copy(perm = perm + Pair(x, ir.CpLv(x, wt, false)))
     }
     
-    /// Define a ghost local variable 'x' with type 'wt'
+    /// Define a ghost local variable `x` with type `wt`
     def addGhostLocal(x: ir.VarName, wt: ir.WcTypeRef) = {
         addPerm(x, ir.CpLv(x, wt, true))        
     }
     
+    /// Defines a fresh ghost variable of type `wt`
+    def freshCp(wt: ir.WcTypeRef) = {
+        val lv = prog.freshVarName
+        val env1 = addGhostLocal(lv, wt)
+        (env1.perm(lv), env1)
+    }
+        
     /// Temporarily redirect from 'p' to 'q'
-    def addTemp(p: ir.Path, q: ir.Path) = {
+    def addTemp(p: ir.Path, q: ir.Path): TcEnv = {
         log("addTemp(%s,%s)", p, q)
         copy(flow = flow.withTemp(flow.temp + Pair(p, q)))
     }
     
     /// Clear all temporary redirects
-    def clearTemp = {
+    def clearTemp(): TcEnv = {
         log("clearTemp")
         copy(flow = flow.withTemp(Map()))
     }
@@ -220,6 +231,8 @@ sealed case class TcEnv(
             }
         }        
     }
+    
+    def addReqs(reqs: List[ir.Req]) = reqs.foldLeft(this)(_ addReq _)
         
     // ___ Constructing Canonical Paths _____________________________________
     
@@ -337,7 +350,23 @@ sealed case class TcEnv(
     
     /// Current interval (must be defined)
     def cp_cur = ocp_cur.get
+    
+    /// Start of current interval (must be defined)
     def cp_cur_start = fld(cp_cur, ir.f_start)
+    
+    /// Canonical path to this
+    def cp_this = canon(ir.p_this)
+    
+    /// Canonical path to method
+    def cp_mthd = canon(ir.p_mthd)
+    
+    /// Upcast version of this to the first superclass
+    def tcp_super = {
+        prog.sups(cp_this.wt.asInstanceOf[ir.WcClassType]) match {
+            case List() => throw new CheckFailure("intervals.no.supertype", cp_this.wt)
+            case wt_super :: _ => ir.TeeCeePee(cp_this, wt_super)
+        }            
+    }
     
     /// Field decl for p.f
     def substdFieldDecl(tcp: ir.TeeCeePee[ir.WcTypeRef], f: ir.FieldName) = {

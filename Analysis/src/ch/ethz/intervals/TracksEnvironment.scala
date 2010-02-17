@@ -7,7 +7,8 @@ import scala.collection.mutable.ListBuffer
 import scala.util.parsing.input.Positional
 import Util._
 
-abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
+abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) 
+{
     import prog.logStack.log
     import prog.logStack.indexLog
     import prog.logStack.at    
