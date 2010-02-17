@@ -8,3 +8,4 @@ project/plugins/lib_managed/
 project/plugins/src_managed/
 debug-logs/
 bin/
+bin-test/
