@@ -26,7 +26,6 @@ m -> method name
 c -> class name
 cd, md, fd, rfd, gfd -> class, method, field decl, reified field decl, ghost field decl
 blk -> block definition
-t -> type (TypeRef)
 wt -> wildcard type (WcTypeRef)
 
 The type is then optionally followed by an underscore
@@ -412,12 +411,10 @@ object ir {
 
     sealed abstract class WcTypeRef
     
-    sealed trait TypeRef extends WcTypeRef
-    
     sealed case class PathType(
         p: ir.Path,
         tv: ir.TypeVarName
-    ) extends TypeRef
+    ) extends WcTypeRef
     
     sealed case class WcClassType(
         c: ir.ClassName,                            // Name of class being referenced
@@ -442,18 +439,11 @@ object ir {
         val ghosts: List[ir.Ghost],
         val targs: List[ir.TypeArg],
         unconstructed: Unconstructed
-    ) extends WcClassType(c, ghosts, targs, unconstructed) with TypeRef
+    ) extends WcClassType(c, ghosts, targs, unconstructed)
     
     object ClassType {
         def apply(c: ir.ClassName, ghosts: List[ir.Ghost], targs: List[ir.TypeArg], unconstructed: Unconstructed) = {
             new ClassType(c, ghosts, targs, unconstructed)
-        }
-        
-        def unapply(ref: AnyRef): Option[(ir.ClassName, List[ir.Ghost], List[ir.TypeArg], Unconstructed)] = {
-            ref match {
-                case ct: ClassType => Some(ct.c, ct.ghosts, ct.targs, ct.unconstructed)
-                case _ => None
-            }
         }
     }
     

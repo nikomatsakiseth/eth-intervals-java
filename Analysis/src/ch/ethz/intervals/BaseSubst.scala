@@ -17,13 +17,9 @@ abstract class BaseSubst {
     def wcClassType(wct: ir.WcClassType): ir.WcClassType =
         ir.WcClassType(wct.c, wct.wghosts.map(wghost), wct.wtargs.map(wcTypeArg), wct.unconstructed)
         
-    def tref(t: ir.TypeRef): ir.TypeRef = t match {
+    def wcTref(wt: ir.WcTypeRef): ir.WcTypeRef = wt match {
         case pt: ir.PathType => pathType(pt)
         case ct: ir.ClassType => classType(ct)
-    }
-    
-    def wcTref(wt: ir.WcTypeRef): ir.WcTypeRef = wt match {
-        case t: ir.TypeRef => tref(t)
         case wct: ir.WcClassType => wcClassType(wct)
     }
     
