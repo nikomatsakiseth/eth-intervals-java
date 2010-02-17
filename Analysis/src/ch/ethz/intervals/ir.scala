@@ -114,9 +114,10 @@ object ir {
     sealed case class PlainFieldName(name: String) extends FieldName(name)
     
     val ctor = "Constructor"
-    sealed case class ClassCtorFieldName(c: ir.ClassName) 
-    extends FieldName("%s[%s]".format(ctor, c)) {
-        override def toString = "%s[%s]".format(ctor, c)
+    sealed case class ClassCtorFieldName(c: ir.ClassName) extends {
+        val name = "%s[%s]".format(ctor, c) // wacky syntax to initialize a field before super ctor:
+    } with FieldName(name) {
+        override def toString = name 
     }
     
     // ___ Error reporting __________________________________________________

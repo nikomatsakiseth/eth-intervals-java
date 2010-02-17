@@ -15,6 +15,7 @@ sealed case class TcEnv(
     flow: FlowEnv
 ) {
     import prog.logStack.log
+    import prog.logStack.at    
     import prog.classDecl
     import prog.ghostsOnClassAndSuperclasses
     import prog.typeArgsOnClassAndSuperclasses
@@ -172,12 +173,83 @@ sealed case class TcEnv(
         }
     }
         
+    def addUserDeclaredWritableBy(cp: ir.CanonPath, cq: ir.CanonPath) = {
+        if(isSubclass(cp.wt, ir.c_guard) && isSubclass(cq.wt, ir.c_interval))
+            addDeclaredWritableBy(cp, cq)
+        else
+            this
+    }
+    
+    def addUserDeclaredReadableBy(cp: ir.CanonPath, cq: ir.CanonPath) = {
+        if(isSubclass(cp.wt, ir.c_guard) && isSubclass(cq.wt, ir.c_interval))
+            addDeclaredReadableBy(cp, cq)
+        else
+            this
+    }
+    
+    def addUserSubintervalOf(cp: ir.CanonPath, cq: ir.CanonPath) = {
+        if(isSubclass(cp.wt, ir.c_interval) && isSubclass(cq.wt, ir.c_interval))
+            addSubintervalOf(cp, cq)
+        else
+            this
+    }
+    
+    def addReq(req: ir.Req) = {
+        log.indented("addReq(%s)", req) {
+            at(req, this) {
+                def cross(
+                    add: ((TcEnv, ir.CanonPath, ir.CanonPath) => TcEnv), 
+                    ps: List[ir.Path], 
+                    qs: List[ir.Path]
+                ) = {
+                    val cps = immutableGhost(ps)
+                    val cqs = immutableGhost(qs)
+                    cps.foldLeft(this) { case (env0, cp) =>
+                        cqs.foldLeft(env0) { case (env1, cq) =>
+                            add(env1, cp, cq)
+                        }
+                    }                    
+                }
+                
+                req match {
+                    case ir.ReqWritableBy(ps, qs) => cross(_.addUserDeclaredWritableBy(_, _), ps, qs)
+                    case ir.ReqReadableBy(ps, qs) => cross(_.addUserDeclaredReadableBy(_, _), ps, qs)
+                    case ir.ReqHb(ps, qs) => cross(_.addUserHb(_, _), ps, qs)
+                    case ir.ReqSubintervalOf(ps, qs) => cross(_.addUserSubintervalOf(_, _), ps, qs)
+                }   
+            }
+        }        
+    }
+        
     // ___ Constructing Canonical Paths _____________________________________
     
-    def canon(p1: ir.Path): ir.CanonPath = 
-        log.indented(false, "canon(%s)", p1) {
-            canonicalize(Set(), p1)
-        }
+    def immutableReified(p: ir.Path): ir.CanonPath = {
+        val cp = canon(p)
+        if(isGhost(cp))
+            throw new CheckFailure("intervals.must.be.reified", p)
+        if(isMutable(cp))
+            throw new CheckFailure("intervals.must.be.immutable", p)
+        cp
+    }
+    
+    def immutableReified(ps: List[ir.Path]): List[ir.CanonPath] = {
+        ps.map(immutableReified)
+    }
+    
+    def immutableGhost(p: ir.Path) = {
+        val cp = canon(p)
+        if(isMutable(cp))
+            throw new CheckFailure("intervals.must.be.immutable", p)
+        cp        
+    }
+    
+    def immutableGhost(ps: List[ir.Path]): List[ir.CanonPath] = {
+        ps.map(immutableGhost)
+    }
+    
+    def canon(p1: ir.Path): ir.CanonPath = log.indented(false, "canon(%s)", p1) {
+        canonicalize(Set(), p1)
+    }
         
     private def canonicalize(vis: Set[ir.Path], p1: ir.Path): ir.CanonPath = log.indented("canonicalize(%s)", p1) {
         assert(!vis(p1))

@@ -114,63 +114,16 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog) {
         setEnv(env.addNonNull(cp))
     }
         
-    def addUserDeclaredWritableBy(cp: ir.CanonPath, cq: ir.CanonPath) {
-        if(env.isSubclass(cp.wt, ir.c_guard) && env.isSubclass(cq.wt, ir.c_interval))
-            addDeclaredWritableBy(cp, cq)
+    def addReq(req: ir.Req) {
+        setEnv(env.addReq(req))
     }
-    
-    def addUserDeclaredReadableBy(cp: ir.CanonPath, cq: ir.CanonPath) {
-        if(env.isSubclass(cp.wt, ir.c_guard) && env.isSubclass(cq.wt, ir.c_interval))
-            addDeclaredReadableBy(cp, cq)
-    }
-    
-    def addUserSubintervalOf(cp: ir.CanonPath, cq: ir.CanonPath) {
-        if(env.isSubclass(cp.wt, ir.c_interval) && env.isSubclass(cq.wt, ir.c_interval))
-            addSubintervalOf(cp, cq)
-    }
-    
-    def addReq(req: ir.Req) = 
-        log.indented("addReq(%s)", req) {
-            at(req, ()) {
-                def cpAdd(add: Function2[ir.CanonPath, ir.CanonPath, Unit], ps: List[ir.Path], qs: List[ir.Path]) = {
-                    val tps = immutableGhost(ps)
-                    val tqs = immutableGhost(qs)
-                    foreachcross(tps, tqs)(add)
-                }
-                req match {
-                    case ir.ReqWritableBy(ps, qs) => cpAdd(addUserDeclaredWritableBy, ps, qs)
-                    case ir.ReqReadableBy(ps, qs) => cpAdd(addUserDeclaredReadableBy, ps, qs)
-                    case ir.ReqHb(ps, qs) => cpAdd(addUserHb, ps, qs)
-                    case ir.ReqSubintervalOf(ps, qs) => cpAdd(addUserSubintervalOf, ps, qs)
-                }   
-            }             
-        }
         
     // ___ Canon Paths ______________________________________________________
     
-    def immutableReified(p: ir.Path): ir.CanonPath = {
-        val cp = env.canon(p)
-        if(env.isGhost(cp))
-            throw new CheckFailure("intervals.must.be.reified", p)
-        if(env.isMutable(cp))
-            throw new CheckFailure("intervals.must.be.immutable", p)
-        cp
-    }
-    
-    def immutableReified(ps: List[ir.Path]): List[ir.CanonPath] = {
-        ps.map(immutableReified)
-    }
-    
-    def immutableGhost(p: ir.Path) = {
-        val cp = env.canon(p)
-        if(env.isMutable(cp))
-            throw new CheckFailure("intervals.must.be.immutable", p)
-        cp        
-    }
-    
-    def immutableGhost(ps: List[ir.Path]): List[ir.CanonPath] = {
-        ps.map(immutableGhost)
-    }
+    def immutableReified(p: ir.Path) = env.immutableReified(p)    
+    def immutableReified(ps: List[ir.Path]) = env.immutableReified(ps)
+    def immutableGhost(p: ir.Path) = env.immutableGhost(p)
+    def immutableGhost(ps: List[ir.Path]) = env.immutableGhost(ps)
     
     // Note: these are not vals but defs!  This is important
     // because the outcome of ir.CanonPath() depends on the env.

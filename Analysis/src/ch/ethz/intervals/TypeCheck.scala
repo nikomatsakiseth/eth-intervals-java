@@ -476,7 +476,7 @@ class TypeCheck(prog: Prog) extends TracksEnvironment(prog)
     
     def checkStatementSeq(seq: ir.StmtSeq) {
         log.indented("checkStatementSeq(%s)", seq) {
-            seq.stmts.foreach(checkStatement)            
+            seq.stmts.foreach(checkStatement)   
         }
     }
     
