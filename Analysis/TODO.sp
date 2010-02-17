@@ -11,9 +11,9 @@ ______ Don't Forget __________________________________________________
 
 ______ Bugs __________________________________________________________   
 
-- Check in multiple inheritance that all paths lead to the same set of ghost parameters. Alternatively, make sure that all
-  paths are fulfilled. Latter technique is "cooler" (then, for ex., a class modelling an empty set can fulfill virtually any
-  type, etc)
+- Check in multiple inheritance that all paths lead to the same set of ghost parameters.
+  Alternatively, make sure that all paths are fulfilled. Latter technique is "cooler" (then, for ex.,
+  a class modelling an empty set can fulfill virtually any type, etc)
     
 - Sanity check casts or otherwise restrict them?
 
