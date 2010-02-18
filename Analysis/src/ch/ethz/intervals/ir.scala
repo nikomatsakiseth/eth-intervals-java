@@ -161,7 +161,7 @@ object ir {
             ctors.foreach(_.setDefaultPos(pos))
             fields.foreach(_.setDefaultPos(pos))
             methods.foreach(_.setDefaultPos(pos))
-        }        
+        } 
         
         override def toString =
             "%sclass %s(ghosts: %s; typeArgs: %s; extends: %s)".format(
@@ -405,6 +405,8 @@ object ir {
 
     sealed abstract class WcTypeRef {
         def java: String
+        
+        def withDefaultWghosts(wgs_additional: List[ir.WcGhost]): WcTypeRef
     }
     
     sealed case class PathType(
@@ -412,6 +414,8 @@ object ir {
         tv: ir.TypeVarName
     ) extends WcTypeRef {
         def java = toString
+        
+        def withDefaultWghosts(wgs_additional: List[ir.WcGhost]) = this
     }
     
     sealed case class WcClassType(
