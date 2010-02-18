@@ -241,7 +241,7 @@ object ir {
     ) extends FieldDecl {
         override def toString = "GhostField(%s: %s)".format(name, wt)
         
-        def ghostOf(p: ir.Path) = Ghost(name, p + name)
+        def ghostOf(p: ir.Path) = ir.Ghost(name, p + name)
     }
     
     sealed case class ReifiedFieldDecl(

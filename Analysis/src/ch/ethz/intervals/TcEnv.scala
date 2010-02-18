@@ -450,26 +450,19 @@ sealed case class TcEnv(
         }
     }
     
-    private def superintervals(cp: ir.CanonPath) = {
-        flow.subintervalRel.values(cp.p)
-    }        
-    
-    private def superintervalsOrSelf(cp: ir.CanonPath) = {
-        flow.subintervalRel.values(cp.p) + cp.p
-    }        
-    
     def isSubintervalOf(cp: ir.CanonPath, cq: ir.CanonPath) = {
         log.indented(false, "isSubintervalOf(%s, %s)?", cp, cq) {
             log.env(false, "Environment", this)
-            
-            equiv(cp, cq) || flow.subinterval((cp.p, cq.p))
+
+            superintervalsOrSelf(cp).contains(cq)
         }
     }
     
     def locks(cp: ir.CanonPath, cq: ir.CanonPath) = {
         log.indented(false, "locks(%s, %s)?", cp, cq) {
             log.env(false, "Environment", this)
-            superintervalsOrSelf(cp).exists { p => flow.locks((p, cq.p)) }
+            
+            superintervalsOrSelf(cp).exists { cp_sup => flow.locks((cp_sup.p, cq.p)) }
         }
     }
     
@@ -492,7 +485,7 @@ sealed case class TcEnv(
                     case _ => false
                 }
             ) || {
-                flow.writable((cp.p, cq.p)) ||
+                superintervalsOrSelf(cq).exists(cq_sup => flow.writable((cp.p, cq_sup.p))) ||
                 equiv(cp, cq) ||
                 locks(cq, cp) ||
                 isSubintervalOf(cq, cp)
@@ -511,7 +504,7 @@ sealed case class TcEnv(
                     case _ => false
                 } 
             ) || {
-                superintervalsOrSelf(cq).exists(q => flow.readable((cp.p, q))) ||
+                superintervalsOrSelf(cq).exists(cq_sup => flow.readable((cp.p, cq_sup.p))) ||
                 hbInter(cp, cq) ||
                 guardsDataWritableBy(cp, cq)            
             }
@@ -609,6 +602,40 @@ sealed case class TcEnv(
         
         // map to the canonical path for the field
         fds_linked.map { fd => subst.path(fd.thisPath) }
+    }
+    
+    // ___ Superintervals ___________________________________________________
+    
+    private def superintervalsOrSelf(cp0: ir.CanonPath) = {
+        def immediateSuperintervalsOf(cp: ir.CanonPath): Set[ir.CanonPath] = {
+            log.indented("immediateSuperintervalsOf(%s)", cp) {
+                flow.subintervalRel.values(cp.p).map(canon) ++ {
+                    log.indented("cp0.Constructor[_].end < cp0.Constructor.end?") {
+                        cp match {
+                            case ir.CpClassCtor(cp0, _) => 
+                                Some(fld(cp0, ir.f_objCtor))
+                            case _ =>                     
+                                None
+                        }
+                    }
+                }            
+            }
+        }
+
+        def iterate(stale: Set[ir.CanonPath], fresh: Set[ir.CanonPath]): Set[ir.CanonPath] = {
+            log.indented(true, "iterate(fresh=%s)", fresh) {
+                if(fresh.isEmpty) stale
+                else {
+                    val nextStale = stale ++ fresh
+                    val nextFresh = fresh.flatMap(immediateSuperintervalsOf).filter(cp => !nextStale(cp))
+                    iterate(nextStale, nextFresh)
+                }
+            }
+        }
+        
+        log.indented(false, "superintervalsOrSelf(%s)", cp0) {
+            iterate(Set(), Set(cp0))
+        }
     }
     
     // ___ Happens-Before Searches __________________________________________
@@ -892,7 +919,7 @@ sealed case class TcEnv(
     
     /// t_sub <: wt_sup
     private def isSubtype(wt_sub: ir.WcTypeRef, wt_sup: ir.WcTypeRef): Boolean = {
-        log.indented("%s <: %s?", wt_sub, wt_sup) {
+        log.indented("isSubtype(%s, %s)?", wt_sub, wt_sup) {
             (wt_sub, wt_sup) match {
                 case (pt_sub: ir.PathType, pt_sup: ir.PathType) if pt_sub == pt_sup =>
                     true
@@ -917,21 +944,26 @@ sealed case class TcEnv(
     }
     
     private def capture(cp: ir.CanonPath): ir.WcTypeRef = {
-        cp.wt match {
-            case pt: ir.PathType => pt
-            case wct: ir.WcClassType =>
-                val ghosts = unboundGhostFieldsOnClassAndSuperclasses(wct.c).toList
-                val typeVarDecls = unboundTypeVarsDeclaredOnClassAndSuperclasses(wct.c).toList
-                ir.WcClassType(
-                    wct.c,
-                    ghosts.map(_.ghostOf(cp.p)),
-                    typeVarDecls.map(_.typeArgOf(cp.p))
-                )
+        log.indented(false, "capture(%s)", cp) {
+            cp.wt match {
+                case pt: ir.PathType => pt
+                case wct: ir.WcClassType =>
+                    val ghosts = unboundGhostFieldsOnClassAndSuperclasses(wct.c).toList
+                    val typeVarDecls = unboundTypeVarsDeclaredOnClassAndSuperclasses(wct.c).toList
+                    val g_ctor = ir.Ghost(ir.f_objCtor, cp.p + ir.f_objCtor)
+                    ir.WcClassType(
+                        wct.c,
+                        g_ctor :: ghosts.map(_.ghostOf(cp.p)),
+                        typeVarDecls.map(_.typeArgOf(cp.p))
+                    )
+            }
         }
     }
     
     def pathHasType(cp_sub: ir.CanonPath, wt_sup: ir.WcTypeRef): Boolean = {
-        isSubtype(capture(cp_sub), wt_sup)
+        log.indented(false, "pathHasType(%s, %s)?", cp_sub, wt_sup) {
+            isSubtype(capture(cp_sub), wt_sup)            
+        }
     }
     
 }

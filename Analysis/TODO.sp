@@ -2,12 +2,17 @@ ___ To Do List _______________________________________________________
 
 ______ Bugs __________________________________________________________   
 
+- Update type of f_objCtor from t_interval to something which requires
+  that the interval ctor has completed, at least.  Or is that necessary?
+
 - Introduce immutableIn to supplement readableBy?
 
   This used to be covered by <f: hb this>.  An alternative would be
   to keep "hb this" but just not add it to the HB relation.
   
 - Check type args in wf check
+
+- Check that there are no fields named f_objCtor declared anywhere
 
 - In addHb(), check that the arguments are immutable but also that their
   constructors have completed.

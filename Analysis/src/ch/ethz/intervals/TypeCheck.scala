@@ -424,9 +424,15 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                 val tcp_x = ir.TeeCeePee(cp_x, ct)
                 env = env.addNonNull(cp_x)
                 ct.ghosts.foreach { g =>
-                    val (_, gfd) = env.substdFieldDecl(tcp_x, g.f)
-                    val cp = env.canon(g.p)
-                    checkIsSubtype(env, cp, gfd.wt)
+                    if(g.f != ir.f_objCtor) {
+                        val (_, gfd) = env.substdFieldDecl(tcp_x, g.f)
+                        val cp = env.canon(g.p)
+                        checkIsSubtype(env, cp, gfd.wt)                        
+                    } else {
+                        val cp = env.canon(g.p)
+                        if(!env.isSubintervalOf(env.cp_cur, cp))
+                            throw new CheckFailure("intervals.ctor.must.encompass.current", cp, env.cp_cur)
+                    }
                 }                        
                                 
                 val msig_ctor = env.substdCtorSig(tcp_x, m, cqs)
