@@ -164,8 +164,8 @@ object ir {
         }        
         
         override def toString =
-            "%sclass %s%s extends %s%s%s".format(
-                attrs.preWords, name, "".join(gfds), superClasses.mkString(", "), "".join(" ", ghosts), "".join(" ", reqs))
+            "%sclass %s(ghosts: %s; typeArgs: %s; extends: %s)".format(
+                attrs.preWords, name, ", ".join(ghosts), ", ".join(typeArgs), ", ".join(superClasses))
     }
     
     sealed case class TypeVarDecl(
@@ -201,8 +201,9 @@ object ir {
         }
         
         override def toString =
-            "%s %s(%s)%s".format(
-                wt_ret, name, args.mkString(", "), "".join(" ", reqs))
+            "Method %s((%s) => %s%s)".format(
+                name, ", ".join(args), wt_ret, "".join(", ", reqs)
+            )
     }
     
     sealed case class MethodSig(
@@ -238,7 +239,7 @@ object ir {
         wt: ir.WcTypeRef,
         name: ir.FieldName
     ) extends FieldDecl {
-        override def toString = "<%s %s>".format(wt, name)
+        override def toString = "GhostField(%s: %s)".format(name, wt)
         
         def ghostOf(p: ir.Path) = Ghost(name, p + name)
     }
@@ -249,7 +250,7 @@ object ir {
         name: ir.FieldName,
         p_guard: ir.Path
     ) extends FieldDecl {
-        override def toString = "%s%s %s requires %s".format(as.preWords, wt, name, p_guard)
+        override def toString = "Field(%s: %s requires %s)".format(name, wt, p_guard)
     }
     
     // ______ Leaf Statements _______________________________________________

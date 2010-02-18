@@ -1190,7 +1190,7 @@ class TestAnalysis extends JUnitSuite {
                 void ok() 
                 requires this.#Creator writableBy method
                 {
-                    obj = new C2@#Creator(this.a)@l1(this.b)@l2(this.c)();
+                    obj = new C2 @#Creator(this.a) @l1(this.b) @l2(this.c)();
                     this->creatorA = obj;
                     this->l1B = obj;
                     this->creatorAl1B = obj; 
@@ -1199,7 +1199,7 @@ class TestAnalysis extends JUnitSuite {
                 void creatorWrong() 
                 requires this.#Creator writableBy method
                 {
-                    obj = new C2@#Creator(this.d)@l1(this.b)@l2(this.c)();
+                    obj = new C2 @#Creator(this.d) @l1(this.b) @l2(this.c) ();
                     this->creatorA = obj; // ERROR intervals.expected.subtype(obj, @#Creator(this.d) @l1(this.b) @l2(this.c) C2, @#Creator(this.a) #Object)
                     this->l1B = obj; 
                     this->creatorAl1B = obj; // ERROR intervals.expected.subtype(obj, @#Creator(this.d) @l1(this.b) @l2(this.c) C2, @#Creator(this.a) @l1(this.b) C1)

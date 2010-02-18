@@ -498,6 +498,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                     env = env.addHbInter(cp_prevInterval, cp_stmtInterval)
                 }
                 env = env.withCurrent(cp_stmtInterval)
+                env = checkStatement(env, stmt)
                 Some(cp_stmtInterval)
             }
             
