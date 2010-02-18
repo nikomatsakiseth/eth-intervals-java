@@ -336,12 +336,10 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                 env = processCallMsig(env, tcp, msig_ctor, cqs)
                 
                 // Ctors for all supertypes now complete:
-                val ct_this = ir.ClassType(
-                    env.c_cur,
-                    List(), 
-                    List()
-                )
-                env = env.redefineReifiedLocal(ir.lv_this, ct_this)
+                strictSuperclasses(env.c_cur).foreach { case c =>
+                    val cp_cCtor = env.canon(ir.ClassCtorFieldName(c).thisPath)
+                    env = env.addHbInter(cp_cCtor, env.cp_cur)
+                }
                 
                 // Supertype must have been processed first:
                 log("Supertype: %s", tcp)
