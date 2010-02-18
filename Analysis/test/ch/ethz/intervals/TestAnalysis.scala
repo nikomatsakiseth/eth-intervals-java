@@ -1063,7 +1063,7 @@ class TestAnalysis extends JUnitSuite {
             }
             
             class Data2 extends #Object {
-                String s;
+                #String s;
             }
             
             class Direct extends #Object {
@@ -1185,7 +1185,7 @@ class TestAnalysis extends JUnitSuite {
             class D@a(#Interval)@b(#Lock)@c(#Lock)@d(#Interval) extends #Object { 
                 #Object@#Creator(this.a) creatorA;
                 C1@l1(this.b) l1B;
-                C1@#Creator(this.a><l1: this.b) creatorAl1B;
+                C1@#Creator(this.a)@l1(this.b) creatorAl1B;
                 
                 void ok() 
                 requires this.#Creator writableBy method
@@ -1248,7 +1248,7 @@ class TestAnalysis extends JUnitSuite {
         success(
             """
             class Data@lock(#Lock) extends #Object@#Creator(this.lock) {
-                String fld requires this.lock;
+                #String fld requires this.lock;
             }
             
             class Link extends #Object@#Creator(this.Constructor) {
@@ -1259,7 +1259,7 @@ class TestAnalysis extends JUnitSuite {
                 
                 Constructor() {
                     super();
-                    lock = new Lock();
+                    lock = new #Lock();
                     this->lock = lock;
                     
                     subinterval x locks lock {
@@ -1285,6 +1285,7 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 Data@lock(this.link.lock) transform(Data@lock(this.link.lock) inData) 
+                requires this.Constructor hb method
                 requires this.link.lock writableBy method
                 {
                     outData = new Data@lock(this.link.lock)();

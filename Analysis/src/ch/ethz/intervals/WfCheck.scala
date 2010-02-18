@@ -31,7 +31,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
     
     def checkIsSubclass(wt: ir.WcTypeRef, cs: ir.ClassName*) {
         if(!cs.exists(env.isSubclass(wt, _)))
-            throw new CheckFailure("intervals.expected.subclass.of.any", wt, cs)
+            throw new CheckFailure("intervals.expected.subclass.of.any", wt.java, cs)
     }
     
     def checkPathWfAndSubclass(

@@ -402,12 +402,16 @@ object ir {
     // The type hierarchy:
     //
 
-    sealed abstract class WcTypeRef
+    sealed abstract class WcTypeRef {
+        def java: String
+    }
     
     sealed case class PathType(
         p: ir.Path,
         tv: ir.TypeVarName
-    ) extends WcTypeRef
+    ) extends WcTypeRef {
+        def java = toString
+    }
     
     sealed case class WcClassType(
         c: ir.ClassName,                            // Name of class being referenced
@@ -421,6 +425,8 @@ object ir {
                 "".join(" ", wtargs, "")
             )
             
+        def java = c.toString
+        
         def withDefaultWghosts(wgs_additional: List[ir.WcGhost]) = {
             val wgs_new = wgs_additional.filter(wg => !wghosts.exists(_.isNamed(wg.f)))
             copy(wghosts = wgs_new ++ wghosts)

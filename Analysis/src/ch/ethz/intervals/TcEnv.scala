@@ -619,7 +619,11 @@ sealed case class TcEnv(
         cp_to: ir.CanonPath
     ) {
         
-        def doWalk(): Boolean = visitNext(Set(cp_from), Queue.Empty.enqueue(cp_from))
+        def doWalk(): Boolean = {
+            log.indented(false, "bfs(%s,%s)", cp_from, cp_to) {
+                visitNext(Set(cp_from), Queue.Empty.enqueue(cp_from))
+            }
+        }
         
         def depoint(cp: ir.CanonPath, f: ir.FieldName) =
             cp match {
@@ -675,7 +679,8 @@ sealed case class TcEnv(
                     // q = x.y.(? hbNow p)                    
                     // In this case, while searching to see if 'q' happened,
                     // we cannot assume that 'p' happened.
-                    !didNotHappen(cq) && new HbWalk(didNotHappen + cp, cq, cp_cur_start).doWalk()
+                    !didNotHappen(cq) && 
+                    new HbWalk(didNotHappen + cp, fld(cq, ir.f_end), cp_cur_start).doWalk()
                 }
         
                 log.indented("cp0.(hbNow qs).end -> cur.start if (qs happened)") {
@@ -693,13 +698,10 @@ sealed case class TcEnv(
 
     }
     
-    private def bfs(cp_from: ir.CanonPath, cp_to: ir.CanonPath) = {
-        
-        log.indented("bfs(%s,%s)", cp_from, cp_to) {
-            assert(isSubclass(cp_from.wt, ir.c_point))
-            assert(isSubclass(cp_to.wt, ir.c_point))
-            new HbWalk(Set(), cp_from, cp_to).doWalk()
-        }
+    private def bfs(cp_from: ir.CanonPath, cp_to: ir.CanonPath) = {        
+        assert(isSubclass(cp_from.wt, ir.c_point))
+        assert(isSubclass(cp_to.wt, ir.c_point))
+        new HbWalk(Set(), cp_from, cp_to).doWalk()
     }
     
     // ___ Other operations on canonical paths ______________________________
