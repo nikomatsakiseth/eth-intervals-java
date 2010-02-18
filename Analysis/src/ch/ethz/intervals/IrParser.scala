@@ -63,8 +63,8 @@ class IrParser extends BaseParser {
     def wt: Parser[ir.WcTypeRef] = (wct | pt)
     
     // Wildcard type with defaults for @Constructor
-    val wgs_dflt = List(ir.WcGhost(ir.f_objCtor, ir.WcHbNow(List(ir.p_this_objCtor))))
-    def wct_dflt = wct                          ^^ { case wct => wct.withDefaultGhosts(wgs_dflt) }
+    val wgs_dflt = List(ir.wg_objCtorHbNowThisObjCtor)
+    def wct_dflt = wct                          ^^ { case wct => wct.withDefaultWghosts(wgs_dflt) }
     def wt_dflt = (wct_dflt | pt)
     
     def lvdecl = wt_dflt~lv                     ^^ { case wt~lv => ir.LvDecl(lv, wt) }

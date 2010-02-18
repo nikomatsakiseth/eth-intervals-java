@@ -421,7 +421,7 @@ object ir {
                 "".join(" ", wtargs, "")
             )
             
-        def withDefaultGhosts(wgs_additional: List[ir.WcGhost]) = {
+        def withDefaultWghosts(wgs_additional: List[ir.WcGhost]) = {
             val wgs_new = wgs_additional.filter(wg => !wghosts.exists(_.isNamed(wg.f)))
             copy(wghosts = wgs_new ++ wghosts)
         }
@@ -431,7 +431,12 @@ object ir {
         c: ir.ClassName,
         val ghosts: List[ir.Ghost],
         val targs: List[ir.TypeArg] 
-    ) extends WcClassType(c, ghosts, targs)
+    ) extends WcClassType(c, ghosts, targs) {
+        def withDefaultGhosts(gs_additional: List[ir.Ghost]) = {
+            val gs_new = gs_additional.filter(g => !ghosts.exists(_.isNamed(g.f)))
+            ir.ClassType(c, gs_new ++ ghosts, targs)
+        }        
+    }
     
     object ClassType {
         def apply(c: ir.ClassName, ghosts: List[ir.Ghost], targs: List[ir.TypeArg]) = {
@@ -575,14 +580,14 @@ object ir {
     
     sealed case class CpObjCtor(cp: CanonPath) extends CanonPath {
         val p = cp.p + ir.f_objCtor
-        val wt = ir.t_interval
+        val wt = ir.wt_constructedInterval
         
         override def toString = super.toString
     }
     
     sealed case class CpClassCtor(cp: CanonPath, c: ir.ClassName) extends CanonPath {
         val p = cp.p + ClassCtorFieldName(c)
-        val wt = ir.t_interval
+        val wt = ir.wt_constructedInterval
         
         override def toString = super.toString
     }
@@ -663,19 +668,19 @@ object ir {
     val c_void = ir.ClassName("void")      // Represents void values.
     val c_array = ir.ClassName("array")    // Represents arrays.    
     
-    val t_void = ir.ClassType(c_void, List(), List())
-    val t_scalar = ir.ClassType(c_scalar, List(), List())
-    val t_interval = ir.ClassType(c_interval, List(), List())
-    val t_point = ir.ClassType(c_point, List(), List())
-    val t_lock = ir.ClassType(c_lock, List(), List())
-    val t_string = ir.ClassType(c_string, List(), List())
-    
     // Ghost field creator, declared on root type Object:
     val p_this_objCtor = f_objCtor.thisPath
     val p_this_creator = f_creator.thisPath
     val p_this_intervalCtor = ClassCtorFieldName(c_interval).thisPath
-    val t_object = ir.ClassType(c_object, List(), List())
-    val t_guard = ir.ClassType(c_guard, List(), List())
+    
+    val t_void = ir.ClassType(c_void, List(), List())
+    val t_interval = ir.ClassType(c_interval, List(), List())
+    
+    val wg_objCtorHbNow = ir.WcGhost(ir.f_objCtor, ir.WcHbNow(List()))
+    val wg_objCtorHbNowThisObjCtor = ir.WcGhost(ir.f_objCtor, ir.WcHbNow(List(ir.p_this_objCtor)))
+
+    val wt_constructedPoint = ir.WcClassType(c_point, List(wg_objCtorHbNow), List())
+    val wt_constructedInterval = ir.WcClassType(c_interval, List(wg_objCtorHbNow), List())    
     
     val md_emptyCtor = 
         ir.MethodDecl(
@@ -747,9 +752,9 @@ object ir {
                     /* args:   */ List(),
                     /* reqs:   */ List(),
                     /* body:   */ empty_method_body)),
-            /* Fields:  */  List(GhostFieldDecl(t_interval, f_creator)),
+            /* Fields:  */  List(GhostFieldDecl(wt_constructedInterval, f_creator)),
             /* Methods: */  List(MethodDecl(
-                    /* wt_ret: */ t_string, 
+                    /* wt_ret: */ ir.WcClassType(c_string, List(wg_objCtorHbNow), List()), 
                     /* name:   */ m_toString, 
                     /* args:   */ List(),
                     /* reqs:   */ List(
@@ -791,8 +796,8 @@ object ir {
             /* Reqs:    */  List(),
             /* Ctor:    */  List(md_emptyCtor),
             /* Fields:  */  List(
-                ReifiedFieldDecl(noAttrs, t_point, f_start, p_this_intervalCtor),
-                ReifiedFieldDecl(noAttrs, t_point, f_end, p_this_intervalCtor)),
+                ReifiedFieldDecl(noAttrs, wt_constructedPoint, f_start, p_this_intervalCtor),
+                ReifiedFieldDecl(noAttrs, wt_constructedPoint, f_end, p_this_intervalCtor)),
             /* Methods: */  List(MethodDecl(
                     /* wt_ret: */ t_void, 
                     /* name:   */ m_run, 

@@ -678,11 +678,14 @@ sealed case class TcEnv(
                     !didNotHappen(cq) && new HbWalk(didNotHappen + cp, cq, cp_cur_start).doWalk()
                 }
         
-                log.indented("cp0.(hbNow qs).end -> cur if (qs happened)") {
+                log.indented("cp0.(hbNow qs).end -> cur.start if (qs happened)") {
                     depoint(cp, ir.f_end).map(is) match {
-                        case Some(ir.WcHbNow(qs)) if qs.exists(happened) =>
-                            Some(fld(cp_cur, ir.f_end))
-                        case _ => None
+                        case Some(ir.WcHbNow(qs)) if qs.forall(happened) =>
+                            Some(fld(cp_cur, ir.f_start))
+                        case Some(wp) =>                            
+                            log("cp0.f == %s", wp); None
+                        case None => 
+                            log("Not end point"); None
                     }
                 }                
             }      
@@ -705,13 +708,19 @@ sealed case class TcEnv(
     // For example, if p has type @Owner(? readableBy inter), then is(p.Owner) would 
     // yield "? readableBy inter".  Returns cp.p if no existential version is found.
     private def is(cp: ir.CanonPath): ir.WcPath = {
-        val owp = cp match {
-            case ir.CpField(cp0, ir.GhostFieldDecl(_, f)) =>
-                ghost(cp0.wt, f).map(_.wp)
-            case _ =>
-                None
+        log.indented(false, "is(%s)", cp) {
+            val owp = cp match {
+                case ir.CpField(cp0, ir.GhostFieldDecl(_, f)) =>
+                    log("Ghost field of %s", cp0)
+                    ghost(cp0.wt, f).map(_.wp)
+                case ir.CpObjCtor(cp0) =>                
+                    log("Obj ctor of %s", cp0)
+                    ghost(cp0.wt, ir.f_objCtor).map(_.wp)
+                case _ =>
+                    None
+            }
+            owp.getOrElse(cp.p)            
         }
-        owp.getOrElse(cp.p)
     }
     
     private def equiv(cp: ir.CanonPath, cq: ir.CanonPath) = (cp.p == cq.p)

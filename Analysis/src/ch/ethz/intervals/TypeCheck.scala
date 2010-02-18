@@ -283,7 +283,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                 
             case ir.Subinterval(x, ps_locks, seq) =>
                 val tps_locks = env.immutableReified(ps_locks)                    
-                env = env.addReifiedLocal(x, ir.t_interval)
+                env = env.addReifiedLocal(x, ir.wt_constructedInterval)
                 val cp_x = env.canon(x.path)
                 env = env.addNonNull(cp_x)
                 env = env.addSubintervalOf(cp_x, env.cp_cur)
@@ -409,12 +409,16 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                 env = processCall(env, x, env.tcp_super, m, cqs)
                 env
             
-            case ir.StmtNew(x, ct, m, qs) =>
-                val cd = classDecl(ct.c)
+            case ir.StmtNew(x, ct0, m, qs) =>
+                val cd = classDecl(ct0.c)
                 val cqs = env.immutableReified(qs)
                 
                 if(cd.attrs.interface)
-                    throw new CheckFailure("intervals.new.interface", ct.c)
+                    throw new CheckFailure("intervals.new.interface", ct0.c)
+                    
+                // Supply a default ghost (the current interval) for @Constructor:
+                val gs_default = List(ir.Ghost(ir.f_objCtor, env.cp_cur.p))
+                val ct = ct0.withDefaultGhosts(gs_default)
                     
                 // Check Ghost Types:           
                 env = env.addReifiedLocal(x, ct)
@@ -480,12 +484,15 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
     def checkStatementSeq(env0: TcEnv, seq: ir.StmtSeq) = {
         log.indented("checkStatementSeq(%s)", seq) {
             val cp_curOnEntry = env0.cp_cur
-            val (cp_seqInterval, env1) = env0.freshCp(ir.t_interval)
+            log("cp_curOnEntry: %s", cp_curOnEntry)
+            val (cp_seqInterval, env1) = env0.freshCp(ir.wt_constructedInterval)
+            log("cp_seqInterval: %s", cp_seqInterval)
             var env = env1.addSubintervalOf(cp_seqInterval, env1.cp_cur)
             env = env.withCurrent(cp_seqInterval)
             
             seq.stmts.foldLeft[Option[ir.CanonPath]](None) { (ocp_prevInterval, stmt) =>
-                val (cp_stmtInterval, env2) = env.freshCp(ir.t_interval)
+                val (cp_stmtInterval, env2) = env.freshCp(ir.wt_constructedInterval)
+                log("cp_stmtInterval: %s", cp_stmtInterval)
                 env = env2.addSubintervalOf(cp_stmtInterval, cp_seqInterval)
                 ocp_prevInterval.foreach { cp_prevInterval =>
                     env = env.addHbInter(cp_prevInterval, cp_stmtInterval)
@@ -528,7 +535,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
     ): FlowEnv = {
         var env = env0
         log.indented("extractAssumptions(%s)", lvs_shared) {
-            val (cp_fresh, env_fresh) = env.freshCp(ir.t_interval)
+            val (cp_fresh, env_fresh) = env.freshCp(ir.wt_constructedInterval)
             env = env_fresh.withCurrent(cp_fresh)
             env = env.addHbInter(env.cp_mthd, env.cp_cur)
             
@@ -607,7 +614,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
             var env = env_cd
             
             // Define special vars "method" and "this":
-            env = env.addGhostLocal(ir.lv_mthd, ir.t_interval)
+            env = env.addGhostLocal(ir.lv_mthd, ir.wt_constructedInterval)
             env = env.withCurrent(env.cp_mthd)
             env = env.addNonNull(env.cp_mthd)
             
@@ -691,7 +698,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
             // we must check all prefixes of each dependent path as well.
             val ct_this = ir.ClassType(env.c_cur, List(), List())
             env = env.addReifiedLocal(ir.lv_this, ct_this)
-            env = env.addGhostLocal(ir.lv_mthd, ir.t_interval)
+            env = env.addGhostLocal(ir.lv_mthd, ir.wt_constructedInterval)
             env = env.withCurrent(env.cp_mthd)
             
             // Add assumptions as though guard were satisfied.

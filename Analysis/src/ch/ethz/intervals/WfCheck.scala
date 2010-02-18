@@ -279,7 +279,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                             ps_initial.foreach(checkPathWf(reified, _))
                         case ir.Subinterval(x, ps_locks, _) =>
                             ps_locks.foreach(checkPathWf(reified, _))
-                            addReifiedLocal(x, ir.t_interval)
+                            addReifiedLocal(x, ir.wt_constructedInterval)
                         case ir.TryCatch(_, _) =>
                     }
                     
@@ -329,7 +329,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
         at(md, ()) {
             savingEnv {
                 // Define special vars "method" and "this":
-                addGhostLocal(ir.lv_mthd, ir.t_interval)
+                addGhostLocal(ir.lv_mthd, ir.wt_constructedInterval)
                 addThis(cd)
 
                 setCurrent(env.canon(ir.p_mthd))
