@@ -207,8 +207,15 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                     
                     // Check that all ghosts on the type C being instantiated are given a value:
                     val gfds_unbound = unboundGhostFieldsOnClassAndSuperclasses(ct.c)
-                    gfds_unbound.find(f => env.ghost(ct, f.name).isEmpty) match {
-                        case Some(f) => throw new CheckFailure("intervals.no.value.for.ghost", f)
+                    gfds_unbound.find(gfd => env.ghost(ct, gfd.name).isEmpty) match {
+                        case Some(gfd) => throw new CheckFailure("intervals.no.value.for.ghost", gfd.name)
+                        case None =>
+                    }
+                    
+                    // Check that all type vars on the type C being instantiated are given a value:
+                    val tvds_unbound = unboundTypeVarsDeclaredOnClassAndSuperclasses(ct.c)
+                    tvds_unbound.find(tvd => env.typeArg(ct, tvd.name).isEmpty) match {
+                        case Some(tvd) => throw new CheckFailure("intervals.no.value.for.type.var", tvd.name)
                         case None =>
                     }
                     

@@ -766,7 +766,7 @@ sealed case class TcEnv(
     }
     
     /// Returns the binding for the ghost field 'f' on type 'cp0', if any.
-    private def typeArg(wt: ir.WcTypeRef, tv: ir.TypeVarName): Option[ir.WcTypeArg] = {
+    def typeArg(wt: ir.WcTypeRef, tv: ir.TypeVarName): Option[ir.WcTypeArg] = {
         typeArgs(wt).find(_.isNamed(tv))
     }
     
