@@ -9,6 +9,9 @@ ______ Bugs __________________________________________________________
   
 - Check type args in wf check
 
+- In addHb(), check that the arguments are immutable but also that their
+  constructors have completed.
+
 - Rewrite type checker to (a) expand supertype into a set of lower-bounds
   and (b) expand subtype to a set of upper-bounds.  In this way we avoid 
   infinite recursion and also handle equivalent types like v1<E: v2.E>
