@@ -17,7 +17,7 @@ class IrParser extends BaseParser {
         "requires", "super", 
         "subinterval", "push", "pop", 
         "interface", "break", "continue", "cbreak",
-        "switch", "loop", "try", "catch"
+        "switch", "loop", "try", "catch", "assert"
     )
 
     def optd[A](d: => A, p: Parser[A]) = (
@@ -62,9 +62,12 @@ class IrParser extends BaseParser {
     def wct = c~rep(wg)~rep(wta)                ^^ { case c~lwg~la => ir.WcClassType(c, lwg, la) }
     def wt: Parser[ir.WcTypeRef] = (wct | pt)
     
-    def lvdecl = (
-        wt~lv                                   ^^ { case wt~lv => ir.LvDecl(lv, wt) }
-    )
+    // Wildcard type with defaults for @Constructor
+    val wgs_dflt = List(ir.WcGhost(ir.f_objCtor, ir.WcHbNow(List(ir.p_this_objCtor))))
+    def wct_dflt = wct                          ^^ { case wct => wct.withDefaultGhosts(wgs_dflt) }
+    def wt_dflt = (wct_dflt | pt)
+    
+    def lvdecl = wt_dflt~lv                     ^^ { case wt~lv => ir.LvDecl(lv, wt) }
     
     private var counter = 0
     def anonLv = {
@@ -101,10 +104,10 @@ class IrParser extends BaseParser {
     |   optLv~"super"~"->"~m~"("~comma(p)~")"~";"   ^^ { case x~_~"->"~m~"("~qs~")"~_ => ir.StmtSuperCall(x, m, qs) }
     |   lv~"="~p~"->"~f~";"                         ^^ { case x~"="~p~"->"~f~_ => ir.StmtGetField(x, p, f) }
     |   lv~"="~"new"~ct~cm~"("~comma(p)~")"~";"     ^^ { case x~"="~"new"~ct~m~"("~qs~")"~_ => ir.StmtNew(x, ct, m, qs) }
-    |   lv~"="~"("~wt~")"~p~";"                     ^^ { case x~"="~"("~wt~")"~p~";" => ir.StmtCast(x, wt, p) }
-    |   lv~"="~"("~wt~")"~"null"~";"                ^^ { case x~"="~"("~wt~")"~"null"~";" => ir.StmtNull(x, wt) }
+    |   lv~"="~"("~wt_dflt~")"~p~";"                ^^ { case x~"="~"("~wt~")"~p~";" => ir.StmtCast(x, wt, p) }
+    |   lv~"="~"("~wt_dflt~")"~"null"~";"           ^^ { case x~"="~"("~wt~")"~"null"~";" => ir.StmtNull(x, wt) }
     |   p~"->"~f~"="~p~";"                          ^^ { case p~_~f~_~q~_ => ir.StmtSetField(p, f, q) }
-    |   p~"<:"~wt~";"                               ^^ { case p~_~wt~_ => ir.StmtCheckType(p, wt) }
+    |   "assert"~p~"<:"~wt_dflt~";"                 ^^ { case _~p~_~wt~_ => ir.StmtCheckType(p, wt) }
     |   p~"hb"~p~";"                                ^^ { case p~_~q~_ => ir.StmtHb(p, q) }
     |   p~"locks"~p~";"                             ^^ { case p~_~q~_ => ir.StmtLocks(p, q) }
     |   "break"~integer~"("~comma(p)~")"~";"        ^^ { case _~i~"("~ps~")"~";" => ir.StmtBreak(i, ps) }
@@ -123,7 +126,7 @@ class IrParser extends BaseParser {
     def reqs = rep(req)
     
     def methodDecl = positioned(
-        wt~m~"("~comma(lvdecl)~")"~reqs~seq        
+        wt_dflt~m~"("~comma(lvdecl)~")"~reqs~seq        
     ^^ {
         case wt_ret~name~"("~args~")"~reqs~seq =>
             ir.MethodDecl(wt_ret, name, args, reqs, seq)
@@ -137,21 +140,21 @@ class IrParser extends BaseParser {
     })
     
     def reifiedFieldDecl = positioned(
-        attrs~wt~f~"requires"~p~";"             ^^ { case as~wt~f~_~p~_ => ir.ReifiedFieldDecl(as, wt, f, p) }
-    |   attrs~wt~f~";"                          ^^ { case as~wt~f~_ => ir.ReifiedFieldDecl(as, wt, f, ir.p_this_creator) }
+        attrs~wt_dflt~f~"requires"~p~";"            ^^ { case as~wt~f~_~p~_ => ir.ReifiedFieldDecl(as, wt, f, p) }
+    |   attrs~wt_dflt~f~";"                         ^^ { case as~wt~f~_ => ir.ReifiedFieldDecl(as, wt, f, ir.p_this_creator) }
     )
     
-    def constructors = rep(constructor)         ^^ {
+    def constructors = rep(constructor)             ^^ {
         case List() => List(ir.md_emptyCtor)
         case ctors => ctors
     }
     
     def typeVarDecl = positioned(
-        "<"~tv~"<:"~comma(wt)~">"               ^^ { case _~tv~_~wts~_ => ir.TypeVarDecl(tv, wts) }
+        "<"~tv~"<:"~comma(wt_dflt)~">"              ^^ { case _~tv~_~wts~_ => ir.TypeVarDecl(tv, wts) }
     )
     
     def ghostFieldDecl = positioned(
-        "@"~f~"("~wt~")"                        ^^ { case _~f~_~wt~_ => ir.GhostFieldDecl(wt, f) }
+        "@"~f~"("~wt_dflt~")"                       ^^ { case _~f~_~wt~_ => ir.GhostFieldDecl(wt, f) }
     )
     
     def classDecl = positioned(

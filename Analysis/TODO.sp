@@ -1,6 +1,6 @@
 ___ To Do List _______________________________________________________
 
-______ Don't Forget __________________________________________________
+______ Bugs __________________________________________________________   
 
 - Introduce immutableIn to supplement readableBy?
 
@@ -9,7 +9,10 @@ ______ Don't Forget __________________________________________________
   
 - Check type args in wf check
 
-______ Bugs __________________________________________________________   
+- Rewrite type checker to (a) expand supertype into a set of lower-bounds
+  and (b) expand subtype to a set of upper-bounds.  In this way we avoid 
+  infinite recursion and also handle equivalent types like v1<E: v2.E>
+  v2<E: v1.E> nicely.
 
 - Check in multiple inheritance that all paths lead to the same set of ghost parameters.
   Alternatively, make sure that all paths are fulfilled. Latter technique is "cooler" (then, for ex.,
@@ -24,19 +27,18 @@ ______ Bugs __________________________________________________________
 
 - More sophisticated merging with respect to temp/perm
 
-  If all preds have the same effective mapping, but some in temp and some in pred, the succ should have the mapping in temp.
-  for example:
-    
-    {
-        if(...) {
-            b = ...; // immutable object
-            a = b.f; // permanent!
-        } else {
-            b = ...; // mutable object
-            a = b.f; // temporary
-        }
-        // safe if b.f→a temporarily        
-    }
+  If all preds have the same effective mapping, but some in temp and some in pred, the succ should
+  have the mapping in temp. For example:
+  {
+      if(...) {
+          b = ...; // immutable object
+          a = b.f; // permanent!
+      } else {
+          b = ...; // mutable object
+          a = b.f; // temporary
+      }
+      // safe if b.f→a temporarily        
+  }
  
 ______ Features ______________________________________________________
 

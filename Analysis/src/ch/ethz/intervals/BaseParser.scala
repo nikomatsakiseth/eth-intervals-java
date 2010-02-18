@@ -74,6 +74,7 @@ abstract class BaseParser extends StandardTokenParsers {
     |   opt("?")~>"readableBy"~>comma(p)        ^^ ir.WcReadableBy
     |   opt("?")~>"writableBy"~>comma(p)        ^^ ir.WcWritableBy
     |   opt("?")~>"hbNow"~>comma(p)             ^^ ir.WcHbNow
+    |   "?"                                     ^^^ ir.WcWritableBy(List())
     )
                                         
 }

@@ -421,8 +421,10 @@ object ir {
                 "".join(" ", wtargs, "")
             )
             
-        def withGhosts(wghosts_add: List[ir.WcGhost]) = 
-            ir.WcClassType(c, wghosts_add ++ wghosts, wtargs)
+        def withDefaultGhosts(wgs_additional: List[ir.WcGhost]) = {
+            val wgs_new = wgs_additional.filter(wg => !wghosts.exists(_.isNamed(wg.f)))
+            copy(wghosts = wgs_new ++ wghosts)
+        }
     }
     
     sealed class ClassType(

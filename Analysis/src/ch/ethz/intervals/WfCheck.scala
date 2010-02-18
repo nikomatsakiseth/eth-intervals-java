@@ -94,8 +94,8 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
 
         // Every ghost should be for some unbound ghost field:
         val gfds_unbound = unboundGhostFieldsOnClassAndSuperclasses(wt.c)
-        def unexpected(wg: ir.WcGhost) = !gfds_unbound.exists(_.isNamed(wg.f))        
-        wt.wghosts.find(unexpected).foreach { wg =>
+        val expectedFieldNames: Set[ir.FieldName] = gfds_unbound.map(_.name) + ir.f_objCtor
+        wt.wghosts.find(wg => !expectedFieldNames(wg.f)).foreach { wg =>
             throw new CheckFailure("intervals.no.such.ghost", wt.c, wg.f)
         }
     }
@@ -119,8 +119,8 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
         
         // Every type arg should be for some unbound type variable:
         val tvds_unbound = unboundTypeVarsDeclaredOnClassAndSuperclasses(wt.c)
-        def unexpected(wta: ir.WcTypeArg) = !tvds_unbound.exists(_.isNamed(wta.tv))
-        wt.wtargs.find(unexpected).foreach { wta =>
+        val expectedTvNames = tvds_unbound.map(_.name)
+        wt.wtargs.find(wta => !expectedTvNames(wta.tv)).foreach { wta =>
             throw new CheckFailure("intervals.no.such.type.var", wt.c, wta.tv)            
         }
     }
