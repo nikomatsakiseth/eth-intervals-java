@@ -192,7 +192,7 @@ class TranslateTypeFactory(
     
     sealed abstract class GhostAnn
     case object GhostAnnNone extends GhostAnn
-    sealed case class GhostAnnDecl(f: ir.FieldName, annty: AnnotatedTypeMirror) extends GhostAnn
+    sealed case class GhostAnnDecl(gfd: ir.GhostFieldDecl) extends GhostAnn
     sealed case class GhostAnnValue(f: ir.FieldName, value: String) extends GhostAnn
     
     def categorizeGhostAnnot(am: AnnotationMirror) =
@@ -203,8 +203,8 @@ class TranslateTypeFactory(
                 val value = annValue(am)
                 if(value == "") {
                     val ghostTypeString = elem.getAnnotation(classOf[DefinesGhost]).`type`
-                    val ghostAnnty = AnnTyParser(ghostTypeString)
-                    GhostAnnDecl(f(elem), ghostAnnty)
+                    val ghostElem = AnnTyParser.typeElement(ghostTypeString)
+                    GhostAnnDecl(ir.GhostFieldDecl(f(elem), className(ghostElem)))
                 } else
                     GhostAnnValue(f(elem), value)
             }            
@@ -213,23 +213,23 @@ class TranslateTypeFactory(
     // Higher-level function that folds elemFunc over
     // every element in 'ty' and its supertypes, progressively
     // adding to the map 'm0' and returning the final result.
-    def addTyAndSupertypes[K,V](
-        elemFunc: ((Map[K,V], Element) => Map[K,V])
+    def addTyAndSupertypes[S](
+        elemFunc: ((S, Element) => S)
     )(
-        m0: Map[K,V],
+        m0: S,
         ty: TypeMirror
-    ): Map[K,V] =
-        elemOfType(ty).foldLeft(m0)(addElemAndSuperelems(elemFunc))        
+    ): S =
+        elemOfType(ty).foldLeft(m0)(addElemAndSuperelems(elemFunc))
         
     // Higher-level function that folds elemFunc over
     // elem and the elements of its supertypes, progressively
     // adding to the map 'm0' and returning the final result.
-    def addElemAndSuperelems[K,V](
-        elemFunc: ((Map[K,V], Element) => Map[K,V])
+    def addElemAndSuperelems[S](
+        elemFunc: ((S, Element) => S)
     )(
-        m0: Map[K,V],
+        m0: S,
         elem: Element
-    ): Map[K,V] = {
+    ): S = {
         elem.getKind match {
             case EK.CLASS | EK.INTERFACE | EK.ENUM | EK.ANNOTATION_TYPE =>
                 // Extract decls from supertypes:
@@ -259,7 +259,7 @@ class TranslateTypeFactory(
     ): Map[ir.FieldName, String] =
         ams.map(categorizeGhostAnnot).foldLeft(m0) { 
             case (m, GhostAnnNone) => m
-            case (m, GhostAnnDecl(_, _)) => m
+            case (m, GhostAnnDecl(_)) => m
             case (m, GhostAnnValue(f, s)) => m + Pair(f, s)
         }    
         
@@ -298,30 +298,30 @@ class TranslateTypeFactory(
     // Creator, declared on its supertype Object.
 
     def addGhostFieldsDeclaredOnElem(
-        m0: Map[ir.FieldName, AnnotatedTypeMirror], 
+        gfds: Set[ir.GhostFieldDecl],
         elem0: Element
-    ): Map[ir.FieldName, AnnotatedTypeMirror] = 
+    ): Set[ir.GhostFieldDecl] =
         log.indented("addGhostFieldsDeclaredOnElem(%s)", elem0) {
-            elem0.getAnnotationMirrors.map(categorizeGhostAnnot).foldLeft(m0) { 
-                case (m, GhostAnnNone) => m
-                case (m, GhostAnnDecl(f, annty)) => m + Pair(f, annty)
-                case (m, GhostAnnValue(_, _)) => m
-            }    
+            elem0.getAnnotationMirrors.map(categorizeGhostAnnot).foldLeft(m0) {
+                case (m, GhostAnnNone) => gfds
+                case (m, GhostAnnDecl(gfd)) => gfds + gfd
+                case (m, GhostAnnValue(_, _)) => gfds
+            }
         }
     
     def ghostFieldsDeclaredOnElem(elem: Element) =
         log.indented("ghostFieldsDeclaredOnElem(%s)", elem) {
-            addGhostFieldsDeclaredOnElem(Map.empty, elem)
+            addGhostFieldsDeclaredOnElem(Set(), elem)
         }
                 
     def ghostFieldsDeclaredOnElemAndSuperelems(elem: Element) =
         log.indented("ghostFieldsDeclaredOnElemAndSuperelems(%s)", elem) {
-            addElemAndSuperelems(addGhostFieldsDeclaredOnElem)(Map.empty, elem)
+            addElemAndSuperelems(addGhostFieldsDeclaredOnElem)(Set(), elem)
         }
     
     def ghostFieldsDeclaredOnTyAndSupertypes(ty: TypeMirror) =
         log.indented("ghostFieldsDeclaredOnTyAndSupertypes(%s)", ty) {
-            addTyAndSupertypes(addGhostFieldsDeclaredOnElem)(Map.empty, ty)
+            addTyAndSupertypes(addGhostFieldsDeclaredOnElem)(Set(), ty)
         }
     
     // ______ Unbound Ghost Fields __________________________________________
@@ -675,25 +675,26 @@ class TranslateTypeFactory(
 
     def dummyMethodDecl(eelem: ExecutableElement) =
         ir.MethodDecl(
-            /* wt_ret: */ ir.t_void,
-            /* name:   */ m(eelem), 
-            /* args:   */ eelem.getParameters.map(dummyLvDecl).toList,
-            /* reqs:   */ List(),
-            /* body:   */ ir.empty_method_body
+            wt_ret = ir.t_void,
+            name = m(eelem),
+            args = eelem.getParameters.map(dummyLvDecl).toList,
+            reqs = List(),
+            body = ir.empty_method_body
         )
 
     def dummyClassDecl(telem: TypeElement) = 
         ir.ClassDecl(
-            /* Attrs:   */  classAttrs(telem),
-            /* Name:    */  className(telem),
-            /* TyVars:  */  List(),
-            /* TyArgs:  */  List(),
-            /* Extends: */  List(),
-            /* Ghosts:  */  List(),
-            /* Reqs:    */  List(),
-            /* Ctor:    */  List(ir.md_emptyCtor),
-            /* Fields:  */  List(),
-            /* Methods: */  List()
+            attrs = classAttrs(telem),
+            name = className(telem),
+            ghostFieldDecls = List(),
+            typeVarDecls = List(),
+            superClasses = List(),
+            ghosts = List(),
+            typeArgs = List(),
+            reqs = List(),
+            ctors = List(ir.md_emptyCtor),
+            reifiedFieldDecls = List(),
+            methods = List()
         )    
     
     // ___ Translating the class interface __________________________________
@@ -773,24 +774,24 @@ class TranslateTypeFactory(
                 val fieldDecls = EF.fieldsIn(enclElems).filter(filter).map(intFieldDecl)
                 
                 val env = elemEnv(telem)
-                val ghostDecls = ghostFieldsDeclaredOnElem(telem).map { case (f, annty) =>
-                    ir.GhostFieldDecl(wtref(env)(annty), f) }        
+                val gfds = ghostFieldsDeclaredOnElem(telem)
                 val ghosts = ghostFieldsBoundOnElem(telem).map { case (f, s) =>
                     ir.Ghost(f, AnnotParser(env).path(s)) }
         
                 // XXX Type Vars, Type Args
                 
                 ir.ClassDecl(
-                    /* Attrs:   */  classAttrs(telem),
-                    /* Name:    */  className(telem),
-                    /* T Vars:  */  List(),
-                    /* T Args:  */  List(),
-                    /* Extends: */  directSupertys(telem).map(erasedTy(_)),
-                    /* Ghosts:  */  ghosts.toList,
-                    /* Reqs:    */  reqs(telem),
-                    /* Ctor:    */  ctorDecls.toList,
-                    /* Fields:  */  (ghostDecls ++ fieldDecls).toList,
-                    /* Methods: */  methodDecls.toList
+                    attrs = classAttrs(telem),
+                    name = className(telem),
+                    ghostFieldDecls = gfds.toList,
+                    typeVars = List(), // XXX
+                    superClasses = directSupertys(telem).map(erasedTy(_)),
+                    ghosts = ghosts.toList,
+                    typeArgs = List(), // XXX
+                    reqs = reqs(telem),
+                    ctors = ctorDecls.toList,
+                    reifiedFieldDecls = fieldDecls.toList,
+                    methods = methodDecls.toList
                 ).withPos(env.pos)
             }            
         }

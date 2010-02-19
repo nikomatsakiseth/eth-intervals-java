@@ -17,6 +17,7 @@ sealed case class TcEnv(
     import prog.logStack.log
     import prog.logStack.at    
     import prog.classDecl
+    import prog.ghostFieldsDeclaredOnClassAndSuperclasses
     import prog.ghostsOnClassAndSuperclasses
     import prog.typeArgsOnClassAndSuperclasses
     import prog.typeVarsDeclaredOnClassAndSuperclasses
@@ -713,7 +714,7 @@ sealed case class TcEnv(
                 log.indented("cp0.(hbNow qs).end -> cur.start if (qs happened)") {
                     depoint(p, ir.f_end).map(is) match {
                         case Some(ir.WcHbNow(qs)) if qs.forall(happened) =>
-                            Some(p_cur_start)
+                            Some(p_cur.start)
                         case Some(wp) =>                            
                             log("cp0.f == %s", wp); None
                         case None => 
@@ -737,7 +738,7 @@ sealed case class TcEnv(
     private def is(cp: ir.CanonPath): ir.WcPath = {
         log.indented(false, "is(%s)", cp) {
             val owp = cp match {
-                case ir.CpGhostField(crp_base, ir.GhostFieldDecl(_, f)) =>
+                case ir.CpGhostField(crp_base, ir.GhostFieldDecl(f, _)) =>
                     log("Ghost field of %s", crp_base)
                     ghost(crp_base.wt, f).map(_.wp)
                 case ir.CpObjCtor(crp_base) =>                
@@ -822,16 +823,16 @@ sealed case class TcEnv(
     
     /// Returns the upper- and lower-bounds for a type.
     def boundPathType(pt: ir.PathType): ir.TypeBounds = {
-        val cp = canon(pt.p)
-        typeArg(cp.wt, pt.tv) match {
+        val crp = reified(pt.p)
+        typeArg(crp.wt, pt.tv) match {
             case Some(wtarg) => 
                 wtarg.bounds
             case None => 
-                typeVarsDeclaredOnType(cp.wt).find(_.isNamed(pt.tv)) match {
+                typeVarsDeclaredOnType(crp.wt).find(_.isNamed(pt.tv)) match {
                     case Some(tvdecl) =>
                         ir.TypeBounds(tvdecl.wts_lb, None)
                     case None =>
-                        throw new CheckFailure("intervals.no.such.type.var", cp.wt, pt.tv)
+                        throw new CheckFailure("intervals.no.such.type.var", crp.wt, pt.tv)
                 }
         }
     }
@@ -843,9 +844,9 @@ sealed case class TcEnv(
         
     def pathHasSubclass(cp_sub: ir.CanonPath, c_sup: ir.ClassName): Boolean = {
         // Ok so the name of this function is an abuse of the english language... sue me...
-        log.indented(false, "pathHasSubclass(%s, %s)?", cp_sub, wt_sup) {
+        log.indented(false, "pathHasSubclass(%s, %s)?", cp_sub, c_sup) {
             cp_sub match {                
-                case cgp: ir.CanonGhostPath => prog.isSubclass(wgp.c_cp, c_sup)
+                case cgp: ir.CanonGhostPath => prog.isSubclass(cgp.c_cp, c_sup)
                 case crp: ir.CanonReifiedPath => isSubclass(crp.wt, c_sup)
             }
         }
@@ -932,7 +933,7 @@ sealed case class TcEnv(
     }
     
     /// t_sub <: wt_sup
-    private def isSubtype(wt_sub: ir.WcTypeRef, wt_sup: ir.WcTypeRef): Boolean = {
+    def isSubtype(wt_sub: ir.WcTypeRef, wt_sup: ir.WcTypeRef): Boolean = {
         log.indented("isSubtype(%s, %s)?", wt_sub, wt_sup) {
             (wt_sub, wt_sup) match {
                 case (pt_sub: ir.PathType, pt_sup: ir.PathType) if pt_sub == pt_sup =>
@@ -957,26 +958,26 @@ sealed case class TcEnv(
         }                
     }
     
-    private def capture(cp: ir.CanonPath): ir.WcTypeRef = {
-        log.indented(false, "capture(%s)", cp) {
-            cp.wt match {
+    private def capture(crp: ir.CanonReifiedPath): ir.WcTypeRef = {
+        log.indented(false, "capture(%s)", crp) {
+            crp.wt match {
                 case pt: ir.PathType => pt
                 case wct: ir.WcClassType =>
                     val ghosts = unboundGhostFieldsOnClassAndSuperclasses(wct.c).toList
                     val typeVarDecls = unboundTypeVarsDeclaredOnClassAndSuperclasses(wct.c).toList
-                    val g_ctor = ir.Ghost(ir.f_objCtor, cp.p + ir.f_objCtor)
+                    val g_ctor = ir.Ghost(ir.f_objCtor, crp.p + ir.f_objCtor)
                     ir.WcClassType(
                         wct.c,
-                        g_ctor :: ghosts.map(_.ghostOf(cp.p)),
-                        typeVarDecls.map(_.typeArgOf(cp.p))
+                        g_ctor :: ghosts.map(_.ghostOf(crp.p)),
+                        typeVarDecls.map(_.typeArgOf(crp.p))
                     )
             }
         }
     }
     
-    def pathHasType(cp_sub: ir.CanonPath, wt_sup: ir.WcTypeRef): Boolean = {
-        log.indented(false, "pathHasType(%s, %s)?", cp_sub, wt_sup) {
-            isSubtype(capture(cp_sub), wt_sup)            
+    def pathHasType(crp_sub: ir.CanonReifiedPath, wt_sup: ir.WcTypeRef): Boolean = {
+        log.indented(false, "pathHasType(%s, %s)?", crp_sub, wt_sup) {
+            isSubtype(capture(crp_sub), wt_sup)            
         }
     }
     

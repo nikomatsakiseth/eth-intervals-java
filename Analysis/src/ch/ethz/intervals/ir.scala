@@ -612,7 +612,7 @@ object ir {
         override def toString = super.toString
     }
     
-    sealed case class TeeCeePee[+T <: WcTypeRef](cp: CanonPath, ty: T) {
+    sealed case class TeeCeePee[+T <: WcTypeRef](cp: ir.CanonReifiedPath, ty: T) {
         def p = cp.p
         
         def withTy[S <: WcTypeRef](ty: S) = ir.TeeCeePee(cp, ty)

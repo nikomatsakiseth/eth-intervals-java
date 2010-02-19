@@ -114,8 +114,8 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
     def checkWtrefWf(wt: ir.WcTypeRef) {
         wt match {
             case pt: ir.PathType =>
-                val cp = rOrGhost(pt.p)
-                val tvds = env.typeVarsDeclaredOnType(cp.wt)
+                val crp = reified(pt.p)
+                val tvds = env.typeVarsDeclaredOnType(crp.wt)
                 tvds.find(_.isNamed(pt.tv)) match {
                     case None => throw new CheckFailure("intervals.no.such.type.var", cp.wt, pt.tv)
                     case Some(_) =>

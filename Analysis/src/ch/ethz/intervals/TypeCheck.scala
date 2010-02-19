@@ -18,9 +18,9 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
     import prog.strictSuperclasses
     
     /// wt(cp_sub) <: wt_sup
-    def checkIsSubtype(env: TcEnv, cp_sub: ir.CanonPath, wt_sup: ir.WcTypeRef) {
-        if(!env.pathHasType(cp_sub, wt_sup))
-            throw new CheckFailure("intervals.expected.subtype", cp_sub.p, cp_sub.wt, wt_sup)
+    def checkIsSubtype(env: TcEnv, crp_sub: ir.CanonReifiedPath, wt_sup: ir.WcTypeRef) {
+        if(!env.pathHasType(crp_sub, wt_sup))
+            throw new CheckFailure("intervals.expected.subtype", crp_sub.p, crp_sub.wt, wt_sup)
     }
     
     // ___ Statement Stack __________________________________________________
@@ -67,7 +67,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
             throw new CheckFailure("intervals.requirement.not.met", req)
     }
     
-    def checkArgumentTypes(env: TcEnv, msig: ir.MethodSig, cqs: List[ir.CanonPath]) =
+    def checkArgumentTypes(env: TcEnv, msig: ir.MethodSig, cqs: List[ir.CanonReifiedPath]) =
         foreachzip(cqs, msig.args.map(_.wt))(checkIsSubtype(env, _, _))
     
     def checkReadable(env: TcEnv, cp_guard: ir.CanonPath) {
@@ -87,7 +87,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                 env.flow.ps_invalidated.mkEnglishString)        
     }
 
-    def processCallMsig(env: TcEnv, tcp: ir.TeeCeePee[_], msig: ir.MethodSig, cqs: List[ir.CanonPath]) = {
+    def processCallMsig(env: TcEnv, tcp: ir.TeeCeePee[_], msig: ir.MethodSig, cqs: List[ir.CanonReifiedPath]) = {
         // Cannot invoke a method when there are outstanding invalidated fields:
         checkNoInvalidated(env)
             
@@ -103,7 +103,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
         env.clearTemp()
     }
     
-    def processCall(env0: TcEnv, x: ir.VarName, tcp: ir.TeeCeePee[ir.WcTypeRef], m: ir.MethodName, cqs: List[ir.CanonPath]) = {
+    def processCall(env0: TcEnv, x: ir.VarName, tcp: ir.TeeCeePee[ir.WcTypeRef], m: ir.MethodName, cqs: List[ir.CanonReifiedPath]) = {
         var env = env0
         val msig = env.substdMethodSig(tcp, m, cqs)
         env = processCallMsig(env, tcp, msig, cqs)
@@ -349,23 +349,17 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                 val cp_o = env.immutableReified(p_o)
                 env = env.addNonNull(cp_o)
                 
-                env.substdFieldDecl(cp_o.toTcp, f) match {
-                    case (_, _: ir.GhostFieldDecl) =>
-                        throw new CheckFailure("intervals.not.reified", cp_o.wt, f)
-                    
-                    case (_, rfd: ir.ReifiedFieldDecl) =>
-                        val cp_guard = env.immutableGhost(rfd.p_guard)
-                        checkReadable(env, cp_guard)
-                        
-                        val cp_f = env.extendCanonWithReifiedField(cp_o, rfd)
-                        if(!env.isMutable(cp_f)) {
-                            env = env.addPerm(x, cp_f)                            
-                        } else {
-                            env = env.addReifiedLocal(x, rfd.wt)
-                            env = env.addTemp(cp_f.p, x.path) // Record that p.f == vd, for now.
-                        }
+                val (_, rfd) = env.substdReifiedFieldDecl(cp_o.toTcp, f)
+                val cp_guard = env.immutableGhost(rfd.p_guard)
+                checkReadable(env, cp_guard)
+                
+                val cp_f = env.extendCanonWithReifiedField(cp_o, rfd)
+                if(!env.isMutable(cp_f)) {
+                    env.addPerm(x, cp_f)                            
+                } else {
+                    env = env.addReifiedLocal(x, rfd.wt)
+                    env.addTemp(cp_f.p, x.path) // Record that p.f == vd, for now.
                 }
-                env            
                 
             case ir.StmtSetField(p_o, f, p_v) =>
                 val cp_o = env.immutableReified(p_o)
@@ -373,22 +367,16 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                 
                 val cp_v = env.immutableReified(p_v)
                 
-                env.substdFieldDecl(cp_o.toTcp, f) match {
-                    case (_, _: ir.GhostFieldDecl) => 
-                        throw new CheckFailure("intervals.not.reified", cp_o.wt, f)
-                    
-                    case (tcp_o, rfd: ir.ReifiedFieldDecl) =>
-                        val cp_guard = env.immutableGhost(rfd.p_guard)
-                        checkWritable(env, cp_guard)
-                        checkIsSubtype(env, cp_v, rfd.wt)
-                        
-                        val cp_f = env.extendCanonWithReifiedField(cp_o, rfd)                        
-                        env = env.addTemp(cp_f.p, cp_v.p)
+                val (tcp_o, rfd) = env.substdReifiedFieldDecl(cp_o.toTcp, f) 
+                val cp_guard = env.immutableGhost(rfd.p_guard)
+                checkWritable(env, cp_guard)
+                checkIsSubtype(env, cp_v, rfd.wt)
                 
-                        env = env.removeInvalidated(cp_f.p)
-                        env = env.linkedPaths(tcp_o, f).foldLeft(env)(_ addInvalidated _)                            
-                }
-                env
+                val cp_f = env.extendCanonWithReifiedField(cp_o, rfd)                        
+                env = env.addTemp(cp_f.p, cp_v.p)
+        
+                env = env.removeInvalidated(cp_f.p)
+                env.linkedPaths(tcp_o, f).foldLeft(env)(_ addInvalidated _)                            
                 
             case ir.StmtCheckType(p, wt) =>
                 val cp = env.immutableReified(p)
@@ -420,9 +408,9 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                     
                 // Check Ghost Types:           
                 env = env.addReifiedLocal(x, ct)
-                val cp_x = env.perm(x)
-                val tcp_x = ir.TeeCeePee(cp_x, ct)
-                env = env.addNonNull(cp_x)
+                val crp_x = env.immutableReified(x.path)
+                val tcp_x = ir.TeeCeePee(crp_x, ct)
+                env = env.addNonNull(crp_x)
                 ct.ghosts.foreach { g =>
                     if(g.f != ir.f_objCtor) {
                         val (_, gfd) = env.substdFieldDecl(tcp_x, g.f)
@@ -489,13 +477,13 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
         log.indented("checkStatementSeq(%s)", seq) {
             val cp_curOnEntry = env0.cp_cur
             log("cp_curOnEntry: %s", cp_curOnEntry)
-            val (cp_seqInterval, env1) = env0.freshCp(ir.wt_constructedInterval)
+            val (cp_seqInterval, env1) = env0.freshCp(ir.c_interval)
             log("cp_seqInterval: %s", cp_seqInterval)
             var env = env1.addSubintervalOf(cp_seqInterval, env1.cp_cur)
             env = env.withCurrent(cp_seqInterval)
             
             seq.stmts.foldLeft[Option[ir.CanonPath]](None) { (ocp_prevInterval, stmt) =>
-                val (cp_stmtInterval, env2) = env.freshCp(ir.wt_constructedInterval)
+                val (cp_stmtInterval, env2) = env.freshCp(ir.c_interval)
                 log("cp_stmtInterval: %s", cp_stmtInterval)
                 env = env2.addSubintervalOf(cp_stmtInterval, cp_seqInterval)
                 ocp_prevInterval.foreach { cp_prevInterval =>
@@ -540,7 +528,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
     ): FlowEnv = {
         var env = env0
         log.indented("extractAssumptions(%s)", lvs_shared) {
-            val (cp_fresh, env_fresh) = env.freshCp(ir.wt_constructedInterval)
+            val (cp_fresh, env_fresh) = env.freshCp(ir.c_interval)
             env = env_fresh.withCurrent(cp_fresh)
             env = env.addHbInter(env.cp_mthd, env.cp_cur)
             
@@ -576,9 +564,8 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
         }        
     }
     
-    def checkReturnTypeCovariant(env0: TcEnv, wt_sub: ir.WcTypeRef, wt_sup: ir.WcTypeRef) {
-        val (cp, env) = env0.freshCp(wt_sub)
-        if(!env.pathHasType(cp, wt_sup))
+    def checkReturnTypeCovariant(env: TcEnv, wt_sub: ir.WcTypeRef, wt_sup: ir.WcTypeRef) {
+        if(!env.isSubtype(wt_sub, wt_sup))
             throw new CheckFailure(
                 "intervals.override.ret.type.changed", wt_sub, wt_sup)
     }
@@ -619,7 +606,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
             var env = env_cd
             
             // Define special vars "method" and "this":
-            env = env.addGhostLocal(ir.lv_mthd, ir.wt_constructedInterval)
+            env = env.addGhostLocal(ir.lv_mthd, ir.c_interval)
             env = env.withCurrent(env.cp_mthd)
             env = env.addNonNull(env.cp_mthd)
             
@@ -683,6 +670,18 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
             prog.exportedCtorEnvs += Pair((env.c_cur, md.name), flow) // Store
             flow
         }
+        
+    def checkFieldNameNotShadowed(
+        env: TcEnv,
+        f: ir.FieldName
+    ) = {
+        strictSuperclasses(env.c_cur).foreach { c =>
+            if(classDecl(c).ghostFieldDecls.exists(_.isNamed(f)))
+                throw new CheckFailure("intervals.shadowed", c, f)
+            if(classDecl(c).reifiedFieldDecls.exists(_.isNamed(f)))
+                throw new CheckFailure("intervals.shadowed", c, f)
+        }        
+    }
     
     def checkReifiedFieldDecl(
         env_cd: TcEnv, 
@@ -691,6 +690,8 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
         indexAt(fd, ()) {
             var env = env_cd
             val cd = classDecl(env.c_cur)
+            
+            checkFieldNameNotShadowed(env_cd, fd.name)
         
             // Rules:
             //
@@ -703,21 +704,21 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
             // we must check all prefixes of each dependent path as well.
             val ct_this = ir.ClassType(env.c_cur, List(), List())
             env = env.addReifiedLocal(ir.lv_this, ct_this)
-            env = env.addGhostLocal(ir.lv_mthd, ir.wt_constructedInterval)
+            env = env.addGhostLocal(ir.lv_mthd, ir.c_interval)
             env = env.withCurrent(env.cp_mthd)
             
             // Add assumptions as though guard were satisfied.
             // Also check that guards are typed as Interval, Lock, or just Guard
             val cp_guard = env.canon(fd.p_guard)
             env = log.indented("adding appr. constraints for cp_guard %s", cp_guard) {
-                if(env.isSubclass(cp_guard.wt, ir.c_interval))
+                if(env.pathHasSubclass(cp_guard, ir.c_interval))
                     env.addSubintervalOf(env.cp_cur, cp_guard) 
-                else if(env.isSubclass(cp_guard.wt, ir.c_lock))
+                else if(env.pathHasSubclass(cp_guard, ir.c_lock))
                     env.addLocks(env.cp_cur, cp_guard)
-                else if(env.isSubclass(cp_guard.wt, ir.c_guard))
+                else if(env.pathHasSubclass(cp_guard, ir.c_guard))
                     env.addDeclaredWritableBy(cp_guard, env.cp_cur)
                 else
-                    throw new CheckFailure("intervals.invalid.guard.type", cp_guard.wt)                    
+                    throw new CheckFailure("intervals.invalid.guard.type", cp_guard)
             }
             
             // Check that each dependent path is legal:
@@ -732,7 +733,9 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                             case ir.Path(lv, List(f)) if lv == ir.lv_this => 
                                 log("dependent on another field of this")
                                 val cp_dep = env.canon(p_dep)
-                                if(env.isMutable(cp_dep) && !cd.fields.exists(_.name == f))
+                                // Note: the field must be declared in the same class (not a super-
+                                // or subclass) as `fd`
+                                if(env.isMutable(cp_dep) && !cd.reifiedFieldDecls.exists(_.name == f))
                                     throw new CheckFailure(
                                         "intervals.illegal.type.dep",
                                         cp_dep.p, cp_guard.p)
@@ -759,11 +762,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
     ) = 
         indexAt(gfd, ()) {
             log.indented(gfd) {
-                // Check that ghosts are not shadowed from a super class:
-                strictSuperclasses(env.c_cur).foreach { c =>
-                    if(classDecl(c).fields.exists(_.name == gfd.name))
-                        throw new CheckFailure("intervals.shadowed.ghost", c, gfd.name)
-                }
+                checkFieldNameNotShadowed(env, gfd.name)
             }
         }
         
