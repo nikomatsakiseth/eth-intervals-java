@@ -157,7 +157,7 @@ class IrParser extends BaseParser {
     )
     
     def ghostFieldDecl = positioned(
-        "@"~f~"("~wt_dflt~")"                       ^^ { case _~f~_~wt~_ => ir.GhostFieldDecl(wt, f) }
+        "@"~f~"("~c~")"                             ^^ { case "@"~f~"("~c~")" => ir.GhostFieldDecl(f, c) }
     )
     
     def classDecl = positioned(
@@ -174,10 +174,9 @@ class IrParser extends BaseParser {
             rep(methodDecl)~
         "}"
     ^^ {
-        case attrs~"class"~name~gfds~tvds~superClasses~guards~targs~reqs~"{"~rfds~ctors~methods~"}" =>
+        case attrs~"class"~name~gfds~gs~tvds~tas~superClasses~reqs~"{"~rfds~ctors~methods~"}" =>
             ir.ClassDecl(
-                attrs, name, tvds, targs, superClasses, guards, reqs, 
-                ctors, gfds ++ rfds, methods)
+                attrs, name, gfds, gs, tvds, tas, superClasses, reqs, ctors, rfds, methods)
     })
     
     def classDecls = rep(classDecl)

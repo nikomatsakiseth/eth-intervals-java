@@ -135,37 +135,38 @@ object ir {
     sealed case class ClassDecl(
         attrs: Attrs,       
         name: ClassName,
-        typeVars: List[TypeVarDecl],
-        typeArgs: List[TypeArg],
+        ghostFieldDecls: List[ir.GhostFieldDecl],
+        typeVarDecls: List[TypeVarDecl],
         superClasses: List[ClassName],
         ghosts: List[Ghost],
+        typeArgs: List[TypeArg],
         reqs: List[Req],
         ctors: List[MethodDecl],
-        fields: List[FieldDecl],
+        reifiedFieldDecls: List[ReifiedFieldDecl],
         methods: List[MethodDecl]
     ) extends PositionalAst {
         def isNamed(n: ClassName) = (name == n)
         
-        def gfds = fields.flatMap {
-            case gfd: GhostFieldDecl => List(gfd)
-            case _ => List()
-        }
-        
-        def rfds = fields.flatMap {
-            case rfd: ReifiedFieldDecl => List(rfd)
-            case _ => List()
-        }
-        
         def setDefaultPosOnChildren() {
+            ghostFieldDecls.foreach(_.setDefaultPos(pos))
+            typeVarDecls.foreach(_.setDefaultPos(pos))
             reqs.foreach(_.setDefaultPos(pos))
             ctors.foreach(_.setDefaultPos(pos))
-            fields.foreach(_.setDefaultPos(pos))
+            reifiedFieldDecls.foreach(_.setDefaultPos(pos))
             methods.foreach(_.setDefaultPos(pos))
         } 
         
-        override def toString =
-            "%sclass %s(ghosts: %s; typeArgs: %s; extends: %s)".format(
-                attrs.preWords, name, ", ".join(ghosts), ", ".join(typeArgs), ", ".join(superClasses))
+        override def toString = "Class %s%s".format(name, attrs)
+    }
+    
+    sealed case class GhostFieldDecl(
+        name: ir.FieldName,
+        c: ir.ClassName
+    ) extends PositionalAst {
+        def isNamed(f: ir.FieldName) = (name == f)
+        def thisPath = name.thisPath                        
+        def ghostOf(p: ir.Path) = ir.Ghost(name, p + name)
+        def setDefaultPosOnChildren() { }
     }
     
     sealed case class TypeVarDecl(
@@ -173,8 +174,7 @@ object ir {
         wts_lb: List[ir.WcTypeRef]
     ) extends PositionalAst {
         def isNamed(tv: TypeVarName) = (name == tv)
-        def typeArgOf(p: ir.Path) = ir.TypeArg(name, ir.PathType(p, name))
-        
+        def typeArgOf(p: ir.Path) = ir.TypeArg(name, ir.PathType(p, name))        
         def setDefaultPosOnChildren() { }
     }
     
@@ -223,34 +223,16 @@ object ir {
         override def toString = "%s %s".format(wt, name)
     }
 
-    sealed abstract class FieldDecl extends PositionalAst {
-        val wt: ir.WcTypeRef
-        val name: ir.FieldName
-        
-        def isNamed(n: FieldName) = (name == n)
-        
-        def thisPath = name.thisPath
-        
-        def setDefaultPosOnChildren() {
-        }        
-    }
-    
-    sealed case class GhostFieldDecl(
-        wt: ir.WcTypeRef,
-        name: ir.FieldName
-    ) extends FieldDecl {
-        override def toString = "GhostField(%s: %s)".format(name, wt)
-        
-        def ghostOf(p: ir.Path) = ir.Ghost(name, p + name)
-    }
-    
     sealed case class ReifiedFieldDecl(
         as: ir.Attrs,       
         wt: ir.WcTypeRef,
         name: ir.FieldName,
         p_guard: ir.Path
-    ) extends FieldDecl {
+    ) extends PositionalAst {
+        def isNamed(n: FieldName) = (name == n)
+        def thisPath = name.thisPath                        
         override def toString = "Field(%s: %s requires %s)".format(name, wt, p_guard)
+        def setDefaultPosOnChildren() {}        
     }
     
     // ______ Leaf Statements _______________________________________________
@@ -550,9 +532,17 @@ object ir {
         
         def hasPrefix(p: ir.Path) =
             lv == p.lv && rev_fs.endsWith(p.rev_fs)
+            
+        def start = this + ir.f_start
+        def end = this + ir.f_end
         
-        def start = this + f_start
-        def end = this + f_end        
+        def stripSuffix(f_suffix: ir.FieldName) = {
+            if(!rev_fs.isEmpty && rev_fs.head == f_suffix) {
+                Some(Path(lv, rev_fs.tail))
+            } else 
+                None
+        }
+        
         override def toString = ".".join(lv :: fs)
     }
     
@@ -565,40 +555,59 @@ object ir {
     // A TeeCeePee is a "Typed Canonical Path".  It allows a canonical path
     // to be associated with alternate typings beyond the default "wt".  
     
-    sealed abstract class CanonPath { // canon. path
+    sealed abstract class CanonPath {
         val p: ir.Path        
-        val wt: ir.WcTypeRef
-        
         def thisSubst = PathSubst.vp(ir.lv_this, p)
-        
-        def toTcp = TeeCeePee(this, wt)
-        
-        override def toString = "cp(%s: %s)".format(p, wt)
+        override def toString = "cp(%s)".format(p)
     }
     
-    sealed case class CpLv(lv: ir.VarName, wt: ir.WcTypeRef, isGhost: Boolean) extends CanonPath {
+    sealed abstract class CanonReifiedPath extends CanonPath {
+        val wt: ir.WcTypeRef
+        def toTcp = TeeCeePee(this, wt)
+        override def toString = "cp(%s: %s)".format(p, wt)                
+    }
+    
+    sealed case class CpReifiedLv(lv: ir.VarName, wt: ir.WcTypeRef) extends CanonReifiedPath {
         val p = ir.Path(lv, List())
         
         override def toString = super.toString
     }
     
-    sealed case class CpField(cp: CanonPath, fd: ir.FieldDecl) extends CanonPath {
-        val p = cp.p + fd.name
-        val wt = fd.wt
+    sealed case class CpReifiedField(crp_base: ir.CanonReifiedPath, rfd: ir.ReifiedFieldDecl) extends CanonReifiedPath {
+        val p = crp_base.p + rfd.name
+        val wt = rfd.wt
         
         override def toString = super.toString
     }
     
-    sealed case class CpObjCtor(cp: CanonPath) extends CanonPath {
-        val p = cp.p + ir.f_objCtor
-        val wt = ir.wt_constructedInterval
+    sealed abstract class CanonGhostPath extends CanonPath {
+        val c_cp: ir.ClassName
+        override def toString = super.toString        
+    }
+    
+    sealed case class CpGhostLv(lv: ir.VarName, c_cp: ir.ClassName) extends CanonGhostPath {
+        val p = ir.Path(lv, List())
         
         override def toString = super.toString
     }
     
-    sealed case class CpClassCtor(cp: CanonPath, c: ir.ClassName) extends CanonPath {
-        val p = cp.p + ClassCtorFieldName(c)
-        val wt = ir.wt_constructedInterval
+    sealed case class CpGhostField(crp_base: ir.CanonReifiedPath, gfd: ir.GhostFieldDecl) extends CanonGhostPath {
+        val p = crp_base.p + gfd.name
+        val c_cp = gfd.c
+        
+        override def toString = super.toString
+    }
+    
+    sealed case class CpObjCtor(crp_base: ir.CanonReifiedPath) extends CanonGhostPath {
+        val p = crp_base.p + ir.f_objCtor
+        val c_cp = ir.c_interval
+        
+        override def toString = super.toString
+    }
+    
+    sealed case class CpClassCtor(crp_base: ir.CanonReifiedPath, c: ir.ClassName) extends CanonGhostPath {
+        val p = crp_base.p + ir.ClassCtorFieldName(c)
+        val c_cp = ir.c_interval
         
         override def toString = super.toString
     }
@@ -712,10 +721,11 @@ object ir {
         ClassDecl(
             /* Attrs:   */  noAttrs,
             /* Name:    */  c_void,
+            /* G Decls: */  List(),
             /* TyVars:  */  List(),
-            /* TyArgs:  */  List(),
             /* Extends: */  List(),
             /* Ghosts:  */  List(),
+            /* TyArgs:  */  List(),
             /* Reqs:    */  List(),
             /* Ctor:    */  List(),
             /* Fields:  */  List(),
@@ -724,10 +734,11 @@ object ir {
         ClassDecl(
             /* Attrs:   */  noAttrs,
             /* Name:    */  c_scalar,
+            /* G Decls: */  List(),
             /* TyVars:  */  List(),
-            /* TyArgs:  */  List(),
             /* Extends: */  List(),
             /* Ghosts:  */  List(),
+            /* TyArgs:  */  List(),
             /* Reqs:    */  List(),
             /* Ctor:    */  List(),
             /* Fields:  */  List(),
@@ -736,10 +747,11 @@ object ir {
         ClassDecl(
             /* Attrs:   */  noAttrs,
             /* Name:    */  c_array,
+            /* G Decls: */  List(),
             /* TyVars:  */  List(),
-            /* TyArgs:  */  List(),
             /* Extends: */  List(),
             /* Ghosts:  */  List(),
+            /* TyArgs:  */  List(),
             /* Reqs:    */  List(),
             /* Ctor:    */  List(),
             /* Fields:  */  List(),
@@ -752,10 +764,11 @@ object ir {
         ClassDecl(
             /* Attrs:   */  noAttrs,
             /* Name:    */  c_object,
+            /* G Decls: */  List(GhostFieldDecl(ir.f_creator, ir.c_interval)),
             /* TyVars:  */  List(),
-            /* TyArgs:  */  List(),
             /* Extends: */  List(),
             /* Ghosts:  */  List(),
+            /* TyArgs:  */  List(),
             /* Reqs:    */  List(),
             /* Ctor:    */  List(MethodDecl(
                     /* wt_ret: */ t_void, 
@@ -763,7 +776,7 @@ object ir {
                     /* args:   */ List(),
                     /* reqs:   */ List(),
                     /* body:   */ empty_method_body)),
-            /* Fields:  */  List(GhostFieldDecl(wt_constructedInterval, f_creator)),
+            /* Fields:  */  List(),
             /* Methods: */  List(MethodDecl(
                     /* wt_ret: */ ir.WcClassType(c_string, List(wg_objCtorHbNow), List()), 
                     /* name:   */ m_toString, 
@@ -776,10 +789,11 @@ object ir {
         ClassDecl(
             /* Attrs:   */  noAttrs,
             /* Name:    */  c_string,
+            /* G Decls: */  List(),
             /* TyVars:  */  List(),
-            /* TyArgs:  */  List(),
             /* Extends: */  List(c_object),
             /* Ghosts:  */  List(Ghost(f_creator, p_this_objCtor)),
+            /* TyArgs:  */  List(),
             /* Reqs:    */  List(),
             /* Ctor:    */  List(md_emptyCtor),
             /* Fields:  */  List(),
@@ -788,10 +802,11 @@ object ir {
         ClassDecl(
             /* Attrs:   */  interfaceAttrs,
             /* Name:    */  c_guard,
+            /* G Decls: */  List(),
             /* TyVars:  */  List(),
-            /* TyArgs:  */  List(),
             /* Extends: */  List(c_object),
             /* Ghosts:  */  List(),
+            /* TyArgs:  */  List(),
             /* Reqs:    */  List(),
             /* Ctor:    */  List(md_emptyCtor),
             /* Fields:  */  List(),
@@ -800,10 +815,11 @@ object ir {
         ClassDecl(
             /* Attrs:   */  noAttrs,
             /* Name:    */  c_interval,
+            /* G Decls: */  List(),
             /* TyVars:  */  List(),
-            /* TyArgs:  */  List(),
             /* Extends: */  List(c_object, c_guard),
             /* Ghosts:  */  List(Ghost(f_creator, p_this_objCtor)),
+            /* TyArgs:  */  List(),
             /* Reqs:    */  List(),
             /* Ctor:    */  List(md_emptyCtor),
             /* Fields:  */  List(
@@ -821,10 +837,11 @@ object ir {
         ClassDecl(
             /* Attrs:   */  noAttrs,
             /* Name:    */  c_point,
+            /* G Decls: */  List(),
             /* TyVars:  */  List(),
-            /* TyArgs:  */  List(),
             /* Extends: */  List(c_object),
             /* Ghosts:  */  List(Ghost(f_creator, p_this_objCtor)),
+            /* TyArgs:  */  List(),
             /* Reqs:    */  List(),
             /* Ctor:    */  List(md_emptyCtor),
             /* Fields:  */  List(),
@@ -833,10 +850,11 @@ object ir {
         ClassDecl(
             /* Attrs:   */  noAttrs,
             /* Name:    */  c_lock,
+            /* G Decls: */  List(),
             /* TyVars:  */  List(),
-            /* TyArgs:  */  List(),
             /* Extends: */  List(c_object, c_guard),
             /* Ghosts:  */  List(Ghost(f_creator, p_this_objCtor)),
+            /* TyArgs:  */  List(),
             /* Reqs:    */  List(),
             /* Ctor:    */  List(md_emptyCtor),
             /* Fields:  */  List(),

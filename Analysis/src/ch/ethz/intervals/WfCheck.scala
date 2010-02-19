@@ -10,24 +10,10 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
     import prog.unboundGhostFieldsOnClassAndSuperclasses
     import prog.unboundTypeVarsDeclaredOnClassAndSuperclasses
         
-    def reified(p: ir.Path): ir.CanonPath = {
-        val cp = env.canon(p)
-        if(env.isGhost(cp))
-            throw new CheckFailure("intervals.must.be.reified", p)
-        cp
-    }
-    
-    def reified(ps: List[ir.Path]): List[ir.CanonPath] = {
-        ps.map(reified)
-    }
-    
-    def rOrGhost(p: ir.Path): ir.CanonPath = {
-        env.canon(p)
-    }
-    
-    def rOrGhost(ps: List[ir.Path]): List[ir.CanonPath] = {
-        ps.map(rOrGhost)
-    }
+    def reified(p: ir.Path) = env.reified(p)
+    def reified(ps: List[ir.Path]) = env.reified(ps)    
+    def rOrGhost(p: ir.Path): ir.CanonPath = env.canon(p)
+    def rOrGhost(ps: List[ir.Path]): List[ir.CanonPath] = ps.map(rOrGhost)
     
     def checkIsSubclass(wt: ir.WcTypeRef, cs: ir.ClassName*) {
         if(!cs.exists(env.isSubclass(wt, _)))

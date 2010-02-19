@@ -626,7 +626,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
             // For normal methods, type of this is the defining class
             val ct_this = ir.ClassType(env.c_cur, List(), List())
             env = env.addReifiedLocal(ir.lv_this, ct_this)
-            env = env.addNonNull(env.cp_this)
+            env = env.addNonNull(env.crp_this)
             
             env = env.addArgs(md.args)
             env = env.withReturnType(md.wt_ret)
@@ -664,7 +664,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                 List()
             )
             env = env.addReifiedLocal(ir.lv_this, ct_this)
-            env = env.addNonNull(env.cp_this)
+            env = env.addNonNull(env.crp_this)
             
             // Method == this.constructor[env.c_cur]
             val p_ctor = ir.ClassCtorFieldName(env.c_cur).thisPath

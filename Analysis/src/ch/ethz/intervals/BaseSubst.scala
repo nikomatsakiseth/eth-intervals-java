@@ -56,17 +56,9 @@ abstract class BaseSubst {
         case ir.ReqHb(lp, lq) => ir.ReqHb(lp.map(path), lq.map(path))
     }).withPos(r.pos)
         
-    def ghostFieldDecl(fd: ir.GhostFieldDecl): ir.GhostFieldDecl =
-        ir.GhostFieldDecl(wcTref(fd.wt), fd.name).withPos(fd.pos)
-        
     def reifiedFieldDecl(fd: ir.ReifiedFieldDecl): ir.ReifiedFieldDecl =
         ir.ReifiedFieldDecl(fd.as, wcTref(fd.wt), fd.name, path(fd.p_guard)).withPos(fd.pos)
         
-    def fieldDecl(fd: ir.FieldDecl): ir.FieldDecl = fd match {
-        case gfd: ir.GhostFieldDecl => ghostFieldDecl(gfd)
-        case rfd: ir.ReifiedFieldDecl => reifiedFieldDecl(rfd)
-    }    
-
     def lvDecl(lv: ir.LvDecl): ir.LvDecl = 
         ir.LvDecl(lv.name, wcTref(lv.wt))
 

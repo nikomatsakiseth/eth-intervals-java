@@ -112,10 +112,7 @@ class Prog(
     
     /// Ghost fields declared:
     def addGhostFieldsDeclaredOnClass(gfds0: Set[ir.GhostFieldDecl], c: ir.ClassName) =
-        classDecl(c).fields.foldLeft(gfds0) {
-            case (gfds, gfd: ir.GhostFieldDecl) => gfds + gfd
-            case (gfds, _) => gfds
-        }
+        gfds0 ++ classDecl(c).ghostFieldDecls
     def ghostFieldsDeclaredOnClassAndSuperclasses(c: ir.ClassName) =
         addClassAndSuperclasses(addGhostFieldsDeclaredOnClass)(ListSet.empty, c)
     
@@ -127,7 +124,7 @@ class Prog(
         
     /// Type variables declared:
     def addTypeVarsDeclaredOnClass(s0: Set[ir.TypeVarDecl], c: ir.ClassName) =
-        s0 ++ classDecl(c).typeVars        
+        s0 ++ classDecl(c).typeVarDecls
     def typeVarsDeclaredOnClassAndSuperclasses(c: ir.ClassName) =
         addClassAndSuperclasses(addTypeVarsDeclaredOnClass)(ListSet.empty, c)
         
@@ -187,9 +184,9 @@ class Prog(
     }
     
     /// Field decl for t0::f 
-    def fieldDecl(wct: ir.WcClassType, f: ir.FieldName): Option[(ir.WcClassType, ir.FieldDecl)] = {
+    def reifiedFieldDecl(wct: ir.WcClassType, f: ir.FieldName): Option[(ir.WcClassType, ir.ReifiedFieldDecl)] = {
         log.indented("fieldDecl(%s,%s)", wct, f) {
-            def extractField(cd: ir.ClassDecl) = cd.fields.find(_.isNamed(f))
+            def extractField(cd: ir.ClassDecl) = cd.reifiedFieldDecls.find(_.isNamed(f))
             searchClassAndSuperclasses(extractField)(wct)
         }            
     }
