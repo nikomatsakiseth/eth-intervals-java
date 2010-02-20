@@ -5,6 +5,16 @@ ______ Bugs __________________________________________________________
 - Update type of f_objCtor from t_interval to something which requires
   that the interval ctor has completed, at least.  Or is that necessary?
   
+- Extend canonical paths to allow fields of ghosts: we can use the
+  class of the ghost type to determine what ghost/reified field exist,
+  and can always produce a class lower-bound for the type.
+  
+- Require that a bound ghost object of type c be a subtype of
+  {c @Constructor[c](hbNow)}?  In other words, //at least// the
+  class {c} must be fully constructed.
+  
+- Disallow a field f with a path type whose path is "this.f"
+
 - Introduce immutableIn to supplement readableBy?
 
   This used to be covered by <f: hb this>.  An alternative would be
@@ -23,15 +33,22 @@ ______ Bugs __________________________________________________________
   v2<E: v1.E> nicely.
 
 - Check in multiple inheritance that all paths lead to the same set of ghost parameters.
-  Alternatively, make sure that all paths are fulfilled. Latter technique is "cooler" (then, for ex.,
-  a class modelling an empty set can fulfill virtually any type, etc)
+  Alternatively, make sure that all paths are fulfilled. Latter technique is "cooler" (then, for
+  ex., a class modelling an empty set can fulfill virtually any type, etc)
     
 - Sanity check casts or otherwise restrict them?
 
-- Canonical paths: the canon() function should really return a set of canonical paths.
-  Alternatively, a {CanonPath} instance should be a set of path, type pairs.  This way
-  [[@test-plugin/src/basic/CircularGhostA.java]] could conclude that the circular ghosts
+- Circular canonical paths
+
+  [[@test-plugin/src/basic/CircularGhostA.java]] should conclude that the circular ghosts
   are equal (which it doesn't do now).
+  
+  Three possibilities:
+  - The canon() function could return a set of canonical paths.
+  - A {CanonPath} instance could be a set of path, type pairs.  
+  - Use some strategy to pick "the best" of the options in the cycle.  Prefer reified with
+    more specific types, longer paths, something like that.
+  The last is clearly the least disruptive.
 
 - More sophisticated merging with respect to temp/perm
 
