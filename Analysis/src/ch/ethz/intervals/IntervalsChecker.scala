@@ -1,7 +1,5 @@
 package ch.ethz.intervals
 
-import ch.ethz.intervals.quals.DefinesGhost
-
 import checkers.source.SourceChecker
 import checkers.source.SourceVisitor
 import checkers.types.AnnotatedTypeFactory
@@ -176,13 +174,9 @@ class IntervalsChecker extends SourceChecker {
                 elem.getInterfaces.foreach(addType(referencedElements, _))
                 addType(referencedElements, elem.getSuperclass)
                 
-                // Look for annotation types annotated by 
+                // Look for annotation types annotated by DefinesGhost
                 if(elem.getKind == EK.ANNOTATION_TYPE) {
-                    val dg = elem.getAnnotation(classOf[DefinesGhost])
-                    if(dg != null) {
-                        val annty = ttf.AnnTyParser(dg.`type`)
-                        addType(referencedElements, annty.getUnderlyingType)                        
-                    }
+                    ttf.classOfDefinedGhost(elem).foreach(addType(referencedElements, _))
                 } else {
                     addTypesOfAnnotations(referencedElements, elem)                    
                 }

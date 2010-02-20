@@ -412,20 +412,22 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                 val tcp_x = ir.TeeCeePee(crp_x, ct)
                 env = env.addNonNull(crp_x)
                 ct.ghosts.foreach { g =>
-                    if(g.f != ir.f_objCtor) {
-                        val (_, gfd) = env.substdFieldDecl(tcp_x, g.f)
-                        val cp = env.canon(g.p)
-                        checkIsSubtype(env, cp, gfd.wt)                        
-                    } else {
-                        val cp = env.canon(g.p)
-                        if(!env.isSubintervalOf(env.cp_cur, cp))
-                            throw new CheckFailure("intervals.ctor.must.encompass.current", cp, env.cp_cur)
+                    env.ghostFieldDecls(ct).find(_.isNamed(g.f)) match {
+                        case Some(gfd) => 
+                            val cp = env.canon(g.p)
+                            if(!env.pathHasSubclass(cp, gfd.c))
+                                throw new CheckFailure("intervals.must.be.subclass", cp, gfd.c)
+                        case None if (g.f == ir.f_objCtor) =>
+                            val cp = env.canon(g.p)
+                            if(!env.isSubintervalOf(env.cp_cur, cp)) // also implies must be an interval
+                                throw new CheckFailure("intervals.ctor.must.encompass.current", cp, env.cp_cur)
+                        case None =>
+                            throw new CheckFailure("intervals.internal.error", "No ghost field %s".format(g.f))
                     }
                 }                        
                                 
                 val msig_ctor = env.substdCtorSig(tcp_x, m, cqs)
-                env = processCallMsig(env, tcp_x, msig_ctor, cqs)
-                env
+                processCallMsig(env, tcp_x, msig_ctor, cqs)
                 
             case ir.StmtCast(x, wt, q) => ()
                 // TODO Validate casts?  Issue warnings at least?
@@ -671,18 +673,6 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
             flow
         }
         
-    def checkFieldNameNotShadowed(
-        env: TcEnv,
-        f: ir.FieldName
-    ) = {
-        strictSuperclasses(env.c_cur).foreach { c =>
-            if(classDecl(c).ghostFieldDecls.exists(_.isNamed(f)))
-                throw new CheckFailure("intervals.shadowed", c, f)
-            if(classDecl(c).reifiedFieldDecls.exists(_.isNamed(f)))
-                throw new CheckFailure("intervals.shadowed", c, f)
-        }        
-    }
-    
     def checkReifiedFieldDecl(
         env_cd: TcEnv, 
         fd: ir.ReifiedFieldDecl
@@ -691,8 +681,6 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
             var env = env_cd
             val cd = classDecl(env.c_cur)
             
-            checkFieldNameNotShadowed(env_cd, fd.name)
-        
             // Rules:
             //
             // The type of a field f with guard p_g in class c 
@@ -755,27 +743,6 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                 check(p_full_dep)                            
             }                        
         }
-    
-    def checkGhostFieldDecl(
-        env: TcEnv, 
-        gfd: ir.GhostFieldDecl
-    ) = 
-        indexAt(gfd, ()) {
-            log.indented(gfd) {
-                checkFieldNameNotShadowed(env, gfd.name)
-            }
-        }
-        
-    def checkFieldDecl(env: TcEnv)(priorNames: Set[ir.FieldName], fd: ir.FieldDecl) = 
-        indexAt(fd, priorNames) {
-            if(priorNames(fd.name))
-                throw new CheckFailure("intervals.duplicate.field", fd.name)
-            fd match {
-                case rfd: ir.ReifiedFieldDecl => checkReifiedFieldDecl(env, rfd)
-                case gfd: ir.GhostFieldDecl => checkGhostFieldDecl(env, gfd)
-            }
-            priorNames + fd.name
-        }            
         
     // ___ Classes and interfaces ___________________________________________
     
@@ -786,7 +753,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
         
     def checkNoninterfaceClassDecl(env: TcEnv, cd: ir.ClassDecl) = 
         indexAt(cd, ()) {
-            cd.fields.foldLeft(Set.empty[ir.FieldName])(checkFieldDecl(env))                
+            cd.reifiedFieldDecls.foreach(checkReifiedFieldDecl(env, _))
             val flows_ctor = cd.ctors.map(checkNoninterfaceConstructorDecl(env, _))
             val flow_all_ctors = FlowEnv.intersect(flows_ctor)
             cd.methods.foreach(checkMethodDecl(env, flow_all_ctors, _))                    

@@ -29,7 +29,6 @@ import scala.util.parsing.input.Positional
 import scala.util.parsing.input.Position
 import java.util.{List => jList}
 import Util._
-import quals.DefinesGhost
 import ch.ethz.intervals.quals._
 import ch.ethz.intervals.log.LogStack
 
@@ -43,7 +42,7 @@ object TranslateMethodBody
         import logStack.log
         import ttf.TreePosition
         import ttf.getAnnotatedType
-        import ttf.f
+        import ttf.fieldName
         import ttf.wke
 
         // ___ Miscellany _______________________________________________________
@@ -336,12 +335,11 @@ object TranslateMethodBody
             // ___ Misc. Helper Functions ___________________________________________
 
             def env(tree: Tree): ttf.TranslateEnv = {
-                val m_lvs = symtab.foldLeft(env_mthd.m_lvs) { case (m, (name, ver)) =>
-                    m + Pair(name, (ver.p, ver.sym.annty))
-                }
                 new ttf.TranslateEnv(
                     TreePosition(tree, symtab.replaceFunc), 
-                    m_lvs, 
+                    symtab.foldLeft(env_mthd.m_localVariables) { case (m, (name, ver)) =>
+                        m + (name -> (ver.p, ver.sym.annty.getUnderlyingType))
+                    },
                     env_mthd.m_defaultWghosts
                 )
             }
@@ -428,7 +426,7 @@ object TranslateMethodBody
                                 ver.p
 
                             case EK.FIELD => // [this.]f = q
-                                store(tree, ir.p_this, f(elem), q)
+                                store(tree, ir.p_this, fieldName(elem), q)
                                 q // See [1] above
 
                             case _ =>
@@ -441,7 +439,7 @@ object TranslateMethodBody
                         assert(elem.getKind == EK.FIELD)
                         val p = rvalueIfNotStatic(elem, tree.getExpression)
                         val q = rvalueOrNull(etree_lval, oetree_rval)
-                        store(tree, p, f(elem), q)
+                        store(tree, p, fieldName(elem), q)
                         q // See [1] above
 
                     case tree =>
@@ -456,7 +454,7 @@ object TranslateMethodBody
                 mitree: MethodInvocationTree
             ): ir.Path = mitree.getMethodSelect match {
                 case tree: IdentifierTree => // [this].m(...) or super.m(...)
-                    val m = ttf.m(eelem)
+                    val m = ttf.methodName(eelem)
                     tree.getName.toString match {
                         case "super" => 
                             eelem.getKind match {
@@ -483,7 +481,7 @@ object TranslateMethodBody
                     }
 
                 case tree: MemberSelectTree => // p.m(...)
-                    val m = ttf.m(eelem)
+                    val m = ttf.methodName(eelem)
                     val p = rvalueIfNotStatic(eelem, tree.getExpression)
                     val qs = mitree.getArguments.map(rvalue)
                     call(mitree, p, m, qs: _*)
@@ -563,7 +561,7 @@ object TranslateMethodBody
                             ir.p_this // TODO: Inner classes also use qualified forms of this
                         else elem.getKind match {
                             case EK.PARAMETER | EK.LOCAL_VARIABLE => symtab(nm_elem).p
-                            case EK.FIELD => load(tree, ir.p_this, f(elem))
+                            case EK.FIELD => load(tree, ir.p_this, fieldName(elem))
                             case EK.METHOD => ir.p_this // happens for "implicit this" calls like foo(...)
                             case EK.CONSTRUCTOR => throw new Unhandled(tree)
                             case _ => throw new Unhandled(tree)
@@ -576,7 +574,7 @@ object TranslateMethodBody
                         val elem = TU.elementFromUse(tree)
                         if(elem.getKind.isField) { // p.f
                             val p = rvalue(tree.getExpression)
-                            load(tree, p, f(elem))
+                            load(tree, p, fieldName(elem))
                         } else { // p.m, just evaluate receiver
                             rvalue(tree.getExpression)
                         }
@@ -588,7 +586,7 @@ object TranslateMethodBody
                         val lv = freshVar
                         val elem = IU.constructor(tree)
                         val t = chkNoWcInTref(wtref(tree))
-                        val m = ttf.m(elem)
+                        val m = ttf.methodName(elem)
                         val qs = tree.getArguments.map(rvalue).toList
                         addStmt(tree, ir.StmtNew(lv, t, m, qs))
                         lv.path

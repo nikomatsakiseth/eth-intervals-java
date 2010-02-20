@@ -4,7 +4,7 @@ ______ Bugs __________________________________________________________
 
 - Update type of f_objCtor from t_interval to something which requires
   that the interval ctor has completed, at least.  Or is that necessary?
-
+  
 - Introduce immutableIn to supplement readableBy?
 
   This used to be covered by <f: hb this>.  An alternative would be

@@ -89,12 +89,14 @@ class Prog(
         (c_sub == c_sup) || isStrictSubclass(c_sub, c_sup)
     }
     
-    def strictSuperclasses(c0: ir.ClassName): Set[ir.ClassName] = {
+    def classAndSuperclasses(c0: ir.ClassName): Set[ir.ClassName] = {
         def accumulate(sc: Set[ir.ClassName], c: ir.ClassName): Set[ir.ClassName] = {
             classDecl(c).superClasses.foldLeft(sc + c)(accumulate)
         }
         accumulate(Set.empty, c0) - c0
     }
+    
+    def strictSuperclasses(c0: ir.ClassName) = classAndSuperclasses(c0) - c0
     
     /// Higher-order function that takes a func 'func' which adds
     /// values of type X for a given class.  'func' is applied

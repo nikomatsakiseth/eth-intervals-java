@@ -1,11 +1,13 @@
 package ch.ethz.intervals.quals;
 
+import ch.ethz.intervals.guard.Guard;
+
 
 /** 
     Meta-annotation that is used to designate a ghost annotation.
-    The value {@link #type()} defines the type of the object that this
-    ghost can be linked to.
+    The value {@link #ofClass()} defines the class of the objects which
+    this ghost can be bound to.
 */
 public @interface DefinesGhost {
-	public String type() default "ch.ethz.intervals.guard.Guard";
+	public Class<?> ofClass() default Guard.class;
 }
