@@ -706,7 +706,7 @@ sealed case class TcEnv(
                 log.indented("crp0.Constructor[_].end -> crp0.Constructor.end") {
                     depoint(p, ir.f_end) match {
                         case Some(ir.CpClassCtor(crp0, _)) => 
-                            Some(crp0.p + ir.f_objCtor + ir.f_end)
+                            Some(fld(crp0, ir.f_objCtor).p.end)
                         case _ => None
                     }
                 }
