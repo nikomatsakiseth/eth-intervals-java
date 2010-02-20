@@ -134,18 +134,18 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
 
         // Map all vars to outOfScope (unless overridden later)
         val map0 = env_brk.perm.keysIterator.foldLeft(Map.empty[ir.Path, ir.Path]) { case (m, x) =>
-            m + Pair(x.path, lv_outOfScope.path)
+            m + (x.path -> lv_outOfScope.path)
         }
     
         // Map variables shared with env_in to themselves:            
         val map1 = env_in.perm.keysIterator.foldLeft(map0) { case (m, x) => 
-            m + Pair(x.path, x.path)
+            m + (x.path -> x.path)
         }
 
         // Map arguments 'cps' to 'decls':
         val xs_args = decls.map(_.name)
         val map2 = cps.zip(xs_args).foldLeft(map1) { case (m, (cp, x)) =>
-            m + Pair(cp.p, x.path) 
+            m + (cp.p -> x.path) 
         }
 
         // Map everything else to lv_outOfScope:
@@ -160,7 +160,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
             map.iterator.foldLeft(Map.empty[ir.Path, ir.Path]) { case (r, (p0, q0)) =>
                 val p1 = subst.path(p0)
                 val q1 = subst.path(q0)
-                if(inScope(p1) && inScope(q1)) r + Pair(p1, q1)
+                if(inScope(p1) && inScope(q1)) r + (p1 -> q1)
                 else r
             }
 
