@@ -202,12 +202,12 @@ class Prog(
     }
     
     /// Returns the signatures for any methods 'm' defined in the supertypes of 'c'.
-    def overriddenMethodSigs(wct: ir.WcClassType, m: ir.MethodName): List[ir.MethodSig] = {
+    def overriddenMethodDecls(wct: ir.WcClassType, m: ir.MethodName): List[ir.MethodDecl] = {
         val cd = classDecl(wct.c)
-        sups(wct).foldRight(List[ir.MethodSig]()) { case (wct_sup, l) =>
+        sups(wct).foldRight(List[ir.MethodDecl]()) { case (wct_sup, l) =>
             methodDecl(wct_sup, m) match {
                 case None => l
-                case Some((wct_rcvr, md)) => md.msig(wct_rcvr) :: l
+                case Some((_, md)) => md :: l
             }
         }
     }

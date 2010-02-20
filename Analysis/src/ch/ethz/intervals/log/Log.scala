@@ -78,6 +78,7 @@ abstract class Log {
             case m: Map[_, _] => map("Map", m)
             case r: PathRelation => map("PathRelation", r.mmap.map)
             case cd: ir.ClassDecl => classDecl("", cd)
+            case rfd: ir.ReifiedFieldDecl => reifiedFieldDecl("", rfd)
             case md: ir.MethodDecl => methodDecl("", md)
             case _ => rawWrite(escape(v.toString))
         }
@@ -149,10 +150,29 @@ abstract class Log {
             cd.methods.foreach(methodDecl("[Mthd] ", _))
         }
     }
+    
+    def reifiedFieldDecl(lbl: Any, rfd: ir.ReifiedFieldDecl): Unit = ifEnabled {
+        indented("%s%s", lbl, rfd) {
+            apply("attrs: %s", rfd.as)
+            apply("wt: %s", rfd.wt)
+            apply("p_guard: %s", rfd.p_guard)
+        }        
+    }
             
     def methodDecl(lbl: Any, md: ir.MethodDecl): Unit = ifEnabled {
         indented("%s%s", lbl, md) {
-            statementSeq("", md.body)
+            apply("wt_ret: %s", md.wt_ret)
+            indented("args:")   { md.args.foreach(apply) }
+            indented("reqs:")   { md.reqs.foreach(apply) }            
+            statementSeq("body: %s", md.body)
+        }
+    }
+    
+    def methodSig(open: Boolean, lbl: Any, msig: ir.MethodSig): Unit = ifEnabled {
+        indented(open, "%s", lbl) {
+            indented("wts_args:")    { msig.wts_args.foreach(apply) }
+            indented("reqs:")       { msig.reqs.foreach(apply) }
+            apply("wt_ret: %s", msig.wt_ret)
         }
     }
     

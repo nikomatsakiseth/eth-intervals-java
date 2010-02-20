@@ -127,7 +127,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
     }
     
     def checkCall(tcp: ir.TeeCeePee[ir.WcTypeRef], msig: ir.MethodSig, cqs: List[ir.CanonPath]) {
-        checkLengths(msig.args, cqs, "intervals.wrong.number.method.arguments")        
+        checkLengths(msig.wts_args, cqs, "intervals.wrong.number.method.arguments")        
     }
     
     def checkBranch(i: Int, stmts_stack: List[ir.StmtCompound], ps: List[ir.Path]) {

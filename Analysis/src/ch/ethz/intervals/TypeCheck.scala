@@ -14,7 +14,6 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
     import prog.logStack.at
     import prog.logStack.indexAt
     import prog.classDecl
-    import prog.overriddenMethodSigs
     import prog.strictSuperclasses
     
     /// wt(cp_sub) <: wt_sup
@@ -68,7 +67,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
     }
     
     def checkArgumentTypes(env: TcEnv, msig: ir.MethodSig, cqs: List[ir.CanonReifiedPath]) =
-        foreachzip(cqs, msig.args.map(_.wt))(checkIsSubtype(env, _, _))
+        foreachzip(cqs, msig.wts_args)(checkIsSubtype(env, _, _))
     
     def checkReadable(env: TcEnv, cp_guard: ir.CanonPath) {
         if(!env.guardsDataReadableBy(cp_guard, env.cp_cur))
@@ -88,19 +87,22 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
     }
 
     def processCallMsig(env: TcEnv, tcp: ir.TeeCeePee[_], msig: ir.MethodSig, cqs: List[ir.CanonReifiedPath]) = {
-        // Cannot invoke a method when there are outstanding invalidated fields:
-        checkNoInvalidated(env)
+        log.indented("processCallMsig(...)") {
+            log.methodSig(false, "msig", msig)
             
-        // Receiver/Arguments must have correct type and requirements must be fulfilled:
-        checkIsSubtype(env, tcp.cp, msig.wct_rcvr)
-        checkArgumentTypes(env, msig, cqs)
-        msig.reqs.foreach(checkReqFulfilled(env, _))
-        
-        // Any method call disrupts potential temporary assocations:
-        //     We make these disruptions before checking return value, 
-        //     in case they would affect the type.  Haven't thought through
-        //     if this can happen or not, but this would be the right time anyhow.
-        env.clearTemp()
+            // Cannot invoke a method when there are outstanding invalidated fields:
+            checkNoInvalidated(env)
+
+            // Receiver/Arguments must have correct type and requirements must be fulfilled:
+            log.indented("arguments")   { checkArgumentTypes(env, msig, cqs) }
+            log.indented("reqs")        { msig.reqs.foreach(checkReqFulfilled(env, _)) }
+
+            // Any method call disrupts potential temporary assocations:
+            //     We make these disruptions before checking return value, 
+            //     in case they would affect the type.  Haven't thought through
+            //     if this can happen or not, but this would be the right time anyhow.
+            env.clearTemp()            
+        }
     }
     
     def processCall(env0: TcEnv, x: ir.VarName, tcp: ir.TeeCeePee[ir.WcTypeRef], m: ir.MethodName, cqs: List[ir.CanonReifiedPath]) = {
@@ -111,10 +113,10 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
     }
     
     def mapAndMergeBranchEnv(
-        env_in: TcEnv,       // environment on entry to the flow
-        env_brk: TcEnv,      // environment at branch statement
+        env_in: TcEnv,          // environment on entry to the flow
+        env_brk: TcEnv,         // environment at branch statement
         decls: List[ir.LvDecl], // defined variables (phi variable declarations)
-        cps: List[ir.CanonPath]    // arguments to each phi
+        cps: List[ir.CanonPath] // arguments to each phi
     ): TcEnv = {
         val flow_brk = env_brk.flow
         
@@ -546,10 +548,29 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                     lvs_shared(p.lv) && !env.isMutable(env.canon(p))
                 }
 
+            // The HB often contains paths like this.Constructor[C].end.
+            // These paths cannot be directly canonicalized (right now) because 
+            // we cannot handle fields of intervals etc.  Therefore we just
+            // canonicalize the interval part and check that IT is immutable.
+            // This is safe because we know that intervals never publish their
+            // start, end fields until they are immutable, but overall is non-ideal.
+            def filterHbFunc(p: ir.Path): Boolean = 
+                log.indented("filterFunc(%s)", p) {
+                    lvs_shared(p.lv) && (
+                        p match {
+                            case ir.Path(lv, f :: fs_rev) if (f == ir.f_start || f == ir.f_end) =>
+                                val p0 = ir.Path(lv, fs_rev)
+                                !env.isMutable(env.canon(p0))
+                            case _ => 
+                                !env.isMutable(env.canon(p))
+                        }
+                    )
+                }
+
             FlowEnv.empty
             .withReadableRel(flow.mapFilter(flow.readableRel, mapFunc, filterFunc))
             .withWritableRel(flow.mapFilter(flow.writableRel, mapFunc, filterFunc))
-            .withHbRel(flow.mapFilter(flow.hbRel, mapFunc, filterFunc))
+            .withHbRel(flow.mapFilter(flow.hbRel, mapFunc, filterHbFunc))
             .withSubintervalRel(flow.mapFilter(flow.subintervalRel, mapFunc, filterFunc))
             .withLocksRel(flow.mapFilter(flow.locksRel, mapFunc, filterFunc))
         }
@@ -557,12 +578,12 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
     
     // ___ Checking methods and constructors ________________________________
 
-    def checkArgumentTypesNonvariant(env: TcEnv, args_sub: List[ir.LvDecl], args_sup: List[ir.LvDecl]) {
+    def checkArgumentTypesNonvariant(env: TcEnv, args_sub: List[ir.LvDecl], args_sup: List[ir.WcTypeRef]) {
         foreachzip(args_sub, args_sup) { case (arg_sub, arg_sup) =>
-            if(arg_sub.wt != arg_sup.wt)
+            if(arg_sub.wt != arg_sup)
                 throw new CheckFailure(
                     "intervals.override.param.type.changed", 
-                    arg_sub.name, arg_sub.wt, arg_sup.wt)
+                    arg_sub.name, arg_sub.wt, arg_sup)
         }        
     }
     
@@ -578,19 +599,6 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
             if(!isReqFulfilled(env_sup, req_sub))
                 throw new CheckFailure("intervals.override.adds.req", req_sub)
         }        
-    }
-    
-    /// Changes the names of the arguments in 'msig' to 'lvn'.
-    def substArgsInMethodSig(msig: ir.MethodSig, lvn: List[ir.VarName]) = {
-        val lvn_msig = msig.args.map(_.name)
-        val nameMap = Map(lvn_msig.zip(lvn): _*)
-        val subst = PathSubst.vv(lvn_msig, lvn)
-        ir.MethodSig(
-            subst.wcClassType(msig.wct_rcvr),
-            msig.args.map { lv => ir.LvDecl(nameMap(lv.name), subst.wcTref(lv.wt)) },
-            msig.reqs.map(subst.req),
-            subst.wcTref(msig.wt_ret)
-        )                
     }
     
     def checkMethodBody(env: TcEnv, md: ir.MethodDecl) {
@@ -620,9 +628,8 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
             env = env.addArgs(md.args)
             env = env.withReturnType(md.wt_ret)
             
-            overriddenMethodSigs(ct_this, md.name).foreach { msig_sup_0 => 
-                val msig_sup = substArgsInMethodSig(msig_sup_0, md.args.map(_.name))
-                checkArgumentTypesNonvariant(env, md.args, msig_sup.args)
+            env.substdOverriddenMethodSigs(ct_this, md).foreach { msig_sup => 
+                checkArgumentTypesNonvariant(env, md.args, msig_sup.wts_args)
                 checkReturnTypeCovariant(env, md.wt_ret, msig_sup.wt_ret)
                 checkOverridenReqsImplyOurReqs(env, md.reqs, msig_sup.reqs)
             }                    

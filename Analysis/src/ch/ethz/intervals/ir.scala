@@ -156,7 +156,7 @@ object ir {
             methods.foreach(_.setDefaultPos(pos))
         } 
         
-        override def toString = "Class %s%s".format(name, attrs)
+        override def toString = "(Class %s%s)".format(name, attrs)
     }
     
     sealed case class GhostFieldDecl(
@@ -187,40 +187,30 @@ object ir {
     ) extends PositionalAst {
         def isNamed(n: MethodName) = (name == n)
         
-        def msig(wct_rcvr: ir.WcClassType) = 
-            ir.MethodSig(
-                wct_rcvr,
-                args, 
-                reqs, 
-                wt_ret
-            )
+        def msig = ir.MethodSig(args.map(_.wt), reqs, wt_ret)
         
         def setDefaultPosOnChildren() {
             reqs.foreach(_.setDefaultPos(pos))
             body.setDefaultPos(pos)
         }
         
-        override def toString =
-            "Method %s((%s) => %s%s)".format(
-                name, ", ".join(args), wt_ret, "".join(", ", reqs)
-            )
+        override def toString = "(Method %s())".format(name)
     }
     
     sealed case class MethodSig(
-        wct_rcvr: ir.WcClassType,
-        args: List[ir.LvDecl],
+        wts_args: List[ir.WcTypeRef],
         reqs: List[ir.Req],
         wt_ret: ir.WcTypeRef
     ) {
-        override def toString = "(%s _(%s this, %s)%s)".format(
-            wt_ret, wct_rcvr, args.mkString(", "), "".join(" ", reqs))
+        override def toString = "(%s _(%s)%s)".format(
+            wt_ret, ", ".join(wts_args), "".join(" ", reqs))
     }
     
     sealed case class LvDecl(
         name: ir.VarName,
         wt: ir.WcTypeRef
     ) {
-        override def toString = "%s %s".format(wt, name)
+        override def toString = "%s: %s".format(name, wt)
     }
 
     sealed case class ReifiedFieldDecl(
@@ -231,7 +221,7 @@ object ir {
     ) extends PositionalAst {
         def isNamed(n: FieldName) = (name == n)
         def thisPath = name.thisPath                        
-        override def toString = "Field(%s: %s requires %s)".format(name, wt, p_guard)
+        override def toString = "(Field %s: %s)".format(name, wt)
         def setDefaultPosOnChildren() {}        
     }
     
@@ -587,21 +577,11 @@ object ir {
     
     sealed case class CpGhostLv(lv: ir.VarName, c_cp: ir.ClassName) extends CanonGhostPath {
         val p = ir.Path(lv, List())
-        
         override def toString = super.toString
     }
     
-    sealed case class CpGhostField(crp_base: ir.CanonReifiedPath, gfd: ir.GhostFieldDecl) extends CanonGhostPath {
-        val p = crp_base.p + gfd.name
-        val c_cp = gfd.c
-        
-        override def toString = super.toString
-    }
-    
-    sealed case class CpObjCtor(crp_base: ir.CanonReifiedPath) extends CanonGhostPath {
-        val p = crp_base.p + ir.f_objCtor
-        val c_cp = ir.c_interval
-        
+    sealed case class CpGhostField(crp_base: ir.CanonReifiedPath, f: ir.FieldName, c_cp: ir.ClassName) extends CanonGhostPath {
+        val p = crp_base.p + f        
         override def toString = super.toString
     }
     
