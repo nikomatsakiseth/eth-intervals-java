@@ -716,7 +716,7 @@ sealed case class TcEnv(
                         case Some(ir.CpClassCtor(crp0, _)) if isInterval(crp0) => 
                             Some(crp0.p + ir.f_start)                            
                         case Some(ir.CpGhostField(crp0, ir.f_objCtor(), _)) if isInterval(crp0) =>
-                            Some(crp0.p + ir.f_objCtor + ir.f_end)
+                            Some(crp0.p + ir.f_start)
                         case _ => None
                     }
                 }
