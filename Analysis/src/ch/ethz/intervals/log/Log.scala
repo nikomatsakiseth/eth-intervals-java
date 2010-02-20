@@ -75,6 +75,7 @@ abstract class Log {
     def apply(v: Any): Unit = ifEnabled {
         v match {
             case e: TcEnv => env(true, "Env", e)
+            case f: FlowEnv => flow(true, "Flow", f)
             case m: Map[_, _] => map("Map", m)
             case r: PathRelation => map("PathRelation", r.mmap.map)
             case cd: ir.ClassDecl => classDecl("", cd)
