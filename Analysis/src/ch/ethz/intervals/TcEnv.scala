@@ -299,7 +299,7 @@ sealed case class TcEnv(
             case ir.ClassCtorFieldName(c) => 
                 ir.CpClassCtor(crp0, c)
                 
-            case _ if f == ir.f_objCtor =>
+            case ir.f_objCtor() =>
                 extendCanonWithGhostField(vis, crp0, ir.f_objCtor, ir.c_interval)
                 
             case _ => 
@@ -714,7 +714,9 @@ sealed case class TcEnv(
                 log.indented("crp0.Constructor[_] -> crp0.start if (crp0: Interval)") {
                     depoint(p, ir.f_end) match {
                         case Some(ir.CpClassCtor(crp0, _)) if isInterval(crp0) => 
-                            Some(crp0.p + ir.f_start)
+                            Some(crp0.p + ir.f_start)                            
+                        case Some(ir.CpGhostField(crp0, ir.f_objCtor(), _)) if isInterval(crp0) =>
+                            Some(crp0.p + ir.f_objCtor + ir.f_end)
                         case _ => None
                     }
                 }

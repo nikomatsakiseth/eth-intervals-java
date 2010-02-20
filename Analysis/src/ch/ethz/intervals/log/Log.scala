@@ -54,7 +54,7 @@ abstract class Log {
             ifEnabled { rawStart(open, escape(fmt, (arg0 :: args.toList))) }
             val result = f
             if(result != ()) // no need to print Unit
-                apply(result)
+                indentedClosed("Result") { apply(result) }
             result
         } catch {
             case t: Throwable => 

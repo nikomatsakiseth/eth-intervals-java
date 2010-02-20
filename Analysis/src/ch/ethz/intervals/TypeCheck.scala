@@ -725,7 +725,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                                 // Always permitted.
                                 log("dependent on local var")
 
-                            case ir.Path(lv, List(f)) if lv == ir.lv_this => 
+                            case ir.Path(ir.lv_this(), List(f)) =>
                                 log("dependent on another field of this")
                                 val cp_dep = env.canon(p_dep)
                                 // Note: the field must be declared in the same class (not a super-

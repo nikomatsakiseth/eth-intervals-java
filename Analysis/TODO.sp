@@ -2,6 +2,18 @@ ___ To Do List _______________________________________________________
 
 ______ Bugs __________________________________________________________   
 
+- Improve enforcement of constraint that an interval's object constructor
+  is always completed before it executes.  
+  
+  Currently we prohibit non-default ctors when instantiating an interval
+  subtype.  This is unsatisfyingly restrictive.
+  
+  Not sure what is the best alternative. One thought is to require that the end of the
+  interval's object ctor always //happens before// the end of the method or the enclosing
+  subinterval: This works if eliminate explicit calls to {schedule()}, as the interval
+  will only be scheduled when the {run()} method which created it returns. Unsatisfying
+  because it distinguishes reified subintervals somewhat, but perhaps that's ok.
+
 - Update type of f_objCtor from t_interval to something which requires
   that the interval ctor has completed, at least.  Or is that necessary?
   
@@ -67,7 +79,7 @@ ______ Bugs __________________________________________________________
  
 ______ Features ______________________________________________________
 
-- {\@Is} annotations on methods and variable declarations
+- {@Is} annotations on methods and variable declarations
 
 - Assertions
 
@@ -122,7 +134,7 @@ ______ Things to Think About _________________________________________
 
 - hb relations to arbitrary Guards
 
-  Right now something like {\@Creator("hb this")} doesn't work because Creator is 
+  Right now something like {@Creator("hb this")} doesn't work because Creator is 
   typed as Guard, not Interval, and we can't add hb relations to something of type
   Guard.  This tripped me up for a while on Producer (particularly since no error
   message was generated).
@@ -131,7 +143,7 @@ ______ Things to Think About _________________________________________
   be, in that case, is an Interval, and it couldn't have been stored if it didn't
   meet the criteria.
   
-  For now, however, I made the Producer example pass by doing {\@Creator("readableBy this")}.
+  For now, however, I made the Producer example pass by doing {@Creator("readableBy this")}.
   This is arguably better anyhow.
 
 - Package-Level Ghosts

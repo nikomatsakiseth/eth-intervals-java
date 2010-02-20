@@ -468,7 +468,7 @@ class TranslateTypeFactory(
                 // Built-in constructor intervals:
                 case ir.ClassCtorFieldName(_) =>
                     ParsePath(pp.p + f_ext, wke.Interval.ty)                    
-                case _ if f_ext == ir.f_objCtor =>
+                case ir.f_objCtor() =>
                     ParsePath(pp.p + f_ext, wke.Interval.ty)                    
                 
                 // Search for a non-ambigious short-name match:

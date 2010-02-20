@@ -1421,8 +1421,8 @@ class TestAnalysis extends JUnitSuite {
             }
             
             class Producer extends #Interval {
-                ConsData @#Creator(readableBy this) cdata requires this.Constructor;
-                ProdData @#Creator(this) pdata requires this.Constructor;
+                ConsData @#Creator(readableBy this) cdata requires this.Constructor[Producer];
+                ProdData @#Creator(this) pdata requires this.Constructor[Producer];
                 
                 Constructor(#Interval c, ConsData @#Creator(c) cdata)
                 {
@@ -1457,8 +1457,8 @@ class TestAnalysis extends JUnitSuite {
             }
             
             class Consumer extends #Interval {
-                ProdData@#Creator(readableBy this) pdata requires this.Constructor;
-                ConsData@#Creator(this) cdata requires this.Constructor;
+                ProdData@#Creator(readableBy this) pdata requires this.Constructor[Consumer];
+                ConsData@#Creator(this) cdata requires this.Constructor[Consumer];
                 
                 Constructor(#Interval p, ProdData@#Creator(p) pdata)
                 {

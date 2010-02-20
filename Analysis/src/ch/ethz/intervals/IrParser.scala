@@ -138,9 +138,9 @@ class IrParser extends BaseParser {
             ir.MethodDecl(ir.t_void, m, args, reqs, seq)
     })
     
+    val wgs_fieldsDefault = List(ir.WcGhost(ir.f_objCtor, ir.WcHbNow(List(ir.p_this_objCtor))))
     def createReifiedFieldDecl(as: ir.Attrs, wt: ir.WcTypeRef, f: ir.FieldName, p_guard: ir.Path) = {
-        val wgs_dflt = List(ir.WcGhost(ir.f_objCtor, ir.WcHbNow(List(p_guard))))
-        ir.ReifiedFieldDecl(as, wt.withDefaultWghosts(wgs_dflt), f, p_guard)
+        ir.ReifiedFieldDecl(as, wt.withDefaultWghosts(wgs_fieldsDefault), f, p_guard)
     }
     def reifiedFieldDecl = positioned(
         attrs~wt~f~"requires"~p~";"                 ^^ { case as~wt~f~_~p~_ => createReifiedFieldDecl(as, wt, f, p) }

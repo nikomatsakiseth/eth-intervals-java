@@ -177,6 +177,18 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                 case ir.StmtNew(x, ct, m, qs) =>
                     if(classDecl(ct.c).attrs.interface)
                         throw new CheckFailure("intervals.new.interface", ct.c)
+                        
+                    // XXX currently you cannot specify an explicit
+                    //     objCtor for interval subtypes.  This is 
+                    //     needed so that we can assume that this.Constructor hb this,
+                    //     which is basically always true.  We should however find
+                    //     a less restrictive check (see TODO.sp for more details).
+                    if(env.isSubclass(ct, ir.c_interval)) {
+                        ct.ghosts.find(_.isNamed(ir.f_objCtor)).foreach { g =>
+                            throw new CheckFailure("intervals.explicit.objCtor.on.interval", g.p)
+                        }
+                    }
+                        
                     checkWtrefWf(ct)
                     checkPathsWf(rOrGhost, ct.ghosts.map(_.p))
                     val cqs = reified(qs)

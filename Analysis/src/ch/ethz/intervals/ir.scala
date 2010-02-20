@@ -93,6 +93,9 @@ object ir {
         override def toString = 
             if(name.contains(".")) "(%s)".format(name)
             else name
+            
+        // This allows names to be used in patterns.  Convenient.
+        def unapply(ar: AnyRef): Boolean = (ar == this)
     }
     
     sealed case class VarName(name: String) extends Name(name) {
@@ -639,10 +642,10 @@ object ir {
     val p_ghost = lv_ghost.path
     
     val f_creator = ir.PlainFieldName("ch.ethz.intervals.quals.Creator")
-    val f_objCtor = ir.PlainFieldName("ch.ethz.intervals.quals.Constructor")
     val f_start = ir.PlainFieldName("start")
     val f_end = ir.PlainFieldName("end")
     val f_super = ir.PlainFieldName("super")
+    val f_objCtor = ir.PlainFieldName("ch.ethz.intervals.quals.Constructor")
     
     val m_init = ir.MethodName("<init>")
     val m_toScalar = ir.MethodName("toScalar")
