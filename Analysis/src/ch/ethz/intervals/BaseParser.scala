@@ -54,9 +54,14 @@ abstract class BaseParser extends StandardTokenParsers {
     
     def comma[A](p: Parser[A]): Parser[List[A]] = repsep(p, ",")
     
+    def idString = (
+        ident
+    |   ir.ctor                                 ^^^ ir.ctor    
+    )
+    
     def id = (
             ident
-        |   "("~>repsep(ident, ".")<~")"        ^^ { case ids => ".".join(ids) }
+        |   "("~>repsep(idString, ".")<~")"     ^^ { case ids => ".".join(ids) }
     )
     
     def f = (

@@ -465,7 +465,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                         case Some(gfd) => 
                             val cp = env.canonPath(g.p)
                             if(!env.pathHasSubclass(cp, gfd.c))
-                                throw new CheckFailure("intervals.must.be.subclass", cp, gfd.c)
+                                throw new CheckFailure("intervals.must.be.subclass", cp.p, gfd.c)
                         case None if (g.f == ir.f_objCtor) =>
                             val cp = env.canonPath(g.p)
                             if(!env.isSubintervalOf(env.cp_cur, cp)) // also implies must be an interval

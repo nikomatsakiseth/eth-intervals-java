@@ -1,5 +1,7 @@
 package ch.ethz.intervals
 
+import Util._
+
 // First pass-- basic sanity checks.
 class WfCheck(prog: Prog) extends TracksEnvironment(prog) 
 {

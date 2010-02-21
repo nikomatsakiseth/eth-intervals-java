@@ -879,7 +879,8 @@ class TestAnalysis extends JUnitSuite {
                 
                 String get() 
                 {
-                    subinterval x locks this.lock {
+                    lock = this->lock;
+                    subinterval x locks lock {
                         v = this->value;                         
                         break 0(v); // 0 == seq, 1 == subinter
                     } => (String v1);
@@ -888,7 +889,8 @@ class TestAnalysis extends JUnitSuite {
                 
                 void set(String v) 
                 {
-                    subinterval x locks this.lock {
+                    lock = this->lock;
+                    subinterval x locks lock {
                         this->value = v;
                         break 0();
                     }
