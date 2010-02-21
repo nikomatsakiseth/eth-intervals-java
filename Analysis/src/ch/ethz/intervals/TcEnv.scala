@@ -542,7 +542,7 @@ sealed case class TcEnv(
         }
     }
     
-    /// cp hbNow cqs if either (1) cp hb cur; or (2) ∃i.cp.end hb cqs(i).end .
+    /// cp hbNow cqs if either (1) cp hb cur; or (2) ∃i. cp.end hbeq cqs(i).end.
     def hbNow(cp: ir.CanonPath, cqs: List[ir.CanonPath]): Boolean = {
         def interHappened(cp: ir.CanonPath): Boolean = {
             log.indented(true, "interHappened(%s)", cp) {
@@ -551,7 +551,18 @@ sealed case class TcEnv(
         }
                 
         log.indented(false, "hbNow(%s, %s)", cp, cqs) {
-            interHappened(cp) || cqs.exists(interHappened)
+            log.env(false, "Environment", this)
+            
+            (
+                is(cp) match {
+                    case ir.WcHbNow(ps) => isLtCanonPaths(canonPaths(ps), cqs)
+                    case _ => false
+                }
+            ) || {
+                interHappened(cp) ||
+                among(cp, cqs) ||
+                cqs.exists(cq => bfs(cp.p.end, cq.p.end))
+            }            
         }
     }
     
@@ -716,6 +727,20 @@ sealed case class TcEnv(
                     }
                 }
             } ++ {
+                log.indented("crp0.Constructor[L].end -> crp0.Constructor[R].start if R <: L") {
+                    depoint(p, ir.f_end) match {
+                        case Some(ir.CpClassCtor(crp0, c_left)) if prog.isNotInterface(c_left) => 
+                            val cs_left = prog.classAndSuperclasses(c_left)
+                            var cs_right = Set(boundingClassTypes(crp0.wt).map(_.c): _*)
+                            cs_right = cs_right -- cs_left
+                            cs_right = cs_right.filter(prog.isNotInterface)
+                            cs_right.map(c_right =>
+                                fld(crp0, ir.ClassCtorFieldName(c_right)).p.start).toList
+                                
+                        case _ => List()
+                    }
+                }
+            } ++ {
                 log.indented("crp0.Constructor[_] -> crp0.start if (crp0: Interval)") {
                     depoint(p, ir.f_end) match {
                         case Some(ir.CpClassCtor(crp0, _)) if isInterval(crp0) => 
@@ -876,43 +901,49 @@ sealed case class TcEnv(
     }
      // ___ Subtyping ________________________________________________________
     
+    private def isLtCanonPaths(cps: List[ir.CanonPath], cqs: List[ir.CanonPath]) = {
+        cps.forall(cp => among(cp, cqs))
+    }
+    
     private def isLtPaths(ps: List[ir.Path], qs: List[ir.Path]) = {
         val cps = canonPaths(ps)
         val cqs = canonPaths(qs)
-        cps.forall(cp => among(cp, cqs))
+        isLtCanonPaths(cps, cqs)
     }
     
     private def isGtPaths(ps: List[ir.Path], qs: List[ir.Path]) = isLtPaths(qs, ps)    
     
     private def isLtWpath(wp: ir.WcPath, wq: ir.WcPath): Boolean = {
-        (wp, wq) match {
-            case (p: ir.Path, q: ir.Path) =>
-                equiv(canonPath(p), canonPath(q))
-            case (p: ir.Path, ir.WcReadableBy(qs)) =>
-                val cp = canonPath(p)
-                qs.forall { q => guardsDataReadableBy(cp, canonPath(q)) }
-            case (p: ir.Path, ir.WcWritableBy(qs)) =>
-                val cp = canonPath(p)
-                qs.forall { q => guardsDataWritableBy(cp, canonPath(q)) }
-            case (p: ir.Path, ir.WcHbNow(qs)) =>
-                val cp = canonPath(p)
-                hbNow(cp, canonPaths(qs))
+        log.indented("isLtWpath(%s, %s)?", wp, wq) {
+            (wp, wq) match {
+                case (p: ir.Path, q: ir.Path) =>
+                    equiv(canonPath(p), canonPath(q))
+                case (p: ir.Path, ir.WcReadableBy(qs)) =>
+                    val cp = canonPath(p)
+                    qs.forall { q => guardsDataReadableBy(cp, canonPath(q)) }
+                case (p: ir.Path, ir.WcWritableBy(qs)) =>
+                    val cp = canonPath(p)
+                    qs.forall { q => guardsDataWritableBy(cp, canonPath(q)) }
+                case (p: ir.Path, ir.WcHbNow(qs)) =>
+                    val cp = canonPath(p)
+                    hbNow(cp, canonPaths(qs))
             
-            // Accessible by more is a subtype of accessible by less:
-            case (ir.WcWritableBy(ps), ir.WcWritableBy(qs)) => isGtPaths(ps, qs)                
-            case (ir.WcWritableBy(ps), ir.WcReadableBy(qs)) => isGtPaths(ps, qs)
-            case (ir.WcReadableBy(ps), ir.WcReadableBy(qs)) => isGtPaths(ps, qs)
+                // Accessible by more is a subtype of accessible by less:
+                case (ir.WcWritableBy(ps), ir.WcWritableBy(qs)) => isGtPaths(ps, qs)                
+                case (ir.WcWritableBy(ps), ir.WcReadableBy(qs)) => isGtPaths(ps, qs)
+                case (ir.WcReadableBy(ps), ir.WcReadableBy(qs)) => isGtPaths(ps, qs)
 
-            // hbNow with less is a subtype of hbNow of more:
-            //  ∀i:Interval. (? hbNow) => (? hbNow i)
-            case (ir.WcHbNow(ps), ir.WcHbNow(qs)) => isLtPaths(ps, qs)
+                // hbNow with less is a subtype of hbNow of more:
+                //  ∀i:Interval. (? hbNow) => (? hbNow i)
+                case (ir.WcHbNow(ps), ir.WcHbNow(qs)) => isLtPaths(ps, qs)
                 
-            case (_, _) => false
+                case (_, _) => false
+            }
         }
     }
         
     private def isLtGhost(wct_sub: ir.WcClassType, wg_sup: ir.WcGhost) = {
-        log.indented("%s <= %s?", wct_sub, wg_sup) {
+        log.indented("isLtGhost(%s, %s)?", wct_sub, wg_sup) {
             ghost(wct_sub, wg_sup.f).exists(wg_sub => isLtWpath(wg_sub.wp, wg_sup.wp))
         }   
     }

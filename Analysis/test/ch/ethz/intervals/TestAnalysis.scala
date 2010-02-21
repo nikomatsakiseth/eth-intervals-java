@@ -183,7 +183,7 @@ class TestAnalysis extends JUnitSuite {
                 void setBothWrongOrder(#Interval inter, #Object@#Creator(inter) obj) 
                 requires method subinterval this.#Creator
                 {
-                    this->obj = obj; // ERROR intervals.expected.subtype(obj, @#Creator(inter) #Object, @#Creator(this.inter) #Object)
+                    this->obj = obj; // ERROR intervals.expected.subtype(obj, @#Constructor(hbNow) @#Creator(inter) #Object, @#Constructor(hbNow this.#Constructor) @#Creator(this.inter) #Object)
                     this->inter = inter;
                     return; // ERROR intervals.must.assign.first(this.obj)
                 }
@@ -278,30 +278,30 @@ class TestAnalysis extends JUnitSuite {
                 
                 #String c requires this.#Constructor;
                 
-                @#Constructor(?) Ctor unconstructed requires this.#Constructor;
+                Ctor @#Constructor(?) unconstructed requires this.#Constructor;
                 Ctor dflt requires this.#Constructor;
-                @#Constructor(hbNow) Ctor constructed requires this.#Constructor;
+                Ctor @#Constructor(hbNow) constructed requires this.#Constructor;
                 
                 Constructor() 
                 {         
                     super();                    
-                    this->unctor = this;
+                    this->unconstructed = this;
                     this->dflt = this;
-                    this->ctor = this; // ERROR intervals.expected.subtype(this, Ctor constructor, Ctor)
+                    this->constructed = this; // ERROR intervals.expected.subtype(this, Ctor, @#Constructor(hbNow) Ctor)
                     return;
                 }
                 
                 // This method is invokable from both within and without the
                 // constructor.  It cannot read fields like 'c' because that
                 // might permit a data race if the 'this' pointer were shared
-                // during the constructor.  (We could perhaps loosen this rule for this.Constructor)
+                // during the constructor. 
                 void noRelationToConstructor() 
                 {
-                    c = this->c; // ERROR intervals.not.readable(this.Constructor)
+                    c = this->c; // ERROR intervals.not.readable(this.#Constructor)
                     
-                    this->unctor = this; // ERROR intervals.not.writable(this.Constructor)
-                    this->dflt = this; // ERROR intervals.not.writable(this.Constructor)
-                    this->ctor = this; // ERROR intervals.not.writable(this.Constructor)
+                    this->unconstructed = this; // ERROR intervals.not.writable(this.#Constructor)
+                    this->dflt = this; // ERROR intervals.not.writable(this.#Constructor)
+                    this->constructed = this; // ERROR intervals.not.writable(this.#Constructor)
                     return;
                 }
                 
@@ -310,9 +310,9 @@ class TestAnalysis extends JUnitSuite {
                 {
                     c = this->c; 
                     
-                    this->unctor = this;
+                    this->unconstructed = this;
                     this->dflt = this;
-                    this->ctor = this; // ERROR intervals.expected.subtype(this, Ctor, Ctor)
+                    this->constructed = this; // ERROR intervals.expected.subtype(this, Ctor, @#Constructor(hbNow) Ctor)
                     return;
                 }
                 
@@ -320,19 +320,20 @@ class TestAnalysis extends JUnitSuite {
                 requires method subinterval this.Constructor
                 {
                     // Always constructed:
-                    Ctor constructed = this->constructed;
+                    constructed = this->constructed;
                     c1 = constructed->toString();                    
                     c2 = constructed->c;
                     
                     // Not known to be constructed because this.Constructor in progress:
-                    Ctor dflt = this->dflt;
-                    d1 = constructed->toString(); // ERROR foo
-                    d2 = constructed->c; // ERROR foo
+                    // (Nor do we know that dflt.Constructor is in progess, so can't read)
+                    dflt = this->dflt;
+                    d1 = dflt->toString(); // ERROR intervals.requirement.not.met(requires dflt.#Constructor hb <method-call>)
+                    d2 = dflt->c; // ERROR intervals.not.readable(dflt.#Constructor)
                     
                     // Not known to be constructed:
-                    Ctor unconstructed = this->unconstructed;
-                    u1 = unconstructed->toString(); // ERROR foo
-                    u2 = unconstructed->c; // ERROR foo
+                    unconstructed = this->unconstructed;
+                    u1 = unconstructed->toString(); // ERROR intervals.requirement.not.met(requires unconstructed.#Constructor hb <method-call>)
+                    u2 = unconstructed->c; // ERROR intervals.not.readable(unconstructed.#Constructor)
                     
                     return;
                 }
@@ -341,19 +342,19 @@ class TestAnalysis extends JUnitSuite {
                 requires this.Constructor hb method
                 {
                     // Always constructed:
-                    Ctor constructed = this->constructed;
+                    constructed = this->constructed;
                     c1 = constructed->toString();                    
                     c2 = constructed->c;
                     
                     // Known to be constructed because this.Constructor is in progress:
-                    Ctor dflt = this->dflt;
-                    d1 = constructed->toString();                    
-                    d2 = constructed->c;
+                    dflt = this->dflt;
+                    d1 = dflt->toString();                    
+                    d2 = dflt->c;
                     
                     // Not known to be constructed:
-                    Ctor unconstructed = this->unconstructed;
-                    u1 = unconstructed->toString(); // ERROR foo
-                    u2 = unconstructed->c; // ERROR foo
+                    unconstructed = this->unconstructed;
+                    u1 = unconstructed->toString(); // ERROR intervals.requirement.not.met(requires this.unconstructed.#Constructor hb <method-call>)
+                    u2 = unconstructed->c; // ERROR intervals.not.readable(this.unconstructed.#Constructor)
                     
                     return;
                 }
@@ -396,7 +397,7 @@ class TestAnalysis extends JUnitSuite {
                     // Here we do not require this method be
                     // invoked with method a subinterval of this,
                     // so we don't know that this.final is readable.
-                    o->toString(); // ERROR intervals.requirement.not.met(requires this.final readable by method)
+                    o->toString(); // ERROR intervals.requirement.not.met(requires o.#Creator readable by <method-call>)
                     return;
                 }
                 
@@ -404,7 +405,7 @@ class TestAnalysis extends JUnitSuite {
                 {
                     // This method could be invoked in the constructor,
                     // so we can't even use this.final in an attribute.
-                    o->toString(); // ERROR intervals.must.be.immutable(this.final)
+                    o->toString(); // ERROR intervals.must.be.immutable(o.#Creator)
                     return;
                 }
             }
@@ -418,7 +419,7 @@ class TestAnalysis extends JUnitSuite {
             """
             class Super extends #Interval 
             {
-                #Interval inter requires this.Constructor;
+                #Interval inter requires this.Constructor[Super];
                 
                 Constructor before(#Interval inter)
                 {
@@ -436,7 +437,7 @@ class TestAnalysis extends JUnitSuite {
             
             class Sub1 extends Super
             {     
-                #Object@#Creator(this.inter) obj requires this.Constructor;
+                #Object @#Creator(this.inter) obj requires this.Constructor[Sub1];
                 
                 Constructor(#Interval inter)
                 {
@@ -447,14 +448,15 @@ class TestAnalysis extends JUnitSuite {
                 void run() 
                 requires method subinterval this
                 {
-                    this.obj->toString();
+                    obj = this->obj;
+                    obj->toString();
                     return;
                 }
             }
             
             class Sub2 extends Super
             {     
-                #Object@#Creator(this.inter) obj requires this.Constructor;
+                #Object @#Creator(this.inter) obj requires this.Constructor[Sub2];
                 
                 Constructor(#Interval inter)
                 {
@@ -465,7 +467,8 @@ class TestAnalysis extends JUnitSuite {
                 void run() 
                 requires method subinterval this
                 {
-                    this.obj->toString(); // ERROR intervals.requirement.not.met(requires this.inter readable by method)
+                    obj = this->obj;
+                    obj->toString(); // ERROR intervals.requirement.not.met(requires this.obj.#Creator readable by <method-call>)
                     return;
                 }
             }           
@@ -508,14 +511,14 @@ class TestAnalysis extends JUnitSuite {
                 void mu(#Object@#Creator(this.unrelated) o) 
                 requires method subinterval this
                 {
-                    o->toString(); // ERROR intervals.requirement.not.met(requires this.unrelated readable by method)
+                    o->toString(); // ERROR intervals.requirement.not.met(requires o.#Creator readable by <method-call>)
                     return;
                 }
                 
                 void mr(#Object@#Creator(this.maybeRelated) o) 
                 requires method subinterval this
                 {
-                    o->toString(); // ERROR intervals.requirement.not.met(requires this.maybeRelated readable by method)
+                    o->toString(); // ERROR intervals.requirement.not.met(requires o.#Creator readable by <method-call>)
                     return;
                 }
                 
@@ -554,10 +557,10 @@ class TestAnalysis extends JUnitSuite {
                     return;
                 }
                 
-                void readFinal(#Object@#Creator(this.final) o) 
+                void readFinal(#Object @#Creator(this.final) o) 
                 requires method subinterval this
                 {
-                    o->toString(); // ERROR intervals.requirement.not.met(requires this.final readable by method)
+                    o->toString(); // ERROR intervals.requirement.not.met(requires o.#Creator readable by <method-call>)
                     return;
                 }                
             }
@@ -673,9 +676,9 @@ class TestAnalysis extends JUnitSuite {
         tc(
             """
             class A extends #Object {
-                String s requires this.Constructor;
+                #String s requires this.Constructor;
                 
-                Constructor(String s) {
+                Constructor(#String s) {
                     super();
                     this->s = s;
                     return;
@@ -684,7 +687,7 @@ class TestAnalysis extends JUnitSuite {
             
             class B2 extends A {
                 Constructor(void v) {
-                    super(v); // ERROR intervals.expected.subtype(v, void, #String)
+                    super(v); // ERROR intervals.expected.subtype(v, @#Constructor(hbNow) void, @#Constructor(hbNow) #String)
                     return;
                 }                
             }            
@@ -697,33 +700,34 @@ class TestAnalysis extends JUnitSuite {
         tc(
             """
             class A extends #Object@#Creator(this.Constructor) {
-                String s requires this.Constructor[A];
+                #String s requires this.Constructor[A];
                 
-                Constructor(String s) {
+                Constructor(#String s) {
                     super();
                     return;
                 }
             }
             
             class B3 extends A {
-                Constructor(String t) {
+                Constructor(#String t) {
                     super(t);
                     
-                    this->s = t; // ERROR intervals.not.writable(this.super)
+                    this->s = t; // ERROR intervals.not.writable(this.Constructor[A])
                     return;
                 }
             }     
                    
             class B4 extends A {
-                String t requires this.Constructor[B];
+                #String t requires this.Constructor[B4];
                 
-                Constructor(String s, String t) {
+                Constructor(#String s, #String t) {
                     super(s);
                     this->t = t;
                     return;
                 }
                 
-                String toString() 
+                #String toString() 
+                requires this.#Constructor hb method
                 {
                     t = this->t;
                     return t;
@@ -731,11 +735,11 @@ class TestAnalysis extends JUnitSuite {
             }       
                  
             class B5 extends A {
-                String t requires this.Constructor[B5];
-                Constructor(String t) {
+                #String t requires this.Constructor[B5];
+                Constructor(#String t) {
                     super(t);
                     
-                    s = this->s; // this.super is readable
+                    s = this->s; // A is readable
                     this->t = s; 
                     return;
                 }
@@ -747,15 +751,9 @@ class TestAnalysis extends JUnitSuite {
                     return;
                 }
                 
-                void mthdReadA(@Constructor(?) B5 b) 
+                void mthdReadB(B5 @Constructor(?) b) 
                 {
-                    s = b->s; // No error, b.super readable.                    
-                    return;
-                }
-                
-                void mthdReadB(@Constructor(?) B5 b) 
-                {
-                    s = b->t; // ERROR intervals.not.readable(b.constructor)
+                    s = b->t; // ERROR intervals.not.readable(b.Constructor[B5])
                     return;
                 }
             }
@@ -951,7 +949,7 @@ class TestAnalysis extends JUnitSuite {
                 requires this.#Constructor hb method
                 {
                     foo1 = this->foo1;
-                    foo1->m1(); // ERROR intervals.requirement.not.met(requires this.#Creator readable by <method-call>)
+                    foo1->m1(); // ERROR intervals.requirement.not.met(requires this.foo1.#Creator readable by <method-call>)
                     return;
                 }
                 

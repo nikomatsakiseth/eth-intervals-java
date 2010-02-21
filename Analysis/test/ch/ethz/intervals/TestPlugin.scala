@@ -99,18 +99,18 @@ class TestPlugin extends JUnitSuite {
             ) ++ isolatedOpts ++ procOpts ++ debugOpts
     }
     val unitTest = JdkConfig(
-        /* dir: */              "test-plugin", 
-        /* addSourcepath: */    List(), 
-        /* classpath: */        List(
-                                    "target/classes", 
-                                    "lib/jsr308-all-1.04.jar",
-                                    "lib/Intervals.jar"
-                                ) ++ System.getProperty("java.class.path").split(':'), 
-        /* bclasspath: */       List(
-                                    "lib/jsr308-all-1.04.jar"
-                                ),
-        /* debug: */            true, 
-        /* isolated: */         false)
+        dir = "test-plugin", 
+        addSourcepath = List(),
+        classpath = List(
+            "bin", 
+            "lib/jsr308-all-1.04.jar",
+            "lib/Intervals.jar"
+        ) ++ System.getProperty("java.class.path").split(':'), 
+        bclasspath = List(
+            "lib/jsr308-all-1.04.jar"
+        ),
+        debug = true,
+        isolated = false)
     
     def expectedErrors(jfos: List[JavaFileObject]): List[DiagError] = {
         var expErrors = List[DiagError]()

@@ -78,16 +78,22 @@ class Prog(
     
     // ___ Basic type operations ____________________________________________
     
-    // Is c_sub an erased subtype of class c_sup?
+    /** Is `c_sub` an erased subtype of class `c_sup`? */
     def isStrictSubclass(c_sub: ir.ClassName, c_sup: ir.ClassName): Boolean = {
         val cd_sub = classDecl(c_sub)
         cd_sub.superClasses.exists { c => isSubclass(c, c_sup) }
     }
     
-    // Is c_sub an erased subtype of class c_sup?
+    /** Is `c_sub` an erased subtype of class `c_sup`? */
     def isSubclass(c_sub: ir.ClassName, c_sup: ir.ClassName): Boolean = {
         (c_sub == c_sup) || isStrictSubclass(c_sub, c_sup)
     }
+    
+    /** Is `c` an interface class? */
+    def isInterface(c: ir.ClassName) = classDecl(c).attrs.interface
+    
+    /** Is `c` an interface class? */
+    def isNotInterface(c: ir.ClassName) = !isInterface(c)
     
     def classAndSuperclasses(c0: ir.ClassName): Set[ir.ClassName] = {
         def accumulate(sc: Set[ir.ClassName], c: ir.ClassName): Set[ir.ClassName] = {
