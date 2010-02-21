@@ -17,7 +17,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
         
     def checkIsSubclass(cp: ir.CanonPath, cs: ir.ClassName*) {
         if(!cs.exists(env.pathHasSubclass(cp, _)))
-            throw new CheckFailure("intervals.expected.subclass.of.any", cp, cs)
+            throw new CheckFailure("intervals.expected.subclass.of.any", cp.p, ", ".join(cs))
     }
     
     def checkCanonAndSubclass[X](

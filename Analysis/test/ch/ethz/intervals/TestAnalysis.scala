@@ -916,6 +916,7 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 #Object m1()
+                requires this.#Constructor hb method
                 requires this.#Creator readableBy method
                 {
                     return;
@@ -931,6 +932,7 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 #Object m1() // n.b.: same requirements as IFoo
+                requires this.#Constructor hb method
                 requires this.#Creator readableBy method
                 {
                     f = this->f;
@@ -947,6 +949,7 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 #Object m1() // n.b.: fewer requirements than IFoo
+                requires this.#Constructor hb method
                 {
                     return;
                 }
@@ -961,26 +964,34 @@ class TestAnalysis extends JUnitSuite {
                     return;
                 }
                 
-                void assign() {
+                void assign() 
+                requires this.#Constructor hb method
+                {
                     ifoo1 = this->foo1;
                     ifoo2 = this->foo2;                    
                     return;
                 }
                 
-                void invokeThroughInterface() {
+                void invokeThroughInterface() 
+                requires this.#Constructor hb method
+                {
                     foo2 = this->foo2;
                     ifoo2 = (IFoo@#Creator(this.#Creator))foo2;
                     ifoo2->m1(); // ERROR intervals.requirement.not.met(requires this.`#Creator` readable by method)
                     return;
                 }
                 
-                void invokeThroughFoo1() {
+                void invokeThroughFoo1() 
+                requires this.#Constructor hb method
+                {
                     foo1 = this->foo1;
                     foo1->m1(); // ERROR intervals.requirement.not.met(requires this.`#Creator` readable by method)
                     return;
                 }
                 
-                void invokeThroughFoo2() {
+                void invokeThroughFoo2() 
+                requires this.#Constructor hb method
+                {
                     foo2 = this->foo2;
                     foo2->m1();
                     return;
@@ -996,28 +1007,31 @@ class TestAnalysis extends JUnitSuite {
         tc(
             """
             class Foo@s(#String)@l(#Lock)@i(#Interval) extends #Object {
-                Constructor() {
+                Constructor() 
+                {
                     super();
                     return;
                 }                
             }
             
             class Bar extends #Object {
-                Constructor() {
+                Constructor() 
+                {
                     super();
                     return;
                 }
                 
-                void run() {
+                void run() 
+                {
                     s = (#String)null;
                     l = (#Lock)null;
                     i = (#Interval)null;
                                         
                     f1 = new Foo@s(s)@l(l)@i(i)@#Creator(i)();
-                    f2 = new Foo@s(l)@l(l)@i(i)@#Creator(i)(); // ERROR intervals.expected.subtype(l, #Lock, #String)
-                    f3 = new Foo@s(s)@l(s)@i(i)@#Creator(i)(); // ERROR intervals.expected.subtype(s, #String, #Lock)
-                    f4 = new Foo@s(s)@l(l)@i(s)@#Creator(i)(); // ERROR intervals.expected.subtype(s, #String, #Interval)
-                    f5 = new Foo@s(s)@l(l)@i(i)@#Creator(s)(); // ERROR intervals.expected.subtype(s, #String, #Interval)
+                    f2 = new Foo@s(l)@l(l)@i(i)@#Creator(i)(); // ERROR intervals.must.be.subclass(l, #String)
+                    f3 = new Foo@s(s)@l(s)@i(i)@#Creator(i)(); // ERROR intervals.must.be.subclass(s, #Lock)
+                    f4 = new Foo@s(s)@l(l)@i(s)@#Creator(i)(); // ERROR intervals.must.be.subclass(s, #Interval)
+                    f5 = new Foo@s(s)@l(l)@i(i)@#Creator(s)(); // ERROR intervals.must.be.subclass(s, #Interval)
                     return;
                 }
             }
@@ -1078,7 +1092,7 @@ class TestAnalysis extends JUnitSuite {
                 // It's not permitted for data2 depend on this.data1.i because
                 // it is not declared in the same class and it is not constant 
                 // during this.#Creator (data2's guard).
-                Data2@#Creator(this.data1.i) data2; // ERROR intervals.illegal.type.dep(this.data1.i, this.`#Creator`)
+                Data2@#Creator(this.data1.i) data2; // ERROR intervals.illegal.type.dep(this.data1.i, this.#Creator)
             }
                         
             class Indirect2 extends #Object {
@@ -1086,7 +1100,7 @@ class TestAnalysis extends JUnitSuite {
                 // ctor, because we don't know that data2 is only modified after ctor completes!
                 // See TODO for more thoughts.
                 Data1@#Creator(this.Constructor) data1 requires this.Constructor;
-                Data2@#Creator(this.data1.i) data2; // ERROR intervals.illegal.type.dep(this.data1.i, this.`#Creator`)
+                Data2@#Creator(this.data1.i) data2; // ERROR intervals.illegal.type.dep(this.data1.i, this.#Creator)
             }
             
             class Indirect3 extends #Interval {
@@ -1121,8 +1135,8 @@ class TestAnalysis extends JUnitSuite {
                     Data@#Creator(readableBy method) m2
                 ) 
                 requires m1.i hb m2.i
-                requires m1 hb m2 // ERROR intervals.expected.subclass.of.any(Data, Array(#Point, #Interval))
-                requires m1.i hb m2 // ERROR intervals.expected.subclass.of.any(Data, Array(#Point, #Interval))
+                requires m1 hb m2 // ERROR intervals.expected.subclass.of.any(m1, #Point, #Interval)
+                requires m1.i hb m2 // ERROR intervals.expected.subclass.of.any(m2, #Point, #Interval)
                 {
                     
                 }
