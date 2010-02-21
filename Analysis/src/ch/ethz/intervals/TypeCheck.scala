@@ -27,7 +27,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
     // When checking method bodies, we use the statement stack to 
     // track the enclosing statements and handle loops, etc.
     
-    class StmtStack(
+    class StmtScope(
         val env_in: TcEnv,
         val defines: List[ir.LvDecl],
         val loopArgs: Option[List[ir.LvDecl]]
@@ -202,7 +202,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
 
     def mergeBreakEnv(
         env: TcEnv, 
-        ss_cur: List[StmtStack], 
+        ss_cur: List[StmtScope], 
         idx: Int, 
         cps: List[ir.CanonPath]
     ) {
@@ -219,7 +219,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
         
     def mergeContinueEnv(
         env: TcEnv, 
-        ss_cur: List[StmtStack], 
+        ss_cur: List[StmtScope], 
         idx: Int, 
         cps: List[ir.CanonPath]
     ) {
@@ -252,19 +252,19 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
     
     def checkCompoundStatement(
         env_in: TcEnv, 
-        ss_prev: List[StmtStack],
+        ss_prev: List[StmtScope],
         stmt_compound: ir.StmtCompound
     ): TcEnv = {
         val oenv_break = stmt_compound.kind match {
             case ir.Block(seq) =>
-                val ss = new StmtStack(env_in, stmt_compound.defines, None)
+                val ss = new StmtScope(env_in, stmt_compound.defines, None)
                 val ss_cur = ss :: ss_prev
                 
                 checkStatementSeq(env_in, ss_cur, seq)
                 ss.oenv_break
 
             case ir.Switch(seqs) =>
-                val ss = new StmtStack(env_in, stmt_compound.defines, None)
+                val ss = new StmtScope(env_in, stmt_compound.defines, None)
                 val ss_cur = ss :: ss_prev
                 var env = env_in
                 
@@ -277,7 +277,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                 ss.oenv_break
                 
             case ir.Loop(args, lvs_initial, seq) =>
-                val ss = new StmtStack(env_in, stmt_compound.defines, Some(args))
+                val ss = new StmtScope(env_in, stmt_compound.defines, Some(args))
                 val ss_cur = ss :: ss_prev
                 
                 def iterate(env_continue_before: TcEnv) {
@@ -301,7 +301,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                 ss.oenv_break
                 
             case ir.Subinterval(x, ps_locks, seq) =>
-                val ss = new StmtStack(env_in, stmt_compound.defines, None)
+                val ss = new StmtScope(env_in, stmt_compound.defines, None)
                 val ss_cur = ss :: ss_prev
                 var env = env_in
             
@@ -320,7 +320,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                 ss.oenv_break
                 
             case ir.TryCatch(seq_try, seq_catch) =>
-                val ss = new StmtStack(env_in, stmt_compound.defines, None)
+                val ss = new StmtScope(env_in, stmt_compound.defines, None)
                 val ss_cur = ss :: ss_prev
                 
                 // Note: environment is lost unless it breaks
@@ -348,7 +348,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
         }
     }
     
-    def checkStatement(env0: TcEnv, ss_cur: List[StmtStack], stmt: ir.Stmt) = indexAt(stmt, env0) {
+    def checkStatement(env0: TcEnv, ss_cur: List[StmtScope], stmt: ir.Stmt) = indexAt(stmt, env0) {
         var env = env0
         log.env(false, "Input Environment: ", env)
         stmt match {   
@@ -503,7 +503,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
         }
     }
     
-    def checkStatementSeq(env0: TcEnv, ss_cur: List[StmtStack], seq: ir.StmtSeq) = {
+    def checkStatementSeq(env0: TcEnv, ss_cur: List[StmtScope], seq: ir.StmtSeq) = {
         log.indented("checkStatementSeq(%s)", seq) {
             val cp_curOnEntry = env0.cp_cur
             log("cp_curOnEntry: %s", cp_curOnEntry)
