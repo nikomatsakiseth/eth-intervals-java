@@ -347,38 +347,38 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                 log("Supertype: %s", tcp)
                 env.addFlow(prog.exportedCtorEnvs((tcp.ty.c, m)))
                 
-            case ir.StmtGetField(x, p_o, f) =>
-                val cp_o = env.immutableReifiedLv(p_o)
-                env = env.addNonNull(cp_o)
+            case ir.StmtGetField(lv_def, lv_owner, f) =>
+                val cp_owner = env.immutableReifiedLv(lv_owner)
+                env = env.addNonNull(cp_owner)
                 
-                val (_, rfd) = env.substdReifiedFieldDecl(cp_o.toTcp, f)
+                val (_, rfd) = env.substdReifiedFieldDecl(cp_owner.toTcp, f)
                 val cp_guard = env.immutableCanonPath(rfd.p_guard)
                 checkReadable(env, cp_guard)
                 
-                val cp_f = env.extendCanonWithReifiedField(cp_o, rfd)
-                if(!env.isMutable(cp_f)) {
-                    env.addPerm(x, cp_f)                            
+                val cp_field = env.extendCanonWithReifiedField(cp_owner, rfd)
+                if(!env.isMutable(cp_field)) {
+                    env.addPerm(lv_def, cp_field)                            
                 } else {
-                    env = env.addReifiedLocal(x, rfd.wt)
-                    env.addTemp(cp_f.p, x.path) // Record that p.f == vd, for now.
+                    env = env.addReifiedLocal(lv_def, rfd.wt)
+                    env.addTemp(cp_field.p, lv_def.path) // Record that p.f == vd, for now.
                 }
                 
-            case ir.StmtSetField(p_o, f, p_v) =>
-                val cp_o = env.immutableReifiedLv(p_o)
-                env = env.addNonNull(cp_o)
+            case ir.StmtSetField(lv_owner, f, lv_value) =>
+                val cp_owner = env.immutableReifiedLv(lv_owner)
+                env = env.addNonNull(cp_owner)
                 
-                val cp_v = env.immutableReifiedLv(p_v)
+                val cp_value = env.immutableReifiedLv(lv_value)
                 
-                val (tcp_o, rfd) = env.substdReifiedFieldDecl(cp_o.toTcp, f) 
+                val (tcp_owner, rfd) = env.substdReifiedFieldDecl(cp_owner.toTcp, f) 
                 val cp_guard = env.immutableCanonPath(rfd.p_guard)
                 checkWritable(env, cp_guard)
-                checkIsSubtype(env, cp_v, rfd.wt)
+                checkIsSubtype(env, cp_value, rfd.wt)
                 
-                val cp_f = env.extendCanonWithReifiedField(cp_o, rfd)                        
-                env = env.addTemp(cp_f.p, cp_v.p)
+                val cp_field = env.extendCanonWithReifiedField(cp_owner, rfd)                        
+                env = env.addTemp(cp_field.p, cp_value.p)
         
-                env = env.removeInvalidated(cp_f.p)
-                env.linkedPaths(tcp_o, f).foldLeft(env)(_ addInvalidated _)                            
+                env = env.removeInvalidated(cp_field.p)
+                env.linkedPaths(tcp_owner, f).foldLeft(env)(_ addInvalidated _)                            
                 
             case ir.StmtCheckType(p, wt) =>
                 val cp = env.immutableReifiedLv(p)
