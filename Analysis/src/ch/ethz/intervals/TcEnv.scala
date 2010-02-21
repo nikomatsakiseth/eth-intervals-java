@@ -37,7 +37,7 @@ sealed case class TcEnv(
     
     /// Add a local variable whose value is the canon path 'cp'
     def addPerm(x: ir.VarName, cp: ir.CanonPath): TcEnv = {
-        assert(!isMutable(cp))
+        assert(isImmutable(cp))
         perm.get(x) match {
             case Some(_) => throw new CheckFailure("intervals.shadowed", x)
             case None => copy(perm = perm + Pair(x, cp))
@@ -93,7 +93,7 @@ sealed case class TcEnv(
     /// Indicates that point cp hb point cq.
     def addHbPnt(cp: ir.CanonPath, cq: ir.CanonPath) = {
         log("addHbPnt(%s,%s)", cp, cq)
-        assert(!isMutable(cp) && !isMutable(cq))
+        assert(isImmutable(cp) && isImmutable(cq))
         assert(pathHasSubclass(cp, ir.c_point))
         assert(pathHasSubclass(cq, ir.c_point))
         copy(flow = flow.withHbRel(flow.hbRel + (cp.p, cq.p)))
@@ -102,7 +102,7 @@ sealed case class TcEnv(
     /// Indicates that interval cp hb interval cq.
     def addHbInter(cp: ir.CanonPath, cq: ir.CanonPath) = {
         log("addHbInter(%s,%s)", cp, cq)
-        assert(!isMutable(cp) && !isMutable(cq))
+        assert(isImmutable(cp) && isImmutable(cq))
         assert(pathHasSubclass(cp, ir.c_interval))
         assert(pathHasSubclass(cq, ir.c_interval))
         copy(flow = flow.withHbRel(flow.hbRel + (cp.p.end, cq.p.start)))
@@ -110,7 +110,7 @@ sealed case class TcEnv(
     
     def addDeclaredReadableBy(cp: ir.CanonPath, cq: ir.CanonPath) = {
         log("addDeclaredReadableBy(%s, %s)", cp, cq)
-        assert(!isMutable(cp) && !isMutable(cq))
+        assert(isImmutable(cp) && isImmutable(cq))
         assert(pathHasSubclass(cp, ir.c_guard))
         assert(pathHasSubclass(cq, ir.c_interval))
         copy(flow = flow.withReadableRel(flow.readableRel + (cp.p, cq.p)))
@@ -118,7 +118,7 @@ sealed case class TcEnv(
     
     def addDeclaredWritableBy(cp: ir.CanonPath, cq: ir.CanonPath) = {
         log("addDeclaredWritableBy(%s, %s)", cp, cq)
-        assert(!isMutable(cp) && !isMutable(cq))
+        assert(isImmutable(cp) && isImmutable(cq))
         assert(pathHasSubclass(cp, ir.c_guard))
         assert(pathHasSubclass(cq, ir.c_interval))
         copy(flow = flow.withWritableRel(flow.writableRel + (cp.p, cq.p)))
@@ -127,7 +127,7 @@ sealed case class TcEnv(
     def addSubintervalOf(cp: ir.CanonPath, cq: ir.CanonPath) = {
         log.indented(false, "addSubintervalOf(%s, %s)", cp, cq) {
             // This assertion is not valid during checkReifiedFieldDecl():
-            //assert(!isMutable(cp) && !isMutable(cq))
+            //assert(isImmutable(cp) && isImmutable(cq))
             assert(pathHasSubclass(cp, ir.c_interval))
             assert(pathHasSubclass(cq, ir.c_interval))
             copy(flow = flow
@@ -139,7 +139,7 @@ sealed case class TcEnv(
     def addLocks(cp: ir.CanonPath, cq: ir.CanonPath) = {
         log.indented(false, "addLocks(%s, %s)", cp, cq) {
             // This assertion is not valid during checkReifiedFieldDecl:
-            //assert(!isMutable(cp) && !isMutable(cq))
+            //assert(isImmutable(cp) && isImmutable(cq))
             assert(pathHasSubclass(cp, ir.c_interval))
             assert(pathHasSubclass(cq, ir.c_lock))
             copy(flow = flow.withLocksRel(flow.locksRel + (cp.p, cq.p)))
@@ -164,8 +164,8 @@ sealed case class TcEnv(
         
     def addUserHb(cp0: ir.CanonPath, cq0: ir.CanonPath) = {
         log.indented(false, "addUserHb(%s,%s)", cp0, cq0) {
-            assert(!isMutable(cp0))
-            assert(!isMutable(cq0))
+            assert(isImmutable(cp0))
+            assert(isImmutable(cq0))
             userHbPair(cp0, cq0) match {
                 case Some((p1, q1)) => 
                     copy(flow = flow.withHbRel(flow.hbRel + (p1, q1)))
@@ -245,7 +245,7 @@ sealed case class TcEnv(
     
     def immutableReifiedPath(p: ir.Path): ir.CanonReifiedPath = {
         val crp = reifiedPath(p)
-        if(isMutable(crp))
+        if(!isImmutable(crp))
             throw new CheckFailure("intervals.must.be.immutable", p)
         crp
     }    
@@ -255,7 +255,7 @@ sealed case class TcEnv(
     
     def immutableCanonPath(p: ir.Path): ir.CanonPath = {
         val cp = canonPath(p)
-        if(isMutable(cp))
+        if(!isImmutable(cp))
             throw new CheckFailure("intervals.must.be.immutable", p)
         cp        
     }
@@ -451,8 +451,8 @@ sealed case class TcEnv(
     /** Does `cp0` hb `cq0`? */
     def userHb(cp0: ir.CanonPath, cq0: ir.CanonPath) = {
         log.indented("userHb(%s,%s)", cp0, cq0) {
-            assert(!isMutable(cp0))
-            assert(!isMutable(cq0))
+            assert(isImmutable(cp0))
+            assert(isImmutable(cq0))
             userHbPair(cp0, cq0) match {
                 case Some((p1, q1)) => bfs(p1, q1)
                 case None => false
@@ -464,8 +464,8 @@ sealed case class TcEnv(
     def hbPnt(cp_from: ir.CanonPath, cp_to: ir.CanonPath) = {
         log.indented("hbPnt(%s, %s)", cp_from, cp_to) {
             log.env(false, "Environment", this)
-            assert(!isMutable(cp_from))
-            assert(!isMutable(cp_to))
+            assert(isImmutable(cp_from))
+            assert(isImmutable(cp_to))
             assert(pathHasSubclass(cp_from, ir.c_point))
             assert(pathHasSubclass(cp_to, ir.c_point))
             bfs(cp_from.p, cp_to.p)
@@ -476,8 +476,8 @@ sealed case class TcEnv(
     def hbInter(cp_from: ir.CanonPath, cp_to: ir.CanonPath) = {
         log.indented("hbInter(%s, %s)?", cp_from, cp_to) {
             log.env(false, "Environment", this)
-            assert(!isMutable(cp_from))
-            assert(!isMutable(cp_to))
+            assert(isImmutable(cp_from))
+            assert(isImmutable(cp_to))
             ( // Sometimes we're sloppy and invoke with wrong types:
                 pathHasSubclass(cp_from, ir.c_interval) && 
                 pathHasSubclass(cp_to, ir.c_interval) &&
@@ -549,44 +549,54 @@ sealed case class TcEnv(
     
     /// cp hbNow cqs if either (1) cp hb cur; or (2) ∃i.cp.end hb cqs(i).end .
     def hbNow(cp: ir.CanonPath, cqs: List[ir.CanonPath]): Boolean = {
+        def interHappened(cp: ir.CanonPath): Boolean = {
+            log.indented(true, "interHappened(%s)", cp) {
+                bfs(cp.p.end, p_cur.start)
+            }
+        }
+                
         log.indented(false, "hbNow(%s, %s)", cp, cqs) {
             interHappened(cp) || cqs.exists(interHappened)
         }
     }
     
-    private def interHappened(cp: ir.CanonPath): Boolean = {
-        log.indented(false, "interHappened(%s)", cp) {
-            bfs(cp.p.end, p_cur.start)
-        }
-    }
-
-    /// Could the value of 'cp1' change during current interval?
-    def isMutable(cp_outer: ir.CanonPath) = {
-        def m(cp1: ir.CanonPath): Boolean = log.indented("m(%s)", cp1) {
+    /** Could the value of `cp_test` change during `cp_inter`? */
+    def isImmutableDuring(cp_test: ir.CanonPath, cp_inter: ir.CanonPath) = {
+        def imm(cp1: ir.CanonPath): Boolean = log.indented("m(%s)", cp1) {
             cp1 match {
                 // Local variables never change value once assigned:
-                case ir.CpReifiedLv(_, _) => false
-                case ir.CpGhostLv(_, _) => false
-
-                // Fields guarded by past intervals cannot change but others can:
-                case ir.CpReifiedField(cp0, ir.ReifiedFieldDecl(_, _, _, p_guard)) =>
-                    m(cp0) || { 
-                        val cp_guard = canonPath(p_guard)
-                        m(cp_guard) || !interHappened(cp_guard)
-                    }
+                case ir.CpReifiedLv(_, _) => true
+                case ir.CpGhostLv(_, _) => true
 
                 // Ghosts never change value but the path they extend might:
-                case ir.CpGhostField(cp0, _, _) => m(cp0)
-                case ir.CpClassCtor(cp0, _) => m(cp0)
+                case ir.CpGhostField(cp0, _, _) => imm(cp0)
+                case ir.CpClassCtor(cp0, _) => imm(cp0)
+                
+                // Fields guarded by past intervals cannot change but others can:
+                case ir.CpReifiedField(cp0, ir.ReifiedFieldDecl(_, _, _, p_guard)) =>
+                    imm(cp0) || { 
+                        val cp_guard = canonPath(p_guard)
+                        imm(cp_guard) && bfs(cp_guard.p.end, cp_inter.p.start)
+                    }
             }            
         }
             
-        log.indented(false, "isMutable(%s)", cp_outer) {
+        log.indented(false, "isImmutableDuring(%s, %s)", cp_test, cp_inter) {
             log.env(false, "Environment", this)
-            m(cp_outer)
+            imm(cp_test)
         }
     }
     
+    def isImmutable(cp_test: ir.CanonPath): Boolean = cp_test match {
+        // Hackli: addPerm() sometimes asserts immutability before cp_cur is
+        // defined.  That's ok so long as the canonical path is just a LV and ghosts.
+        case ir.CpReifiedLv(_, _) => true
+        case ir.CpGhostLv(_, _) => true
+        case ir.CpGhostField(cp0, _, _) => isImmutable(cp0)
+        case ir.CpClassCtor(cp0, _) => isImmutable(cp0)
+        case _ => isImmutableDuring(cp_test, cp_cur)
+    }
+
     def dependentPaths(wt: ir.WcTypeRef): Set[ir.Path] = {
         boundingClassTypes(wt).foldLeft(Set.empty[ir.Path]) { (s0, wct) =>
             wct.wghosts.foldLeft(s0) { (s, g) => 

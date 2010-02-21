@@ -14,8 +14,8 @@ clean:
 
 compile:
 	mkdir -p bin bin-test
-	${SCALAC} -d bin -sourcepath src $$(find src -name '*.scala')
-	${SCALAC} -d bin-test -sourcepath test $$(find test -name '*.scala')
+	time ${SCALAC} -d bin -sourcepath src $$(find src -name '*.scala')
+	time ${SCALAC} -d bin-test -sourcepath test $$(find test -name '*.scala')
 	rsync -r resources/* bin/
 		
 test: compile

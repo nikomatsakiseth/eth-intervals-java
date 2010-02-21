@@ -1279,8 +1279,10 @@ class TestAnalysis extends JUnitSuite {
                 
                 Constructor(Link link) {
                     super();
-                    this->link = link;                 
-                    this locks link.lock; 
+                    this->link = link;  
+                    
+                    #Lock linkLock = link->lock;               
+                    this locks linkLock; 
                     return;
                 }
                 

@@ -382,7 +382,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                 checkReadable(env, cp_guard)
                 
                 val cp_field = env.extendCanonWithReifiedField(cp_owner, rfd)
-                if(!env.isMutable(cp_field)) {
+                if(env.isImmutable(cp_field)) {
                     env.addPerm(lv_def, cp_field)                            
                 } else {
                     env = env.addReifiedLocal(lv_def, rfd.wt)
@@ -470,11 +470,8 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                     val cp = env.immutableReifiedLv(p)
                     checkIsSubtype(env, cp, env.wt_ret)                    
                 }
-                if(!ss_cur.isEmpty) {
-                    mergeBreakEnv(env, ss_cur, ss_cur.length - 1, List())
-                    ss_cur.head.env_in
-                } else
-                    env
+                mergeBreakEnv(env, ss_cur, ss_cur.length - 1, List())
+                ss_cur.head.env_in
                 
             case ir.StmtHb(p, q) =>
                 val cp = env.immutableReifiedLv(p)
@@ -571,7 +568,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
             
             def filterFunc(p: ir.Path): Boolean = 
                 log.indented("filterFunc(%s)", p) {
-                    lvs_shared(p.lv) && !env.isMutable(env.canonPath(p))
+                    lvs_shared(p.lv) && env.isImmutable(env.canonPath(p))
                 }
 
             // The HB often contains paths like this.Constructor[C].end.
@@ -586,9 +583,9 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                         p match {
                             case ir.Path(lv, f :: fs_rev) if (f == ir.f_start || f == ir.f_end) =>
                                 val p0 = ir.Path(lv, fs_rev)
-                                !env.isMutable(env.canonPath(p0))
+                                env.isImmutable(env.canonPath(p0))
                             case _ => 
-                                !env.isMutable(env.canonPath(p))
+                                env.isImmutable(env.canonPath(p))
                         }
                     )
                 }
@@ -628,7 +625,8 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
     }
     
     def checkMethodBody(env: TcEnv, md: ir.MethodDecl) {
-        checkStatementSeq(env, List(), md.body)
+        val ss = new StmtScope(env, List(), None)
+        checkStatementSeq(env, List(ss), md.body)
     }
     
     def checkMethodDecl(
@@ -746,15 +744,18 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                     log.indented("check_dep_path(%s)", p_dep) {
                         p_dep match {
                             case ir.Path(lv, List()) => 
-                                // Always permitted.
+                                // Always permitted, as local variables are immutable.
                                 log("dependent on local var")
 
                             case ir.Path(ir.lv_this(), List(f)) =>
                                 log("dependent on another field of this")
                                 val cp_dep = env.canonPath(p_dep)
-                                // Note: the field must be declared in the same class (not a super-
-                                // or subclass) as `fd`
-                                if(env.isMutable(cp_dep) && !cd.reifiedFieldDecls.exists(_.name == f))
+                                if(
+                                    // illegal if mutable when guard is writable and...
+                                    !env.isImmutable(cp_dep) &&                
+                                    // ...f not declared in same class (not sub- or superclass!)
+                                    !cd.reifiedFieldDecls.exists(_.name == f)
+                                )
                                     throw new CheckFailure(
                                         "intervals.illegal.type.dep",
                                         cp_dep.p, cp_guard.p)
@@ -763,7 +764,10 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                                 log("misc dependency")
                                 check(ir.Path(lv, rev_fs))
                                 val cp_dep = env.canonPath(p_dep)
-                                if(env.isMutable(cp_dep))
+                                if(
+                                    // illegal if mutable when guard is writable
+                                    !env.isImmutable(cp_dep)
+                                )
                                     throw new CheckFailure(
                                         "intervals.illegal.type.dep",
                                         cp_dep.p, cp_guard.p)
