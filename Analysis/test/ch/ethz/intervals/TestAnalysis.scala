@@ -1281,7 +1281,7 @@ class TestAnalysis extends JUnitSuite {
                     super();
                     this->link = link;  
                     
-                    #Lock linkLock = link->lock;               
+                    linkLock = link->lock;               
                     this locks linkLock; 
                     return;
                 }
@@ -1300,14 +1300,17 @@ class TestAnalysis extends JUnitSuite {
                 requires method subinterval this
                 {
                     // Update data:
-                    oldData = this.link->data;
+                    link = this->link;
+                    oldData = link->data;
                     newData = this->transform(oldData);
-                    this.link->data = newData;
+                    link->data = newData;
                     
                     // Start next link:
-                    nextLink = this.link->nextLink;
+                    nextLink = link->nextLink;
                     nextInter = new HohLink(nextLink);
-                    //XXX nextInter.start hb this.end;
+                    nextInterStart = nextInter->start;
+                    end = this->end;
+                    nextInterStart hb end;
                     
                     return;
                 }                

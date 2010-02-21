@@ -107,13 +107,20 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
     }
     
     def mapAndMergeBranchEnv(
-        env_in: TcEnv,          // environment on entry to the flow
-        env_brk: TcEnv,         // environment at branch statement
+        env_in: TcEnv,         // environment on entry to the flow
+        env_brk0: TcEnv,        // environment at branch statement
         decls: List[ir.LvDecl], // defined variables (phi variable declarations)
         cps: List[ir.CanonPath] // arguments to each phi
     ): TcEnv = {
+        // ----------------------------------------------------------------------
+        // Add a synthetic interval lv_breakInter which happens after 
+        // env_in0.cp_cur:
+        val (cp_breakInter, env_brk) = {
+            val (cp_breakInter, env_brk1) = env_brk0.freshCp(ir.c_interval)
+            (cp_breakInter, env_brk1.addHbInter(env_in.cp_cur, cp_breakInter))
+        }
         val flow_brk = env_brk.flow
-        
+                
         // ----------------------------------------------------------------------
         // Check that cps have the correct types.
         
@@ -131,28 +138,38 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
         // Create a substitution which maps:
         // (1) Method-scope variables to themselves
         // (2) Arguments to the goto() to their respective parameters
-        // (3) Everything else to "lv_outOfScope"
+        // (3) p2 to p1 if (a) ∃ temp map p1 -> p2 and (b) p1 immutable
+        // (4) Everything else to "lv_outOfScope"
 
         val lv_outOfScope = ir.VarName(prog.fresh("outOfScope"))
 
         // Map all vars to outOfScope (unless overridden later)
-        val map0 = env_brk.perm.keysIterator.foldLeft(Map.empty[ir.Path, ir.Path]) { case (m, x) =>
+        var map = env_brk.perm.keysIterator.foldLeft(Map.empty[ir.Path, ir.Path]) { case (m, x) =>
             m + (x.path -> lv_outOfScope.path)
         }
     
         // Map variables shared with env_in to themselves:            
-        val map1 = env_in.perm.keysIterator.foldLeft(map0) { case (m, x) => 
+        map = env_in.perm.keysIterator.foldLeft(map) { case (m, x) => 
             m + (x.path -> x.path)
         }
 
         // Map arguments 'cps' to 'decls':
         val xs_args = decls.map(_.name)
-        val map2 = cps.zip(xs_args).foldLeft(map1) { case (m, (cp, x)) =>
+        map = cps.zip(xs_args).foldLeft(map) { case (m, (cp, x)) =>
             m + (cp.p -> x.path) 
+        }
+        
+        // Reverse temp mappings p1->p2 if p1 is immutable in lv_breakInter:
+        map = flow_brk.temp.foldLeft(map) { case (m, (p1, p2)) => 
+            val cp1 = env_brk.canonPath(p1)
+            if(env_brk.isImmutableIn(cp1, cp_breakInter))
+                m + (p2 -> p1)
+            else
+                m
         }
 
         // Map everything else to lv_outOfScope:
-        val subst = new PathSubst(map2)
+        val subst = new PathSubst(map)
 
         // ----------------------------------------------------------------------
         // Apply map to relations and keep only those not affecting lv_outOfScope
@@ -161,9 +178,11 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
 
         def mapMap(map: Map[ir.Path, ir.Path]) =
             map.iterator.foldLeft(Map.empty[ir.Path, ir.Path]) { case (r, (p0, q0)) =>
+                // Careful: if (p0->q0) was in the original mapping and p0 was immutable,
+                // then q0 will be mapped to p1.
                 val p1 = subst.path(p0)
                 val q1 = subst.path(q0)
-                if(inScope(p1) && inScope(q1)) r + (p1 -> q1)
+                if(p1 != q1 && inScope(p1) && inScope(q1)) r + (p1 -> q1)
                 else r
             }
 
@@ -525,80 +544,6 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
         }
     }
     
-        
-    // ___ Inter-method assumptions _________________________________________
-    //
-    // When we know that method A must complete before method B is invoked,
-    // we can move any relations known at the end of A into B.  In particular, 
-    // we can move relations from the constructor to any non-constructor method.
-    // There are some complications, however.  We need to ensure we only move
-    // a relation (p, q) if the paths p and q refer to the same objects in method B.
-    // This basically restricts us to paths beginning with "this".  The next complication
-    // is that the interesting relations tend to be between fields that which are being
-    // actively modified by method A, which means that these relations will actually be
-    // recorded as between fields that are temporarily aliased to local variables.
-    //
-    // Therefore, what we do is as follows:
-    //
-    // (1) At the end of the method A, we create a reverse mapping for all temporary
-    //     aliases p->lv iff the path p is declared as being written by A (i.e., this.constructor).
-    //     This is sound because if it has not changed by the end of A, then
-    //     it will never change.
-    //
-    // (2) We apply this reverse mapping to all relations and then take the subset of
-    //     those which involve paths beginning with shared local variables (only "this" right
-    //     now).
-    
-    def extractAssumptions(
-        env0: TcEnv,
-        lvs_shared: Set[ir.VarName]
-    ): FlowEnv = {
-        var env = env0
-        log.indented("extractAssumptions(%s)", lvs_shared) {
-            val (cp_fresh, env_fresh) = env.freshCp(ir.c_interval)
-            env = env_fresh.withCurrent(cp_fresh)
-            env = env.addHbInter(env.cp_mthd, env.cp_cur)
-            
-            log.env(false, "Input Environment: ", env)
-
-            val flow = env.flow
-            val tempKeys = flow.temp.map(_._1).toList
-            val tempValues = flow.temp.map(_._2).toList
-            val mapFunc = PathSubst.pp(tempValues, tempKeys).path(_)
-            
-            def filterFunc(p: ir.Path): Boolean = 
-                log.indented("filterFunc(%s)", p) {
-                    lvs_shared(p.lv) && env.isImmutable(env.canonPath(p))
-                }
-
-            // The HB often contains paths like this.Constructor[C].end.
-            // These paths cannot be directly canonicalized (right now) because 
-            // we cannot handle fields of intervals etc.  Therefore we just
-            // canonicalize the interval part and check that IT is immutable.
-            // This is safe because we know that intervals never publish their
-            // start, end fields until they are immutable, but overall is non-ideal.
-            def filterHbFunc(p: ir.Path): Boolean = 
-                log.indented("filterFunc(%s)", p) {
-                    lvs_shared(p.lv) && (
-                        p match {
-                            case ir.Path(lv, f :: fs_rev) if (f == ir.f_start || f == ir.f_end) =>
-                                val p0 = ir.Path(lv, fs_rev)
-                                env.isImmutable(env.canonPath(p0))
-                            case _ => 
-                                env.isImmutable(env.canonPath(p))
-                        }
-                    )
-                }
-
-            FlowEnv.empty
-            .withReadableRel(flow.mapFilter(flow.readableRel, mapFunc, filterFunc))
-            .withWritableRel(flow.mapFilter(flow.writableRel, mapFunc, filterFunc))
-            .withHbRel(flow.mapFilter(flow.hbRel, mapFunc, filterHbFunc))
-            .withSubintervalRel(flow.mapFilter(flow.subintervalRel, mapFunc, filterFunc))
-            .withLocksRel(flow.mapFilter(flow.locksRel, mapFunc, filterFunc))
-        }
-    }
-    
     // ___ Checking methods and constructors ________________________________
 
     def checkArgumentTypesNonvariant(env: TcEnv, args_sub: List[ir.LvDecl], args_sup: List[ir.WcTypeRef]) {
@@ -624,16 +569,20 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
         }        
     }
     
-    def checkMethodBody(env: TcEnv, md: ir.MethodDecl) {
+    /** Checks the method body and returns a FlowEnv indicating
+      * the "exit" relations; that is, those relations that are 
+      * established permanently for all subsequent method calls. */
+    def checkMethodBody(env: TcEnv, md: ir.MethodDecl): FlowEnv = {
         val ss = new StmtScope(env, List(), None)
         checkStatementSeq(env, List(ss), md.body)
+        ss.oenv_break.getOrElse(env).flow
     }
     
     def checkMethodDecl(
         env_cd: TcEnv, 
         flow_ctor_assum: FlowEnv,   // relations established by the ctor
         md: ir.MethodDecl           // method to check
-    ) = 
+    ): Unit = 
         indexAt(md, ()) {
             var env = env_cd
             
@@ -693,13 +642,12 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
             // Check method body:
             env = env.addArgs(md.args)
             env = env.addReqs(md.reqs)
-            checkMethodBody(env, md)
+            val flow_exit = checkMethodBody(env, md)
             
             // Compute exit assumptions and store in prog.exportedCtorEnvs:
-            val flow = extractAssumptions(env, Set(ir.lv_this)) // Globally valid assums
-            log.flow(false, "extracted assumptions:", flow)
-            prog.exportedCtorEnvs += Pair((env.c_cur, md.name), flow) // Store
-            flow
+            log.flow(false, "exit assumptions:", flow_exit)
+            prog.exportedCtorEnvs += (env.c_cur, md.name) -> flow_exit
+            flow_exit
         }
         
     def checkReifiedFieldDecl(

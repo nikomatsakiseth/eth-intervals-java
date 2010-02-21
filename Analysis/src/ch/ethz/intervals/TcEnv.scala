@@ -270,11 +270,11 @@ sealed case class TcEnv(
     def canonLv(lv: ir.VarName) = canonPath(lv.path)
     def canonLvs(lvs: List[ir.VarName]) = lvs.map(canonLv)
 
-    private def canonicalize(vis: Set[ir.Path], p1: ir.Path): ir.CanonPath = log.indented("canonicalize(%s)", p1) {
+    private def canonicalize(vis: Set[ir.Path], p1: ir.Path): ir.CanonPath = log.indented("canonicalize(%s) vis=%s", p1, vis) {
         assert(!vis(p1))
         if(flow.temp.contains(p1)) {
             val p1_redirect = flow.temp(p1)
-            log("temp redirect")
+            log("temp redirect to %s", p1_redirect)
             canonicalize(vis + p1, p1_redirect)                
         } else p1.rev_fs match {
             case List() =>
@@ -502,14 +502,6 @@ sealed case class TcEnv(
         }
     }
     
-    /// Is data guarded by 'p' immutable in the interval 'q'?
-    def isImmutableIn(cp: ir.CanonPath, cq: ir.CanonPath): Boolean = {
-        log.indented(false, "isImmutableIn(%s, %s)?", cp, cq) {
-            log.env(false, "Environment", this)
-            hbInter(cp, cq)
-        }    
-    }
-    
     /// Is data guarded by 'p' writable by the interval 'q'?
     def guardsDataWritableBy(cp: ir.CanonPath, cq: ir.CanonPath): Boolean = {
         log.indented(false, "guardsDataWritableBy(%s, %s)?", cp, cq) {
@@ -561,7 +553,7 @@ sealed case class TcEnv(
     }
     
     /** Could the value of `cp_test` change during `cp_inter`? */
-    def isImmutableDuring(cp_test: ir.CanonPath, cp_inter: ir.CanonPath) = {
+    def isImmutableIn(cp_test: ir.CanonPath, cp_inter: ir.CanonPath) = {
         def imm(cp1: ir.CanonPath): Boolean = log.indented("m(%s)", cp1) {
             cp1 match {
                 // Local variables never change value once assigned:
@@ -594,7 +586,7 @@ sealed case class TcEnv(
         case ir.CpGhostLv(_, _) => true
         case ir.CpGhostField(cp0, _, _) => isImmutable(cp0)
         case ir.CpClassCtor(cp0, _) => isImmutable(cp0)
-        case _ => isImmutableDuring(cp_test, cp_cur)
+        case _ => isImmutableIn(cp_test, cp_cur)
     }
 
     def dependentPaths(wt: ir.WcTypeRef): Set[ir.Path] = {
