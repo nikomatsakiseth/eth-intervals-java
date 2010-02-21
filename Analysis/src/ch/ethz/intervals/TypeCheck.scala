@@ -19,7 +19,9 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
     /// wt(cp_sub) <: wt_sup
     def checkIsSubtype(env: TcEnv, crp_sub: ir.CanonReifiedPath, wt_sup: ir.WcTypeRef) {
         if(!env.pathHasType(crp_sub, wt_sup))
-            throw new CheckFailure("intervals.expected.subtype", crp_sub.p, crp_sub.wt, wt_sup)
+            throw new CheckFailure(
+                "intervals.expected.subtype", 
+                crp_sub.p, crp_sub.wt.toUserString, wt_sup.toUserString)
     }
     
     // ___ Statement Stack __________________________________________________

@@ -70,7 +70,7 @@ class Prog(
             case List() =>
                 val c = counter
                 counter = counter + 1
-                "%s[%d]".format(nm, c)
+                "[%s/%d]".format(nm, c)
         }        
     }    
     
@@ -93,7 +93,7 @@ class Prog(
         def accumulate(sc: Set[ir.ClassName], c: ir.ClassName): Set[ir.ClassName] = {
             classDecl(c).superClasses.foldLeft(sc + c)(accumulate)
         }
-        accumulate(Set.empty, c0) - c0
+        accumulate(Set.empty, c0)
     }
     
     def strictSuperclasses(c0: ir.ClassName) = classAndSuperclasses(c0) - c0

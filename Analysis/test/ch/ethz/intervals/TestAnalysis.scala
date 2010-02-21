@@ -23,6 +23,7 @@ class TestAnalysis extends JUnitSuite {
     // These substitutions are performed.  They are not needed in program
     // text, but are useful in the expected error messages:
     def substs = List(
+        ("#Constructor", ir.f_objCtor),
         ("#Creator", ir.f_creator),
         ("#Object", ir.c_object),
         ("#Interval", ir.c_interval),
@@ -1200,9 +1201,9 @@ class TestAnalysis extends JUnitSuite {
                 requires this.#Creator writableBy method
                 {
                     obj = new C2 @#Creator(this.d) @l1(this.b) @l2(this.c) ();
-                    this->creatorA = obj; // ERROR intervals.expected.subtype(obj, @#Creator(this.d) @l1(this.b) @l2(this.c) C2, @#Creator(this.a) #Object)
+                    this->creatorA = obj; // ERROR intervals.expected.subtype(obj, @#Creator(this.d) @l1(this.b) @l2(this.c) C2, @#Constructor(hbNow this.#Constructor) @#Creator(this.a) #Object)
                     this->l1B = obj; 
-                    this->creatorAl1B = obj; // ERROR intervals.expected.subtype(obj, @#Creator(this.d) @l1(this.b) @l2(this.c) C2, @#Creator(this.a) @l1(this.b) C1)
+                    this->creatorAl1B = obj; // ERROR intervals.expected.subtype(obj, @#Creator(this.d) @l1(this.b) @l2(this.c) C2, @#Constructor(hbNow this.#Constructor) @#Creator(this.a) @l1(this.b) C1)
                 } 
                 
                 void l1Wrong() 
@@ -1210,8 +1211,8 @@ class TestAnalysis extends JUnitSuite {
                 {
                     obj = new C2@#Creator(this.a)@l1(this.c)@l2(this.b)();
                     this->creatorA = obj;
-                    this->l1B = obj; // ERROR intervals.expected.subtype(obj, @#Creator(this.a) @l1(this.c) @l2(this.b) C2, @l1(this.b) C1)
-                    this->creatorAl1B = obj; // ERROR intervals.expected.subtype(obj, @#Creator(this.a) @l1(this.c) @l2(this.b) C2, @#Creator(this.a) @l1(this.b) C1)
+                    this->l1B = obj; // ERROR intervals.expected.subtype(obj, @#Creator(this.a) @l1(this.c) @l2(this.b) C2, @#Constructor(hbNow this.#Constructor) @l1(this.b) C1)
+                    this->creatorAl1B = obj; // ERROR intervals.expected.subtype(obj, @#Creator(this.a) @l1(this.c) @l2(this.b) C2, @#Constructor(hbNow this.#Constructor) @#Creator(this.a) @l1(this.b) C1)
                 }                                         
             }            
             """
@@ -1386,7 +1387,7 @@ class TestAnalysis extends JUnitSuite {
             }
             
             class Sub
-                @i(#Interval) // ERROR intervals.shadowed.ghost(Super, i)
+                @i(#Interval) // ERROR intervals.shadowed(Super, i)
             extends Super {
             }
             """            
@@ -1398,8 +1399,8 @@ class TestAnalysis extends JUnitSuite {
         wf(
             """
             class Sub
-                @i(#Interval)
-                @i(#Interval) // ERROR intervals.duplicate.field(i)
+                @i(#Interval) // ERROR intervals.shadowed(Sub, i)
+                @i(#Interval) // ERROR intervals.shadowed(Sub, i)
             extends #Object {
             }
             """            

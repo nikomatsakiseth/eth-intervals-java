@@ -554,7 +554,7 @@ sealed case class TcEnv(
     
     /** Could the value of `cp_test` change during `cp_inter`? */
     def isImmutableIn(cp_test: ir.CanonPath, cp_inter: ir.CanonPath) = {
-        def imm(cp1: ir.CanonPath): Boolean = log.indented("m(%s)", cp1) {
+        def imm(cp1: ir.CanonPath): Boolean = log.indented("imm(%s)", cp1) {
             cp1 match {
                 // Local variables never change value once assigned:
                 case ir.CpReifiedLv(_, _) => true
@@ -566,7 +566,7 @@ sealed case class TcEnv(
                 
                 // Fields guarded by past intervals cannot change but others can:
                 case ir.CpReifiedField(cp0, ir.ReifiedFieldDecl(_, _, _, p_guard)) =>
-                    imm(cp0) || { 
+                    imm(cp0) && { 
                         val cp_guard = canonPath(p_guard)
                         imm(cp_guard) && bfs(cp_guard.p.end, cp_inter.p.start)
                     }

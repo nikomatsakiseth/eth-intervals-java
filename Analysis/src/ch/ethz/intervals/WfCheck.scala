@@ -343,17 +343,23 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
         env: TcEnv,
         decl: ({ def name: ir.FieldName })
     ) = {
-        val f = decl.name
-        prog.classAndSuperclasses(env.c_cur).foreach { c =>
-            classDecl(c).ghostFieldDecls.filter(_.isNamed(f)).foreach { gfd =>
-                if(gfd ne decl)
-                    throw new CheckFailure("intervals.shadowed", c, f)                
-            }
-            classDecl(c).reifiedFieldDecls.filter(_.isNamed(f)).foreach { rfd =>
-                if(rfd ne decl)
-                    throw new CheckFailure("intervals.shadowed", c, f)                
-            }
-        }        
+        log.indented("checkFieldNameNotShadowed(%s)", decl) {
+            val f = decl.name
+            prog.classAndSuperclasses(env.c_cur).foreach { c =>
+                log.indented("class(%s)", c) {
+                    classDecl(c).ghostFieldDecls.filter(_.isNamed(f)).foreach { gfd =>
+                        log("gfd: %s (eq? %s)", gfd, gfd eq decl)
+                        if(gfd ne decl)
+                            throw new CheckFailure("intervals.shadowed", c, f)                
+                    }
+                    classDecl(c).reifiedFieldDecls.filter(_.isNamed(f)).foreach { rfd =>
+                        log("rfd: %s (eq? %s)", rfd, rfd eq decl)
+                        if(rfd ne decl)
+                            throw new CheckFailure("intervals.shadowed", c, f)                
+                    }
+                }
+            }                    
+        }
     }
     
     def checkReifiedFieldDecl(cd: ir.ClassDecl, rfd: ir.ReifiedFieldDecl): Unit = {

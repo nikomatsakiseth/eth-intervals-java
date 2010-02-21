@@ -53,7 +53,7 @@ object TranslateMethodBody
         var unique = 0
         def freshName(prefix: String) = {
             unique += 1
-            prefix + "[" + unique + "]"
+            "[%s/%d]".format(prefix, unique)
         }
         def freshVar() = ir.VarName(freshName("jv"))
         def nm(elem: Element) = elem.getSimpleName.toString

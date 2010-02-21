@@ -94,7 +94,10 @@ object ir {
             if(name.contains(".")) "(%s)".format(name)
             else name
             
-        // This allows names to be used in patterns.  Convenient.
+        /** True if this is a name we generated internally */
+        def isGenerated = name.startsWith("[")
+            
+        /** This allows names to be used in patterns.  Convenient. */
         def unapply(ar: AnyRef): Boolean = (ar == this)
     }
     
@@ -381,6 +384,8 @@ object ir {
     sealed abstract class WcTypeRef {
         def java: String
         
+        def toUserString: String
+        
         def withDefaultWghosts(wgs_additional: List[ir.WcGhost]): WcTypeRef
     }
     
@@ -388,7 +393,9 @@ object ir {
         p: ir.Path,
         tv: ir.TypeVarName
     ) extends WcTypeRef {
-        def java = toString
+        override def java = toString
+        override def toString = "%s.%s".format(p, tv)
+        override def toUserString = toString
         
         def withDefaultWghosts(wgs_additional: List[ir.WcGhost]) = this
     }
@@ -398,15 +405,22 @@ object ir {
         wghosts: List[ir.WcGhost],                  // Ghost arguments 
         wtargs: List[ir.WcTypeArg]                  // Generic type arguments
     ) extends WcTypeRef {
-        override def toString = 
+        override def java = c.toString        
+        override def toString = "%s%s%s".format(
+            "".join("", wghosts, " "), 
+            c, 
+            "".join(" ", wtargs, "")
+        )
+        override def toUserString = {
+            val wgs = wghosts.filter(wg => !wg.wp.isGenerated).sortWith(_ < _)
+            val wtas = wtargs.sortWith(_ < _)
             "%s%s%s".format(
-                "".join("", wghosts, " "), 
+                "".join("", wgs, " "), 
                 c, 
-                "".join(" ", wtargs, "")
+                "".join(" ", wtas, "")
             )
+        }   
             
-        def java = c.toString
-        
         def withDefaultWghosts(wgs_additional: List[ir.WcGhost]) = {
             val wgs_new = wgs_additional.filter(wg => !wghosts.exists(_.isNamed(wg.f)))
             copy(wghosts = wgs_new ++ wghosts)
@@ -447,6 +461,8 @@ object ir {
         def bounds: TypeBounds
         def toOptionTypeArg: Option[ir.TypeArg]
         
+        def <(wta: ir.WcTypeArg) = (tv.toString < wta.tv.toString)
+        
         def isNamed(n: TypeVarName) = (tv == n)        
     }
     
@@ -472,7 +488,7 @@ object ir {
     
     sealed case class WcGhost(f: ir.FieldName, wp: ir.WcPath) {
         override def toString = "@%s(%s)".format(f, wp)
-        
+        def <(wcg: ir.WcGhost) = (f.toString < wcg.f.toString)
         def isNamed(n: FieldName) = (f == n)        
     } 
     
@@ -493,11 +509,12 @@ object ir {
     
     sealed abstract class WcPath {
         def addDependentPaths(s: Set[Path]): Set[Path]
-        
+        def isGenerated: Boolean
         def isDependentOn(p: Path): Boolean =
             addDependentPaths(Set.empty).exists(_.hasPrefix(p))
     }
     sealed abstract class WcWildcardPath(ps: List[Path]) extends WcPath {
+        def isGenerated = false
         def addDependentPaths(s: Set[Path]) = s ++ ps
         protected def toString(tag: String) = ps match {
             case List() => tag
@@ -517,6 +534,7 @@ object ir {
     sealed case class Path(
         lv: VarName, rev_fs: List[FieldName] // Fields stored in reverse order!
     ) extends WcPath {
+        def isGenerated = lv.isGenerated && rev_fs.isEmpty
         def fs = rev_fs.reverse
         def +(f: ir.FieldName) = Path(lv, f :: rev_fs)
         def ++(fs: List[ir.FieldName]) = fs.foldLeft(this)(_ + _)
