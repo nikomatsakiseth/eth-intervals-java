@@ -28,11 +28,14 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
     // track the enclosing statements and handle loops, etc.
     
     class StmtStack(
-        val stmt: ir.StmtCompound,
-        val env_in: TcEnv
+        val env_in: TcEnv,
+        val defines: List[ir.LvDecl],
+        val loopArgs: Option[List[ir.LvDecl]]
     ) {
+        def cp_inter = env_in.cp_cur
+        
         var oenv_continue: Option[TcEnv] = None  // only applies to While
-        var oenv_break: Option[TcEnv] = None     // applies to all
+        var oenv_break: Option[TcEnv] = None     // applies to all        
     }
     
     // ___ Checking method bodies ___________________________________________
@@ -206,7 +209,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
         log.indented("mergeBreakEnv(%s,%s)", idx, cps) {
             val ss = ss_cur(idx)
 
-            val env_map = mapAndMergeBranchEnv(ss.env_in, env, ss.stmt.defines, cps)
+            val env_map = mapAndMergeBranchEnv(ss.env_in, env, ss.defines, cps)
             log.env(false, "env_map: ", env_map)
             ss.oenv_break = intersect(ss.oenv_break, env_map)            
             if(ss.oenv_break.get != env_map)
@@ -222,14 +225,14 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
     ) {
         log.indented("mergeContinueEnv(%s,%s)", idx, cps) {
             val ss = ss_cur(idx)
-            ss.stmt.kind match {
-                case ir.Loop(args, _, _) =>
+            ss.loopArgs match {
+                case Some(args) =>
                     val env_map = mapAndMergeBranchEnv(ss.env_in, env, args, cps)
                     log.env(false, "env_map: ", env_map)
                     ss.oenv_continue = intersect(ss.oenv_continue, env_map)
                     if(ss.oenv_continue.get != env_map)
                         log.env(false, "env_continue: ", ss.oenv_continue.get)
-                case _ =>
+                case None =>
                     throw new CheckFailure(
                         "intervals.internal.error",
                         "continue to non-loop: %s".format(ss))
@@ -247,32 +250,43 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
         }        
     }
     
-    def checkHeadCompoundStatement(env0: TcEnv, ss_cur: List[StmtStack]): TcEnv = {
-        var env = env0
-        val ss = ss_cur.head
-        val stmt_compound = ss.stmt
-        
-        stmt_compound.kind match {
+    def checkCompoundStatement(
+        env_in: TcEnv, 
+        ss_prev: List[StmtStack],
+        stmt_compound: ir.StmtCompound
+    ): TcEnv = {
+        val oenv_break = stmt_compound.kind match {
             case ir.Block(seq) =>
-                env = checkStatementSeq(env, ss_cur, seq)
+                val ss = new StmtStack(env_in, stmt_compound.defines, None)
+                val ss_cur = ss :: ss_prev
+                
+                checkStatementSeq(env_in, ss_cur, seq)
+                ss.oenv_break
 
             case ir.Switch(seqs) =>
-                val env_initial = env
+                val ss = new StmtStack(env_in, stmt_compound.defines, None)
+                val ss_cur = ss :: ss_prev
+                var env = env_in
+                
                 seqs.foreach { seq =>
                     // If the previous stmt breaks, then 
                     // env == env_initial and this line has no effect.
-                    env = env.intersectFlow(env_initial.flow)
+                    env = env.intersectFlow(env_in.flow)
                     env = checkStatementSeq(env, ss_cur, seq)
                 }
+                ss.oenv_break
                 
             case ir.Loop(args, lvs_initial, seq) =>
+                val ss = new StmtStack(env_in, stmt_compound.defines, Some(args))
+                val ss_cur = ss :: ss_prev
+                
                 def iterate(env_continue_before: TcEnv) {
                     log.indented("iterate()") {
                         // Break env is recomputed each iteration:
                         ss.oenv_break = None
 
                         // Perform an iteration:
-                        env = checkStatementSeq(env_continue_before, ss_cur, seq)
+                        checkStatementSeq(env_continue_before, ss_cur, seq)
                     }
 
                     // Repeat until steady state is reached:
@@ -280,11 +294,17 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                     if(env_continue_before != env_continue_after)
                         iterate(env_continue_after)
                 }
-                val tps_initial = computeAndLogLoopArguments(env, args, lvs_initial)
-                mergeContinueEnv(env, ss_cur, 0, tps_initial)
+                
+                val tps_initial = computeAndLogLoopArguments(env_in, args, lvs_initial)
+                mergeContinueEnv(env_in, ss_cur, 0, tps_initial)
                 iterate(ss.oenv_continue.get)
+                ss.oenv_break
                 
             case ir.Subinterval(x, ps_locks, seq) =>
+                val ss = new StmtStack(env_in, stmt_compound.defines, None)
+                val ss_cur = ss :: ss_prev
+                var env = env_in
+            
                 val tps_locks = env.immutableReifiedLvs(ps_locks)                    
                 env = env.addReifiedLocal(x, ir.wt_constructedInterval)
                 val cp_x = env.canonLv(x)
@@ -297,12 +317,19 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                 // In any case we will reset environment below so it doens't matter.
                 env = env.withCurrent(cp_x)
                 env = checkStatementSeq(env, ss_cur, seq)
+                ss.oenv_break
                 
             case ir.TryCatch(seq_try, seq_catch) =>
-                checkStatementSeq(env, ss_cur, seq_try) // note: environment is lost unless it breaks
+                val ss = new StmtStack(env_in, stmt_compound.defines, None)
+                val ss_cur = ss :: ss_prev
+                
+                // Note: environment is lost unless it breaks
+                checkStatementSeq(env_in, ss_cur, seq_try) 
                 
                 // Catch conservatively assumes try failed immediately:
-                checkStatementSeq(env, ss_cur, seq_catch)
+                checkStatementSeq(env_in, ss_cur, seq_catch)
+                
+                ss.oenv_break
         }
         
         log.ifEnabled {
@@ -311,10 +338,10 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
             }            
         }
 
-        ss.oenv_break match {
+        oenv_break match {
             case None => // control flow never really comes this way...
                 log("oenv_break unset, used env_in")
-                ss.env_in // ...use safe approx.
+                env_in // ...use safe approx.
             case Some(env_break) => 
                 log.env(false, "env_break: ", env_break)
                 env_break
@@ -326,8 +353,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
         log.env(false, "Input Environment: ", env)
         stmt match {   
             case stmt_compound: ir.StmtCompound =>
-                val ss_new = new StmtStack(stmt_compound, env) :: ss_cur
-                checkHeadCompoundStatement(env, ss_new)
+                checkCompoundStatement(env, ss_cur, stmt_compound)
                            
             case ir.StmtSuperCtor(m, qs) =>
                 val tcp = env.tcp_super
