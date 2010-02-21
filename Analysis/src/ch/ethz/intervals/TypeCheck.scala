@@ -58,8 +58,12 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
     }
     
     def checkReqFulfilled(env: TcEnv, req: ir.Req) {
-        if(!isReqFulfilled(env, req))
-            throw new CheckFailure("intervals.requirement.not.met", req)
+        if(!isReqFulfilled(env, req)) {
+            var reqString = req.toString
+            reqString = reqString.replace(env.p_cur.toString, "<method-call>")
+            throw new CheckFailure("intervals.requirement.not.met", reqString)
+        }
+            
     }
     
     def checkArgumentTypes(env: TcEnv, msig: ir.MethodSig, cqs: List[ir.CanonReifiedPath]) =

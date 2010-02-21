@@ -703,6 +703,8 @@ object ir {
     val wt_constructedPoint = ir.WcClassType(c_point, List(wg_objCtorHbNow), List())
     val wt_constructedInterval = ir.WcClassType(c_interval, List(wg_objCtorHbNow), List())    
     
+    val req_constructed = ir.ReqHb(List(p_this_objCtor), List(p_mthd))
+    
     val md_emptyCtor = 
         ir.MethodDecl(
             /* wt_ret: */ t_void, 
@@ -784,7 +786,7 @@ object ir {
                     /* args:   */ List(),
                     /* reqs:   */ List(
                         ir.ReqReadableBy(List(p_this_creator), List(p_mthd)),
-                        ir.ReqHb(List(p_this_intervalCtor), List(p_mthd))),
+                        req_constructed),
                     /* body:     */ empty_method_body))
         ),
         ClassDecl(

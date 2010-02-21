@@ -399,20 +399,23 @@ sealed case class TcEnv(
         }
     }
 
-    /** Method sig for constructor `m` of `tcp` invoked with args `tqs` */
+    /** Method sig for constructor `m` of `tcp` invoked with args `tqs`.
+      * Substitutes `tcp` for the receiver, `tqs` for the arguments, 
+      * and the current interval for `method`. */
     def substdCtorSig(tcp: ir.TeeCeePee[ir.WcClassType], m: ir.MethodName, cqs: List[ir.CanonPath]) = {
         classDecl(tcp.ty.c).ctors.find(_.isNamed(m)) match {
             case Some(md) =>            
                 PathSubst.vp(
-                    ir.lv_this :: md.args.map(_.name),
-                    tcp.p      :: cqs.map(_.p)
+                    ir.lv_mthd  :: ir.lv_this :: md.args.map(_.name),
+                    p_cur       :: tcp.p      :: cqs.map(_.p)
                 ).methodSig(md.msig)
             case None =>
                 throw new CheckFailure("intervals.no.such.ctor", tcp.ty, m)
         }
     }
 
-    /** Method sig for `tcp.m(tqs)` */
+    /** Method sig for `tcp.m(tqs)`.  Substitutes `tcp` for the receiver, 
+      * `tqs` for the arguments, and the current interval for `method`. */
     def substdMethodSig(tcp: ir.TeeCeePee[ir.WcTypeRef], m: ir.MethodName, cqs: List[ir.CanonPath]) = {
         log.indented(false, "substdMethodSig(%s::%s)", tcp.ty, m) {
             boundingClassTypes(tcp.ty).firstSomeReturned(prog.methodDecl(_, m)) match {
@@ -420,8 +423,8 @@ sealed case class TcEnv(
                     log("wct: %s", wct)
                     log.methodDecl("md: ", md)
                     PathSubst.vp(
-                        ir.lv_this :: md.args.map(_.name),
-                        tcp.p      :: cqs.map(_.p)
+                        ir.lv_mthd  :: ir.lv_this :: md.args.map(_.name),
+                        p_cur       :: tcp.p      :: cqs.map(_.p)
                     ).methodSig(md.msig)
                 case None =>
                     throw new CheckFailure("intervals.no.such.method", tcp.ty, m)
