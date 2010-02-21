@@ -102,28 +102,26 @@ object TranslateMethodBody
             }
 
             // Version of the symbol resulting form an assignment.
-            def nextExprVersion(p: ir.Path) =
-                ExprVersion(this, p)
+            def nextExprVersion(lv: ir.VarName) =
+                ExprVersion(this, lv)
 
             override def toString = "Symbol(%s)".format(name)
         }
 
         abstract class Version {
             val sym: Symbol
-            val p: ir.Path        
+            val lv: ir.VarName
             val isLocal: Boolean
         }    
         sealed case class GlobalVersion(sym: Symbol, lv: ir.VarName) extends Version {
-            val p = lv.path
             val isLocal = false
         }
         sealed case class LocalVersion(sym: Symbol, ver: Int) extends Version {
             val lv = ir.VarName(sym.name + "[" + ver + "]")
-            val p = lv.path        
             val isLocal = true
             def toLvDecl = ir.LvDecl(lv, sym.wtref)
         }
-        sealed case class ExprVersion(sym: Symbol, p: ir.Path) extends Version {
+        sealed case class ExprVersion(sym: Symbol, lv: ir.VarName) extends Version {
             val isLocal = true
         }
         
@@ -142,7 +140,7 @@ object TranslateMethodBody
             def foldLeft[B](z: B)(op: ((B, (String, Version)) => B)) = m.foldLeft(z)(op)
 
             lazy val replaceFunc: (String => String) = {
-                val pairs = m.toList.map { case (nm, ver) => (ver.p.toString, nm) }
+                val pairs = m.toList.map { case (nm, ver) => (ver.lv.toString, nm) }
                 replacePairs(pairs)
             }
         }
@@ -182,7 +180,7 @@ object TranslateMethodBody
         case object ScopeKindBlock extends ScopeKind
         case object ScopeKindSwitch extends ScopeKind
         case object ScopeKindLoop extends ScopeKind
-        case class ScopeKindSubinterval(x: ir.VarName, ps_locks: List[ir.Path]) extends ScopeKind
+        case class ScopeKindSubinterval(x: ir.VarName, lvs_locks: List[ir.VarName]) extends ScopeKind
         case object ScopeKindTryCatch extends ScopeKind
                 
         abstract class BranchKind(val targets: Set[ScopeKind])
@@ -248,11 +246,11 @@ object TranslateMethodBody
                         
                         val args = defines_loop.map(_._2.toLvDecl)
                         
-                        val ps_initial = defines_loop.map { case (nm, _) =>
-                            symtab_in(nm).p
+                        val lvs_initial = defines_loop.map { case (nm, _) =>
+                            symtab_in(nm).lv
                         }
                         
-                        ir.Loop(args, ps_initial, seqsBuffer(0))
+                        ir.Loop(args, lvs_initial, seqsBuffer(0))
                         
                     case ScopeKindSubinterval(x, ps_locks) => 
                         assert(seqsBuffer.length == 1)
@@ -308,23 +306,23 @@ object TranslateMethodBody
                 }
             }
 
-            def branchArguments(idx: Int, ps_xtra: ir.Path*) = {
+            def branchArguments(idx: Int, lvs_xtra: ir.VarName*) = {
                 val scope_tar = scopes(idx)
-                assert(scope_tar.defines_xtra.length == ps_xtra.length)                
-                val ps_auto = scope_tar.defines_auto.map { case (nm, _) =>
-                    symtab(nm).p
+                assert(scope_tar.defines_xtra.length == lvs_xtra.length)                
+                val lvs_auto = scope_tar.defines_auto.map { case (nm, _) =>
+                    symtab(nm).lv
                 }
-                ps_auto ++ ps_xtra
+                lvs_auto ++ lvs_xtra
             }
             
-            def uncondBreak(treePos: Tree, scope: Scope, ps_xtra: ir.Path*) {
+            def uncondBreak(treePos: Tree, scope: Scope, lvs_xtra: ir.VarName*) {
                 val idx = scopes.indexOf(scope)
-                addStmt(treePos, ir.StmtBreak(idx, branchArguments(idx, ps_xtra: _*)))
+                addStmt(treePos, ir.StmtBreak(idx, branchArguments(idx, lvs_xtra: _*)))
             }
             
-            def condBreak(treePos: Tree, scope: Scope, ps_xtra: ir.Path*) {
+            def condBreak(treePos: Tree, scope: Scope, lvs_xtra: ir.VarName*) {
                 val idx = scopes.indexOf(scope)
-                addStmt(treePos, ir.StmtCondBreak(idx, branchArguments(idx, ps_xtra: _*)))
+                addStmt(treePos, ir.StmtCondBreak(idx, branchArguments(idx, lvs_xtra: _*)))
             }
             
             def uncondContinue(treePos: Tree, scope: Scope) {
@@ -338,7 +336,7 @@ object TranslateMethodBody
                 new ttf.TranslateEnv(
                     TreePosition(tree, symtab.replaceFunc), 
                     symtab.foldLeft(env_mthd.m_localVariables) { case (m, (name, ver)) =>
-                        m + (name -> (ver.p, ver.sym.annty.getUnderlyingType))
+                        m + (name -> (ver.lv.path, ver.sym.annty.getUnderlyingType))
                     },
                     env_mthd.m_defaultWghosts
                 )
@@ -348,10 +346,10 @@ object TranslateMethodBody
                 ttf.wtref(env(etree))(getAnnotatedType(etree))
             }
 
-            def call(treePos: Tree, p: ir.Path, m: ir.MethodName, qs: ir.Path*) = {
-                val r = freshVar
-                addStmt(treePos, ir.StmtCall(r, p, m, qs.toList))
-                r.path
+            def call(treePos: Tree, lv_rcvr: ir.VarName, m: ir.MethodName, lvs_args: ir.VarName*) = {
+                val lv_def = freshVar
+                addStmt(treePos, ir.StmtCall(lv_def, lv_rcvr, m, lvs_args.toList))
+                lv_def
             }
 
             def toString(etree: ExpressionTree) {
@@ -362,24 +360,24 @@ object TranslateMethodBody
             }
             
             // Produces a fresh variable whose type is 'annty' (whose value is null)
-            def nullStmt(tree: Tree, wt: ir.WcTypeRef): ir.Path = {
-                val r = freshVar
-                addStmt(tree, ir.StmtNull(r, wt))
-                r.path
+            def nullStmt(tree: Tree, wt: ir.WcTypeRef): ir.VarName = {
+                val lv_def = freshVar
+                addStmt(tree, ir.StmtNull(lv_def, wt))
+                lv_def
             }
             
-            def nullStmt(etree: ExpressionTree): ir.Path = {
+            def nullStmt(etree: ExpressionTree): ir.VarName = {
                 nullStmt(etree, wtref(etree))
             }
             
-            def load(treePos: Tree, p: ir.Path, f: ir.FieldName) = {
-                val r = freshVar
-                addStmt(treePos, ir.StmtGetField(r, p, f))
-                r.path
+            def load(treePos: Tree, lv_owner: ir.VarName, f: ir.FieldName) = {
+                val lv_def = freshVar
+                addStmt(treePos, ir.StmtGetField(lv_def, lv_owner, f))
+                lv_def
             }
 
-            def store(treePos: Tree, p: ir.Path, f: ir.FieldName, q: ir.Path) = {
-                addStmt(treePos, ir.StmtSetField(p, f, q))
+            def store(treePos: Tree, lv_owner: ir.VarName, f: ir.FieldName, lv_value: ir.VarName) = {
+                addStmt(treePos, ir.StmtSetField(lv_owner, f, lv_value))
             }    
             
             // ___ Assignments ______________________________________________________
@@ -389,7 +387,7 @@ object TranslateMethodBody
             def rvalueOrNull(
                 etree_lval: ExpressionTree,
                 oetree_rval: Option[ExpressionTree]
-            ): ir.Path = 
+            ): ir.VarName = 
                 oetree_rval match {
                     case None => nullStmt(etree_lval)
                     case Some(etree_rval) => rvalue(etree_rval)
@@ -399,7 +397,7 @@ object TranslateMethodBody
                 tree: Tree, // location that caused the assignment
                 etree_lval: ExpressionTree, // LHS
                 oetree_rval: Option[ExpressionTree] // optional RHS (if None, treat as null)
-            ): ir.Path = at(etree_lval, symtab, "assign", nullStmt(etree_lval)) {
+            ): ir.VarName = at(etree_lval, symtab, "assign", nullStmt(etree_lval)) {
                 // [1] I think that the correct result from an assignment is one
                 // with the value of RHS and type of LHS.  However, I simply return
                 // the value of the RHS, which means the type may be a subtype of the
@@ -423,10 +421,10 @@ object TranslateMethodBody
                                 val ver = sym.nextExprVersion(q)
                                 addStmt(tree, ir.StmtCheckType(q, sym.wtref))
                                 symtab += Pair(nm(elem), ver)
-                                ver.p
+                                ver.lv
 
                             case EK.FIELD => // [this.]f = q
-                                store(tree, ir.p_this, fieldName(elem), q)
+                                store(tree, ir.lv_this, fieldName(elem), q)
                                 q // See [1] above
 
                             case _ =>
@@ -452,7 +450,7 @@ object TranslateMethodBody
             def nonIntrinsicMethodInvocation(
                 eelem: ExecutableElement,
                 mitree: MethodInvocationTree
-            ): ir.Path = mitree.getMethodSelect match {
+            ): ir.VarName = mitree.getMethodSelect match {
                 case tree: IdentifierTree => // [this].m(...) or super.m(...)
                     val m = ttf.methodName(eelem)
                     tree.getName.toString match {
@@ -463,7 +461,7 @@ object TranslateMethodBody
                                     addStmt(
                                         mitree, 
                                         ir.StmtSuperCtor(m, qs.toList))
-                                    ir.p_this // Dummy return value.
+                                    ir.lv_this // Dummy return value.
                                     
                                 case _ => 
                                     val qs = mitree.getArguments.map(rvalue)
@@ -471,13 +469,13 @@ object TranslateMethodBody
                                     addStmt(
                                         mitree, 
                                         ir.StmtSuperCall(r, m, qs.toList))
-                                    r.path
+                                    r
                             }
 
                         case _ =>
                             // XXX Nested classes can use a different this.
                             val qs = mitree.getArguments.map(rvalue)
-                            call(mitree, ir.p_this, m, qs: _*)
+                            call(mitree, ir.lv_this, m, qs: _*)
                     }
 
                 case tree: MemberSelectTree => // p.m(...)
@@ -492,14 +490,14 @@ object TranslateMethodBody
             
             def methodInvocation(
                 mitree: MethodInvocationTree
-            ): ir.Path = {
+            ): ir.VarName = {
                 val eelem = TU.elementFromUse(mitree)
 
                 // First check for intrinsics:
                 if(wke.addHb(eelem)) {
                     val qs = mitree.getArguments.map(rvalue)
                     addStmt(mitree, ir.StmtHb(qs(0), qs(1)))
-                    ir.p_this // Dummy return value.
+                    ir.lv_this // Dummy return value.
                 } else {
                     nonIntrinsicMethodInvocation(eelem, mitree)
                 }            
@@ -507,13 +505,13 @@ object TranslateMethodBody
 
             // ___ Rvalue: Evaluating an expression to a path _______________________
 
-            def rvalueIfNotStatic(elem: Element, etree: ExpressionTree): ir.Path =
+            def rvalueIfNotStatic(elem: Element, etree: ExpressionTree): ir.VarName =
                 if(EU.isStatic(elem)) throw new Unhandled(etree) // XXX static
                 else rvalue(etree)
                 
             def rvalue(
                 etree: ExpressionTree
-            ): ir.Path = at(etree, symtab, "rvalue", nullStmt(etree)) {
+            ): ir.VarName = at(etree, symtab, "rvalue", nullStmt(etree)) {
                 etree match {
                     case tree: ArrayAccessTree => // p[q]                
                         val p = rvalue(tree.getExpression)
@@ -552,17 +550,17 @@ object TranslateMethodBody
                             }                            
                         }
                         
-                        lv_res.path
+                        lv_res
 
                     case tree: IdentifierTree => 
                         val elem = TU.elementFromUse(tree)
                         val nm_elem = nm(elem)
                         if(nm_elem == "this")
-                            ir.p_this // TODO: Inner classes also use qualified forms of this
+                            ir.lv_this // TODO: Inner classes also use qualified forms of this
                         else elem.getKind match {
-                            case EK.PARAMETER | EK.LOCAL_VARIABLE => symtab(nm_elem).p
-                            case EK.FIELD => load(tree, ir.p_this, fieldName(elem))
-                            case EK.METHOD => ir.p_this // happens for "implicit this" calls like foo(...)
+                            case EK.PARAMETER | EK.LOCAL_VARIABLE => symtab(nm_elem).lv
+                            case EK.FIELD => load(tree, ir.lv_this, fieldName(elem))
+                            case EK.METHOD => ir.lv_this // happens for "implicit this" calls like foo(...)
                             case EK.CONSTRUCTOR => throw new Unhandled(tree)
                             case _ => throw new Unhandled(tree)
                         }
@@ -589,7 +587,7 @@ object TranslateMethodBody
                         val m = ttf.methodName(elem)
                         val qs = tree.getArguments.map(rvalue).toList
                         addStmt(tree, ir.StmtNew(lv, t, m, qs))
-                        lv.path
+                        lv
                         
                     case tree: ParenthesizedTree =>
                         rvalue(tree.getExpression)

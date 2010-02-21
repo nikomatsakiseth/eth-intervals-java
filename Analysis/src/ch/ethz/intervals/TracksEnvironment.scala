@@ -121,11 +121,6 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog)
         
     // ___ Canon Paths ______________________________________________________
     
-    def immutableReified(p: ir.Path) = env.immutableReified(p)    
-    def immutableReified(ps: List[ir.Path]) = env.immutableReified(ps)
-    def immutableGhost(p: ir.Path) = env.immutableGhost(p)
-    def immutableGhost(ps: List[ir.Path]) = env.immutableGhost(ps)
-    
     // Note: these are not vals but defs!  This is important
     // because the outcome of ir.CanonPath() depends on the env.
     def cp_cur = env.ocp_cur.get

@@ -210,8 +210,8 @@ sealed case class TcEnv(
                     ps: List[ir.Path], 
                     qs: List[ir.Path]
                 ) = {
-                    val cps = immutableGhost(ps)
-                    val cqs = immutableGhost(qs)
+                    val cps = immutableCanonPaths(ps)
+                    val cqs = immutableCanonPaths(qs)
                     cps.foldLeft(this) { case (env0, cp) =>
                         cqs.foldLeft(env0) { case (env1, cq) =>
                             add(env1, cp, cq)
@@ -233,43 +233,43 @@ sealed case class TcEnv(
         
     // ___ Constructing Canonical Paths _____________________________________
     
-    def reified(p: ir.Path): ir.CanonReifiedPath = {
-        canon(p) match {
+    def reifiedPath(p: ir.Path): ir.CanonReifiedPath = {
+        canonPath(p) match {
             case crp: ir.CanonReifiedPath => crp
             case _ => throw new CheckFailure("intervals.must.be.reified", p)
         }
     }
+    def reifiedPaths(ps: List[ir.Path]) = ps.map(reifiedPath)
+    def reifiedLv(lv: ir.VarName) = reifiedPath(lv.path)
+    def reifiedLvs(lvs: List[ir.VarName]) = lvs.map(reifiedLv)
     
-    def reified(ps: List[ir.Path]): List[ir.CanonReifiedPath] = {
-        ps.map(reified)
-    }
-    
-    def immutableReified(p: ir.Path): ir.CanonReifiedPath = {
-        val crp = reified(p)
+    def immutableReifiedPath(p: ir.Path): ir.CanonReifiedPath = {
+        val crp = reifiedPath(p)
         if(isMutable(crp))
             throw new CheckFailure("intervals.must.be.immutable", p)
         crp
-    }
+    }    
+    def immutableReifiedPaths(ps: List[ir.Path]) = ps.map(immutableReifiedPath)
+    def immutableReifiedLv(lv: ir.VarName) = immutableReifiedPath(lv.path)
+    def immutableReifiedLvs(lvs: List[ir.VarName]) = lvs.map(immutableReifiedLv)
     
-    def immutableReified(ps: List[ir.Path]): List[ir.CanonReifiedPath] = {
-        ps.map(immutableReified)
-    }
-    
-    def immutableGhost(p: ir.Path): ir.CanonPath = {
-        val cp = canon(p)
+    def immutableCanonPath(p: ir.Path): ir.CanonPath = {
+        val cp = canonPath(p)
         if(isMutable(cp))
             throw new CheckFailure("intervals.must.be.immutable", p)
         cp        
     }
+    def immutableCanonPaths(ps: List[ir.Path]) = ps.map(immutableCanonPath)
+    def immutableCanonLv(lv: ir.VarName) = immutableCanonPath(lv.path)    
+    def immutableCanonLvs(lvs: List[ir.VarName]) = lvs.map(immutableCanonLv)
     
-    def immutableGhost(ps: List[ir.Path]): List[ir.CanonPath] = {
-        ps.map(immutableGhost)
-    }
-    
-    def canon(p1: ir.Path): ir.CanonPath = log.indented(false, "canon(%s)", p1) {
+    def canonPath(p1: ir.Path): ir.CanonPath = log.indented(false, "canonPath(%s)", p1) {
         canonicalize(Set(), p1)
     }
-        
+    def canonPaths(ps: List[ir.Path]) = ps.map(canonPath)
+    def canonLv(lv: ir.VarName) = canonPath(lv.path)
+    def canonLvs(lvs: List[ir.VarName]) = lvs.map(canonLv)
+
     private def canonicalize(vis: Set[ir.Path], p1: ir.Path): ir.CanonPath = log.indented("canonicalize(%s)", p1) {
         assert(!vis(p1))
         if(flow.temp.contains(p1)) {
@@ -285,7 +285,7 @@ sealed case class TcEnv(
                 
             case f :: rev_fs =>
                 val p0 = ir.Path(p1.lv, rev_fs)      // p1 = p0.f
-                val crp0 = reified(p0)
+                val crp0 = reifiedPath(p0)
                 extendCanonWithFieldNamed(vis, crp0, f)
         }
     }
@@ -370,10 +370,10 @@ sealed case class TcEnv(
     def p_cur = ocp_cur.get.p
     
     /** Canonical path to this */
-    def crp_this = reified(ir.p_this)
+    def crp_this = reifiedPath(ir.p_this)
     
     /** Canonical path to method */
-    def cp_mthd = canon(ir.p_mthd)
+    def cp_mthd = canonPath(ir.p_mthd)
     
     /** Upcast version of this to the first superclass */
     def tcp_super = {
@@ -517,7 +517,7 @@ sealed case class TcEnv(
             (
                 is(cp) match {
                     // Is cp a ghost declared writable by q?
-                    case ir.WcWritableBy(qs) => among(cq, qs.map(canon))
+                    case ir.WcWritableBy(qs) => among(cq, canonPaths(qs))
                     case _ => false
                 }
             ) || {
@@ -536,7 +536,7 @@ sealed case class TcEnv(
             (
                 is(cp) match {
                     // Is cp a ghost declared readable by q or immutable in q?
-                    case ir.WcReadableBy(qs) => among(cq, qs.map(canon))
+                    case ir.WcReadableBy(qs) => among(cq, canonPaths(qs))
                     case _ => false
                 } 
             ) || {
@@ -571,7 +571,7 @@ sealed case class TcEnv(
                 // Fields guarded by past intervals cannot change but others can:
                 case ir.CpReifiedField(cp0, ir.ReifiedFieldDecl(_, _, _, p_guard)) =>
                     m(cp0) || { 
-                        val cp_guard = canon(p_guard)
+                        val cp_guard = canonPath(p_guard)
                         m(cp_guard) || !interHappened(cp_guard)
                     }
 
@@ -621,7 +621,7 @@ sealed case class TcEnv(
         val subst = tcp_o.cp.thisSubst
         val rfds_linked = rfds_maybe_linked.filter { rfd =>
             !ocp_cur.exists(cp_cur =>
-                hbInter(cp_cur, canon(subst.path(rfd.p_guard))))
+                hbInter(cp_cur, canonPath(subst.path(rfd.p_guard))))
         }
         
         // map to the canonical path for the field
@@ -633,7 +633,7 @@ sealed case class TcEnv(
     private def superintervalsOrSelf(cp0: ir.CanonPath) = {
         def immediateSuperintervalsOf(cp: ir.CanonPath): Set[ir.CanonPath] = {
             log.indented("immediateSuperintervalsOf(%s)", cp) {
-                flow.subintervalRel.values(cp.p).map(canon) ++ {
+                flow.subintervalRel.values(cp.p).map(canonPath) ++ {
                     log.indented("cp0.Constructor[_].end < cp0.Constructor.end?") {
                         cp match {
                             case ir.CpClassCtor(cp0, _) => 
@@ -676,7 +676,7 @@ sealed case class TcEnv(
             }
         }
         
-        def depoint(p: ir.Path, f: ir.FieldName) = p.stripSuffix(f).map(canon)
+        def depoint(p: ir.Path, f: ir.FieldName) = p.stripSuffix(f).map(canonPath)
 
         def isInterval(cp0: ir.CanonPath) = pathHasSubclass(cp0, ir.c_interval)
 
@@ -727,7 +727,7 @@ sealed case class TcEnv(
                     // q = x.y.(? hbNow p)                    
                     // In this case, while searching to see if 'q' happened,
                     // we cannot assume that 'p' happened.
-                    val cq = canon(q)
+                    val cq = canonPath(q)
                     !didNotHappen(cq.p) &&
                     new HbWalk(didNotHappen + p, cq.p.end, p_cur.start).doWalk()
                 }
@@ -841,7 +841,7 @@ sealed case class TcEnv(
     
     /// Returns the upper- and lower-bounds for a type.
     def boundPathType(pt: ir.PathType): ir.TypeBounds = {
-        val crp = reified(pt.p)
+        val crp = reifiedPath(pt.p)
         typeArg(crp.wt, pt.tv) match {
             case Some(wtarg) => 
                 wtarg.bounds
@@ -872,8 +872,8 @@ sealed case class TcEnv(
      // ___ Subtyping ________________________________________________________
     
     private def isLtPaths(ps: List[ir.Path], qs: List[ir.Path]) = {
-        val cps = ps.map(canon)
-        val cqs = qs.map(canon)  
+        val cps = canonPaths(ps)
+        val cqs = canonPaths(qs)
         cps.forall(cp => among(cp, cqs))
     }
     
@@ -882,16 +882,16 @@ sealed case class TcEnv(
     private def isLtWpath(wp: ir.WcPath, wq: ir.WcPath): Boolean = {
         (wp, wq) match {
             case (p: ir.Path, q: ir.Path) =>
-                equiv(canon(p), canon(q))
+                equiv(canonPath(p), canonPath(q))
             case (p: ir.Path, ir.WcReadableBy(qs)) =>
-                val cp = canon(p)
-                qs.forall { q => guardsDataReadableBy(cp, canon(q)) }
+                val cp = canonPath(p)
+                qs.forall { q => guardsDataReadableBy(cp, canonPath(q)) }
             case (p: ir.Path, ir.WcWritableBy(qs)) =>
-                val cp = canon(p)
-                qs.forall { q => guardsDataWritableBy(cp, canon(q)) }
+                val cp = canonPath(p)
+                qs.forall { q => guardsDataWritableBy(cp, canonPath(q)) }
             case (p: ir.Path, ir.WcHbNow(qs)) =>
-                val cp = canon(p)
-                hbNow(cp, qs.map(canon))
+                val cp = canonPath(p)
+                hbNow(cp, canonPaths(qs))
             
             // Accessible by more is a subtype of accessible by less:
             case (ir.WcWritableBy(ps), ir.WcWritableBy(qs)) => isGtPaths(ps, qs)                

@@ -232,41 +232,41 @@ object ir {
     sealed abstract class Stmt extends PositionalAst {
         def setDefaultPosOnChildren() { }        
     }
-    sealed case class StmtSuperCtor(m: ir.MethodName, qs: List[Path]) extends Stmt {
-        override def toString = "super %s(%s)".format(m, qs)
+    sealed case class StmtSuperCtor(m: ir.MethodName, lvs_arg: List[VarName]) extends Stmt {
+        override def toString = "super %s(%s)".format(m, lvs_arg)
     }
-    sealed case class StmtSuperCall(x: VarName, m: MethodName, qs: List[Path]) extends Stmt {
-        override def toString = "%s = super->%s(%s)".format(x, m, qs)
+    sealed case class StmtSuperCall(lv_def: VarName, m: MethodName, lvs_arg: List[VarName]) extends Stmt {
+        override def toString = "%s = super->%s(%s)".format(lv_def, m, lvs_arg)
     }
-    sealed case class StmtCheckType(p: ir.Path, wt: ir.WcTypeRef) extends Stmt {
-        override def toString = "%s <: %s".format(p, wt)
+    sealed case class StmtCheckType(lv: ir.VarName, wt: ir.WcTypeRef) extends Stmt {
+        override def toString = "%s <: %s".format(lv, wt)
     }
-    sealed case class StmtCall(x: VarName, p: Path, m: MethodName, qs: List[Path]) extends Stmt {
-        override def toString = "%s = %s->%s(%s)".format(x, p, m, qs)        
+    sealed case class StmtCall(lv_def: VarName, lv_rcvr: VarName, m: MethodName, lvs_arg: List[VarName]) extends Stmt {
+        override def toString = "%s = %s->%s(%s)".format(lv_def, lv_rcvr, m, lvs_arg)        
     }
-    sealed case class StmtGetField(x: VarName, p: Path, f: FieldName) extends Stmt {
-        override def toString = "%s = %s->%s".format(x, p, f)
+    sealed case class StmtGetField(lv_def: VarName, lv_owner: VarName, f: FieldName) extends Stmt {
+        override def toString = "%s = %s->%s".format(lv_def, lv_owner, f)
     }
-    sealed case class StmtNew(x: VarName, ct: ClassType, m: ir.MethodName, qs: List[Path]) extends Stmt {
-        override def toString = "%s = new %s %s(%s);".format(x, ct, m, qs.mkString(", "))
+    sealed case class StmtNew(lv_def: VarName, ct: ClassType, m: ir.MethodName, lvs_arg: List[VarName]) extends Stmt {
+        override def toString = "%s = new %s %s(%s);".format(lv_def, ct, m, lvs_arg.mkString(", "))
     }
-    sealed case class StmtCast(x: VarName, wt: WcTypeRef, q: Path) extends Stmt {
-        override def toString = "%s = (%s)%s;".format(x, wt, q)
+    sealed case class StmtCast(lv_def: VarName, wt: WcTypeRef, y: VarName) extends Stmt {
+        override def toString = "%s = (%s)%s;".format(lv_def, wt, y)
     }
-    sealed case class StmtNull(x: VarName, wt: WcTypeRef) extends Stmt {
-        override def toString = "%s = (%s)null;".format(x, wt)
+    sealed case class StmtNull(lv_def: VarName, wt: WcTypeRef) extends Stmt {
+        override def toString = "%s = (%s)null;".format(lv_def, wt)
     }
-    sealed case class StmtReturn(p: Option[Path]) extends Stmt {
-        override def toString = "return %s;".format(p)        
+    sealed case class StmtReturn(lv_value: Option[VarName]) extends Stmt {
+        override def toString = "return %s;".format(lv_value)        
     }
-    sealed case class StmtSetField(p: Path, f: FieldName, q: Path) extends Stmt {
-        override def toString = "%s->%s = %s;".format(p, f, q)
+    sealed case class StmtSetField(lv_owner: VarName, f: FieldName, lv_value: VarName) extends Stmt {
+        override def toString = "%s->%s = %s;".format(lv_owner, f, lv_value)
     }
-    sealed case class StmtHb(p: Path, q: Path) extends Stmt {
-        override def toString = "%s hb %s;".format(p, q)        
+    sealed case class StmtHb(lv_from: VarName, lv_to: VarName) extends Stmt {
+        override def toString = "%s hb %s;".format(lv_from, lv_to)        
     }
-    sealed case class StmtLocks(p: Path, q: Path) extends Stmt {
-        override def toString = "%s locks %s;".format(p, q)        
+    sealed case class StmtLocks(lv_inter: VarName, lv_lock: VarName) extends Stmt {
+        override def toString = "%s locks %s;".format(lv_inter, lv_lock)        
     }
     
     // ______ Branching _____________________________________________________
@@ -287,14 +287,14 @@ object ir {
     // (2) They are fully explicit: for example, loop bodies always end
     //     in CONTINUE.  
     
-    sealed case class StmtCondBreak(i: Int, ps: List[Path]) extends Stmt {
-        override def toString = "condBreak %d(%s);".format(i, ", ".join(ps))
+    sealed case class StmtCondBreak(i: Int, lvs: List[VarName]) extends Stmt {
+        override def toString = "condBreak %d(%s);".format(i, ", ".join(lvs))
     }
-    sealed case class StmtBreak(i: Int, ps: List[Path]) extends Stmt {
-        override def toString = "break %d(%s);".format(i, ", ".join(ps))
+    sealed case class StmtBreak(i: Int, lvs: List[VarName]) extends Stmt {
+        override def toString = "break %d(%s);".format(i, ", ".join(lvs))
     }
-    sealed case class StmtContinue(i: Int, ps: List[Path]) extends Stmt {
-        override def toString = "continue %d(%s);".format(i, ", ".join(ps))
+    sealed case class StmtContinue(i: Int, lvs: List[VarName]) extends Stmt {
+        override def toString = "continue %d(%s);".format(i, ", ".join(lvs))
     }
     
     // ______ Flow Control and Compound Statements __________________________
@@ -332,12 +332,12 @@ object ir {
         override def toString = "Switch"
         def subseqs = seqs
     }
-    sealed case class Loop(args: List[LvDecl], ps_initial: List[ir.Path], seq: StmtSeq) extends CompoundKind {
+    sealed case class Loop(args: List[LvDecl], lvs_initial: List[VarName], seq: StmtSeq) extends CompoundKind {
         override def toString = "Loop"
         def subseqs = List(seq)
     }
-    sealed case class Subinterval(x: VarName, ps_locks: List[Path], seq: StmtSeq) extends CompoundKind {
-        override def toString = "Subinterval[%s locks %s]".format(x, ", ".join(ps_locks))
+    sealed case class Subinterval(lv_inter: VarName, lvs_locks: List[VarName], seq: StmtSeq) extends CompoundKind {
+        override def toString = "Subinterval[%s locks %s]".format(lv_inter, ", ".join(lvs_locks))
         def subseqs = List(seq)
     }
     sealed case class TryCatch(seq_try: StmtSeq, seq_catch: StmtSeq) extends CompoundKind {

@@ -536,8 +536,8 @@ cp_dep	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.s
 cp_f	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^                        val cp_f = env.extendCanonWithReifiedField(cp_o, rfd)                        $/;"	constants	line:386
 cp_f	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^                        val cp_f = env.extendCanonWithReifiedField(cp_o, rfd)$/;"	constants	line:362
 cp_guard	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TcEnv.scala	/^                val cp_guard = canon(p_guard)$/;"	constants	line:401
-cp_guard	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^                        val cp_guard = immutableGhost(rfd.p_guard)$/;"	constants	line:359
-cp_guard	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^                        val cp_guard = immutableGhost(rfd.p_guard)$/;"	constants	line:382
+cp_guard	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^                        val cp_guard = immutableCanon(rfd.p_guard)$/;"	constants	line:359
+cp_guard	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^                        val cp_guard = immutableCanon(rfd.p_guard)$/;"	constants	line:382
 cp_guard	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^                val cp_guard = env.canon(fd.p_guard)$/;"	constants	line:664
 cp_mthd	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^                val cp_mthd = env.canon(ir.gfd_ctor.thisPath)$/;"	constants	line:623
 cp_mthd	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^                val cp_mthd = env.canon(ir.p_mthd)$/;"	constants	line:655
@@ -555,14 +555,14 @@ cp_x	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/WfCheck.scala
 cps	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^                val cps = immutableReified(ps)$/;"	constants	line:456
 cps	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^                val cps = immutableReified(ps)$/;"	constants	line:460
 cps	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^                val cps = immutableReified(ps)$/;"	constants	line:465
-cps	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^            val cps = immutableGhost(ps)$/;"	constants	line:62
+cps	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^            val cps = immutableCanon(ps)$/;"	constants	line:62
 cq	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^                val cq = immutableReified(q)$/;"	constants	line:447
 cq	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^                val cq = immutableReified(q)$/;"	constants	line:452
 cqs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^                val cqs = immutableReified(qs)$/;"	constants	line:342
 cqs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^                val cqs = immutableReified(qs)$/;"	constants	line:400
 cqs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^                val cqs = immutableReified(qs)$/;"	constants	line:404
 cqs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^                val cqs = immutableReified(qs)$/;"	constants	line:409
-cqs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^            val cqs = immutableGhost(qs)$/;"	constants	line:63
+cqs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^            val cqs = immutableCanon(qs)$/;"	constants	line:63
 cqs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/WfCheck.scala	/^                    val cqs = qs.map(reified)$/;"	constants	line:119
 cqs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/WfCheck.scala	/^                    val cqs = reified(qs)$/;"	constants	line:150
 cqs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/WfCheck.scala	/^                    val cqs = reified(qs)$/;"	constants	line:157
@@ -824,8 +824,8 @@ ifEnabled	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/Html
 ifEnabled	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/Log.scala	/^    def ifEnabled(f: => Unit): Unit                     \/\/ Executes f iff rawWrite() does something.$/;"	methods	line:11
 illegalClassInReq	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^    def illegalClassInReq$/;"	methods	line:1106
 illegalLinkedFields	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^    def illegalLinkedFields()$/;"	methods	line:1054
-immutableGhost	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^    def immutableGhost(p: ir.Path) = {$/;"	methods	line:169
-immutableGhost	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^    def immutableGhost(ps: List[ir.Path]): List[ir.CanonPath] = {$/;"	methods	line:176
+immutableCanon	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^    def immutableCanon(p: ir.Path) = {$/;"	methods	line:169
+immutableCanon	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^    def immutableCanon(ps: List[ir.Path]): List[ir.CanonPath] = {$/;"	methods	line:176
 immutableReified	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^    def immutableReified(p: ir.Path): ir.CanonPath = {$/;"	methods	line:156
 immutableReified	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^    def immutableReified(ps: List[ir.Path]): List[ir.CanonPath] = {$/;"	methods	line:165
 implClassDecl	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def implClassDecl(ctree: ClassTree): ir.ClassDecl = {$/;"	methods	line:786
@@ -1491,10 +1491,10 @@ toString	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestPlug
 toTxmtUrl	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestPlugin.scala	/^        def toTxmtUrl = {$/;"	methods	line:47
 token	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/BaseParser.scala	/^        override def token: Parser[Token] = {$/;"	methods	line:15
 tokens	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/BaseParser.scala	/^      val tokens = new lexical.Scanner(text)$/;"	constants	line:43
-tps	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^                    val tps = immutableGhost(ps)$/;"	constants	line:141
+tps	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^                    val tps = immutableCanon(ps)$/;"	constants	line:141
 tps_initial	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^                val tps_initial = computeAndLogLoopArguments(args, ps_initial)$/;"	constants	line:291
 tps_locks	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^                val tps_locks = immutableReified(ps_locks)                    $/;"	constants	line:296
-tqs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^                    val tqs = immutableGhost(qs)$/;"	constants	line:142
+tqs	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^                    val tqs = immutableCanon(qs)$/;"	constants	line:142
 transitive	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/PathRelation.scala	/^    val transitive = new PathRelation(true, MultiMap.empty)$/;"	constants	line:71
 tref	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/BaseSubst.scala	/^    def tref(t: ir.TypeRef) = $/;"	methods	line:11
 ttf	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IntervalsChecker.scala	/^                val ttf = createFactory(currentRoot)$/;"	constants	line:72

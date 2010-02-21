@@ -81,8 +81,8 @@ class IrParser extends BaseParser {
     
     def seq = "{"~>rep(stmt)<~"}"                   ^^ ir.StmtSeq
     
-    def locks = optl("locks"~>comma(p))
-    def loopArg = lvdecl~"="~p                      ^^ { case lv~_~p => (lv, p) }
+    def locks = optl("locks"~>comma(lv))
+    def loopArg = lvdecl~"="~lv                     ^^ { case lv~_~p => (lv, p) }
     def ckind: Parser[ir.CompoundKind] = (
         "{"~>seq<~"}"                               ^^ ir.Block
     |   "switch"~"{"~rep(seq)~"}"                   ^^ { case _~_~ss~_ => ir.Switch(ss) }
@@ -98,21 +98,21 @@ class IrParser extends BaseParser {
     )
     
     def stmt: Parser[ir.Stmt] = positioned(
-       "super"~cm~"("~comma(p)~")"~";"              ^^ { case _~m~_~ps~_~_ => ir.StmtSuperCtor(m,ps) }
-    |   optLv~p~"->"~m~"("~comma(p)~")"~";"         ^^ { case x~p~"->"~m~"("~qs~")"~_ => ir.StmtCall(x, p, m, qs) }
-    |   optLv~"super"~"->"~m~"("~comma(p)~")"~";"   ^^ { case x~_~"->"~m~"("~qs~")"~_ => ir.StmtSuperCall(x, m, qs) }
-    |   lv~"="~p~"->"~f~";"                         ^^ { case x~"="~p~"->"~f~_ => ir.StmtGetField(x, p, f) }
-    |   lv~"="~"new"~ct~cm~"("~comma(p)~")"~";"     ^^ { case x~"="~"new"~ct~m~"("~qs~")"~_ => ir.StmtNew(x, ct, m, qs) }
-    |   lv~"="~"("~wt_dflt~")"~p~";"                ^^ { case x~"="~"("~wt~")"~p~";" => ir.StmtCast(x, wt, p) }
-    |   lv~"="~"("~wt_dflt~")"~"null"~";"           ^^ { case x~"="~"("~wt~")"~"null"~";" => ir.StmtNull(x, wt) }
-    |   p~"->"~f~"="~p~";"                          ^^ { case p~_~f~_~q~_ => ir.StmtSetField(p, f, q) }
-    |   "assert"~p~"<:"~wt_dflt~";"                 ^^ { case _~p~_~wt~_ => ir.StmtCheckType(p, wt) }
-    |   p~"hb"~p~";"                                ^^ { case p~_~q~_ => ir.StmtHb(p, q) }
-    |   p~"locks"~p~";"                             ^^ { case p~_~q~_ => ir.StmtLocks(p, q) }
-    |   "break"~integer~"("~comma(p)~")"~";"        ^^ { case _~i~"("~ps~")"~";" => ir.StmtBreak(i, ps) }
-    |   "cbreak"~integer~"("~comma(p)~")"~";"       ^^ { case _~i~"("~ps~")"~";" => ir.StmtCondBreak(i, ps) }
-    |   "continue"~integer~"("~comma(p)~")"~";"     ^^ { case _~i~"("~ps~")"~";" => ir.StmtContinue(i, ps) }
-    |   "return"~opt(p)~";"                         ^^ { case _~p~_ => ir.StmtReturn(p) }
+       "super"~cm~"("~comma(lv)~")"~";"              ^^ { case _~m~_~ps~_~_ => ir.StmtSuperCtor(m,ps) }
+    |   optLv~lv~"->"~m~"("~comma(lv)~")"~";"        ^^ { case x~p~"->"~m~"("~qs~")"~_ => ir.StmtCall(x, p, m, qs) }
+    |   optLv~"super"~"->"~m~"("~comma(lv)~")"~";"   ^^ { case x~_~"->"~m~"("~qs~")"~_ => ir.StmtSuperCall(x, m, qs) }
+    |   lv~"="~lv~"->"~f~";"                         ^^ { case x~"="~p~"->"~f~_ => ir.StmtGetField(x, p, f) }
+    |   lv~"="~"new"~ct~cm~"("~comma(lv)~")"~";"     ^^ { case x~"="~"new"~ct~m~"("~qs~")"~_ => ir.StmtNew(x, ct, m, qs) }
+    |   lv~"="~"("~wt_dflt~")"~lv~";"                ^^ { case x~"="~"("~wt~")"~p~";" => ir.StmtCast(x, wt, p) }
+    |   lv~"="~"("~wt_dflt~")"~"null"~";"            ^^ { case x~"="~"("~wt~")"~"null"~";" => ir.StmtNull(x, wt) }
+    |   lv~"->"~f~"="~lv~";"                         ^^ { case p~_~f~_~q~_ => ir.StmtSetField(p, f, q) }
+    |   "assert"~lv~"<:"~wt_dflt~";"                 ^^ { case _~p~_~wt~_ => ir.StmtCheckType(p, wt) }
+    |   lv~"hb"~lv~";"                               ^^ { case p~_~q~_ => ir.StmtHb(p, q) }
+    |   lv~"locks"~lv~";"                            ^^ { case p~_~q~_ => ir.StmtLocks(p, q) }
+    |   "break"~integer~"("~comma(lv)~")"~";"        ^^ { case _~i~"("~ps~")"~";" => ir.StmtBreak(i, ps) }
+    |   "cbreak"~integer~"("~comma(lv)~")"~";"       ^^ { case _~i~"("~ps~")"~";" => ir.StmtCondBreak(i, ps) }
+    |   "continue"~integer~"("~comma(lv)~")"~";"     ^^ { case _~i~"("~ps~")"~";" => ir.StmtContinue(i, ps) }
+    |   "return"~opt(lv)~";"                         ^^ { case _~p~_ => ir.StmtReturn(p) }
     |   stmt_compound
     )
     

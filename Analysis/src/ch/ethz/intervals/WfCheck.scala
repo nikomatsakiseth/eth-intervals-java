@@ -9,56 +9,46 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
     import prog.classDecl
     import prog.unboundGhostFieldsOnClassAndSuperclasses
     import prog.unboundTypeVarsDeclaredOnClassAndSuperclasses
-        
-    def reified(p: ir.Path) = env.reified(p)
-    def reified(ps: List[ir.Path]) = env.reified(ps)    
-    def rOrGhost(p: ir.Path): ir.CanonPath = env.canon(p)
-    def rOrGhost(ps: List[ir.Path]): List[ir.CanonPath] = ps.map(rOrGhost)
     
+    def canonPath = env.canonPath _
+    def canonLv = env.canonLv _
+    def reifiedPath = env.reifiedPath _
+    def reifiedLv = env.reifiedLv _
+        
     def checkIsSubclass(cp: ir.CanonPath, cs: ir.ClassName*) {
         if(!cs.exists(env.pathHasSubclass(cp, _)))
             throw new CheckFailure("intervals.expected.subclass.of.any", cp, cs)
     }
     
-    def checkPathWfAndSubclass(
-        canonizer: (ir.Path => ir.CanonPath),
-        p: ir.Path, 
+    def checkCanonAndSubclass[X](
+        canonizer: (X => ir.CanonPath),
+        arg: X, 
         cs: ir.ClassName*
     ): Unit = {
-        val cp = canonizer(p)
+        val cp = canonizer(arg)
         checkIsSubclass(cp, cs: _*)
     }
             
-    def checkPathsWfAndSubclass(
-        canonizer: (ir.Path => ir.CanonPath),        
-        ps: List[ir.Path], 
+    def checkCanonAndSubclasses[X](
+        canonizer: (X => ir.CanonPath),        
+        ps: List[X], 
         cs: ir.ClassName*
     ): Unit =
-        ps.foreach(checkPathWfAndSubclass(canonizer, _, cs: _*))
+        ps.foreach(checkCanonAndSubclass(canonizer, _, cs: _*))
 
-    def checkPathWf(
-        canonizer: (ir.Path => ir.CanonPath),                
-        p: ir.Path
-    ): Unit = canonizer(p)
-        
-    def checkPathsWf(
-        canonizer: (ir.Path => ir.CanonPath),                
-        ps: List[ir.Path]
-    ): Unit = ps.foreach(checkPathWf(canonizer, _))
-    
     def checkWPathWf(wp: ir.WcPath): Unit =
         wp match {
             case ir.WcReadableBy(ps) =>
-                checkPathsWfAndSubclass(rOrGhost, ps, ir.c_interval)
+                checkCanonAndSubclasses(canonPath, ps, ir.c_interval)
                 
             case ir.WcWritableBy(ps) =>
-                checkPathsWfAndSubclass(rOrGhost, ps, ir.c_interval)
+                checkCanonAndSubclasses(canonPath, ps, ir.c_interval)
                 
             case ir.WcHbNow(ps) =>
-                checkPathsWfAndSubclass(rOrGhost, ps, ir.c_interval)
+                checkCanonAndSubclasses(canonPath, ps, ir.c_interval)
                 
             case p: ir.Path =>
-                checkPathWf(rOrGhost, p)
+                env.canonPath(p)
         }
         
     def checkLengths(l1: List[_], l2: List[_], msg: String) = preservesEnv {
@@ -114,7 +104,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
     def checkWtrefWf(wt: ir.WcTypeRef) {
         wt match {
             case pt: ir.PathType =>
-                val crp = reified(pt.p)
+                val crp = env.reifiedPath(pt.p)
                 val tvds = env.typeVarsDeclaredOnType(crp.wt)
                 tvds.find(_.isNamed(pt.tv)) match {
                     case None => throw new CheckFailure("intervals.no.such.type.var", crp, pt.tv)
@@ -130,8 +120,8 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
         checkLengths(msig.wts_args, cqs, "intervals.wrong.number.method.arguments")        
     }
     
-    def checkBranch(i: Int, stmts_stack: List[ir.StmtCompound], ps: List[ir.Path]) {
-        ps.foreach(checkPathWf(reified, _))
+    def checkBranch(i: Int, stmts_stack: List[ir.StmtCompound], lvs: List[ir.VarName]) {
+        env.reifiedLvs(lvs)
         if(i >= stmts_stack.length)
             throw new CheckFailure("intervals.invalid.stack.index", i, stmts_stack.length)
     }
@@ -139,42 +129,42 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
     def checkStatement(stmts_stack: List[ir.StmtCompound])(stmt: ir.Stmt): Unit =
         at(stmt, ()) {
             stmt match {                  
-                case ir.StmtSuperCtor(m, qs) =>
-                    val tcp = tcp_super
-                    val cqs = qs.map(reified)
-                    val msig_ctor = env.substdCtorSig(tcp, m, cqs)
-                    checkCall(tcp, msig_ctor, cqs)
+                case ir.StmtSuperCtor(m, lvs_args) =>
+                    val tcp_rcvr = tcp_super
+                    val cps_args = env.reifiedLvs(lvs_args)
+                    val msig_ctor = env.substdCtorSig(tcp_rcvr, m, cps_args)
+                    checkCall(tcp_rcvr, msig_ctor, cps_args)
                     
-                case ir.StmtGetField(x, p_o, f) =>
-                    val crp_o = reified(p_o)
-                    val (_, rfd) = env.substdReifiedFieldDecl(crp_o.toTcp, f) 
-                    addReifiedLocal(x, rfd.wt)
+                case ir.StmtGetField(lv_def, lv_owner, f) =>
+                    val crp_owner = env.reifiedLv(lv_owner)
+                    val (_, rfd) = env.substdReifiedFieldDecl(crp_owner.toTcp, f) 
+                    addReifiedLocal(lv_def, rfd.wt)
                     
-                case ir.StmtSetField(p_o, f, p_v) =>
-                    checkPathWf(reified, p_v)
+                case ir.StmtSetField(lv_owner, f, lv_value) =>
+                    env.reifiedLv(lv_value)
                     
-                    val crp_o = reified(p_o)
-                    env.substdReifiedFieldDecl(crp_o.toTcp, f) 
+                    val crp_owner = env.reifiedLv(lv_owner)
+                    env.substdReifiedFieldDecl(crp_owner.toTcp, f) 
 
-                case ir.StmtCheckType(p, wt) =>
-                    checkPathWf(reified, p)
+                case ir.StmtCheckType(lv, wt) =>
+                    env.reifiedLv(lv)
                     checkWtrefWf(wt)
 
-                case ir.StmtCall(x, p, m, qs) =>
-                    val tcp = reified(p).toTcp
-                    val cqs = reified(qs)
-                    val msig = env.substdMethodSig(tcp, m, cqs)
-                    checkCall(tcp, msig, cqs)
-                    addReifiedLocal(x, msig.wt_ret)
+                case ir.StmtCall(lv_def, lv_rcvr, m, lvs_args) =>
+                    val tcp_rcvr = env.reifiedLv(lv_rcvr).toTcp
+                    val cps_args = env.reifiedLvs(lvs_args)
+                    val msig = env.substdMethodSig(tcp_rcvr, m, cps_args)
+                    checkCall(tcp_rcvr, msig, cps_args)
+                    addReifiedLocal(lv_def, msig.wt_ret)
         
-                case ir.StmtSuperCall(x, m, qs) =>
+                case ir.StmtSuperCall(lv_def, m, qs) =>
                     val tcp = tcp_super
-                    val cqs = reified(qs)
+                    val cqs = env.reifiedLvs(qs)
                     val msig = env.substdMethodSig(tcp, m, cqs)
                     checkCall(tcp, msig, cqs)
-                    addReifiedLocal(x, msig.wt_ret)
+                    addReifiedLocal(lv_def, msig.wt_ret)
                 
-                case ir.StmtNew(x, ct, m, qs) =>
+                case ir.StmtNew(lv_def, ct, m, lvs_args) =>
                     if(classDecl(ct.c).attrs.interface)
                         throw new CheckFailure("intervals.new.interface", ct.c)
                         
@@ -190,8 +180,8 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                     }
                         
                     checkWtrefWf(ct)
-                    checkPathsWf(rOrGhost, ct.ghosts.map(_.p))
-                    val cqs = reified(qs)
+                    env.canonPaths(ct.ghosts.map(_.p))
+                    val cps_args = env.reifiedLvs(lvs_args)
                     
                     // Check that all ghosts on the type C being instantiated are given a value:
                     val gfds_unbound = unboundGhostFieldsOnClassAndSuperclasses(ct.c)
@@ -207,54 +197,54 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                         case None =>
                     }
                     
-                    addReifiedLocal(x, ct)
-                    val tcp_x = ir.TeeCeePee(env.reified(x.path), ct)
-                    val msig_ctor = env.substdCtorSig(tcp_x, m, cqs)
-                    checkCall(tcp_x, msig_ctor, cqs)                    
+                    addReifiedLocal(lv_def, ct)
+                    val tcp_def = ir.TeeCeePee(env.reifiedLv(lv_def), ct)
+                    val msig_ctor = env.substdCtorSig(tcp_def, m, cps_args)
+                    checkCall(tcp_def, msig_ctor, cps_args)                    
                     
-                case ir.StmtCast(x, wt, p) => 
-                    checkPathWf(reified, p)
+                case ir.StmtCast(lv_def, wt, lv) => 
+                    env.reifiedLv(lv)
                     checkWtrefWf(wt)
-                    addReifiedLocal(x, wt)
+                    addReifiedLocal(lv_def, wt)
                     
-                case ir.StmtNull(x, wt) => 
+                case ir.StmtNull(lv_def, wt) => 
                     checkWtrefWf(wt)
-                    addReifiedLocal(x, wt)
+                    addReifiedLocal(lv_def, wt)
                     
-                case ir.StmtReturn(op) =>
-                    op match {
-                        case Some(p) =>
-                            reified(p)                            
+                case ir.StmtReturn(olv) =>
+                    olv match {
+                        case Some(lv) =>
+                            env.reifiedLv(lv)
                         
                         case None =>
                             if(env.wt_ret != ir.t_void)
                                 throw new CheckFailure("intervals.illegal.empty.return", env.wt_ret)
                     }
                     
-                case ir.StmtHb(p, q) =>                
-                    checkPathWfAndSubclass(reified, p, ir.c_point, ir.c_interval)
-                    checkPathWfAndSubclass(reified, q, ir.c_point, ir.c_interval)
+                case ir.StmtHb(lv_from, lv_to) =>                
+                    checkCanonAndSubclass(env.reifiedLv _, lv_from, ir.c_point, ir.c_interval)
+                    checkCanonAndSubclass(env.reifiedLv _, lv_to, ir.c_point, ir.c_interval)
                     
-                case ir.StmtLocks(p, q) =>
-                    checkPathWfAndSubclass(reified, p, ir.c_interval)
-                    checkPathWfAndSubclass(reified, q, ir.c_lock)
+                case ir.StmtLocks(lv_inter, lv_lock) =>
+                    checkCanonAndSubclass(env.reifiedLv _, lv_inter, ir.c_interval)
+                    checkCanonAndSubclass(env.reifiedLv _, lv_lock, ir.c_lock)
                     
-                case ir.StmtBreak(i, ps) =>
-                    checkBranch(i, stmts_stack, ps)
+                case ir.StmtBreak(i, lvs) =>
+                    checkBranch(i, stmts_stack, lvs)
                     val stmt_compound = stmts_stack(i)
-                    checkLengths(stmt_compound.defines, ps, "intervals.incorrect.number.of.branch.args")
+                    checkLengths(stmt_compound.defines, lvs, "intervals.incorrect.number.of.branch.args")
 
-                case ir.StmtCondBreak(i, ps) =>
-                    checkBranch(i, stmts_stack, ps)
+                case ir.StmtCondBreak(i, lvs) =>
+                    checkBranch(i, stmts_stack, lvs)
                     val stmt_compound = stmts_stack(i)
-                    checkLengths(stmt_compound.defines, ps, "intervals.incorrect.number.of.branch.args")
+                    checkLengths(stmt_compound.defines, lvs, "intervals.incorrect.number.of.branch.args")
                     
-                case ir.StmtContinue(i, ps) =>
-                    checkBranch(i, stmts_stack, ps)
+                case ir.StmtContinue(i, lvs) =>
+                    checkBranch(i, stmts_stack, lvs)
                     val stmt_compound = stmts_stack(i)
                     stmt_compound.kind match {
                         case ir.Loop(args, _, _) =>
-                            checkLengths(args, ps, "intervals.incorrect.number.of.branch.args")
+                            checkLengths(args, lvs, "intervals.incorrect.number.of.branch.args")
                             
                         case kind =>
                             throw new CheckFailure("intervals.continue.to.nonloop", kind)
@@ -264,10 +254,10 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                     stmt_c.kind match {
                         case ir.Block(_) =>
                         case ir.Switch(_) =>
-                        case ir.Loop(_, ps_initial, _) =>
-                            ps_initial.foreach(checkPathWf(reified, _))
-                        case ir.Subinterval(x, ps_locks, _) =>
-                            ps_locks.foreach(checkPathWf(reified, _))
+                        case ir.Loop(_, lvs_initial, _) =>
+                            env.reifiedLvs(lvs_initial)
+                        case ir.Subinterval(x, lvs_locks, _) =>
+                            env.reifiedLvs(lvs_locks)
                             addReifiedLocal(x, ir.wt_constructedInterval)
                         case ir.TryCatch(_, _) =>
                     }
@@ -293,17 +283,17 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
         at(req, ()) {
             req match {
                 case ir.ReqWritableBy(ps, qs) =>
-                    checkPathsWfAndSubclass(rOrGhost, ps, ir.c_guard)
-                    checkPathsWfAndSubclass(rOrGhost, qs, ir.c_interval)
+                    checkCanonAndSubclasses(canonPath, ps, ir.c_guard)
+                    checkCanonAndSubclasses(canonPath, qs, ir.c_interval)
                 case ir.ReqReadableBy(ps, qs) => 
-                    checkPathsWfAndSubclass(rOrGhost, ps, ir.c_guard)
-                    checkPathsWfAndSubclass(rOrGhost, qs, ir.c_interval)
+                    checkCanonAndSubclasses(canonPath, ps, ir.c_guard)
+                    checkCanonAndSubclasses(canonPath, qs, ir.c_interval)
                 case ir.ReqHb(ps, qs) => 
-                    checkPathsWfAndSubclass(rOrGhost, ps, ir.c_point, ir.c_interval)
-                    checkPathsWfAndSubclass(rOrGhost, qs, ir.c_point, ir.c_interval)
+                    checkCanonAndSubclasses(canonPath, ps, ir.c_point, ir.c_interval)
+                    checkCanonAndSubclasses(canonPath, qs, ir.c_point, ir.c_interval)
                 case ir.ReqSubintervalOf(ps, qs) => 
-                    checkPathsWfAndSubclass(rOrGhost, ps, ir.c_interval)
-                    checkPathsWfAndSubclass(rOrGhost, qs, ir.c_interval)
+                    checkCanonAndSubclasses(canonPath, ps, ir.c_interval)
+                    checkCanonAndSubclasses(canonPath, qs, ir.c_interval)
             }   
         }
     
@@ -321,7 +311,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                 addGhostLocal(ir.lv_mthd, ir.wt_constructedInterval)
                 addThis(cd)
 
-                setCurrent(env.canon(ir.p_mthd))
+                setCurrent(env.canonPath(ir.p_mthd))
                 md.args.foreach(addCheckedArg)
                 checkWtrefWf(md.wt_ret)                
                 md.reqs.foreach(checkReq)
@@ -334,10 +324,10 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
             savingEnv {
                 // Define special vars "method" (== this.constructor) and "this":
                 addThis(cd)
-                val cp_ctor = env.canon(ir.ClassCtorFieldName(cd.name).thisPath)
+                val cp_ctor = env.canonPath(ir.ClassCtorFieldName(cd.name).thisPath)
                 addPerm(ir.lv_mthd, cp_ctor)
 
-                setCurrent(env.canon(ir.p_mthd))
+                setCurrent(env.canonPath(ir.p_mthd))
                 md.args.foreach(addCheckedArg)
                 md.reqs.foreach(checkReq)
         
@@ -372,7 +362,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                 addThis(cd)                
                 checkFieldNameNotShadowed(env, rfd)
                 checkWtrefWf(rfd.wt)
-                checkPathWf(rOrGhost, rfd.p_guard)
+                env.canonPath(rfd.p_guard)
             }
         }        
     }
