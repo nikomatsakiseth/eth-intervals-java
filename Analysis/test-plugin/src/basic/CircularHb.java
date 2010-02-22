@@ -15,7 +15,7 @@ class CircularHbData {
 
 class CircularHb {
 
-	@Requires(subinterval=@Subinterval(of="y"))
+	@Requires("method subintervalOf y")
     void method(
         Interval x, 
         Interval y,

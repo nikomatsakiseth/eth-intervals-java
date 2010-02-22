@@ -3,9 +3,7 @@ package basic;
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.quals.DefinesGhost;
 import ch.ethz.intervals.quals.GuardedBy;
-import ch.ethz.intervals.quals.Happens;
 import ch.ethz.intervals.quals.Requires;
-import ch.ethz.intervals.quals.Subinterval;
 
 @DefinesGhost(ofClass=Interval.class)
 @interface ParseReqsCreator {
@@ -21,21 +19,21 @@ public class ParseReqs {
 	
 	// Error occurs because 'interA' is not stable at the
 	// the time subinter1 runs:
-	@Requires(subinterval=@Subinterval(of="interA"))
-	void interA1() {} // ERROR Path "this.interA" must be immutable to be used here.
+	@Requires("method subintervalOf interA")
+	void interA1() {} // ERROR Path "this.(basic.ParseReqs.interA)" must be immutable to be used here.
 
     // ----------------------------------------------------------------------
     @GuardedBy("ParseReqsCreator")
     Interval interB;
 
     // Error occurs for same as reason as interA1()
-    @Requires(subinterval=@Subinterval(of="interB"))
-    void interB1() {} // ERROR Path "this.interB" must be immutable to be used here.
+	@Requires("method subintervalOf interB")
+    void interB1() {} // ERROR Path "this.(basic.ParseReqs.interB)" must be immutable to be used here.
 
-	@Requires(
-	    happens=@Happens(before="ParseReqsCreator", after="method"),
-	    subinterval=@Subinterval(of="interB")
-	)
+	@Requires({
+		"ParseReqsCreator hb method",
+		"method subintervalOf interB"
+	})
 	void interB2() {}
 
 }

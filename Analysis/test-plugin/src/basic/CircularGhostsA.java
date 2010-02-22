@@ -1,11 +1,7 @@
 package basic;
 
 import ch.ethz.intervals.Interval;
-import ch.ethz.intervals.quals.Requires;
-import ch.ethz.intervals.quals.Subinterval;
-import ch.ethz.intervals.quals.Happens;
 import ch.ethz.intervals.quals.DefinesGhost;
-import ch.ethz.intervals.quals.Creator;
 import ch.ethz.intervals.quals.GuardedBy;
 
 @DefinesGhost(ofClass=Interval.class)

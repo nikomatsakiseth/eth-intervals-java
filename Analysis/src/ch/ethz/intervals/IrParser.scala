@@ -116,12 +116,7 @@ class IrParser extends BaseParser {
     |   stmt_compound
     )
     
-    def req = positioned(
-        "requires"~comma(p)~"readableBy"~comma(p)   ^^ { case _~lp~_~lq => ir.ReqReadableBy(lp, lq) }
-    |   "requires"~comma(p)~"writableBy"~comma(p)   ^^ { case _~lp~_~lq => ir.ReqWritableBy(lp, lq) }
-    |   "requires"~comma(p)~"subinterval"~comma(p)  ^^ { case _~lp~_~lq => ir.ReqSubintervalOf(lp, lq) }
-    |   "requires"~comma(p)~"hb"~comma(p)           ^^ { case _~lp~_~lq => ir.ReqHb(lp, lq) }
-    )    
+    def req = positioned("requires"~>reqBase)
     def reqs = rep(req)
     
     def methodDecl = positioned(

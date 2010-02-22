@@ -165,13 +165,13 @@ abstract class Log {
             apply("wt_ret: %s", md.wt_ret)
             indented("args:")   { md.args.foreach(apply) }
             indented("reqs:")   { md.reqs.foreach(apply) }            
-            statementSeq("body: %s", md.body)
+            statementSeq("body: ", md.body)
         }
     }
     
     def methodSig(open: Boolean, lbl: Any, msig: ir.MethodSig): Unit = ifEnabled {
         indented(open, "%s", lbl) {
-            indented("wts_args:")    { msig.wts_args.foreach(apply) }
+            indented("wts_args:")   { msig.wts_args.foreach(apply) }
             indented("reqs:")       { msig.reqs.foreach(apply) }
             apply("wt_ret: %s", msig.wt_ret)
         }
@@ -179,7 +179,7 @@ abstract class Log {
     
     def statementSeq(lbl: Any, seq: ir.StmtSeq): Unit = ifEnabled {
         indented("%s%s", lbl, seq) {
-            seq.stmts.foreach(statement(lbl, _))
+            seq.stmts.foreach(statement("", _))
         }
     }
     

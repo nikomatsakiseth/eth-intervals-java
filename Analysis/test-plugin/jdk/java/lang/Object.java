@@ -9,7 +9,6 @@ public class Object {
     
     public Object() {}
 
-    @Requires(readable=@Readable("Creator"))
     public String toString() { return ""; }
     
 }

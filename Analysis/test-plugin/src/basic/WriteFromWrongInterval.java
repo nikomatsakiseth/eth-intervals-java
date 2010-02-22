@@ -19,15 +19,15 @@ public class WriteFromWrongInterval {
 	    this.y = y;
 	}
 	
-	@Requires(subinterval=@Subinterval(of="x"))	
+	@Requires("method subintervalOf x")	
 	protected void duringX() {
 	    xString = "x";
-	    yString = "y"; // ERROR Interval "this.y" is not writable because it may not be the current interval.
+	    yString = "y"; // ERROR Interval "this.(basic.WriteFromWrongInterval.y)" is not writable because it may not be the current interval.
 	}
 
-	@Requires(subinterval=@Subinterval(of="y"))	
+	@Requires("method subintervalOf y")	
 	protected void duringY() {
-	    xString = "x"; // ERROR Interval "this.x" is not writable because it may not be the current interval.
+	    xString = "x"; // ERROR Interval "this.(basic.WriteFromWrongInterval.x)" is not writable because it may not be the current interval.
 	    yString = "y";
 	}
 

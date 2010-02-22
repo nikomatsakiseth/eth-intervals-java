@@ -63,5 +63,5 @@ abstract class BaseSubst {
         ir.LvDecl(lv.name, wcTref(lv.wt))
 
     def methodSig(msig: ir.MethodSig): ir.MethodSig =
-        ir.MethodSig(msig.wts_args.map(wcTref), msig.reqs.map(req), wcTref(msig.wt_ret))
+        ir.MethodSig(msig.wts_args.map(wcTref), msig.name, msig.reqs.map(req), wcTref(msig.wt_ret))
 }

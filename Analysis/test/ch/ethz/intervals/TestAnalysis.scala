@@ -156,14 +156,14 @@ class TestAnalysis extends JUnitSuite {
                 #Object@#Creator(this.inter) obj requires this.#Creator;
                 
                 Constructor() 
-                requires method subinterval this.#Creator
+                requires method subintervalOf this.#Creator
                 {                   
                     super();                    
                     return;
                 }
                 
                 void setBothOkWhenGivenAsParameters(#Interval inter, #Object@#Creator(inter) obj) 
-                requires method subinterval this.#Creator
+                requires method subintervalOf this.#Creator
                 {
                     this->inter = inter;
                     this->obj = obj;
@@ -171,7 +171,7 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 void setBothOkWhenOneIsCreated(#Interval inter)
-                requires method subinterval this.#Creator
+                requires method subintervalOf this.#Creator
                 {
                     obj = new #Object@#Creator(inter)();
                     
@@ -181,7 +181,7 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 void setBothWrongOrder(#Interval inter, #Object@#Creator(inter) obj) 
-                requires method subinterval this.#Creator
+                requires method subintervalOf this.#Creator
                 {
                     this->obj = obj; // ERROR intervals.expected.subtype(obj, @#Constructor(hbNow) @#Creator(inter) #Object, @#Constructor(hbNow this.#Constructor) @#Creator(this.inter) #Object)
                     this->inter = inter;
@@ -189,7 +189,7 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 void setOneNotOk(#Interval inter) 
-                requires method subinterval this.#Creator
+                requires method subintervalOf this.#Creator
                 {
                     this->inter = inter;
                     return; // ERROR intervals.must.assign.first(this.obj)
@@ -201,7 +201,7 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 void invokingAnotherMethodInBetweenNotOk(#Interval inter, #Object@#Creator(inter) obj) 
-                requires method subinterval this.#Creator
+                requires method subintervalOf this.#Creator
                 {
                     this->inter = inter;
                     this->anotherMethod(); // ERROR intervals.must.assign.first(this.obj)
@@ -210,7 +210,7 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 void invokingAnotherMethodAfterIsOk(#Interval inter, #Object@#Creator(inter) obj) 
-                requires method subinterval this.#Creator
+                requires method subintervalOf this.#Creator
                 {
                     this->inter = inter;
                     this->obj = obj;                    
@@ -219,7 +219,7 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 void creatingObjectsInBetweenNotOk(#Interval inter, #Object@#Creator(inter) obj) 
-                requires method subinterval this.#Creator
+                requires method subintervalOf this.#Creator
                 {
                     this->inter = inter;
                     obj2 = new #Object@#Creator(inter)(); // ERROR intervals.must.assign.first(this.obj)
@@ -228,7 +228,7 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 void creatingObjectsAfterIsOk(#Interval inter, #Object@#Creator(inter) obj) 
-                requires method subinterval this.#Creator
+                requires method subintervalOf this.#Creator
                 {
                     this->inter = inter;
                     this->obj = obj;
@@ -306,7 +306,7 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 void writeDuringConstructor() 
-                requires method subinterval this.Constructor
+                requires method subintervalOf this.Constructor
                 {
                     c = this->c; 
                     
@@ -317,7 +317,7 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 void readDuringConstructor() 
-                requires method subinterval this.Constructor
+                requires method subintervalOf this.Constructor
                 {
                     // Always constructed:
                     constructed = this->constructed;
@@ -327,12 +327,12 @@ class TestAnalysis extends JUnitSuite {
                     // Not known to be constructed because this.Constructor in progress:
                     // (Nor do we know that dflt.Constructor is in progess, so can't read)
                     dflt = this->dflt;
-                    d1 = dflt->toString(); // ERROR intervals.requirement.not.met(requires dflt.#Constructor hb <method-call>)
+                    d1 = dflt->toString(); // ERROR intervals.requirement.not.met(toString, requires dflt.#Constructor hb <method-call>)
                     d2 = dflt->c; // ERROR intervals.not.readable(dflt.#Constructor)
                     
                     // Not known to be constructed:
                     unconstructed = this->unconstructed;
-                    u1 = unconstructed->toString(); // ERROR intervals.requirement.not.met(requires unconstructed.#Constructor hb <method-call>)
+                    u1 = unconstructed->toString(); // ERROR intervals.requirement.not.met(toString, requires unconstructed.#Constructor hb <method-call>)
                     u2 = unconstructed->c; // ERROR intervals.not.readable(unconstructed.#Constructor)
                     
                     return;
@@ -353,7 +353,7 @@ class TestAnalysis extends JUnitSuite {
                     
                     // Not known to be constructed:
                     unconstructed = this->unconstructed;
-                    u1 = unconstructed->toString(); // ERROR intervals.requirement.not.met(requires this.unconstructed.#Constructor hb <method-call>)
+                    u1 = unconstructed->toString(); // ERROR intervals.requirement.not.met(toString, requires this.unconstructed.#Constructor hb <method-call>)
                     u2 = unconstructed->c; // ERROR intervals.not.readable(this.unconstructed.#Constructor)
                     
                     return;
@@ -382,7 +382,7 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 void readFinal(#Object@#Creator(this.final) o) 
-                requires method subinterval this
+                requires method subintervalOf this
                 requires this.Constructor hb method
                 {
                     // this.final hb this, and method is a subinterval of this,
@@ -397,7 +397,7 @@ class TestAnalysis extends JUnitSuite {
                     // Here we do not require this method be
                     // invoked with method a subinterval of this,
                     // so we don't know that this.final is readable.
-                    o->toString(); // ERROR intervals.requirement.not.met(requires o.#Creator readable by <method-call>)
+                    o->toString(); // ERROR intervals.requirement.not.met(toString, requires o.#Creator readableBy <method-call>)
                     return;
                 }
                 
@@ -446,7 +446,7 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 void run() 
-                requires method subinterval this
+                requires method subintervalOf this
                 {
                     obj = this->obj;
                     obj->toString();
@@ -465,10 +465,10 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 void run() 
-                requires method subinterval this
+                requires method subintervalOf this
                 {
                     obj = this->obj;
-                    obj->toString(); // ERROR intervals.requirement.not.met(requires this.obj.#Creator readable by <method-call>)
+                    obj->toString(); // ERROR intervals.requirement.not.met(toString, requires this.obj.#Creator readableBy <method-call>)
                     return;
                 }
             }           
@@ -509,21 +509,21 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 void mu(#Object@#Creator(this.unrelated) o) 
-                requires method subinterval this
+                requires method subintervalOf this
                 {
-                    o->toString(); // ERROR intervals.requirement.not.met(requires o.#Creator readable by <method-call>)
+                    o->toString(); // ERROR intervals.requirement.not.met(toString, requires o.#Creator readableBy <method-call>)
                     return;
                 }
                 
                 void mr(#Object@#Creator(this.maybeRelated) o) 
-                requires method subinterval this
+                requires method subintervalOf this
                 {
-                    o->toString(); // ERROR intervals.requirement.not.met(requires o.#Creator readable by <method-call>)
+                    o->toString(); // ERROR intervals.requirement.not.met(toString, requires o.#Creator readableBy <method-call>)
                     return;
                 }
                 
                 void mb(#Object@#Creator(this.before) o) 
-                requires method subinterval this
+                requires method subintervalOf this
                 {
                     o->toString(); 
                     return;
@@ -558,9 +558,9 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 void readFinal(#Object @#Creator(this.final) o) 
-                requires method subinterval this
+                requires method subintervalOf this
                 {
-                    o->toString(); // ERROR intervals.requirement.not.met(requires o.#Creator readable by <method-call>)
+                    o->toString(); // ERROR intervals.requirement.not.met(toString, requires o.#Creator readableBy <method-call>)
                     return;
                 }                
             }
@@ -586,7 +586,7 @@ class TestAnalysis extends JUnitSuite {
                 void aHbB() // ok to have fewer reqs...
                 {                    
                     // ...but then invoking super is not necessarily safe:
-                    super->aHbB(); // ERROR intervals.requirement.not.met(requires this.a hb this.b)
+                    super->aHbB(); // ERROR intervals.requirement.not.met(aHbB, requires this.a hb this.b)
                     return;
                 }
             }
@@ -608,15 +608,15 @@ class TestAnalysis extends JUnitSuite {
                 requires this.a readableBy this.b 
                 {
                     // ...but then invoking super is not necessarily safe:
-                    super->aHbB(); // ERROR intervals.requirement.not.met(requires this.a hb this.b)
+                    super->aHbB(); // ERROR intervals.requirement.not.met(aHbB, requires this.a hb this.b)
                     return;
                 }
             }
             
             class UnsupportedReqs1 extends A 
             {
-                void aHbB() // ERROR intervals.override.adds.req(requires method subinterval of this.#Constructor)
-                requires method subinterval this.Constructor 
+                void aHbB() // ERROR intervals.override.adds.req(requires method subintervalOf this.#Constructor)
+                requires method subintervalOf this.Constructor 
                 {                    
                     return;
                 }
@@ -633,7 +633,7 @@ class TestAnalysis extends JUnitSuite {
             
             class UnsupportedReqs3 extends A
             {
-                void aHbB() // ERROR intervals.override.adds.req(requires this.b readable by this.a)
+                void aHbB() // ERROR intervals.override.adds.req(requires this.b readableBy this.a)
                 requires this.b readableBy this.a
                 {                    
                     return;
@@ -770,7 +770,7 @@ class TestAnalysis extends JUnitSuite {
                 #String f2 requires this.init;
                 
                 Constructor(#String f1) 
-                requires method subinterval this.init
+                requires method subintervalOf this.init
                 {
                     super();
                     this->f1 = f1;
@@ -778,7 +778,7 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 void additionalInit(#String f2)
-                requires method subinterval this.init
+                requires method subintervalOf this.init
                 {
                     this->f2 = f2;
                     return;
@@ -941,7 +941,7 @@ class TestAnalysis extends JUnitSuite {
                 {
                     foo2 = this->foo2;
                     ifoo2 = (IFoo @#Constructor(hbNow) @#Creator(this.#Creator))foo2;
-                    ifoo2->m1(); // ERROR intervals.requirement.not.met(requires ifoo2.#Creator readable by <method-call>)
+                    ifoo2->m1(); // ERROR intervals.requirement.not.met(m1, requires ifoo2.#Creator readableBy <method-call>)
                     return;
                 }
                 
@@ -949,7 +949,7 @@ class TestAnalysis extends JUnitSuite {
                 requires this.#Constructor hb method
                 {
                     foo1 = this->foo1;
-                    foo1->m1(); // ERROR intervals.requirement.not.met(requires this.foo1.#Creator readable by <method-call>)
+                    foo1->m1(); // ERROR intervals.requirement.not.met(m1, requires this.foo1.#Creator readableBy <method-call>)
                     return;
                 }
                 
@@ -1276,7 +1276,7 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 void run() 
-                requires method subinterval this
+                requires method subintervalOf this
                 {
                     // Update data:
                     link = this->link;
@@ -1419,7 +1419,7 @@ class TestAnalysis extends JUnitSuite {
                 }
 
                 void run()
-                requires method subinterval this
+                requires method subintervalOf this
                 {
                     pdata = this->pdata;
                     cdata = this->cdata;
@@ -1455,7 +1455,7 @@ class TestAnalysis extends JUnitSuite {
                 }
 
                 void run()
-                requires method subinterval this
+                requires method subintervalOf this
                 {
                     pdata = this->pdata;
                     cdata = this->cdata;
@@ -1475,7 +1475,7 @@ class TestAnalysis extends JUnitSuite {
             
             class BBPC extends #Interval {
                 void run()
-                requires method subinterval this
+                requires method subintervalOf this
                 {
                     d0 = new ConsData@#Creator(this)();
                     d1 = new ConsData@#Creator(this)();

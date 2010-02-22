@@ -38,6 +38,7 @@ class WellKnownElements(elements: Elements, types: Types) {
     val Object = new TypeInfo(classOf[Object])
     val Unconstructed = new TypeInfo(classOf[ch.ethz.intervals.quals.Unconstructed])
     val DefinesGhost = new TypeInfo(classOf[ch.ethz.intervals.quals.DefinesGhost])
+    val Requires = new TypeInfo(classOf[ch.ethz.intervals.quals.Requires])
     
     val addHbIntervalInterval = Intervals.method("addHb", Interval, Interval)
     val addHbIntervalPoint = Intervals.method("addHb", Interval, Point)

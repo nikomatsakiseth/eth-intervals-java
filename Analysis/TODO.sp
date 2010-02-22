@@ -130,8 +130,6 @@ ______ Things to Think About _________________________________________
   Copy statements to the IR --- and if we do that, I have a feeling it would be
   better to get rid of SSA altogether.
 
-- Replace constructors with static methods, moving constructors into translator
-
 - hb relations to arbitrary Guards
 
   Right now something like {@Creator("hb this")} doesn't work because Creator is 
@@ -168,7 +166,7 @@ ______ Things to Think About _________________________________________
 - Iterated linked fields
 
   Right now we screen out linked fields whose guards are known not to
-  have happened \-\-- but can we also screen out fields whose guards are
+  have happened --- but can we also screen out fields whose guards are
   themselves guarded by intervals that have not happened?  Maybe???
   Does that even make sense????
     

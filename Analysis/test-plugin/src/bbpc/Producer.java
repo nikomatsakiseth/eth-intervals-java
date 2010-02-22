@@ -19,7 +19,7 @@ public class Producer extends Interval {
 	}
 
 	@Override
-	@Requires(subinterval=@Subinterval(of="this"))	
+	@Requires("method subintervalOf this")
 	protected void run() {
 		Data data = new /*@Creator("this")*/ Data();
 		pdata.data = data;

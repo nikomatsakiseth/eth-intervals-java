@@ -19,7 +19,7 @@ public class VariousLoops {
 	    this.y = y;
 	}
 	
-	@Requires(subinterval=@Subinterval(of="x"))	
+	@Requires("method subintervalOf x")	
 	protected void oldStyleForLoop() {
 	    for(
 	        xInt = 0;
@@ -28,13 +28,13 @@ public class VariousLoops {
 	    );
 	    
 	    for(
-	        yInt = 0;       // ERROR Interval "this.y" is not writable because it may not be the current interval.
-	        yInt < 10;      // ERROR Interval "this.y" is not readable because the current interval may not happen after it.
-	        yInt++          // ERROR Interval "this.y" is not writable because it may not be the current interval.
+	        yInt = 0;       // ERROR Interval "this.(basic.VariousLoops.y)" is not writable because it may not be the current interval.
+	        yInt < 10;      // ERROR Interval "this.(basic.VariousLoops.y)" is not readable because the current interval may not happen after it.
+	        yInt++          // ERROR Interval "this.(basic.VariousLoops.y)" is not writable because it may not be the current interval.
 	    );
 	}
 
-	@Requires(subinterval=@Subinterval(of="x"))	
+	@Requires("method subintervalOf x")	
 	protected void whileLoop() {
 	    xInt = 0;
 	    while(xInt < 10) 
@@ -42,27 +42,27 @@ public class VariousLoops {
 	        xInt++;
 	    }
 	    
-	    yInt = 0;           // ERROR Interval "this.y" is not writable because it may not be the current interval.
-	    while(yInt < 10)    // ERROR Interval "this.y" is not readable because the current interval may not happen after it.
+	    yInt = 0;           // ERROR Interval "this.(basic.VariousLoops.y)" is not writable because it may not be the current interval.
+	    while(yInt < 10)    // ERROR Interval "this.(basic.VariousLoops.y)" is not readable because the current interval may not happen after it.
         {
-	        yInt++;         // ERROR Interval "this.y" is not writable because it may not be the current interval.
+	        yInt++;         // ERROR Interval "this.(basic.VariousLoops.y)" is not writable because it may not be the current interval.
 	    }
 	}
 	
-	@Requires(subinterval=@Subinterval(of="x"))	
+	@Requires("method subintervalOf x")	
 	protected void doWhileLoop() {
 	    xInt = 0;
 	    do {
 	        xInt++;	        
 	    } while(xInt < 10);
 	    
-	    yInt = 0;           // ERROR Interval "this.y" is not writable because it may not be the current interval.
+	    yInt = 0;           // ERROR Interval "this.(basic.VariousLoops.y)" is not writable because it may not be the current interval.
 	    do {
-	        yInt++;         // ERROR Interval "this.y" is not writable because it may not be the current interval.
-	    } while(yInt < 10); // ERROR Interval "this.y" is not readable because the current interval may not happen after it.
+	        yInt++;         // ERROR Interval "this.(basic.VariousLoops.y)" is not writable because it may not be the current interval.
+	    } while(yInt < 10); // ERROR Interval "this.(basic.VariousLoops.y)" is not readable because the current interval may not happen after it.
 	}
 	
-	@Requires(subinterval=@Subinterval(of="x"))	
+	@Requires("method subintervalOf x")	
 	protected void minimumIterationsAndTheHbRelation(
     	int j, 
     	@Creator("x") Object xObject
@@ -74,7 +74,7 @@ public class VariousLoops {
         for (int i = j; i < 1; i++) {
 	        Intervals.addHb(x, y);            
         }
-	    readableByYObject = xObject; // ERROR Variable "xObject" has type "@ch.ethz.intervals.quals.Creator(this.x) java.lang.Object" which is not a subtype of "@ch.ethz.intervals.quals.Creator(readableBy this.y) java.lang.Object".
+	    readableByYObject = xObject; // ERROR Variable "xObject" has type "@(ch.ethz.intervals.quals.Creator)(this.(basic.VariousLoops.x)) (java.lang.Object)" which is not a subtype of "@(ch.ethz.intervals.quals.Creator)(readableBy this.(basic.VariousLoops.y)) (java.lang.Object)".
 	    
 	    // Also here:
 	    int i = j;
@@ -82,7 +82,7 @@ public class VariousLoops {
 	        Intervals.addHb(x, y);
 	        i++;
 	    }
-	    readableByYObject = xObject; // ERROR Variable "xObject" has type "@ch.ethz.intervals.quals.Creator(this.x) java.lang.Object" which is not a subtype of "@ch.ethz.intervals.quals.Creator(readableBy this.y) java.lang.Object".
+	    readableByYObject = xObject; // ERROR Variable "xObject" has type "@(ch.ethz.intervals.quals.Creator)(this.(basic.VariousLoops.x)) (java.lang.Object)" which is not a subtype of "@(ch.ethz.intervals.quals.Creator)(readableBy this.(basic.VariousLoops.y)) (java.lang.Object)".
 	    
 	    // But with do-while it's ok:
 	    do {

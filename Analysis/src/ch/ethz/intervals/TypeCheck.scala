@@ -57,11 +57,11 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
         }
     }
     
-    def checkReqFulfilled(env: TcEnv, req: ir.Req) {
+    def checkReqFulfilled(env: TcEnv, m: ir.MethodName, req: ir.Req) {
         if(!isReqFulfilled(env, req)) {
             var reqString = req.toString
             reqString = reqString.replace(env.p_cur.toString, "<method-call>")
-            throw new CheckFailure("intervals.requirement.not.met", reqString)
+            throw new CheckFailure("intervals.requirement.not.met", m, reqString)
         }
             
     }
@@ -95,7 +95,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
 
             // Receiver/Arguments must have correct type and requirements must be fulfilled:
             log.indented("arguments")   { checkArgumentTypes(env, msig, cqs) }
-            log.indented("reqs")        { msig.reqs.foreach(checkReqFulfilled(env, _)) }
+            log.indented("reqs")        { msig.reqs.foreach(checkReqFulfilled(env, msig.name, _)) }
 
             // Any method call disrupts potential temporary assocations:
             //     We make these disruptions before checking return value, 

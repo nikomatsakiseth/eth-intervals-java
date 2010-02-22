@@ -17,8 +17,21 @@ import java.lang.annotation.Target;
  */
 @Target(ElementType.METHOD)
 public @interface Requires {
-	Subinterval[] subinterval() default {};
-	Readable[] readable() default {};
-	Writable[] writable() default {};
-	Happens[] happens() default {};
+	/**
+	 * Requirements that are only applied to constructor.
+	 */
+	public String[] constructor() default { "method subintervalOf this.Constructor" };
+
+	/**
+	 * Requirements that are only applied to regular instance methods.
+	 */
+	public String[] instanceMethod() default { 
+		"this.Constructor hb method",
+		"this.Creator writableBy method"
+	};
+
+	/**
+	 * Requirements applied to any method.
+	 */
+	public String[] value() default { };
 }

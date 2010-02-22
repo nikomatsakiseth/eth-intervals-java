@@ -193,7 +193,7 @@ object ir {
     ) extends PositionalAst {
         def isNamed(n: MethodName) = (name == n)
         
-        def msig = ir.MethodSig(args.map(_.wt), reqs, wt_ret)
+        def msig = ir.MethodSig(args.map(_.wt), name, reqs, wt_ret)
         
         def setDefaultPosOnChildren() {
             reqs.foreach(_.setDefaultPos(pos))
@@ -205,11 +205,12 @@ object ir {
     
     sealed case class MethodSig(
         wts_args: List[ir.WcTypeRef],
+        name: ir.MethodName,
         reqs: List[ir.Req],
         wt_ret: ir.WcTypeRef
     ) {
-        override def toString = "(%s _(%s)%s)".format(
-            wt_ret, ", ".join(wts_args), "".join(" ", reqs))
+        override def toString = "(%s %s(%s)%s)".format(
+            wt_ret, name, ", ".join(wts_args), "".join(" ", reqs))
     }
     
     sealed case class LvDecl(
@@ -630,13 +631,13 @@ object ir {
         def setDefaultPosOnChildren() { }        
     }
     sealed case class ReqWritableBy(lp: List[Path], lq: List[Path]) extends Req {
-        override def toString = "requires %s writable by %s".format(lp.mkString(", "), lq.mkString(", "))
+        override def toString = "requires %s writableBy %s".format(lp.mkString(", "), lq.mkString(", "))
     }
     sealed case class ReqReadableBy(lp: List[Path], lq: List[Path]) extends Req {
-        override def toString = "requires %s readable by %s".format(lp.mkString(", "), lq.mkString(", "))
+        override def toString = "requires %s readableBy %s".format(lp.mkString(", "), lq.mkString(", "))
     }
     sealed case class ReqSubintervalOf(lp: List[Path], lq: List[Path]) extends Req {
-        override def toString = "requires %s subinterval of %s".format(lp.mkString(", "), lq.mkString(", "))
+        override def toString = "requires %s subintervalOf %s".format(lp.mkString(", "), lq.mkString(", "))
     }
     sealed case class ReqHb(lp: List[Path], lq: List[Path]) extends Req {
         override def toString = "requires %s hb %s".format(lp.mkString(", "), lq.mkString(", "))

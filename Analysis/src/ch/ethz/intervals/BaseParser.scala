@@ -75,6 +75,13 @@ abstract class BaseParser extends StandardTokenParsers {
     
     def p: Parser[ir.Path]
     
+    def reqBase = (
+        comma(p)~"readableBy"~comma(p)          ^^ { case lp~_~lq => ir.ReqReadableBy(lp, lq) }
+    |   comma(p)~"writableBy"~comma(p)          ^^ { case lp~_~lq => ir.ReqWritableBy(lp, lq) }
+    |   comma(p)~"subintervalOf"~comma(p)       ^^ { case lp~_~lq => ir.ReqSubintervalOf(lp, lq) }
+    |   comma(p)~"hb"~comma(p)                  ^^ { case lp~_~lq => ir.ReqHb(lp, lq) }
+    )    
+    
     def wp = (
         p
     |   opt("?")~>"readableBy"~>comma(p)        ^^ ir.WcReadableBy

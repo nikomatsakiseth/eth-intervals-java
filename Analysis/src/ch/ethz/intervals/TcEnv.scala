@@ -479,8 +479,6 @@ sealed case class TcEnv(
     def hbInter(cp_from: ir.CanonPath, cp_to: ir.CanonPath) = {
         log.indented("hbInter(%s, %s)?", cp_from, cp_to) {
             log.env(false, "Environment", this)
-            assert(isImmutable(cp_from))
-            assert(isImmutable(cp_to))
             ( // Sometimes we're sloppy and invoke with wrong types:
                 pathHasSubclass(cp_from, ir.c_interval) && 
                 pathHasSubclass(cp_to, ir.c_interval) &&

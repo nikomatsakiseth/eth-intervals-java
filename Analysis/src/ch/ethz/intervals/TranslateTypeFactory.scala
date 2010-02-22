@@ -72,6 +72,10 @@ class TranslateTypeFactory(
 
     // ___ Parsing Annotations ______________________________________________
     
+    def findAm(ams: Iterable[AnnotationMirror], ty: TypeMirror): Option[AnnotationMirror] = {
+        ams.find(am => types.isSameType(am.getAnnotationType, ty))
+    }
+    
     /** Extracts the `value()` argument from `am` as a String. */
     def annValue(am: AnnotationMirror): String = 
         AU.parseStringValue(am, "value")
@@ -84,9 +88,7 @@ class TranslateTypeFactory(
     /** If `elem` is annotated with `@DefinesGhost(classOf=C)`, returns `C`. */
     def classOfDefinedGhost(elem: Element): Option[TypeMirror] = {
         log.indented(false, "classOfDefinedGhost(%s)", elem) {
-            val definesGhostAm = elem.getAnnotationMirrors.find(an =>
-                types.isSameType(an.getAnnotationType, wke.DefinesGhost.ty))
-            definesGhostAm.map(annClassOf)
+            findAm(elem.getAnnotationMirrors, wke.DefinesGhost.ty).map(annClassOf)
         }
     }
 
@@ -502,6 +504,13 @@ class TranslateTypeFactory(
             }
         }
         
+        def req(s: String): ir.Req = {
+            parserLog.indented("parse req(%s)", s) {
+                val req = parseToResult(reqBase)(s)
+                req.withPos(env.pos)
+            }
+        }
+        
         def path(s: String): ir.Path = 
             parserLog.indented("parse path(%s)", s) {
                 parseToResult(p)(s)
@@ -618,44 +627,21 @@ class TranslateTypeFactory(
     
     // ___ Requirements _____________________________________________________
     
-    def reqs(elem: Element): List[ir.Req] = {
-        val parser = AnnotParser(elemEnv(elem))
-        
-        def subintervalReq(annot: Subinterval) =
-            ir.ReqSubintervalOf(
-                annot.subinterval.map(parser.path).toList, 
-                annot.of.map(parser.path).toList)
-        
-        def readableReq(annot: Readable) =
-            ir.ReqReadableBy(
-                annot.value.map(parser.path).toList, 
-                annot.by.map(parser.path).toList)
-        
-        def writableReq(annot: Writable) =
-            ir.ReqWritableBy(
-                annot.value.map(parser.path).toList, 
-                annot.by.map(parser.path).toList)
-        
-        def happensReq(annot: Happens) =
-            ir.ReqHb(
-                annot.before.map(parser.path).toList, 
-                annot.after.map(parser.path).toList)
-        
-        // n.b.: The order in which we process the different
-        // kinds of requirements CAN be significant.
-        // Processing hb first may permit us to realize that
-        // a field is constant and thus allow requirements
-        // that reference it.
-        
-        elem.getAnnotation(classOf[Requires]) match {
-            case null => List()
-            case annot => 
-                List[ir.Req]() ++
-                annot.happens.map(happensReq) ++
-                annot.readable.map(readableReq) ++
-                annot.writable.map(writableReq) ++
-                annot.subinterval.map(subintervalReq)
-        }
+    def methodReqs(eelem: ExecutableElement): List[ir.Req] = {
+        // Find the @Requires annotation.  If none is found, then just pretend
+        // user wrote "@Requires()". 
+        // XXX Smarter defaults.
+        val env = elemEnv(eelem)
+        val am = findAm(eelem.getAnnotationMirrors, wke.Requires.ty).getOrElse(
+            new AU.AnnotationBuilder(processingEnvironment, wke.Requires.cls).build)
+        var reqs: List[jList[String]] = 
+            eelem.getKind match {
+                case EK.CONSTRUCTOR => List(AU.parseStringArrayValue(am, "constructor"))
+                case EK.METHOD if !EU.isStatic(eelem) => List(AU.parseStringArrayValue(am, "instanceMethod"))
+                case _ => List()
+            }
+        reqs = reqs ++ List(AU.parseStringArrayValue(am, "value"))
+        reqs.flatMap(strs => strs.map(AnnotParser(env).req))
     }   
     
     // ___ Dummy Entries ____________________________________________________ 
@@ -763,7 +749,7 @@ class TranslateTypeFactory(
                     wt_ret = wtref(env_mthd)(annty.getReturnType), 
                     name = methodName(eelem), 
                     args = eelem.getParameters.map(intArgDecl).toList,
-                    reqs = reqs(eelem),
+                    reqs = methodReqs(eelem),
                     body = ir.empty_method_body
                 ).withPos(env_mthd.pos)
             }
@@ -794,7 +780,7 @@ class TranslateTypeFactory(
                     superClasses = directSupertys(telem).map(erasedTy(_)),
                     ghosts = ghosts.toList,
                     typeArgs = List(), // XXX
-                    reqs = reqs(telem),
+                    reqs = List(),
                     ctors = ctorDecls.toList,
                     reifiedFieldDecls = fieldDecls.toList,
                     methods = methodDecls.toList
