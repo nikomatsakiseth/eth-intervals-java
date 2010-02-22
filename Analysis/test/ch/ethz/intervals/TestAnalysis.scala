@@ -17,22 +17,9 @@ case class ExpError(msg: String, args: List[String])
 
 class TestAnalysis extends JUnitSuite { 
     import TestAll.DEBUG_DIR
+    import TestAll.subst
     
     // ___ Test running infrastructure ______________________________________
-    
-    // These substitutions are performed.  They are not needed in program
-    // text, but are useful in the expected error messages:
-    def substs = List(
-        ("#Constructor", ir.f_objCtor),
-        ("#Creator", ir.f_creator),
-        ("#Object", ir.c_object),
-        ("#Interval", ir.c_interval),
-        ("#Guard", ir.c_guard),
-        ("#Point", ir.c_point),
-        ("#Lock", ir.c_lock),
-        ("#String", ir.c_string),
-        ("#void", ir.c_void)
-    )
     
     def runTest(errorPhase: String, text0: String) {
         val (baseUrl, baseLineNumber) = {
@@ -47,7 +34,7 @@ class TestAnalysis extends JUnitSuite {
         val logStack = new LogStack(logDirectory.mainSplitLog)
         val indexLog = logDirectory.indexLog
         try {
-            val text = substs.foldLeft(text0) { case (t, (a, b)) => t.replace(a, b.toString) }
+            val text = subst(text0)
             
             // Extract errors:
             val tag = "// ERROR "
