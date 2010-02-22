@@ -2,6 +2,7 @@ package ch.ethz.intervals
 
 import scala.collection.JavaConversions._
 
+import javax.lang.model.element.ExecutableElement
 import javax.lang.model.util.Elements
 import javax.lang.model.util.{ElementFilter => EF}
 import javax.lang.model.util.Types
@@ -18,7 +19,7 @@ class WellKnownElements(elements: Elements, types: Types) {
             ).get
         }
         
-        def method(mname: String, argTypes: TypeInfo[_]*) = {
+        def method(mname: String, argTypes: TypeInfo[_]*): ExecutableElement = {
             val argTypesList = argTypes.toList
             EF.methodsIn(elem.getEnclosedElements).find(mem =>
                 mem.getSimpleName.contentEquals(mname) && 

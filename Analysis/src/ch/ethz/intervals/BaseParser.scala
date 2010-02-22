@@ -38,7 +38,8 @@ abstract class BaseParser extends StandardTokenParsers {
         "#", "<=", "&&", "==", "=>", "<:"
     )
     lexical.reserved += (
-        "hbNow", "hb", "subintervalOf", "readableBy", "writableBy", "subintervalOf", "locks"
+        "hbNow", "hb", "subintervalOf", "readableBy", "writableBy", 
+        "subintervalOf", "locks", ir.ctor
     )
     
     def parse[A](p: Parser[A])(text: String) = {

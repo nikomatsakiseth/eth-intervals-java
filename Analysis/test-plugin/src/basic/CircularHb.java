@@ -27,7 +27,7 @@ class CircularHb {
         
         int xi = xData.i;
         int yi = yData.i;
-        xData.i = yi; // Interval "x" is not writable because it may not be the current interval.
+        xData.i = yi; // ERROR Interval "x" is not writable because it may not be the current interval.
         yData.i = xi;
     }
     

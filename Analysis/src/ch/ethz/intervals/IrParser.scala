@@ -12,7 +12,7 @@ import Util._
 class IrParser extends BaseParser {
     
     lexical.reserved += (
-        "class", "new", ir.ctor, "null", 
+        "class", "new", "null", 
         "return", "Rd", "Wr", "Free", "extends", 
         "requires", "super", 
         "subinterval", "push", "pop", 

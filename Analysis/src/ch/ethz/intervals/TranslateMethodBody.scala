@@ -50,12 +50,8 @@ object TranslateMethodBody
         class Unhandled(val tree: Tree) 
         extends RuntimeException("Could not handle: "+tree.getKind+" "+tree)
 
-        var unique = 0
-        def freshName(prefix: String) = {
-            unique += 1
-            "[%s/%d]".format(prefix, unique)
-        }
-        def freshVar() = ir.VarName(freshName("jv"))
+        val fresh = new Fresh("jv")
+        def freshVar() = ir.VarName(fresh.next())
         def nm(elem: Element) = elem.getSimpleName.toString
 
         // ___ Non-wildcard checking ____________________________________________

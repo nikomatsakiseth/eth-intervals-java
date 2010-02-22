@@ -46,35 +46,9 @@ class Prog(
     )
     
     // ___ Fresh variables __________________________________________________
-    //
-    // 
-    
-    private var dictWords = {
-        try {
-            val dictFile = new java.io.File("/usr/share/dict/words")
-            val dictSource = scala.io.Source.fromFile(dictFile)
-            val lines = scala.util.Random.shuffle(dictSource.getLines("\n").toList)
-            dictSource.close()
-            lines            
-        } catch {
-            case _: java.io.IOException => List()
-        }
-    }
-    
-    private var counter = 0
-    def fresh(nm: String) = {
-        dictWords match {
-            case word :: tl =>
-                dictWords = tl
-                "[%s]".format(word)
-            case List() =>
-                val c = counter
-                counter = counter + 1
-                "[%s/%d]".format(nm, c)
-        }        
-    }    
-    
-    def freshVarName = ir.VarName(fresh("tmp"))
+
+    private val fresh = new Fresh("prog")
+    def freshVarName = ir.VarName(fresh.next())
     
     // ___ Basic type operations ____________________________________________
     

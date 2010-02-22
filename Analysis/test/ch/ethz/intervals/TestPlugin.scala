@@ -104,6 +104,7 @@ class TestPlugin extends JUnitSuite {
         classpath = List(
             "bin", 
             "lib/jsr308-all-1.04.jar",
+            "lib/pcollections-1.0.0.jar",
             "lib/Intervals.jar"
         ) ++ System.getProperty("java.class.path").split(':'), 
         bclasspath = List(

@@ -77,12 +77,18 @@ class TranslateTypeFactory(
         AU.parseStringValue(am, "value")
 
     /** Extracts the `classOf()` argument from `am` as a TypeMirror. */
-    def annClassOf(am: AnnotationMirror): TypeMirror =
-        am.getElementValues.get(wke.ofClass).getValue.asInstanceOf[TypeMirror]
+    def annClassOf(am: AnnotationMirror): TypeMirror = {
+        elements.getElementValuesWithDefaults(am).get(wke.ofClass).getValue.asInstanceOf[TypeMirror]
+    }
 
     /** If `elem` is annotated with `@DefinesGhost(classOf=C)`, returns `C`. */
-    def classOfDefinedGhost(elem: Element): Option[TypeMirror] = 
-        elem.getAnnotationMirrors.find(_.getAnnotationType == wke.DefinesGhost.ty).map(annClassOf)
+    def classOfDefinedGhost(elem: Element): Option[TypeMirror] = {
+        log.indented(false, "classOfDefinedGhost(%s)", elem) {
+            val definesGhostAm = elem.getAnnotationMirrors.find(an =>
+                types.isSameType(an.getAnnotationType, wke.DefinesGhost.ty))
+            definesGhostAm.map(annClassOf)
+        }
+    }
 
     // ___ Misc. Helpers ____________________________________________________
     

@@ -40,7 +40,7 @@ import ch.ethz.intervals.quals.WrittenDuring;
  * an assertion like {@code assert g.checkWritable()} and the compiler
  * will respect it.  
  */
-@Creator("this.constructor")
+@Creator("this.(ch.ethz.intervals.quals.Constructor)")
 public interface Guard {
 	
 	/**

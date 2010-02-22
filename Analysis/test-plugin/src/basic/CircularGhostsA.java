@@ -8,12 +8,12 @@ import ch.ethz.intervals.quals.DefinesGhost;
 import ch.ethz.intervals.quals.Creator;
 import ch.ethz.intervals.quals.GuardedBy;
 
-@DefinesGhost(type="ch.ethz.intervals.Interval")
+@DefinesGhost(ofClass=Interval.class)
 @interface CircularGhostA1 {
     public String value() default "";
 }
 
-@DefinesGhost(type="ch.ethz.intervals.Interval")
+@DefinesGhost(ofClass=Interval.class)
 @interface CircularGhostA2 {
     public String value() default "";
 }
@@ -32,8 +32,8 @@ class CircularGhostsA {
         @CircularGhostA2("x.CircularGhostA1") 
         CircularGhostsA x
     ) {
-        x.field1 = 10; // ERROR Interval "x.`basic.CircularGhostA1`" is not writable because it may not be the current interval.
-        x.field2 = 10; // ERROR Interval "x.`basic.CircularGhostA2`" is not writable because it may not be the current interval.
+        x.field1 = 10; // ERROR Interval "x.(basic.CircularGhostA2)" is not writable because it may not be the current interval.
+        x.field2 = 10; // ERROR Interval "x.(basic.CircularGhostA1)" is not writable because it may not be the current interval.
     }
     
 }

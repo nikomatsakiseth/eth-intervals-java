@@ -147,7 +147,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
         // (3) p2 to p1 if (a) ∃ temp map p1 -> p2 and (b) p1 immutable
         // (4) Everything else to "lv_outOfScope"
 
-        val lv_outOfScope = ir.VarName(prog.fresh("outOfScope"))
+        val lv_outOfScope = prog.freshVarName
 
         // Map all vars to outOfScope (unless overridden later)
         var map = env_brk.perm.keysIterator.foldLeft(Map.empty[ir.Path, ir.Path]) { case (m, x) =>
