@@ -1498,8 +1498,8 @@ class TestAnalysis extends JUnitSuite {
     }  
 
     @Test
-    def genericLists() {
-        success(
+    def getFromGenericList() {
+        tc(
             """
             class List 
                 <E <: #Object>
@@ -1508,20 +1508,6 @@ class TestAnalysis extends JUnitSuite {
                 this:E get(scalar idx)
                 requires this.Constructor hb method
                 requires this.#Creator readableBy method
-                {
-                    return;
-                }
-                
-                void add(this:E e)
-                requires this.Constructor hb method
-                requires this.#Creator writableBy method
-                {
-                    return;
-                }
-                
-                void set(scalar idx, this:E e)
-                requires this.Constructor hb method
-                requires this.#Creator writableBy method
                 {
                     return;
                 }
@@ -1592,5 +1578,97 @@ class TestAnalysis extends JUnitSuite {
             """
         )
     }  
+    
+    @Test
+    def addToGenericList() {
+        tc(
+            """
+            class List 
+                <E <: #Object>
+            extends #Object 
+            {
+                void add(this:E e)
+                requires this.Constructor hb method
+                requires this.#Creator writableBy method
+                {
+                    return;
+                }
+            }
+            
+            class Data
+            extends #Object
+            {
+                #String read()
+                requires this.#Creator readableBy method
+                {
+                    return;
+                }                      
+                
+                void write()
+                requires this.#Creator writableBy method
+                {
+                    return;
+                }                      
+            }
+            
+            class ExtData
+            extends Data
+            {
+            }
+            
+            class UseList 
+            extends #Object
+            {
+                List @#Creator(this.#Creator) <E: Data @#Creator(this.#Creator)> 
+                dataList requires this.Constructor;
+                
+                List @#Creator(this.#Creator) <E: ExtData @#Creator(this.#Creator)> 
+                extDataList requires this.Constructor;
+                
+                void addData(
+                    Data @#Creator(this.#Creator) extData
+                )
+                requires this.#Creator writableBy method
+                requires this.Constructor hb method
+                {
+                    dataList = this->dataList;
+                    dataList->add(extData);
+                    
+                    extDataList = this->extDataList;
+                    extDataList->add(extData); // ERROR intervals.expected.subtype(extData, @#Constructor(hbNow) @#Creator(this.#Creator) Data, this.extDataList:E)
+                    return;
+                }
+                
+                void addExtData(
+                    ExtData @#Creator(this.#Creator) extData
+                )
+                requires this.#Creator writableBy method
+                requires this.Constructor hb method
+                {
+                    dataList = this->dataList;
+                    dataList->add(extData);
+                    
+                    extDataList = this->extDataList;
+                    extDataList->add(extData);
+                    return;
+                }
+                
+                void addExtDataWithUnspecifiedCreator(
+                    ExtData extData
+                )
+                requires this.#Creator writableBy method
+                requires this.Constructor hb method
+                {
+                    dataList = this->dataList;
+                    dataList->add(extData); // ERROR intervals.expected.subtype(extData, @#Constructor(hbNow) ExtData, this.dataList:E)
+                    
+                    extDataList = this->extDataList;
+                    extDataList->add(extData); // ERROR intervals.expected.subtype(extData, @#Constructor(hbNow) ExtData, this.extDataList:E)
+                    return;
+                }
+            }
+           """
+        )
+    }
 
 }

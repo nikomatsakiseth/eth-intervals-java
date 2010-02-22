@@ -395,7 +395,7 @@ object ir {
         tv: ir.TypeVarName
     ) extends WcTypeRef {
         override def java = toString
-        override def toString = "%s.%s".format(p, tv)
+        override def toString = "%s:%s".format(p, tv)
         override def toUserString = toString
         
         def withDefaultWghosts(wgs_additional: List[ir.WcGhost]) = this
