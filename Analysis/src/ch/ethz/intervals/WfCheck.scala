@@ -214,14 +214,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                     addReifiedLocal(lv_def, wt)
                     
                 case ir.StmtReturn(olv) =>
-                    olv match {
-                        case Some(lv) =>
-                            env.reifiedLv(lv)
-                        
-                        case None =>
-                            if(env.wt_ret != ir.t_void)
-                                throw new CheckFailure("intervals.illegal.empty.return", env.wt_ret)
-                    }
+                    olv.foreach(lv => env.reifiedLv(lv))
                     
                 case ir.StmtHb(lv_from, lv_to) =>                
                     checkCanonAndSubclass(env.reifiedLv _, lv_from, ir.c_point, ir.c_interval)

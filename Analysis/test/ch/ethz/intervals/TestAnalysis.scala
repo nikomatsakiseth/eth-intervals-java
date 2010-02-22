@@ -1497,4 +1497,100 @@ class TestAnalysis extends JUnitSuite {
         )
     }  
 
+    @Test
+    def genericLists() {
+        success(
+            """
+            class List 
+                <E <: #Object>
+            extends #Object 
+            {
+                this:E get(scalar idx)
+                requires this.Constructor hb method
+                requires this.#Creator readableBy method
+                {
+                    return;
+                }
+                
+                void add(this:E e)
+                requires this.Constructor hb method
+                requires this.#Creator writableBy method
+                {
+                    return;
+                }
+                
+                void set(scalar idx, this:E e)
+                requires this.Constructor hb method
+                requires this.#Creator writableBy method
+                {
+                    return;
+                }
+            }
+            
+            class Data
+            extends #Object
+            {
+                #String read()
+                requires this.#Creator readableBy method
+                {
+                    return;
+                }                      
+                
+                void write()
+                requires this.#Creator writableBy method
+                {
+                    return;
+                }                      
+            }
+            
+            class UseList 
+            extends #Object
+            {
+                List @#Creator(this.#Creator) <E: Data @#Creator(this.#Creator)> 
+                list requires this.Constructor;
+                
+                #String readFromIndexWithReadPermission(scalar idx) 
+                requires this.#Creator readableBy method
+                requires this.Constructor hb method
+                {
+                    list = this->list;
+                    item = list->get(idx);
+                    str = item->read();
+                    return str;
+                }
+                
+                #String readFromIndexWithWritePermission(scalar idx) 
+                requires this.#Creator writableBy method
+                requires this.Constructor hb method
+                {
+                    list = this->list;
+                    item = list->get(idx);
+                    str = item->read();
+                    return str;
+                }
+                
+                void writeToIndexWithReadPermission(scalar idx) 
+                requires this.#Creator readableBy method
+                requires this.Constructor hb method
+                {
+                    list = this->list;
+                    item = list->get(idx);
+                    item->write(); // ERROR intervals.requirement.not.met(write, requires item.#Creator writableBy <method-call>)
+                    return;
+                }
+                
+                void writeToIndexWithWritePermission(scalar idx) 
+                requires this.#Creator writableBy method
+                requires this.Constructor hb method
+                {
+                    list = this->list;
+                    item = list->get(idx);
+                    item->write();
+                    return;
+                }
+            }
+            """
+        )
+    }  
+
 }

@@ -48,7 +48,7 @@ class IrParser extends BaseParser {
     def p = lv~rep("."~>f)                      ^^ { case lv~fs => lv ++ fs }
     def g = "@"~f~"("~p~")"                     ^^ { case _~f~_~p~_ => ir.Ghost(f, p) }    
     def ta = "<"~tv~":"~wt~">"                  ^^ { case _~tv~_~wt~_ => ir.TypeArg(tv, wt) }
-    def pt = p~"."~tv                           ^^ { case p~_~tv => ir.PathType(p, tv) }
+    def pt = p~":"~tv                           ^^ { case p~_~tv => ir.PathType(p, tv) }
     def ct = c~rep(g)~rep(ta)                   ^^ { case c~gs~tas => ir.ClassType(c, gs, tas) }
     override def wp = super.wp                  // Defined in BaseParser
     def wg = "@"~f~"("~wp~")"                   ^^ { case _~f~_~wp~_ => ir.WcGhost(f, wp) }    
@@ -60,7 +60,7 @@ class IrParser extends BaseParser {
     |   ta
     )
     def wct = c~rep(wg)~rep(wta)                ^^ { case c~lwg~la => ir.WcClassType(c, lwg, la) }
-    def wt: Parser[ir.WcTypeRef] = (wct | pt)
+    def wt: Parser[ir.WcTypeRef] = (pt | wct)
     
     // Wildcard type with defaults for @Constructor
     val wgs_dflt = List(ir.wg_objCtorHbNow)

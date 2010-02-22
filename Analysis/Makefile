@@ -1,6 +1,6 @@
 JAVA=java
 SBT=${JAVA} -Dsbt.log.noformat=true -Xmx256M -jar sbt-launch-0.7.0.jar
-SCALAC=scalac -make:all
+SCALAC=scalac -make:transitive
 SCALA=scala
 JARFILES=$(wildcard lib/*.jar)
 CLASSPATH=$(subst .jar ,.jar:,${JARFILES}):bin:bin-test
