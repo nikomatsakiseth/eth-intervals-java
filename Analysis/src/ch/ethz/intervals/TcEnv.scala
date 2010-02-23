@@ -673,14 +673,14 @@ sealed case class TcEnv(
         assert(pathHasSubclass(cp_o, c_o))
         
         def isDependentOn(wt: ir.WcTypeRef, p: ir.Path) = {
-            boundingClassTypes(wt).exists { wct =>
+            lowerBoundingCts(wt).exists { wct =>
                 wct.wghosts.exists(_.wp.isDependentOn(p))
             }
         }
         
         val cd = classDecl(c_o)
         val p_f = f.thisPath        
-        assert(cd.fields.exists(_.isNamed(f)))
+        assert(cd.reifiedFieldDecls.exists(_.isNamed(f)))
         
         // only reified fields can be linked to another field
         val rfds = cd.reifiedFieldDecls
@@ -787,7 +787,7 @@ sealed case class TcEnv(
                     depoint(p, ir.f_end) match {
                         case Some(ir.CpClassCtor(crp0, c_left)) if prog.isNotInterface(c_left) => 
                             val cs_left = prog.classAndSuperclasses(c_left)
-                            var cs_right = Set(boundingClassTypes(crp0.wt).map(_.c): _*)
+                            var cs_right = lowerBoundingCts(crp0.wt).map(_.c)
                             cs_right = cs_right -- cs_left
                             cs_right = cs_right.filter(prog.isNotInterface)
                             cs_right.map(c_right =>
@@ -847,7 +847,7 @@ sealed case class TcEnv(
             val owp = cp match {
                 case ir.CpGhostField(crp_base, f, _) =>
                     log("Ghost field of %s", crp_base)
-                    ghost(crp_base.wt, f).map(_.wp)
+                    ghost(crp_base, f).map(_.wp)
                 case _ =>
                     None
             }
@@ -868,7 +868,7 @@ sealed case class TcEnv(
     /** Returns the upper- and lower-bounds for an `ir.TeeCeePee` with path type. */
     def boundPathType(pt: ir.PathType): ir.TypeBounds = {
         val crp = reifiedPath(pt.p)
-        typeArg(crp.wt, pt.tv) match {
+        typeArg(crp, pt.tv) match {
             case Some(wtarg) => 
                 wtarg.bounds
             case None => 
@@ -903,7 +903,7 @@ sealed case class TcEnv(
             case wct: ir.WcClassType =>
                 def ofClass(c: ir.ClassName) = {
                     val cd = classDecl(c)
-                    val cts_sup = cd.superClasses.map(ir.ClassType(_, cd.ghosts, cd.typeArgs))
+                    cd.superClasses.map(ir.ClassType(_, cd.ghosts, cd.typeArgs))
                 }
 
                 val subst = PathSubst.vp(ir.lv_this, tcp.p)
