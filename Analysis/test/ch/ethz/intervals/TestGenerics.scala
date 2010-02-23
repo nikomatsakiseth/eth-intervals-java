@@ -47,10 +47,11 @@ class TestGenerics extends JUnitSuite {
         EnhancedWcClassType(wct)
     implicit def className2EnhancedWcClassType(c: ir.ClassName) =
         EnhancedWcClassType(ir.WcClassType(c, List(), List()))
-    def ub(wts: ir.WcTypeRef*) = 
+    def ext(wts: ir.WcTypeRef*) = 
         ir.TypeBounds(wts.toList, None)
-    def lb(wts: ir.WcTypeRef*) = 
-        ir.TypeBounds(List(), Some(wts.toList))
+    def sup(wts: ir.WcTypeRef*) = 
+        ir.TypeBounds(List(ir.c_object.wct), Some(wts.toList))
+    val extSup = ir.TypeBounds
     
     // A program fragment setting up the types we will test:
     def setup(text0: String) = {
@@ -103,40 +104,67 @@ class TestGenerics extends JUnitSuite {
     val c_List = ir.ClassName("List")
     val tv_E = ir.TypeVarName("E")
     
-    @Test
-    def listTypeArgNonVariant() {
-        val prog = setup(listText)
-        val env = prog.env_empty
-        
-        assertTrue(env.isSubtype(
-            c_List.ta(tv_E, ir.c_interval.wct),
-            c_List.ta(tv_E, ir.c_interval.wct)
-        ))
-
-        assertFalse(env.isSubtype(
-            c_List.ta(tv_E, ir.c_guard.wct),
-            c_List.ta(tv_E, ir.c_interval.wct)
-        ))
-        
-        assertFalse(env.isSubtype(
-            c_List.ta(tv_E, ir.c_interval.wct),
-            c_List.ta(tv_E, ir.c_guard.wct)
-        ))
+    def assertSubtype(wct_sub: ir.WcTypeRef, wct_sup: ir.WcTypeRef)(implicit env: TcEnv) {
+        assertTrue(
+            "Assert %s <: %s".format(wct_sub, wct_sup),
+            env.isSubtype(wct_sub, wct_sup))
+    }
+    
+    def assertNotSubtype(wct_sub: ir.WcTypeRef, wct_sup: ir.WcTypeRef)(implicit env: TcEnv) {
+        assertFalse(
+            "Assert %s not <: %s".format(wct_sub, wct_sup),
+            env.isSubtype(wct_sub, wct_sup))
     }
     
     @Test
-    def listWithBoundedTypeArgs() {
-        val prog = setup(listText)
-        val env = prog.env_empty
+    def listTypeArgNonVariant() {
+        implicit val prog = setup(listText)
+        implicit val env = prog.env_empty
         
-        val List_extends_guard = c_List.ta(tv_E, ub(ir.c_guard.wct))
-        val List_extends_interval = c_List.ta(tv_E, ub(ir.c_interval.wct))
+        assertSubtype(c_List.ta(tv_E, ir.c_interval.wct), c_List.ta(tv_E, ir.c_interval.wct))
+        assertNotSubtype(c_List.ta(tv_E, ir.c_guard.wct), c_List.ta(tv_E, ir.c_interval.wct))
         
-        assertTrue(env.isSubtype(c_List.ta(tv_E, ir.c_interval.wct), List_extends_guard))
-        assertTrue(env.isSubtype(c_List.ta(tv_E, ir.c_guard.wct), List_extends_guard))
-        assertTrue(env.isSubtype(List_extends_interval, List_extends_guard))
-        assertFalse(env.isSubtype(List_extends_guard, c_List.ta(tv_E, ir.c_guard.wct)))
-        assertFalse(env.isSubtype(List_extends_guard, List_extends_interval))
+        assertNotSubtype(c_List.ta(tv_E, ir.c_interval.wct), c_List.ta(tv_E, ir.c_guard.wct))
+    }
+    
+    @Test
+    def listWithLowerBoundedTypeArgs() {
+        implicit val prog = setup(listText)
+        implicit val env = prog.env_empty
+        
+        val List_extends_guard = c_List.ta(tv_E, ext(ir.c_guard.wct))
+        val List_extends_interval = c_List.ta(tv_E, ext(ir.c_interval.wct))
+        
+        assertSubtype(c_List.ta(tv_E, ir.c_guard.wct), List_extends_guard)
+        assertSubtype(c_List.ta(tv_E, ir.c_interval.wct), List_extends_guard)
+
+        assertNotSubtype(c_List.ta(tv_E, ir.c_guard.wct), List_extends_interval)
+        assertSubtype(c_List.ta(tv_E, ir.c_interval.wct), List_extends_interval)
+
+        assertSubtype(List_extends_interval, List_extends_guard)
+        assertNotSubtype(List_extends_guard, List_extends_interval)
+        
+        assertNotSubtype(List_extends_guard, c_List.ta(tv_E, ir.c_guard.wct))
+    }
+    
+    @Test
+    def listWithUpperBoundedTypeArgs() {
+        implicit val prog = setup(listText)
+        implicit val env = prog.env_empty
+        
+        val List_super_guard = c_List.ta(tv_E, sup(ir.c_guard.wct))
+        val List_super_interval = c_List.ta(tv_E, sup(ir.c_interval.wct))
+        
+        assertSubtype(c_List.ta(tv_E, ir.c_guard.wct), List_super_guard)
+        assertNotSubtype(c_List.ta(tv_E, ir.c_interval.wct), List_super_guard)
+        
+        assertSubtype(c_List.ta(tv_E, ir.c_guard.wct), List_super_interval)
+        assertSubtype(c_List.ta(tv_E, ir.c_interval.wct), List_super_interval)
+        
+        assertNotSubtype(List_super_interval, List_super_guard)
+        assertSubtype(List_super_guard, List_super_interval)
+        
+        assertNotSubtype(List_super_guard, c_List.ta(tv_E, ir.c_guard.wct))
     }
     
 }

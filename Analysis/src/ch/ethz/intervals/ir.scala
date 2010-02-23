@@ -450,7 +450,14 @@ object ir {
     sealed case class TypeBounds(
         wts_lb: List[ir.WcTypeRef],             // lower bounds (must be at least 1)
         owts_ub: Option[List[ir.WcTypeRef]]     // upper bounds, or None if not upper-bounded
-    )
+    ) {
+        override def toString = {
+            (owts_ub match {
+                case Some(wts_ub) => ", ".join(wts_ub) + " <: "
+                case None => ""
+            }) + "? <: " + ", ".join(wts_lb)
+        }
+    }
     
     // ______ Type Args _____________________________________________________
     //
@@ -464,7 +471,7 @@ object ir {
         
         def <(wta: ir.WcTypeArg) = (tv.toString < wta.tv.toString)
         
-        def isNamed(n: TypeVarName) = (tv == n)        
+        def isNamed(n: TypeVarName) = (tv == n)
     }
     
     sealed case class BoundedTypeArg(
@@ -472,6 +479,8 @@ object ir {
         bounds: TypeBounds
     ) extends WcTypeArg {
         def toOptionTypeArg = None
+        
+        override def toString = "<%s: %s>".format(tv, bounds)
     }
     
     sealed case class TypeArg(
@@ -480,6 +489,8 @@ object ir {
     ) extends WcTypeArg {
         def bounds = TypeBounds(List(wt), Some(List(wt)))
         def toOptionTypeArg = Some(this)
+        
+        override def toString = "<%s: %s>".format(tv, wt)
     }
     
     // ______ Ghosts ________________________________________________________

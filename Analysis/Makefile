@@ -23,6 +23,6 @@ test: compile
 	mkdir -p debug-logs
 	rm -rf debug-logs/*
 	JAVA_HOME="${JAVA_HOME}" \
-	JAVA_OPTS="-cp ${CLASSPATH} -Xbootclasspath/p:lib/jsr308-all-1.04.jar ${PROFILEOPTS}" \
+	JAVA_OPTS="-cp ${CLASSPATH} -Xbootclasspath/p:lib/jsr308-all-1.04.jar" \
 	${SCALA} -cp ${CLASSPATH} org.scalatest.tools.Runner -oW -s \
 		ch.ethz.intervals.TestAll
