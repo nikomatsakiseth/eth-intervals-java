@@ -16,8 +16,41 @@ import java.io.File
 class TestGenerics extends JUnitSuite { 
     import TestAll.DEBUG_DIR
     
+    // Implicits for concisely creating WcClassTypes:
+    case class EnhancedWcClassType(wct: ir.WcClassType) {
+        def g(f: ir.FieldName, wp: ir.WcPath) = {
+            ir.WcClassType(
+                wct.c,
+                ir.WcGhost(f, wp) :: wct.wghosts,
+                wct.wtargs
+            )
+        }
+        def ta(tv: ir.TypeVarName, wt: ir.WcTypeRef) = {
+            ir.WcClassType(
+                wct.c,
+                wct.wghosts,
+                ir.TypeArg(tv, wt) :: wct.wtargs
+            )
+        }
+        def taExtends(tv: ir.TypeVarName, b: ir.TypeBounds) = {
+            ir.WcClassType(
+                wct.c,
+                wct.wghosts,
+                ir.BoundedTypeArg(tv, b) :: wct.wtargs
+            )
+        }
+    }
+    implicit def wcClassType2EnhancedWcClassType(wct: ir.WcClassType) =
+        EnhancedWcClassType(wct)
+    implicit def className2EnhancedWcClassType(c: ir.ClassName) =
+        EnhancedWcClassType(ir.WcClassType(c, List(), List()))
+    def ub(wts: ir.WcTypeRef*) = 
+        ir.TypeBounds(wts.toList, None)
+    def lb(wts: ir.WcTypeRef*) = 
+        ir.TypeBounds(List(), Some(wts.toList))
+    
     // A program fragment setting up the types we will test:
-    def setup = {
+    def setup(text0: String) = {
         val invokingMthdName = {
             val stelems = new Throwable().fillInStackTrace.getStackTrace
             stelems(2).getMethodName
@@ -27,35 +60,10 @@ class TestGenerics extends JUnitSuite {
         val logStack = new LogStack(logDirectory.mainSplitLog)
         val indexLog = logDirectory.indexLog
         
-        val text = TestAll.subst(
-            """
-            
-            class List 
-                <E <: #Object>
-            extends #Object 
-            {
-                this:E get(scalar idx)
-                requires this.Constructor hb method
-                requires this.#Creator readableBy method
-                {
-                    return;
-                }
-                
-                void add(this:E e)
-                requires this.Constructor hb method
-                requires this.#Creator writableBy method
-                {
-                    return;
-                }
-            }
-            
-            """
-        )
-        
-        val text1 = text.replaceAll("//[^\n]*", "")
+        val text = TestAll.subst(text0).replaceAll("//[^\n]*", "")        
         val parser = new IrParser()
         val cds = 
-            parser.parse(parser.classDecls)(text1) match {
+            parser.parse(parser.classDecls)(text) match {
                 case n: parser.NoSuccess =>
                     throw new RuntimeException("Parse failure: " + n.toString)
                 case parser.Success(cds, _) =>
@@ -64,16 +72,47 @@ class TestGenerics extends JUnitSuite {
         new Prog(logStack, cds, ir.cds_special ++ ir.cds_unit_test)        
     }
     
+    val listText = """
+    class List 
+        <E <: #Object>
+    extends #Object 
+    {
+        this:E get(scalar idx)
+        requires this.Constructor hb method
+        requires this.#Creator readableBy method
+        {
+            return;
+        }
+        
+        void add(this:E e)
+        requires this.Constructor hb method
+        requires this.#Creator writableBy method
+        {
+            return;
+        }
+    }    
+    """
+    val c_List = ir.ClassName("List")
+    val tv_E = ir.TypeVarName("E")
+    
     @Test
-    def subtype() {
-        val prog = setup
+    def listTypeArgNonVariant() {
+        val prog = setup(listText)
         val env = prog.env_empty
         
         assertTrue(env.isSubtype(
-            ir.wt_constructedPoint, ir.wt_constructedPoint
+            c_List.ta(tv_E, ir.c_interval.wct),
+            c_List.ta(tv_E, ir.c_interval.wct)
         ))
-        assertFalse(!env.isSubtype(
-            ir.wt_constructedPoint, ir.wt_constructedInterval
+
+        assertFalse(env.isSubtype(
+            c_List.ta(tv_E, ir.c_guard.wct),
+            c_List.ta(tv_E, ir.c_interval.wct)
+        ))
+        
+        assertFalse(env.isSubtype(
+            c_List.ta(tv_E, ir.c_interval.wct),
+            c_List.ta(tv_E, ir.c_guard.wct)
         ))
     }
     
