@@ -28,14 +28,14 @@ class TestGenerics extends JUnitSuite {
                 wct.wtargs
             )
         }
-        def ta(tv: ir.TypeVarName, wt: ir.WcTypeRef) = {
+        def ta(tv: ir.TypeVarName, wt: ir.WcTypeRef): ir.WcClassType = {
             ir.WcClassType(
                 wct.c,
                 wct.wghosts,
                 ir.TypeArg(tv, wt) :: wct.wtargs
             )
         }
-        def taExtends(tv: ir.TypeVarName, b: ir.TypeBounds) = {
+        def ta(tv: ir.TypeVarName, b: ir.TypeBounds): ir.WcClassType = {
             ir.WcClassType(
                 wct.c,
                 wct.wghosts,
@@ -122,6 +122,21 @@ class TestGenerics extends JUnitSuite {
             c_List.ta(tv_E, ir.c_interval.wct),
             c_List.ta(tv_E, ir.c_guard.wct)
         ))
+    }
+    
+    @Test
+    def listWithBoundedTypeArgs() {
+        val prog = setup(listText)
+        val env = prog.env_empty
+        
+        val List_extends_guard = c_List.ta(tv_E, ub(ir.c_guard.wct))
+        val List_extends_interval = c_List.ta(tv_E, ub(ir.c_interval.wct))
+        
+        assertTrue(env.isSubtype(c_List.ta(tv_E, ir.c_interval.wct), List_extends_guard))
+        assertTrue(env.isSubtype(c_List.ta(tv_E, ir.c_guard.wct), List_extends_guard))
+        assertTrue(env.isSubtype(List_extends_interval, List_extends_guard))
+        assertFalse(env.isSubtype(List_extends_guard, c_List.ta(tv_E, ir.c_guard.wct)))
+        assertFalse(env.isSubtype(List_extends_guard, List_extends_interval))
     }
     
 }

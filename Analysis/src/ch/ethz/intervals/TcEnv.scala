@@ -962,6 +962,9 @@ sealed case class TcEnv(
                 ubs_sup.forall(ub_sup =>
                     ubs_sub.exists(ub_sub =>
                         isSubtype(ub_sup, ub_sub)))
+                        
+            case (ir.TypeBounds(_, None), ir.TypeBounds(_, Some(_))) =>
+                false                        
         }
     }
     
