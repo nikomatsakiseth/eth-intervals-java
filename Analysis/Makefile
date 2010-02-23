@@ -4,6 +4,7 @@ SCALAC=scalac -make:transitive
 SCALA=scala
 JARFILES=$(wildcard lib/*.jar)
 CLASSPATH=$(subst .jar ,.jar:,${JARFILES}):bin:bin-test
+PROFILEOPTS=-agentlib:hprof=cpu=samples,depth=6
 
 .PHONY: all clean compile test
 
@@ -22,6 +23,6 @@ test: compile
 	mkdir -p debug-logs
 	rm -rf debug-logs/*
 	JAVA_HOME="${JAVA_HOME}" \
-	JAVA_OPTS="-cp ${CLASSPATH} -Xbootclasspath/p:lib/jsr308-all-1.04.jar" \
+	JAVA_OPTS="-cp ${CLASSPATH} -Xbootclasspath/p:lib/jsr308-all-1.04.jar ${PROFILEOPTS}" \
 	${SCALA} -cp ${CLASSPATH} org.scalatest.tools.Runner -oW -s \
 		ch.ethz.intervals.TestAll

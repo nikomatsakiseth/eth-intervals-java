@@ -1,28 +1,42 @@
 package ch.ethz.intervals
 
 class Fresh(prefix: String) {
-    private var dictWords = {
+    
+    // we only read every nth word, because otherwise we get too many similar words:
+    private[this] val skipLines = 50
+    
+    private[this] var optDictReader = {
         try {
             val dictFile = new java.io.File("/usr/share/dict/words")
-            val dictSource = scala.io.Source.fromFile(dictFile)
-            val lines = scala.util.Random.shuffle(dictSource.getLines("\n").toList)
-            dictSource.close()
-            lines            
+            Some(new java.io.LineNumberReader(new java.io.FileReader(dictFile)))
         } catch {
-            case _: java.io.IOException => List()
-        }
+            case _: java.io.IOException => None
+        }        
     }
     
-    private var counter = 0
+    private[this] var counter = 0
+    
+    private[this] def nextCounterName = {
+        val c = counter
+        counter = counter + 1
+        "[%s/%d]".format(prefix, c)        
+    }
+    
     def next() = {
-        dictWords match {
-            case word :: tl =>
-                dictWords = tl
+        // Skip 'skipLines' lines:
+        optDictReader.foreach { dictReader => 
+            for(i <- 1 to skipLines) dictReader.readLine
+        }
+        
+        optDictReader.map(_.readLine) match {
+            case Some(null) =>
+                optDictReader = None
+                nextCounterName
+            case Some(word) =>
                 "[%s/%s]".format(prefix, word)
-            case List() =>
-                val c = counter
-                counter = counter + 1
-                "[%s/%d]".format(prefix, c)
-        }        
+            case _ =>
+                nextCounterName
+        }
     }    
 }
+
