@@ -368,7 +368,7 @@ sealed case class TcEnv(
 
     /** Given a type, returns all GhostFieldDecls applied on it or its supertypes. */
     def ghostFieldsDeclaredOnType(wt: ir.WcTypeRef): Set[ir.GhostFieldDecl] = {
-        lowerBoundingCts(wt).flatMap(ghostFieldsDeclaredOnClassAndSuperclasses(_.c))
+        lowerBoundingCts(wt).flatMap(wct => ghostFieldsDeclaredOnClassAndSuperclasses(wct.c))
     }
     
     /** Given a type, returns all ghosts bound on instances of this type.
@@ -379,7 +379,7 @@ sealed case class TcEnv(
     
     /** Returns all type variables declared on the class(es) this type refers to. */
     def typeVarsDeclaredOnType(wt: ir.WcTypeRef): Set[ir.TypeVarDecl] = {
-        lowerBoundingCts(wt).flatMap(typeVarsDeclaredOnClassAndSuperclasses(_.c))
+        lowerBoundingCts(wt).flatMap(wct => typeVarsDeclaredOnClassAndSuperclasses(wct.c))
     }
     
     /** Given a type, returns all ghosts bound on instances of this type.
@@ -392,12 +392,12 @@ sealed case class TcEnv(
     private[this] def searchClassAndSuperclasses[X](
         func: (ir.ClassDecl => Option[X])
     )(
-        wct: ir.WcClassType
-    ): Option[(ir.WcClassType, X)] = {
-        val cd = classDecl(wct.c)
+        c: ir.ClassName
+    ): Option[(ir.ClassName, X)] = {
+        val cd = classDecl(c)
         func(cd) match {
             case Some(x) =>
-                Some(x)
+                Some((c, x))
                 
             case None =>
                 cd.superClasses.firstSomeReturned(searchClassAndSuperclasses(func) _)
@@ -410,13 +410,9 @@ sealed case class TcEnv(
             searchClassAndSuperclasses(_.reifiedFieldDecls.find(_.isNamed(f)))(wct.c)
         log.indented(false, "substdReifiedFieldDecl(%s::%s)", tcp, f) {
             upperBoundingCts(tcp.ty).firstSomeReturned(search) match {
-                case Some(fd) => 
-                    log("wct: %s", wct)
+                case Some((c_fd, fd)) => 
                     log.reifiedFieldDecl("fd: ", fd)
-                    (
-                        ir.TeeCeePee(tcp.cp, wct), 
-                        PathSubst.vp(ir.lv_this, tcp.p).reifiedFieldDecl(fd)
-                    )
+                    (c_fd, PathSubst.vp(ir.lv_this, tcp.p).reifiedFieldDecl(fd))
                     
                 case None => 
                     throw new CheckFailure("intervals.no.such.field", tcp.ty, f)
@@ -430,9 +426,8 @@ sealed case class TcEnv(
         def search(wct: ir.WcClassType) = 
             searchClassAndSuperclasses(_.methods.find(_.isNamed(m)))(wct.c)
         log.indented(false, "substdMethodSig(%s::%s)", tcp.ty, m) {
-            boundingClassTypes(tcp.ty).firstSomeReturned(search) match {
-                case Some(md) =>
-                    log("wct: %s", wct)
+            lowerBoundingCts(tcp.ty).firstSomeReturned(search) match {
+                case Some((_, md)) =>
                     log.methodDecl("md: ", md)
                     PathSubst.vp(
                         ir.lv_mthd  :: ir.lv_this :: md.args.map(_.name),
@@ -463,11 +458,11 @@ sealed case class TcEnv(
       * the class `ct`. */
     def substdOverriddenMethodSigs(ct: ir.ClassType, md_sub: ir.MethodDecl) = {
         val cd = classDecl(ct.c)        
-        val mds_overridden = cd.superClasses.foldRight(List[ir.MethodDecl]()) { case (wct_sup, l) =>
+        val mds_overridden = cd.superClasses.foldLeft(List[ir.MethodDecl]()) { case (l, c) =>
             val cd_sup = classDecl(c)
-            cd_sup.methods.find(_.isNamed(m)) match {
+            cd_sup.methods.find(_.isNamed(md_sub.name)) match {
                 case None => l
-                case Some(md) => md :: l                
+                case Some(md) => md :: l
             }
         }
         val lvs_sub = md_sub.args.map(_.name)
@@ -499,7 +494,7 @@ sealed case class TcEnv(
     def cp_mthd = canonLv(ir.lv_mthd)
     
     /** Upcast version of this to the first superclass */
-    def tcp_super = supertypes(tcp_this) match {
+    def tcp_super = superTcps(tcp_this) match {
         case List() => throw new CheckFailure("intervals.no.supertype", crp_this.wt)
         case tcp :: _ => tcp
     }
@@ -661,9 +656,10 @@ sealed case class TcEnv(
     }
 
     def dependentPaths(wt: ir.WcTypeRef): Set[ir.Path] = {
-        boundingClassTypes(wt).foldLeft(Set.empty[ir.Path]) { (s0, wct) =>
+        lowerBoundingCts(wt).foldLeft(Set.empty[ir.Path]) { (s0, wct) =>
             wct.wghosts.foldLeft(s0) { (s, g) => 
-                g.wp.addDependentPaths(s) }
+                g.wp.addDependentPaths(s) 
+            }
         }
     }
         
@@ -673,15 +669,18 @@ sealed case class TcEnv(
     /// The rules we enforce when checking field decls. guarantee that
     /// all linked fields either (a) occur in the same class defn as f
     /// or (b) are guarded by some interval which has not yet happened.
-    def linkedPaths(tcp_o: ir.TeeCeePee[ir.WcClassType], f: ir.FieldName) = {
+    def linkedPaths(cp_o: ir.CanonPath, c_o: ir.ClassName, f: ir.FieldName) = {
+        assert(pathHasSubclass(cp_o, c_o))
+        
         def isDependentOn(wt: ir.WcTypeRef, p: ir.Path) = {
             boundingClassTypes(wt).exists { wct =>
                 wct.wghosts.exists(_.wp.isDependentOn(p))
             }
         }
         
-        val cd = classDecl(tcp_o.ty.c)
-        val p_f = f.thisPath
+        val cd = classDecl(c_o)
+        val p_f = f.thisPath        
+        assert(cd.fields.exists(_.isNamed(f)))
         
         // only reified fields can be linked to another field
         val rfds = cd.reifiedFieldDecls
@@ -691,7 +690,7 @@ sealed case class TcEnv(
         
         // screen out those which cannot have been written yet (and whose 
         // value is therefore null, which is valid for any type)
-        val subst = tcp_o.cp.thisSubst
+        val subst = cp_o.thisSubst
         val rfds_linked = rfds_maybe_linked.filter { rfd =>
             !ocp_cur.exists(cp_cur =>
                 hbInter(cp_cur, canonPath(subst.path(rfd.p_guard))))
@@ -886,15 +885,15 @@ sealed case class TcEnv(
     private[this] def boundingCts(func: (ir.TypeBounds => List[ir.WcTypeRef]))(wt0: ir.WcTypeRef) = {
         def add(vis: Set[ir.PathType])(wcts: Set[ir.WcClassType], wt: ir.WcTypeRef): Set[ir.WcClassType] = {
             wt match {
-                case wct @ ir.WcClassType(_*) => wcts + wct
-                case pt @ ir.PathType(_*) if vis(pt) => wcts
-                case pt @ ir.PathType(_*) => func(boundPathType(pt)).foldLeft(add(vis+pt))
+                case wct @ ir.WcClassType(_, _, _) => wcts + wct
+                case pt @ ir.PathType(_, _) if vis(pt) => wcts
+                case pt @ ir.PathType(_, _) => func(boundPathType(pt)).foldLeft(wcts)(add(vis+pt))
             }
         }
         add(Set())(Set(), wt0)
     }    
-    def upperBoundingCts(wt0: ir.WcTypeRef) = boundingCts(_.wts_ub)(wt0)
-    def lowerBoundingCts(wt: ir.WcTypeRef) = boundingCts(_.wts_lb)(wt0)
+    def upperBoundingCts(wt: ir.WcTypeRef) = boundingCts(_.wts_ub)(wt)
+    def lowerBoundingCts(wt: ir.WcTypeRef) = boundingCts(_.wts_lb)(wt)
     
     // ___ Operations on TeeCeePees _________________________________________
     

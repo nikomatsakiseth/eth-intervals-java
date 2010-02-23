@@ -420,7 +420,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                 
                 val cp_value = env.immutableReifiedLv(lv_value)
                 
-                val (tcp_owner, rfd) = env.substdReifiedFieldDecl(cp_owner.toTcp, f) 
+                val (c_owner, rfd) = env.substdReifiedFieldDecl(cp_owner.toTcp, f) 
                 val cp_guard = env.immutableCanonPath(rfd.p_guard)
                 checkWritable(env, cp_guard)
                 checkIsSubtype(env, cp_value, rfd.wt)
@@ -429,7 +429,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                 env = env.addTemp(cp_field.p, cp_value.p)
         
                 env = env.removeInvalidated(cp_field.p)
-                env.linkedPaths(tcp_owner, f).foldLeft(env)(_ addInvalidated _)                            
+                env.linkedPaths(cp_owner, c_owner, f).foldLeft(env)(_ addInvalidated _)                            
                 
             case ir.StmtCheckType(p, wt) =>
                 val cp = env.immutableReifiedLv(p)

@@ -102,21 +102,6 @@ object Util {
                 case (e, Some(v0)) => f(e, v0)
             }
             
-        // Applies fn to the members of this list in turn,
-        // returning the first Some(_) that results (or None
-        // if no Some(_) ever results)
-        def firstSomeReturned[F](fn: Function[E, Option[F]]): Option[F] = {
-            l match {
-                case List() => None
-                case hd :: tl =>
-                    val r = fn(hd)
-                    r match {
-                        case Some(f) => r
-                        case None => UtilList(tl).firstSomeReturned(fn)
-                    }
-            }
-        }
-        
         def endsWith(m: List[E]) =
                 l.takeRight(m.length) == m
         
@@ -169,7 +154,17 @@ object Util {
             for(i <- is.view; j <- js.is.view) yield (i,j)
             
         def mkCommaString = is.mkString(", ")
-            
+        
+        // Applies fn to the members of this list in turn,
+        // returning the first Some(_) that results (or None
+        // if no Some(_) ever results)
+        def firstSomeReturned[F](fn: (I => Option[F])): Option[F] = {
+            foldLeft[Option[F]](None) { 
+                case (None, i) => fn(i)
+                case (Some(f), _) => Some(f)
+            }
+        }
+        
         def mkEnglishString: String = {
                 val list = is.toList
                 val len = list.length
