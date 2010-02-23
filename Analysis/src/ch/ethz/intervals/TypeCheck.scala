@@ -389,7 +389,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                 env = processCallMsig(env, tcp, msig_ctor, cqs)
                 
                 // Ctors for all supertypes now complete:
-                strictSuperclasses(env.c_cur).foreach { case c =>
+                strictSuperclasses(env.c_this).foreach { case c =>
                     val cp_cCtor = env.canonPath(ir.ClassCtorFieldName(c).thisPath)
                     env = env.addHbInter(cp_cCtor, env.cp_cur)
                 }
@@ -598,7 +598,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
             env = env.addNonNull(env.cp_mthd)
             
             // For normal methods, type of this is the defining class
-            val ct_this = ir.ClassType(env.c_cur, List(), List())
+            val ct_this = ir.ClassType(env.c_this, List(), List())
             env = env.addReifiedLocal(ir.lv_this, ct_this)
             env = env.addNonNull(env.crp_this)
             
@@ -615,7 +615,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
             
             // If constructor already happened, add its effects on the environment:
             // XXX Could check for other supertypes if we wanted...
-            val p_cdCtor = ir.ClassCtorFieldName(env.c_cur).thisPath
+            val p_cdCtor = ir.ClassCtorFieldName(env.c_this).thisPath
             if(env.hbInter(env.canonPath(p_cdCtor), env.cp_mthd)) {
                 env = env.addFlow(flow_ctor_assum)
             }                
@@ -632,15 +632,15 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
             
             // Define special vars "method" (== this.constructor) and "this":
             val ct_this = ir.ClassType(
-                env.c_cur,
+                env.c_this,
                 List(), 
                 List()
             )
             env = env.addReifiedLocal(ir.lv_this, ct_this)
             env = env.addNonNull(env.crp_this)
             
-            // Method == this.constructor[env.c_cur]
-            val p_ctor = ir.ClassCtorFieldName(env.c_cur).thisPath
+            // Method == this.constructor[env.c_this]
+            val p_ctor = ir.ClassCtorFieldName(env.c_this).thisPath
             val cp_ctor = env.canonPath(p_ctor)
             env = env.addPerm(ir.lv_mthd, cp_ctor)
             env = env.withCurrent(env.canonLv(ir.lv_mthd))
@@ -652,7 +652,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
             
             // Compute exit assumptions and store in prog.exportedCtorEnvs:
             log.flow(false, "exit assumptions:", flow_exit)
-            prog.exportedCtorEnvs += (env.c_cur, md.name) -> flow_exit
+            prog.exportedCtorEnvs += (env.c_this, md.name) -> flow_exit
             flow_exit
         }
         
@@ -662,7 +662,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
     ) = 
         indexAt(fd, ()) {
             var env = env_cd
-            val cd = classDecl(env.c_cur)
+            val cd = classDecl(env.c_this)
             
             // Rules:
             //
@@ -673,7 +673,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
             //
             // Note that a type is dependent on p_dep if p.F appears in the type, so 
             // we must check all prefixes of each dependent path as well.
-            val ct_this = ir.ClassType(env.c_cur, List(), List())
+            val ct_this = ir.ClassType(env.c_this, List(), List())
             env = env.addReifiedLocal(ir.lv_this, ct_this)
             env = env.addGhostLocal(ir.lv_mthd, ir.c_interval)
             env = env.withCurrent(env.cp_mthd)
@@ -749,7 +749,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
         }
             
     def checkClassDecl(cd: ir.ClassDecl) = {
-        var env = prog.env_empty.copy(c_cur = cd.name)
+        var env = prog.env_empty.withThisClass(cd.name)
         if(cd.attrs.interface) checkInterfaceClassDecl(env, cd)
         else checkNoninterfaceClassDecl(env, cd)        
     }

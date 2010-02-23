@@ -28,8 +28,8 @@ abstract class BaseSubst {
     }
     
     def typeBounds(bounds: ir.TypeBounds) = bounds match {
-        case ir.TypeBounds(wts_lb, owts_ub) =>
-            ir.TypeBounds(wts_lb.map(wcTref), owts_ub.map(_.map(wcTref)))
+        case ir.TypeBounds(wts_lb, wts_ub) =>
+            ir.TypeBounds(wts_lb.map(wcTref), wts_ub.map(wcTref))
     }
         
     def wcTypeArg(wta: ir.WcTypeArg): ir.WcTypeArg = wta match {

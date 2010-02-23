@@ -39,7 +39,7 @@ class TestAnalysis extends JUnitSuite {
         
         val mainSplitLog = {
             if(logTests(invokingMthdName)) {
-                LogDirectory.newLogDirectory(DEBUG_DIR, "TestAnalysis").mainSplitLog
+                LogDirectory.newLogDirectory(DEBUG_DIR, "TestAnalysis-%s".format(invokingMthdName)).mainSplitLog
             } else {
                 SplitLog.devNullSplitLog
             }

@@ -53,7 +53,7 @@ class IrParser extends BaseParser {
     override def wp = super.wp                  // Defined in BaseParser
     def wg = "@"~f~"("~wp~")"                   ^^ { case _~f~_~wp~_ => ir.WcGhost(f, wp) }    
     def typeBounds = (
-        opt(comma(wt)<~"<:")~"?"~"<:"~comma(wt) ^^ { case oubs~_~_~lbs => ir.TypeBounds(lbs, oubs) }
+        optl(comma(wt)<~"<:")~"?"~"<:"~comma(wt)^^ { case oubs~_~_~lbs => ir.TypeBounds(lbs, oubs) }
     )
     def wta = (
         "<"~tv~":"~typeBounds~">"               ^^ { case _~tv~_~bounds~_ => ir.BoundedTypeArg(tv, bounds) }

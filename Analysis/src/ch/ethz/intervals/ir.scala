@@ -111,7 +111,9 @@ object ir {
     
     sealed case class MethodName(name: String) extends Name(name)
     
-    sealed case class ClassName(name: String) extends Name(name)
+    sealed case class ClassName(name: String) extends Name(name) {
+        def ct = ir.ClassType(this, List(), List())
+    }
 
     sealed abstract class FieldName(name: String) extends Name(name) {
         def thisPath = p_this + this
@@ -449,13 +451,13 @@ object ir {
     
     sealed case class TypeBounds(
         wts_lb: List[ir.WcTypeRef],             // lower bounds (must be at least 1)
-        owts_ub: Option[List[ir.WcTypeRef]]     // upper bounds, or None if not upper-bounded
+        wts_ub: List[ir.WcTypeRef]              // upper bounds (may be empty)
     ) {
         override def toString = {
-            (owts_ub match {
-                case Some(wts_ub) => ", ".join(wts_ub) + " <: "
-                case None => ""
-            }) + "? <: " + ", ".join(wts_lb)
+            val str = 
+                if(wts_ub.isEmpty) ""
+                else ", ".join(wts_ub) + " <: "
+            str + "? <: " + ", ".join(wts_lb)
         }
     }
     
@@ -487,7 +489,7 @@ object ir {
         tv: ir.TypeVarName,
         wt: ir.WcTypeRef
     ) extends WcTypeArg {
-        def bounds = TypeBounds(List(wt), Some(List(wt)))
+        def bounds = TypeBounds(List(wt), List(wt))
         def toOptionTypeArg = Some(this)
         
         override def toString = "<%s: %s>".format(tv, wt)
@@ -631,6 +633,22 @@ object ir {
         def withTy[S <: WcTypeRef](ty: S) = ir.TeeCeePee(cp, ty)
         
         override def toString = "tcp(%s: %s)".format(p, ty)
+    }    
+    
+    object TeeCeePee {
+        object pathType {
+            def unapply(tcp: ir.TeeCeePee[_]) = tcp.ty match {
+                case pt: ir.PathType => Some(ir.TeeCeePee(tcp.cp, pt))
+                case _ => None
+            }
+        }
+        
+        object wcClassType {            
+            def unapply(tcp: ir.TeeCeePee[_]) = tcp.ty match {
+                case wct: ir.WcClassType => Some(ir.TeeCeePee(tcp.cp, wct))
+                case _ => None
+            }
+        }
     }
     
     // ___ Requirements _____________________________________________________

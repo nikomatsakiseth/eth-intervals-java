@@ -132,7 +132,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
         at(stmt, ()) {
             stmt match {                  
                 case ir.StmtSuperCtor(m, lvs_args) =>
-                    val tcp_rcvr = tcp_super
+                    val tcp_rcvr = env.tcp_super
                     val cps_args = env.reifiedLvs(lvs_args)
                     val msig_ctor = env.substdCtorSig(tcp_rcvr, m, cps_args)
                     checkCall(tcp_rcvr, msig_ctor, cps_args)
@@ -160,7 +160,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                     addReifiedLocal(lv_def, msig.wt_ret)
         
                 case ir.StmtSuperCall(lv_def, m, qs) =>
-                    val tcp = tcp_super
+                    val tcp = env.tcp_super
                     val cqs = env.reifiedLvs(qs)
                     val msig = env.substdMethodSig(tcp, m, cqs)
                     checkCall(tcp, msig, cqs)
@@ -187,14 +187,14 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                     
                     // Check that all ghosts on the type C being instantiated are given a value:
                     val gfds_unbound = unboundGhostFieldsOnClassAndSuperclasses(ct.c)
-                    gfds_unbound.find(gfd => env.ghost(ct, gfd.name).isEmpty) match {
+                    gfds_unbound.find(gfd => ct.ghosts.find(_.isNamed(gfd.name)).isEmpty) match {
                         case Some(gfd) => throw new CheckFailure("intervals.no.value.for.ghost", gfd.name)
                         case None =>
                     }
                     
                     // Check that all type vars on the type C being instantiated are given a value:
                     val tvds_unbound = unboundTypeVarsDeclaredOnClassAndSuperclasses(ct.c)
-                    tvds_unbound.find(tvd => env.typeArg(ct, tvd.name).isEmpty) match {
+                    tvds_unbound.find(tvd => ct.typeArgs.find(_.isNamed(tvd.name)).isEmpty) match {
                         case Some(tvd) => throw new CheckFailure("intervals.no.value.for.type.var", tvd.name)
                         case None =>
                     }
@@ -292,10 +292,6 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
             }   
         }
     
-    def addThis(cd: ir.ClassDecl) {
-        addReifiedLocal(ir.lv_this, ir.WcClassType(cd.name, List(), List()))
-    }
-
     def checkNoninterfaceMethodDecl(
         cd: ir.ClassDecl,          // class in which the method is declared
         md: ir.MethodDecl          // method to check
@@ -304,7 +300,6 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
             savingEnv {
                 // Define special vars "method" and "this":
                 addGhostLocal(ir.lv_mthd, ir.wt_constructedInterval)
-                addThis(cd)
 
                 setCurrent(env.canonPath(ir.p_mthd))
                 md.args.foreach(addCheckedArg)
@@ -318,7 +313,6 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
         at(md, ()) {
             savingEnv {
                 // Define special vars "method" (== this.constructor) and "this":
-                addThis(cd)
                 val cp_ctor = env.canonPath(ir.ClassCtorFieldName(cd.name).thisPath)
                 addPerm(ir.lv_mthd, cp_ctor)
 
@@ -340,7 +334,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
     ) = {
         log.indented("checkFieldNameNotShadowed(%s)", decl) {
             val f = decl.name
-            prog.classAndSuperclasses(env.c_cur).foreach { c =>
+            prog.classAndSuperclasses(env.c_this).foreach { c =>
                 log.indented("class(%s)", c) {
                     classDecl(c).ghostFieldDecls.filter(_.isNamed(f)).foreach { gfd =>
                         log("gfd: %s (eq? %s)", gfd, gfd eq decl)
@@ -360,7 +354,6 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
     def checkReifiedFieldDecl(cd: ir.ClassDecl, rfd: ir.ReifiedFieldDecl): Unit = {
         at(rfd, ()) {
             savingEnv {
-                addThis(cd)                
                 checkFieldNameNotShadowed(env, rfd)
                 checkWtrefWf(rfd.wt)
                 env.canonPath(rfd.p_guard)
@@ -371,7 +364,6 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
     def checkGhostFieldDecl(cd: ir.ClassDecl, gfd: ir.GhostFieldDecl): Unit = {
         at(gfd, ()) {
             savingEnv {
-                addThis(cd)
                 checkFieldNameNotShadowed(env, gfd)
                 classDecl(gfd.c)
             }
@@ -381,8 +373,6 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
     def checkTypeVarDecl(cd: ir.ClassDecl, tvd: ir.TypeVarDecl): Unit = {
         at(tvd, ()) {
             savingEnv {
-                addThis(cd)
-
                 // Check that type vars are not shadowed:
                 prog.classAndSuperclasses(cd.name).foreach { c =>
                     classDecl(c).typeVarDecls.filter(_.isNamed(tvd.name)).foreach { tvd1 =>
@@ -426,7 +416,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
         at(cd, ()) {
             savingEnv {
                 // TODO Is this everything?
-                setEnv(env.copy(c_cur = cd.name))
+                setEnv(env.withThisClass(cd.name))
                 cd.superClasses.foreach(checkInterfaceSuperclass)
                 if(!cd.reifiedFieldDecls.isEmpty)
                     throw new CheckFailure("intervals.interface.with.fields")
@@ -445,7 +435,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
     def checkNoninterfaceClassDecl(cd: ir.ClassDecl) = 
         at(cd, ()) {
             savingEnv {
-                setEnv(env.copy(c_cur = cd.name))
+                setEnv(env.withThisClass(cd.name))
                 cd.superClasses.take(1).foreach(checkIsNotInterface)
                 cd.superClasses.drop(1).foreach(checkIsInterface)
                 cd.ghostFieldDecls.foreach(checkGhostFieldDecl(cd, _))
