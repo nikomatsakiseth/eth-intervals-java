@@ -9,12 +9,15 @@ import org.junit.Before
 import Util._
 import ch.ethz.intervals.log.LogDirectory
 import ch.ethz.intervals.log.LogStack
+import ch.ethz.intervals.log.SplitLog
 import scala.util.parsing.input.Position
 import java.net.URLEncoder
 import java.io.File
 
 class TestGenerics extends JUnitSuite { 
     import TestAll.DEBUG_DIR
+    
+    val logTests: Set[String] = Set()
     
     // Implicits for concisely creating WcClassTypes:
     case class EnhancedWcClassType(wct: ir.WcClassType) {
@@ -53,12 +56,17 @@ class TestGenerics extends JUnitSuite {
     def setup(text0: String) = {
         val invokingMthdName = {
             val stelems = new Throwable().fillInStackTrace.getStackTrace
-            stelems(2).getMethodName
+            stelems(1).getMethodName
         }        
         
-        val logDirectory = LogDirectory.newLogDirectory(DEBUG_DIR, "TestGenerics-" + invokingMthdName)
-        val logStack = new LogStack(logDirectory.mainSplitLog)
-        val indexLog = logDirectory.indexLog
+        val mainSplitLog = {
+            if(logTests(invokingMthdName)) {
+                LogDirectory.newLogDirectory(DEBUG_DIR, "TestAnalysis").mainSplitLog
+            } else {
+                SplitLog.devNullSplitLog
+            }
+        }
+        val logStack = new LogStack(mainSplitLog)
         
         val text = TestAll.subst(text0).replaceAll("//[^\n]*", "")        
         val parser = new IrParser()

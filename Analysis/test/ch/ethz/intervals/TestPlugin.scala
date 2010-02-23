@@ -26,6 +26,8 @@ import ch.ethz.intervals.log.LogDirectory
 class TestPlugin extends JUnitSuite {
     import TestAll.DEBUG_DIR
     
+    val logTests: Set[String] = Set()
+    
     def fileName(jfo: JavaFileObject) =
         if(jfo == null) "null"
         else jfo.getName
@@ -183,12 +185,18 @@ class TestPlugin extends JUnitSuite {
         }
     }
     
-    def javac(config: JdkConfig, testName: String, fileName0: String, otherFileNames: String*) = {
+    def javac(config: JdkConfig, fileName0: String, otherFileNames: String*) = {
+        val testName = {
+            val stelems = new Throwable().fillInStackTrace.getStackTrace
+            stelems(1).getMethodName
+        }        
+        
         // Create debug directory for this test and subdirectory for the checker:
         val logDirectory = LogDirectory.newLogDirectory(DEBUG_DIR, testName)
         val log = logDirectory.detailLog
-        val checkerDebugDir = LogDirectory.newFile(logDirectory.dir, "IntervalsChecker", "")
-        val opts = "-AINTERVALS_DEBUG_DIR=%s".format(checkerDebugDir) :: config.opts
+        val checkerDebugDir = LogDirectory.newFile(logDirectory.dir, "IntervalsChecker", "")        
+        var opts = config.opts
+        if(logTests(testName)) opts = "-AINTERVALS_DEBUG_DIR=%s".format(checkerDebugDir) :: opts
         logDirectory.indexLog.linkTo(
             new File(checkerDebugDir, "index.html").toURI.toString, 
             "IntervalsChecker logs")
@@ -211,31 +219,31 @@ class TestPlugin extends JUnitSuite {
     
     @Test 
     def testParseReqs() {
-        javac(unitTest, "testParseReqs", "basic/ParseReqs.java")        
+        javac(unitTest, "basic/ParseReqs.java")        
     }
     
     @Test 
     def testWriteFromWrongInterval() {
-        javac(unitTest, "testWriteFromWrongInterval", "basic/WriteFromWrongInterval.java")        
+        javac(unitTest, "basic/WriteFromWrongInterval.java")        
     }
     
     @Test 
     def testVariousLoops() {
-        javac(unitTest, "testVariousLoops", "basic/VariousLoops.java")        
+        javac(unitTest, "basic/VariousLoops.java")        
     }
     
     @Test 
     def testBbpc() {
-        javac(unitTest, "testBbpc", "bbpc/Producer.java")
+        javac(unitTest, "bbpc/Producer.java")
     }
     
     @Test 
     def testCircularGhostsA() {
-        javac(unitTest, "testCircularGhostsA", "basic/CircularGhostsA.java")
+        javac(unitTest, "basic/CircularGhostsA.java")
     }
     
     @Test 
     def testCircularHb() {
-        javac(unitTest, "testCircularHb", "basic/CircularHb.java")
+        javac(unitTest, "basic/CircularHb.java")
     }
 }

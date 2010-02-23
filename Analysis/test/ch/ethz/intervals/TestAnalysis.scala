@@ -8,6 +8,7 @@ import org.junit.Test
 import org.junit.Before
 import Util._
 import ch.ethz.intervals.log.LogDirectory
+import ch.ethz.intervals.log.SplitLog
 import ch.ethz.intervals.log.LogStack
 import scala.util.parsing.input.Position
 import java.net.URLEncoder
@@ -19,20 +20,32 @@ class TestAnalysis extends JUnitSuite {
     import TestAll.DEBUG_DIR
     import TestAll.subst
     
+    val logTests: Set[String] = Set()
+    
     // ___ Test running infrastructure ______________________________________
     
     def runTest(errorPhase: String, text0: String) {
-        val (baseUrl, baseLineNumber) = {
+        val (invokingMthdName, baseUrl, baseLineNumber) = {
             val exc = new Throwable().fillInStackTrace
             val stelems = exc.getStackTrace
             val stelem = stelems(2)
             val file = new File(stelem.getFileName)            
-            (URLEncoder.encode(file.getAbsolutePath, "UTF-8"), stelem.getLineNumber)
-        }        
+            (
+                stelem.getMethodName,
+                URLEncoder.encode(file.getAbsolutePath, "UTF-8"), 
+                stelem.getLineNumber
+            )
+        }         
         
-        val logDirectory = LogDirectory.newLogDirectory(DEBUG_DIR, "TestAnalysis")
-        val logStack = new LogStack(logDirectory.mainSplitLog)
-        val indexLog = logDirectory.indexLog
+        val mainSplitLog = {
+            if(logTests(invokingMthdName)) {
+                LogDirectory.newLogDirectory(DEBUG_DIR, "TestAnalysis").mainSplitLog
+            } else {
+                SplitLog.devNullSplitLog
+            }
+        }
+        val logStack = new LogStack(mainSplitLog)
+        val indexLog = mainSplitLog.indexLog
         try {
             val text = subst(text0)
             
@@ -108,8 +121,8 @@ class TestAnalysis extends JUnitSuite {
             assertEquals(errorPhase, failPhase)
         } catch {
             case t: Throwable => // only print log if test fails:
-                System.out.println("Debugging output for failed test:")
-                System.out.println(logDirectory.mainSplitLog.uri)
+                System.out.println("Debugging output for \"%s\":".format(invokingMthdName))
+                System.out.println(mainSplitLog.uri)
                 throw t
         }        
     }
