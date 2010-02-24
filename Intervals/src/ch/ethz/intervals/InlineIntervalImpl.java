@@ -5,13 +5,13 @@ import java.util.Set;
 
 
 
-final class SubintervalImpl<R> extends Interval {
+final class InlineIntervalImpl<R> extends Interval {
 
-	SubintervalTask<R> task;
+	InlineTask<R> task;
 	private R result;
 	private Set<Throwable> errors;
 
-	SubintervalImpl(String name, Interval superInterval, SubintervalTask<R> task) 
+	InlineIntervalImpl(String name, Interval superInterval, InlineTask<R> task) 
 	{
 		super(name, superInterval, Point.FLAG_SYNCHRONOUS, 0, 2);
 		this.task = task;

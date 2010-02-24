@@ -1,7 +1,7 @@
 package ch.ethz.intervals;
 
 import static ch.ethz.intervals.Intervals.addHb;
-import static ch.ethz.intervals.Intervals.subinterval;
+import static ch.ethz.intervals.Intervals.inline;
 import static ch.ethz.intervals.Intervals.child;
 import static ch.ethz.intervals.Intervals.successor;
 
@@ -101,7 +101,7 @@ public class TestBBPCArray {
 
 	@Test
 	public void test() {
-		subinterval(new VoidSubinterval() {
+		inline(new VoidInlineTask() {
 			public void run(Interval subinterval) {
 				new BBPC(subinterval);
 			}

@@ -91,7 +91,7 @@ public class TestBarrier {
 		Barrier b;
 		try {
 			b = 
-				Intervals.subinterval(new SubintervalTask<Barrier>() {			
+				Intervals.inline(new InlineTask<Barrier>() {			
 					public Barrier run(Interval subinterval) {
 						return new Barrier(subinterval);
 					}

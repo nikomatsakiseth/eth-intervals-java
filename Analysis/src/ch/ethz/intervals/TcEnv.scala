@@ -129,15 +129,15 @@ sealed case class TcEnv(
         copy(flow = flow.withWritableRel(flow.writableRel + (cp.p, cq.p)))
     }
     
-    def addSubintervalOf(cp: ir.CanonPath, cq: ir.CanonPath) = {
-        log.indented(false, "addSubintervalOf(%s, %s)", cp, cq) {
+    def addSuspends(cp: ir.CanonPath, cq: ir.CanonPath) = {
+        log.indented(false, "addSuspends(%s, %s)", cp, cq) {
             // This assertion is not valid during checkReifiedFieldDecl():
             //assert(isImmutable(cp) && isImmutable(cq))
             assert(pathHasSubclass(cp, ir.c_interval))
             assert(pathHasSubclass(cq, ir.c_interval))
             copy(flow = flow
                 .withHbRel(flow.hbRel + (cq.p.start, cp.p.start) + (cp.p.end, cq.p.end))
-                .withSubintervalRel(flow.subintervalRel + (cp.p, cq.p)))
+                .withInlineIntervalRel(flow.inlineIntervalRel + (cp.p, cq.p)))
         }        
     }
 
@@ -200,9 +200,9 @@ sealed case class TcEnv(
             this
     }
     
-    def addUserSubintervalOf(cp: ir.CanonPath, cq: ir.CanonPath) = {
+    def addUserSuspends(cp: ir.CanonPath, cq: ir.CanonPath) = {
         if(pathHasSubclass(cp, ir.c_interval) && pathHasSubclass(cq, ir.c_interval))
-            addSubintervalOf(cp, cq)
+            addSuspends(cp, cq)
         else
             this
     }
@@ -228,7 +228,7 @@ sealed case class TcEnv(
                     case ir.ReqWritableBy(ps, qs) => cross(_.addUserDeclaredWritableBy(_, _), ps, qs)
                     case ir.ReqReadableBy(ps, qs) => cross(_.addUserDeclaredReadableBy(_, _), ps, qs)
                     case ir.ReqHb(ps, qs) => cross(_.addUserHb(_, _), ps, qs)
-                    case ir.ReqSubintervalOf(ps, qs) => cross(_.addUserSubintervalOf(_, _), ps, qs)
+                    case ir.ReqSuspends(ps, qs) => cross(_.addUserSuspends(_, _), ps, qs)
                 }   
             }
         }        
@@ -532,8 +532,8 @@ sealed case class TcEnv(
         }
     }
     
-    def isSubintervalOf(cp: ir.CanonPath, cq: ir.CanonPath) = {
-        log.indented(false, "isSubintervalOf(%s, %s)?", cp, cq) {
+    def suspends(cp: ir.CanonPath, cq: ir.CanonPath) = {
+        log.indented(false, "suspends(%s, %s)?", cp, cq) {
             log.env(false, "Environment", this)
 
             superintervalsOrSelf(cp).contains(cq)
@@ -562,7 +562,7 @@ sealed case class TcEnv(
                 superintervalsOrSelf(cq).exists(cq_sup => flow.writable((cp.p, cq_sup.p))) ||
                 equiv(cp, cq) ||
                 locks(cq, cp) ||
-                isSubintervalOf(cq, cp)
+                suspends(cq, cp)
             }
         }
     }    
@@ -696,7 +696,7 @@ sealed case class TcEnv(
     private def superintervalsOrSelf(cp0: ir.CanonPath) = {
         def immediateSuperintervalsOf(cp: ir.CanonPath): Set[ir.CanonPath] = {
             log.indented("immediateSuperintervalsOf(%s)", cp) {
-                flow.subintervalRel.values(cp.p).map(canonPath) ++ {
+                flow.inlineIntervalRel.values(cp.p).map(canonPath) ++ {
                     log.indented("cp0.Constructor[_].end < cp0.Constructor.end?") {
                         cp match {
                             case ir.CpClassCtor(cp0, _) => 
@@ -849,7 +849,7 @@ sealed case class TcEnv(
     
     private def among(cp: ir.CanonPath, cqs: List[ir.CanonPath]) = {
         cqs.exists { cq =>
-            equiv(cp, cq) || isSubintervalOf(cp, cq)
+            equiv(cp, cq) || suspends(cp, cq)
         }
     }
     

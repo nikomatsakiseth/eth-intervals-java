@@ -52,7 +52,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
         req match {
             case ir.ReqWritableBy(ps, qs) => is(env.guardsDataWritableBy, ps, qs)
             case ir.ReqReadableBy(ps, qs) => is(env.guardsDataReadableBy, ps, qs)
-            case ir.ReqSubintervalOf(ps, qs) => is(env.isSubintervalOf, ps, qs)
+            case ir.ReqSuspends(ps, qs) => is(env.suspends, ps, qs)
             case ir.ReqHb(ps, qs) => is(env.userHb, ps, qs)
         }
     }
@@ -214,7 +214,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                 mapPathRelation(flow_brk.readableRel),
                 mapPathRelation(flow_brk.writableRel),
                 mapPathRelation(flow_brk.hbRel),
-                mapPathRelation(flow_brk.subintervalRel),
+                mapPathRelation(flow_brk.inlineIntervalRel),
                 mapPathRelation(flow_brk.locksRel)
             )
         )
@@ -325,7 +325,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                 iterate(ss.oenv_continue.get)
                 ss.oenv_break
                 
-            case ir.Subinterval(x, ps_locks, seq) =>
+            case ir.InlineInterval(x, ps_locks, seq) =>
                 val ss = new StmtScope(env_in, stmt_compound.defines, None)
                 val ss_cur = ss :: ss_prev
                 var env = env_in
@@ -334,7 +334,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                 env = env.addReifiedLocal(x, ir.wt_constructedInterval)
                 val cp_x = env.canonLv(x)
                 env = env.addNonNull(cp_x)
-                env = env.addSubintervalOf(cp_x, env.cp_cur)
+                env = env.addSuspends(cp_x, env.cp_cur)
                 env = tps_locks.foldLeft(env)(_.addLocks(cp_x, _))
                 
                 // n.b.: We don't try to pop-- that's because if
@@ -472,7 +472,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                                 throw new CheckFailure("intervals.must.be.subclass", cp.p, gfd.c)
                         case None if (g.f == ir.f_objCtor) =>
                             val cp = env.canonPath(g.p)
-                            if(!env.isSubintervalOf(env.cp_cur, cp)) // also implies must be an interval
+                            if(!env.suspends(env.cp_cur, cp)) // also implies must be an interval
                                 throw new CheckFailure("intervals.ctor.must.encompass.current", cp, env.cp_cur)
                         case None =>
                             throw new CheckFailure("intervals.internal.error", "No ghost field %s".format(g.f))
@@ -531,13 +531,13 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
             log("cp_curOnEntry: %s", cp_curOnEntry)
             val (cp_seqInterval, env1) = env0.freshCp(ir.c_interval)
             log("cp_seqInterval: %s", cp_seqInterval)
-            var env = env1.addSubintervalOf(cp_seqInterval, env1.cp_cur)
+            var env = env1.addSuspends(cp_seqInterval, env1.cp_cur)
             env = env.withCurrent(cp_seqInterval)
             
             seq.stmts.foldLeft[Option[ir.CanonPath]](None) { (ocp_prevInterval, stmt) =>
                 val (cp_stmtInterval, env2) = env.freshCp(ir.c_interval)
                 log("cp_stmtInterval: %s", cp_stmtInterval)
-                env = env2.addSubintervalOf(cp_stmtInterval, cp_seqInterval)
+                env = env2.addSuspends(cp_stmtInterval, cp_seqInterval)
                 ocp_prevInterval.foreach { cp_prevInterval =>
                     env = env.addHbInter(cp_prevInterval, cp_stmtInterval)
                 }
@@ -673,7 +673,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
             val cp_guard = env.canonPath(fd.p_guard)
             env = log.indented("adding appr. constraints for cp_guard %s", cp_guard) {
                 if(env.pathHasSubclass(cp_guard, ir.c_interval))
-                    env.addSubintervalOf(env.cp_cur, cp_guard) 
+                    env.addSuspends(env.cp_cur, cp_guard) 
                 else if(env.pathHasSubclass(cp_guard, ir.c_lock))
                     env.addLocks(env.cp_cur, cp_guard)
                 else if(env.pathHasSubclass(cp_guard, ir.c_guard))

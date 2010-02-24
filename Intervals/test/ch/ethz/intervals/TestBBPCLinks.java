@@ -1,6 +1,6 @@
 package ch.ethz.intervals;
 
-import static ch.ethz.intervals.Intervals.subinterval;
+import static ch.ethz.intervals.Intervals.inline;
 import static org.junit.Assert.assertEquals;
 
 import java.util.ArrayList;
@@ -180,7 +180,7 @@ public class TestBBPCLinks {
 	}
 	
 	@Test public final void test() {
-		subinterval(new VoidSubinterval() {
+		inline(new VoidInlineTask() {
 			@Override public void run(Interval subinterval) {
 				new Init(subinterval);
 			}			

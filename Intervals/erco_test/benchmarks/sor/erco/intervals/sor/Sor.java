@@ -15,7 +15,7 @@ import ch.ethz.intervals.Dependency;
 import ch.ethz.intervals.IndexedInterval;
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
-import ch.ethz.intervals.VoidSubinterval;
+import ch.ethz.intervals.VoidInlineTask;
 
 public class Sor {
 
@@ -171,7 +171,7 @@ public class Sor {
 		long a = new Date().getTime();
 		
 		if (!nop) {
-			Intervals.subinterval(new VoidSubinterval() {
+			Intervals.inline(new VoidInlineTask() {
 				@Override public void run(Interval subinterval) {
 					new BlackFromRed(subinterval, iterations-1);
 				}			

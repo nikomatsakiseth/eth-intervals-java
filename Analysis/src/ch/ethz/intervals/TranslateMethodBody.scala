@@ -176,7 +176,7 @@ object TranslateMethodBody
         case object ScopeKindBlock extends ScopeKind
         case object ScopeKindSwitch extends ScopeKind
         case object ScopeKindLoop extends ScopeKind
-        case class ScopeKindSubinterval(x: ir.VarName, lvs_locks: List[ir.VarName]) extends ScopeKind
+        case class ScopeKindInlineInterval(x: ir.VarName, lvs_locks: List[ir.VarName]) extends ScopeKind
         case object ScopeKindTryCatch extends ScopeKind
                 
         abstract class BranchKind(val targets: Set[ScopeKind])
@@ -248,9 +248,9 @@ object TranslateMethodBody
                         
                         ir.Loop(args, lvs_initial, seqsBuffer(0))
                         
-                    case ScopeKindSubinterval(x, ps_locks) => 
+                    case ScopeKindInlineInterval(x, ps_locks) => 
                         assert(seqsBuffer.length == 1)
-                        ir.Subinterval(x, ps_locks, seqsBuffer(0))
+                        ir.InlineInterval(x, ps_locks, seqsBuffer(0))
                         
                     case ScopeKindTryCatch =>
                         assert(seqsBuffer.length == 2)

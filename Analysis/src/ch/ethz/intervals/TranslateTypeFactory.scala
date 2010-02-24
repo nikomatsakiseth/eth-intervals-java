@@ -104,8 +104,16 @@ class TranslateTypeFactory(
     }
         
     // Converts from a type element to an ir.ClassName
-    def className(typeElem: TypeElement) =
-        ir.ClassName(qualName(typeElem))
+    def className(typeElem: TypeElement) = {
+        ir.ClassName(qualName(typeElem))        
+    }
+        
+    def typeVarName(tpElem: TypeParameterElement) = {
+        ir.TypeVarName("%s.%s".format(
+            qualName(tpElem.getGenericElement),
+            tpElem.getSimpleName
+        ))        
+    }
 
     // All supertypes, class first then interfaces.
     def directSupertys(telem: TypeElement) =

@@ -272,14 +272,14 @@ public class Intervals {
 	 * wrapped in {@link RethrownException} and rethrown immediately.
 	 * Exceptions never propagate to the current interval.
 	 */
-	public static <R> R subinterval(final SubintervalTask<R> task) 
+	public static <R> R inline(final InlineTask<R> task) 
 	{		
 		// This could be made more optimized, but it will do for now:
 		Current current = Current.get();
 		
 		String name = task.toString(); // WARNING: user code may throw an exception
 		
-		SubintervalImpl<R> subinterval = new SubintervalImpl<R>(name, current.inter, task);
+		InlineIntervalImpl<R> subinterval = new InlineIntervalImpl<R>(name, current.inter, task);
 		
 		if(current.mr != null && current.mr != current.start())
 			current.mr.addEdgeAfterOccurredWithoutException(subinterval.start, NORMAL);
@@ -299,11 +299,11 @@ public class Intervals {
 	}		
 	
 	/**
-	 * Variant of {@link #subinterval(SubintervalTask)} for
+	 * Variant of {@link #inline(InlineTask)} for
 	 * subintervals that do not return a value. */
-	public static void subinterval(final VoidSubinterval task)
+	public static void inline(final VoidInlineTask task)
 	{
-		subinterval(new SubintervalTask<Void>() {			
+		inline(new InlineTask<Void>() {			
 			@Override public String toString() {
 				return task.toString();
 			}

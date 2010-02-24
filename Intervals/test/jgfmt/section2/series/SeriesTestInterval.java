@@ -43,7 +43,7 @@ import jgfmt.jgfutil.JGFInstrumentor;
 import ch.ethz.intervals.Dependency;
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
-import ch.ethz.intervals.VoidSubinterval;
+import ch.ethz.intervals.VoidInlineTask;
 
 public class SeriesTestInterval {
 
@@ -69,7 +69,7 @@ public class SeriesTestInterval {
 		
 		//Thread debugThread = Debug.dumpDebugStateAfterTimeElapsed(8);
 
-		Intervals.subinterval(new VoidSubinterval() {
+		Intervals.inline(new VoidInlineTask() {
 			@Override public void run(Interval subinterval) {
 				for (int i = 0; i < array_rows; i++)
 					new SeriesRunnerInterval(subinterval, i);

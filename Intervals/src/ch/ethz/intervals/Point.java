@@ -301,7 +301,7 @@ implements PointMirror
 	}
 
 	/** Invoked by {@link #arrive(int)} when wait count reaches zero,
-	 *  but also from {@link Intervals#subinterval(SubintervalTask)} */
+	 *  but also from {@link Intervals#inline(SubintervalTask)} */
 	void didReachWaitCountZero() {
 		interval.didReachWaitCountZero(this);
 	}

@@ -41,7 +41,7 @@ import ch.ethz.intervals.IndexedInterval;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Point;
-import ch.ethz.intervals.VoidSubinterval;
+import ch.ethz.intervals.VoidInlineTask;
 
 class IDEATest {
 
@@ -67,13 +67,13 @@ class IDEATest {
 		
 		// Encrypt plain1.
 		if(JGFCryptBench.nthreads == -1) {
-			Intervals.subinterval(new VoidSubinterval() {
+			Intervals.inline(new VoidInlineTask() {
 				@Override public void run(Interval subinterval) {
 					new IDEARunnerTask(subinterval, plain1.length / 8, plain1, crypt1, Z);
 				}
 			});
 			
-			Intervals.subinterval(new VoidSubinterval() {
+			Intervals.inline(new VoidInlineTask() {
 				@Override public void run(Interval subinterval) {
 					new IDEARunnerTask(subinterval, crypt1.length / 8, crypt1, plain2, DK);
 				}

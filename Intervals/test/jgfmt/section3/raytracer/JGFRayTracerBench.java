@@ -27,7 +27,7 @@ import ch.ethz.intervals.IndexedInterval;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.LongReduction;
 import ch.ethz.intervals.Point;
-import ch.ethz.intervals.VoidSubinterval;
+import ch.ethz.intervals.VoidInlineTask;
 
 public class JGFRayTracerBench extends RayTracer implements JGFSection3 {
 
@@ -63,7 +63,7 @@ public class JGFRayTracerBench extends RayTracer implements JGFSection3 {
 			JGFInstrumentor.stopTimer("Section3:RayTracer:Init");
 			
 			JGFInstrumentor.startTimer("Section3:RayTracer:Run");
-			Intervals.subinterval(new VoidSubinterval() {				
+			Intervals.inline(new VoidInlineTask() {				
 				@Override
 				public void run(ch.ethz.intervals.Interval subinterval) {
 					new IndexedInterval(subinterval, interval.height) {						

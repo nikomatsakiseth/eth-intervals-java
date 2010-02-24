@@ -342,8 +342,8 @@ object ir {
         override def toString = "Loop"
         def subseqs = List(seq)
     }
-    sealed case class Subinterval(lv_inter: VarName, lvs_locks: List[VarName], seq: StmtSeq) extends CompoundKind {
-        override def toString = "Subinterval[%s locks %s]".format(lv_inter, ", ".join(lvs_locks))
+    sealed case class InlineInterval(lv_inter: VarName, lvs_locks: List[VarName], seq: StmtSeq) extends CompoundKind {
+        override def toString = "InlineInterval[%s locks %s]".format(lv_inter, ", ".join(lvs_locks))
         def subseqs = List(seq)
     }
     sealed case class TryCatch(seq_try: StmtSeq, seq_catch: StmtSeq) extends CompoundKind {
@@ -665,8 +665,8 @@ object ir {
     sealed case class ReqReadableBy(lp: List[Path], lq: List[Path]) extends Req {
         override def toString = "requires %s readableBy %s".format(lp.mkString(", "), lq.mkString(", "))
     }
-    sealed case class ReqSubintervalOf(lp: List[Path], lq: List[Path]) extends Req {
-        override def toString = "requires %s subintervalOf %s".format(lp.mkString(", "), lq.mkString(", "))
+    sealed case class ReqSuspends(lp: List[Path], lq: List[Path]) extends Req {
+        override def toString = "requires %s suspends %s".format(lp.mkString(", "), lq.mkString(", "))
     }
     sealed case class ReqHb(lp: List[Path], lq: List[Path]) extends Req {
         override def toString = "requires %s hb %s".format(lp.mkString(", "), lq.mkString(", "))
@@ -863,7 +863,7 @@ object ir {
                     /* name:   */ m_run, 
                     /* args:   */ List(),
                     /* reqs:   */ List(
-                        ir.ReqSubintervalOf(List(p_mthd), List(p_this)),
+                        ir.ReqSuspends(List(p_mthd), List(p_this)),
                         ir.ReqHb(List(p_this_objCtor), List(p_mthd))),
                     /* body:   */ empty_method_body))
         ),

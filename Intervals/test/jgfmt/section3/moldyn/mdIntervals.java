@@ -32,7 +32,7 @@ import ch.ethz.intervals.IntReduction;
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.Point;
-import ch.ethz.intervals.VoidSubinterval;
+import ch.ethz.intervals.VoidInlineTask;
 
 public class mdIntervals extends mdBase {
 	
@@ -221,7 +221,7 @@ public class mdIntervals extends mdBase {
 			/* move the particles and update velocities */
 			
 			// use accumulate shared force to update position of all particles
-			Intervals.subinterval(new VoidSubinterval() {				
+			Intervals.inline(new VoidInlineTask() {				
 				@Override public void run(Interval subinterval) {
 					new IndexedInterval(subinterval, mdsize) {
 						public void run(int start, int stop) {
@@ -245,7 +245,7 @@ public class mdIntervals extends mdBase {
 			interacts.resetAccumulators();
 
 			/* compute forces */
-			Intervals.subinterval(new VoidSubinterval() {				
+			Intervals.inline(new VoidInlineTask() {				
 				@Override public void run(Interval subinterval) {
 					new IndexedInterval(subinterval, mdsize) {
 						public void run(int start, int stop) {

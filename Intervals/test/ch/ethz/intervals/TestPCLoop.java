@@ -1,6 +1,6 @@
 package ch.ethz.intervals;
 
-import static ch.ethz.intervals.Intervals.subinterval;
+import static ch.ethz.intervals.Intervals.inline;
 import static ch.ethz.intervals.Intervals.child;
 import static org.junit.Assert.assertEquals;
 
@@ -44,7 +44,7 @@ public class TestPCLoop {
 	
 	@Test public void test() {
 		final int MAX = 100;
-		subinterval(new VoidSubinterval() {
+		inline(new VoidInlineTask() {
 			public void run(Interval subinterval) {
 				Point endOfPrevConsumer = null;
 				for(int i = 0; i < MAX; i++) {

@@ -102,7 +102,7 @@ public class TestFuzzyBarrier {
 	}
 	
 	@Test public void doTest() {
-		Barrier b = Intervals.subinterval(new SubintervalTask<Barrier>() {
+		Barrier b = Intervals.inline(new InlineTask<Barrier>() {
 			@Override public String toString() { return "doTest"; }
 			@Override public Barrier run(Interval subinterval) {
 				return new Barrier(subinterval);

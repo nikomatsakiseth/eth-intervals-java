@@ -3,9 +3,8 @@ package basic;
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.quals.Creator;
-import ch.ethz.intervals.quals.Requires;
-import ch.ethz.intervals.quals.Subinterval;
 import ch.ethz.intervals.quals.GuardedBy;
+import ch.ethz.intervals.quals.Requires;
 
 public class VariousLoops {
 
@@ -19,7 +18,7 @@ public class VariousLoops {
 	    this.y = y;
 	}
 	
-	@Requires("method subintervalOf x")	
+	@Requires("method suspends x")	
 	protected void oldStyleForLoop() {
 	    for(
 	        xInt = 0;
@@ -34,7 +33,7 @@ public class VariousLoops {
 	    );
 	}
 
-	@Requires("method subintervalOf x")	
+	@Requires("method suspends x")	
 	protected void whileLoop() {
 	    xInt = 0;
 	    while(xInt < 10) 
@@ -49,7 +48,7 @@ public class VariousLoops {
 	    }
 	}
 	
-	@Requires("method subintervalOf x")	
+	@Requires("method suspends x")	
 	protected void doWhileLoop() {
 	    xInt = 0;
 	    do {
@@ -62,7 +61,7 @@ public class VariousLoops {
 	    } while(yInt < 10); // ERROR Interval "this.(basic.VariousLoops.y)" is not readable because the current interval may not happen after it.
 	}
 	
-	@Requires("method subintervalOf x")	
+	@Requires("method suspends x")	
 	protected void minimumIterationsAndTheHbRelation(
     	int j, 
     	@Creator("x") Object xObject

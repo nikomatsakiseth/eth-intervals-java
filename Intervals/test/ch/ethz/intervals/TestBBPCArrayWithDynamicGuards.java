@@ -1,7 +1,7 @@
 package ch.ethz.intervals;
 
 import static ch.ethz.intervals.Intervals.addHb;
-import static ch.ethz.intervals.Intervals.subinterval;
+import static ch.ethz.intervals.Intervals.inline;
 import static ch.ethz.intervals.Intervals.child;
 import static ch.ethz.intervals.Intervals.successor;
 
@@ -107,7 +107,7 @@ public class TestBBPCArrayWithDynamicGuards {
 		}
 
 		public void run() {
-			Intervals.subinterval(new VoidSubinterval() {
+			Intervals.inline(new VoidInlineTask() {
 				@Override public void run(Interval init) {
 					producers[0].set(new Producer(successor(), 0));
 					consumers[0].set(new Consumer(successor(), 0));
@@ -119,7 +119,7 @@ public class TestBBPCArrayWithDynamicGuards {
 
 	@Test
 	public void test() {
-		subinterval(new VoidSubinterval() {
+		inline(new VoidInlineTask() {
 			@Override public void run(final Interval subinterval) {
 				new BBPC(subinterval);
 			}

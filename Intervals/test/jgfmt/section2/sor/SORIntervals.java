@@ -26,7 +26,7 @@ import ch.ethz.intervals.Dependency;
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.Point;
-import ch.ethz.intervals.VoidSubinterval;
+import ch.ethz.intervals.VoidInlineTask;
 
 //class RowRecord {
 //	private final static boolean DEBUG = false;
@@ -127,7 +127,7 @@ public class SORIntervals {
 				
 		JGFInstrumentor.startTimer("Section2:SOR:Kernel");
 		
-		Intervals.subinterval(new VoidSubinterval() {			
+		Intervals.inline(new VoidInlineTask() {			
 			@Override public void run(Interval subinterval) {
 				// Intervals from previous iteration:
 				//   (note that null just means "no wait")

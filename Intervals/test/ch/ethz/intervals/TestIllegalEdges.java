@@ -21,7 +21,7 @@ public class TestIllegalEdges {
 	}
 	
 	@Test public void testCE() {
-		Intervals.subinterval(new VoidSubinterval() {			
+		Intervals.inline(new VoidInlineTask() {			
 			@Override public String toString() { return "a"; }
 			@Override public void run(Interval a) {
 				Interval a1 = new EmptyInterval(a, "a1"); 
@@ -32,7 +32,7 @@ public class TestIllegalEdges {
 	}
 	
 	@Test public void testMBBB() {
-		Intervals.subinterval(new VoidSubinterval() {			
+		Intervals.inline(new VoidInlineTask() {			
 			@Override public String toString() { return "a"; }
 			@Override public void run(Interval a) {
 				Interval a1 = new EmptyInterval(a, "a1"); 
@@ -69,7 +69,7 @@ public class TestIllegalEdges {
 	}
 	
 	@Test public void testMBBBWithSub() {
-		Intervals.subinterval(new VoidSubinterval() {			
+		Intervals.inline(new VoidInlineTask() {			
 			@Override public String toString() { return "a"; }
 			@Override public void run(Interval a) {
 				class Helper {
@@ -77,11 +77,11 @@ public class TestIllegalEdges {
 				}
 				final Helper h = new Helper();
 				
-				Intervals.subinterval(new VoidSubinterval() {					
+				Intervals.inline(new VoidInlineTask() {					
 					@Override public String toString() { return "a1"; }
 					@Override public void run(Interval a1) {
 						h.a1 = a1;
-						Intervals.subinterval(new VoidSubinterval() {							
+						Intervals.inline(new VoidInlineTask() {							
 							@Override public String toString() { return "a12"; }
 							@Override public void run(Interval a12) {
 								h.a12 = a12;
@@ -109,7 +109,7 @@ public class TestIllegalEdges {
 	@Test public void testIllegalToCreateChildEvenWithEdgeToEnd() {
 		final AtomicInteger integer = new AtomicInteger();
 		try {
-			Intervals.subinterval(new VoidSubinterval() {			
+			Intervals.inline(new VoidInlineTask() {			
 				@Override public void run(Interval subinterval) {
 					final Interval a = new TestInterval.IncTask(subinterval, "a", integer);
 					

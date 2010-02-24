@@ -38,8 +38,8 @@ abstract class BaseParser extends StandardTokenParsers {
         "#", "<=", "&&", "==", "=>", "<:"
     )
     lexical.reserved += (
-        "hbNow", "hb", "subintervalOf", "readableBy", "writableBy", 
-        "subintervalOf", "locks", ir.ctor
+        "hbNow", "hb", "suspends", "readableBy", "writableBy", 
+        "suspends", "locks", ir.ctor
     )
     
     def parse[A](p: Parser[A])(text: String) = {
@@ -78,7 +78,7 @@ abstract class BaseParser extends StandardTokenParsers {
     def reqBase = (
         comma(p)~"readableBy"~comma(p)          ^^ { case lp~_~lq => ir.ReqReadableBy(lp, lq) }
     |   comma(p)~"writableBy"~comma(p)          ^^ { case lp~_~lq => ir.ReqWritableBy(lp, lq) }
-    |   comma(p)~"subintervalOf"~comma(p)       ^^ { case lp~_~lq => ir.ReqSubintervalOf(lp, lq) }
+    |   comma(p)~"suspends"~comma(p)       ^^ { case lp~_~lq => ir.ReqSuspends(lp, lq) }
     |   comma(p)~"hb"~comma(p)                  ^^ { case lp~_~lq => ir.ReqHb(lp, lq) }
     )    
     

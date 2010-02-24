@@ -52,7 +52,7 @@ abstract class BaseSubst {
     def req(r: ir.Req): ir.Req = (r match {
         case ir.ReqWritableBy(lp, lq) => ir.ReqWritableBy(lp.map(path), lq.map(path))
         case ir.ReqReadableBy(lp, lq) => ir.ReqReadableBy(lp.map(path), lq.map(path))
-        case ir.ReqSubintervalOf(lp, lq) => ir.ReqSubintervalOf(lp.map(path), lq.map(path))
+        case ir.ReqSuspends(lp, lq) => ir.ReqSuspends(lp.map(path), lq.map(path))
         case ir.ReqHb(lp, lq) => ir.ReqHb(lp.map(path), lq.map(path))
     }).withPos(r.pos)
         

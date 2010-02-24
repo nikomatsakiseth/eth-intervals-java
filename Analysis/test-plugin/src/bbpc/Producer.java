@@ -4,7 +4,6 @@ import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.quals.Creator;
 import ch.ethz.intervals.quals.Requires;
-import ch.ethz.intervals.quals.Subinterval;
 
 public class Producer extends Interval {
 	
@@ -19,7 +18,7 @@ public class Producer extends Interval {
 	}
 
 	@Override
-	@Requires("method subintervalOf this")
+	@Requires("method suspends this")
 	protected void run() {
 		Data data = new /*@Creator("this")*/ Data();
 		pdata.data = data;

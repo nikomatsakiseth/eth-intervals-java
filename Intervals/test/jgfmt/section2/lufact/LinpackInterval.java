@@ -24,7 +24,7 @@ import ch.ethz.intervals.IndexedInterval;
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.Point;
-import ch.ethz.intervals.VoidSubinterval;
+import ch.ethz.intervals.VoidInlineTask;
 
 class LinpackInterval {
 
@@ -113,7 +113,7 @@ class LinpackInterval {
 
 					// row elimination with column indexing
 					final int k0 = k;
-					Intervals.subinterval(new VoidSubinterval() {						
+					Intervals.inline(new VoidInlineTask() {						
 						@Override public void run(Interval subinterval) {
 							new IndexedInterval(subinterval, kp1, n) {						
 								@Override

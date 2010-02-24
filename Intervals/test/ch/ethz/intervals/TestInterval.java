@@ -74,10 +74,10 @@ public class TestInterval {
 	@Test public void basic() {
 		for (int i = 0; i < repeat; i++) {
 			final List<List<Integer>> list = Collections.synchronizedList(new ArrayList<List<Integer>>());
-			Intervals.subinterval(new VoidSubinterval() {
+			Intervals.inline(new VoidInlineTask() {
 				@Override public String toString() { return "parentInterval"; }
 				public void run(final Interval parentInterval) {
-					Intervals.subinterval(new VoidSubinterval() {
+					Intervals.inline(new VoidInlineTask() {
 						@Override public String toString() { return "childInterval"; }
 						public void run(final Interval childInterval) {							
 							Interval after = new AddTask(parentInterval, list, 2);
@@ -102,7 +102,7 @@ public class TestInterval {
 	@Test public void manyChildren() {
 		final int c = 1024;
 		final AtomicInteger cnt = new AtomicInteger();
-		Intervals.subinterval(new VoidSubinterval() {
+		Intervals.inline(new VoidInlineTask() {
 			public void run(Interval _) {
 				for(int i = 0; i < c; i++)
 					new IncTask(Intervals.child(), "c"+i, cnt);
@@ -118,7 +118,7 @@ public class TestInterval {
 	@Test public void manyChildrenScheduled() {
 		final int c = 1024;
 		final AtomicInteger cnt = new AtomicInteger();
-		Intervals.subinterval(new VoidSubinterval() {
+		Intervals.inline(new VoidInlineTask() {
 			public void run(Interval _) {
 				for(int i = 0; i < c; i++) {
 					new IncTask(Intervals.child(), "c"+i, cnt).schedule();
@@ -136,7 +136,7 @@ public class TestInterval {
 	@Test public void manyDuring() {
 		final int c = 1024;
 		final AtomicInteger cnt = new AtomicInteger();
-		Intervals.subinterval(new VoidSubinterval() {
+		Intervals.inline(new VoidInlineTask() {
 			public void run(Interval _) {
 				Interval future = new EmptyInterval(Intervals.child(), "during");
 				for(int i = 0; i < c; i++)
@@ -157,7 +157,7 @@ public class TestInterval {
 		 *                               s
 		 */
 		final AtomicInteger successful = new AtomicInteger();
-		Intervals.subinterval(new VoidSubinterval() {
+		Intervals.inline(new VoidInlineTask() {
 			public void run(Interval subinterval) {
 				Interval worker = new EmptyInterval(subinterval, "worker");
 				Interval d = new EmptyInterval(worker, "d");

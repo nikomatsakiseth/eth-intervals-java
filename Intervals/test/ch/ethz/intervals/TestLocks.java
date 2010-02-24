@@ -45,7 +45,7 @@ public class TestLocks {
 		for(int i = 0; i < REPEAT; i++) {
 			final Lock l1 = new Lock();
 			final List<String> ids = new ArrayList<String>();
-			Intervals.subinterval(new VoidSubinterval() {			
+			Intervals.inline(new VoidInlineTask() {			
 				@Override public void run(Interval subinterval) {
 					new IdInterval(subinterval, ids, "0", l1);					
 					new IdInterval(subinterval, ids, "1", l1);					
@@ -64,7 +64,7 @@ public class TestLocks {
 		for(int i = 0; i < REPEAT; i++) {
 			final Lock l1 = new Lock();
 			final List<String> ids = new ArrayList<String>();
-			Intervals.subinterval(new VoidSubinterval() {			
+			Intervals.inline(new VoidInlineTask() {			
 				@Override public void run(Interval subinterval) {
 					Interval a = new IdInterval(subinterval, ids, "a", l1);
 					Interval a1 = new IdInterval(a, ids, "a1", l1);
@@ -91,7 +91,7 @@ public class TestLocks {
 	}
 	
 	
-	class LockingVoidSubinterval extends VoidSubinterval {
+	class LockingVoidSubinterval extends VoidInlineTask {
 		final String name;
 		final long[] times;
 		final List<String> ids;
@@ -129,20 +129,20 @@ public class TestLocks {
 			final long[] aTimes = new long[2];
 			final long[] bTimes = new long[2];
 			
-			Intervals.subinterval(new VoidSubinterval() {			
+			Intervals.inline(new VoidInlineTask() {			
 				@Override public String toString() {
 					return "outer";
 				}
 				@Override public void run(Interval subinterval) {
 					new Interval(subinterval, "inner1") {						
 						@Override protected void run() {
-							Intervals.subinterval(new LockingVoidSubinterval("a", aTimes, ids, l1));
+							Intervals.inline(new LockingVoidSubinterval("a", aTimes, ids, l1));
 						}
 					};
 					
 					new Interval(subinterval, "inner2") {						
 						@Override protected void run() {
-							Intervals.subinterval(new LockingVoidSubinterval("b", bTimes, ids, l1));
+							Intervals.inline(new LockingVoidSubinterval("b", bTimes, ids, l1));
 						}
 					};
 				}
@@ -169,7 +169,7 @@ public class TestLocks {
 			final long[] aTimes = new long[2];
 			final long[] bTimes = new long[2];
 			
-			Intervals.subinterval(new VoidSubinterval() {			
+			Intervals.inline(new VoidInlineTask() {			
 				@Override public String toString() {
 					return "outer";
 				}
@@ -209,7 +209,7 @@ public class TestLocks {
 			final Lock l1 = new Lock(), l2 = new Lock();
 			final int[] executed = new int[3];
 			
-			Intervals.subinterval(new VoidSubinterval() {			
+			Intervals.inline(new VoidInlineTask() {			
 				@Override public String toString() {
 					return "outer";
 				}
@@ -249,7 +249,7 @@ public class TestLocks {
 			final Lock l1 = new Lock(), l2 = new Lock();
 			final int[] executed = new int[3];
 			
-			Intervals.subinterval(new VoidSubinterval() {			
+			Intervals.inline(new VoidInlineTask() {			
 				@Override public String toString() {
 					return "outer";
 				}
@@ -267,7 +267,7 @@ public class TestLocks {
 	
 					Interval bOuter = new Interval(subinterval, "bOuter") {						
 						@Override protected void run() {
-							Intervals.subinterval(new VoidSubinterval() {
+							Intervals.inline(new VoidInlineTask() {
 								@Override public String toString() { return "b"; }
 								@Override public Lock[] locks() { return new Lock[] { l1, l2 }; }
 								@Override public void run(Interval subinterval) {

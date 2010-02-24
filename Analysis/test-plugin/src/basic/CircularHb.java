@@ -2,12 +2,8 @@ package basic;
 
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
-import ch.ethz.intervals.quals.Requires;
-import ch.ethz.intervals.quals.Subinterval;
-import ch.ethz.intervals.quals.Happens;
-import ch.ethz.intervals.quals.DefinesGhost;
 import ch.ethz.intervals.quals.Creator;
-import ch.ethz.intervals.quals.GuardedBy;
+import ch.ethz.intervals.quals.Requires;
 
 class CircularHbData {
     int i;
@@ -15,7 +11,7 @@ class CircularHbData {
 
 class CircularHb {
 
-	@Requires("method subintervalOf y")
+	@Requires("method suspends y")
     void method(
         Interval x, 
         Interval y,

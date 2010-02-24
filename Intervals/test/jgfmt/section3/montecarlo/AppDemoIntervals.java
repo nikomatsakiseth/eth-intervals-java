@@ -27,7 +27,7 @@ import java.util.Vector;
 
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
-import ch.ethz.intervals.VoidSubinterval;
+import ch.ethz.intervals.VoidInlineTask;
 
 
 /**
@@ -159,7 +159,7 @@ public class AppDemoIntervals extends Universal implements AppDemoInterface {
 	public void runThread() {
 		results = new Vector<Object>(nRunsMC);
 		
-		Intervals.subinterval(new VoidSubinterval() {			
+		Intervals.inline(new VoidInlineTask() {			
 			@Override public void run(Interval subinterval) {
 				for (int i = 0; i < nRunsMC; i++) {
 					final int iRun = i;

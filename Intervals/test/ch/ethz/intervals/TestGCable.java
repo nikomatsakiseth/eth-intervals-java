@@ -18,7 +18,7 @@ public class TestGCable {
 			new ArrayList<WeakReference<Interval>>();
 		
 		for(int i = 0; i < 10; i++)
-			Intervals.subinterval(new VoidSubinterval() {			
+			Intervals.inline(new VoidInlineTask() {			
 				@Override public void run(Interval subinterval) {
 					list.add(new WeakReference<Interval>(subinterval));
 				}
@@ -45,7 +45,7 @@ public class TestGCable {
 		for(int i = 0; i < 10; i++)
 			// Note: the subintervals stay live, but not the async intervals contained
 			// within!
-			Intervals.subinterval(new VoidSubinterval() {			
+			Intervals.inline(new VoidInlineTask() {			
 				@Override public void run(Interval subinterval) {					
 					allPoints.add(subinterval.start);
 					allPoints.add(subinterval.end);

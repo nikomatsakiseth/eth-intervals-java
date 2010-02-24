@@ -18,7 +18,7 @@ public class TestHB {
 	}	
 	
 	@Test public void ignoresSpeculative() {
-		Intervals.subinterval(new VoidSubinterval() {			
+		Intervals.inline(new VoidInlineTask() {			
 			@Override public void run(Interval subinterval) {
 				Interval a = new EmptyInterval(subinterval, "a");
 				Interval b = new EmptyInterval(subinterval, "b");
@@ -35,7 +35,7 @@ public class TestHB {
 		}
 		final Helper h = new Helper();
 		
-		Intervals.subinterval(new VoidSubinterval() {			
+		Intervals.inline(new VoidInlineTask() {			
 			@Override public void run(Interval subinterval) {
 				h.a = new EmptyInterval(subinterval, "a");
 				h.b = new EmptyInterval(subinterval, "b");
@@ -55,7 +55,7 @@ public class TestHB {
 		}
 		final Helper h = new Helper();
 		
-		Intervals.subinterval(new VoidSubinterval() {			
+		Intervals.inline(new VoidInlineTask() {			
 			@Override public void run(Interval subinterval) {
 				h.a = new EmptyInterval(subinterval, "a");
 				h.a1 = new EmptyInterval(h.a, "a1");
@@ -72,7 +72,7 @@ public class TestHB {
 		}
 		final Helper h = new Helper();
 		
-		Intervals.subinterval(new VoidSubinterval() {			
+		Intervals.inline(new VoidInlineTask() {			
 			@Override public void run(Interval subinterval) {
 				h.a = new EmptyInterval(subinterval, "a");
 				h.a1 = new EmptyInterval(h.a, "a1");
@@ -103,17 +103,17 @@ public class TestHB {
 		}
 		final Helper h = new Helper();
 		
-		Intervals.subinterval(new VoidSubinterval() {			
+		Intervals.inline(new VoidInlineTask() {			
 			@Override public String toString() { return "p"; }
 			@Override public void run(Interval p) {
 				h.p = p;
 				
-				Intervals.subinterval(new VoidSubinterval() {					
+				Intervals.inline(new VoidInlineTask() {					
 					@Override public String toString() { return "a0"; }
 					@Override public void run(Interval i) {
 						h.a[0] = i;
 						
-						Intervals.subinterval(new VoidSubinterval() {					
+						Intervals.inline(new VoidInlineTask() {					
 							@Override public String toString() { return "a1"; }
 							@Override public void run(Interval i) {
 								h.a[1] = i;
@@ -123,12 +123,12 @@ public class TestHB {
 					}
 				});
 				
-				Intervals.subinterval(new VoidSubinterval() {					
+				Intervals.inline(new VoidInlineTask() {					
 					@Override public String toString() { return "b0"; }
 					@Override public void run(Interval i) {
 						h.b[0] = i;
 						
-						Intervals.subinterval(new VoidSubinterval() {					
+						Intervals.inline(new VoidInlineTask() {					
 							@Override public String toString() { return "b1"; }
 							@Override public void run(Interval i) {
 								h.b[1] = i;

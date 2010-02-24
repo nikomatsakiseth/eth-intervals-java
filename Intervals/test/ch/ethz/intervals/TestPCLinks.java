@@ -1,6 +1,6 @@
 package ch.ethz.intervals;
 
-import static ch.ethz.intervals.Intervals.subinterval;
+import static ch.ethz.intervals.Intervals.inline;
 import static ch.ethz.intervals.Intervals.child;
 import static ch.ethz.intervals.Intervals.successor;
 import static org.junit.Assert.assertEquals;
@@ -124,7 +124,7 @@ public class TestPCLinks {
 	}
 
 	protected void runProducerConsumer() {
-		subinterval(new VoidSubinterval() {
+		inline(new VoidInlineTask() {
 			@Override public void run(Interval subinterval) {
 				ProducerData data0 = new ProducerData();
 				Interval prod0 = new Producer(child(), 0, data0);

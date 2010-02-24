@@ -99,8 +99,8 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog)
         setEnv(env.addDeclaredWritableBy(cp, cq))
     }
 
-    def addSubintervalOf(cp: ir.CanonPath, cq: ir.CanonPath): Unit = {
-        setEnv(env.addSubintervalOf(cp, cq))
+    def addSuspends(cp: ir.CanonPath, cq: ir.CanonPath): Unit = {
+        setEnv(env.addSuspends(cp, cq))
     }
 
     def addLocks(cp: ir.CanonPath, cq: ir.CanonPath): Unit = {

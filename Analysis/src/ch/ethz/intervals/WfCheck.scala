@@ -251,7 +251,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                         case ir.Switch(_) =>
                         case ir.Loop(_, lvs_initial, _) =>
                             env.reifiedLvs(lvs_initial)
-                        case ir.Subinterval(x, lvs_locks, _) =>
+                        case ir.InlineInterval(x, lvs_locks, _) =>
                             env.reifiedLvs(lvs_locks)
                             addReifiedLocal(x, ir.wt_constructedInterval)
                         case ir.TryCatch(_, _) =>
@@ -286,7 +286,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                 case ir.ReqHb(ps, qs) => 
                     checkCanonAndSubclasses(canonPath, ps, ir.c_point, ir.c_interval)
                     checkCanonAndSubclasses(canonPath, qs, ir.c_point, ir.c_interval)
-                case ir.ReqSubintervalOf(ps, qs) => 
+                case ir.ReqSuspends(ps, qs) => 
                     checkCanonAndSubclasses(canonPath, ps, ir.c_interval)
                     checkCanonAndSubclasses(canonPath, qs, ir.c_interval)
             }   

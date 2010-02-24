@@ -20,7 +20,7 @@ public @interface Requires {
 	/**
 	 * Requirements that are only applied to constructor.
 	 */
-	public String[] constructor() default { "method subintervalOf this.Constructor" };
+	public String[] constructor() default { "method suspends this.Constructor" };
 
 	/**
 	 * Requirements that are only applied to regular instance methods.

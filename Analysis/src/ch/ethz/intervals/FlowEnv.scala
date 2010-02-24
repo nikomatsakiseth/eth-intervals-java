@@ -11,19 +11,19 @@ case class FlowEnv(
     readableRel: PathRelation,      // (p, q) means guard p is readable by interval q
     writableRel: PathRelation,      // (p, q) means guard p is writable by interval q
     hbRel: PathRelation,            // (p, q) means point p hb point q
-    subintervalRel: PathRelation,   // (p, q) means interval p is a subinterval of interval q
+    inlineIntervalRel: PathRelation,   // (p, q) means interval p is a inlineInterval of interval q
     locksRel: PathRelation          // (p, q) means interval p locks lock q            
 ) {
     // ___ Creating new flow environments ___________________________________
     
-    def withNonnull(nonnull: Set[ir.Path]) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, subintervalRel, locksRel)
-    def withTemp(temp: Map[ir.Path, ir.Path]) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, subintervalRel, locksRel)
-    def withInvalidated(ps_invalidated: Set[ir.Path]) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, subintervalRel, locksRel)
-    def withReadableRel(readableRel: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, subintervalRel, locksRel)
-    def withWritableRel(writableRel: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, subintervalRel, locksRel)
-    def withHbRel(hbRel: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, subintervalRel, locksRel)
-    def withSubintervalRel(subintervalRel: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, subintervalRel, locksRel)
-    def withLocksRel(locksRel: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, subintervalRel, locksRel)
+    def withNonnull(nonnull: Set[ir.Path]) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, inlineIntervalRel, locksRel)
+    def withTemp(temp: Map[ir.Path, ir.Path]) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, inlineIntervalRel, locksRel)
+    def withInvalidated(ps_invalidated: Set[ir.Path]) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, inlineIntervalRel, locksRel)
+    def withReadableRel(readableRel: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, inlineIntervalRel, locksRel)
+    def withWritableRel(writableRel: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, inlineIntervalRel, locksRel)
+    def withHbRel(hbRel: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, inlineIntervalRel, locksRel)
+    def withInlineIntervalRel(inlineIntervalRel: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, inlineIntervalRel, locksRel)
+    def withLocksRel(locksRel: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, inlineIntervalRel, locksRel)
     
     // ___ Convenience functions for taking nonnull into account ____________
     
@@ -38,7 +38,7 @@ case class FlowEnv(
     def readable = readableRel.pairs
     def writable = writableRel.pairs
     def hb = hbRel.pairs
-    def subinterval = subintervalRel.pairs
+    def inlineInterval = inlineIntervalRel.pairs
     def locks = locksRel.pairs     
     
     // ___ Combining flow environments ______________________________________
@@ -50,7 +50,7 @@ case class FlowEnv(
         withReadableRel(readableRel ++ flow.readableRel).
         withWritableRel(writableRel ++ flow.writableRel).
         withHbRel(hbRel ++ flow.hbRel).
-        withSubintervalRel(subintervalRel ++ flow.subintervalRel).
+        withInlineIntervalRel(inlineIntervalRel ++ flow.inlineIntervalRel).
         withLocksRel(locksRel ++ flow.locksRel)
     }
     
@@ -62,7 +62,7 @@ case class FlowEnv(
         withReadableRel(readableRel & flow2.readableRel).
         withWritableRel(writableRel & flow2.writableRel).
         withHbRel(hbRel & flow2.hbRel).
-        withSubintervalRel(subintervalRel & flow2.subintervalRel).
+        withInlineIntervalRel(inlineIntervalRel & flow2.inlineIntervalRel).
         withLocksRel(locksRel & flow2.locksRel)
     }    
 }
@@ -76,7 +76,7 @@ object FlowEnv
         PathRelation.intransitive,      // readableRel
         PathRelation.intransitive,      // writableRel
         PathRelation.transitive,        // hbRel
-        PathRelation.transitive,        // subintervalRel
+        PathRelation.transitive,        // inlineIntervalRel
         PathRelation.intransitive       // locksRel
     )
     

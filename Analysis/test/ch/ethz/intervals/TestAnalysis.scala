@@ -156,14 +156,14 @@ class TestAnalysis extends JUnitSuite {
                 #Object@#Creator(this.inter) obj requires this.#Creator;
                 
                 Constructor() 
-                requires method subintervalOf this.#Creator
+                requires method suspends this.#Creator
                 {                   
                     super();                    
                     return;
                 }
                 
                 void setBothOkWhenGivenAsParameters(#Interval inter, #Object@#Creator(inter) obj) 
-                requires method subintervalOf this.#Creator
+                requires method suspends this.#Creator
                 {
                     this->inter = inter;
                     this->obj = obj;
@@ -171,7 +171,7 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 void setBothOkWhenOneIsCreated(#Interval inter)
-                requires method subintervalOf this.#Creator
+                requires method suspends this.#Creator
                 {
                     obj = new #Object@#Creator(inter)();
                     
@@ -181,7 +181,7 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 void setBothWrongOrder(#Interval inter, #Object@#Creator(inter) obj) 
-                requires method subintervalOf this.#Creator
+                requires method suspends this.#Creator
                 {
                     this->obj = obj; // ERROR intervals.expected.subtype(obj, @#Constructor(hbNow) @#Creator(inter) #Object, @#Constructor(hbNow this.#Constructor) @#Creator(this.inter) #Object)
                     this->inter = inter;
@@ -189,7 +189,7 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 void setOneNotOk(#Interval inter) 
-                requires method subintervalOf this.#Creator
+                requires method suspends this.#Creator
                 {
                     this->inter = inter;
                     return; // ERROR intervals.must.assign.first(this.obj)
@@ -201,7 +201,7 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 void invokingAnotherMethodInBetweenNotOk(#Interval inter, #Object@#Creator(inter) obj) 
-                requires method subintervalOf this.#Creator
+                requires method suspends this.#Creator
                 {
                     this->inter = inter;
                     this->anotherMethod(); // ERROR intervals.must.assign.first(this.obj)
@@ -210,7 +210,7 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 void invokingAnotherMethodAfterIsOk(#Interval inter, #Object@#Creator(inter) obj) 
-                requires method subintervalOf this.#Creator
+                requires method suspends this.#Creator
                 {
                     this->inter = inter;
                     this->obj = obj;                    
@@ -219,7 +219,7 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 void creatingObjectsInBetweenNotOk(#Interval inter, #Object@#Creator(inter) obj) 
-                requires method subintervalOf this.#Creator
+                requires method suspends this.#Creator
                 {
                     this->inter = inter;
                     obj2 = new #Object@#Creator(inter)(); // ERROR intervals.must.assign.first(this.obj)
@@ -228,7 +228,7 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 void creatingObjectsAfterIsOk(#Interval inter, #Object@#Creator(inter) obj) 
-                requires method subintervalOf this.#Creator
+                requires method suspends this.#Creator
                 {
                     this->inter = inter;
                     this->obj = obj;
@@ -311,7 +311,7 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 void writeDuringConstructor() 
-                requires method subintervalOf this.Constructor
+                requires method suspends this.Constructor
                 {
                     c = this->c; 
                     
@@ -322,7 +322,7 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 void readDuringConstructor() 
-                requires method subintervalOf this.Constructor
+                requires method suspends this.Constructor
                 {
                     // Always constructed:
                     constructed = this->constructed;
@@ -387,10 +387,10 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 void readFinal(#Object@#Creator(this.final) o) 
-                requires method subintervalOf this
+                requires method suspends this
                 requires this.Constructor hb method
                 {
-                    // this.final hb this, and method is a subinterval of this,
+                    // this.final hb this, and method is a inlineInterval of this,
                     // so this.final hb method:
                     o->toString();
                     return;
@@ -400,7 +400,7 @@ class TestAnalysis extends JUnitSuite {
                 requires this.Constructor hb method
                 {
                     // Here we do not require this method be
-                    // invoked with method a subinterval of this,
+                    // invoked with method a inlineInterval of this,
                     // so we don't know that this.final is readable.
                     o->toString(); // ERROR intervals.requirement.not.met(toString, requires o.#Creator readableBy <method-call>)
                     return;
@@ -451,7 +451,7 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 void run() 
-                requires method subintervalOf this
+                requires method suspends this
                 {
                     obj = this->obj;
                     obj->toString();
@@ -470,7 +470,7 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 void run() 
-                requires method subintervalOf this
+                requires method suspends this
                 {
                     obj = this->obj;
                     obj->toString(); // ERROR intervals.requirement.not.met(toString, requires this.obj.#Creator readableBy <method-call>)
@@ -514,21 +514,21 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 void mu(#Object@#Creator(this.unrelated) o) 
-                requires method subintervalOf this
+                requires method suspends this
                 {
                     o->toString(); // ERROR intervals.requirement.not.met(toString, requires o.#Creator readableBy <method-call>)
                     return;
                 }
                 
                 void mr(#Object@#Creator(this.maybeRelated) o) 
-                requires method subintervalOf this
+                requires method suspends this
                 {
                     o->toString(); // ERROR intervals.requirement.not.met(toString, requires o.#Creator readableBy <method-call>)
                     return;
                 }
                 
                 void mb(#Object@#Creator(this.before) o) 
-                requires method subintervalOf this
+                requires method suspends this
                 {
                     o->toString(); 
                     return;
@@ -563,7 +563,7 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 void readFinal(#Object @#Creator(this.final) o) 
-                requires method subintervalOf this
+                requires method suspends this
                 {
                     o->toString(); // ERROR intervals.requirement.not.met(toString, requires o.#Creator readableBy <method-call>)
                     return;
@@ -620,8 +620,8 @@ class TestAnalysis extends JUnitSuite {
             
             class UnsupportedReqs1 extends A 
             {
-                void aHbB() // ERROR intervals.override.adds.req(requires method subintervalOf this.#Constructor)
-                requires method subintervalOf this.Constructor 
+                void aHbB() // ERROR intervals.override.adds.req(requires method suspends this.#Constructor)
+                requires method suspends this.Constructor 
                 {                    
                     return;
                 }
@@ -775,7 +775,7 @@ class TestAnalysis extends JUnitSuite {
                 #String f2 requires this.init;
                 
                 Constructor(#String f1) 
-                requires method subintervalOf this.init
+                requires method suspends this.init
                 {
                     super();
                     this->f1 = f1;
@@ -783,7 +783,7 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 void additionalInit(#String f2)
-                requires method subintervalOf this.init
+                requires method suspends this.init
                 {
                     this->f2 = f2;
                     return;
@@ -805,7 +805,7 @@ class TestAnalysis extends JUnitSuite {
     } 
     
     @Test
-    def subinterval() {
+    def inlineInterval() {
         tc(
             """
             class Monitor extends #Object@#Creator(this.Constructor) {
@@ -845,7 +845,7 @@ class TestAnalysis extends JUnitSuite {
                 requires this.Constructor hb method
                 {
                     lock = this->lock;
-                    subinterval x locks lock {
+                    inlineInterval x locks lock {
                         v = this->value;                         
                         break 0(v); // 0 == seq, 1 == subinter
                     } => (#String v1);
@@ -856,7 +856,7 @@ class TestAnalysis extends JUnitSuite {
                 requires this.Constructor hb method
                 {
                     lock = this->lock;
-                    subinterval x locks lock {
+                    inlineInterval x locks lock {
                         this->value = v;
                         break 0();
                     }
@@ -1246,7 +1246,7 @@ class TestAnalysis extends JUnitSuite {
                     lock = new #Lock();
                     this->lock = lock;
                     
-                    subinterval x locks lock {
+                    inlineInterval x locks lock {
                         data = (Data@lock(this.lock))null;
                         this->data = data;                        
                         
@@ -1281,7 +1281,7 @@ class TestAnalysis extends JUnitSuite {
                 }
                 
                 void run() 
-                requires method subintervalOf this
+                requires method suspends this
                 {
                     // Update data:
                     link = this->link;
@@ -1424,7 +1424,7 @@ class TestAnalysis extends JUnitSuite {
                 }
 
                 void run()
-                requires method subintervalOf this
+                requires method suspends this
                 {
                     pdata = this->pdata;
                     cdata = this->cdata;
@@ -1460,7 +1460,7 @@ class TestAnalysis extends JUnitSuite {
                 }
 
                 void run()
-                requires method subintervalOf this
+                requires method suspends this
                 {
                     pdata = this->pdata;
                     cdata = this->cdata;
@@ -1480,7 +1480,7 @@ class TestAnalysis extends JUnitSuite {
             
             class BBPC extends #Interval {
                 void run()
-                requires method subintervalOf this
+                requires method suspends this
                 {
                     d0 = new ConsData@#Creator(this)();
                     d1 = new ConsData@#Creator(this)();

@@ -1,6 +1,6 @@
 package ch.ethz.intervals;
 
-import static ch.ethz.intervals.Intervals.subinterval;
+import static ch.ethz.intervals.Intervals.inline;
 import static ch.ethz.intervals.util.ChunkList.TEST_EDGE;
 
 import java.util.Collections;
@@ -35,7 +35,7 @@ public class TestErrorPropagation {
 	 */
 	@Test public void exceptionPropagatesToParent() {
 		try {
-			Intervals.subinterval(new VoidSubinterval() {
+			Intervals.inline(new VoidInlineTask() {
 				public void run(Interval subinterval) {
 					new ThrowExceptionTask(subinterval);
 				}
@@ -53,7 +53,7 @@ public class TestErrorPropagation {
 	 */
 	@Test public void catchMethodSubstitutesADifferentException() {
 		try {
-			Intervals.subinterval(new VoidSubinterval() {
+			Intervals.inline(new VoidInlineTask() {
 				public void run(Interval subinterval) {
 					new ThrowExceptionTask(subinterval) {
 	
@@ -81,7 +81,7 @@ public class TestErrorPropagation {
 	 * Tests that returning an empty set causes no exceptions to be thrown.
 	 */
 	@Test public void catchMethodReturnsEmptySet() {
-		Intervals.subinterval(new VoidSubinterval() {
+		Intervals.inline(new VoidInlineTask() {
 			public void run(Interval subinterval) {
 				new ThrowExceptionTask(subinterval) {
 						@Override
@@ -105,7 +105,7 @@ public class TestErrorPropagation {
 	@Test public void uncaughtExceptionsPreventSuccessorsFromExecuting() {
 		final AtomicInteger integer = new AtomicInteger();
 		try {
-			Intervals.subinterval(new VoidSubinterval() {
+			Intervals.inline(new VoidInlineTask() {
 				public void run(Interval subinterval) {
 					Interval err = new ThrowExceptionTask(subinterval);
 					Interval inc = new IncTask(subinterval, "inc", integer);
@@ -125,7 +125,7 @@ public class TestErrorPropagation {
 	@Test public void addingChildrenAfterRunMethodFailsIsOk() {
 		final AtomicInteger integer = new AtomicInteger();
 		try {
-			Intervals.subinterval(new VoidSubinterval() {
+			Intervals.inline(new VoidInlineTask() {
 				public void run(Interval subinterval) {
 					final Interval thr = new ThrowExceptionTask(subinterval);					
 					
@@ -164,7 +164,7 @@ public class TestErrorPropagation {
 	 */
 	@Test public void addingChildrenDuringCatchErrorsIsUncool() {
 		try {
-			Intervals.subinterval(new VoidSubinterval() {
+			Intervals.inline(new VoidInlineTask() {
 				public void run(Interval subinterval) {
 					new ThrowExceptionTask(subinterval) {
 						@Override protected Set<? extends Throwable> catchErrors(Set<Throwable> errors) {
@@ -190,7 +190,7 @@ public class TestErrorPropagation {
 	@Test public void predecessorsOfEndThatDie() {
 		final AtomicInteger integer = new AtomicInteger();
 		try {
-			Intervals.subinterval(new VoidSubinterval() {
+			Intervals.inline(new VoidInlineTask() {
 				public void run(Interval subinterval) {
 					Interval thr = new ThrowExceptionTask(subinterval);
 					Interval x = new IncTask(subinterval, "x", integer, 1);
@@ -221,7 +221,7 @@ public class TestErrorPropagation {
 		
 		final AtomicInteger integer = new AtomicInteger();
 		try {
-			Intervals.subinterval(new VoidSubinterval() {
+			Intervals.inline(new VoidInlineTask() {
 				public void run(Interval subinterval) {
 					Interval thr = new ThrowExceptionTask(subinterval);
 					Interval x = new IncTask(subinterval, "x", integer, 1);
@@ -248,7 +248,7 @@ public class TestErrorPropagation {
 	@Test public void predecessorsOfEndThatDieAndInternalErrorsToo() {
 		final AtomicInteger integer = new AtomicInteger();
 		try {
-			Intervals.subinterval(new VoidSubinterval() {
+			Intervals.inline(new VoidInlineTask() {
 				public void run(Interval subinterval) {
 					Interval thr = new ThrowExceptionTask(subinterval);
 					Interval a = new ThrowExceptionTask(subinterval) {
@@ -285,7 +285,7 @@ public class TestErrorPropagation {
 			public Interval savedInter;
 			public void test() {
 				try {
-					Intervals.subinterval(new VoidSubinterval() {
+					Intervals.inline(new VoidInlineTask() {
 						public void run(Interval subinterval) {
 							savedInter = subinterval; 
 							new ThrowExceptionTask(subinterval);
@@ -307,7 +307,7 @@ public class TestErrorPropagation {
 		// This should not cause an exception to be thrown, even though
 		// the end of h.savedInter has an associated exception, because h.savedInter.end
 		// (the end of the blocking interval) is set to mask exceptions.
-		Intervals.subinterval(new VoidSubinterval() {			
+		Intervals.inline(new VoidInlineTask() {			
 			public void run(Interval subinterval) {
 				Intervals.addHb(h.savedInter.end, subinterval.end);
 			}
@@ -321,7 +321,7 @@ public class TestErrorPropagation {
 		class TestHarness {
 			public void test() {
 				try {
-					Intervals.subinterval(new VoidSubinterval() {
+					Intervals.inline(new VoidInlineTask() {
 						public void run(Interval _) {
 							new Interval(Intervals.child()) {
 								@Override protected void run() {
@@ -390,7 +390,7 @@ public class TestErrorPropagation {
 		class TestHarness {
 			public void test(final int length) {
 				try {
-					Intervals.subinterval(new VoidSubinterval() {
+					Intervals.inline(new VoidInlineTask() {
 						public void run(final Interval subinterval) {			
 							for(int i = 0; i < length; i++) {
 								new ThrowExceptionTask(subinterval);
@@ -413,7 +413,7 @@ public class TestErrorPropagation {
 	@Test
 	public void parentIntervalsWithUnexecutedChildrenCancelSafely() {
 		try {
-			Intervals.subinterval(new VoidSubinterval() {				
+			Intervals.inline(new VoidInlineTask() {				
 				@Override public void run(Interval subinterval) {
 					Interval thr = new ThrowExceptionTask(subinterval);
 					
@@ -435,7 +435,7 @@ public class TestErrorPropagation {
 		final AtomicInteger i = new AtomicInteger();
 		
 		try {
-			subinterval(new VoidSubinterval() {
+			inline(new VoidInlineTask() {
 				public void run(final Interval subinterval) {	
 					new IncTask(subinterval, "inc", i);
 					Interval b = new EmptyInterval(subinterval, "b");
@@ -457,7 +457,7 @@ public class TestErrorPropagation {
 		final AtomicInteger i = new AtomicInteger();
 		
 		try {
-			subinterval(new VoidSubinterval() {
+			inline(new VoidInlineTask() {
 				public void run(final Interval subinterval) {
 					new IncTask(subinterval, "inc", i);
 					Interval a = new EmptyInterval(subinterval, "a");
@@ -479,7 +479,7 @@ public class TestErrorPropagation {
 	public void raceCycle1() {
 		assert Intervals.SAFETY_CHECKS; // or else this test is not so useful.
 		final AtomicInteger cnt = new AtomicInteger();
-		subinterval(new VoidSubinterval() {			
+		inline(new VoidInlineTask() {			
 			public void run(final Interval subinterval) {
 				Interval a = new IncTask(subinterval, "a", cnt);
 				Interval b = new IncTask(subinterval, "b", cnt);
@@ -507,7 +507,7 @@ public class TestErrorPropagation {
 	public void raceCycle2() {
 		assert Intervals.SAFETY_CHECKS; // or else this test is not so useful.
 		final AtomicInteger cnt = new AtomicInteger();
-		subinterval(new VoidSubinterval() {			
+		inline(new VoidInlineTask() {			
 			@Override public String toString() { return "parent"; }
 			@Override public void run(final Interval subinterval) {				
 				new Interval(subinterval, "child") {		

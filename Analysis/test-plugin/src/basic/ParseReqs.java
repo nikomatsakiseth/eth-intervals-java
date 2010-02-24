@@ -19,7 +19,7 @@ public class ParseReqs {
 	
 	// Error occurs because 'interA' is not stable at the
 	// the time subinter1 runs:
-	@Requires("method subintervalOf interA")
+	@Requires("method suspends interA")
 	void interA1() {} // ERROR Path "this.(basic.ParseReqs.interA)" must be immutable to be used here.
 
     // ----------------------------------------------------------------------
@@ -27,12 +27,12 @@ public class ParseReqs {
     Interval interB;
 
     // Error occurs for same as reason as interA1()
-	@Requires("method subintervalOf interB")
+	@Requires("method suspends interB")
     void interB1() {} // ERROR Path "this.(basic.ParseReqs.interB)" must be immutable to be used here.
 
 	@Requires({
 		"ParseReqsCreator hb method",
-		"method subintervalOf interB"
+		"method suspends interB"
 	})
 	void interB2() {}
 

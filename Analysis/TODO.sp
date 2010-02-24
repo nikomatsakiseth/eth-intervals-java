@@ -10,9 +10,9 @@ ______ Bugs __________________________________________________________
   
   Not sure what is the best alternative. One thought is to require that the end of the
   interval's object ctor always //happens before// the end of the method or the enclosing
-  subinterval: This works if eliminate explicit calls to {schedule()}, as the interval
+  inlineInterval: This works if eliminate explicit calls to {schedule()}, as the interval
   will only be scheduled when the {run()} method which created it returns. Unsatisfying
-  because it distinguishes reified subintervals somewhat, but perhaps that's ok.
+  because it distinguishes reified inlineIntervals somewhat, but perhaps that's ok.
 
 - Update type of f_objCtor from t_interval to something which requires
   that the interval ctor has completed, at least.  Or is that necessary?
