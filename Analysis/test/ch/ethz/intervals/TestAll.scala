@@ -5,7 +5,7 @@ import java.io.File
 
 class TestAll extends SuperSuite(List(
     new TestAnalysis(),
-    new TestGenerics(),
+    new TestTcEnv(),
     new TestPlugin()
 ))
 

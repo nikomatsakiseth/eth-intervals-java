@@ -20,7 +20,7 @@ class TestAnalysis extends JUnitSuite {
     import TestAll.DEBUG_DIR
     import TestAll.subst
     
-    val logTests: Set[String] = Set("bbpcData")
+    val logTests: Set[String] = Set("")
     
     // ___ Test running infrastructure ______________________________________
     
@@ -291,6 +291,11 @@ class TestAnalysis extends JUnitSuite {
                     return;
                 }
                 
+                void built()
+                requires this.#Constructor hb method
+                {
+                }
+                
                 // This method is invokable from both within and without the
                 // constructor.  It cannot read fields like 'c' because that
                 // might permit a data race if the 'this' pointer were shared
@@ -321,18 +326,18 @@ class TestAnalysis extends JUnitSuite {
                 {
                     // Always constructed:
                     constructed = this->constructed;
-                    c1 = constructed->toString();                    
+                    c1 = constructed->built();                    
                     c2 = constructed->c;
                     
                     // Not known to be constructed because this.Constructor in progress:
                     // (Nor do we know that dflt.Constructor is in progess, so can't read)
                     dflt = this->dflt;
-                    d1 = dflt->toString(); // ERROR intervals.requirement.not.met(toString, requires dflt.#Constructor hb <method-call>)
+                    d1 = dflt->built(); // ERROR intervals.requirement.not.met(built, requires dflt.#Constructor hb <method-call>)
                     d2 = dflt->c; // ERROR intervals.not.readable(dflt.#Constructor)
                     
                     // Not known to be constructed:
                     unconstructed = this->unconstructed;
-                    u1 = unconstructed->toString(); // ERROR intervals.requirement.not.met(toString, requires unconstructed.#Constructor hb <method-call>)
+                    u1 = unconstructed->built(); // ERROR intervals.requirement.not.met(built, requires unconstructed.#Constructor hb <method-call>)
                     u2 = unconstructed->c; // ERROR intervals.not.readable(unconstructed.#Constructor)
                     
                     return;
@@ -343,17 +348,17 @@ class TestAnalysis extends JUnitSuite {
                 {
                     // Always constructed:
                     constructed = this->constructed;
-                    c1 = constructed->toString();                    
+                    c1 = constructed->built();                    
                     c2 = constructed->c;
                     
                     // Known to be constructed because this.Constructor is in progress:
                     dflt = this->dflt;
-                    d1 = dflt->toString();                    
+                    d1 = dflt->built();                    
                     d2 = dflt->c;
                     
                     // Not known to be constructed:
                     unconstructed = this->unconstructed;
-                    u1 = unconstructed->toString(); // ERROR intervals.requirement.not.met(toString, requires this.unconstructed.#Constructor hb <method-call>)
+                    u1 = unconstructed->built(); // ERROR intervals.requirement.not.met(built, requires this.unconstructed.#Constructor hb <method-call>)
                     u2 = unconstructed->c; // ERROR intervals.not.readable(this.unconstructed.#Constructor)
                     
                     return;

@@ -14,10 +14,10 @@ import scala.util.parsing.input.Position
 import java.net.URLEncoder
 import java.io.File
 
-class TestGenerics extends JUnitSuite { 
+class TestTcEnv extends JUnitSuite { 
     import TestAll.DEBUG_DIR
     
-    val logTests: Set[String] = Set()
+    val logTests: Set[String] = Set("happened")
     
     // Implicits for concisely creating WcClassTypes:
     case class EnhancedWcClassType(wct: ir.WcClassType) {
@@ -63,7 +63,7 @@ class TestGenerics extends JUnitSuite {
         
         val mainSplitLog = {
             if(logTests(invokingMthdName)) {
-                LogDirectory.newLogDirectory(DEBUG_DIR, "TestGeneric-%s".format(invokingMthdName)).mainSplitLog
+                LogDirectory.newLogDirectory(DEBUG_DIR, "TestTcEnv-%s".format(invokingMthdName)).mainSplitLog
             } else {
                 SplitLog.devNullSplitLog
             }
@@ -275,11 +275,13 @@ class TestGenerics extends JUnitSuite {
     
     @Test
     def happened() = setup("") { prog =>
+        val lv_w = ir.VarName("w")
         val lv_x = ir.VarName("x")
         val lv_y = ir.VarName("y")
         val lv_z = ir.VarName("z")
         
         implicit var env = prog.env_empty
+        env = env.addGhostLocal(lv_w, ir.c_interval)
         env = env.addGhostLocal(lv_x, ir.c_interval)
         env = env.addGhostLocal(lv_y, ir.c_interval)
         env = env.addGhostLocal(lv_z, ir.c_interval)
@@ -293,17 +295,17 @@ class TestGenerics extends JUnitSuite {
         assertEqual(
             ct_object(ir.f_creator, hbNow(lv_x.path, lv_y.path)),
             ct_object(ir.f_creator, hbNow(lv_x.path, lv_y.path)))
-            
-        assertOrdered(
-            ct_object(ir.f_creator, hbNow()),
+        
+        assertEqual( // Because x happened
+            ct_object(ir.f_creator, hbNow(lv_y.path)),
             ct_object(ir.f_creator, hbNow(lv_x.path, lv_y.path)))
             
         assertOrdered(
-            ct_object(ir.f_creator, hbNow(lv_x.path, lv_y.path)),
-            ct_object(ir.f_creator, hbNow(lv_y.path)))
+            ct_object(ir.f_creator, hbNow(lv_w.path)),
+            ct_object(ir.f_creator, hbNow(lv_w.path, lv_y.path)))
             
         assertOrdered(
-            ct_object(ir.f_creator, hbNow(lv_y.path)),
+            ct_object(ir.f_creator, hbNow()),
             ct_object(ir.f_creator, hbNow(lv_x.path, lv_y.path)))
             
         assertNotSubtype(
