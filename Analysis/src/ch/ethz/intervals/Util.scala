@@ -159,7 +159,7 @@ object Util {
         // returning the first Some(_) that results (or None
         // if no Some(_) ever results)
         def firstSomeReturned[F](fn: (I => Option[F])): Option[F] = {
-            foldLeft[Option[F]](None) { 
+            is.foldLeft[Option[F]](None) { 
                 case (None, i) => fn(i)
                 case (Some(f), _) => Some(f)
             }

@@ -351,7 +351,7 @@ sealed case class TcEnv(
             val vis1 = vis_in + cp1.p
             
             // Does cp0's type specify a value for ghost field f?
-            ghost(crp0.toTcp, f_gfd) match {
+            ghost(crp0, f_gfd) match {
                 // cp0 had a type with a precise path like Foo<f: q>
                 // where q has not yet been visited.  Redirect.
                 case ir.WcGhost(_, q: ir.Path) if !vis1(q) =>
@@ -371,21 +371,9 @@ sealed case class TcEnv(
         lowerBoundingCts(wt).flatMap(wct => ghostFieldsDeclaredOnClassAndSuperclasses(wct.c))
     }
     
-    /** Given a type, returns all ghosts bound on instances of this type.
-      * This includes ghosts in the type and also in the class the type refers to. */
-    def wcGhostsBoundOnType(wt: ir.WcTypeRef): Set[ir.WcGhost] = {
-        lowerBoundingCts(wt).flatMap(wct => wct.wghosts ++ ghostsOnClassAndSuperclasses(wct.c))
-    }
-    
     /** Returns all type variables declared on the class(es) this type refers to. */
     def typeVarsDeclaredOnType(wt: ir.WcTypeRef): Set[ir.TypeVarDecl] = {
         lowerBoundingCts(wt).flatMap(wct => typeVarsDeclaredOnClassAndSuperclasses(wct.c))
-    }
-    
-    /** Given a type, returns all ghosts bound on instances of this type.
-      * This includes ghosts in the type and also in the class the type refers to. */
-    def wcTypeArgsBoundOnType(wt: ir.WcTypeRef): Set[ir.WcTypeArg] = {
-        lowerBoundingCts(wt).flatMap(wct => wct.wtargs ++ typeArgsOnClassAndSuperclasses(wct.c))
     }
     
     ///
@@ -488,7 +476,10 @@ sealed case class TcEnv(
     def crp_this = reifiedLv(ir.lv_this)
     
     /** TeeCeePee of `this` */
-    def tcp_this = ir.TeeCeePee(crp_this, c_this.ct)
+    def tcp_this = ir.TeeCeePee(crp_this, ct_this)
+
+    /** ClassType of `this` */
+    def ct_this = c_this.ct
     
     /** Canonical path to `method` */
     def cp_mthd = canonLv(ir.lv_mthd)
@@ -594,14 +585,14 @@ sealed case class TcEnv(
         }
     }
     
+    private[this] def interHappened(cp: ir.CanonPath): Boolean = {
+        log.indented(true, "interHappened(%s)", cp) {
+            ocp_cur.exists(cp_cur => bfs(cp.p.end, cp_cur.p.start))
+        }
+    }
+            
     /// cp hbNow cqs if either (1) cp hb cur; or (2) ∃i. cp.end hbeq cqs(i).end.
     def hbNow(cp: ir.CanonPath, cqs: List[ir.CanonPath]): Boolean = {
-        def interHappened(cp: ir.CanonPath): Boolean = {
-            log.indented(true, "interHappened(%s)", cp) {
-                bfs(cp.p.end, p_cur.start)
-            }
-        }
-                
         log.indented(false, "hbNow(%s, %s)", cp, cqs) {
             log.env(false, "Environment", this)
             
@@ -844,14 +835,13 @@ sealed case class TcEnv(
     // yield "? readableBy inter".  Returns cp.p if no existential version is found.
     private def is(cp: ir.CanonPath): ir.WcPath = {
         log.indented(false, "is(%s)", cp) {
-            val owp = cp match {
+            cp match {
                 case ir.CpGhostField(crp_base, f, _) =>
                     log("Ghost field of %s", crp_base)
-                    ghost(crp_base, f).map(_.wp)
+                    ghost(crp_base, f).wp
                 case _ =>
-                    None
+                    cp.p
             }
-            owp.getOrElse(cp.p)          
         }
     }
     
@@ -862,22 +852,57 @@ sealed case class TcEnv(
             equiv(cp, cq) || isSubintervalOf(cp, cq)
         }
     }
+    
+    /** Returns the binding for ghost field `f` on path `tcp`. This might just be `tcp.f`. */
+    def ghost(crp: ir.CanonReifiedPath, f: ir.FieldName): ir.WcGhost = {
+        val subst = crp.thisSubst
+        val wgs_all = lowerBoundingCts(crp.wt).flatMap { wct =>
+            wct.wghosts ++ ghostsOnClassAndSuperclasses(wct.c).map(subst.ghost)
+        }
+        wgs_all.find(_.isNamed(f)) match {
+            case Some(wg) => wg
+            case None => ir.Ghost(f, crp.p + f)
+        }
+    }
+    
+    /** Returns the binding for type arg `tv` on path `tcp`. This might just be `tcp:tv`. */
+    def typeArg(crp: ir.CanonReifiedPath, tv: ir.TypeVarName): ir.WcTypeArg = {
+        val subst = crp.thisSubst
+        val wtas_all = lowerBoundingCts(crp.wt).flatMap { wct =>
+            wct.wtargs ++ typeArgsOnClassAndSuperclasses(wct.c).map(subst.typeArg)
+        }
+        wtas_all.find(_.isNamed(tv)) match {
+            case Some(ta) => ta
+            case None => ir.TypeArg(tv, ir.PathType(crp.p, tv))
+        }
+    }    
 
     // ___ Operations on PathTypes __________________________________________
     
-    /** Returns the upper- and lower-bounds for an `ir.TeeCeePee` with path type. */
-    def boundPathType(pt: ir.PathType): ir.TypeBounds = {
-        val crp = reifiedPath(pt.p)
-        typeArg(crp, pt.tv) match {
-            case Some(wtarg) => 
-                wtarg.bounds
-            case None => 
-                typeVarsDeclaredOnType(crp.wt).find(_.isNamed(pt.tv)) match {
-                    case Some(tvdecl) =>
-                        ir.TypeBounds(tvdecl.wts_lb, None)
-                    case None =>
-                        throw new CheckFailure("intervals.no.such.type.var", crp.wt, pt.tv)
-                }
+    /** Returns upper- and lower-bounds for an `ir.TeeCeePee` with path type. 
+      * Note that these bounds may either reference pt itself or lead to a cycle,
+      * so you should generally prefer the functions `lowerBoundingCts()` or
+      * `upperBoundingCts()`. */
+    private[this] def boundPathType(pt: ir.PathType): ir.TypeBounds = {
+        log.indented("boundPathType(%s)", pt) {
+            val crp = reifiedPath(pt.p)
+
+            val tvd = typeVarsDeclaredOnType(crp.wt).find(_.isNamed(pt.tv)) match {
+                case Some(tvd) => tvd
+                case None => throw new CheckFailure("intervals.no.such.type.var", crp.wt, pt.tv)
+            }
+            log("tvd=%s", tvd)
+            val subst = PathSubst.vp(ir.lv_this, crp.p)
+            val tvd_lbs = tvd.wts_lb.map(subst.wcTref)
+            log("tvd_lbs=%s", tvd_lbs)
+            
+            val bounds = typeArg(crp, pt.tv).bounds
+            log("bounds=%s", bounds)
+
+            ir.TypeBounds(
+                wts_lb = bounds.wts_lb ++ tvd_lbs,
+                wts_ub = bounds.wts_ub
+            )            
         }
     }
     
@@ -895,43 +920,6 @@ sealed case class TcEnv(
     def upperBoundingCts(wt: ir.WcTypeRef) = boundingCts(_.wts_ub)(wt)
     def lowerBoundingCts(wt: ir.WcTypeRef) = boundingCts(_.wts_lb)(wt)
     
-    // ___ Operations on TeeCeePees _________________________________________
-    
-    /** Upcast `tcp` to its supertypes and return new `ir.TeeCeePee`s for them */
-    def superTcps(tcp: ir.TeeCeePee[ir.WcTypeRef]) = log.indented("sups(%s)", tcp) {
-        tcp.ty match {
-            case wct: ir.WcClassType =>
-                def ofClass(c: ir.ClassName) = {
-                    val cd = classDecl(c)
-                    cd.superClasses.map(ir.ClassType(_, cd.ghosts, cd.typeArgs))
-                }
-
-                val subst = PathSubst.vp(ir.lv_this, tcp.p)
-                ofClass(wct.c).map { ct_sup =>
-                    tcp.withTy(
-                        ir.WcClassType(
-                            ct_sup.c,
-                            wct.wghosts ++ ct_sup.ghosts.map(subst.ghost), 
-                            wct.wtargs ++ ct_sup.targs.map(subst.typeArg)
-                        )
-                    )
-                }
-                
-            case pt: ir.PathType =>
-                boundPathType(pt).wts_lb.map(tcp.withTy(_))
-        }
-    }
-    
-    /** Returns the binding for ghost field `f` on path `tcp`. This might just be `tcp.f`. */
-    def ghost(tcp: ir.TeeCeePee[ir.WcTypeRef], f: ir.FieldName): ir.WcGhost = {
-        ghosts(tcp.ty).find(_.isNamed(f)).getOrElse(ir.Ghost(f, tcp.p + f))
-    }
-    
-    /** Returns the binding for type arg `tv` on path `tcp`. This might just be `tcp:tv`. */
-    def typeArg(tcp: ir.TeeCeePee[ir.WcTypeRef], tv: ir.TypeVarName): ir.WcTypeArg = {
-        typeArgs(wt).find(_.isNamed(tv)).getOrElse(ir.TypeArg(tv, ir.PathType(tcp.p, tv)))
-    }
-    
     // ___ Subtyping and Subclassing ________________________________________
     
     /** Is wt an erased subtype of class c? */
@@ -947,6 +935,25 @@ sealed case class TcEnv(
                 case cgp: ir.CanonGhostPath => prog.isSubclass(cgp.c_cp, c_sup)
                 case crp: ir.CanonReifiedPath => isSubclass(crp.wt, c_sup)
             }
+        }
+    }
+    
+    /** Upcast `tcp` to its supertypes and return new `ir.TeeCeePee`s for them */
+    def superTcps(tcp: ir.TeeCeePee[ir.WcClassType]) = log.indented("sups(%s)", tcp) {
+        def ofClass(c: ir.ClassName) = {
+            val cd = classDecl(c)
+            cd.superClasses.map(ir.ClassType(_, cd.ghosts, cd.typeArgs))
+        }
+
+        val subst = PathSubst.vp(ir.lv_this, tcp.p)
+        ofClass(tcp.ty.c).map { ct_sup =>
+            tcp.withTy(
+                ir.WcClassType(
+                    ct_sup.c,
+                    tcp.ty.wghosts ++ ct_sup.ghosts.map(subst.ghost), 
+                    tcp.ty.wtargs ++ ct_sup.targs.map(subst.typeArg)
+                )
+            )
         }
     }
     
@@ -984,7 +991,10 @@ sealed case class TcEnv(
 
                 // hbNow with less is a subtype of hbNow of more:
                 //  ∀i:Interval. (? hbNow) => (? hbNow i)
-                case (ir.WcHbNow(ps), ir.WcHbNow(qs)) => isLtPaths(ps, qs)
+                case (ir.WcHbNow(ps), ir.WcHbNow(qs)) => 
+                    val cps = ps.map(canonPath).filter(cp => !interHappened(cp))
+                    val cqs = qs.map(canonPath)
+                    isLtCanonPaths(cps, cqs)
                 
                 case (_, _) => false
             }
@@ -996,31 +1006,24 @@ sealed case class TcEnv(
         wg_sup: ir.WcGhost
     ) = {
         log.indented("pathHasSubWcGhost(%s, %s)?", tcp_sub, wg_sup) {
-            val wg_sub = ghost(tcp_sub, wg_sup.f)
+            val wg_sub = ghost(tcp_sub.cp, wg_sup.f)
             isLtWpath(wg_sub.wp, wg_sup.wp)
         }
     }
     
-    private[this] def isLtBounds(bounds_sub: ir.TypeBounds, bounds_sup: ir.TypeBounds) = {
-        def compareLowerBounds(lbs_sub: List[ir.WcTypeRef], lbs_sup: List[ir.WcTypeRef]) = {
-            lbs_sup.forall(lb_sup =>
-                lbs_sub.exists(lb_sub =>
-                    isSubtype(lb_sub, lb_sup)))            
-        }
-        
+    private[this] def isLtBounds(
+        bounds_sub: ir.TypeBounds, 
+        bounds_sup: ir.TypeBounds
+    ) = {
         log.indented("isLtBounds(%s, %s)", bounds_sub, bounds_sup) {
             (bounds_sub, bounds_sup) match {
-                case (ir.TypeBounds(lbs_sub, _), ir.TypeBounds(lbs_sup, None)) =>
-                    compareLowerBounds(lbs_sub, lbs_sup)
-
-                case (ir.TypeBounds(lbs_sub, Some(ubs_sub)), ir.TypeBounds(lbs_sup, Some(ubs_sup))) =>
-                    compareLowerBounds(lbs_sub, lbs_sup) &&
+                case (ir.TypeBounds(lbs_sub, ubs_sub), ir.TypeBounds(lbs_sup, ubs_sup)) =>
+                    lbs_sup.forall(lb_sup =>
+                        lbs_sub.exists(lb_sub =>
+                            isSubtype(lb_sub, lb_sup))) &&
                     ubs_sup.forall(ub_sup =>
                         ubs_sub.exists(ub_sub =>
                             isSubtype(ub_sup, ub_sub)))
-
-                case (ir.TypeBounds(_, None), ir.TypeBounds(_, Some(_))) =>
-                    false                        
             }            
         }
     }
@@ -1031,7 +1034,7 @@ sealed case class TcEnv(
     ) = {
         log.indented("pathHasSubWcTarg(%s, %s)?", tcp_sub, wtarg_sup) {
             val tv = wtarg_sup.tv
-            val wtarg_sub = typeArg(tcp_sub, tv)
+            val wtarg_sub = typeArg(tcp_sub.cp, tv)
             isLtBounds(wtarg_sub.bounds, wtarg_sup.bounds)
         }            
     }
@@ -1039,13 +1042,13 @@ sealed case class TcEnv(
     private[this] def pathHasSubClassType(
         tcp_sub: ir.TeeCeePee[ir.WcClassType], 
         wct_sup: ir.WcClassType
-    ) = {
+    ): Boolean = {
         log.indented("pathHasSubClassType(%s, %s)?", tcp_sub, wct_sup) {
-            if(tcp_sub.c != wct_sup.c) {
+            if(tcp_sub.ty.c != wct_sup.c) {
                 superTcps(tcp_sub).exists(pathHasSubClassType(_, wct_sup))
             } else {
-                wcGhostsBoundOnType(wct_sup).forall(pathHasSubWcGhost(tcp_sub, _)) &&
-                wcTypeArgsBoundOnType(wct_sup).forall(pathHasSubWcTarg(tcp_sub, _))
+                wct_sup.wghosts.forall(pathHasSubWcGhost(tcp_sub, _)) &&
+                wct_sup.wtargs.forall(pathHasSubWcTarg(tcp_sub, _))
             }
         }
     }
@@ -1056,8 +1059,8 @@ sealed case class TcEnv(
         wt_sup: ir.WcTypeRef
     ): Boolean = {
         log.indented(false, "pathHasType(%s, %s)?", tcp_sub, wt_sup) {
-            val wcts_sub = upperBoundingTcps(tcp_sub.ty)
-            val wcts_sup = lowerBoundingTcps(wt_sup)
+            val wcts_sub = lowerBoundingCts(tcp_sub.ty)
+            val wcts_sup = upperBoundingCts(wt_sup)
             existscross(wcts_sub, wcts_sup) { (wct_sub, wct_sup) =>
                 pathHasSubClassType(tcp_sub.withTy(wct_sub), wct_sup)
             }                 

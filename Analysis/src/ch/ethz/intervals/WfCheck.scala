@@ -81,7 +81,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
     def checkWtargWf(wta: ir.WcTypeArg) = wta match {
         case ir.BoundedTypeArg(tv, bounds) =>
             bounds.wts_lb.foreach(checkWtrefWf)
-            bounds.owts_ub.foreach(_.foreach(checkWtrefWf))
+            bounds.wts_ub.foreach(checkWtrefWf)
             
         case ir.TypeArg(tv, wt) =>
             checkWtrefWf(wt)
@@ -194,7 +194,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                     
                     // Check that all type vars on the type C being instantiated are given a value:
                     val tvds_unbound = unboundTypeVarsDeclaredOnClassAndSuperclasses(ct.c)
-                    tvds_unbound.find(tvd => ct.typeArgs.find(_.isNamed(tvd.name)).isEmpty) match {
+                    tvds_unbound.find(tvd => ct.targs.find(_.isNamed(tvd.name)).isEmpty) match {
                         case Some(tvd) => throw new CheckFailure("intervals.no.value.for.type.var", tvd.name)
                         case None =>
                     }

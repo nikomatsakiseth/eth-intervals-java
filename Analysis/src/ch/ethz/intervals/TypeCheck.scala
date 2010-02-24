@@ -18,7 +18,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
     
     /// wt(cp_sub) <: wt_sup
     def checkIsSubtype(env: TcEnv, crp_sub: ir.CanonReifiedPath, wt_sup: ir.WcTypeRef) {
-        if(!env.pathHasType(crp_sub, wt_sup))
+        if(!env.pathHasType(crp_sub.toTcp, wt_sup))
             throw new CheckFailure(
                 "intervals.expected.subtype", 
                 crp_sub.p, crp_sub.wt.toUserString, wt_sup.toUserString)
@@ -465,7 +465,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                 val tcp_x = ir.TeeCeePee(crp_x, ct)
                 env = env.addNonNull(crp_x)
                 ct.ghosts.foreach { g =>
-                    env.ghostFieldDecls(ct).find(_.isNamed(g.f)) match {
+                    env.ghostFieldsDeclaredOnType(ct).find(_.isNamed(g.f)) match {
                         case Some(gfd) => 
                             val cp = env.canonPath(g.p)
                             if(!env.pathHasSubclass(cp, gfd.c))
@@ -598,14 +598,12 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
             env = env.addNonNull(env.cp_mthd)
             
             // For normal methods, type of this is the defining class
-            val ct_this = ir.ClassType(env.c_this, List(), List())
-            env = env.addReifiedLocal(ir.lv_this, ct_this)
             env = env.addNonNull(env.crp_this)
             
             env = env.addArgs(md.args)
             env = env.withReturnType(md.wt_ret)
             
-            env.substdOverriddenMethodSigs(ct_this, md).foreach { msig_sup => 
+            env.substdOverriddenMethodSigs(env.ct_this, md).foreach { msig_sup => 
                 checkArgumentTypesNonvariant(env, md.args, msig_sup.wts_args)
                 checkReturnTypeCovariant(env, md.wt_ret, msig_sup.wt_ret)
                 checkOverridenReqsImplyOurReqs(env, md.reqs, msig_sup.reqs)
@@ -630,13 +628,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
         indexAt(md, FlowEnv.empty) {
             var env = env_cd
             
-            // Define special vars "method" (== this.constructor) and "this":
-            val ct_this = ir.ClassType(
-                env.c_this,
-                List(), 
-                List()
-            )
-            env = env.addReifiedLocal(ir.lv_this, ct_this)
+            // Define special var "method" (== this.constructor):
             env = env.addNonNull(env.crp_this)
             
             // Method == this.constructor[env.c_this]
@@ -673,8 +665,6 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
             //
             // Note that a type is dependent on p_dep if p.F appears in the type, so 
             // we must check all prefixes of each dependent path as well.
-            val ct_this = ir.ClassType(env.c_this, List(), List())
-            env = env.addReifiedLocal(ir.lv_this, ct_this)
             env = env.addGhostLocal(ir.lv_mthd, ir.c_interval)
             env = env.withCurrent(env.cp_mthd)
             

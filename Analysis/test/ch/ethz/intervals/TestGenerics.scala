@@ -17,7 +17,7 @@ import java.io.File
 class TestGenerics extends JUnitSuite { 
     import TestAll.DEBUG_DIR
     
-    val logTests: Set[String] = Set("inheritedUnboundTypeArgs", "redirectedTypeArgs")
+    val logTests: Set[String] = Set()
     
     // Implicits for concisely creating WcClassTypes:
     case class EnhancedWcClassType(wct: ir.WcClassType) {
@@ -45,10 +45,13 @@ class TestGenerics extends JUnitSuite {
     }
     implicit def wcClassType2EnhancedWcClassType(wct: ir.WcClassType) =
         EnhancedWcClassType(wct)
-    def ext(wts: ir.WcTypeRef*) = 
-        ir.TypeBounds(wts.toList, None)
-    def sup(wts: ir.WcTypeRef*) = 
-        ir.TypeBounds(List(ir.c_object.ct), Some(wts.toList))
+        
+    def hbNow(ps: ir.Path*) = ir.WcHbNow(ps.toList)
+    def readableBy(ps: ir.Path*) = ir.WcReadableBy(ps.toList)
+    def writableBy(ps: ir.Path*) = ir.WcWritableBy(ps.toList)
+        
+    def ext(wt: ir.WcTypeRef, wts: ir.WcTypeRef*) = ir.TypeBounds(wt :: wts.toList, List())
+    def sup(wt: ir.WcTypeRef, wts: ir.WcTypeRef*) = ir.TypeBounds(List(ir.c_object.ct), wt :: wts.toList)
     val extSup = ir.TypeBounds
     
     // A program fragment setting up the types we will test:
@@ -86,6 +89,42 @@ class TestGenerics extends JUnitSuite {
                 throw t                
         }
     }
+    
+    def assertSubtype(wct_sub: ir.WcTypeRef, wct_sup: ir.WcTypeRef)(implicit env: TcEnv) {
+        assertTrue(
+            "Assert %s <: %s".format(wct_sub, wct_sup),
+            env.isSubtype(wct_sub, wct_sup))
+    }
+    
+    def assertNotSubtype(wct_sub: ir.WcTypeRef, wct_sup: ir.WcTypeRef)(implicit env: TcEnv) {
+        assertFalse(
+            "Assert %s not <: %s".format(wct_sub, wct_sup),
+            env.isSubtype(wct_sub, wct_sup))
+    }
+    
+    def assertOrdered(wct_sub: ir.WcTypeRef, wct_sup: ir.WcTypeRef)(implicit env: TcEnv) {
+        assertTrue(
+            "Assert %s <: %s".format(wct_sub, wct_sup),
+            env.isSubtype(wct_sub, wct_sup))
+        assertFalse(
+            "Assert %s not <: %s".format(wct_sup, wct_sub),
+            env.isSubtype(wct_sup, wct_sub))
+    }
+    
+    def assertEqual(wct_sub: ir.WcTypeRef, wct_sup: ir.WcTypeRef)(implicit env: TcEnv) {
+        assertTrue(
+            "Assert %s <: %s".format(wct_sub, wct_sup),
+            env.isSubtype(wct_sub, wct_sup))
+        assertTrue(
+            "Assert %s not <: %s".format(wct_sub, wct_sup),
+            env.isSubtype(wct_sub, wct_sup))
+    }
+    
+    val ct_object = ir.c_object.ct
+    val ct_guard = ir.c_guard.ct
+    val ct_interval = ir.c_interval.ct
+    
+    // ___ Generic Type Arguments ___________________________________________
     
     val listText = """
     class List 
@@ -129,23 +168,9 @@ class TestGenerics extends JUnitSuite {
     val ct_MyList = ir.ClassName("MyList").ct
     val ct_YourList = ir.ClassName("YourList").ct
     val ct_IntervalList = ir.ClassName("IntervalList").ct
-    val ct_guard = ir.c_guard.ct
-    val ct_interval = ir.c_interval.ct
     
     val tv_E = ir.TypeVarName("E")
     val tv_F = ir.TypeVarName("F")    
-    
-    def assertSubtype(wct_sub: ir.WcTypeRef, wct_sup: ir.WcTypeRef)(implicit env: TcEnv) {
-        assertTrue(
-            "Assert %s <: %s".format(wct_sub, wct_sup),
-            env.isSubtype(wct_sub, wct_sup))
-    }
-    
-    def assertNotSubtype(wct_sub: ir.WcTypeRef, wct_sup: ir.WcTypeRef)(implicit env: TcEnv) {
-        assertFalse(
-            "Assert %s not <: %s".format(wct_sub, wct_sup),
-            env.isSubtype(wct_sub, wct_sup))
-    }
     
     @Test
     def listTypeArgNonVariant() = setup(listText) { prog =>
@@ -245,5 +270,46 @@ class TestGenerics extends JUnitSuite {
         assertSubtype(ct_MyList(tv_F, ct_guard), ct_List(tv_E, sup(ct_interval)))
         assertSubtype(ct_MyList(tv_F, ct_interval), ct_List(tv_E, sup(ct_interval)))
     }
+    
+    // ___ HbNow ____________________________________________________________
+    
+    @Test
+    def happened() = setup("") { prog =>
+        val lv_x = ir.VarName("x")
+        val lv_y = ir.VarName("y")
+        val lv_z = ir.VarName("z")
+        
+        implicit var env = prog.env_empty
+        env = env.addGhostLocal(lv_x, ir.c_interval)
+        env = env.addGhostLocal(lv_y, ir.c_interval)
+        env = env.addGhostLocal(lv_z, ir.c_interval)
+        env = env.addHbInter(env.canonLv(lv_x), env.canonLv(lv_z))
+        env = env.withCurrent(env.canonLv(lv_z))
+        
+        assertEqual(
+            ct_object(ir.f_creator, hbNow()),
+            ct_object(ir.f_creator, hbNow()))
+            
+        assertEqual(
+            ct_object(ir.f_creator, hbNow(lv_x.path, lv_y.path)),
+            ct_object(ir.f_creator, hbNow(lv_x.path, lv_y.path)))
+            
+        assertOrdered(
+            ct_object(ir.f_creator, hbNow()),
+            ct_object(ir.f_creator, hbNow(lv_x.path, lv_y.path)))
+            
+        assertOrdered(
+            ct_object(ir.f_creator, hbNow(lv_x.path, lv_y.path)),
+            ct_object(ir.f_creator, hbNow(lv_y.path)))
+            
+        assertOrdered(
+            ct_object(ir.f_creator, hbNow(lv_y.path)),
+            ct_object(ir.f_creator, hbNow(lv_x.path, lv_y.path)))
+            
+        assertNotSubtype(
+            ct_object(ir.f_creator, hbNow(lv_z.path)),
+            ct_object(ir.f_creator, hbNow()))
+    }
+    
         
 }
