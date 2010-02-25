@@ -95,52 +95,68 @@ class TestTcEnv extends JUnitSuite {
         }
     }
     
-    def assertSubtype(wct_sub: ir.WcTypeRef, wct_sup: ir.WcTypeRef)(implicit env: TcEnv) {
-        env.prog.logStack.indexLog.indented("assertSubtype(%s, %s)", wct_sub, wct_sup) {
+    def assertSubtype(wt_sub: ir.WcTypeRef, wt_sup: ir.WcTypeRef)(implicit env: TcEnv) {
+        env.prog.logStack.indexLog.indented("assertSubtype(%s, %s)", wt_sub, wt_sup) {
             assertTrue(
-                "Assert %s <: %s".format(wct_sub, wct_sup),
-                env.isSubtype(wct_sub, wct_sup))            
+                "Assert %s <: %s".format(wt_sub, wt_sup),
+                env.isSubtype(wt_sub, wt_sup))            
         }
     }
     
-    def assertNotSubtype(wct_sub: ir.WcTypeRef, wct_sup: ir.WcTypeRef)(implicit env: TcEnv) {
-        env.prog.logStack.indexLog.indented("assertNotSubtype(%s, %s)", wct_sub, wct_sup) {
-            assertFalse(
-                "Assert %s not <: %s".format(wct_sub, wct_sup),
-                env.isSubtype(wct_sub, wct_sup))
+    def assertPathHasType(p: ir.Path, wt_sup: ir.WcTypeRef)(implicit env: TcEnv) {
+        env.prog.logStack.indexLog.indented("assertPathHasType(%s, %s)", p, wt_sup) {
+            assertTrue(
+                "Assert %s <: %s".format(p, wt_sup),
+                env.pathHasType(env.reifiedPath(p).toTcp, wt_sup))
         }
     }
     
-    def assertOrdered(wct_sub: ir.WcTypeRef, wct_sup: ir.WcTypeRef)(implicit env: TcEnv) {
-        env.prog.logStack.indexLog.indented("assertOrdered(%s, %s)", wct_sub, wct_sup) {
-            assertTrue(
-                "Assert %s <: %s".format(wct_sub, wct_sup),
-                env.isSubtype(wct_sub, wct_sup))
+    def assertNotSubtype(wt_sub: ir.WcTypeRef, wt_sup: ir.WcTypeRef)(implicit env: TcEnv) {
+        env.prog.logStack.indexLog.indented("assertNotSubtype(%s, %s)", wt_sub, wt_sup) {
             assertFalse(
-                "Assert %s not <: %s".format(wct_sup, wct_sub),
-                env.isSubtype(wct_sup, wct_sub))
+                "Assert %s not <: %s".format(wt_sub, wt_sup),
+                env.isSubtype(wt_sub, wt_sup))
         }
     }
     
-    def assertNotOrdered(wct_sub: ir.WcTypeRef, wct_sup: ir.WcTypeRef)(implicit env: TcEnv) {
-        env.prog.logStack.indexLog.indented("assertNotOrdered(%s, %s)", wct_sub, wct_sup) {
+    def assertNotPathHasType(p: ir.Path, wt_sup: ir.WcTypeRef)(implicit env: TcEnv) {
+        env.prog.logStack.indexLog.indented("assertNotPathHasType(%s, %s)", p, wt_sup) {
             assertFalse(
-                "Assert %s <: %s".format(wct_sub, wct_sup),
-                env.isSubtype(wct_sub, wct_sup))
-            assertFalse(
-                "Assert %s not <: %s".format(wct_sup, wct_sub),
-                env.isSubtype(wct_sup, wct_sub))
+                "Assert %s not <: %s".format(p, wt_sup),
+                env.pathHasType(env.reifiedPath(p).toTcp, wt_sup))
         }
     }
     
-    def assertEqual(wct_sub: ir.WcTypeRef, wct_sup: ir.WcTypeRef)(implicit env: TcEnv) {
-        env.prog.logStack.indexLog.indented("assertEqual(%s, %s)", wct_sub, wct_sup) {
+    def assertOrdered(wt_sub: ir.WcTypeRef, wt_sup: ir.WcTypeRef)(implicit env: TcEnv) {
+        env.prog.logStack.indexLog.indented("assertOrdered(%s, %s)", wt_sub, wt_sup) {
             assertTrue(
-                "Assert %s <: %s".format(wct_sub, wct_sup),
-                env.isSubtype(wct_sub, wct_sup))
+                "Assert %s <: %s".format(wt_sub, wt_sup),
+                env.isSubtype(wt_sub, wt_sup))
+            assertFalse(
+                "Assert %s not <: %s".format(wt_sup, wt_sub),
+                env.isSubtype(wt_sup, wt_sub))
+        }
+    }
+    
+    def assertNotOrdered(wt_sub: ir.WcTypeRef, wt_sup: ir.WcTypeRef)(implicit env: TcEnv) {
+        env.prog.logStack.indexLog.indented("assertNotOrdered(%s, %s)", wt_sub, wt_sup) {
+            assertFalse(
+                "Assert %s <: %s".format(wt_sub, wt_sup),
+                env.isSubtype(wt_sub, wt_sup))
+            assertFalse(
+                "Assert %s not <: %s".format(wt_sup, wt_sub),
+                env.isSubtype(wt_sup, wt_sub))
+        }
+    }
+    
+    def assertEqual(wt_sub: ir.WcTypeRef, wt_sup: ir.WcTypeRef)(implicit env: TcEnv) {
+        env.prog.logStack.indexLog.indented("assertEqual(%s, %s)", wt_sub, wt_sup) {
             assertTrue(
-                "Assert %s not <: %s".format(wct_sub, wct_sup),
-                env.isSubtype(wct_sub, wct_sup))
+                "Assert %s <: %s".format(wt_sub, wt_sup),
+                env.isSubtype(wt_sub, wt_sup))
+            assertTrue(
+                "Assert %s not <: %s".format(wt_sub, wt_sup),
+                env.isSubtype(wt_sub, wt_sup))
         }
     }
     
@@ -335,16 +351,16 @@ class TestTcEnv extends JUnitSuite {
         assertEqual(ct_InBaseClass(tv_E, ext(ct_guard)), ct_InBaseClass(tv_F, ext(ct_guard)))
     }
     
-//    @Test
-//    def mutuallyRecursiveParameters() = setup(recursiveText) { prog =>
-//        implicit var env = prog.env_empty
-//        
-//        val lv_x = ir.VarName("x")
-//        val lv_y = ir.VarName("y")
-//        env = env.addReifiedLocal(lv_x, ct_InBaseClass(tv_E, lv_x(tv_F))(tv_F, lx_x(tv_E)))
-//        env = env.addReifiedLocal(lv_y, ct_InBaseClass(tv_E, ct_guard))
-//        assertNotOrdered()
-//    }
+    @Test
+    def mutuallyRecursiveParameters() = setup(recursiveText) { prog =>
+        implicit var env = prog.env_empty
+        
+        val lv_x = ir.VarName("x")
+        val wct_x = ct_InBaseClass(tv_E, lv_x(tv_F))(tv_F, lv_x(tv_E))
+        env = env.addReifiedLocal(lv_x, wct_x)
+        assertPathHasType(lv_x.path, wct_x)
+        assertNotPathHasType(lv_x.path, ct_InBaseClass(tv_E, ct_guard))
+    }
 
     // ___ HbNow ____________________________________________________________
     
