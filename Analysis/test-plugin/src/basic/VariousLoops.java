@@ -27,9 +27,9 @@ public class VariousLoops {
 	    );
 	    
 	    for(
-	        yInt = 0;       // ERROR Interval "this.(basic.VariousLoops.y)" is not writable because it may not be the current interval.
-	        yInt < 10;      // ERROR Interval "this.(basic.VariousLoops.y)" is not readable because the current interval may not happen after it.
-	        yInt++          // ERROR Interval "this.(basic.VariousLoops.y)" is not writable because it may not be the current interval.
+	        yInt = 0;       // ERROR Guard "this.(basic.VariousLoops.y)" is not writable.
+	        yInt < 10;      // ERROR Guard "this.(basic.VariousLoops.y)" is not readable.
+	        yInt++          // ERROR Guard "this.(basic.VariousLoops.y)" is not writable.
 	    );
 	}
 
@@ -41,10 +41,10 @@ public class VariousLoops {
 	        xInt++;
 	    }
 	    
-	    yInt = 0;           // ERROR Interval "this.(basic.VariousLoops.y)" is not writable because it may not be the current interval.
-	    while(yInt < 10)    // ERROR Interval "this.(basic.VariousLoops.y)" is not readable because the current interval may not happen after it.
+	    yInt = 0;           // ERROR Guard "this.(basic.VariousLoops.y)" is not writable.
+	    while(yInt < 10)    // ERROR Guard "this.(basic.VariousLoops.y)" is not readable.
         {
-	        yInt++;         // ERROR Interval "this.(basic.VariousLoops.y)" is not writable because it may not be the current interval.
+	        yInt++;         // ERROR Guard "this.(basic.VariousLoops.y)" is not writable.
 	    }
 	}
 	
@@ -55,10 +55,10 @@ public class VariousLoops {
 	        xInt++;	        
 	    } while(xInt < 10);
 	    
-	    yInt = 0;           // ERROR Interval "this.(basic.VariousLoops.y)" is not writable because it may not be the current interval.
+	    yInt = 0;           // ERROR Guard "this.(basic.VariousLoops.y)" is not writable.
 	    do {
-	        yInt++;         // ERROR Interval "this.(basic.VariousLoops.y)" is not writable because it may not be the current interval.
-	    } while(yInt < 10); // ERROR Interval "this.(basic.VariousLoops.y)" is not readable because the current interval may not happen after it.
+	        yInt++;         // ERROR Guard "this.(basic.VariousLoops.y)" is not writable.
+	    } while(yInt < 10); // ERROR Guard "this.(basic.VariousLoops.y)" is not readable.
 	}
 	
 	@Requires("method suspends x")	

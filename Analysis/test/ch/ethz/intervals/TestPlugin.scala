@@ -26,7 +26,7 @@ import ch.ethz.intervals.log.LogDirectory
 class TestPlugin extends JUnitSuite {
     import TestAll.DEBUG_DIR
     
-    val logTests: Set[String] = Set()
+    val logTests: Set[String] = Set("testLists")
     
     def fileName(jfo: JavaFileObject) =
         if(jfo == null) "null"
@@ -245,5 +245,10 @@ class TestPlugin extends JUnitSuite {
     @Test 
     def testCircularHb() {
         javac(unitTest, "basic/CircularHb.java")
+    }
+    
+    @Test 
+    def testLists() {
+        javac(unitTest, "basic/Lists.java")
     }
 }

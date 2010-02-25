@@ -28,8 +28,8 @@ class CircularGhostsA {
         @CircularGhostA2("x.CircularGhostA1") 
         CircularGhostsA x
     ) {
-        x.field1 = 10; // ERROR Interval "x.(basic.CircularGhostA2)" is not writable because it may not be the current interval.
-        x.field2 = 10; // ERROR Interval "x.(basic.CircularGhostA1)" is not writable because it may not be the current interval.
+        x.field1 = 10; // ERROR Guard "x.(basic.CircularGhostA2)" is not writable.
+        x.field2 = 10; // ERROR Guard "x.(basic.CircularGhostA1)" is not writable.
     }
     
 }

@@ -622,7 +622,7 @@ object TranslateMethodBody
                         }
 
                     case tree: BreakTree =>
-                        branchTarget(BranchBreak, nullToOption(tree.getLabel)) match {
+                        branchTarget(BranchBreak, Option(tree.getLabel)) match {
                             case Some(scope) =>
                                 uncondBreak(tree, scope)
                             case None =>
@@ -636,7 +636,7 @@ object TranslateMethodBody
                         throw new Unhandled(tree) // XXX inner classes
 
                     case tree: ContinueTree =>
-                        branchTarget(BranchContinue, nullToOption(tree.getLabel)) match {
+                        branchTarget(BranchContinue, Option(tree.getLabel)) match {
                             case Some(scope) =>
                                 uncondContinue(tree, scope)
                             case None =>
@@ -704,6 +704,12 @@ object TranslateMethodBody
 
                     case tree: LabeledStatementTree =>
                         stmt(Some(tree.getLabel), tree.getStatement)
+                        
+                    case tree: ReturnTree =>
+                        addStmt(
+                            tree, 
+                            ir.StmtReturn(
+                                Option(tree.getExpression).map(rvalue)))
 
                     case tree: VariableTree =>
                         val sym = createSymbol(env(tree))(tree)
