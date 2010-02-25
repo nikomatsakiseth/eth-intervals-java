@@ -18,12 +18,12 @@ public abstract class IndexedInterval extends Interval {
 	private final int threshold;
 
 	/** {@link #run(int, int)} will be invoked from all indices i where {@code 0 <= i < count} */
-	public IndexedInterval(Dependency dep, int count) {
+	public IndexedInterval(@ParentForNew("Parent") Dependency dep, int count) {
 		this(dep, 0, count);
 	}
 	
 	/** {@link #run(int, int)} will be invoked from all indices i where {@code lo <= i < hi} */
-	public IndexedInterval(Dependency dep, int lo, int hi) {
+	public IndexedInterval(@ParentForNew("Parent") Dependency dep, int lo, int hi) {
 		super(dep);
 		this.lo0 = lo;
 		this.hi0 = hi;

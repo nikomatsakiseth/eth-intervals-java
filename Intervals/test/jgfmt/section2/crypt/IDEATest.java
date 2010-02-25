@@ -38,9 +38,9 @@ import java.util.Random;
 import jgfmt.jgfutil.JGFInstrumentor;
 import ch.ethz.intervals.Dependency;
 import ch.ethz.intervals.IndexedInterval;
-import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.Interval;
-import ch.ethz.intervals.Point;
+import ch.ethz.intervals.Intervals;
+import ch.ethz.intervals.ParentForNew;
 import ch.ethz.intervals.VoidInlineTask;
 
 class IDEATest {
@@ -673,7 +673,7 @@ class IDEARunner implements Runnable {
 class IDEARunnerTask extends IndexedInterval {
 	public final IDEARunner runner;
 	
-	public IDEARunnerTask(Dependency dep, int size, byte[] text1, byte[] text2, int[] key) {
+	public IDEARunnerTask(@ParentForNew("Parent") Dependency dep, int size, byte[] text1, byte[] text2, int[] key) {
 		super(dep, size);
 		runner = new IDEARunner(-1, text1, text2, key);
 	}

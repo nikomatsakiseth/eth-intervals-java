@@ -1002,7 +1002,7 @@ isImmutable	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TcEnv.
 isImmutableIn	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TcEnv.scala	/^    def isImmutableIn(cp_test: ir.CanonPath, cp_inter: ir.CanonPath) = {$/;"	methods	line:613
 isInterface	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Prog.scala	/^    def isInterface(c: ir.ClassName) = classDecl(c).attrs.interface$/;"	methods	line:67
 isInterfaceType	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def isInterfaceType(annty: AnnotatedTypeMirror) =$/;"	methods	line:146
-isInterval	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TcEnv.scala	/^        def isInterval(cp0: ir.CanonPath) = pathHasSubclass(cp0, ir.c_interval)$/;"	methods	line:744
+isInterval	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TcEnv.scala	/^        def isInterval(cp0: ir.CanonPath) = pathHasClass(cp0, ir.c_interval)$/;"	methods	line:744
 isLocal	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            val isLocal = false$/;"	constants	line:113
 isLocal	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            val isLocal = true$/;"	constants	line:117
 isLocal	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateMethodBody.scala	/^            val isLocal = true$/;"	constants	line:121
@@ -1327,7 +1327,7 @@ path	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^  
 pathHasSubClassType	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TcEnv.scala	/^    private[this] def pathHasSubClassType($/;"	methods	line:1042
 pathHasSubWcGhost	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TcEnv.scala	/^    private[this] def pathHasSubWcGhost($/;"	methods	line:1004
 pathHasSubWcTarg	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TcEnv.scala	/^    private[this] def pathHasSubWcTarg($/;"	methods	line:1031
-pathHasSubclass	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TcEnv.scala	/^    def pathHasSubclass(cp_sub: ir.CanonPath, c_sup: ir.ClassName): Boolean = {$/;"	methods	line:931
+pathHasClass	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TcEnv.scala	/^    def pathHasClass(cp_sub: ir.CanonPath, c_sup: ir.ClassName): Boolean = {$/;"	methods	line:931
 pathHasType	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TcEnv.scala	/^    def pathHasType($/;"	methods	line:1057
 pathType	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/BaseSubst.scala	/^    def pathType(pt: ir.PathType): ir.PathType =$/;"	methods	line:11
 pdata	/Users/niko/git/intervals-java/Analysis/test-plugin/src/bbpc/Producer.java	/^	final @Creator("this") ProdData pdata;$/;"	field	line:11

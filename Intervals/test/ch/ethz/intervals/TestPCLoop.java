@@ -31,7 +31,7 @@ public class TestPCLoop {
 	class Consumer extends Interval {
 		public Integer i;
 		
-		public Consumer(Dependency dep, Point endOfPrevConsumer, Integer i) {			
+		public Consumer(@ParentForNew("Parent") Dependency dep, Point endOfPrevConsumer, Integer i) {			
 			super(dep);
 			Intervals.addHb(endOfPrevConsumer, start);
 			this.i = i;

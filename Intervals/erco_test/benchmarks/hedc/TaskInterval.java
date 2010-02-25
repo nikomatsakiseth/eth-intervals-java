@@ -5,7 +5,7 @@ public class TaskInterval extends Interval {
 	
 	final Task task;
 
-	public TaskInterval(Dependency dep, Task task) {
+	public TaskInterval(@ParentOfNew("Parent") Dependency dep, Task task) {
 		super(dep, task.toString());
 		this.task = task;
 	}

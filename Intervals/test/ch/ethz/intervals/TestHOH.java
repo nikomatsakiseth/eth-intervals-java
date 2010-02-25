@@ -69,7 +69,7 @@ public class TestHOH {
 	    final Link link;
 	    final Transform transform;
 
-		public MapWalk(Dependency dep, Link link, Transform transform) {
+		public MapWalk(@ParentForNew("Parent") Dependency dep, Link link, Transform transform) {
 			super(dep);
 			this.link = link;
 			this.transform = transform;

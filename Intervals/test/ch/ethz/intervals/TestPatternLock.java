@@ -6,7 +6,7 @@ public class TestPatternLock {
 	
 	public static class DebugInterval extends EmptyInterval {
 
-		public DebugInterval(Dependency dep, String name) {
+		public DebugInterval(@ParentForNew("Parent") Dependency dep, String name) {
 			super(dep, name);
 		}
 		

@@ -16,9 +16,14 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
     def canonLv = env.canonLv _
     def reifiedPath = env.reifiedPath _
     def reifiedLv = env.reifiedLv _
-        
-    def checkIsSubclass(cp: ir.CanonPath, cs: ir.ClassName*) {
-        if(!cs.exists(env.pathHasSubclass(cp, _)))
+
+    def checkCouldHaveClass(cp: ir.CanonPath, cs: ir.ClassName*) {
+        if(!cs.exists(env.pathCouldHaveClass(cp, _)))
+            throw new CheckFailure("intervals.expected.subclass.of.any", cp.p, ", ".join(cs))
+    }
+    
+    def checkSubclass(cp: ir.CanonPath, cs: ir.ClassName*) {
+        if(!cs.exists(env.pathCouldHaveClass(cp, _)))
             throw new CheckFailure("intervals.expected.subclass.of.any", cp.p, ", ".join(cs))
     }
     
@@ -28,26 +33,30 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
         cs: ir.ClassName*
     ): Unit = {
         val cp = canonizer(arg)
-        checkIsSubclass(cp, cs: _*)
+        checkSubclass(cp, cs: _*)
     }
             
-    def checkCanonAndSubclasses[X](
+    def checkCanonsAndCouldHaveClass[X](
         canonizer: (X => ir.CanonPath),        
         ps: List[X], 
         cs: ir.ClassName*
-    ): Unit =
-        ps.foreach(checkCanonAndSubclass(canonizer, _, cs: _*))
+    ): Unit = {
+        ps.foreach { p =>
+            val cp = canonizer(p)
+            checkCouldHaveClass(cp, cs: _*)            
+        }
+    }
 
     def checkWPathWf(wp: ir.WcPath): Unit =
         wp match {
             case ir.WcReadableBy(ps) =>
-                checkCanonAndSubclasses(canonPath, ps, ir.c_interval)
+                checkCanonsAndCouldHaveClass(canonPath, ps, ir.c_interval)
                 
             case ir.WcWritableBy(ps) =>
-                checkCanonAndSubclasses(canonPath, ps, ir.c_interval)
+                checkCanonsAndCouldHaveClass(canonPath, ps, ir.c_interval)
                 
             case ir.WcHbNow(ps) =>
-                checkCanonAndSubclasses(canonPath, ps, ir.c_interval)
+                checkCanonsAndCouldHaveClass(canonPath, ps, ir.c_interval)
                 
             case p: ir.Path =>
                 env.canonPath(p)
@@ -278,17 +287,17 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
         at(req, ()) {
             req match {
                 case ir.ReqWritableBy(ps, qs) =>
-                    checkCanonAndSubclasses(canonPath, ps, ir.c_guard)
-                    checkCanonAndSubclasses(canonPath, qs, ir.c_interval)
+                    checkCanonsAndCouldHaveClass(canonPath, ps, ir.c_guard)
+                    checkCanonsAndCouldHaveClass(canonPath, qs, ir.c_interval)
                 case ir.ReqReadableBy(ps, qs) => 
-                    checkCanonAndSubclasses(canonPath, ps, ir.c_guard)
-                    checkCanonAndSubclasses(canonPath, qs, ir.c_interval)
+                    checkCanonsAndCouldHaveClass(canonPath, ps, ir.c_guard)
+                    checkCanonsAndCouldHaveClass(canonPath, qs, ir.c_interval)
                 case ir.ReqHb(ps, qs) => 
-                    checkCanonAndSubclasses(canonPath, ps, ir.c_point, ir.c_interval)
-                    checkCanonAndSubclasses(canonPath, qs, ir.c_point, ir.c_interval)
+                    checkCanonsAndCouldHaveClass(canonPath, ps, ir.c_point, ir.c_interval)
+                    checkCanonsAndCouldHaveClass(canonPath, qs, ir.c_point, ir.c_interval)
                 case ir.ReqSuspends(ps, qs) => 
-                    checkCanonAndSubclasses(canonPath, ps, ir.c_interval)
-                    checkCanonAndSubclasses(canonPath, qs, ir.c_interval)
+                    checkCanonsAndCouldHaveClass(canonPath, ps, ir.c_interval)
+                    checkCanonsAndCouldHaveClass(canonPath, qs, ir.c_interval)
             }   
         }
     

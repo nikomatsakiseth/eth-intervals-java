@@ -29,7 +29,7 @@ public class TestBBPCArray {
 
 	public class BBPC extends Interval {
 
-		public BBPC(Dependency dep) {
+		public BBPC(@ParentForNew("Parent") Dependency dep) {
 			super(dep);
 		}
 
@@ -40,7 +40,7 @@ public class TestBBPCArray {
 		class Producer extends Interval {
 			final int index;
 
-			public Producer(Dependency dep, int index) {
+			public Producer(@ParentForNew("Parent") Dependency dep, int index) {
 				super(dep);
 				this.index = index;
 				
@@ -69,7 +69,7 @@ public class TestBBPCArray {
 		class Consumer extends Interval {
 			final int index;
 			
-			public Consumer(Dependency dep, int index) {
+			public Consumer(@ParentForNew("Parent") Dependency dep, int index) {
 				super(dep);
 				this.index = index;
 

@@ -668,6 +668,7 @@ object ir {
     val f_end = ir.PlainFieldName("end")
     val f_super = ir.PlainFieldName("super")
     val f_objCtor = ir.PlainFieldName("ch.ethz.intervals.quals.Constructor")
+    val f_parent = ir.PlainFieldName("ch.ethz.intervals.Parent")
     
     val m_init = ir.MethodName("<init>")
     val m_toScalar = ir.MethodName("toScalar")
@@ -733,159 +734,164 @@ object ir {
     // the Java type system:
     val cds_special = List(
         ClassDecl( // Universal root class.
-            /* Attrs:   */  noAttrs,
-            /* Name:    */  c_any,
-            /* G Decls: */  List(),
-            /* TyVars:  */  List(),
-            /* Extends: */  List(),
-            /* Ghosts:  */  List(),
-            /* TyArgs:  */  List(),
-            /* Reqs:    */  List(),
-            /* Ctor:    */  List(),
-            /* Fields:  */  List(),
-            /* Methods: */  List()
+            attrs             = noAttrs,
+            name              = c_any,
+            ghostFieldDecls   = List(),
+            typeVarDecls      = List(),
+            superClasses      = List(),
+            ghosts            = List(),
+            typeArgs          = List(),
+            reqs              = List(),
+            ctors             = List(),
+            reifiedFieldDecls = List(),
+            methods           = List()
         ),
         ClassDecl( // void data.
-            /* Attrs:   */  noAttrs,
-            /* Name:    */  c_void,
-            /* G Decls: */  List(),
-            /* TyVars:  */  List(),
-            /* Extends: */  List(c_any),
-            /* Ghosts:  */  List(),
-            /* TyArgs:  */  List(),
-            /* Reqs:    */  List(),
-            /* Ctor:    */  List(),
-            /* Fields:  */  List(),
-            /* Methods: */  List()
+            attrs             = noAttrs,
+            name              = c_void,
+            ghostFieldDecls   = List(),
+            typeVarDecls      = List(),
+            superClasses      = List(c_any),
+            ghosts            = List(Ghost(f_creator, p_this_objCtor)),
+            typeArgs          = List(),
+            reqs              = List(),
+            ctors             = List(),
+            reifiedFieldDecls = List(),
+            methods           = List()
         ),
         ClassDecl( // scala data (ints, bytes, floats, etc)
-            /* Attrs:   */  noAttrs,
-            /* Name:    */  c_scalar,
-            /* G Decls: */  List(),
-            /* TyVars:  */  List(),
-            /* Extends: */  List(c_any),
-            /* Ghosts:  */  List(),
-            /* TyArgs:  */  List(),
-            /* Reqs:    */  List(),
-            /* Ctor:    */  List(),
-            /* Fields:  */  List(),
-            /* Methods: */  List()
+            attrs             = noAttrs,
+            name              = c_scalar,
+            ghostFieldDecls   = List(),
+            typeVarDecls      = List(),
+            superClasses      = List(c_any),
+            ghosts            = List(Ghost(f_creator, p_this_objCtor)),
+            typeArgs          = List(),
+            reqs              = List(),
+            ctors             = List(),
+            reifiedFieldDecls = List(),
+            methods           = List()
         ),
         ClassDecl( // arrays
-            /* Attrs:   */  noAttrs,
-            /* Name:    */  c_array,
-            /* G Decls: */  List(),
-            /* TyVars:  */  List(ir.TypeVarDecl(ir.tv_arrayElem, List(c_any.ct))),
-            /* Extends: */  List(c_any),
-            /* Ghosts:  */  List(),
-            /* TyArgs:  */  List(),
-            /* Reqs:    */  List(),
-            /* Ctor:    */  List(),
-            /* Fields:  */  List(),
-            /* Methods: */  List()
+            attrs             = noAttrs,
+            name              = c_array,
+            ghostFieldDecls   = List(),
+            typeVarDecls      = List(ir.TypeVarDecl(ir.tv_arrayElem, List(c_any.ct))),
+            superClasses      = List(c_any),
+            ghosts            = List(),
+            typeArgs          = List(),
+            reqs              = List(),
+            ctors             = List(),
+            reifiedFieldDecls = List(),
+            methods           = List()
         )        
     )
     
     // Simplified versions of built-in classes used in our unit tests.
     val cds_unit_test = List(
         ClassDecl(
-            /* Attrs:   */  noAttrs,
-            /* Name:    */  c_object,
-            /* G Decls: */  List(GhostFieldDecl(ir.f_creator, ir.c_interval)),
-            /* TyVars:  */  List(),
-            /* Extends: */  List(),
-            /* Ghosts:  */  List(),
-            /* TyArgs:  */  List(),
-            /* Reqs:    */  List(),
-            /* Ctor:    */  List(MethodDecl(
-                    /* wt_ret: */ t_void, 
-                    /* name:   */ m_init, 
-                    /* args:   */ List(),
-                    /* reqs:   */ List(),
-                    /* body:   */ empty_method_body)),
-            /* Fields:  */  List(),
-            /* Methods: */  List(MethodDecl(
-                    /* wt_ret: */ ir.WcClassType(c_string, List(wg_objCtorHbNow), List()), 
-                    /* name:   */ m_toString, 
-                    /* args:   */ List(),
-                    /* reqs:   */ List(
+            attrs             = noAttrs,
+            name              = c_object,
+            ghostFieldDecls   = List(GhostFieldDecl(ir.f_creator, ir.c_guard)),
+            typeVarDecls      = List(),
+            superClasses      = List(),
+            ghosts            = List(),
+            typeArgs          = List(),
+            reqs              = List(),
+            ctors             = List(
+                MethodDecl(
+                    wt_ret = t_void, 
+                    name   = m_init, 
+                    args   = List(),
+                    reqs   = List(),
+                    body   = empty_method_body)),
+            reifiedFieldDecls = List(),
+            methods           = List(
+                MethodDecl(
+                    wt_ret = ir.WcClassType(c_string, List(wg_objCtorHbNow), List()), 
+                    name   = m_toString, 
+                    args   = List(),
+                    reqs   = List(
                         ir.ReqReadableBy(List(p_this_creator), List(p_mthd)),
                         req_constructed),
-                    /* body:     */ empty_method_body))
+                    body   = empty_method_body))
         ),
         ClassDecl(
-            /* Attrs:   */  noAttrs,
-            /* Name:    */  c_string,
-            /* G Decls: */  List(),
-            /* TyVars:  */  List(),
-            /* Extends: */  List(c_object),
-            /* Ghosts:  */  List(Ghost(f_creator, p_this_objCtor)),
-            /* TyArgs:  */  List(),
-            /* Reqs:    */  List(),
-            /* Ctor:    */  List(md_emptyCtor),
-            /* Fields:  */  List(),
-            /* Methods: */  List()
+            attrs             = noAttrs,
+            name              = c_string,
+            ghostFieldDecls   = List(),
+            typeVarDecls      = List(),
+            superClasses      = List(c_object),
+            ghosts            = List(Ghost(f_creator, p_this_objCtor)),
+            typeArgs          = List(),
+            reqs              = List(),
+            ctors             = List(md_emptyCtor),
+            reifiedFieldDecls = List(),
+            methods           = List()
         ),
         ClassDecl(
-            /* Attrs:   */  interfaceAttrs,
-            /* Name:    */  c_guard,
-            /* G Decls: */  List(),
-            /* TyVars:  */  List(),
-            /* Extends: */  List(c_object),
-            /* Ghosts:  */  List(),
-            /* TyArgs:  */  List(),
-            /* Reqs:    */  List(),
-            /* Ctor:    */  List(md_emptyCtor),
-            /* Fields:  */  List(),
-            /* Methods: */  List()
+            attrs             = interfaceAttrs,
+            name              = c_guard,
+            ghostFieldDecls   = List(),
+            typeVarDecls      = List(),
+            superClasses      = List(c_object),
+            ghosts            = List(),
+            typeArgs          = List(),
+            reqs              = List(),
+            ctors             = List(md_emptyCtor),
+            reifiedFieldDecls = List(),
+            methods           = List()
         ),
-        ClassDecl(
-            /* Attrs:   */  noAttrs,
-            /* Name:    */  c_interval,
-            /* G Decls: */  List(),
-            /* TyVars:  */  List(),
-            /* Extends: */  List(c_object, c_guard),
-            /* Ghosts:  */  List(Ghost(f_creator, p_this_objCtor)),
-            /* TyArgs:  */  List(),
-            /* Reqs:    */  List(),
-            /* Ctor:    */  List(md_emptyCtor),
-            /* Fields:  */  List(
+        ClassDecl( 
+            // Note: In this version, there is nothing linking @Parent to anything else.
+            // In the real code, however, the Dependency argument is linked to @Parent.
+            attrs             = noAttrs,
+            name              = c_interval,
+            ghostFieldDecls   = List(GhostFieldDecl(ir.f_parent, ir.c_interval)),
+            typeVarDecls      = List(),
+            superClasses      = List(c_object, c_guard),
+            ghosts            = List(Ghost(f_creator, p_this_objCtor)),
+            typeArgs          = List(),
+            reqs              = List(),
+            ctors             = List(md_emptyCtor),
+            reifiedFieldDecls = List(
                 ReifiedFieldDecl(noAttrs, wt_constructedPoint, f_start, p_this_intervalCtor),
                 ReifiedFieldDecl(noAttrs, wt_constructedPoint, f_end, p_this_intervalCtor)),
-            /* Methods: */  List(MethodDecl(
-                    /* wt_ret: */ t_void, 
-                    /* name:   */ m_run, 
-                    /* args:   */ List(),
-                    /* reqs:   */ List(
+            methods           = List(
+                MethodDecl(
+                    wt_ret = t_void, 
+                    name   = m_run, 
+                    args   = List(),
+                    reqs   = List(
                         ir.ReqSuspends(List(p_mthd), List(p_this)),
                         ir.ReqHb(List(p_this_objCtor), List(p_mthd))),
-                    /* body:   */ empty_method_body))
+                    body   = empty_method_body))
         ),
         ClassDecl(
-            /* Attrs:   */  noAttrs,
-            /* Name:    */  c_point,
-            /* G Decls: */  List(),
-            /* TyVars:  */  List(),
-            /* Extends: */  List(c_object),
-            /* Ghosts:  */  List(Ghost(f_creator, p_this_objCtor)),
-            /* TyArgs:  */  List(),
-            /* Reqs:    */  List(),
-            /* Ctor:    */  List(md_emptyCtor),
-            /* Fields:  */  List(),
-            /* Methods: */  List()
+            attrs             = noAttrs,
+            name              = c_point,
+            ghostFieldDecls   = List(),
+            typeVarDecls      = List(),
+            superClasses      = List(c_object),
+            ghosts            = List(Ghost(f_creator, p_this_objCtor)),
+            typeArgs          = List(),
+            reqs              = List(),
+            ctors             = List(md_emptyCtor),
+            reifiedFieldDecls = List(),
+            methods           = List()
         ),
         ClassDecl(
-            /* Attrs:   */  noAttrs,
-            /* Name:    */  c_lock,
-            /* G Decls: */  List(),
-            /* TyVars:  */  List(),
-            /* Extends: */  List(c_object, c_guard),
-            /* Ghosts:  */  List(Ghost(f_creator, p_this_objCtor)),
-            /* TyArgs:  */  List(),
-            /* Reqs:    */  List(),
-            /* Ctor:    */  List(md_emptyCtor),
-            /* Fields:  */  List(),
-            /* Methods: */  List()
+            attrs             = noAttrs,
+            name              = c_lock,
+            ghostFieldDecls   = List(),
+            typeVarDecls      = List(),
+            superClasses      = List(c_object, c_guard),
+            ghosts            = List(Ghost(f_creator, p_this_objCtor)),
+            typeArgs          = List(),
+            reqs              = List(),
+            ctors             = List(md_emptyCtor),
+            reifiedFieldDecls = List(),
+            methods           = List()
         )
     )
     

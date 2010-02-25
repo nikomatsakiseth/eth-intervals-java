@@ -23,13 +23,13 @@ public class TestInterval {
 		public final AtomicInteger i;
 		public final int amnt;
 
-		public IncTask(Dependency dep, String name, AtomicInteger i) {
+		public IncTask(@ParentForNew("Parent") Dependency dep, String name, AtomicInteger i) {
 			super(dep, name);
 			this.i = i;
 			this.amnt = 1;
 		}
 
-		public IncTask(Dependency dep, String name, AtomicInteger i, int amnt) {
+		public IncTask(@ParentForNew("Parent") Dependency dep, String name, AtomicInteger i, int amnt) {
 			super(dep, name);
 			this.i = i;
 			this.amnt = amnt;
@@ -46,7 +46,7 @@ public class TestInterval {
 		public final List<List<Integer>> list;
 		public final List<Integer> id;
 		
-		public AddTask(Dependency dep, List<List<Integer>> list, Integer... ids) {
+		public AddTask(@ParentForNew("Parent") Dependency dep, List<List<Integer>> list, Integer... ids) {
 			super(dep, "Add("+Arrays.asList(ids)+")");
 			this.id = Arrays.asList(ids);
 			this.list = list;

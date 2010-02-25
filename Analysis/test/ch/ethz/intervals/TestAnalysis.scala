@@ -20,7 +20,7 @@ class TestAnalysis extends JUnitSuite {
     import TestAll.DEBUG_DIR
     import TestAll.subst
     
-    val logTests: Set[String] = Set("")
+    val logTests: Set[String] = Set("readPhaseWithSubintervals")
     
     // ___ Test running infrastructure ______________________________________
     
@@ -55,19 +55,6 @@ class TestAnalysis extends JUnitSuite {
                 case ((line, idx)) => (line.substring(line.indexOf(tag) + tag.length), idx+1)
             }.toList
             
-            val text1 = text.replaceAll("//[^\n]*", "")
-            val parser = new IrParser()
-            val cds = 
-                parser.parse(parser.classDecls)(text1) match {
-                    case n: parser.NoSuccess =>
-                        throw new RuntimeException("Parse failure: " + n.toString)
-                    case parser.Success(cds, _) =>
-                        cds
-                }            
-            val prog = new Prog(logStack, cds, ir.cds_special ++ ir.cds_unit_test)
-            
-            val failPhase = new CheckAll(prog).check
-            
             def logError(line: Int, msg: String) = {                
                 // skip the url: to get it right we'd have to traverse the subdirectory
                 // to find TestAnalysis.scala etc
@@ -75,6 +62,22 @@ class TestAnalysis extends JUnitSuite {
                 indexLog.linkTo(txmtUrl, "Line %s (%s): %s", line, line+baseLineNumber, msg) 
             }
         
+            val text1 = text.replaceAll("//[^\n]*", "")
+            val parser = new IrParser()
+            val cds = 
+                parser.parse(parser.classDecls)(text1) match {
+                    case n: parser.NoSuccess =>
+                        val pos = n.next.pos
+                        val msg = "Parse failure: " + n.toString
+                        logError(pos.line, msg)
+                        throw new RuntimeException(msg)
+                    case parser.Success(cds, _) =>
+                        cds
+                }            
+            val prog = new Prog(logStack, cds, ir.cds_special ++ ir.cds_unit_test)
+            
+            val failPhase = new CheckAll(prog).check
+            
             var matched = 0
             indexLog.indented("Expected Errors:") {
                 expErrors.foreach { case ((error, idx)) => 
@@ -1000,7 +1003,7 @@ class TestAnalysis extends JUnitSuite {
                     f2 = new Foo@s(l)@l(l)@i(i)@#Creator(i)(); // ERROR intervals.must.be.subclass(l, #String)
                     f3 = new Foo@s(s)@l(s)@i(i)@#Creator(i)(); // ERROR intervals.must.be.subclass(s, #Lock)
                     f4 = new Foo@s(s)@l(l)@i(s)@#Creator(i)(); // ERROR intervals.must.be.subclass(s, #Interval)
-                    f5 = new Foo@s(s)@l(l)@i(i)@#Creator(s)(); // ERROR intervals.must.be.subclass(s, #Interval)
+                    f5 = new Foo@s(s)@l(l)@i(i)@#Creator(s)(); // ERROR intervals.must.be.subclass(s, #Guard)
                     return;
                 }
             }
@@ -1291,7 +1294,7 @@ class TestAnalysis extends JUnitSuite {
                     
                     // Start next link:
                     nextLink = link->nextLink;
-                    nextInter = new HohLink(nextLink);
+                    nextInter = new HohLink @#Parent(this.#Parent) (nextLink);
                     nextInterStart = nextInter->start;
                     end = this->end;
                     nextInterStart hb end;
@@ -1437,7 +1440,7 @@ class TestAnalysis extends JUnitSuite {
                     nextCons = cdata->nextCons;
                     nextCdata = cdata->nextCdata;                    
                     
-                    nextProd = new Producer(nextCons, nextCdata);
+                    nextProd = new Producer @#Parent(this.#Parent) (nextCons, nextCdata);
                     pdata->nextProd = nextProd;
                     nextPdata = nextProd->pdata;
                     pdata->nextPdata = nextPdata;
@@ -1470,7 +1473,7 @@ class TestAnalysis extends JUnitSuite {
                     nextProd = pdata->nextProd;
                     nextPdata = pdata->nextPdata;
                     
-                    nextCons = new Consumer(nextProd, nextPdata);
+                    nextCons = new Consumer @#Parent(this.#Parent) (nextProd, nextPdata);
                     cdata->nextCons = nextCons;
                     nextCdata = nextCons->cdata;
                     cdata->nextCdata = nextCdata;
@@ -1487,10 +1490,10 @@ class TestAnalysis extends JUnitSuite {
                     d0->nextCons = this;
                     d0->nextCdata = d1;
                     
-                    p = new Producer(this, d0);                    
+                    p = new Producer @#Parent(this) (this, d0);                    
                     pdata = p->pdata;
                     
-                    c = new Consumer(p, pdata);
+                    c = new Consumer @#Parent(this) (p, pdata);
                     d1->nextCons = c; 
                     cdata = c->cdata;
                     d1->nextCdata = cdata;                    
@@ -1673,6 +1676,70 @@ class TestAnalysis extends JUnitSuite {
                 }
             }
            """
+        )
+    }
+
+    @Test
+    def readPhaseWithSubintervals() {
+        tc(
+            """
+            class Data
+            extends #Object
+            {
+                scalar field requires this.#Creator;
+            }
+            
+            class TestInterval extends #Interval
+            {
+                Data @#Creator(readableBy this)
+                inData requires this.#Constructor;
+                
+                Data @#Creator(writableBy this) 
+                outData requires this.#Constructor;
+                
+                Constructor(
+                    Data @#Creator(readableBy this) inData,
+                    Data @#Creator(writableBy this) outData
+                ) {
+                    this->inData = inData;
+                    this->outData = outData;
+                }
+                
+                void run()
+                requires method suspends this
+                requires this.#Constructor hb method 
+                {
+                    inData = this->inData;
+                    outData = this->outData;
+
+                    field = inData->field;
+                    outData->field = field;
+                }
+            }
+            
+            class TestClass
+            extends #Object
+            {
+                void method(Data @#Creator(writableBy method) data)
+                {
+                    outData1 = new Data @#Creator(method) ();
+                    outData2 = new Data @#Creator(method) ();
+                    
+                    // Create two asynchronous subintervals which will
+                    // read from data and write to outData[12]:
+                    inlineInterval sub {
+                        inter1 = new TestInterval @#Parent(sub) (data, outData1);
+                        inter2 = new TestInterval @#Parent(sub) (data, outData2);                        
+                    }
+
+                    // "Combine" the results of the two subintervals:
+                    result1 = outData1->field;
+                    data->field = result1;
+                    result2 = outData2->field;
+                    data->field = result2;
+                }
+            }
+            """
         )
     }
 

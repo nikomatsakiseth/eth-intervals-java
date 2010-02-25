@@ -18,7 +18,7 @@ public class TestLocks {
 		final String id;
 		final Lock lock;
 		
-		public IdInterval(Dependency dep, List<String> list, String id, Lock l1) {
+		public IdInterval(@ParentForNew("Parent") Dependency dep, List<String> list, String id, Lock l1) {
 			super(dep);
 			Intervals.addExclusiveLock(this, l1);
 			this.lock = l1;

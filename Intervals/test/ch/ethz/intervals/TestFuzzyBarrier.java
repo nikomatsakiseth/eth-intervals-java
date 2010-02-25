@@ -24,7 +24,7 @@ public class TestFuzzyBarrier {
 		final List<Integer> list = Collections.synchronizedList(new ArrayList<Integer>());
 		int prevListSize = 0;
 		
-		public Barrier(Dependency dep) {
+		public Barrier(@ParentForNew("Parent") Dependency dep) {
 			super(dep, "barrier");
 		}
 
@@ -48,7 +48,7 @@ public class TestFuzzyBarrier {
 	    
 	    class BarrierTask extends Interval {
 
-			public BarrierTask(Dependency dep, int id) {
+			public BarrierTask(@ParentForNew("Parent") Dependency dep, int id) {
 				super(dep, "barrier"+id);
 			}
 
@@ -75,7 +75,7 @@ public class TestFuzzyBarrier {
 
 	    	class FuzzyTask extends Interval {
 	    		
-				public FuzzyTask(Dependency dep, WorkerTask nextWorker) {
+				public FuzzyTask(@ParentForNew("Parent") Dependency dep, WorkerTask nextWorker) {
 					super(dep, "fuzzy"+id);
 					Intervals.addHb(end, nextWorker.start);
 				}

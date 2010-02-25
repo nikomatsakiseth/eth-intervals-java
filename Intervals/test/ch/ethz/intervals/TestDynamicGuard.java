@@ -71,7 +71,7 @@ public class TestDynamicGuard {
 			return resultCheckedCounter == results.size();
 		}
 		
-		public Interval create(Dependency dep, String name, int flags) {
+		public Interval create(@ParentForNew("Parent") Dependency dep, String name, int flags) {
 			return new DgInterval(dep, name, flags);
 		}
 		

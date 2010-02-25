@@ -221,7 +221,7 @@ public class TestGameOfLife {
 		
 		class SwitchGenTask extends Interval {
 			
-			public SwitchGenTask(Dependency dep) {
+			public SwitchGenTask(@ParentForNew("Parent") Dependency dep) {
 				super(dep);
 			}
 
@@ -330,7 +330,7 @@ public class TestGameOfLife {
 			
 			final int row, gen;
 
-			protected ColTask(Dependency dep, int gen, int row) {
+			protected ColTask(@ParentForNew("Parent") Dependency dep, int gen, int row) {
 				super(dep, 1, cs+1);
 				this.gen = gen;
 				this.row = row;
@@ -350,7 +350,7 @@ public class TestGameOfLife {
 
 			final int gen;
 
-			protected GenTask(Dependency dep, int gen) {
+			protected GenTask(@ParentForNew("Parent") Dependency dep, int gen) {
 				super(dep, 1, rs+1);
 				this.gen = gen;
 			}
@@ -556,7 +556,7 @@ public class TestGameOfLife {
 			public final Tile tile;
 			public final int gen;
 			
-			public TileTask(Dependency dep, Tile tile, int gen) {
+			public TileTask(@ParentForNew("Parent") Dependency dep, Tile tile, int gen) {
 				super(dep);
 				this.tile = tile;
 				this.gen = gen;

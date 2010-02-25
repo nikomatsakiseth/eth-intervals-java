@@ -10,7 +10,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Assert;
 import org.junit.Test;
 
-import ch.ethz.intervals.quals.WrittenDuring;
 import ch.ethz.intervals.quals.Creator;
 
 /**
@@ -44,37 +43,29 @@ public class TestBBPCLinks {
 	
 	/** Where producers write the data they produce,
 	 *  and information about the next producer. */
-	@Creator class ProducerData {
+	class ProducerData {
 		/** Data producer by producer <em>i</em> */
-		@WrittenDuring("writer")
 		public int produced;
 		
 		/** Producer <em>i+1</em> */
-		@WrittenDuring("writer")
 		public Interval nextProducer;
 		
 		/** Where producer <em>i+1</em> will write its data */
-		@WrittenDuring("writer")
 		public @Creator("nextProducer") ProducerData nextProducerData;		
 	}
 	
 	/** Where consumers write information about the next consumer. */
-	@Creator class ConsumerData {
+	class ConsumerData {
 		/** Consumer <em>i+1</em> */
-		@WrittenDuring("writer")
 		public Interval nextConsumer;
 		
 		/** Where consumer <em>i+1</em> will write its data */
-		@WrittenDuring("writer")
 		public @Creator("nextConsumer") ConsumerData nextConsumerData;		
 	}
 	
 	class Producer extends Interval {
-		@WrittenDuring("constructor")
 		protected final int index;
-		@WrittenDuring("constructor")
 		protected final @Creator("hb this") ConsumerData cdata;
-		@WrittenDuring("constructor")
 		protected final @Creator("this") ProducerData pdata;
 		
 		public Producer(
@@ -106,11 +97,8 @@ public class TestBBPCLinks {
 	}
 	
 	class Consumer extends Interval {
-		@WrittenDuring("constructor")
 		protected final int index;
-		@WrittenDuring("constructor")
 		protected final @Creator("hb this") ProducerData pdata;
-		@WrittenDuring("constructor")
 		protected final @Creator("this") ConsumerData cdata;
 
 		public Consumer(
@@ -150,7 +138,7 @@ public class TestBBPCLinks {
 	
 	class Init extends Interval {
 
-		public Init(Dependency dep) {
+		public Init(@ParentForNew("Parent") Dependency dep) {
 			super(dep);
 		}
 

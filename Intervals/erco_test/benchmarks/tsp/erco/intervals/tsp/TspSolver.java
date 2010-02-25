@@ -45,7 +45,7 @@ public class TspSolver extends Interval {
 	int[] Path = new int[Tsp.MAX_TOUR_SIZE];
 	int visitNodes;
 	
-	public TspSolver(Dependency dep, String name) {
+	public TspSolver(@ParentOfNew("Parent") Dependency dep, String name) {
 		super(dep, name);
 	}
 

@@ -44,7 +44,7 @@ public class Intervals {
 		return current.inter;
 	}
 	
-	public static Dependency successor() {
+	public static @ParentForNew("") Dependency successor() {
 		final Current current = Current.get();
 		if(current.inter == null)
 			throw new NotInRootIntervalException();

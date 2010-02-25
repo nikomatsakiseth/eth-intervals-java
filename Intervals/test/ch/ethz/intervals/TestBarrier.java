@@ -23,7 +23,7 @@ public class TestBarrier {
 		final List<Integer> list = Collections.synchronizedList(new ArrayList<Integer>());
 		int prevListSize = 0;
 		
-		public Barrier(Dependency dep) {
+		public Barrier(@ParentForNew("Parent") Dependency dep) {
 			super(dep);
 		}
 		
@@ -51,7 +51,7 @@ public class TestBarrier {
 	    
 	    class BarrierTask extends Interval {
 
-			public BarrierTask(Dependency dep) {
+			public BarrierTask(@ParentForNew("Parent") Dependency dep) {
 				super(dep);
 			}
 

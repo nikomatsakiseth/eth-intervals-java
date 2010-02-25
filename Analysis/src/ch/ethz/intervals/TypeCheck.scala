@@ -468,7 +468,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                     env.ghostFieldsDeclaredOnType(ct).find(_.isNamed(g.f)) match {
                         case Some(gfd) => 
                             val cp = env.canonPath(g.p)
-                            if(!env.pathHasSubclass(cp, gfd.c))
+                            if(!env.pathHasClass(cp, gfd.c))
                                 throw new CheckFailure("intervals.must.be.subclass", cp.p, gfd.c)
                         case None if (g.f == ir.f_objCtor) =>
                             val cp = env.canonPath(g.p)
@@ -672,11 +672,11 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
             // Also check that guards are typed as Interval, Lock, or just Guard
             val cp_guard = env.canonPath(fd.p_guard)
             env = log.indented("adding appr. constraints for cp_guard %s", cp_guard) {
-                if(env.pathHasSubclass(cp_guard, ir.c_interval))
+                if(env.pathHasClass(cp_guard, ir.c_interval))
                     env.addSuspends(env.cp_cur, cp_guard) 
-                else if(env.pathHasSubclass(cp_guard, ir.c_lock))
+                else if(env.pathHasClass(cp_guard, ir.c_lock))
                     env.addLocks(env.cp_cur, cp_guard)
-                else if(env.pathHasSubclass(cp_guard, ir.c_guard))
+                else if(env.pathHasClass(cp_guard, ir.c_guard))
                     env.addDeclaredWritableBy(cp_guard, env.cp_cur)
                 else
                     throw new CheckFailure("intervals.invalid.guard.type", cp_guard)

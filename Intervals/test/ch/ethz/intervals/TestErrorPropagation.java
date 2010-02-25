@@ -20,7 +20,7 @@ public class TestErrorPropagation {
 	}
 	
 	class ThrowExceptionTask extends Interval {
-		public ThrowExceptionTask(Dependency dep) {
+		public ThrowExceptionTask(@ParentForNew("Parent") Dependency dep) {
 			super(dep);
 		}
 

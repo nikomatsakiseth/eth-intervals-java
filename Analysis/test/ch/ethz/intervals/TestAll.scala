@@ -17,6 +17,7 @@ object TestAll {
     val substs = List(
         ("#Constructor", ir.f_objCtor),
         ("#Creator", ir.f_creator),
+        ("#Parent", ir.f_parent),
         ("#Object", ir.c_object),
         ("#Interval", ir.c_interval),
         ("#Guard", ir.c_guard),

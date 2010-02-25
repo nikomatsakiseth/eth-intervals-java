@@ -11,7 +11,7 @@ case class FlowEnv(
     readableRel: PathRelation,      // (p, q) means guard p is readable by interval q
     writableRel: PathRelation,      // (p, q) means guard p is writable by interval q
     hbRel: PathRelation,            // (p, q) means point p hb point q
-    inlineIntervalRel: PathRelation,   // (p, q) means interval p is a inlineInterval of interval q
+    inlineIntervalRel: PathRelation,// (p, q) means interval p is a inlineInterval of interval q
     locksRel: PathRelation          // (p, q) means interval p locks lock q            
 ) {
     // ___ Creating new flow environments ___________________________________

@@ -22,7 +22,7 @@ public class TestP2P {
 	class P2P extends SetupInterval {
 		final List<Integer> list = Collections.synchronizedList(new ArrayList<Integer>());
 		
-		public P2P(Dependency dep) {
+		public P2P(@ParentForNew("Parent") Dependency dep) {
 			super(dep);
 		}
 		
@@ -47,7 +47,7 @@ public class TestP2P {
 			
 			final int n, m;
 			
-			public AddTask(Dependency dep, int n, int m) {
+			public AddTask(@ParentForNew("Parent") Dependency dep, int n, int m) {
 				super(dep);
 				this.n = n;
 				this.m = m;

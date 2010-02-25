@@ -25,6 +25,7 @@ import jgfmt.jgfutil.JGFInstrumentor;
 import ch.ethz.intervals.Dependency;
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
+import ch.ethz.intervals.ParentForNew;
 import ch.ethz.intervals.Point;
 import ch.ethz.intervals.VoidInlineTask;
 
@@ -164,7 +165,7 @@ public class SORIntervals {
 				
 				final int i;
 
-				public Row(Dependency dep, int _i) {
+				public Row(@ParentForNew("Parent") Dependency dep, int _i) {
 					super(dep);
 					i = _i;
 				}

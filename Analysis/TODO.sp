@@ -28,6 +28,11 @@ ______ OOPSLA Bugs ___________________________________________________
     
 - Static fields, methods
 
+- Adjust "addRelation" methods
+
+  We should assert subclass when adding relations directly, but only
+  couldHaveClass when adding from method requirements.
+
 ______ Bugs __________________________________________________________   
 
 - Check that there are no fields named f_objCtor declared anywhere
@@ -37,6 +42,8 @@ ______ Bugs __________________________________________________________
   As an interim measure we can also ensure that the implementation of
   the constructors from all supertypes is included, but this is not a 
   general solution.
+  
+- Method type parameters
 
 ______ Improvements to existing features _____________________________
 

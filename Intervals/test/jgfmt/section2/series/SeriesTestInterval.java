@@ -43,6 +43,7 @@ import jgfmt.jgfutil.JGFInstrumentor;
 import ch.ethz.intervals.Dependency;
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
+import ch.ethz.intervals.ParentForNew;
 import ch.ethz.intervals.VoidInlineTask;
 
 public class SeriesTestInterval {
@@ -96,7 +97,7 @@ class SeriesRunnerInterval extends Interval {
 	
 	final int id;
 	
-	public SeriesRunnerInterval(Dependency dep, int id) {
+	public SeriesRunnerInterval(@ParentForNew("Parent") Dependency dep, int id) {
 		super(dep);
 		this.id = id;
 	}

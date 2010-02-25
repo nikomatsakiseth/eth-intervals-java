@@ -736,9 +736,7 @@ class TranslateTypeFactory(
         log.indented("fieldGuard(%s)", velem) {
             at(ElementPosition(velem), ir.p_this_creator) {
                 val s_guard = 
-                    if(velem.getAnnotation(classOf[WrittenDuring]) != null) {
-                        velem.getAnnotation(classOf[WrittenDuring]).value
-                    } else if(velem.getAnnotation(classOf[GuardedBy]) != null) {
+                    if(velem.getAnnotation(classOf[GuardedBy]) != null) {
                         velem.getAnnotation(classOf[GuardedBy]).value
                     } else if(EU.isFinal(velem)) {
                         val telem_owner = EU.enclosingClass(velem)

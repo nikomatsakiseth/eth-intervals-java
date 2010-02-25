@@ -26,7 +26,6 @@ import jgfmt.jgfutil.JGFSection3;
 import ch.ethz.intervals.IndexedInterval;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.LongReduction;
-import ch.ethz.intervals.Point;
 import ch.ethz.intervals.VoidInlineTask;
 
 public class JGFRayTracerBench extends RayTracer implements JGFSection3 {

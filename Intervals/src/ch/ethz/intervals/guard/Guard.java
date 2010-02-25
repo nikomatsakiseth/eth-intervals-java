@@ -8,7 +8,6 @@ import ch.ethz.intervals.mirror.LockMirror;
 import ch.ethz.intervals.mirror.PointMirror;
 import ch.ethz.intervals.quals.Creator;
 import ch.ethz.intervals.quals.GuardedBy;
-import ch.ethz.intervals.quals.WrittenDuring;
 
 /**
  * A guard is an object that defines when a field may be safely read or written.

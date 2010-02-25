@@ -25,7 +25,7 @@ public class TestFJ {
 		class AddTask extends Interval {
 			final int i;
 			
-			public AddTask(Dependency dep, int i) {
+			public AddTask(@ParentForNew("Parent") Dependency dep, int i) {
 				super(dep);
 				this.i = i;
 			}

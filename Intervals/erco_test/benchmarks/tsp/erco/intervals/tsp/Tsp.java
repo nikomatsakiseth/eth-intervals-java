@@ -29,7 +29,7 @@ public class Tsp extends Interval {
 	static int NodesFromEnd = 12;
 	static volatile int routesComputed;
 	
-	public Tsp(Dependency dep) {
+	public Tsp(@ParentOfNew("Parent") Dependency dep) {
 		super(dep, "Tsp");
 	}
 

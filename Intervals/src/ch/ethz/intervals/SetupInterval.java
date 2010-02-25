@@ -6,11 +6,11 @@ import static ch.ethz.intervals.Intervals.addHb;
  *  @see #setup(Point, Interval)  */
 public abstract class SetupInterval extends Interval {
 
-	public SetupInterval(Dependency dep) {
+	public SetupInterval(@ParentForNew("Parent") Dependency dep) {
 		super(dep);
 	}
 
-	public SetupInterval(Dependency dep, String name) {
+	public SetupInterval(@ParentForNew("Parent") Dependency dep, String name) {
 		super(dep, name);
 	}
 

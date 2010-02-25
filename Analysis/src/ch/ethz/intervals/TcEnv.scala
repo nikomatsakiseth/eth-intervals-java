@@ -99,8 +99,8 @@ sealed case class TcEnv(
     def addHbPnt(cp: ir.CanonPath, cq: ir.CanonPath) = {
         log("addHbPnt(%s,%s)", cp, cq)
         assert(isImmutable(cp) && isImmutable(cq))
-        assert(pathHasSubclass(cp, ir.c_point))
-        assert(pathHasSubclass(cq, ir.c_point))
+        assert(pathCouldHaveClass(cp, ir.c_point))
+        assert(pathCouldHaveClass(cq, ir.c_point))
         copy(flow = flow.withHbRel(flow.hbRel + (cp.p, cq.p)))
     }
     
@@ -108,24 +108,24 @@ sealed case class TcEnv(
     def addHbInter(cp: ir.CanonPath, cq: ir.CanonPath) = {
         log("addHbInter(%s,%s)", cp, cq)
         assert(isImmutable(cp) && isImmutable(cq))
-        assert(pathHasSubclass(cp, ir.c_interval))
-        assert(pathHasSubclass(cq, ir.c_interval))
+        assert(pathCouldHaveClass(cp, ir.c_interval))
+        assert(pathCouldHaveClass(cq, ir.c_interval))
         copy(flow = flow.withHbRel(flow.hbRel + (cp.p.end, cq.p.start)))
     }
     
     def addDeclaredReadableBy(cp: ir.CanonPath, cq: ir.CanonPath) = {
         log("addDeclaredReadableBy(%s, %s)", cp, cq)
         assert(isImmutable(cp) && isImmutable(cq))
-        assert(pathHasSubclass(cp, ir.c_guard))
-        assert(pathHasSubclass(cq, ir.c_interval))
+        assert(pathCouldHaveClass(cp, ir.c_guard))
+        assert(pathCouldHaveClass(cq, ir.c_interval))
         copy(flow = flow.withReadableRel(flow.readableRel + (cp.p, cq.p)))
     }
     
     def addDeclaredWritableBy(cp: ir.CanonPath, cq: ir.CanonPath) = {
         log("addDeclaredWritableBy(%s, %s)", cp, cq)
         assert(isImmutable(cp) && isImmutable(cq))
-        assert(pathHasSubclass(cp, ir.c_guard))
-        assert(pathHasSubclass(cq, ir.c_interval))
+        assert(pathCouldHaveClass(cp, ir.c_guard))
+        assert(pathCouldHaveClass(cq, ir.c_interval))
         copy(flow = flow.withWritableRel(flow.writableRel + (cp.p, cq.p)))
     }
     
@@ -133,8 +133,8 @@ sealed case class TcEnv(
         log.indented(false, "addSuspends(%s, %s)", cp, cq) {
             // This assertion is not valid during checkReifiedFieldDecl():
             //assert(isImmutable(cp) && isImmutable(cq))
-            assert(pathHasSubclass(cp, ir.c_interval))
-            assert(pathHasSubclass(cq, ir.c_interval))
+            assert(pathCouldHaveClass(cp, ir.c_interval))
+            assert(pathCouldHaveClass(cq, ir.c_interval))
             copy(flow = flow
                 .withHbRel(flow.hbRel + (cq.p.start, cp.p.start) + (cp.p.end, cq.p.end))
                 .withInlineIntervalRel(flow.inlineIntervalRel + (cp.p, cq.p)))
@@ -145,18 +145,18 @@ sealed case class TcEnv(
         log.indented(false, "addLocks(%s, %s)", cp, cq) {
             // This assertion is not valid during checkReifiedFieldDecl:
             //assert(isImmutable(cp) && isImmutable(cq))
-            assert(pathHasSubclass(cp, ir.c_interval))
-            assert(pathHasSubclass(cq, ir.c_lock))
+            assert(pathCouldHaveClass(cp, ir.c_interval))
+            assert(pathCouldHaveClass(cq, ir.c_lock))
             copy(flow = flow.withLocksRel(flow.locksRel + (cp.p, cq.p)))
         }        
     }
 
-    /// Converts cp_from and cp_to to points that can happen before one another.
+    /** Converts cp_from and cp_to to points that can happen before one another. */
     private def userHbPair(cp_from: ir.CanonPath, cp_to: ir.CanonPath): Option[(ir.Path, ir.Path)] = {
         log.indented(false, "userHbPair(%s,%s)", cp_from, cp_to) {
             def makePoint(cp: ir.CanonPath, f: ir.FieldName) = {
-                if(pathHasSubclass(cp, ir.c_point)) Some(cp.p)
-                else if(pathHasSubclass(cp, ir.c_interval)) Some(cp.p + f)
+                if(pathHasClass(cp, ir.c_point)) Some(cp.p)
+                else if(pathHasClass(cp, ir.c_interval)) Some(cp.p + f)
                 else None                
             }
 
@@ -186,27 +186,6 @@ sealed case class TcEnv(
         }
     }
         
-    def addUserDeclaredWritableBy(cp: ir.CanonPath, cq: ir.CanonPath) = {
-        if(pathHasSubclass(cp, ir.c_guard) && pathHasSubclass(cq, ir.c_interval))
-            addDeclaredWritableBy(cp, cq)
-        else
-            this
-    }
-    
-    def addUserDeclaredReadableBy(cp: ir.CanonPath, cq: ir.CanonPath) = {
-        if(pathHasSubclass(cp, ir.c_guard) && pathHasSubclass(cq, ir.c_interval))
-            addDeclaredReadableBy(cp, cq)
-        else
-            this
-    }
-    
-    def addUserSuspends(cp: ir.CanonPath, cq: ir.CanonPath) = {
-        if(pathHasSubclass(cp, ir.c_interval) && pathHasSubclass(cq, ir.c_interval))
-            addSuspends(cp, cq)
-        else
-            this
-    }
-    
     def addReq(req: ir.Req) = {
         log.indented("addReq(%s)", req) {
             at(req, this) {
@@ -225,10 +204,10 @@ sealed case class TcEnv(
                 }
                 
                 req match {
-                    case ir.ReqWritableBy(ps, qs) => cross(_.addUserDeclaredWritableBy(_, _), ps, qs)
-                    case ir.ReqReadableBy(ps, qs) => cross(_.addUserDeclaredReadableBy(_, _), ps, qs)
+                    case ir.ReqWritableBy(ps, qs) => cross(_.addDeclaredWritableBy(_, _), ps, qs)
+                    case ir.ReqReadableBy(ps, qs) => cross(_.addDeclaredReadableBy(_, _), ps, qs)
                     case ir.ReqHb(ps, qs) => cross(_.addUserHb(_, _), ps, qs)
-                    case ir.ReqSuspends(ps, qs) => cross(_.addUserSuspends(_, _), ps, qs)
+                    case ir.ReqSuspends(ps, qs) => cross(_.addSuspends(_, _), ps, qs)
                 }   
             }
         }        
@@ -514,8 +493,8 @@ sealed case class TcEnv(
             log.env(false, "Environment", this)
             assert(isImmutable(cp_from))
             assert(isImmutable(cp_to))
-            assert(pathHasSubclass(cp_from, ir.c_point))
-            assert(pathHasSubclass(cp_to, ir.c_point))
+            assert(pathHasClass(cp_from, ir.c_point))
+            assert(pathHasClass(cp_to, ir.c_point))
             bfs(cp_from.p, cp_to.p)
         }
     }
@@ -525,8 +504,8 @@ sealed case class TcEnv(
         log.indented("hbInter(%s, %s)?", cp_from, cp_to) {
             log.env(false, "Environment", this)
             ( // Sometimes we're sloppy and invoke with wrong types:
-                pathHasSubclass(cp_from, ir.c_interval) && 
-                pathHasSubclass(cp_to, ir.c_interval) &&
+                pathHasClass(cp_from, ir.c_interval) && 
+                pathHasClass(cp_to, ir.c_interval) &&
                 bfs(cp_from.p.end, cp_to.p.start)
             )
         }
@@ -661,7 +640,7 @@ sealed case class TcEnv(
     /// all linked fields either (a) occur in the same class defn as f
     /// or (b) are guarded by some interval which has not yet happened.
     def linkedPaths(cp_o: ir.CanonPath, c_o: ir.ClassName, f: ir.FieldName) = {
-        assert(pathHasSubclass(cp_o, c_o))
+        assert(pathHasClass(cp_o, c_o))
         
         def isDependentOn(wt: ir.WcTypeRef, p: ir.Path) = {
             lowerBoundingCts(wt).exists { wct =>
@@ -741,7 +720,7 @@ sealed case class TcEnv(
         
         def depoint(p: ir.Path, f: ir.FieldName) = p.stripSuffix(f).map(canonPath)
 
-        def isInterval(cp0: ir.CanonPath) = pathHasSubclass(cp0, ir.c_interval)
+        def isInterval(cp0: ir.CanonPath) = pathHasClass(cp0, ir.c_interval)
 
         def visitNext(vis: Set[ir.Path], queue0: Queue[ir.Path]): Boolean = {
             if(queue0.isEmpty)
@@ -937,18 +916,35 @@ sealed case class TcEnv(
     
     // ___ Subtyping and Subclassing ________________________________________
     
-    /** Is wt an erased subtype of class c? */
+    /** Is `wt` an erased subtype of class `c`? */
     def isSubclass(wt: ir.WcTypeRef, c: ir.ClassName): Boolean = {
         lowerBoundingCts(wt).exists(wct => prog.isSubclass(wct.c, c))
     }
     
+    /** Is class `c` an erased subtype of `wt`? */
+    def isSubclass(c: ir.ClassName, wt: ir.WcTypeRef): Boolean = {
+        upperBoundingCts(wt).exists(wct => prog.isSubclass(c, wct.c))
+    }
+    
     /** Does `cp_sub` refer to an object whose type is a subclass of `c_sup`? */
-    def pathHasSubclass(cp_sub: ir.CanonPath, c_sup: ir.ClassName): Boolean = {
+    def pathHasClass(cp_sub: ir.CanonPath, c_sup: ir.ClassName): Boolean = {
         // Ok so the name of this function is an abuse of the english language... sue me...
-        log.indented(false, "pathHasSubclass(%s, %s)?", cp_sub, c_sup) {
+        log.indented(false, "pathHasClass(%s, %s)?", cp_sub, c_sup) {
             cp_sub match {                
                 case cgp: ir.CanonGhostPath => prog.isSubclass(cgp.c_cp, c_sup)
                 case crp: ir.CanonReifiedPath => isSubclass(crp.wt, c_sup)
+            }
+        }
+    }
+    
+    /** Does `cp_sub` refer to an object whose type could be `c_sup`? */
+    def pathCouldHaveClass(cp_sub: ir.CanonPath, c_sup: ir.ClassName): Boolean = {
+        log.indented(false, "pathCouldHaveClass(%s, %s)?", cp_sub, c_sup) {
+            cp_sub match {                
+                case cgp: ir.CanonGhostPath => 
+                    prog.isSubclass(cgp.c_cp, c_sup) || prog.isSubclass(c_sup, cgp.c_cp)
+                case crp: ir.CanonReifiedPath => 
+                    isSubclass(crp.wt, c_sup) || isSubclass(c_sup, crp.wt)
             }
         }
     }

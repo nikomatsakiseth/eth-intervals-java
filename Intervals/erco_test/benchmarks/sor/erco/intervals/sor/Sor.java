@@ -15,6 +15,7 @@ import ch.ethz.intervals.Dependency;
 import ch.ethz.intervals.IndexedInterval;
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
+import ch.ethz.intervals.ParentForNew;
 import ch.ethz.intervals.VoidInlineTask;
 
 public class Sor {
@@ -30,7 +31,7 @@ public class Sor {
 
 		final int roundsRemaining;
 
-		public RowIntervalBase(Dependency dep, int rr) {
+		public RowIntervalBase(@ParentForNew("Parent") Dependency dep, int rr) {
 			super(dep, 1, M+1);
 			roundsRemaining = rr;
 		}
@@ -59,7 +60,7 @@ public class Sor {
 	
 	static class BlackFromRed extends RowIntervalBase {
 		
-		public BlackFromRed(Dependency dep, int rr) {
+		public BlackFromRed(@ParentForNew("Parent") Dependency dep, int rr) {
 			super(dep, rr);
 		}
 		
@@ -90,7 +91,7 @@ public class Sor {
 
 	static class RedFromBlack extends RowIntervalBase {
 		
-		public RedFromBlack(Dependency dep, int rr) {
+		public RedFromBlack(@ParentForNew("Parent") Dependency dep, int rr) {
 			super(dep, rr);
 		}
 

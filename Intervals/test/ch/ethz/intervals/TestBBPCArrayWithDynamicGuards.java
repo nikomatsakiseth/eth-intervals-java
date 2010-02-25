@@ -46,7 +46,7 @@ public class TestBBPCArrayWithDynamicGuards {
 
 	public class BBPC extends Interval {
 
-		public BBPC(Dependency dep) {
+		public BBPC(@ParentForNew("Parent") Dependency dep) {
 			super(dep);
 			
 			for(int i = 0; i < N; i++) {
@@ -62,7 +62,7 @@ public class TestBBPCArrayWithDynamicGuards {
 		class Producer extends Interval {
 			final int index;
 
-			public Producer(Dependency dep, int index) {
+			public Producer(@ParentForNew("Parent") Dependency dep, int index) {
 				super(dep);
 				this.index = index;
 				
@@ -87,7 +87,7 @@ public class TestBBPCArrayWithDynamicGuards {
 		class Consumer extends Interval {
 			final int index;
 			
-			public Consumer(Dependency dep, int index) {
+			public Consumer(@ParentForNew("Parent") Dependency dep, int index) {
 				super(dep);
 				this.index = index;
 

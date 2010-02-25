@@ -11,12 +11,12 @@ import ch.ethz.intervals.mirror.IntervalMirror;
 import ch.ethz.intervals.mirror.LockMirror;
 import ch.ethz.intervals.mirror.PointMirror;
 import ch.ethz.intervals.quals.Requires;
-import ch.ethz.intervals.quals.Subinterval;
 import ch.ethz.intervals.util.ChunkList;
 
+@Parent
 public abstract class Interval 
 extends ThreadPool.WorkItem 
-implements Dependency, Guard, IntervalMirror
+implements /*@ParentOfNew("this")*/ Dependency, Guard, IntervalMirror
 {	
 	// =====================================================================================
 	// Public interface (and some private supporting functions):
@@ -25,11 +25,11 @@ implements Dependency, Guard, IntervalMirror
 	public final Point start;
 	public final Point end;
 	
-	public Interval(Dependency dep) {
+	public Interval(@ParentForNew("Parent") Dependency dep) {
 		this(dep, null);
 	}
 	
-	public Interval(Dependency dep, String name) {
+	public Interval(@ParentForNew("Parent") Dependency dep, String name) {
 		Interval parent = dep.parentForNewInterval();
 		Current current = Current.get();
 		
