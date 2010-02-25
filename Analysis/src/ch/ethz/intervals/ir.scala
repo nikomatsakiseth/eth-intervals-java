@@ -353,32 +353,6 @@ object ir {
     
     val empty_method_body = StmtSeq(List())
 
-    // ___ Unconstructed Sets _______________________________________________
-    //
-    // Tracks which constructors have completed. 
-    
-    sealed abstract class Unconstructed {
-        def toSuffixString: String        
-    }
-    
-    // All constructors completed (the default in normal Java code).
-    case object FullyConstructed extends Unconstructed {
-        override def toString = "FullyConstructed"
-        override def toSuffixString = ""
-    }
-    
-    // No constructors completed.
-    case object FullyUnconstructed extends Unconstructed {
-        override def toString = "{}"
-        override def toSuffixString = " " + toString
-    }
-    
-    // Supertypes of 'c' are constructed but not 'c' itself.
-    case class PartiallyConstructed(c: ir.ClassName) extends Unconstructed {
-        override def toString = "{%s}".format(c)
-        override def toSuffixString = " " + toString
-    }
-    
     // ___ Types ____________________________________________________________
     //
     // The type hierarchy:
@@ -699,6 +673,8 @@ object ir {
     val m_toScalar = ir.MethodName("toScalar")
     val m_run = ir.MethodName("run")
     
+    val tv_arrayElem = ir.TypeVarName("E")
+    
     val m_arrayGet = ir.MethodName("arrayGet")
     val m_arraySet = ir.MethodName("arraySet")
     val m_toString = ir.MethodName("toString") // used only in unit testing
@@ -714,7 +690,8 @@ object ir {
 
     // Types used to translate Java constructs into classes:
     //    These types are not treated specially by the type system,
-    //    but we provide default, synthetic definitions.
+    //    but we provide default, synthetic definitions (see cds_special below).
+    val c_any = ir.ClassName("any")        // Universal root class.
     val c_scalar = ir.ClassName("scalar")  // Represents any scalar value.
     val c_void = ir.ClassName("void")      // Represents void values.
     val c_array = ir.ClassName("array")    // Represents arrays.    
@@ -749,14 +726,28 @@ object ir {
             )
         )
     
-    // Two "classes" used to represent the type void and scalar data.
+    // Special classes defined by us to represent some of the oddities of
+    // the Java type system:
     val cds_special = List(
-        ClassDecl(
+        ClassDecl( // Universal root class.
+            /* Attrs:   */  noAttrs,
+            /* Name:    */  c_any,
+            /* G Decls: */  List(),
+            /* TyVars:  */  List(),
+            /* Extends: */  List(),
+            /* Ghosts:  */  List(),
+            /* TyArgs:  */  List(),
+            /* Reqs:    */  List(),
+            /* Ctor:    */  List(),
+            /* Fields:  */  List(),
+            /* Methods: */  List()
+        ),
+        ClassDecl( // void data.
             /* Attrs:   */  noAttrs,
             /* Name:    */  c_void,
             /* G Decls: */  List(),
             /* TyVars:  */  List(),
-            /* Extends: */  List(),
+            /* Extends: */  List(c_any),
             /* Ghosts:  */  List(),
             /* TyArgs:  */  List(),
             /* Reqs:    */  List(),
@@ -764,12 +755,12 @@ object ir {
             /* Fields:  */  List(),
             /* Methods: */  List()
         ),
-        ClassDecl(
+        ClassDecl( // scala data (ints, bytes, floats, etc)
             /* Attrs:   */  noAttrs,
             /* Name:    */  c_scalar,
             /* G Decls: */  List(),
             /* TyVars:  */  List(),
-            /* Extends: */  List(),
+            /* Extends: */  List(c_any),
             /* Ghosts:  */  List(),
             /* TyArgs:  */  List(),
             /* Reqs:    */  List(),
@@ -777,12 +768,12 @@ object ir {
             /* Fields:  */  List(),
             /* Methods: */  List()
         ),
-        ClassDecl(
+        ClassDecl( // arrays
             /* Attrs:   */  noAttrs,
             /* Name:    */  c_array,
             /* G Decls: */  List(),
-            /* TyVars:  */  List(),
-            /* Extends: */  List(),
+            /* TyVars:  */  List(ir.TypeVarDecl(ir.tv_arrayElem, List(c_any.ct))),
+            /* Extends: */  List(c_any),
             /* Ghosts:  */  List(),
             /* TyArgs:  */  List(),
             /* Reqs:    */  List(),

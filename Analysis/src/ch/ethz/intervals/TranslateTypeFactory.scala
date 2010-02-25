@@ -599,33 +599,54 @@ class TranslateTypeFactory(
         m_comb.toList.map { case (f, wp) => ir.WcGhost(f, wp) }
     }
     
-    def unconstructed(c_ty: ir.ClassName, oam: Option[AnnotationMirror]) = {
-        oam match {
-            case None => ir.FullyConstructed
-            case Some(am) =>            
-                val string = annValue(am).trim
-                if(string == "")
-                    ir.FullyUnconstructed
-                else {
-                    val elem = AnnTyParser.typeElement(string)
-                    ir.PartiallyConstructed(className(elem))
-                }
+    def wtarg(env: TranslateEnv)(
+        tv: ir.TypeVarName, 
+        annty: AnnotatedTypeMirror
+    ): ir.WcTypeArg = {
+        log.indented("wtref(%s)", annty) {
+            annty.getKind match {
+                case TK.WILDCARD =>
+                    def trbnd(bnd: AnnotatedTypeMirror) = 
+                        if(bnd == null) List()
+                        else List(wtref(env)(bnd))                        
+                    val annwty = annty.asInstanceOf[AnnotatedWildcardType]
+                    val bnds = ir.TypeBounds(
+                        wts_lb = trbnd(annwty.getExtendsBound),
+                        wts_ub = trbnd(annwty.getSuperBound)
+                    )
+                    ir.BoundedTypeArg(tv, bnds)
+                    
+                case _ => 
+                    ir.TypeArg(tv, wtref(env)(annty))
+            }
         }
     }
     
-    def wtref(env: TranslateEnv)(annty: AnnotatedTypeMirror) = {
-        // XXX Add type arguments.
+    def wtref(env: TranslateEnv)(annty: AnnotatedTypeMirror): ir.WcTypeRef = {
         log.indented("wtref(%s)", annty) {
             val c = erasedTy(annty.getUnderlyingType)
-            val oam = nullToOption(annty.getAnnotation(wke.Unconstructed.cls))
-            val uncons = unconstructed(c, oam)
             
             annty.getKind match {
                 case TK.DECLARED =>
-                    ir.WcClassType(c, wghosts(env)(annty), List())
+                    val anndty = annty.asInstanceOf[AnnotatedDeclaredType]
+                    
+                    // Translate type arguments, if any:
+                    val wtargs = if(!anndty.isParameterized) {
+                        List()
+                    } else {
+                        val elem = anndty.getUnderlyingType.asElement.asInstanceOf[TypeElement]
+                        val tvs = elem.getTypeParameters.map(typeVarName).toList
+                        tvs.zip(anndty.getTypeArguments).map { case (tv, annty_arg) =>
+                            wtarg(env)(tv, annty_arg) }
+                    }
+                    
+                    ir.WcClassType(c, wghosts(env)(annty), wtargs.toList)
 
                 case TK.ARRAY =>
-                    ir.WcClassType(c, wghosts(env)(annty), List())
+                    val annaty = annty.asInstanceOf[AnnotatedArrayType]
+                    val wt_comp = wtref(env)(annaty.getComponentType)
+                    val targ = ir.TypeArg(ir.tv_arrayElem, wt_comp)
+                    ir.WcClassType(c, wghosts(env)(annty), List(targ))
 
                 case _ =>
                     ir.WcClassType(c, List(), List())
@@ -752,7 +773,6 @@ class TranslateTypeFactory(
                 val elem_owner = EU.enclosingClass(eelem)
                 val env_mthd = elemEnv(eelem)
                 val annty = getAnnotatedType(eelem)
-                val am = annotationMirrorOfElement(eelem, wke.Unconstructed.ty)
                 ir.MethodDecl(
                     wt_ret = wtref(env_mthd)(annty.getReturnType), 
                     name = methodName(eelem), 
@@ -762,32 +782,55 @@ class TranslateTypeFactory(
                 ).withPos(env_mthd.pos)
             }
         }
+        
+    def intTypeVarDecl(tvelem: TypeParameterElement): ir.TypeVarDecl = {
+        ir.TypeVarDecl(
+            name = typeVarName(tvelem),
+            wts_lb = List(ir.c_object.ct) /* XXX */
+        )
+    }
     
     def intClassDecl(filter: (Element => Boolean), telem: TypeElement): ir.ClassDecl = 
         indexLog.indented("Class Inter: %s", qualName(telem)) {
-            at(ElementPosition(telem), dummyClassDecl(telem)) {
+            at(ElementPosition(telem), dummyClassDecl(telem)) {                
+                val env = elemEnv(telem)
+                
+                // Translate the interface of those members accepted by `filter`:
                 val enclElems = telem.getEnclosedElements
                 val ctorDecls = EF.constructorsIn(enclElems).filter(filter).map(intMethodDecl)
                 val methodDecls = EF.methodsIn(enclElems).filter(filter).map(intMethodDecl)
                 val fieldDecls = EF.fieldsIn(enclElems).filter(filter).map(intFieldDecl)
+                val tvDecls = telem.getTypeParameters.map(intTypeVarDecl)
                 
-                val env = elemEnv(telem)
+                // Extract bound type arguments from superclass:
+                val tas_bound = {
+                    def typeArgs(annty: AnnotatedTypeMirror) = {
+                        wtref(env)(annty) match {
+                            case ir.WcClassType(_, _, wtargs) => 
+                                // Java does not allow wildcards in supertypes:
+                                wtargs.map(_.asInstanceOf[ir.TypeArg])
+                            case _ => List()
+                        }
+                    }
+    
+                    getAnnotatedType(telem).directSuperTypes.flatMap(typeArgs)
+                }
+                
+                // Extract ghosts declared and bound ghosts from annotations:
                 val gfds = ghostFieldsDeclaredOnElem(telem).map { case (f, ty) =>
                     val c = elemOfType(ty).map(className).get
                     ir.GhostFieldDecl(f, c) }
-                val ghosts = ghostFieldsBoundOnElem(telem).map { case (f, s) =>
+                val gs_bound = ghostFieldsBoundOnElem(telem).map { case (f, s) =>
                     ir.Ghost(f, AnnotParser(env).path(s)) }
         
-                // XXX Type Vars, Type Args
-                
                 ir.ClassDecl(
                     attrs = classAttrs(telem),
                     name = className(telem),
                     ghostFieldDecls = gfds.toList,
-                    typeVarDecls = List(), // XXX
+                    typeVarDecls = tvDecls.toList,
                     superClasses = directSupertys(telem).map(erasedTy(_)),
-                    ghosts = ghosts.toList,
-                    typeArgs = List(), // XXX
+                    ghosts = gs_bound.toList,
+                    typeArgs = tas_bound.toList,
                     reqs = List(),
                     ctors = ctorDecls.toList,
                     reifiedFieldDecls = fieldDecls.toList,
