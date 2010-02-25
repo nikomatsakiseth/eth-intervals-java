@@ -67,10 +67,17 @@ sealed case class TcEnv(
     def addGhostLocal(lv: ir.VarName, c: ir.ClassName) = addPerm(lv, ir.CpGhostLv(lv, c))
     
     /** Defines a fresh ghost variable of type `wt` */
-    def freshCp(c: ir.ClassName) = {
+    def freshCp(c: ir.ClassName): (ir.CanonPath, TcEnv) = {
         val lv = prog.freshVarName
         val env1 = addGhostLocal(lv, c)
         (env1.perm(lv), env1)
+    }
+        
+    /** Defines a fresh reified variable of type `wt` */
+    def freshCp(wt: ir.WcTypeRef): (ir.CanonReifiedPath, TcEnv) = {
+        val lv = prog.freshVarName
+        val env1 = addReifiedLocal(lv, wt)
+        (env1.reifiedLv(lv), env1)
     }
         
     /** Temporarily redirect from `p` to `q` */
@@ -137,7 +144,7 @@ sealed case class TcEnv(
             assert(pathCouldHaveClass(cq, ir.c_interval))
             copy(flow = flow
                 .withHbRel(flow.hbRel + (cq.p.start, cp.p.start) + (cp.p.end, cq.p.end))
-                .withInlineIntervalRel(flow.inlineIntervalRel + (cp.p, cq.p)))
+                .withInlineRel(flow.inlineRel + (cp.p, cq.p)))
         }        
     }
 
@@ -515,7 +522,7 @@ sealed case class TcEnv(
         log.indented(false, "suspends(%s, %s)?", cp, cq) {
             log.env(false, "Environment", this)
 
-            superintervalsOrSelf(cp).contains(cq)
+            inlineSuperintervalsOf(cp).contains(cq)
         }
     }
     
@@ -523,14 +530,12 @@ sealed case class TcEnv(
         log.indented(false, "locks(%s, %s)?", cp, cq) {
             log.env(false, "Environment", this)
             
-            superintervalsOrSelf(cp).exists { cp_sup => flow.locks((cp_sup.p, cq.p)) }
+            inlineSuperintervalsOf(cp).exists { cp_sup => flow.locks((cp_sup.p, cq.p)) }
         }
     }
     
-    /// Is data guarded by 'p' writable by the interval 'q'?
-    def guardsDataWritableBy(cp: ir.CanonPath, cq: ir.CanonPath): Boolean = {
-        log.indented(false, "guardsDataWritableBy(%s, %s)?", cp, cq) {
-            log.env(false, "Environment", this)
+    private[this] def immediateIsWritableBy(cp: ir.CanonPath, cq: ir.CanonPath): Boolean = {
+        log.indented(false, "immediateIsWritableBy(%s, %s)?", cp, cq) {
             (
                 is(cp) match {
                     // Is cp a ghost declared writable by q?
@@ -538,18 +543,16 @@ sealed case class TcEnv(
                     case _ => false
                 }
             ) || {
-                superintervalsOrSelf(cq).exists(cq_sup => flow.writable((cp.p, cq_sup.p))) ||
+                flow.writable((cp.p, cq.p)) ||
                 equiv(cp, cq) ||
                 locks(cq, cp) ||
                 suspends(cq, cp)
             }
         }
-    }    
+    }
     
-    /// Is data guarded by 'p' readable by the interval 'q'?
-    def guardsDataReadableBy(cp: ir.CanonPath, cq: ir.CanonPath): Boolean = {
-        log.indented(false, "guardsDataReadableBy(%s, %s)?", cp, cq) {
-            log.env(false, "Environment", this)
+    private[this] def immediateIsReadableBy(cp: ir.CanonPath, cq: ir.CanonPath): Boolean = {
+        log.indented(false, "immediateIsReadableBy(%s, %s)?", cp, cq) {
             (
                 is(cp) match {
                     // Is cp a ghost declared readable by q or immutable in q?
@@ -557,10 +560,31 @@ sealed case class TcEnv(
                     case _ => false
                 } 
             ) || {
-                superintervalsOrSelf(cq).exists(cq_sup => flow.readable((cp.p, cq_sup.p))) ||
+                // n.b.: This is safe because when cq is active, all superintervals are
+                // suspended.  Therefore, even if a superinterval could write, it is
+                // safe for us to read.  We could generalize this more to include 
+                // any interval X where cq.start -> X.start, X.end -> cq.end, and
+                // cp is immutable in X.
+                flow.readable((cp.p, cq.p)) ||
                 hbInter(cp, cq) ||
-                guardsDataWritableBy(cp, cq)            
-            }
+                immediateIsWritableBy(cp, cq)            
+            }  
+        }  
+    }
+        
+    /** Is data guarded by `cp` writable by the interval `cq`? */
+    def isWritableBy(cp: ir.CanonPath, cq: ir.CanonPath): Boolean = {
+        log.indented(false, "isWritableBy(%s, %s)?", cp, cq) {
+            log.env(false, "Environment", this)
+            inlineSuperintervalsOf(cq).exists(cq_sup => immediateIsWritableBy(cp, cq_sup))
+        }
+    }    
+    
+    /** Is data guarded by `cp` readable by the interval `cq`? */
+    def isReadableBy(cp: ir.CanonPath, cq: ir.CanonPath): Boolean = {        
+        log.indented(false, "isReadableBy(%s, %s)?", cp, cq) {
+            log.env(false, "Environment", this)
+            superintervalsOf(cq).exists(cq_sup => immediateIsReadableBy(cp, cq_sup))
         }
     }
     
@@ -670,38 +694,54 @@ sealed case class TcEnv(
         rfds_linked.map { rfd => subst.path(rfd.thisPath) }
     }
     
-    // ___ Superintervals ___________________________________________________
+    // ___ Superintervals and suspended intervals ___________________________
     
-    private def superintervalsOrSelf(cp0: ir.CanonPath) = {
-        def immediateSuperintervalsOf(cp: ir.CanonPath): Set[ir.CanonPath] = {
-            log.indented("immediateSuperintervalsOf(%s)", cp) {
-                flow.inlineIntervalRel.values(cp.p).map(canonPath) ++ {
-                    log.indented("cp0.Constructor[_].end < cp0.Constructor.end?") {
-                        cp match {
-                            case ir.CpClassCtor(cp0, _) => 
-                                Some(fld(cp0, ir.f_objCtor))
-                            case _ =>                     
-                                None
-                        }
-                    }
-                }            
+    private[this] def accrueCanonPaths(func: (ir.CanonPath => Set[ir.CanonPath]))(
+        stale: Set[ir.CanonPath], 
+        fresh: Set[ir.CanonPath]
+    ): Set[ir.CanonPath] = {
+        log.indented(true, "accrueCanonPaths(fresh=%s)", fresh) {
+            if(fresh.isEmpty) stale
+            else {
+                val nextStale = stale ++ fresh
+                val nextFresh = fresh.flatMap(func).filter(cp => !nextStale(cp))
+                accrueCanonPaths(func)(nextStale, nextFresh)
             }
         }
-
-        def iterate(stale: Set[ir.CanonPath], fresh: Set[ir.CanonPath]): Set[ir.CanonPath] = {
-            log.indented(true, "iterate(fresh=%s)", fresh) {
-                if(fresh.isEmpty) stale
-                else {
-                    val nextStale = stale ++ fresh
-                    val nextFresh = fresh.flatMap(immediateSuperintervalsOf).filter(cp => !nextStale(cp))
-                    iterate(nextStale, nextFresh)
+    }
+    
+    private[this] def immediateInlineSuperintervalsOf(cp: ir.CanonPath): Set[ir.CanonPath] = {
+        log.indented("suspendedBy(%s)", cp) {
+            flow.inlineRel.values(cp.p).map(canonPath) ++ {
+                log.indented("cp0.Constructor[_] < cp0.Constructor?") {
+                    cp match {
+                        case ir.CpClassCtor(cp0, _) => 
+                            Some(fld(cp0, ir.f_objCtor))
+                        case _ =>                     
+                            None
+                    }
                 }
+            }            
+        }
+    }
+    
+    private[this] def inlineSuperintervalsOf(cp: ir.CanonPath) = {
+        log.indented(false, "inlineSuperintervalsOf(%s)", cp) {
+            accrueCanonPaths(immediateInlineSuperintervalsOf)(Set(), Set(cp))
+        }
+    }
+    
+    private[this] def superintervalsOf(cp0: ir.CanonPath) = {
+        def immediateSuperintervalsOf(cp: ir.CanonPath): Set[ir.CanonPath] = {
+            log.indented("superintervalsOf(%s)", cp) {
+                immediateInlineSuperintervalsOf(cp) ++ (cp match {
+                    case crp: ir.CanonReifiedPath => Set(fld(crp, ir.f_parent))
+                    case _: ir.CanonGhostPath => Set()                    
+                })
             }
         }
         
-        log.indented(false, "superintervalsOrSelf(%s)", cp0) {
-            iterate(Set(), Set(cp0))
-        }
+        accrueCanonPaths(immediateSuperintervalsOf)(Set(), Set(cp0))        
     }
     
     // ___ Happens-Before Searches __________________________________________
@@ -980,34 +1020,17 @@ sealed case class TcEnv(
     
     private[this] def isGtPaths(ps: List[ir.Path], qs: List[ir.Path]) = isLtPaths(qs, ps)    
     
-    private[this] def isLtWpath(wp: ir.WcPath, wq: ir.WcPath): Boolean = {
-        log.indented("isLtWpath(%s, %s)?", wp, wq) {
-            (wp, wq) match {
-                case (p: ir.Path, q: ir.Path) =>
-                    equiv(canonPath(p), canonPath(q))
-                case (p: ir.Path, ir.WcReadableBy(qs)) =>
-                    val cp = canonPath(p)
-                    qs.forall { q => guardsDataReadableBy(cp, canonPath(q)) }
-                case (p: ir.Path, ir.WcWritableBy(qs)) =>
-                    val cp = canonPath(p)
-                    qs.forall { q => guardsDataWritableBy(cp, canonPath(q)) }
-                case (p: ir.Path, ir.WcHbNow(qs)) =>
-                    val cp = canonPath(p)
+    private[this] def isLtWpath(cp: ir.CanonPath, wq: ir.WcPath): Boolean = {
+        log.indented("isLtWpath(%s, %s)?", cp, wq) {
+            wq match {
+                case q: ir.Path =>
+                    equiv(cp, canonPath(q))
+                case ir.WcReadableBy(qs) =>
+                    qs.forall { q => isReadableBy(cp, canonPath(q)) }
+                case ir.WcWritableBy(qs) =>
+                    qs.forall { q => isWritableBy(cp, canonPath(q)) }
+                case ir.WcHbNow(qs) =>
                     hbNow(cp, canonPaths(qs))
-            
-                // Accessible by more is a subtype of accessible by less:
-                case (ir.WcWritableBy(ps), ir.WcWritableBy(qs)) => isGtPaths(ps, qs)                
-                case (ir.WcWritableBy(ps), ir.WcReadableBy(qs)) => isGtPaths(ps, qs)
-                case (ir.WcReadableBy(ps), ir.WcReadableBy(qs)) => isGtPaths(ps, qs)
-
-                // hbNow with less is a subtype of hbNow of more:
-                //  ∀i:Interval. (? hbNow) => (? hbNow i)
-                case (ir.WcHbNow(ps), ir.WcHbNow(qs)) => 
-                    val cps = ps.map(canonPath).filter(cp => !interHappened(cp))
-                    val cqs = qs.map(canonPath)
-                    isLtCanonPaths(cps, cqs)
-                
-                case (_, _) => false
             }
         }
     }
@@ -1017,8 +1040,8 @@ sealed case class TcEnv(
         wg_sup: ir.WcGhost
     ) = {
         log.indented("pathHasSubWcGhost(%s, %s)?", tcp_sub, wg_sup) {
-            val wg_sub = ghost(tcp_sub.cp, wg_sup.f)
-            isLtWpath(wg_sub.wp, wg_sup.wp)
+            val cp_f = fld(tcp_sub.cp, wg_sup.f)
+            isLtWpath(cp_f, wg_sup.wp)
         }
     }
     
@@ -1091,9 +1114,8 @@ sealed case class TcEnv(
         wt_sup: ir.WcTypeRef
     ): Boolean = {
         log.indented(false, "isSubtype(%s, %s)?", wt_sub, wt_sup) {
-            val lv = prog.freshVarName
-            val env = addReifiedLocal(lv, wt_sub)
-            env.pathHasType(env.reifiedLv(lv).toTcp, wt_sup)
+            val (cp, env) = freshCp(wt_sub)
+            env.pathHasType(cp.toTcp, wt_sup)
         }
     }
     

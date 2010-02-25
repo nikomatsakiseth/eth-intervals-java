@@ -888,8 +888,8 @@ globalVersion	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Tran
 gs_bound	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val gs_bound = ghostFieldsBoundOnElem(telem).map { case (f, s) =>$/;"	constants	line:832
 gs_default	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^                val gs_default = List(ir.Ghost(ir.f_objCtor, env.cp_cur.p))$/;"	constants	line:459
 gs_new	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^            val gs_new = gs_additional.filter(g => !ghosts.exists(_.isNamed(g.f)))$/;"	constants	line:413
-guardsDataReadableBy	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TcEnv.scala	/^    def guardsDataReadableBy(cp: ir.CanonPath, cq: ir.CanonPath): Boolean = {$/;"	methods	line:571
-guardsDataWritableBy	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TcEnv.scala	/^    def guardsDataWritableBy(cp: ir.CanonPath, cq: ir.CanonPath): Boolean = {$/;"	methods	line:552
+isReadableBy	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TcEnv.scala	/^    def isReadableBy(cp: ir.CanonPath, cq: ir.CanonPath): Boolean = {$/;"	methods	line:571
+isWritableBy	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TcEnv.scala	/^    def isWritableBy(cp: ir.CanonPath, cq: ir.CanonPath): Boolean = {$/;"	methods	line:552
 happened	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TcEnv.scala	/^                def happened(q: ir.Path) = {$/;"	methods	line:801
 happened	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestTcEnv.scala	/^    def happened() = setup("") { prog =>$/;"	methods	line:277
 hasMatchingShortName	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                    def hasMatchingShortName(f: ir.FieldName) =$/;"	methods	line:488
@@ -957,7 +957,7 @@ inheritedAssumptionsFromSupertypes	/Users/niko/git/intervals-java/Analysis/test/
 inheritedAssumptionsOnlyIncludeTemporarilyAliasedFields	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^    def inheritedAssumptionsOnlyIncludeTemporarilyAliasedFields() {$/;"	methods	line:542
 inheritedUnboundTypeArgs	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestTcEnv.scala	/^    def inheritedUnboundTypeArgs() = setup(listText) { prog =>$/;"	methods	line:237
 init	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IntervalsChecker.scala	/^    override def init(env: ProcessingEnvironment) = {$/;"	methods	line:42
-inlineInterval	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/FlowEnv.scala	/^    def inlineInterval = inlineIntervalRel.pairs$/;"	methods	line:41
+inlineInterval	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/FlowEnv.scala	/^    def inlineInterval = inlineRel.pairs$/;"	methods	line:41
 inlineInterval	/Users/niko/git/intervals-java/Analysis/test/ch/ethz/intervals/TestAnalysis.scala	/^    def inlineInterval() {$/;"	methods	line:808
 intArgDecl	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    def intArgDecl(velem: VariableElement) = {$/;"	methods	line:767
 intCdecl	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val intCdecl = intClassDecl((_ => true), telem)$/;"	constants	line:883
@@ -1813,21 +1813,21 @@ withDefaultGhosts	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/
 withDefaultWghosts	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^        def withDefaultWghosts(wgs_additional: List[ir.WcGhost]) = this$/;"	methods	line:377
 withDefaultWghosts	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^        def withDefaultWghosts(wgs_additional: List[ir.WcGhost]) = {$/;"	methods	line:401
 withDefaultWghosts	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^        def withDefaultWghosts(wgs_additional: List[ir.WcGhost]): WcTypeRef$/;"	methods	line:366
-withHbRel	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/FlowEnv.scala	/^    def withHbRel(hbRel: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, inlineIntervalRel, locksRel)$/;"	methods	line:24
-withInlineIntervalRel	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/FlowEnv.scala	/^    def withInlineIntervalRel(inlineIntervalRel: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, inlineIntervalRel, locksRel)$/;"	methods	line:25
+withHbRel	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/FlowEnv.scala	/^    def withHbRel(hbRel: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, inlineRel, locksRel)$/;"	methods	line:24
+withInlineRel	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/FlowEnv.scala	/^    def withInlineRel(inlineRel: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, inlineRel, locksRel)$/;"	methods	line:25
 withInterface	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^        def withInterface = this + AttrInterface$/;"	methods	line:77
-withInvalidated	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/FlowEnv.scala	/^    def withInvalidated(ps_invalidated: Set[ir.Path]) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, inlineIntervalRel, locksRel)$/;"	methods	line:21
-withLocksRel	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/FlowEnv.scala	/^    def withLocksRel(locksRel: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, inlineIntervalRel, locksRel)$/;"	methods	line:26
-withNonnull	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/FlowEnv.scala	/^    def withNonnull(nonnull: Set[ir.Path]) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, inlineIntervalRel, locksRel)$/;"	methods	line:19
+withInvalidated	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/FlowEnv.scala	/^    def withInvalidated(ps_invalidated: Set[ir.Path]) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, inlineRel, locksRel)$/;"	methods	line:21
+withLocksRel	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/FlowEnv.scala	/^    def withLocksRel(locksRel: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, inlineRel, locksRel)$/;"	methods	line:26
+withNonnull	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/FlowEnv.scala	/^    def withNonnull(nonnull: Set[ir.Path]) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, inlineRel, locksRel)$/;"	methods	line:19
 withPos	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^        def withPos(pos: Position): P = {$/;"	methods	line:21
 withPos	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/Util.scala	/^    def withPos[P <: Positional](p: Position, instance: P) = $/;"	methods	line:30
-withReadableRel	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/FlowEnv.scala	/^    def withReadableRel(readableRel: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, inlineIntervalRel, locksRel)$/;"	methods	line:22
+withReadableRel	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/FlowEnv.scala	/^    def withReadableRel(readableRel: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, inlineRel, locksRel)$/;"	methods	line:22
 withReturnType	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TcEnv.scala	/^    def withReturnType(wt_ret: ir.WcTypeRef) = copy(wt_ret = wt_ret)$/;"	methods	line:35
 withSplitLog	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/log/LogStack.scala	/^    def withSplitLog[R](newSplitLog: SplitLog)(func: => Unit) = {$/;"	methods	line:18
-withTemp	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/FlowEnv.scala	/^    def withTemp(temp: Map[ir.Path, ir.Path]) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, inlineIntervalRel, locksRel)$/;"	methods	line:20
+withTemp	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/FlowEnv.scala	/^    def withTemp(temp: Map[ir.Path, ir.Path]) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, inlineRel, locksRel)$/;"	methods	line:20
 withThisClass	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TcEnv.scala	/^    def withThisClass(c_this: ir.ClassName) = addReifiedLocal(ir.lv_this, c_this.ct).copy(c_this = c_this)$/;"	methods	line:41
 withTy	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/ir.scala	/^        def withTy[S <: WcTypeRef](ty: S) = ir.TeeCeePee(cp, ty)$/;"	methods	line:607
-withWritableRel	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/FlowEnv.scala	/^    def withWritableRel(writableRel: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, inlineIntervalRel, locksRel)$/;"	methods	line:23
+withWritableRel	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/FlowEnv.scala	/^    def withWritableRel(writableRel: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, inlineRel, locksRel)$/;"	methods	line:23
 wke	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^    val wke = new WellKnownElements($/;"	constants	line:38
 wp	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/BaseParser.scala	/^    def wp = ($/;"	methods	line:85
 wp	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IrParser.scala	/^    override def wp = super.wp                  \/\/ Defined in BaseParser$/;"	methods	line:53

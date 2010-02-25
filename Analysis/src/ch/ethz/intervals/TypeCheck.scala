@@ -50,8 +50,8 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
             forallcross(cps, cqs)(func)
         }
         req match {
-            case ir.ReqWritableBy(ps, qs) => is(env.guardsDataWritableBy, ps, qs)
-            case ir.ReqReadableBy(ps, qs) => is(env.guardsDataReadableBy, ps, qs)
+            case ir.ReqWritableBy(ps, qs) => is(env.isWritableBy, ps, qs)
+            case ir.ReqReadableBy(ps, qs) => is(env.isReadableBy, ps, qs)
             case ir.ReqSuspends(ps, qs) => is(env.suspends, ps, qs)
             case ir.ReqHb(ps, qs) => is(env.userHb, ps, qs)
         }
@@ -70,12 +70,12 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
         foreachzip(cqs, msig.wts_args)(checkIsSubtype(env, _, _))
     
     def checkReadable(env: TcEnv, cp_guard: ir.CanonPath) {
-        if(!env.guardsDataReadableBy(cp_guard, env.cp_cur))
+        if(!env.isReadableBy(cp_guard, env.cp_cur))
             throw new CheckFailure("intervals.not.readable", cp_guard.p)
     }
     
     def checkWritable(env: TcEnv, cp_guard: ir.CanonPath) {
-        if(!env.guardsDataWritableBy(cp_guard, env.cp_cur))
+        if(!env.isWritableBy(cp_guard, env.cp_cur))
             throw new CheckFailure("intervals.not.writable", cp_guard.p)
     }
         
@@ -214,7 +214,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                 mapPathRelation(flow_brk.readableRel),
                 mapPathRelation(flow_brk.writableRel),
                 mapPathRelation(flow_brk.hbRel),
-                mapPathRelation(flow_brk.inlineIntervalRel),
+                mapPathRelation(flow_brk.inlineRel),
                 mapPathRelation(flow_brk.locksRel)
             )
         )

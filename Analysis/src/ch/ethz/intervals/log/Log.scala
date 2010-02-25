@@ -114,7 +114,7 @@ abstract class Log {
             rel("readable:", "readable by", flow.readableRel)
             rel("writable:", "writable by", flow.writableRel)
             rel("hb:", "hb", flow.hbRel)
-            rel("inlineInterval:", "inlineInterval of", flow.inlineIntervalRel)
+            rel("inlineInterval:", "inlineInterval of", flow.inlineRel)
             rel("locks:", "locks", flow.locksRel)
         }
     }
