@@ -73,7 +73,7 @@ public class VariousLoops {
         for (int i = j; i < 1; i++) {
 	        Intervals.addHb(x, y);            
         }
-	    readableByYObject = xObject; // ERROR Variable "xObject" has type "@(ch.ethz.intervals.quals.Creator)(this.(basic.VariousLoops.x)) (java.lang.Object)" which is not a subtype of "@(ch.ethz.intervals.quals.Creator)(readableBy this.(basic.VariousLoops.y)) (java.lang.Object)".
+	    readableByYObject = xObject; // ERROR Variable "xObject" has type "@(ch.ethz.intervals.quals.Constructor)(hbNow) @(ch.ethz.intervals.quals.Creator)(this.(basic.VariousLoops.x)) (java.lang.Object)" which is not a subtype of "@(ch.ethz.intervals.quals.Constructor)(hbNow) @(ch.ethz.intervals.quals.Creator)(readableBy this.(basic.VariousLoops.y)) (java.lang.Object)".
 	    
 	    // Also here:
 	    int i = j;
@@ -81,7 +81,7 @@ public class VariousLoops {
 	        Intervals.addHb(x, y);
 	        i++;
 	    }
-	    readableByYObject = xObject; // ERROR Variable "xObject" has type "@(ch.ethz.intervals.quals.Creator)(this.(basic.VariousLoops.x)) (java.lang.Object)" which is not a subtype of "@(ch.ethz.intervals.quals.Creator)(readableBy this.(basic.VariousLoops.y)) (java.lang.Object)".
+	    readableByYObject = xObject; // ERROR Variable "xObject" has type "@(ch.ethz.intervals.quals.Constructor)(hbNow) @(ch.ethz.intervals.quals.Creator)(this.(basic.VariousLoops.x)) (java.lang.Object)" which is not a subtype of "@(ch.ethz.intervals.quals.Constructor)(hbNow) @(ch.ethz.intervals.quals.Creator)(readableBy this.(basic.VariousLoops.y)) (java.lang.Object)".
 	    
 	    // But with do-while it's ok:
 	    do {

@@ -26,7 +26,7 @@ import ch.ethz.intervals.log.LogDirectory
 class TestPlugin extends JUnitSuite {
     import TestAll.DEBUG_DIR
     
-    val logTests: Set[String] = Set("testLists")
+    val logTests: Set[String] = Set()
     
     def fileName(jfo: JavaFileObject) =
         if(jfo == null) "null"

@@ -147,7 +147,7 @@ object TranslateMethodBody
         def createSymbol(env: ttf.TranslateEnv)(vtree: VariableTree): Symbol = {
             val elem = TU.elementFromDeclaration(vtree)
             val annty = ttf.getAnnotatedType(elem)
-            val wtref = ttf.wtref(env)(annty)
+            val wtref = ttf.wtref(env, ir.wgs_constructed)(annty)
             new Symbol(nm(elem), annty, wtref)
         }
 
@@ -338,8 +338,8 @@ object TranslateMethodBody
                 )
             }
                         
-            def wtref(etree: ExpressionTree) = {
-                ttf.wtref(env(etree))(getAnnotatedType(etree))
+            def wtref(etree: ExpressionTree, wgs_default: List[ir.WcGhost]) = {
+                ttf.wtref(env(etree), wgs_default)(getAnnotatedType(etree))
             }
 
             def call(treePos: Tree, lv_rcvr: ir.VarName, m: ir.MethodName, lvs_args: ir.VarName*) = {
@@ -363,7 +363,7 @@ object TranslateMethodBody
             }
             
             def nullStmt(etree: ExpressionTree): ir.VarName = {
-                nullStmt(etree, wtref(etree))
+                nullStmt(etree, wtref(etree, ir.wgs_constructed))
             }
             
             def load(treePos: Tree, lv_owner: ir.VarName, f: ir.FieldName) = {
@@ -532,7 +532,7 @@ object TranslateMethodBody
                         
                         // Result variable:
                         val lv_res = freshVar
-                        val wt_res = wtref(etree)
+                        val wt_res = wtref(etree, ir.wgs_constructed)
                         
                         subscope(tree, ScopeKindSwitch, None, ir.LvDecl(lv_res, wt_res)) { scope_sw =>
                             scope_sw.subseq { seq_t =>
@@ -579,7 +579,7 @@ object TranslateMethodBody
                     case tree: NewClassTree => // p = new T(Q)
                         val lv = freshVar
                         val elem = IU.constructor(tree)
-                        val t = chkNoWcInTref(wtref(tree))
+                        val t = chkNoWcInTref(wtref(tree, List()))
                         val m = ttf.methodName(elem)
                         val qs = tree.getArguments.map(rvalue).toList
                         addStmt(tree, ir.StmtNew(lv, t, m, qs))

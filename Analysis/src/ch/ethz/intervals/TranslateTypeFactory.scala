@@ -250,13 +250,9 @@ class TranslateTypeFactory(
     ): Map[K, V] = {
         elem.getKind match {
             case EK.CLASS | EK.INTERFACE | EK.ENUM | EK.ANNOTATION_TYPE =>
-                // Extract decls from supertypes:
                 val telem = elem.asInstanceOf[TypeElement]
-                val m1 = addTyAndSupertypes(elemFunc)(m0, telem.getSuperclass)
-                val m2 = telem.getInterfaces.foldLeft(m1)(addTyAndSupertypes(elemFunc))
-                
-                // Process annotations on this class:
-                elemFunc(m2, telem)
+                val m1 = directSupertys(telem).foldLeft(m0)(addTyAndSupertypes(elemFunc))
+                elemFunc(m1, telem)
                 
             case _ =>
                 Map.empty
@@ -603,12 +599,12 @@ class TranslateTypeFactory(
         tv: ir.TypeVarName, 
         annty: AnnotatedTypeMirror
     ): ir.WcTypeArg = {
-        log.indented("wtref(%s)", annty) {
+        log.indented("wtarg(%s, %s)", tv, annty) {
             annty.getKind match {
                 case TK.WILDCARD =>
                     def trbnd(bnd: AnnotatedTypeMirror) = 
                         if(bnd == null) List()
-                        else List(wtref(env)(bnd))                        
+                        else List(wtref(env, ir.wgs_constructed)(bnd))
                     val annwty = annty.asInstanceOf[AnnotatedWildcardType]
                     val bnds = ir.TypeBounds(
                         wts_lb = trbnd(annwty.getExtendsBound),
@@ -617,16 +613,18 @@ class TranslateTypeFactory(
                     ir.BoundedTypeArg(tv, bnds)
                     
                 case _ => 
-                    ir.TypeArg(tv, wtref(env)(annty))
+                    ir.TypeArg(tv, wtref(env, ir.wgs_constructed)(annty))
             }
         }
     }
     
-    def wtref(env: TranslateEnv)(annty: AnnotatedTypeMirror): ir.WcTypeRef = {
-        log.indented("wtref(%s)", annty) {
+    def wtref(env: TranslateEnv, wgs_default: List[ir.WcGhost])(
+        annty: AnnotatedTypeMirror
+    ): ir.WcTypeRef = {
+        log.indented("wtref(%s)(%s)", wgs_default, annty) {
             val c = erasedTy(annty.getUnderlyingType)
             
-            annty.getKind match {
+            val wt = annty.getKind match {
                 case TK.DECLARED =>
                     val anndty = annty.asInstanceOf[AnnotatedDeclaredType]
                     
@@ -644,13 +642,21 @@ class TranslateTypeFactory(
 
                 case TK.ARRAY =>
                     val annaty = annty.asInstanceOf[AnnotatedArrayType]
-                    val wt_comp = wtref(env)(annaty.getComponentType)
+                    val wt_comp = wtref(env, wgs_default)(annaty.getComponentType)
                     val targ = ir.TypeArg(ir.tv_arrayElem, wt_comp)
                     ir.WcClassType(c, wghosts(env)(annty), List(targ))
+                    
+                case TK.TYPEVAR =>
+                    val anntv = annty.asInstanceOf[AnnotatedTypeVariable]
+                    val elem = anntv.getUnderlyingType.asElement 
+                    val tv = typeVarName(elem.asInstanceOf[TypeParameterElement])
+                    ir.PathType(ir.p_this, tv)
 
                 case _ =>
                     ir.WcClassType(c, List(), List())
-            }                        
+            }
+            
+            wt.withDefaultWghosts(wgs_default)                        
         }
     }
     
@@ -744,44 +750,47 @@ class TranslateTypeFactory(
             }            
         }
     
-    def intFieldDecl(velem: VariableElement) = 
+    def intFieldDecl(velem: VariableElement) = {
         indexLog.indented("Field: %s", qualName(velem)) {
             at(ElementPosition(velem), dummyFieldDecl(velem)) {
                 val env = elemEnv(velem)
                 ir.ReifiedFieldDecl(
                     ir.noAttrs,
-                    wtref(env)(getAnnotatedType(velem)),
+                    wtref(env, ir.wgs_fieldsDefault)(getAnnotatedType(velem)),
                     fieldName(velem),  
                     fieldGuard(env)(velem)          
                 ).withPos(env.pos)
             }
-        }
+        }        
+    }
         
-    def intArgDecl(velem: VariableElement) =
+    def intArgDecl(velem: VariableElement) = {
         indexLog.indented("Arg: %s", qualName(velem)) {
             at(ElementPosition(velem), dummyLvDecl(velem)) {
                 ir.LvDecl(
                     localVariableName(velem),
-                    wtref(elemEnv(velem))(getAnnotatedType(velem))
+                    wtref(elemEnv(velem), ir.wgs_constructed)(getAnnotatedType(velem))
                 )
             }
-        }
+        }        
+    }
         
-    def intMethodDecl(eelem: ExecutableElement) = 
+    def intMethodDecl(eelem: ExecutableElement) = {
         indexLog.indented("Method Inter: %s()", qualName(eelem)) {
             at(ElementPosition(eelem), dummyMethodDecl(eelem)) {
                 val elem_owner = EU.enclosingClass(eelem)
                 val env_mthd = elemEnv(eelem)
                 val annty = getAnnotatedType(eelem)
                 ir.MethodDecl(
-                    wt_ret = wtref(env_mthd)(annty.getReturnType), 
+                    wt_ret = wtref(env_mthd, ir.wgs_constructed)(annty.getReturnType),
                     name = methodName(eelem), 
                     args = eelem.getParameters.map(intArgDecl).toList,
                     reqs = methodReqs(eelem),
                     body = ir.empty_method_body
                 ).withPos(env_mthd.pos)
             }
-        }
+        }        
+    }
         
     def intTypeVarDecl(tvelem: TypeParameterElement): ir.TypeVarDecl = {
         ir.TypeVarDecl(
@@ -805,7 +814,7 @@ class TranslateTypeFactory(
                 // Extract bound type arguments from superclass:
                 val tas_bound = {
                     def typeArgs(annty: AnnotatedTypeMirror) = {
-                        wtref(env)(annty) match {
+                        wtref(env, ir.wgs_constructed)(annty) match {
                             case ir.WcClassType(_, _, wtargs) => 
                                 // Java does not allow wildcards in supertypes:
                                 wtargs.map(_.asInstanceOf[ir.TypeArg])

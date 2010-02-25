@@ -1,5 +1,8 @@
 package ch.ethz.intervals;
 
+import ch.ethz.intervals.quals.Creator;
+
+@Creator("this.(ch.ethz.intervals.quals.Constructor)")
 public interface Dependency {
 	
 	/**

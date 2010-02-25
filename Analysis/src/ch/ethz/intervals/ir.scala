@@ -712,6 +712,9 @@ object ir {
     
     val req_constructed = ir.ReqHb(List(p_this_objCtor), List(p_mthd))
     
+    val wgs_constructed = List(ir.wg_objCtorHbNow)
+    val wgs_fieldsDefault = List(ir.WcGhost(ir.f_objCtor, ir.WcHbNow(List(ir.p_this_objCtor))))
+    
     val md_emptyCtor = 
         ir.MethodDecl(
             /* wt_ret: */ t_void, 

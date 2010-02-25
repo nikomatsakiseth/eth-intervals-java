@@ -63,8 +63,7 @@ class IrParser extends BaseParser {
     def wt: Parser[ir.WcTypeRef] = (pt | wct)
     
     // Wildcard type with defaults for @Constructor
-    val wgs_dflt = List(ir.wg_objCtorHbNow)
-    def wt_dflt = wt                            ^^ { case wt => wt.withDefaultWghosts(wgs_dflt) }
+    def wt_dflt = wt                            ^^ { case wt => wt.withDefaultWghosts(ir.wgs_constructed) }
     
     def lvdecl = wt_dflt~lv                     ^^ { case wt~lv => ir.LvDecl(lv, wt) }
     
@@ -133,9 +132,8 @@ class IrParser extends BaseParser {
             ir.MethodDecl(ir.t_void, m, args, reqs, seq)
     })
     
-    val wgs_fieldsDefault = List(ir.WcGhost(ir.f_objCtor, ir.WcHbNow(List(ir.p_this_objCtor))))
     def createReifiedFieldDecl(as: ir.Attrs, wt: ir.WcTypeRef, f: ir.FieldName, p_guard: ir.Path) = {
-        ir.ReifiedFieldDecl(as, wt.withDefaultWghosts(wgs_fieldsDefault), f, p_guard)
+        ir.ReifiedFieldDecl(as, wt.withDefaultWghosts(ir.wgs_fieldsDefault), f, p_guard)
     }
     def reifiedFieldDecl = positioned(
         attrs~wt~f~"requires"~p~";"                 ^^ { case as~wt~f~_~p~_ => createReifiedFieldDecl(as, wt, f, p) }
