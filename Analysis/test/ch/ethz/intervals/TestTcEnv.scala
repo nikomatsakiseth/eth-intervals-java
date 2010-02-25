@@ -17,7 +17,7 @@ import java.io.File
 class TestTcEnv extends JUnitSuite { 
     import TestAll.DEBUG_DIR
     
-    val logTests: Set[String] = Set("happened")
+    val logTests: Set[String] = Set("mutuallyRecursiveInBaseClass")
     
     // Implicits for concisely creating WcClassTypes:
     case class EnhancedWcClassType(wct: ir.WcClassType) {
@@ -43,9 +43,14 @@ class TestTcEnv extends JUnitSuite {
             )
         }
     }
-    implicit def wcClassType2EnhancedWcClassType(wct: ir.WcClassType) =
-        EnhancedWcClassType(wct)
+    implicit def wcClassType2EnhancedWcClassType(wct: ir.WcClassType) = EnhancedWcClassType(wct)
         
+    case class EnhancedPath(p: ir.Path) {
+        def apply(tv: ir.TypeVarName) = ir.PathType(p, tv)
+    }
+    implicit def path2EnhancedPath(p: ir.Path) = EnhancedPath(p)
+    implicit def lv2EnhancedPath(lv: ir.VarName) = EnhancedPath(lv.path)
+    
     def hbNow(ps: ir.Path*) = ir.WcHbNow(ps.toList)
     def readableBy(ps: ir.Path*) = ir.WcReadableBy(ps.toList)
     def writableBy(ps: ir.Path*) = ir.WcWritableBy(ps.toList)
@@ -91,33 +96,52 @@ class TestTcEnv extends JUnitSuite {
     }
     
     def assertSubtype(wct_sub: ir.WcTypeRef, wct_sup: ir.WcTypeRef)(implicit env: TcEnv) {
-        assertTrue(
-            "Assert %s <: %s".format(wct_sub, wct_sup),
-            env.isSubtype(wct_sub, wct_sup))
+        env.prog.logStack.indexLog.indented("assertSubtype(%s, %s)", wct_sub, wct_sup) {
+            assertTrue(
+                "Assert %s <: %s".format(wct_sub, wct_sup),
+                env.isSubtype(wct_sub, wct_sup))            
+        }
     }
     
     def assertNotSubtype(wct_sub: ir.WcTypeRef, wct_sup: ir.WcTypeRef)(implicit env: TcEnv) {
-        assertFalse(
-            "Assert %s not <: %s".format(wct_sub, wct_sup),
-            env.isSubtype(wct_sub, wct_sup))
+        env.prog.logStack.indexLog.indented("assertNotSubtype(%s, %s)", wct_sub, wct_sup) {
+            assertFalse(
+                "Assert %s not <: %s".format(wct_sub, wct_sup),
+                env.isSubtype(wct_sub, wct_sup))
+        }
     }
     
     def assertOrdered(wct_sub: ir.WcTypeRef, wct_sup: ir.WcTypeRef)(implicit env: TcEnv) {
-        assertTrue(
-            "Assert %s <: %s".format(wct_sub, wct_sup),
-            env.isSubtype(wct_sub, wct_sup))
-        assertFalse(
-            "Assert %s not <: %s".format(wct_sup, wct_sub),
-            env.isSubtype(wct_sup, wct_sub))
+        env.prog.logStack.indexLog.indented("assertOrdered(%s, %s)", wct_sub, wct_sup) {
+            assertTrue(
+                "Assert %s <: %s".format(wct_sub, wct_sup),
+                env.isSubtype(wct_sub, wct_sup))
+            assertFalse(
+                "Assert %s not <: %s".format(wct_sup, wct_sub),
+                env.isSubtype(wct_sup, wct_sub))
+        }
+    }
+    
+    def assertNotOrdered(wct_sub: ir.WcTypeRef, wct_sup: ir.WcTypeRef)(implicit env: TcEnv) {
+        env.prog.logStack.indexLog.indented("assertNotOrdered(%s, %s)", wct_sub, wct_sup) {
+            assertFalse(
+                "Assert %s <: %s".format(wct_sub, wct_sup),
+                env.isSubtype(wct_sub, wct_sup))
+            assertFalse(
+                "Assert %s not <: %s".format(wct_sup, wct_sub),
+                env.isSubtype(wct_sup, wct_sub))
+        }
     }
     
     def assertEqual(wct_sub: ir.WcTypeRef, wct_sup: ir.WcTypeRef)(implicit env: TcEnv) {
-        assertTrue(
-            "Assert %s <: %s".format(wct_sub, wct_sup),
-            env.isSubtype(wct_sub, wct_sup))
-        assertTrue(
-            "Assert %s not <: %s".format(wct_sub, wct_sup),
-            env.isSubtype(wct_sub, wct_sup))
+        env.prog.logStack.indexLog.indented("assertEqual(%s, %s)", wct_sub, wct_sup) {
+            assertTrue(
+                "Assert %s <: %s".format(wct_sub, wct_sup),
+                env.isSubtype(wct_sub, wct_sup))
+            assertTrue(
+                "Assert %s not <: %s".format(wct_sub, wct_sup),
+                env.isSubtype(wct_sub, wct_sup))
+        }
     }
     
     val ct_object = ir.c_object.ct
@@ -271,6 +295,57 @@ class TestTcEnv extends JUnitSuite {
         assertSubtype(ct_MyList(tv_F, ct_interval), ct_List(tv_E, sup(ct_interval)))
     }
     
+    // ___ Recursive Types __________________________________________________
+    
+    val recursiveText = """
+    // Java doesn't allow such a construction, but we do:
+    class InBaseClass
+        <E <: this:F>
+        <F <: this:E>
+    extends #Object {}
+    
+    class TwoParam
+        <E <: #Object>
+        <F <: #Object>
+    extends #Object {}        
+    """
+    
+    val ct_InBaseClass = ir.ClassName("InBaseClass").ct
+    val ct_TwoParam = ir.ClassName("TwoParam").ct
+    
+    @Test
+    def mutuallyRecursiveInBaseClass() = setup(recursiveText) { prog =>
+        implicit var env = prog.env_empty
+        
+        val lv_x = ir.VarName("x")
+        val lv_y = ir.VarName("y")        
+        env = env.addReifiedLocal(lv_x, ct_InBaseClass)
+        env = env.addReifiedLocal(lv_y, ct_InBaseClass)
+        
+        assertEqual(lv_x(tv_E), lv_x(tv_F))
+        assertNotOrdered(lv_x(tv_E), lv_y(tv_F))
+        
+        // These two types ARE equal, but we are unable to conclude that
+        // because we don't understand that an upper bound on E is also an 
+        // upper bound on F.  
+        //assertEqual(ct_InBaseClass(tv_E, ct_guard), ct_InBaseClass(tv_F, ct_guard))
+        
+        // This is a slightly weaker form of the above line.  We reach the right conclusion
+        // here because it only involves lower bounds.
+        assertEqual(ct_InBaseClass(tv_E, ext(ct_guard)), ct_InBaseClass(tv_F, ext(ct_guard)))
+    }
+    
+//    @Test
+//    def mutuallyRecursiveParameters() = setup(recursiveText) { prog =>
+//        implicit var env = prog.env_empty
+//        
+//        val lv_x = ir.VarName("x")
+//        val lv_y = ir.VarName("y")
+//        env = env.addReifiedLocal(lv_x, ct_InBaseClass(tv_E, lv_x(tv_F))(tv_F, lx_x(tv_E)))
+//        env = env.addReifiedLocal(lv_y, ct_InBaseClass(tv_E, ct_guard))
+//        assertNotOrdered()
+//    }
+
     // ___ HbNow ____________________________________________________________
     
     @Test

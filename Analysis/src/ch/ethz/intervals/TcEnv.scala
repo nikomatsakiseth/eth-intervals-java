@@ -833,7 +833,7 @@ sealed case class TcEnv(
     // Returns an existential WcPath for 'cp' if one can be found.  
     // For example, if p has type @Owner(? readableBy inter), then is(p.Owner) would 
     // yield "? readableBy inter".  Returns cp.p if no existential version is found.
-    private def is(cp: ir.CanonPath): ir.WcPath = {
+    private[this] def is(cp: ir.CanonPath): ir.WcPath = {
         log.indented(false, "is(%s)", cp) {
             cp match {
                 case ir.CpGhostField(crp_base, f, _) =>
@@ -845,12 +845,13 @@ sealed case class TcEnv(
         }
     }
     
-    private def equiv(cp: ir.CanonPath, cq: ir.CanonPath) = (cp.p == cq.p)
+    private[this] def equiv(cp: ir.CanonPath, cq: ir.CanonPath): Boolean = (cp.p == cq.p)
+    private[this] def equiv(p: ir.Path, q: ir.Path): Boolean = {
+        (p == q) || equiv(canonPath(p), canonPath(q))
+    }
     
-    private def among(cp: ir.CanonPath, cqs: List[ir.CanonPath]) = {
-        cqs.exists { cq =>
-            equiv(cp, cq) || suspends(cp, cq)
-        }
+    private[this] def among(cp: ir.CanonPath, cqs: List[ir.CanonPath]) = {
+        cqs.exists { cq => equiv(cp, cq) || suspends(cp, cq) }
     }
     
     /** Returns the binding for ghost field `f` on path `tcp`. This might just be `tcp.f`. */
@@ -907,18 +908,32 @@ sealed case class TcEnv(
     }
     
     /** Accumulate a set of upper- or lower-bounding class types for `wt0`. */
-    private[this] def boundingCts(func: (ir.TypeBounds => List[ir.WcTypeRef]))(wt0: ir.WcTypeRef) = {
-        def add(vis: Set[ir.PathType])(wcts: Set[ir.WcClassType], wt: ir.WcTypeRef): Set[ir.WcClassType] = {
+    private[this] def boundingWts(
+        label: String,
+        func: (ir.TypeBounds => List[ir.WcTypeRef])
+    )(
+        wt0: ir.WcTypeRef
+    ) = {
+        def add(wts: Set[ir.WcTypeRef], wt: ir.WcTypeRef): Set[ir.WcTypeRef] = {
             wt match {
-                case wct @ ir.WcClassType(_, _, _) => wcts + wct
-                case pt @ ir.PathType(_, _) if vis(pt) => wcts
-                case pt @ ir.PathType(_, _) => func(boundPathType(pt)).foldLeft(wcts)(add(vis+pt))
+                case wct @ ir.WcClassType(_, _, _) => wts + wct
+                case pt @ ir.PathType(_, _) if wts(pt) => wts
+                case pt @ ir.PathType(_, _) => func(boundPathType(pt)).foldLeft(wts + pt)(add)
             }
         }
-        add(Set())(Set(), wt0)
+        log.indented("%sBoundingWts(%s)", label, wt0) {
+            add(Set(), wt0)
+        }
     }    
-    def upperBoundingCts(wt: ir.WcTypeRef) = boundingCts(_.wts_ub)(wt)
-    def lowerBoundingCts(wt: ir.WcTypeRef) = boundingCts(_.wts_lb)(wt)
+    def upperBoundingWts(wt: ir.WcTypeRef) = boundingWts("upper", _.wts_ub)(wt)
+    def lowerBoundingWts(wt: ir.WcTypeRef) = boundingWts("lower", _.wts_lb)(wt)
+    
+    private[this] def addWcts(set: Set[ir.WcClassType], wt: ir.WcTypeRef) = wt match {
+        case wct @ ir.WcClassType(_, _, _) => set + wct
+        case pt @ ir.PathType(_, _) => set
+    }
+    def upperBoundingCts(wt: ir.WcTypeRef) = upperBoundingWts(wt).foldLeft(Set[ir.WcClassType]())(addWcts)
+    def lowerBoundingCts(wt: ir.WcTypeRef) = lowerBoundingWts(wt).foldLeft(Set[ir.WcClassType]())(addWcts)
     
     // ___ Subtyping and Subclassing ________________________________________
     
@@ -1059,10 +1074,17 @@ sealed case class TcEnv(
         wt_sup: ir.WcTypeRef
     ): Boolean = {
         log.indented(false, "pathHasType(%s, %s)?", tcp_sub, wt_sup) {
-            val wcts_sub = lowerBoundingCts(tcp_sub.ty)
-            val wcts_sup = upperBoundingCts(wt_sup)
-            existscross(wcts_sub, wcts_sup) { (wct_sub, wct_sup) =>
-                pathHasSubClassType(tcp_sub.withTy(wct_sub), wct_sup)
+            val wts_sub = lowerBoundingWts(tcp_sub.ty)
+            val wts_sup = upperBoundingWts(wt_sup)
+
+            existscross(wts_sub, wts_sup) { 
+                case (pt_sub: ir.PathType, pt_sup: ir.PathType) =>
+                    (pt_sub.tv == pt_sup.tv) && equiv(pt_sub.p, pt_sup.p)
+                    
+                case (wct_sub: ir.WcClassType, wct_sup: ir.WcClassType) =>
+                    pathHasSubClassType(tcp_sub.withTy(wct_sub), wct_sup)
+                    
+                case (_, _) => false
             }                 
         }
     }
@@ -1072,9 +1094,11 @@ sealed case class TcEnv(
         wt_sub: ir.WcTypeRef, 
         wt_sup: ir.WcTypeRef
     ): Boolean = {
-        val lv = prog.freshVarName
-        val env = addReifiedLocal(lv, wt_sub)
-        env.pathHasType(env.reifiedLv(lv).toTcp, wt_sup)
+        log.indented(false, "isSubtype(%s, %s)?", wt_sub, wt_sup) {
+            val lv = prog.freshVarName
+            val env = addReifiedLocal(lv, wt_sub)
+            env.pathHasType(env.reifiedLv(lv).toTcp, wt_sup)
+        }
     }
     
 }
