@@ -37,8 +37,8 @@ abstract class WriteTrackingDynamicGuard<R> implements DynamicGuard {
 			this.prev = prev;
 		}
 		
-		public boolean bounds(IntervalMirror inter) {
-			return (end == null) || inter.end().isBoundedBy(end);
+		public boolean boundsOrEquals(IntervalMirror inter) {
+			return (end == null) || inter.end() == end || inter.end().isBoundedBy(end);
 		}
 	}
 
@@ -87,7 +87,7 @@ abstract class WriteTrackingDynamicGuard<R> implements DynamicGuard {
 	 */
 	private State<R> walkBack(PointMirror mr, IntervalMirror inter) {
 		State<R> result = new State<R>();
-		if(owner.bounds(inter)) {
+		if(owner.boundsOrEquals(inter)) {
 			result.owner = owner;
 			result.mrw = mrw;
 			result.mrl = null;
@@ -98,7 +98,7 @@ abstract class WriteTrackingDynamicGuard<R> implements DynamicGuard {
 				result.mrw = o.end;
 				result.mrl = o.lock;
 				o = o.prev;
-			} while(!o.bounds(inter));			
+			} while(!o.boundsOrEquals(inter));			
 			result.activeReads = null;
 			result.owner = o;
 		}

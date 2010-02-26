@@ -14,7 +14,8 @@ import java.io.*;
 import ch.ethz.intervals.Dependency;
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
-import ch.ethz.intervals.VoidSubinterval;
+import ch.ethz.intervals.ParentForNew;
+import ch.ethz.intervals.VoidInlineTask;
 
 public class Tsp extends Interval {
 	public final static boolean debug = false;
@@ -29,7 +30,7 @@ public class Tsp extends Interval {
 	static int NodesFromEnd = 12;
 	static volatile int routesComputed;
 	
-	public Tsp(@ParentOfNew("Parent") Dependency dep) {
+	public Tsp(@ParentForNew("Parent") Dependency dep) {
 		super(dep, "Tsp");
 	}
 
@@ -60,7 +61,7 @@ public class Tsp extends Interval {
 
 			TspSize = read_tsp(fname);
 			
-			Intervals.subinterval(new VoidSubinterval() {				
+			Intervals.inline(new VoidInlineTask() {				
 				@Override public void run(Interval subinterval) {
 					new Tsp(subinterval);
 				}
@@ -96,33 +97,37 @@ public class Tsp extends Interval {
 	protected void run() {
 		long start = new Date().getTime();
 
-		/* init arrays */
-		for (int i = 0; i < MAX_NUM_TOURS; i++) {
-			TspSolver.Tours[i] = new TourElement();
-			TspSolver.PrioQ[i] = new PrioQElement();
-		}
+		Intervals.inline(new VoidInlineTask() {
+			@Override public String toString() { return "Tsp.init"; }
+			@Override public void run(Interval subinterval) {
+				/* init arrays */
+				for (int i = 0; i < MAX_NUM_TOURS; i++) {
+					TspSolver.Tours[i] = new TourElement();
+					TspSolver.PrioQ[i] = new PrioQElement();
+				}
 
-		/* Initialize first tour */
-		TspSolver.Tours[0].prefix()[0] = StartNode;
-		TspSolver.Tours[0].setConn(1);
-		TspSolver.Tours[0].setLast(0);
-		TspSolver.Tours[0].setPrefix_weight(0);
-		TspSolver.calc_bound(0); /* Sets lower_bound */
+				/* Initialize first tour */
+				TspSolver.Tours[0].prefix()[0] = StartNode;
+				TspSolver.Tours[0].setConn(1);
+				TspSolver.Tours[0].setLast(0);
+				TspSolver.Tours[0].setPrefix_weight(0);
+				TspSolver.calc_bound(0); /* Sets lower_bound */
 
-		/* Initialize the priority queue structures */
-		TspSolver.PrioQ[1].index = 0;
-		TspSolver.PrioQ[1].priority = TspSolver.Tours[0].lower_bound();
-		TspSolver.PrioQLast = 1;
+				/* Initialize the priority queue structures */
+				TspSolver.PrioQ[1].index = 0;
+				TspSolver.PrioQ[1].priority = TspSolver.Tours[0].lower_bound();
+				TspSolver.PrioQLast = 1;
 
-		/* Put all unused tours in the free tour stack */
-		for (int i = MAX_NUM_TOURS - 1; i > 0; i--)
-			TspSolver.TourStack[++TspSolver.TourStackTop] = i;
+				/* Put all unused tours in the free tour stack */
+				for (int i = MAX_NUM_TOURS - 1; i > 0; i--)
+					TspSolver.TourStack[++TspSolver.TourStackTop] = i;
+			}
+		});
 
 		/* XXX This just maps threads to intervals. Uncool. */
-		Intervals.subinterval(new VoidSubinterval() {				
+		Intervals.inline(new VoidInlineTask() {				
+			@Override public String toString() { return "Tsp.run"; }
 			@Override public void run(Interval subinterval) {
-				TspSolver.Tours[0].dg.checkEmbeddableIn(TspSolver.TourLock);
-				
 				for(int i = 0; i < nWorkers; i++) {
 					new TspSolver(subinterval, "Worker "+i);
 				}

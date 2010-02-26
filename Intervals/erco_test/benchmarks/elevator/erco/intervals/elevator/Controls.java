@@ -11,12 +11,21 @@ import java.util.Vector;
 
 // class of the shared control object
 class Controls {
-	private Floor[] floors;
+	private final Floor[] floors;
+	private boolean terminated;
 
 	public Controls(int numFloors) {
 		floors = new Floor[numFloors + 1];
 		for (int i = 0; i <= numFloors; i++)
 			floors[i] = new Floor();
+	}
+	
+	public synchronized void setTerminated() {
+		terminated = true;
+	}
+	
+	public synchronized boolean terminated() {
+		return terminated;
 	}
 
 	// this is called to inform the control object of a down call on floor

@@ -27,7 +27,7 @@ import ch.ethz.intervals.quals.GuardedBy;
  * 
  * </ol>
  *
- * <p>To indicate the guard for a field, use a {@link GuardedBy} or {@link WrittenDuring}
+ * <p>To indicate the guard for a field, use a {@link GuardedBy} 
  * annotation.  Note that guard annotations are only enforced when using our 
  * {@code Javac} plugin.  All guard types except {@link ReadTrackingDynamicGuard} are enforced statically; 
  * violations of {@link ReadTrackingDynamicGuard} are enforced dynamically and the required instrumentation

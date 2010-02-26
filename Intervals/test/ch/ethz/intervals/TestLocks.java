@@ -106,8 +106,8 @@ public class TestLocks {
 		@Override public String toString() {
 			return name;
 		}
-		@Override public Lock[] locks() {
-			return new Lock[] { l1 };
+		@Override public void init(Interval subinterval) {
+			Intervals.addExclusiveLock(subinterval, l1);
 		}
 		@Override public void run(Interval subinterval) {
 			times[0] = System.currentTimeMillis();
@@ -269,7 +269,10 @@ public class TestLocks {
 						@Override protected void run() {
 							Intervals.inline(new VoidInlineTask() {
 								@Override public String toString() { return "b"; }
-								@Override public Lock[] locks() { return new Lock[] { l1, l2 }; }
+								@Override public void init(Interval subinterval) {
+									Intervals.addExclusiveLock(subinterval, l1);
+									Intervals.addExclusiveLock(subinterval, l2);
+								}
 								@Override public void run(Interval subinterval) {
 									executed[2]++;
 								}

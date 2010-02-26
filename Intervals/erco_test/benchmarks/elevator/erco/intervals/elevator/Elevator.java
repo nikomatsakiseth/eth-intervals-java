@@ -7,29 +7,35 @@ package erco.intervals.elevator;
  * @author Roger Karrer
  */
 
+import java.io.File;
+import java.io.FileReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.StreamTokenizer;
 import java.util.Vector;
+
+import ch.ethz.intervals.Interval;
+import ch.ethz.intervals.Intervals;
+import ch.ethz.intervals.VoidInlineTask;
 
 public class Elevator {
 
 	// shared control object
-	private static Controls controls;
-	private static Vector<ButtonPress> events;
+	private final Controls controls;
+	private final Vector<ButtonPress> events;
+	private final int numFloors, numLifts;
 
 	// Initializer for main class, reads the input and initializes
 	// the events Vector with ButtonPress objects
-	private Elevator() {
-		InputStreamReader reader = new InputStreamReader(System.in);
-		StreamTokenizer st = new StreamTokenizer(reader);
-		st.lowerCaseMode(true);
-		st.parseNumbers();
-
+	private Elevator(String configFile) {
 		events = new Vector<ButtonPress>();
 
 		int numFloors = 0, numLifts = 0;
 		try {
+			FileReader reader = new FileReader(new File(configFile));
+			StreamTokenizer st = new StreamTokenizer(reader);
+			st.lowerCaseMode(true);
+			st.parseNumbers();
+
 			numFloors = readNum(st);
 			numLifts = readNum(st);
 
@@ -50,36 +56,52 @@ public class Elevator {
 
 		// Create the shared control object
 		controls = new Controls(numFloors);
-		// Create the elevators
-		for (int i = 0; i < numLifts; i++)
-			new Lift(numFloors, controls);
+		this.numFloors = numFloors;
+		this.numLifts = numLifts;
 	}
 
 	// Press the buttons at the correct time
 	private void begin() {
-		// First tick is 1
-		int time = 1;
+		Intervals.inline(new VoidInlineTask() {			
+			@Override public void run(final Interval interval) {
+				// Create the elevators
+				for (int i = 0; i < numLifts; i++) {
+					Lift lift = new Lift(numFloors, controls);
+					lift.start(interval);
+				}
+				
+				// Create interval which will press the buttons:
+				new Interval(interval) {					
+					@Override protected void run() {						
+						// First tick is 1
+						int time = 1;
 
-		for (int i = 0; i < events.size();) {
-			ButtonPress bp = (ButtonPress) events.elementAt(i);
-			// if the current tick matches the time of th next event
-			// push the correct buttton
-			if (time == bp.time) {
-				System.out
-						.println("Elevator::begin - its time to press a button");
-				if (bp.onFloor > bp.toFloor)
-					controls.pushDown(bp.onFloor, bp.toFloor);
-				else
-					controls.pushUp(bp.onFloor, bp.toFloor);
-				i += 1;
+						for (int i = 0; i < events.size();) {
+							ButtonPress bp = (ButtonPress) events.elementAt(i);
+							// if the current tick matches the time of th next event
+							// push the correct buttton
+							if (time == bp.time) {
+								System.out
+										.println("Elevator::begin - its time to press a button");
+								if (bp.onFloor > bp.toFloor)
+									controls.pushDown(bp.onFloor, bp.toFloor);
+								else
+									controls.pushUp(bp.onFloor, bp.toFloor);
+								i += 1;
+							}
+							// wait 1/2 second to next tick
+							try {
+								Thread.sleep(500);
+							} catch (InterruptedException e) {
+							}
+							time += 1;
+						}
+						
+						controls.setTerminated();
+					}
+				};
 			}
-			// wait 1/2 second to next tick
-			try {
-				Thread.sleep(500);
-			} catch (InterruptedException e) {
-			}
-			time += 1;
-		}
+		});
 	}
 
 	private int readNum(StreamTokenizer st) throws IOException {
@@ -91,7 +113,7 @@ public class Elevator {
 	}
 
 	public static void main(String args[]) {
-		Elevator building = new Elevator();
+		Elevator building = new Elevator(args[0]);
 		building.begin();
 	}
 }

@@ -359,12 +359,15 @@ implements Dependency, Guard, IntervalMirror
 	private ChunkList<Interval> pendingChildIntervals = null;
 	
 	/** Constructor used by blocking subintervals */
-	Interval(String name, Interval parent, int pntFlags, int startWaitCount, int endWaitCount) {
+	Interval(String name, Current current, Interval parent, int pntFlags, int startWaitCount, int endWaitCount) {
 		this.state = State.WAIT;
 		this.name = name;
 		this.parent = parent;		
 		this.end = new Point(name, pntFlags | Point.FLAG_END, Intervals.end(parent), endWaitCount, this);
 		this.start = new Point(name, pntFlags, end, startWaitCount, this);
+		
+		unscheduled = current;
+		current.addUnscheduled(this);		
 		
 		if(end.bound != null)
 			end.bound.addWaitCount();

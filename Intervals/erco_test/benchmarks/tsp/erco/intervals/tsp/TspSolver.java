@@ -1,15 +1,15 @@
 package erco.intervals.tsp;
 
 import ch.ethz.intervals.Dependency;
+import ch.ethz.intervals.InlineTask;
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.Lock;
-import ch.ethz.intervals.SubintervalTask;
-import ch.ethz.intervals.VoidSubinterval;
+import ch.ethz.intervals.ParentForNew;
+import ch.ethz.intervals.VoidInlineTask;
 import ch.ethz.intervals.guard.ReadTrackingDynamicGuard;
 import ch.ethz.intervals.quals.GuardedBy;
 import ch.ethz.intervals.quals.Requires;
-import ch.ethz.intervals.quals.Writable;
 
 /*
  * Copyright (C) 2000 by ETHZ/INF/CS
@@ -23,16 +23,18 @@ public class TspSolver extends Interval {
 
 	static final boolean debug = Tsp.debug;
 		
-	static final ReadTrackingDynamicGuard MinLock = new ReadTrackingDynamicGuard("MinLock");
-	@GuardedBy("MinLock") static int MinTourLen; 
-	@GuardedBy("MinLock") static int[] MinTour = new int[Tsp.MAX_TOUR_SIZE];		
+	static final Lock MinLock = new Lock();
+	static final ReadTrackingDynamicGuard MinGuard = new ReadTrackingDynamicGuard("MinGuard");
+	@GuardedBy("MinGuard") static int MinTourLen; 
+	@GuardedBy("MinGuard") static int[] MinTour = new int[Tsp.MAX_TOUR_SIZE];		
 	
-	static final ReadTrackingDynamicGuard TourLock = new ReadTrackingDynamicGuard("TourLock");
+	static final Lock TourLock = new Lock("TourLock");
+	static final ReadTrackingDynamicGuard TourGuard = new ReadTrackingDynamicGuard("TourGuard");
 
 	static int[][] weights = new int[Tsp.MAX_TOUR_SIZE][Tsp.MAX_TOUR_SIZE];
-	@GuardedBy("TourLock") static int TourStackTop;
-	@GuardedBy("TourLock") static int Done;
-	@GuardedBy("TourLock") static int PrioQLast;
+	@GuardedBy("TourGuard") static int TourStackTop;
+	@GuardedBy("TourGuard") static int Done;
+	@GuardedBy("TourGuard") static int PrioQLast;
 	final static TourElement[] Tours = new TourElement[Tsp.MAX_NUM_TOURS];
 	final static PrioQElement[] PrioQ = new PrioQElement[Tsp.MAX_NUM_TOURS];
 
@@ -45,7 +47,7 @@ public class TspSolver extends Interval {
 	int[] Path = new int[Tsp.MAX_TOUR_SIZE];
 	int visitNodes;
 	
-	public TspSolver(@ParentOfNew("Parent") Dependency dep, String name) {
+	public TspSolver(@ParentForNew("Parent") Dependency dep, String name) {
 		super(dep, name);
 	}
 
@@ -76,9 +78,11 @@ public class TspSolver extends Interval {
 	 * edge to add to the tour. Returns the index of the new structure.
 	 */
 	static int new_tour(final int prev_index, final int move) {
-		return Intervals.subinterval(new SubintervalTask<Integer>() {
-			@Override public String toString() { return "new_tour"; }
-			@Override public Lock[] locks() { return new Lock[] { TourLock }; }
+		return Intervals.inline(new InlineTask<Integer>() {
+			@Override public String toString() { return "new_tour"; }			
+			@Override public void init(Interval subinterval) {
+				Intervals.addExclusiveLock(subinterval, TourLock, TourGuard);
+			}
 			@Override public Integer run(Interval subinterval) {
 				int index = 0;
 				int i;
@@ -130,11 +134,13 @@ public class TspSolver extends Interval {
 			return;
 		}
 		
-		Intervals.subinterval(new VoidSubinterval() {
+		Intervals.inline(new VoidInlineTask() {
 			@Override public String toString() { return "set_best"; }
-			@Override public Lock[] locks() { return new Lock[] { MinLock }; }
+			@Override public void init(Interval subinterval) {
+				Intervals.addExclusiveLock(subinterval, MinLock, MinGuard);
+			}
 			@Override public void run(Interval subinterval) {
-				assert MinLock.checkWritable();
+				assert Intervals.checkWritable(MinLock);
 				
 				if (best < MinTourLen) {
 					if (debug) {
@@ -176,9 +182,11 @@ public class TspSolver extends Interval {
 	static int calc_bound(final int curr_index) {
 		Tsp.routesComputed++;
 		
-		return Intervals.subinterval(new SubintervalTask<Integer>() {
+		return Intervals.inline(new InlineTask<Integer>() {
 			@Override public String toString() { return "calc_bound"; }
-			@Override public Lock[] locks() { return new Lock[] { TourLock }; }
+			@Override public void init(Interval subinterval) {
+				Intervals.addExclusiveLock(subinterval, TourLock, TourGuard);
+			}
 			@Override public Integer run(Interval subinterval) {
 				final TourElement curr = Tours[curr_index];
 				int i, j, wt, wt1, wt2;
@@ -312,9 +320,11 @@ public class TspSolver extends Interval {
 	 * queue for later evaluation.
 	 */
 	static void split_tour(final int curr_ind) {
-		Intervals.subinterval(new VoidSubinterval() {
+		Intervals.inline(new VoidInlineTask() {
 			@Override public String toString() { return "split_tour"; }
-			@Override public Lock[] locks() { return new Lock[] { TourLock }; }
+			@Override public void init(Interval subinterval) {
+				Intervals.addExclusiveLock(subinterval, TourLock, TourGuard);
+			}
 			@Override public void run(Interval subinterval) {
 				int n_ind, last_node, wt;
 				int i, pq, parent, index, priority;
@@ -406,11 +416,13 @@ public class TspSolver extends Interval {
 	 * 
 	 * Return the next solvable (sufficiently short) tour.
 	 */
-	@Requires(writable=@Writable("TourLock"))
+	@Requires("TourLock writableBy method")
 	static int find_solvable_tour() {
-		return Intervals.subinterval(new SubintervalTask<Integer>() {
+		return Intervals.inline(new InlineTask<Integer>() {
 			@Override public String toString() { return "find_solvable_tour"; }
-			@Override public Lock[] locks() { return new Lock[] { TourLock }; }
+			@Override public void init(Interval subinterval) {
+				Intervals.addExclusiveLock(subinterval, TourLock, TourGuard);
+			}
 			@Override public Integer run(Interval subinterval) {
 				int curr, i, left, right, child, index;
 				int priority, last;
@@ -492,7 +504,6 @@ public class TspSolver extends Interval {
 							break;
 					}
 
-					assert Tours[curr].dg.checkUnembeddable();
 					last = Tours[curr].last();
 
 					/*
@@ -513,7 +524,6 @@ public class TspSolver extends Interval {
 							MakeTourString(Tsp.TspSize, Tours[curr].prefix());
 						}
 					}
-					assert Tours[curr].dg.checkEmbeddableIn(TourLock);
 					TourStack[++TourStackTop] = curr; /* Free tour. */
 
 				}
@@ -529,9 +539,11 @@ public class TspSolver extends Interval {
 		if (debug)
 			System.out.println("get_tour");
 
-		return Intervals.subinterval(new SubintervalTask<Integer>() {
-			@Override public String toString() { return "get_tour"; }
-			@Override public Lock[] locks() { return new Lock[] { TourLock }; }
+		return Intervals.inline(new InlineTask<Integer>() {
+			@Override public String toString() { return "get_tour"; }			
+			@Override public void init(Interval subinterval) {
+				Intervals.addExclusiveLock(subinterval, TourLock, TourGuard);
+			}
 			@Override public Integer run(Interval subinterval) {
 				if (curr != -1)
 					TourStack[++TourStackTop] = curr;

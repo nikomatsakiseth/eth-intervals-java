@@ -551,5 +551,31 @@ public class TestErrorPropagation {
 		Assert.assertEquals("Not all subintervals executed!", 4, cnt.get());
 	}
 
+	/**
+	 * Tests that uncaught exceptions propagate up to the parent, etc.
+	 */
+	@Test public void exceptionInitializingInlineInterval() {
+		final StringBuffer sb = new StringBuffer();
+		Intervals.inline(new VoidInlineTask() {			
+			@Override public void run(Interval subinterval) {				
+				try {
+					Intervals.inline(new VoidInlineTask() {
+						@Override public void init(Interval subinterval) {
+							throw new TestException();
+						}
+						@Override public void run(Interval subinterval) {
+						}
+					});
+					Assert.fail("No exception thrown.");
+				} catch (RethrownException exc) {
+					Assert.assertTrue("Not subtype: "+exc.getCause(), exc.getCause() instanceof TestException);
+					sb.append("X");
+				}			
+			}
+		});
+		Assert.assertEquals(1, sb.length());
+	}
+
+
 
 }

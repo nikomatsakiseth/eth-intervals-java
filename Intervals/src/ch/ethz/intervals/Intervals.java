@@ -279,20 +279,23 @@ public class Intervals {
 		
 		String name = task.toString(); // WARNING: user code may throw an exception
 		
-		InlineIntervalImpl<R> subinterval = new InlineIntervalImpl<R>(name, current.inter, task);
+		InlineIntervalImpl<R> subinterval = new InlineIntervalImpl<R>(name, current, task);
 		
 		if(current.mr != null && current.mr != current.start())
 			current.mr.addEdgeAfterOccurredWithoutException(subinterval.start, NORMAL);
 		
 		if(Debug.ENABLED)
-			Debug.subInterval(subinterval, task.toString());	
+			Debug.subInterval(subinterval, task.toString());
 		
-		// Subinterval start never has a non-zero wait count:
-		subinterval.start.didReachWaitCountZero();
+		// Invoke the init function.
+		try {
+			task.init(subinterval); // user code could throw an exc
+		} catch (Throwable thr) {
+			subinterval.addVertExceptionUnsyc(thr);
+		}
 		
-		// Generally, at this point start will have occurred; but not
-		// if the subinterval acquires locks.
-		// assert subinterval.start.didOccur();		
+		// Schedule subinterval and wait for it to complete:
+		subinterval.schedule();		
 		subinterval.end.join();
 		current.updateMostRecent(subinterval.end);
 		return subinterval.readResultOrRethrowErrors();
@@ -306,9 +309,9 @@ public class Intervals {
 		inline(new InlineTask<Void>() {			
 			@Override public String toString() {
 				return task.toString();
-			}
-			@Override public Lock[] locks() {
-				return task.locks();
+			}			
+			@Override public void init(Interval subinterval) {
+				task.init(subinterval);
 			}
 			@Override public Void run(Interval subinterval) {
 				task.run(subinterval);
