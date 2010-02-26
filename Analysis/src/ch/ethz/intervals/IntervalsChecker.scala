@@ -176,7 +176,8 @@ class IntervalsChecker extends SourceChecker {
                 
                 // Look for annotation types annotated by DefinesGhost
                 if(elem.getKind == EK.ANNOTATION_TYPE) {
-                    ttf.classOfDefinedGhost(elem).foreach(addType(referencedElements, _))
+                    ttf.definedGhost(elem).foreach { case (tm, b) => 
+                        addType(referencedElements, tm) }
                 } else {
                     addTypesOfAnnotations(referencedElements, elem)                    
                 }

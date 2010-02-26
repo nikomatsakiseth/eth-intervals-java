@@ -80,15 +80,15 @@ class TranslateTypeFactory(
     def annValue(am: AnnotationMirror): String = 
         AU.parseStringValue(am, "value")
 
-    /** Extracts the `classOf()` argument from `am` as a TypeMirror. */
-    def annClassOf(am: AnnotationMirror): TypeMirror = {
-        elements.getElementValuesWithDefaults(am).get(wke.ofClass).getValue.asInstanceOf[TypeMirror]
-    }
-
-    /** If `elem` is annotated with `@DefinesGhost(classOf=C)`, returns `C`. */
-    def classOfDefinedGhost(elem: Element): Option[TypeMirror] = {
-        log.indented(false, "classOfDefinedGhost(%s)", elem) {
-            findAm(elem.getAnnotationMirrors, wke.DefinesGhost.ty).map(annClassOf)
+    /** If `elem` is annotated with `@DefinesGhost(classOf=C, useByDefault=B)`, returns `(C,B)`. */
+    def definedGhost(elem: Element): Option[(TypeMirror, Boolean)] = {
+        log.indented(false, "definedGhost(%s)", elem) {
+            findAm(elem.getAnnotationMirrors, wke.DefinesGhost.ty).map { am =>
+                val evalues = elements.getElementValuesWithDefaults(am)
+                val ofClass = evalues.get(wke.ofClass).getValue.asInstanceOf[TypeMirror]
+                val useByDefault = evalues.get(wke.useByDefault).getValue.asInstanceOf[java.lang.Boolean]
+                (ofClass, useByDefault.booleanValue)
+            }
         }
     }
 
@@ -214,17 +214,20 @@ class TranslateTypeFactory(
     
     sealed abstract class GhostAnn
     case object GhostAnnNone extends GhostAnn
-    sealed case class GhostAnnDecl(f: ir.FieldName, ty: TypeMirror) extends GhostAnn
+    sealed case class GhostAnnDecl(f: ir.FieldName, ty: TypeMirror, byDefault: Boolean) extends GhostAnn
     sealed case class GhostAnnValue(f: ir.FieldName, value: String) extends GhostAnn
     
     def categorizeGhostAnnot(am: AnnotationMirror) =
         log.indented("categorizeGhostAnnot(%s)", am) {
             val elem = am.getAnnotationType.asElement
             val value = annValue(am)
-            classOfDefinedGhost(elem) match {
-                case None => GhostAnnNone
-                case Some(ty) if (value == "") => GhostAnnDecl(fieldName(elem), ty)
-                case Some(_) => GhostAnnValue(fieldName(elem), value)                
+            definedGhost(elem) match {
+                case None => 
+                    GhostAnnNone
+                case Some((ty, ubd)) if (value == "") => 
+                    GhostAnnDecl(fieldName(elem), ty, ubd)
+                case Some(_) => 
+                    GhostAnnValue(fieldName(elem), value)                
             }
         }
     
@@ -273,7 +276,7 @@ class TranslateTypeFactory(
     ): Map[ir.FieldName, String] =
         ams.map(categorizeGhostAnnot).foldLeft(m0) { 
             case (m, GhostAnnNone) => m
-            case (m, GhostAnnDecl(_, _)) => m
+            case (m, GhostAnnDecl(_, _, _)) => m
             case (m, GhostAnnValue(f, s)) => m + Pair(f, s)
         }    
         
@@ -314,19 +317,21 @@ class TranslateTypeFactory(
     def addGhostFieldsDeclaredOnElem(
         m0: Map[ir.FieldName, TypeMirror],
         elem0: Element
-    ): Map[ir.FieldName, TypeMirror] =
+    ): Map[ir.FieldName, TypeMirror] = {
         log.indented("addGhostFieldsDeclaredOnElem(%s)", elem0) {
             elem0.getAnnotationMirrors.map(categorizeGhostAnnot).foldLeft(m0) {
                 case (m, GhostAnnNone) => m
-                case (m, GhostAnnDecl(f, ty)) => m + (f -> ty)
+                case (m, GhostAnnDecl(f, ty, ubd)) => m + (f -> ty)
                 case (m, GhostAnnValue(_, _)) => m
             }
-        }
+        }        
+    }
     
-    def ghostFieldsDeclaredOnElem(elem: Element) =
+    def ghostFieldsDeclaredOnElem(elem: Element) = {
         log.indented("ghostFieldsDeclaredOnElem(%s)", elem) {
             addGhostFieldsDeclaredOnElem(Map.empty, elem)
-        }
+        }        
+    }
                 
     def ghostFieldsDeclaredOnElemAndSuperelems(elem: Element) =
         log.indented("ghostFieldsDeclaredOnElemAndSuperelems(%s)", elem) {
@@ -336,6 +341,27 @@ class TranslateTypeFactory(
     def ghostFieldsDeclaredOnTyAndSupertypes(ty: TypeMirror) =
         log.indented("ghostFieldsDeclaredOnTyAndSupertypes(%s)", ty) {
             addTyAndSupertypes(addGhostFieldsDeclaredOnElem)(Map.empty, ty)
+        }
+    
+    // ______ Default Ghost Fields __________________________________________
+    //
+    // By default, ghost fields declared on a class C are included in types
+    // that appear in its definition (if relevant).
+    
+    def addDefaultGhostFieldsDeclaredOnElem(
+        m0: Map[ir.FieldName, TypeMirror],
+        elem0: Element
+    ): Map[ir.FieldName, TypeMirror] =
+        log.indented("addGhostFieldsDeclaredOnElem(%s)", elem0) {
+            elem0.getAnnotationMirrors.map(categorizeGhostAnnot).foldLeft(m0) {
+                case (m, GhostAnnDecl(f, ty, true)) => m + (f -> ty)
+                case (m, _) => m
+            }
+        }
+        
+    def defaultGhostFieldsDeclaredOnElemAndSuperelems(elem: Element) =
+        log.indented("defaultGhostFieldsDeclaredOnElemAndSuperelems(%s)", elem) {
+            addElemAndSuperelems(addDefaultGhostFieldsDeclaredOnElem)(Map.empty, elem)
         }
     
     // ______ Unbound Ghost Fields __________________________________________
@@ -401,9 +427,10 @@ class TranslateTypeFactory(
                 // All in-scope ghost parameters G are automatically supplied to types
                 // within (i.e., @G("G") is the default for any in-scope ghost parameter).
 
-                var m_defaultWghosts = Map.empty[ir.FieldName, ir.WcPath]
-                m_defaultWghosts = ghostFields.foldLeft(m_defaultWghosts) { case (m, (f, annty)) =>
-                    m + (f -> f.thisPath)
+                val defaultGhostFields = defaultGhostFieldsDeclaredOnElemAndSuperelems(telem)
+                var m_defaultWghosts = Map.empty[ir.FieldName, ir.WcPath]          
+                m_defaultWghosts = defaultGhostFields.foldLeft(m_defaultWghosts) { 
+                    case (m, (f, _)) => m + (f -> f.thisPath)
                 }
 
                 TranslateEnv(ElementPosition(telem), m_lvs, m_defaultWghosts)

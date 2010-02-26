@@ -8,7 +8,7 @@ import ch.ethz.intervals.guard.Guard;
  * Declared on the class {@link Object} and therefore inherited
  * by all objects.    
  */
-@DefinesGhost(ofClass=Guard.class)
+@DefinesGhost(ofClass=Guard.class, useByDefault=true)
 public @interface Creator {
 	public String value() default "";
 }

@@ -13,15 +13,15 @@ import ch.ethz.intervals.mirror.PointMirror;
 import ch.ethz.intervals.quals.Requires;
 import ch.ethz.intervals.util.ChunkList;
 
-@Parent
+@Parent @ParentForNew("this")
 public abstract class Interval 
 extends ThreadPool.WorkItem 
-implements /*@ParentOfNew("this")*/ Dependency, Guard, IntervalMirror
+implements Dependency, Guard, IntervalMirror
 {	
 	// =====================================================================================
 	// Public interface (and some private supporting functions):
 	
-	public final Interval parent;
+	public final @Parent("?") Interval parent;
 	public final Point start;
 	public final Point end;
 	
