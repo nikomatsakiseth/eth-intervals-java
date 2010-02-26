@@ -47,6 +47,25 @@ ______ Bugs __________________________________________________________
 
 ______ Improvements to existing features _____________________________
 
+- Add labeled blocks as subintervals and expose them early
+
+  It'd be nice to be able to write code like: {
+		@Constructor("initNewTour") TourElement newTour;
+		boolean done;
+		initNewTour: {
+			newTour = new /*@Constructor("initNewTour")*/ TourElement();
+			System.arraycopy(curr.prefix, 0, newTour.prefix, 0, last);
+			newTour.prefix[curr.last] = i;
+			newTour.last = curr.last + 1;
+			newTour.conn = curr.conn | (1 << i);
+			newTour.prefix_weight = curr.prefix_weight + wt;
+			done = calcBound(newTour);
+		}      
+  }
+  Unfortunately, right now this won't work because (a) labeled blocks
+  aren't treated as named subintervals and (b) even if they were,
+  you couldn't reference them before they were declared.
+
 - Require that a bound ghost object of type c be a subtype of
   {c @Constructor[c](hbNow)}?  In other words, //at least// the
   class {c} must be fully constructed.

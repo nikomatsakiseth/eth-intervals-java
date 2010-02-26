@@ -7,66 +7,31 @@ package erco.intervals.tsp;
  * @version $Id: TourElement.java 2094 2003-01-30 09:41:18Z praun $
  * @author Florian Schneider
  */
-import ch.ethz.intervals.Intervals;
-import ch.ethz.intervals.guard.ReadTrackingDynamicGuard;
-import ch.ethz.intervals.quals.GuardedBy;
+import ch.ethz.intervals.quals.Creator;
 
-public class TourElement {
-	final ReadTrackingDynamicGuard dg = new ReadTrackingDynamicGuard();
-    @GuardedBy("dg") private int[] prefix=new int[Tsp.MAX_TOUR_SIZE];
-    @GuardedBy("dg") private int conn;
-    @GuardedBy("dg") private int last;
-    @GuardedBy("dg") private int prefix_weight;
-    @GuardedBy("dg") private int lower_bound;
-    @GuardedBy("dg") private int mst_weight;
-    
-	void setConn(int conn) {		
-		assert Intervals.checkWritable(dg);
-		this.conn = conn;
+@Creator("Constructor")
+public class TourElement 
+implements Comparable<TourElement>
+{
+	TourElement previous;
+	int node;
+	int length;
+	int visited;	
+	int prefixWeight;
+	int lowerBound;
+	
+	public TourElement(int node) {
+		this.node = node;
+		this.length = 1;		
+		this.visited = (1 << node);
 	}
-	int conn() {
-		assert Intervals.checkReadable(dg);
-		return conn;
+	
+	public boolean visited(int i) {
+		return (visited & (1 << i)) != 0;
 	}
-	int setLast(int last) {
-		assert Intervals.checkWritable(dg);
-		this.last = last;
-		return last;
-	}
-	int last() {
-		assert Intervals.checkReadable(dg);
-		return last;
-	}
-	void setPrefix_weight(int prefix_weight) {
-		assert Intervals.checkWritable(dg);
-		this.prefix_weight = prefix_weight;
-	}
-	int prefix_weight() {
-		assert Intervals.checkReadable(dg);
-		return prefix_weight;
-	}
-	void setLower_bound(int lower_bound) {
-		assert Intervals.checkWritable(dg);
-		this.lower_bound = lower_bound;
-	}
-	int lower_bound() {
-		assert Intervals.checkReadable(dg);
-		return lower_bound;
-	}
-	void setMst_weight(int mst_weight) {
-		assert Intervals.checkWritable(dg);
-		this.mst_weight = mst_weight;
-	}
-	int mst_weight() {
-		assert Intervals.checkReadable(dg);
-		return mst_weight;
-	}
-	void setPrefix(int[] prefix) {
-		assert Intervals.checkWritable(dg);
-		this.prefix = prefix;
-	}
-	int[] prefix() {
-		assert Intervals.checkReadable(dg);
-		return prefix;
+	
+	@Override
+	public int compareTo(TourElement o) {
+		return lowerBound - o.lowerBound; // XXX
 	}
 }
