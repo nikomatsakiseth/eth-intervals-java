@@ -3,6 +3,7 @@ package erco.intervals.tsp;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.StringTokenizer;
 
 import ch.ethz.intervals.Interval;

@@ -139,17 +139,17 @@ public class TspSolver extends Interval {
 		visited = new BitSet(config.numNodes);
 		path = new int[config.numNodes+1];
 		
-		StringBuilder sb = new StringBuilder("SolveTour:");
+//		StringBuilder sb = new StringBuilder("SolveTour:");
 		
 		TourElement p = curr;
 		for (int i = pathLen - 1; i >= 0; i--) {
-			sb.append(String.format(" %d", p.node));
+//			sb.append(String.format(" %d", p.node));
 			path[i] = p.node;
 			visited.set(p.node);
 			p = p.previous;			
 		}
 		
-		System.out.println(sb);
+//		System.out.println(sb);
 
 		visitNodes(path[pathLen - 1]);
 	}
