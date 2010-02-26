@@ -3,7 +3,6 @@ package erco.intervals.tsp;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.StringTokenizer;
 
 import ch.ethz.intervals.Interval;
@@ -35,7 +34,7 @@ public class Tsp {
 		config.enqueue(first);
 		Intervals.inline(new VoidInlineTask() {
 			@Override public void run(Interval subinterval) {
-				new TspSolver(subinterval, config);
+				new /*@ch.ethz.intervals.Parent("subinterval")*/ TspSolver(subinterval, config);
 			}
 		});		
 		return config.minTour;

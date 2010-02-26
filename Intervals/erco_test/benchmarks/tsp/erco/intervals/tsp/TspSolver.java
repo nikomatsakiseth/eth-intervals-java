@@ -14,7 +14,7 @@ import ch.ethz.intervals.quals.Requires;
 
 public class TspSolver extends Interval {
 	
-	final @Creator("readableBy this") Config config;
+	final @Creator("readableBy parent") Config config;
 	
 	@GuardedBy("this") int curDist;
 	@GuardedBy("this") int pathLen;
@@ -23,7 +23,7 @@ public class TspSolver extends Interval {
 
 	public TspSolver(
 			@ParentForNew("Parent") Dependency dep,
-			@Creator("readableBy this") Config config
+			@Creator("readableBy parent") Config config
 	) {
 		super(dep);
 		this.config = config;
