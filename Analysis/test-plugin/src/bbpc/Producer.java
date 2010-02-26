@@ -1,6 +1,7 @@
 package bbpc;
 
 import ch.ethz.intervals.Interval;
+import ch.ethz.intervals.Dependency;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.Parent;
 import ch.ethz.intervals.ParentForNew;
@@ -13,7 +14,7 @@ public class Producer extends Interval {
 	final @Creator("this") ProdData pdata;
 	
 	public Producer(
-	    Interval p, 
+	    @ParentForNew("Parent") Dependency p, 
 	    Interval c, 
 	    @Creator("c") ConsData cdata
 	) {
