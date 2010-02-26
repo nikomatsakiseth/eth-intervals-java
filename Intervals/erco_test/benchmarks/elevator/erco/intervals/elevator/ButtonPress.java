@@ -7,9 +7,6 @@ package erco.intervals.elevator;
  * @author Roger Karrer
  */
 
-import java.lang.*;
-import java.util.*;
-import java.io.*;
 
 // class to represent a press of a call button
 class ButtonPress {

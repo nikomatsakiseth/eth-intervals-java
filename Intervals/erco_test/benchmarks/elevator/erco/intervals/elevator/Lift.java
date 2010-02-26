@@ -7,14 +7,13 @@ package erco.intervals.elevator;
  * @author Roger Karrer
  */
 
-import java.lang.*;
-import java.util.*;
-import java.io.*;
+import java.util.Enumeration;
+import java.util.Vector;
 
 // class that implements the elevator threads
 class Lift extends Thread {
 
-	// used for assigning unique ids to the elevators
+	// used for assigning unique identifiers to the elevators
 	private static int count = 0;
 
 	public static final int IDLE = 0;
@@ -237,11 +236,11 @@ class Lift extends Thread {
 
 	// Updates peopleFor based on the Vector of destination floors received
 	// from the control object
-	private void addPeople(Vector people) {
+	private void addPeople(Vector<Integer> people) {
 		System.out.println(getName() + " picking up " + people.size()
 				+ " passengers on " + currentFloor);
-		for (Enumeration e = people.elements(); e.hasMoreElements();) {
-			int toFloor = ((Integer) e.nextElement()).intValue();
+		for (Enumeration<Integer> e = people.elements(); e.hasMoreElements();) {
+			int toFloor = (e.nextElement()).intValue();
 			peopleFor[toFloor] += 1;
 		}
 	}

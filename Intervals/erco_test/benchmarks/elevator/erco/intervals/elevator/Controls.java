@@ -7,9 +7,7 @@ package erco.intervals.elevator;
  * @author Roger Karrer
  */
 
-import java.lang.*;
-import java.util.*;
-import java.io.*;
+import java.util.Vector;
 
 // class of the shared control object
 class Controls {
@@ -105,10 +103,10 @@ class Controls {
 	// returned Vector contains Integer objects that represent the floors
 	// to which the people wish to travel. The floors vector and upFlag
 	// are reset.
-	public Vector getUpPeople(int floor) {
+	public Vector<Integer> getUpPeople(int floor) {
 		synchronized (floors[floor]) {
-			Vector temp = floors[floor].upPeople;
-			floors[floor].upPeople = new Vector();
+			Vector<Integer> temp = floors[floor].upPeople;
+			floors[floor].upPeople = new Vector<Integer>();
 			floors[floor].upFlag = false;
 			return temp;
 		}
@@ -118,10 +116,10 @@ class Controls {
 	// returned Vector contains Integer objects that represent the floors
 	// to which the people wish to travel. The floors vector and downFlag
 	// are reset.
-	public Vector getDownPeople(int floor) {
+	public Vector<Integer> getDownPeople(int floor) {
 		synchronized (floors[floor]) {
-			Vector temp = floors[floor].downPeople;
-			floors[floor].downPeople = new Vector();
+			Vector<Integer> temp = floors[floor].downPeople;
+			floors[floor].downPeople = new Vector<Integer>();
 			floors[floor].downFlag = false;
 			return temp;
 		}

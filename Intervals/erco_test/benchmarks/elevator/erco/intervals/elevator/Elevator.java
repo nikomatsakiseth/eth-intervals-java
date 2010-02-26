@@ -7,19 +7,18 @@ package erco.intervals.elevator;
  * @author Roger Karrer
  */
 
-import java.lang.*;
-import java.util.*;
-import java.io.*;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.StreamTokenizer;
+import java.util.Vector;
 
 public class Elevator {
 
-	private static Lift dummy;
-
 	// shared control object
 	private static Controls controls;
-	private static Vector events;
+	private static Vector<ButtonPress> events;
 
-	// Initializer for main class, reads the input and initlizes
+	// Initializer for main class, reads the input and initializes
 	// the events Vector with ButtonPress objects
 	private Elevator() {
 		InputStreamReader reader = new InputStreamReader(System.in);
@@ -27,7 +26,7 @@ public class Elevator {
 		st.lowerCaseMode(true);
 		st.parseNumbers();
 
-		events = new Vector();
+		events = new Vector<ButtonPress>();
 
 		int numFloors = 0, numLifts = 0;
 		try {
@@ -53,13 +52,11 @@ public class Elevator {
 		controls = new Controls(numFloors);
 		// Create the elevators
 		for (int i = 0; i < numLifts; i++)
-			dummy = new Lift(numFloors, controls);
+			new Lift(numFloors, controls);
 	}
 
 	// Press the buttons at the correct time
 	private void begin() {
-		// Get the thread that this method is executing in
-		Thread me = Thread.currentThread();
 		// First tick is 1
 		int time = 1;
 
@@ -78,7 +75,7 @@ public class Elevator {
 			}
 			// wait 1/2 second to next tick
 			try {
-				me.sleep(500);
+				Thread.sleep(500);
 			} catch (InterruptedException e) {
 			}
 			time += 1;
