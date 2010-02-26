@@ -1786,4 +1786,44 @@ class TestAnalysis extends JUnitSuite {
         )
     }
 
+
+    @Test
+    def reproducingThread() {
+        success(
+            """
+            class Data
+            extends #Object
+            {
+                scalar field requires this.#Creator;
+            }
+            
+            class TestInterval extends #Interval
+            {
+                Data @#Creator(readableBy this.#Parent)
+                inData requires this.#Constructor;
+                
+                Constructor(
+                    Data @#Creator(readableBy this.#Parent) inData
+                ) {
+                    this->inData = inData;
+                    return;                    
+                }
+                
+                void run()
+                requires method suspends this
+                requires this.#Constructor hb method 
+                {
+                    // We can read inData since our parent can:
+                    inData = this->inData;
+                    field = inData->field;
+                    
+                    // Create a sibling interval and demonstrate that
+                    // we can hand-off inData to it:
+                    sibling = new TestInterval @#Parent(this.#Parent) (inData);                    
+                    return;
+                }
+            }
+            """
+        )
+    }
 }
