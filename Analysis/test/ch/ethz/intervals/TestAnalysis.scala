@@ -35,7 +35,7 @@ class TestAnalysis extends JUnitSuite {
                 URLEncoder.encode(file.getAbsolutePath, "UTF-8"), 
                 stelem.getLineNumber
             )
-        }         
+        }
         
         val mainSplitLog = {
             if(logTests(invokingMthdName)) {
@@ -1694,15 +1694,16 @@ class TestAnalysis extends JUnitSuite {
                 Data @#Creator(readableBy this)
                 inData requires this.#Constructor;
                 
-                Data @#Creator(writableBy this) 
+                Data @#Creator(this) 
                 outData requires this.#Constructor;
                 
                 Constructor(
-                    Data @#Creator(readableBy this) inData,
-                    Data @#Creator(writableBy this) outData
+                    Data @#Creator(readableBy this) inData
                 ) {
                     this->inData = inData;
+                    outData = new Data @#Creator(this) ();
                     this->outData = outData;
+                    return;                    
                 }
                 
                 void run()
@@ -1714,29 +1715,71 @@ class TestAnalysis extends JUnitSuite {
 
                     field = inData->field;
                     outData->field = field;
+                    return;
                 }
             }
             
             class TestClass
             extends #Object
             {
-                void method(Data @#Creator(writableBy method) data)
+                void correctMethod(Data @#Creator(writableBy method) data)
                 {
-                    outData1 = new Data @#Creator(method) ();
-                    outData2 = new Data @#Creator(method) ();
-                    
                     // Create two asynchronous subintervals which will
                     // read from data and write to outData[12]:
                     inlineInterval sub {
-                        inter1 = new TestInterval @#Parent(sub) (data, outData1);
-                        inter2 = new TestInterval @#Parent(sub) (data, outData2);                        
-                    }
+                        inter1 = new TestInterval @#Parent(sub) (data);
+                        inter2 = new TestInterval @#Parent(sub) (data);                        
+                        break 0(inter1, inter2);
+                    } => (
+                        TestInterval @#Parent(sub) inter1, 
+                        TestInterval @#Parent(sub) inter2
+                    );
 
                     // "Combine" the results of the two subintervals:
+                    outData1 = inter1->outData;
                     result1 = outData1->field;
                     data->field = result1;
+                    outData2 = inter2->outData;                    
                     result2 = outData2->field;
                     data->field = result2;
+                    return;
+                }
+                
+                void unreadableData(
+                    #Interval parent,
+                    Data @#Creator(writableBy method) data)
+                {
+                    // Create two asynchronous subintervals which will
+                    // read from data and write to outData[12]:
+                    inlineInterval sub {
+                        inter1 = new TestInterval @#Parent(parent) (data); // ERROR intervals.expected.subtype(data, @(ch.ethz.intervals.quals.Constructor)(hbNow) @(ch.ethz.intervals.quals.Creator)(writableBy method) Data, @(ch.ethz.intervals.quals.Constructor)(hbNow) @(ch.ethz.intervals.quals.Creator)(readableBy inter1) Data)
+                        inter2 = new TestInterval @#Parent(parent) (data); // ERROR intervals.expected.subtype(data, @(ch.ethz.intervals.quals.Constructor)(hbNow) @(ch.ethz.intervals.quals.Creator)(writableBy method) Data, @(ch.ethz.intervals.quals.Constructor)(hbNow) @(ch.ethz.intervals.quals.Creator)(readableBy inter2) Data)                        
+                        break 0();
+                    }
+                    return;
+                }
+                
+                void unwritableData(
+                    #Interval parent,
+                    Data @#Creator(writableBy parent) data)
+                {
+                    // Create two asynchronous subintervals which will
+                    // read from data and write to outData[12]:
+                    inlineInterval sub {
+                        inter1 = new TestInterval @#Parent(parent) (data);
+                        inter2 = new TestInterval @#Parent(parent) (data);
+                        break 0(inter1, inter2);
+                    } => (
+                        TestInterval @#Parent(parent) inter1, 
+                        TestInterval @#Parent(parent) inter2
+                    );
+
+                    // "Combine" the results of the two subintervals:
+                    outData1 = inter1->outData; // Note: we can read this, it's a final field
+                    result1 = outData1->field; // ERROR intervals.not.readable(inter1)
+                    outData2 = inter2->outData;                    
+                    result2 = outData2->field; // ERROR intervals.not.readable(inter2)
+                    return;
                 }
             }
             """

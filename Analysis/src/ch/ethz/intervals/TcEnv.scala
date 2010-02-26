@@ -777,15 +777,23 @@ sealed case class TcEnv(
         
         def succ(p: ir.Path): Set[ir.Path] = log.indented("succ(%s)", p) {
             flow.hb.values(p) ++ {
-                log.indented("p0.start -> p0.end if (p0: Interval)") {                    
+                log.indented("X.start -> X.end if (X: Interval)") {                    
                     depoint(p, ir.f_start) match {
-                        case Some(cp_interval) if isInterval(cp_interval) => 
-                            Some(cp_interval.p.end)
+                        case Some(cp_inter) if isInterval(cp_inter) => 
+                            Some(cp_inter.p.end)
                         case _ => None
                     }
                 }
             } ++ {
-                log.indented("crp0.Constructor[_].end -> crp0.Constructor.end") {
+                log.indented("X.end -> X.Parent.end if (X: Interval)") {
+                    depoint(p, ir.f_end) match {
+                        case Some(crp_inter: ir.CanonReifiedPath) if isInterval(crp_inter) =>
+                            Some(fld(crp_inter, ir.f_parent).p.end)
+                        case _ => None
+                    }
+                }
+            } ++ {
+                log.indented("X.Constructor[_].end -> X.Constructor.end") {
                     depoint(p, ir.f_end) match {
                         case Some(ir.CpClassCtor(crp0, _)) => 
                             Some(fld(crp0, ir.f_objCtor).p.end)
@@ -793,7 +801,7 @@ sealed case class TcEnv(
                     }
                 }
             } ++ {
-                log.indented("crp0.Constructor[L].end -> crp0.Constructor[R].start if R <: L") {
+                log.indented("X.Constructor[L].end -> X.Constructor[R].start if R <: L") {
                     depoint(p, ir.f_end) match {
                         case Some(ir.CpClassCtor(crp0, c_left)) if prog.isNotInterface(c_left) => 
                             val cs_left = prog.classAndSuperclasses(c_left)
@@ -807,7 +815,7 @@ sealed case class TcEnv(
                     }
                 }
             } ++ {
-                log.indented("crp0.Constructor[_] -> crp0.start if (crp0: Interval)") {
+                log.indented("X.Constructor[_] -> X.start if (X: Interval)") {
                     depoint(p, ir.f_end) match {
                         case Some(ir.CpClassCtor(crp0, _)) if isInterval(crp0) => 
                             Some(crp0.p + ir.f_start)                            
@@ -817,18 +825,18 @@ sealed case class TcEnv(
                     }
                 }
             } ++ {
-                def happened(q: ir.Path) = {
-                    // Be wary of two mutually recursive paths like:
-                    // p = x.y.(? hbNow q)
-                    // q = x.y.(? hbNow p)                    
-                    // In this case, while searching to see if 'q' happened,
-                    // we cannot assume that 'p' happened.
-                    val cq = canonPath(q)
-                    !didNotHappen(cq.p) &&
-                    new HbWalk(didNotHappen + p, cq.p.end, p_cur.start).doWalk()
-                }
-        
-                log.indented("cp0.(hbNow qs).end -> cur.start if (qs happened)") {
+                log.indented("X.(hbNow qs).end -> cur.start if (qs happened)") {
+                    def happened(q: ir.Path) = {
+                        // Be wary of two mutually recursive paths like:
+                        // p = x.y.(? hbNow q)
+                        // q = x.y.(? hbNow p)                    
+                        // In this case, while searching to see if 'q' happened,
+                        // we cannot assume that 'p' happened.
+                        val cq = canonPath(q)
+                        !didNotHappen(cq.p) &&
+                        new HbWalk(didNotHappen + p, cq.p.end, p_cur.start).doWalk()
+                    }
+
                     depoint(p, ir.f_end).map(is) match {
                         case Some(ir.WcHbNow(qs)) if qs.forall(happened) =>
                             Some(p_cur.start)

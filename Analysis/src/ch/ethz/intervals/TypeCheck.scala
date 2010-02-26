@@ -326,8 +326,6 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                 ss.oenv_break
                 
             case ir.InlineInterval(x, ps_locks, seq) =>
-                val ss = new StmtScope(env_in, stmt_compound.defines, None)
-                val ss_cur = ss :: ss_prev
                 var env = env_in
             
                 val tps_locks = env.immutableReifiedLvs(ps_locks)                    
@@ -336,11 +334,10 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                 env = env.addNonNull(cp_x)
                 env = env.addSuspends(cp_x, env.cp_cur)
                 env = tps_locks.foldLeft(env)(_.addLocks(cp_x, _))
-                
-                // n.b.: We don't try to pop-- that's because if
-                // statement seq returns, the environment will be reset to ss.env_in.
-                // In any case we will reset environment below so it doens't matter.
                 env = env.withCurrent(cp_x)
+                
+                val ss = new StmtScope(env, stmt_compound.defines, None)
+                val ss_cur = ss :: ss_prev                
                 env = checkStatementSeq(env, ss_cur, seq)
                 ss.oenv_break
                 
