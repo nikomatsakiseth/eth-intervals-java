@@ -17,7 +17,7 @@ class IrParser extends BaseParser {
         "requires", "super", 
         "inlineInterval", "push", "pop", 
         "interface", "break", "continue", "cbreak",
-        "switch", "loop", "try", "catch", "assert"
+        "switch", "loop", "try", "catch", "assert", "Is"
     )
 
     def optd[A](d: => A, p: Parser[A]) = (
@@ -65,7 +65,9 @@ class IrParser extends BaseParser {
     // Wildcard type with defaults for @Constructor
     def wt_dflt = wt                            ^^ { case wt => wt.withDefaultWghosts(ir.wgs_constructed) }
     
-    def lvdecl = wt_dflt~lv                     ^^ { case wt~lv => ir.LvDecl(lv, wt) }
+    def isdecl = optl("@"~>"Is"~>"("~>comma(p)<~")")
+    
+    def lvdecl = isdecl~wt_dflt~lv              ^^ { case ps_is~wt~lv => ir.LvDecl(lv, wt, ps_is) }
     
     private var counter = 0
     def anonLv = {

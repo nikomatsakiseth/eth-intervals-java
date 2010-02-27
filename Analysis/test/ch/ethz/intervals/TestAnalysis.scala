@@ -1786,7 +1786,6 @@ class TestAnalysis extends JUnitSuite {
         )
     }
 
-
     @Test
     def reproducingThread() {
         success(
@@ -1826,4 +1825,64 @@ class TestAnalysis extends JUnitSuite {
             """
         )
     }
+    
+    @Test
+    def simpleIsAnnots() {
+        success(
+            """
+            class TestInterval extends #Interval
+            {
+                @Is(this.#Parent)
+                Interval parent requires this.#Constructor;
+                
+                Constructor ok(
+                    @Is(this.#Parent) Interval parent
+                ) {
+                    this->parent = parent;
+                    return;                    
+                }
+                
+                Constructor bad(
+                    Interval parent
+                ) {
+                    this->parent = parent; // ERROR foo
+                    return;                    
+                }
+                
+                @Is(this.#Parent) Interval parent()
+                {
+                    parent = this->parent;
+                    return parent;
+                }
+                
+                @Is(this.#Parent) Interval bogusParent()
+                {
+                    return this; // ERROR foo
+                }
+                
+                void makeWithThisAsParent()
+                {
+                    good = new TestInterval @#Parent(this) ok(this);
+                    bad = new TestInterval @#Parent(this.#Parent) ok(this); // ERROR foo
+                }
+                
+                void makeSiblingWithFieldLoad()
+                {
+                    parent = this->parent;
+                    good = new TestInterval @#Parent(this.#Parent) ok(parent);
+                    bad = new TestInterval @#Parent(this) ok(parent);  // ERROR foo
+                }
+                
+                void makeSiblingWithMethodReturn()
+                {
+                    parent = this->parent();
+                    good = new TestInterval @#Parent(this.#Parent) ok(parent);
+                    bad = new TestInterval @#Parent(this) ok(parent);  // ERROR foo
+                }
+                
+            }
+            """
+        )
+    }
+    
 }

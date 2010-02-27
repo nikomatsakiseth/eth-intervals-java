@@ -109,7 +109,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
         var env = env0
         val msig = env.substdMethodSig(tcp, m, cqs)
         env = processCallMsig(env, tcp, msig, cqs)
-        env.addReifiedLocal(x, msig.wt_ret)
+        env.addReifiedLocal(x, msig.wt_ret, msig.ps_is)
     }
     
     def mapAndMergeBranchEnv(

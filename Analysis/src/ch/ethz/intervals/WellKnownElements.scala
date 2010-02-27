@@ -39,11 +39,21 @@ class WellKnownElements(elements: Elements, types: Types) {
     val DefinesGhost = new TypeInfo(classOf[ch.ethz.intervals.quals.DefinesGhost])
     val Requires = new TypeInfo(classOf[ch.ethz.intervals.quals.Requires])
     
+    val InlineTask = new TypeInfo(classOf[ch.ethz.intervals.InlineTask[_]])
+    val VoidInlineTask = new TypeInfo(classOf[ch.ethz.intervals.VoidInlineTask])
+    
     val addHbIntervalInterval = Intervals.method("addHb", Interval, Interval)
     val addHbIntervalPoint = Intervals.method("addHb", Interval, Point)
     val addHbPointInterval = Intervals.method("addHb", Point, Interval)
     val addHbPointPoint = Intervals.method("addHb", Point, Point)
     val addHb = Set(addHbIntervalInterval, addHbIntervalPoint, addHbPointInterval, addHbPointPoint)
+    
+//    val inlineTaskInit = InlineTask.method("<init>")
+//    val voidInlineTaskInit = InlineTask.method("<init>")
+//    
+//    val inlineResult = Intervals.method("inline", InlineTask)
+//    val inlineVoid = Intervals.method("inline", VoidInlineTask)
+//    val inline = Set(inlineResult, inlineVoid)
     
     val ofClass = DefinesGhost.method("ofClass")
     val useByDefault = DefinesGhost.method("useByDefault")

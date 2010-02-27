@@ -482,7 +482,27 @@ object TranslateMethodBody
 
                 case tree =>
                     throw new Unhandled(tree)     
-            }  
+            }
+            
+//            def inlineIntervalCall(
+//                mitree: MethodInvocationTree
+//            ): ir.VarName = {
+//                // See whether we can just inline 
+//                // the subinterval body into the method:
+//                val etree_arg = mitree.getArguments.get(0)
+//                EU.skipParens(etree_arg) match {
+//                    case nctree: NewClassTree =>
+//                        val eelem_ctor = TU.elementFromUse(nctree)
+//                        if(eelem_ctor == wke.inlineTaskInit) {
+//                            
+//                        } else if(eelem_ctor == wke.voidInlineTaskInit) {
+//                            
+//                        }
+//                    
+//                    case _ =>
+//                    
+//                }
+//            }
             
             def methodInvocation(
                 mitree: MethodInvocationTree
@@ -494,6 +514,8 @@ object TranslateMethodBody
                     val qs = mitree.getArguments.map(rvalue)
                     addStmt(mitree, ir.StmtHb(qs(0), qs(1)))
                     ir.lv_this // Dummy return value.
+//                } else if(wke.inline(eelem)) {
+//                    inlineIntervalCall(mitree)
                 } else {
                     nonIntrinsicMethodInvocation(eelem, mitree)
                 }            

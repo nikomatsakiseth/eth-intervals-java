@@ -50,10 +50,12 @@ sealed case class TcEnv(
     }
     
     /** Define a reified local variable `x` with type `wt` */
-    def addReifiedLocal(x: ir.VarName, wt: ir.WcTypeRef) = addPerm(x, ir.CpReifiedLv(x, wt))
+    def addReifiedLocal(x: ir.VarName, wt: ir.WcTypeRef, ps_is: List[ir.Path] = Nil) = {
+        addPerm(x, ir.CpReifiedLv(x, wt, ps_is))
+    }
     
     /** Define a local variable according to the given decl */
-    def addArg(arg: ir.LvDecl) = addReifiedLocal(arg.name, arg.wt)
+    def addArg(arg: ir.LvDecl) = addReifiedLocal(arg.name, arg.wt, arg.ps_is)
     
     /** Define local variables according to the given decls */
     def addArgs(args: List[ir.LvDecl]) = args.foldLeft(this)(_ addArg _)
@@ -233,6 +235,14 @@ sealed case class TcEnv(
     def reifiedPaths(ps: List[ir.Path]) = ps.map(reifiedPath)
     def reifiedLv(lv: ir.VarName) = reifiedPath(lv.path)
     def reifiedLvs(lvs: List[ir.VarName]) = lvs.map(reifiedLv)
+    
+    def ghostPath(p: ir.Path): ir.CanonGhostPath = {
+        canonPath(p) match {
+            case cgp: ir.CanonGhostPath => cgp
+            case _ => throw new CheckFailure("intervals.must.be.ghost", p)
+        }
+    }
+    def ghostPaths(ps: List[ir.Path]) = ps.map(ghostPath)
     
     def immutableReifiedPath(p: ir.Path): ir.CanonReifiedPath = {
         val crp = reifiedPath(p)
@@ -696,29 +706,14 @@ sealed case class TcEnv(
     
     // ___ Superintervals and suspended intervals ___________________________
     
-    private[this] def accrueCanonPaths(func: (ir.CanonPath => Set[ir.CanonPath]))(
-        stale: Set[ir.CanonPath], 
-        fresh: Set[ir.CanonPath]
-    ): Set[ir.CanonPath] = {
-        log.indented(true, "accrueCanonPaths(fresh=%s)", fresh) {
-            if(fresh.isEmpty) stale
-            else {
-                val nextStale = stale ++ fresh
-                val nextFresh = fresh.flatMap(func).filter(cp => !nextStale(cp))
-                accrueCanonPaths(func)(nextStale, nextFresh)
-            }
-        }
-    }
-    
-    private[this] def immediateInlineSuperintervalsOf(cp: ir.CanonPath): Set[ir.CanonPath] = {
-        log.indented("suspendedBy(%s)", cp) {
+    private[this] def immediateInlineSuperintervalsOf(cp: ir.CanonPath) = {
+        log.indented("immediateInlineSuperintervalsOf(%s)", cp) {
+            immediateEquivalentsOf(cp) ++ 
             flow.inlineRel.values(cp.p).map(canonPath) ++ {
                 log.indented("cp0.Constructor[_] < cp0.Constructor?") {
                     cp match {
-                        case ir.CpClassCtor(cp0, _) => 
-                            Some(fld(cp0, ir.f_objCtor))
-                        case _ =>                     
-                            None
+                        case ir.CpClassCtor(cp0, _) => Some(fld(cp0, ir.f_objCtor))
+                        case _ => None
                     }
                 }
             }            
@@ -727,21 +722,23 @@ sealed case class TcEnv(
     
     private[this] def inlineSuperintervalsOf(cp: ir.CanonPath) = {
         log.indented(false, "inlineSuperintervalsOf(%s)", cp) {
-            accrueCanonPaths(immediateInlineSuperintervalsOf)(Set(), Set(cp))
+            computeTransitiveClosure(immediateInlineSuperintervalsOf, Set(cp))
         }
     }
     
-    private[this] def superintervalsOf(cp0: ir.CanonPath) = {
-        def immediateSuperintervalsOf(cp: ir.CanonPath): Set[ir.CanonPath] = {
-            log.indented("superintervalsOf(%s)", cp) {
-                immediateInlineSuperintervalsOf(cp) ++ (cp match {
-                    case crp: ir.CanonReifiedPath => Set(fld(crp, ir.f_parent))
-                    case _: ir.CanonGhostPath => Set()                    
-                })
-            }
+    private[this] def immediateSuperintervalsOf(cp: ir.CanonPath) = {
+        log.indented("immediateSuperintervalsOf(%s)", cp) {
+            immediateInlineSuperintervalsOf(cp) ++ (cp match {
+                case crp: ir.CanonReifiedPath => Set(fld(crp, ir.f_parent))
+                case _: ir.CanonGhostPath => Set()                    
+            })
         }
-        
-        accrueCanonPaths(immediateSuperintervalsOf)(Set(), Set(cp0))        
+    }
+
+    private[this] def superintervalsOf(cp0: ir.CanonPath) = {
+        log.indented(false, "superintervalsOf(%s)", cp) {
+            computeTransitiveClosure(immediateSuperintervalsOf, Set(cp0))
+        }
     }
     
     // ___ Happens-Before Searches __________________________________________
@@ -872,7 +869,24 @@ sealed case class TcEnv(
         }
     }
     
-    private[this] def equiv(cp: ir.CanonPath, cq: ir.CanonPath): Boolean = (cp.p == cq.p)
+    private[this] def immediateEquivalentsOf(cp: ir.CanonPath) = {
+        log.indented(false, "equivalents(%s)", cp) {
+            Set(cp) ++ (cp match {
+                case ir.CpReifiedField(_, rfd) => rfd.ps_is.map(canonPath)
+                case ir.CpReifiedLv(_, _, ps_is) => ps_is.map(canonPath)
+                case _ => List
+            })
+        }        
+    }
+    
+    private[this] def equivalents(cp0: ir.CanonPath) = {
+        computeTransitiveClosure(immediateEquivalentsOf, cp0)
+    }
+    
+    private[this] def equiv(cp0: ir.CanonPath, cq0: ir.CanonPath): Boolean = {
+        (cp0 == cq0) || (equivalents(cp0) intersects equivalents(cq0))
+    }
+    
     private[this] def equiv(p: ir.Path, q: ir.Path): Boolean = {
         (p == q) || equiv(canonPath(p), canonPath(q))
     }

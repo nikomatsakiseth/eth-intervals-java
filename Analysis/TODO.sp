@@ -1,6 +1,12 @@
 ___ To Do List _______________________________________________________
 
-______ OOPSLA Bugs ___________________________________________________   
+______ OOPSLA Bugs ___________________________________________________
+
+- Check ps_is on field stores
+
+- Check ps_is on method returns
+
+- Check ps_is on method invocations
 
 - Assertions
 

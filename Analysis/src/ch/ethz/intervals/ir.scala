@@ -188,6 +188,7 @@ object ir {
     
     sealed case class MethodDecl(
         wt_ret: ir.WcTypeRef,
+        ps_is: List[ir.Path],
         name: ir.MethodName,
         args: List[ir.LvDecl],
         reqs: List[ir.Req],
@@ -209,7 +210,8 @@ object ir {
         wts_args: List[ir.WcTypeRef],
         name: ir.MethodName,
         reqs: List[ir.Req],
-        wt_ret: ir.WcTypeRef
+        wt_ret: ir.WcTypeRef,
+        ps_is: List[ir.Path]
     ) {
         override def toString = "(%s %s(%s)%s)".format(
             wt_ret, name, ", ".join(wts_args), "".join(" ", reqs))
@@ -217,7 +219,8 @@ object ir {
     
     sealed case class LvDecl(
         name: ir.VarName,
-        wt: ir.WcTypeRef
+        wt: ir.WcTypeRef,
+        p_is: ir.Path
     ) {
         override def toString = "%s: %s".format(name, wt)
     }
@@ -226,7 +229,8 @@ object ir {
         as: ir.Attrs,       
         wt: ir.WcTypeRef,
         name: ir.FieldName,
-        p_guard: ir.Path
+        p_guard: ir.Path,
+        ps_is: List[ir.Path]
     ) extends PositionalAst {
         def isNamed(n: FieldName) = (name == n)
         def thisPath = name.thisPath                        
@@ -566,7 +570,7 @@ object ir {
         override def toString = "cp(%s: %s)".format(p, wt)                
     }
     
-    sealed case class CpReifiedLv(lv: ir.VarName, wt: ir.WcTypeRef) extends CanonReifiedPath {
+    sealed case class CpReifiedLv(lv: ir.VarName, wt: ir.WcTypeRef, ps_is: List[ir.Path]) extends CanonReifiedPath {
         val p = ir.Path(lv, List())
         
         override def toString = super.toString

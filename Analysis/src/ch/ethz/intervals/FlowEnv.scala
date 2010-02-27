@@ -8,23 +8,13 @@ case class FlowEnv(
     nonnull: Set[ir.Path],          // paths known to be non-null
     temp: Map[ir.Path, ir.Path],    // temporary equivalences, cleared on method call
     ps_invalidated: Set[ir.Path],   // p is current invalid and must be reassigned                
+    equivRel: PathRelation,         // (p, q) means p == q
     readableRel: PathRelation,      // (p, q) means guard p is readable by interval q
     writableRel: PathRelation,      // (p, q) means guard p is writable by interval q
     hbRel: PathRelation,            // (p, q) means point p hb point q
     inlineRel: PathRelation,        // (p, q) means interval p is a inlineInterval of interval q
     locksRel: PathRelation          // (p, q) means interval p locks lock q            
 ) {
-    // ___ Creating new flow environments ___________________________________
-    
-    def withNonnull(nonnull: Set[ir.Path]) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, inlineRel, locksRel)
-    def withTemp(temp: Map[ir.Path, ir.Path]) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, inlineRel, locksRel)
-    def withInvalidated(ps_invalidated: Set[ir.Path]) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, inlineRel, locksRel)
-    def withReadableRel(readableRel: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, inlineRel, locksRel)
-    def withWritableRel(writableRel: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, inlineRel, locksRel)
-    def withHbRel(hbRel: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, inlineRel, locksRel)
-    def withInlineRel(inlineRel: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, inlineRel, locksRel)
-    def withLocksRel(locksRel: PathRelation) = FlowEnv(nonnull, temp, ps_invalidated, readableRel, writableRel, hbRel, inlineRel, locksRel)
-    
     // ___ Convenience functions for taking nonnull into account ____________
     
     def mapFilter(
@@ -44,40 +34,41 @@ case class FlowEnv(
     // ___ Combining flow environments ______________________________________
     
     // Adding (or unioning) two environments keeps what's true in either.
-    def +(flow: FlowEnv) = {
-        withTemp(temp ++ flow.temp).
-        withInvalidated(ps_invalidated ++ flow.ps_invalidated).
-        withReadableRel(readableRel ++ flow.readableRel).
-        withWritableRel(writableRel ++ flow.writableRel).
-        withHbRel(hbRel ++ flow.hbRel).
-        withInlineRel(inlineRel ++ flow.inlineRel).
-        withLocksRel(locksRel ++ flow.locksRel)
-    }
+    def +(flow: FlowEnv) = copy(
+        temp = temp ++ flow.temp,
+        ps_invalidated = ps_invalidated ++ flow.ps_invalidated,
+        readableRel = readableRel ++ flow.readableRel,
+        writableRel = writableRel ++ flow.writableRel,
+        hbRel = hbRel ++ flow.hbRel,
+        inlineRel = inlineRel ++ flow.inlineRel,
+        locksRel = locksRel ++ flow.locksRel
+    )
     
     // Intersecting two environments keeps what's true in both.
-    def &(flow2: FlowEnv) = {
-        withNonnull(nonnull & flow2.nonnull)
-        withTemp(temp & flow2.temp).
-        withInvalidated(ps_invalidated ++ flow2.ps_invalidated).
-        withReadableRel(readableRel & flow2.readableRel).
-        withWritableRel(writableRel & flow2.writableRel).
-        withHbRel(hbRel & flow2.hbRel).
-        withInlineRel(inlineRel & flow2.inlineRel).
-        withLocksRel(locksRel & flow2.locksRel)
-    }    
+    def &(flow2: FlowEnv) = copy(
+        nonnull = nonnull & flow2.nonnull,
+        temp = temp & flow2.temp,
+        ps_invalidated = ps_invalidated ++ flow2.ps_invalidated,
+        readableRel = readableRel & flow2.readableRel,
+        writableRel = writableRel & flow2.writableRel,
+        hbRel = hbRel & flow2.hbRel,
+        inlineRel = inlineRel & flow2.inlineRel,
+        locksRel = locksRel & flow2.locksRel
+    )
 }
 
 object FlowEnv
 {
     val empty = FlowEnv(
-        Set(),                          // nonnull
-        Map(),                          // temp
-        Set(),                          // ps_invalidated
-        PathRelation.intransitive,      // readableRel
-        PathRelation.intransitive,      // writableRel
-        PathRelation.transitive,        // hbRel
-        PathRelation.transitive,        // inlineRel
-        PathRelation.intransitive       // locksRel
+        nonnull = Set(),
+        temp = Set(),
+        ps_invalidated = Set(),
+        equivRel = PathRelation.transitive,
+        readableRel = PathRelation.intransitive,
+        writableRel = PathRelation.intransitive,
+        hbRel = PathRelation.transitive,
+        inlineRel = PathRelation.transitive,
+        locksRel = PathRelation.intransitive
     )
     
     def intersect(flows: List[FlowEnv]) = flows match {

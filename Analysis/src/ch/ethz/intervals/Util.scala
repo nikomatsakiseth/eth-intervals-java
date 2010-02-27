@@ -142,9 +142,6 @@ object Util {
             
         def subsetOf(c: UtilIterator[Q]) =
             i.forall(c.i contains _)
-            
-        def intersects(c: UtilIterator[Q]) =
-            i.exists(c.i contains _)
     }
     implicit def iterable2UtilIterator[Q](i: Iterable[Q]) = UtilIterator(i.iterator)
     implicit def iterator2UtilIterator[Q](i: Iterator[Q]) = UtilIterator(i)
@@ -201,6 +198,16 @@ object Util {
     def firstlast[A](l: List[A]) = (l.head, l.last)
     
     // ____________________________________________________________
+    // Extensions to Set
+    
+    case class UtilSet[E](set: Set[E]) {
+        def intersects(anotherSet: Set[E]) = {
+            set.exists(anotherSet)
+        }
+    }
+    implicit def set2UtilSet[E](set: Set[E]) = UtilSet(set)
+    
+    // ____________________________________________________________
     // Extensions to and utilities for Map: We do a lot of mapping, after all.
     
     def makeMap[K,V](pairs: Iterable[(K,V)]): Map[K,V] = 
@@ -254,6 +261,18 @@ object Util {
         
     // ______________________________________________________________________
 
+    def computeTransitiveClosure[X](func: (X => Set[X]), initial: Set[X]) = {
+        def iterate(stale: Set[X], fresh: Set[X]): Set[X] = {
+            if(fresh.isEmpty) stale
+            else {
+                val nextStale = stale ++ fresh
+                val nextFresh = fresh.flatMap(func).filter(cp => !nextStale(cp))
+                accrueCanonPaths(func)(nextStale, nextFresh)
+            }            
+        }
+        iterate(Set(), initial)
+    }
+    
     def intersect[A](sets: Iterable[Set[A]]): Set[A] = {
         val iter = sets.iterator
         if(iter.hasNext) {
