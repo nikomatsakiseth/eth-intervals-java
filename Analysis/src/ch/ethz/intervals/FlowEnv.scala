@@ -61,7 +61,7 @@ object FlowEnv
 {
     val empty = FlowEnv(
         nonnull = Set(),
-        temp = Set(),
+        temp = Map(),
         ps_invalidated = Set(),
         equivRel = PathRelation.transitive,
         readableRel = PathRelation.intransitive,

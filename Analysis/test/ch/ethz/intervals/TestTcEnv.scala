@@ -107,7 +107,7 @@ class TestTcEnv extends JUnitSuite {
         env.prog.logStack.indexLog.indented("assertPathHasType(%s, %s)", p, wt_sup) {
             assertTrue(
                 "Assert %s <: %s".format(p, wt_sup),
-                env.pathHasType(env.reifiedPath(p).toTcp, wt_sup))
+                env.pathHasType(env.reifiedPath(p), wt_sup))
         }
     }
     
@@ -123,7 +123,7 @@ class TestTcEnv extends JUnitSuite {
         env.prog.logStack.indexLog.indented("assertNotPathHasType(%s, %s)", p, wt_sup) {
             assertFalse(
                 "Assert %s not <: %s".format(p, wt_sup),
-                env.pathHasType(env.reifiedPath(p).toTcp, wt_sup))
+                env.pathHasType(env.reifiedPath(p), wt_sup))
         }
     }
     

@@ -18,7 +18,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
     
     /// wt(cp_sub) <: wt_sup
     def checkIsSubtype(env: TcEnv, crp_sub: ir.CanonReifiedPath, wt_sup: ir.WcTypeRef) {
-        if(!env.pathHasType(crp_sub.toTcp, wt_sup))
+        if(!env.pathHasType(crp_sub, wt_sup))
             throw new CheckFailure(
                 "intervals.expected.subtype", 
                 crp_sub.p, crp_sub.wt.toUserString, wt_sup.toUserString)
@@ -595,7 +595,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
             env = env.addNonNull(env.cp_mthd)
             
             // For normal methods, type of this is the defining class
-            env = env.addNonNull(env.crp_this)
+            env = env.addNonNull(env.cp_this)
             
             env = env.addArgs(md.args)
             env = env.withReturnType(md.wt_ret)
@@ -626,7 +626,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
             var env = env_cd
             
             // Define special var "method" (== this.constructor):
-            env = env.addNonNull(env.crp_this)
+            env = env.addNonNull(env.cp_this)
             
             // Method == this.constructor[env.c_this]
             val p_ctor = ir.ClassCtorFieldName(env.c_this).thisPath

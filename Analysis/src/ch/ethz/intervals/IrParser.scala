@@ -65,9 +65,9 @@ class IrParser extends BaseParser {
     // Wildcard type with defaults for @Constructor
     def wt_dflt = wt                            ^^ { case wt => wt.withDefaultWghosts(ir.wgs_constructed) }
     
-    def isdecl = optl("@"~>"Is"~>"("~>comma(p)<~")")
+    def isdecl = optl("@"~>"Is"~>"("~>comma(wp)<~")")
     
-    def lvdecl = isdecl~wt_dflt~lv              ^^ { case ps_is~wt~lv => ir.LvDecl(lv, wt, ps_is) }
+    def lvdecl = isdecl~wt_dflt~lv              ^^ { case is~wt~lv => ir.LvDecl(lv, wt, is) }
     
     private var counter = 0
     def anonLv = {
@@ -121,25 +121,25 @@ class IrParser extends BaseParser {
     def reqs = rep(req)
     
     def methodDecl = positioned(
-        wt_dflt~m~"("~comma(lvdecl)~")"~reqs~seq        
+        isdecl~wt_dflt~m~"("~comma(lvdecl)~")"~reqs~seq        
     ^^ {
-        case wt_ret~name~"("~args~")"~reqs~seq =>
-            ir.MethodDecl(wt_ret, name, args, reqs, seq)
+        case is~wt_ret~name~"("~args~")"~reqs~seq =>
+            ir.MethodDecl(name, args, reqs, wt_ret, is, seq)
     })
     
     def constructor = positioned(
         ir.ctor~cm~"("~comma(lvdecl)~")"~reqs~seq
     ^^ {
         case _~m~"("~args~")"~reqs~seq =>
-            ir.MethodDecl(ir.t_void, m, args, reqs, seq)
+            ir.MethodDecl(m, args, reqs, ir.t_void, List(), seq)
     })
     
-    def createReifiedFieldDecl(as: ir.Attrs, wt: ir.WcTypeRef, f: ir.FieldName, p_guard: ir.Path) = {
-        ir.ReifiedFieldDecl(as, wt.withDefaultWghosts(ir.wgs_fieldsDefault), f, p_guard)
+    def createReifiedFieldDecl(as: ir.Attrs, wt: ir.WcTypeRef, f: ir.FieldName, p_guard: ir.Path, is: List[ir.WcPath]) = {
+        ir.ReifiedFieldDecl(as, wt.withDefaultWghosts(ir.wgs_fieldsDefault), f, p_guard, is)
     }
     def reifiedFieldDecl = positioned(
-        attrs~wt~f~"requires"~p~";"                 ^^ { case as~wt~f~_~p~_ => createReifiedFieldDecl(as, wt, f, p) }
-    |   attrs~wt~f~";"                              ^^ { case as~wt~f~_ => createReifiedFieldDecl(as, wt, f, ir.p_this_creator) }
+        isdecl~attrs~wt~f~"requires"~p~";"          ^^ { case is~as~wt~f~_~p~_ => createReifiedFieldDecl(as, wt, f, p, is) }
+    |   isdecl~attrs~wt~f~";"                       ^^ { case is~as~wt~f~_ => createReifiedFieldDecl(as, wt, f, ir.p_this_creator, is) }
     )
     
     def constructors = rep(constructor)             ^^ {

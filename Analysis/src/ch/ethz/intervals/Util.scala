@@ -107,6 +107,15 @@ object Util {
         
         def containsAll(m: Iterable[E]) =
                 m.forall(l.contains)
+                
+        def dedup = {
+            def helper(s: Set[E], lst: List[E]): List[E] = lst match {
+                case Nil => Nil
+                case hd :: tl if s(hd) => helper(s, tl)
+                case hd :: tl => hd :: helper(s + hd, tl)
+            }
+            helper(Set(), l)
+        }
     }
     implicit def list2UtilList[Q](i: List[Q]) = UtilList(i)
     
@@ -147,7 +156,7 @@ object Util {
     implicit def iterator2UtilIterator[Q](i: Iterator[Q]) = UtilIterator(i)
     
     case class UtilIterable[I](is: Iterable[I]) {
-        def cross[J](js: UtilIterable[J]): IterableView[(I,J), _] = 
+        def cross[J](js: UtilIterable[J]) = 
             for(i <- is.view; j <- js.is.view) yield (i,j)
             
         def mkCommaString = is.mkString(", ")
@@ -175,6 +184,27 @@ object Util {
         }
     }
     implicit def iterable2UtilIterable[I](i: Iterable[I]) = UtilIterable(i)
+    
+    // ____________________________________________________________
+    // Extensions for iterables of pairs
+    
+    case class UtilPairIterable[E,F](iterable: Iterable[(E,F)]) {
+        def foreachPair(func: ((E,F) => Unit)) =
+            iterable.foreach(pair => func(pair._1, pair._2))
+            
+        def forallPairs(func: ((E,F) => Boolean)) =
+            iterable.forall(pair => func(pair._1, pair._2))
+            
+        def existsPair(func: ((E,F) => Boolean)) =
+            iterable.exists(pair => func(pair._1, pair._2))
+            
+        def mapPair[G](func: ((E,F) => G)) =
+            iterable.map(pair => func(pair._1, pair._2))
+            
+        def filterPairs(func: ((E,F) => Boolean)) =
+            iterable.filter(pair => func(pair._1, pair._2))
+    }
+    implicit def iterable2UtilPairIterable[E,F](i: Iterable[(E,F)]) = UtilPairIterable(i)
     
     // cross(List()) => List()
     // cross(List(List(1,2,3))) => List(List(1), List(2), List(3))
@@ -267,7 +297,7 @@ object Util {
             else {
                 val nextStale = stale ++ fresh
                 val nextFresh = fresh.flatMap(func).filter(cp => !nextStale(cp))
-                accrueCanonPaths(func)(nextStale, nextFresh)
+                iterate(nextStale, nextFresh)
             }            
         }
         iterate(Set(), initial)

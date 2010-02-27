@@ -187,16 +187,16 @@ object ir {
     }
     
     sealed case class MethodDecl(
-        wt_ret: ir.WcTypeRef,
-        ps_is: List[ir.Path],
         name: ir.MethodName,
         args: List[ir.LvDecl],
         reqs: List[ir.Req],
+        wt_ret: ir.WcTypeRef,
+        wps_is: List[ir.WcPath],
         body: ir.StmtSeq
     ) extends PositionalAst {
         def isNamed(n: MethodName) = (name == n)
         
-        def msig = ir.MethodSig(args.map(_.wt), name, reqs, wt_ret)
+        def msig = ir.MethodSig(args.map(_.wt), name, reqs, wt_ret, wps_is)
         
         def setDefaultPosOnChildren() {
             reqs.foreach(_.setDefaultPos(pos))
@@ -211,7 +211,7 @@ object ir {
         name: ir.MethodName,
         reqs: List[ir.Req],
         wt_ret: ir.WcTypeRef,
-        ps_is: List[ir.Path]
+        wps_is: List[ir.WcPath]
     ) {
         override def toString = "(%s %s(%s)%s)".format(
             wt_ret, name, ", ".join(wts_args), "".join(" ", reqs))
@@ -220,7 +220,7 @@ object ir {
     sealed case class LvDecl(
         name: ir.VarName,
         wt: ir.WcTypeRef,
-        p_is: ir.Path
+        wps_is: List[ir.WcPath]
     ) {
         override def toString = "%s: %s".format(name, wt)
     }
@@ -230,7 +230,7 @@ object ir {
         wt: ir.WcTypeRef,
         name: ir.FieldName,
         p_guard: ir.Path,
-        ps_is: List[ir.Path]
+        wps_is: List[ir.WcPath]
     ) extends PositionalAst {
         def isNamed(n: FieldName) = (name == n)
         def thisPath = name.thisPath                        
@@ -551,65 +551,87 @@ object ir {
     
     // ___ Canonical Paths __________________________________________________
     //
-    // Canonical paths are created by the environment.  If, at a given
-    // point in execution, any two paths are mapped to the same canonical 
-    // path, then those two paths represent the same object.
+    // Canonical paths are created by the environment.  They contain all the
+    // information the environment knows about the object found at a particular
+    // path.  
     //
     // A TeeCeePee is a "Typed Canonical Path".  It allows a canonical path
-    // to be associated with alternate typings beyond the default "wt".  
+    // to be associated with alternate typings beyond the default types.  This
+    // is commonly used to refer to supertypes.
     
-    sealed abstract class CanonPath {
-        val p: ir.Path        
+    sealed abstract class CanonPathComponent {
+        /** Path to this component. */
+        def p: ir.Path
+        
+        /** List of WcPaths which apply to this component.  May include p. */
+        def wps_is: List[ir.WcPath]
+        
+        /** Will the path `p` exist at runtime? */
+        def isReified: Boolean
+        
+        /** Substitution of `p` for `this` */
         def thisSubst = PathSubst.vp(ir.lv_this, p)
-        override def toString = "cp(%s)".format(p)
+    } 
+    
+    sealed case class CpcGhost(
+        p: ir.Path,
+        wps_is: List[ir.WcPath],
+        c: ir.ClassName
+    ) extends CanonPathComponent {
+        def isReified = true
+        override def toString = p.toString
     }
     
-    sealed abstract class CanonReifiedPath extends CanonPath {
-        val wt: ir.WcTypeRef
-        def toTcp = TeeCeePee(this, wt)
-        override def toString = "cp(%s: %s)".format(p, wt)                
+    sealed abstract class CpcReified extends CanonPathComponent {
+        def isReified = false
+        def wt: ir.WcTypeRef
     }
     
-    sealed case class CpReifiedLv(lv: ir.VarName, wt: ir.WcTypeRef, ps_is: List[ir.Path]) extends CanonReifiedPath {
-        val p = ir.Path(lv, List())
+    object CpcReified {
+        def unapply(comp: CpcReified) = Some((comp.p, comp.wt))
+    }
+    
+    sealed case class CpcReifiedLv(
+        lv: ir.VarName,
+        wt: ir.WcTypeRef,
+        wps_is: List[ir.WcPath]
+    ) extends CpcReified {
+        def p = lv.path
+        override def toString = lv.toString
+    }
+    
+    sealed case class CpcReifiedField(
+        p: ir.Path,
+        rfd: ir.ReifiedFieldDecl
+    ) extends CpcReified {
+        def wt = rfd.wt
+        def wps = rfd.wps_is
+        override def toString = p.toString
+    }
+    
+    sealed case class CanonPath(
+        /** The path for which this CanonPath was constructed: */
+        p: ir.Path,
         
-        override def toString = super.toString
-    }
-    
-    sealed case class CpReifiedField(crp_base: ir.CanonReifiedPath, rfd: ir.ReifiedFieldDecl) extends CanonReifiedPath {
-        val p = crp_base.p + rfd.name
-        val wt = rfd.wt
+        /** Information about equivalent paths we uncovered: */
+        components: List[ir.CanonPathComponent]
+    ) {
+        def isReified = components.exists(_.isReified)
+        def isGhost = !isReified
         
-        override def toString = super.toString
-    }
-    
-    sealed abstract class CanonGhostPath extends CanonPath {
-        val c_cp: ir.ClassName
-        override def toString = super.toString        
-    }
-    
-    sealed case class CpGhostLv(lv: ir.VarName, c_cp: ir.ClassName) extends CanonGhostPath {
-        val p = ir.Path(lv, List())
-        override def toString = super.toString
-    }
-    
-    sealed case class CpGhostField(crp_base: ir.CanonReifiedPath, f: ir.FieldName, c_cp: ir.ClassName) extends CanonGhostPath {
-        val p = crp_base.p + f        
-        override def toString = super.toString
-    }
-    
-    sealed case class CpClassCtor(crp_base: ir.CanonReifiedPath, c: ir.ClassName) extends CanonGhostPath {
-        val p = crp_base.p + ir.ClassCtorFieldName(c)
-        val c_cp = ir.c_interval
+        def reifiedComponents = components.flatMap {
+            case rcomp @ ir.CpcReified(_, _) => Some(rcomp)
+            case _ => None
+        }
         
-        override def toString = super.toString
+        def paths = components.map(_.p)
+        def equiv(cp: CanonPath) = components.exists(comp => cp.components.exists(_.p == comp.p))
+        override def toString = "cp(%s; %s)".format(p, ", ".join(components))
     }
     
-    sealed case class TeeCeePee[+T <: WcTypeRef](cp: ir.CanonReifiedPath, ty: T) {
+    sealed case class TeeCeePee[+T <: WcTypeRef](cp: CanonPath, ty: T) {
         def p = cp.p
-        
         def withTy[S <: WcTypeRef](ty: S) = ir.TeeCeePee(cp, ty)
-        
         override def toString = "tcp(%s: %s)".format(p, ty)
     }    
     
@@ -722,11 +744,12 @@ object ir {
     
     val md_emptyCtor = 
         ir.MethodDecl(
-            /* wt_ret: */ t_void, 
-            /* name:   */ m_init,
-            /* args:   */ List(),
-            /* reqs:   */ List(),
-            /* body:   */ ir.StmtSeq(
+            name   = m_init,
+            args   = List(),
+            reqs   = List(),
+            wt_ret = t_void,
+            wps_is = List(),
+            body   = ir.StmtSeq(
                 List(
                     ir.StmtSuperCtor(m_init, List()),
                     ir.StmtReturn(None)
@@ -804,20 +827,22 @@ object ir {
             reqs              = List(),
             ctors             = List(
                 MethodDecl(
-                    wt_ret = t_void, 
                     name   = m_init, 
                     args   = List(),
                     reqs   = List(),
+                    wt_ret = t_void, 
+                    wps_is = List(),
                     body   = empty_method_body)),
             reifiedFieldDecls = List(),
             methods           = List(
                 MethodDecl(
-                    wt_ret = ir.WcClassType(c_string, List(wg_objCtorHbNow), List()), 
                     name   = m_toString, 
                     args   = List(),
                     reqs   = List(
                         ir.ReqReadableBy(List(p_this_creator), List(p_mthd)),
                         req_constructed),
+                    wt_ret = c_string.ct, 
+                    wps_is = List(),
                     body   = empty_method_body))
         ),
         ClassDecl(
@@ -859,16 +884,17 @@ object ir {
             reqs              = List(),
             ctors             = List(md_emptyCtor),
             reifiedFieldDecls = List(
-                ReifiedFieldDecl(noAttrs, wt_constructedPoint, f_start, p_this_intervalCtor),
-                ReifiedFieldDecl(noAttrs, wt_constructedPoint, f_end, p_this_intervalCtor)),
+                ReifiedFieldDecl(noAttrs, wt_constructedPoint, f_start, p_this_intervalCtor, List()),
+                ReifiedFieldDecl(noAttrs, wt_constructedPoint, f_end, p_this_intervalCtor, List())),
             methods           = List(
                 MethodDecl(
-                    wt_ret = t_void, 
                     name   = m_run, 
                     args   = List(),
                     reqs   = List(
                         ir.ReqSuspends(List(p_mthd), List(p_this)),
                         ir.ReqHb(List(p_this_objCtor), List(p_mthd))),
+                    wt_ret = t_void, 
+                    wps_is = List(),
                     body   = empty_method_body))
         ),
         ClassDecl(

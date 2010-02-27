@@ -636,8 +636,8 @@ crp0	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TcEnv.scala	/
 crp2	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TcEnv.scala	/^            val crp2 = fs.dropRight(1).foldLeft(crp0) { case (crp, f) =>$/;"	constants	line:324
 crp_owner	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/WfCheck.scala	/^                    val crp_owner = env.reifiedLv(lv_owner)$/;"	constants	line:141
 crp_owner	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/WfCheck.scala	/^                    val crp_owner = env.reifiedLv(lv_owner)$/;"	constants	line:148
-crp_this	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TcEnv.scala	/^    def crp_this = reifiedLv(ir.lv_this)$/;"	methods	line:476
-crp_this	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^    def crp_this = env.crp_this$/;"	methods	line:127
+cp_this	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TcEnv.scala	/^    def cp_this = reifiedLv(ir.lv_this)$/;"	methods	line:476
+cp_this	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TracksEnvironment.scala	/^    def cp_this = env.cp_this$/;"	methods	line:127
 crp_x	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^                val crp_x = env.immutableReifiedLv(x)$/;"	constants	line:464
 cs_left	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TcEnv.scala	/^                            val cs_left = prog.classAndSuperclasses(c_left)$/;"	constants	line:780
 cs_right	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TcEnv.scala	/^                            var cs_right = lowerBoundingCts(crp0.wt).map(_.c)$/;"	local variables	line:781
@@ -1585,7 +1585,7 @@ tcp_def	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/WfCheck.sc
 tcp_rcvr	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/WfCheck.scala	/^                    val tcp_rcvr = env.reifiedLv(lv_rcvr).toTcp$/;"	constants	line:156
 tcp_rcvr	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/WfCheck.scala	/^                    val tcp_rcvr = env.tcp_super$/;"	constants	line:135
 tcp_super	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TcEnv.scala	/^    def tcp_super = superTcps(tcp_this) match {$/;"	methods	line:488
-tcp_this	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TcEnv.scala	/^    def tcp_this = ir.TeeCeePee(crp_this, ct_this)$/;"	methods	line:479
+tcp_this	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TcEnv.scala	/^    def tcp_this = ir.TeeCeePee(cp_this, ct_this)$/;"	methods	line:479
 tcp_x	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TypeCheck.scala	/^                val tcp_x = ir.TeeCeePee(crp_x, ct)$/;"	constants	line:465
 tctx	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/IntervalsChecker.scala	/^                val tctx = new TranslateContext(logStack, ttf)$/;"	constants	line:71
 telem	/Users/niko/git/intervals-java/Analysis/src/ch/ethz/intervals/TranslateTypeFactory.scala	/^                val telem = elem.asInstanceOf[TypeElement]$/;"	constants	line:253

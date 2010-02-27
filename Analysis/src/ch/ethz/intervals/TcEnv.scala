@@ -50,23 +50,20 @@ sealed case class TcEnv(
     }
     
     /** Define a reified local variable `x` with type `wt` */
-    def addReifiedLocal(x: ir.VarName, wt: ir.WcTypeRef, ps_is: List[ir.Path] = Nil) = {
-        addPerm(x, ir.CpReifiedLv(x, wt, ps_is))
+    def addReifiedLocal(x: ir.VarName, wt: ir.WcTypeRef, wps_is: List[ir.WcPath] = Nil) = {
+        addPerm(x, ir.CanonPath(x.path, List(ir.CpcReifiedLv(x, wt, wps_is))))
     }
     
     /** Define a local variable according to the given decl */
-    def addArg(arg: ir.LvDecl) = addReifiedLocal(arg.name, arg.wt, arg.ps_is)
+    def addArg(arg: ir.LvDecl) = addReifiedLocal(arg.name, arg.wt, arg.wps_is)
     
     /** Define local variables according to the given decls */
     def addArgs(args: List[ir.LvDecl]) = args.foldLeft(this)(_ addArg _)
     
-    /** Define a reified local variable `x` with type `wt` */
-    def redefineReifiedLocal(x: ir.VarName, wt: ir.WcTypeRef) = {
-        copy(perm = perm + Pair(x, ir.CpReifiedLv(x, wt)))
-    }
-    
     /** Define a ghost local variable `x` with type `wt` */
-    def addGhostLocal(lv: ir.VarName, c: ir.ClassName) = addPerm(lv, ir.CpGhostLv(lv, c))
+    def addGhostLocal(lv: ir.VarName, c: ir.ClassName) = {
+        addPerm(lv, ir.CanonPath(lv.path, List(ir.CpcGhost(lv.path, List(), c))))
+    }
     
     /** Defines a fresh ghost variable of type `wt` */
     def freshCp(c: ir.ClassName): (ir.CanonPath, TcEnv) = {
@@ -76,7 +73,7 @@ sealed case class TcEnv(
     }
         
     /** Defines a fresh reified variable of type `wt` */
-    def freshCp(wt: ir.WcTypeRef): (ir.CanonReifiedPath, TcEnv) = {
+    def freshCp(wt: ir.WcTypeRef): (ir.CanonPath, TcEnv) = {
         val lv = prog.freshVarName
         val env1 = addReifiedLocal(lv, wt)
         (env1.reifiedLv(lv), env1)
@@ -85,23 +82,23 @@ sealed case class TcEnv(
     /** Temporarily redirect from `p` to `q` */
     def addTemp(p: ir.Path, q: ir.Path): TcEnv = {
         log("addTemp(%s,%s)", p, q)
-        copy(flow = flow.withTemp(flow.temp + (p -> q)))
+        copy(flow = flow.copy(temp = flow.temp + (p -> q)))
     }
     
     /** Clear all temporary redirects */
     def clearTemp(): TcEnv = {
         log("clearTemp")
-        copy(flow = flow.withTemp(Map()))
+        copy(flow = flow.copy(temp = Map()))
     }
     
     def addInvalidated(p: ir.Path) = {
         log("addInvalidated(%s)", p)
-        copy(flow = flow.withInvalidated(flow.ps_invalidated + p))        
+        copy(flow = flow.copy(ps_invalidated = flow.ps_invalidated + p))        
     }
         
     def removeInvalidated(p: ir.Path) = {
         log("removeInvalidated(%s)", p)
-        copy(flow = flow.withInvalidated(flow.ps_invalidated - p))        
+        copy(flow = flow.copy(ps_invalidated = flow.ps_invalidated - p))        
     }
     
     /// Indicates that point cp hb point cq.
@@ -110,7 +107,11 @@ sealed case class TcEnv(
         assert(isImmutable(cp) && isImmutable(cq))
         assert(pathCouldHaveClass(cp, ir.c_point))
         assert(pathCouldHaveClass(cq, ir.c_point))
-        copy(flow = flow.withHbRel(flow.hbRel + (cp.p, cq.p)))
+        copy(flow = flow.copy(hbRel = 
+            (cp.paths cross cq.paths).foldLeft(flow.hbRel) { case (hb, (p, q)) =>
+                hb + (p -> q)
+            }
+        ))
     }
     
     /// Indicates that interval cp hb interval cq.
@@ -119,7 +120,8 @@ sealed case class TcEnv(
         assert(isImmutable(cp) && isImmutable(cq))
         assert(pathCouldHaveClass(cp, ir.c_interval))
         assert(pathCouldHaveClass(cq, ir.c_interval))
-        copy(flow = flow.withHbRel(flow.hbRel + (cp.p.end, cq.p.start)))
+        copy(flow = flow.copy(hbRel = 
+            (cp.paths cross cq.paths).foldLeft(flow.hbRel)(_ + _)))
     }
     
     def addDeclaredReadableBy(cp: ir.CanonPath, cq: ir.CanonPath) = {
@@ -127,7 +129,8 @@ sealed case class TcEnv(
         assert(isImmutable(cp) && isImmutable(cq))
         assert(pathCouldHaveClass(cp, ir.c_guard))
         assert(pathCouldHaveClass(cq, ir.c_interval))
-        copy(flow = flow.withReadableRel(flow.readableRel + (cp.p, cq.p)))
+        copy(flow = flow.copy(readableRel = 
+            (cp.paths cross cq.paths).foldLeft(flow.readableRel)(_ + _)))
     }
     
     def addDeclaredWritableBy(cp: ir.CanonPath, cq: ir.CanonPath) = {
@@ -135,7 +138,8 @@ sealed case class TcEnv(
         assert(isImmutable(cp) && isImmutable(cq))
         assert(pathCouldHaveClass(cp, ir.c_guard))
         assert(pathCouldHaveClass(cq, ir.c_interval))
-        copy(flow = flow.withWritableRel(flow.writableRel + (cp.p, cq.p)))
+        copy(flow = flow.copy(writableRel = 
+            (cp.paths cross cq.paths).foldLeft(flow.writableRel)(_ + _)))
     }
     
     def addSuspends(cp: ir.CanonPath, cq: ir.CanonPath) = {
@@ -144,9 +148,8 @@ sealed case class TcEnv(
             //assert(isImmutable(cp) && isImmutable(cq))
             assert(pathCouldHaveClass(cp, ir.c_interval))
             assert(pathCouldHaveClass(cq, ir.c_interval))
-            copy(flow = flow
-                .withHbRel(flow.hbRel + (cq.p.start, cp.p.start) + (cp.p.end, cq.p.end))
-                .withInlineRel(flow.inlineRel + (cp.p, cq.p)))
+            copy(flow = flow.copy(inlineRel =
+                (cp.paths cross cq.paths).foldLeft(flow.inlineRel)(_ + _)))
         }        
     }
 
@@ -156,23 +159,21 @@ sealed case class TcEnv(
             //assert(isImmutable(cp) && isImmutable(cq))
             assert(pathCouldHaveClass(cp, ir.c_interval))
             assert(pathCouldHaveClass(cq, ir.c_lock))
-            copy(flow = flow.withLocksRel(flow.locksRel + (cp.p, cq.p)))
+            copy(flow = flow.copy(locksRel =
+                (cp.paths cross cq.paths).foldLeft(flow.locksRel)(_ + _)))
         }        
     }
 
     /** Converts cp_from and cp_to to points that can happen before one another. */
-    private def userHbPair(cp_from: ir.CanonPath, cp_to: ir.CanonPath): Option[(ir.Path, ir.Path)] = {
+    private def userHbPair(cp_from: ir.CanonPath, cp_to: ir.CanonPath): (List[ir.Path], List[ir.Path]) = {
         log.indented(false, "userHbPair(%s,%s)", cp_from, cp_to) {
-            def makePoint(cp: ir.CanonPath, f: ir.FieldName) = {
-                if(pathHasClass(cp, ir.c_point)) Some(cp.p)
-                else if(pathHasClass(cp, ir.c_interval)) Some(cp.p + f)
-                else None                
+            def make(cp: ir.CanonPath, f: ir.FieldName) = {
+                if(pathHasClass(cp, ir.c_point)) cp.paths
+                else if(pathHasClass(cp, ir.c_interval)) cp.paths.map(_ + f)
+                else List()
             }
 
-            (makePoint(cp_from, ir.f_end), makePoint(cp_to, ir.f_start)) match {
-                case (Some(p_fromi), Some(p_toi)) => Some((p_fromi, p_toi))
-                case _ => None
-            }
+            (make(cp_from, ir.f_end), make(cp_to, ir.f_start))
         }        
     }
         
@@ -180,18 +181,15 @@ sealed case class TcEnv(
         log.indented(false, "addUserHb(%s,%s)", cp0, cq0) {
             assert(isImmutable(cp0))
             assert(isImmutable(cq0))
-            userHbPair(cp0, cq0) match {
-                case Some((p1, q1)) => 
-                    copy(flow = flow.withHbRel(flow.hbRel + (p1, q1)))
-                case None => 
-                    this
-            }
+            val (ps, qs) = userHbPair(cp0, cq0) 
+            copy(flow = flow.copy(hbRel = 
+                (ps cross qs).foldLeft(flow.hbRel)(_ + _)))
         }        
     }
         
     def addNonNull(cp: ir.CanonPath) = {
         log.indented(false, "addNonNull(%s)", cp) {
-            copy(flow = flow.withNonnull(flow.nonnull + cp.p))            
+            copy(flow = flow.copy(nonnull = flow.nonnull ++ cp.paths))            
         }
     }
         
@@ -205,11 +203,9 @@ sealed case class TcEnv(
                 ) = {
                     val cps = immutableCanonPaths(ps)
                     val cqs = immutableCanonPaths(qs)
-                    cps.foldLeft(this) { case (env0, cp) =>
-                        cqs.foldLeft(env0) { case (env1, cq) =>
-                            add(env1, cp, cq)
-                        }
-                    }                    
+                    (cps cross cqs).foldLeft(this) { case (env, (cp, cq)) =>
+                        add(env, cp, cq)
+                    }
                 }
                 
                 req match {
@@ -226,25 +222,17 @@ sealed case class TcEnv(
         
     // ___ Constructing Canonical Paths _____________________________________
     
-    def reifiedPath(p: ir.Path): ir.CanonReifiedPath = {
-        canonPath(p) match {
-            case crp: ir.CanonReifiedPath => crp
-            case _ => throw new CheckFailure("intervals.must.be.reified", p)
-        }
+    def reifiedPath(p: ir.Path): ir.CanonPath = {
+        val cp = canonPath(p) 
+        if(!cp.isReified)
+            throw new CheckFailure("intervals.must.be.reified", p)
+        cp
     }
     def reifiedPaths(ps: List[ir.Path]) = ps.map(reifiedPath)
     def reifiedLv(lv: ir.VarName) = reifiedPath(lv.path)
     def reifiedLvs(lvs: List[ir.VarName]) = lvs.map(reifiedLv)
     
-    def ghostPath(p: ir.Path): ir.CanonGhostPath = {
-        canonPath(p) match {
-            case cgp: ir.CanonGhostPath => cgp
-            case _ => throw new CheckFailure("intervals.must.be.ghost", p)
-        }
-    }
-    def ghostPaths(ps: List[ir.Path]) = ps.map(ghostPath)
-    
-    def immutableReifiedPath(p: ir.Path): ir.CanonReifiedPath = {
+    def immutableReifiedPath(p: ir.Path): ir.CanonPath = {
         val crp = reifiedPath(p)
         if(!isImmutable(crp))
             throw new CheckFailure("intervals.must.be.immutable", p)
@@ -270,101 +258,115 @@ sealed case class TcEnv(
     def canonPaths(ps: List[ir.Path]) = ps.map(canonPath)
     def canonLv(lv: ir.VarName) = canonPath(lv.path)
     def canonLvs(lvs: List[ir.VarName]) = lvs.map(canonLv)
-
-    private def canonicalize(vis: Set[ir.Path], p1: ir.Path): ir.CanonPath = log.indented("canonicalize(%s) vis=%s", p1, vis) {
-        assert(!vis(p1))
-        if(flow.temp.contains(p1)) {
-            val p1_redirect = flow.temp(p1)
-            log("temp redirect to %s", p1_redirect)
-            canonicalize(vis + p1, p1_redirect)                
-        } else p1.rev_fs match {
-            case List() =>
-                perm.get(p1.lv) match {
-                    case Some(cp) => cp
-                    case None => throw new CheckFailure("intervals.no.such.variable", p1.lv)
-                }
-                
-            case f :: rev_fs =>
-                val p0 = ir.Path(p1.lv, rev_fs)      // p1 = p0.f
-                val crp0 = reifiedPath(p0)
-                extendCanonWithFieldNamed(vis, crp0, f)
-        }
-    }
     
-    def extendCanonWithFieldNamed(
-        vis: Set[ir.Path],
-        crp0: ir.CanonReifiedPath, 
-        f: ir.FieldName
-    ) = {
-        f match {
-            case ir.ClassCtorFieldName(c) => 
-                ir.CpClassCtor(crp0, c)
-                
-            case ir.f_objCtor() =>
-                extendCanonWithGhostField(vis, crp0, ir.f_objCtor, ir.c_interval)
-                
-            case _ => 
-                ghostFieldsDeclaredOnType(crp0.wt).find(_.isNamed(f)) match {
-                    case Some(ir.GhostFieldDecl(f_gfd, c_gfd)) =>
-                        extendCanonWithGhostField(vis, crp0, f_gfd, c_gfd)
-                        
-                    case None =>
-                        val (_, rfd) = substdReifiedFieldDecl(crp0.toTcp, f)
-                        extendCanonWithReifiedField(crp0, rfd)
-                }
-        }
-    }
-    
-    private def fld(crp0: ir.CanonReifiedPath, fs: ir.FieldName*) = {
-        log.indented(false, "fld(%s, %s)", crp0, fs) {
-            val crp2 = fs.dropRight(1).foldLeft(crp0) { case (crp, f) =>
-                extendCanonWithFieldNamed(Set(), crp, f) match {
-                    case crp1: ir.CanonReifiedPath => crp1
-                    case _ => throw new CheckFailure("intervals.must.be.reified", crp.p + f)
-                }
-            }
-            
-            val f = fs.takeRight(1).head
-            extendCanonWithFieldNamed(Set(), crp2, f)
-        }
-    }
+    private[this] def canonicalize(
+        ps_visited0: Set[ir.Path],
+        p_request: ir.Path
+    ): ir.CanonPath = log.indented("canonicalize(%s,%s)", ps_visited0, p_request) {
+        assert(!ps_visited(p_request))
+        val ps_visited = ps_visited0 + p_request
         
-    def extendCanonWithReifiedField(crp: ir.CanonReifiedPath, rfd: ir.ReifiedFieldDecl) = {
-        log("extendCanonWithReifiedField(%s, %s)", crp, rfd)
-        ir.CpReifiedField(crp, rfd)
+        (flow.temp.get(p_request), p_request) match {
+            case (Some(p_redirect), _) if !ps_visited(p_redirect) =>
+                canonicalize(ps_visited, p_redirect)
+                
+            case (_, ir.Path(lv, List())) =>
+                perm.get(lv) match {
+                    case Some(cp) => cp
+                    case None => throw new CheckFailure("intervals.no.such.variable", lv)
+                }
+            
+            case (_, ir.Path(lv, f :: rev_fs)) =>
+                val p_base = ir.Path(lv, rev_fs)
+                val cp = canonicalize(ps_visited, p_base)
+                extendCanonWithFieldNamed(p_request, ps_visited, cp, f)
+        }
     }
     
-    // Helper for ir.CanonPath(): Computes the ir.CanonPath for a path cp0.f where f is 
-    // a ghost field of (post-substitution) type wt_f.
-    private def extendCanonWithGhostField(
-        vis_in: Set[ir.Path],
-        crp0: ir.CanonReifiedPath, 
-        f_gfd: ir.FieldName,
-        c_gfd: ir.ClassName
-    ) = {
-        log.indented("extendCanonWithGhostField(%s, %s, %s, %s)", vis_in, crp0, f_gfd, c_gfd) {
-            val cp1 = ir.CpGhostField(crp0, f_gfd, c_gfd)
-            val vis1 = vis_in + cp1.p
+    private[this] def fld(cp_base: ir.CanonPath, fs: ir.FieldName*) = {
+        log.indented(false, "fld(%s, %s)", cp_base, fs) {
+            fs.foldLeft(cp_base) { case (cp, f) =>
+                extendCanonWithFieldNamed(cp.p + f, cp.paths.toSet, cp, f)
+            }
+        }
+    }
+    
+    private[this] def extendCanonWithFieldNamed(
+        p_request: ir.Path,
+        ps_visited0: Set[ir.Path],
+        cp_base: ir.CanonPath, 
+        f: ir.FieldName
+    ) = {        
+        def iterate(comps_in: Set[ir.CanonPathComponent]): Set[ir.CanonPathComponent] = {
+            val ps_visited = ps_visited0 ++ comps_in.map(_.p)
             
-            // Does cp0's type specify a value for ghost field f?
-            ghost(crp0, f_gfd) match {
-                // cp0 had a type with a precise path like Foo<f: q>
-                // where q has not yet been visited.  Redirect.
-                case ir.WcGhost(_, q: ir.Path) if !vis1(q) =>
-                    log.indented("Redirect: %s", q) {
-                        canonicalize(vis1, q)
+            val ps_freshRedirects = comps.flatMap(_.wps_is.flatMap {
+                case p: ir.Path if !ps_visited(p) => Some(p)
+                case _ => None
+            })
+            
+            if(ps_freshRedirects.isEmpty) comps_in
+            else iterate(
+                ps_freshRedirects.foldLeft(comps_in) { case (comps, p) =>
+                    comps ++ canonicalize(ps_visited, p).components                    
+                }
+            )
+        }
+        
+        val comps = cp_base.components.flatMap { comp_base =>
+            f match {
+                case ir.ClassCtorFieldName(_) | ir.f_objCtor() =>
+                    Some(extendComponentWithGhostField(comp_base, f, ir.c_interval))
+
+                case _ =>
+                    ghostFieldsDeclaredOnComponent(comp_base).find(_.isNamed(f)) match {
+                        case Some(ir.GhostFieldDecl(f_gfd, c_gfd)) =>
+                            Some(extendComponentWithGhostField(comp_base, f_gfd, c_gfd))
+
+                        case None =>
+                            optSubstdReifiedFieldDeclOfComp(comp_base, f).map { 
+                                case (_, rfd) =>
+                                    extendComponentWithReifiedField(comp_base, rfd)
+                            }
                     }
-                    
-                case _ => cp1
             }            
-        }        
-    }    
+        }
+        ir.CanonPath(p_request, iterate(comps.toSet).toList)
+    }
+    
+    private[this] def extendComponentWithGhostField(
+        comp_base: ir.CanonPathComponent,
+        f_gf: ir.FieldName,
+        c_gf: ir.ClassName
+    ) = {
+        log.indented("extendComponentWithGhostField(%s, %s, %s)", comp_base, f_gf, c_gf) {
+            val p_gf = comp_base.p + f_gf
+            val wp_gf = compGhost(comp_base, f_gf)
+            ir.CpcGhost(p_gf, List(wp_gf), c_gf)
+        }
+    }
+    
+    private[this] def extendComponentWithReifiedField(
+        comp_base: ir.CanonPathComponent,
+        rfd: ir.ReifiedFieldDecl
+    ) = {
+        log("extendComponentWithReifiedField(%s, %s)", comp_base, rfd)
+        ir.CpcReifiedField(comp_base.p + rfd.name, rfd)
+    }
     
     // ___ Locating Members _________________________________________________
 
     /** Given a type, returns all GhostFieldDecls applied on it or its supertypes. */
     def ghostFieldsDeclaredOnType(wt: ir.WcTypeRef): Set[ir.GhostFieldDecl] = {
         lowerBoundingCts(wt).flatMap(wct => ghostFieldsDeclaredOnClassAndSuperclasses(wct.c))
+    }
+    
+    /** Given a path, returns all GhostFieldDecls found on its type(s). */
+    def ghostFieldsDeclaredOnComponent(comp: ir.CanonPathComponent): Set[ir.GhostFieldDecl] = {
+        comp match {
+            case ir.CpcReified(_, wt) => ghostFieldsDeclaredOnType(wt)
+            case ir.CpcGhost(_, _, c) => ghostFieldsDeclaredOnClassAndSuperclasses(c)
+        }
     }
     
     /** Returns all type variables declared on the class(es) this type refers to. */
@@ -388,38 +390,67 @@ sealed case class TcEnv(
         }
     }
     
-    /** Reified field decl for `tcp.f` */
-    def substdReifiedFieldDecl(tcp: ir.TeeCeePee[ir.WcTypeRef], f: ir.FieldName) = {
+    /** Returns the class and field decl for `tcp.f`, or `None` if no such field. */
+    def optSubstdReifiedFieldDeclOfComp(comp: ir.CanonPathComponent, f: ir.FieldName) = {
         def search(wct: ir.WcClassType) = 
             searchClassAndSuperclasses(_.reifiedFieldDecls.find(_.isNamed(f)))(wct.c)
-        log.indented(false, "substdReifiedFieldDecl(%s::%s)", tcp, f) {
-            upperBoundingCts(tcp.ty).firstSomeReturned(search) match {
-                case Some((c_fd, fd)) => 
-                    log.reifiedFieldDecl("fd: ", fd)
-                    (c_fd, PathSubst.vp(ir.lv_this, tcp.p).reifiedFieldDecl(fd))
+        log.indented(false, "substdReifiedFieldDecl(%s::%s)", comp, f) {
+            comp match {
+                case ir.CpcReified(_, wt) =>
+                    log("Reified Component of type: %s", wt)
+                    lowerBoundingCts(wt).firstSomeReturned(search).map { 
+                        case (c_fd, fd) =>
+                            (c_fd, comp.thisSubst.reifiedFieldDecl(fd))
+                    }
                     
-                case None => 
-                    throw new CheckFailure("intervals.no.such.field", tcp.ty, f)
+                case ir.CpcGhost(_, _, _) => 
+                    log("Ignoring Ghost Component")
+                    None
+            }
+        }
+    }
+    
+    /** Returns the class and field decl for `tcp.f`, error if no such field. */
+    def substdReifiedFieldDecl(cp: ir.CanonPath, f: ir.FieldName) = {
+        log.indented(false, "substdReifiedFieldDecl(%s::%s)", cp, f) {
+            cp.components.firstSomeReturned(optSubstdReifiedFieldDeclOfComp(_, f)).getOrElse {
+                throw new CheckFailure("intervals.no.such.field", cp.p, f)
             }
         }
     }
 
     /** Method sig for `tcp.m(tqs)`.  Substitutes `tcp` for the receiver, 
-      * `tqs` for the arguments, and the current interval for `method`. */
-    def substdMethodSig(tcp: ir.TeeCeePee[ir.WcTypeRef], m: ir.MethodName, cqs: List[ir.CanonPath]) = {
+      * `tqs` for the arguments, and the current interval for `method`. 
+      * Returns `None` if no such method. */
+    def optSubstdMethodSigOfTcp(tcp: ir.TeeCeePee[ir.WcTypeRef], m: ir.MethodName, cqs: List[ir.CanonPath]) = {
         def search(wct: ir.WcClassType) = 
             searchClassAndSuperclasses(_.methods.find(_.isNamed(m)))(wct.c)
         log.indented(false, "substdMethodSig(%s::%s)", tcp.ty, m) {
-            lowerBoundingCts(tcp.ty).firstSomeReturned(search) match {
-                case Some((_, md)) =>
+            lowerBoundingCts(tcp.ty).firstSomeReturned(search).map { 
+                case (_, md) =>
                     log.methodDecl("md: ", md)
                     PathSubst.vp(
                         ir.lv_mthd  :: ir.lv_this :: md.args.map(_.name),
                         p_cur       :: tcp.p      :: cqs.map(_.p)
                     ).methodSig(md.msig)
-                case None =>
-                    throw new CheckFailure("intervals.no.such.method", tcp.ty, m)
-            }            
+            }
+        }
+    }
+    
+    /** Method sig for `tcp.m(tqs)`.  Substitutes `tcp` for the receiver, 
+      * `tqs` for the arguments, and the current interval for `method`. 
+      * Error if no such method. */
+    def substdMethodSigOfTcp(tcp: ir.TeeCeePee[ir.WcTypeRef], m: ir.MethodName, cqs: List[ir.CanonPath]) = {
+        optSubstdMethodSigOfTcp(tcp, m, cqs).getOrElse {
+            throw new CheckFailure("intervals.no.such.method", tcp.ty, m) 
+        }
+    }
+
+    def substdMethodSigOfCp(cp: ir.CanonPath, m: ir.MethodName, cqs: List[ir.CanonPath]) = {
+        val res = cp.reifiedComponents.firstSomeReturned(comp =>
+            optSubstdMethodSigOfTcp(ir.TeeCeePee(cp, comp.wt), m, cqs))
+        res.getOrElse { 
+            throw new CheckFailure("intervals.no.such.method", cp.p, m) 
         }
     }
     
@@ -462,17 +493,17 @@ sealed case class TcEnv(
     //
     // Queries are generally defined over canonical paths.
     
-    /** Current interval (must be defined) */
+    /** Canonical path of current interval (must be defined) */
     def cp_cur = ocp_cur.get
     
-    /** Current interval (must be defined) */
-    def p_cur = ocp_cur.get.p
+    /** Path of current interval (must be defined) */
+    def p_cur = cp_cur.p
     
     /** Canonical path to `this` */
-    def crp_this = reifiedLv(ir.lv_this)
+    def cp_this = reifiedLv(ir.lv_this)
     
     /** TeeCeePee of `this` */
-    def tcp_this = ir.TeeCeePee(crp_this, ct_this)
+    def tcp_this = ir.TeeCeePee(cp_this, ct_this)
 
     /** ClassType of `this` */
     def ct_this = c_this.ct
@@ -482,7 +513,7 @@ sealed case class TcEnv(
     
     /** Upcast version of this to the first superclass */
     def tcp_super = superTcps(tcp_this) match {
-        case List() => throw new CheckFailure("intervals.no.supertype", crp_this.wt)
+        case List() => throw new CheckFailure("intervals.no.supertype", ct_this)
         case tcp :: _ => tcp
     }
     
@@ -497,10 +528,8 @@ sealed case class TcEnv(
         log.indented("userHb(%s,%s)", cp0, cq0) {
             assert(isImmutable(cp0))
             assert(isImmutable(cq0))
-            userHbPair(cp0, cq0) match {
-                case Some((p1, q1)) => bfs(p1, q1)
-                case None => false
-            }
+            val (ps, qs) = userHbPair(cp0, cq0)
+            (ps cross qs).existsPair(bfs)
         }        
     }
     
@@ -512,7 +541,7 @@ sealed case class TcEnv(
             assert(isImmutable(cp_to))
             assert(pathHasClass(cp_from, ir.c_point))
             assert(pathHasClass(cp_to, ir.c_point))
-            bfs(cp_from.p, cp_to.p)
+            (cp_from.paths cross cp_to.paths).existsPair(bfs)
         }
     }
     
@@ -523,7 +552,8 @@ sealed case class TcEnv(
             ( // Sometimes we're sloppy and invoke with wrong types:
                 pathHasClass(cp_from, ir.c_interval) && 
                 pathHasClass(cp_to, ir.c_interval) &&
-                bfs(cp_from.p.end, cp_to.p.start)
+                (cp_from.paths cross cp_to.paths).existsPair((p_from, p_to) =>
+                    bfs(p_from.end, p_to.start))                
             )
         }
     }
@@ -708,8 +738,7 @@ sealed case class TcEnv(
     
     private[this] def immediateInlineSuperintervalsOf(cp: ir.CanonPath) = {
         log.indented("immediateInlineSuperintervalsOf(%s)", cp) {
-            immediateEquivalentsOf(cp) ++ 
-            flow.inlineRel.values(cp.p).map(canonPath) ++ {
+            cp.paths.toSet.flatMap(flow.inlineRel).map(canonPath) ++ {
                 log.indented("cp0.Constructor[_] < cp0.Constructor?") {
                     cp match {
                         case ir.CpClassCtor(cp0, _) => Some(fld(cp0, ir.f_objCtor))
@@ -869,22 +898,8 @@ sealed case class TcEnv(
         }
     }
     
-    private[this] def immediateEquivalentsOf(cp: ir.CanonPath) = {
-        log.indented(false, "equivalents(%s)", cp) {
-            Set(cp) ++ (cp match {
-                case ir.CpReifiedField(_, rfd) => rfd.ps_is.map(canonPath)
-                case ir.CpReifiedLv(_, _, ps_is) => ps_is.map(canonPath)
-                case _ => List
-            })
-        }        
-    }
-    
-    private[this] def equivalents(cp0: ir.CanonPath) = {
-        computeTransitiveClosure(immediateEquivalentsOf, cp0)
-    }
-    
     private[this] def equiv(cp0: ir.CanonPath, cq0: ir.CanonPath): Boolean = {
-        (cp0 == cq0) || (equivalents(cp0) intersects equivalents(cq0))
+        cp0 equiv cq0
     }
     
     private[this] def equiv(p: ir.Path, q: ir.Path): Boolean = {
@@ -895,29 +910,55 @@ sealed case class TcEnv(
         cqs.exists { cq => equiv(cp, cq) || suspends(cp, cq) }
     }
     
-    /** Returns the binding for ghost field `f` on path `tcp`. This might just be `tcp.f`. */
-    def ghost(crp: ir.CanonReifiedPath, f: ir.FieldName): ir.WcGhost = {
+    /** Returns the binding for ghost field `f` on `comp`. */
+    private[this] def compGhost(
+        comp: ir.CanonPathComponent, 
+        f: ir.FieldName
+    ): ir.WcPath = {
         val subst = crp.thisSubst
-        val wgs_all = lowerBoundingCts(crp.wt).flatMap { wct =>
-            wct.wghosts ++ ghostsOnClassAndSuperclasses(wct.c).map(subst.ghost)
+        val wgs_all = comp match {
+            case ir.CpcReified(_, wt) =>
+                lowerBoundingCts(wt).flatMap { wct =>
+                    wct.wghosts ++ ghostsOnClassAndSuperclasses(wct.c).map(subst.ghost)
+                }
+                
+            case ir.CpcGhost(_, _, c) =>
+                ghostsOnClassAndSuperclasses(c).map(subst.ghost)
         }
         wgs_all.find(_.isNamed(f)) match {
-            case Some(wg) => wg
-            case None => ir.Ghost(f, crp.p + f)
+            case Some(wg) => wg.wp
+            case None => crp.p + f
         }
     }
     
-    /** Returns the binding for type arg `tv` on path `tcp`. This might just be `tcp:tv`. */
-    def typeArg(crp: ir.CanonReifiedPath, tv: ir.TypeVarName): ir.WcTypeArg = {
-        val subst = crp.thisSubst
-        val wtas_all = lowerBoundingCts(crp.wt).flatMap { wct =>
-            wct.wtargs ++ typeArgsOnClassAndSuperclasses(wct.c).map(subst.typeArg)
+    /** Returns the binding for type arg `tv` on `comp`. */
+    private[this] def compTypeArg(
+        comp: ir.CanonPathComponent, 
+        tv: ir.TypeVarName
+    ): ir.WcTypeArg = {
+        comp match {
+            case ir.CpcReified(_, wt) =>
+                val subst = comp.thisSubst
+                val wtas_all = lowerBoundingCts(wt).flatMap { wct =>
+                    wct.wtargs ++ typeArgsOnClassAndSuperclasses(wct.c).map(subst.typeArg)
+                }
+                wtas_all.find(_.isNamed(tv)) match {
+                    case Some(ta) => ta
+                    case None => ir.TypeArg(tv, ir.PathType(comp.p, tv))
+                }
+                
+            case _ =>
+                ir.TypeArg(tv, ir.PathType(comp.p, tv))
         }
-        wtas_all.find(_.isNamed(tv)) match {
-            case Some(ta) => ta
-            case None => ir.TypeArg(tv, ir.PathType(crp.p, tv))
-        }
-    }    
+    }
+    
+    private[this] def typeArgBounds(cp: ir.CanonPath, tv: ir.TypeVarName) = {
+        val wtas = cp.components.map(compTypeArg(_, tv)).toSet
+        ir.TypeBounds(
+            wts_lb = wtas.flatMap(_.bounds.wts_lb).toList,
+            wts_ub = wtas.flatMap(_.bounds.wts_ub).toList
+        )
+    }
 
     // ___ Operations on PathTypes __________________________________________
     
@@ -938,7 +979,7 @@ sealed case class TcEnv(
             val tvd_lbs = tvd.wts_lb.map(subst.wcTref)
             log("tvd_lbs=%s", tvd_lbs)
             
-            val bounds = typeArg(crp, pt.tv).bounds
+            val bounds = typeArgBounds(crp, pt.tv)
             log("bounds=%s", bounds)
 
             ir.TypeBounds(
@@ -1058,11 +1099,11 @@ sealed case class TcEnv(
     }
         
     private[this] def pathHasSubWcGhost(
-        tcp_sub: ir.TeeCeePee[ir.WcClassType], 
+        cp_sub: ir.CanonPath,
         wg_sup: ir.WcGhost
     ) = {
         log.indented("pathHasSubWcGhost(%s, %s)?", tcp_sub, wg_sup) {
-            val cp_f = fld(tcp_sub.cp, wg_sup.f)
+            val cp_f = fld(cp_sub, wg_sup.f)
             isLtWpath(cp_f, wg_sup.wp)
         }
     }
@@ -1085,48 +1126,41 @@ sealed case class TcEnv(
     }
     
     private[this] def pathHasSubWcTarg(
-        tcp_sub: ir.TeeCeePee[ir.WcClassType], 
+        cp_sub: ir.CanonPath,
         wtarg_sup: ir.WcTypeArg
     ) = {
         log.indented("pathHasSubWcTarg(%s, %s)?", tcp_sub, wtarg_sup) {
             val tv = wtarg_sup.tv
-            val wtarg_sub = typeArg(tcp_sub.cp, tv)
-            isLtBounds(wtarg_sub.bounds, wtarg_sup.bounds)
-        }            
-    }
-    
-    private[this] def pathHasSubClassType(
-        tcp_sub: ir.TeeCeePee[ir.WcClassType], 
-        wct_sup: ir.WcClassType
-    ): Boolean = {
-        log.indented("pathHasSubClassType(%s, %s)?", tcp_sub, wct_sup) {
-            if(tcp_sub.ty.c != wct_sup.c) {
-                superTcps(tcp_sub).exists(pathHasSubClassType(_, wct_sup))
-            } else {
-                wct_sup.wghosts.forall(pathHasSubWcGhost(tcp_sub, _)) &&
-                wct_sup.wtargs.forall(pathHasSubWcTarg(tcp_sub, _))
-            }
+            val bounds_sub = typeArgBounds(cp_sub, tv)
+            isLtBounds(bounds_sub, wtarg_sup.bounds)
         }
     }
     
     /** True if the (typed) path `tcp_sub` refers to a subtype of `wt_sup` */
     def pathHasType(
-        tcp_sub: ir.TeeCeePee[ir.WcTypeRef], 
+        cp_sub: ir.CanonPath,
         wt_sup: ir.WcTypeRef
     ): Boolean = {
-        log.indented(false, "pathHasType(%s, %s)?", tcp_sub, wt_sup) {
-            val wts_sub = lowerBoundingWts(tcp_sub.ty)
-            val wts_sup = upperBoundingWts(wt_sup)
+        log.indented(false, "pathHasType(%s, %s)?", cp_sub, wt_sup) {
+            cp_sub.reifiedComponents.exists { comp =>
+                log.indented("comp=%s") {
+                    val wts_sub = lowerBoundingWts(comp.wt)
+                    val wts_sup = upperBoundingWts(wt_sup)
 
-            existscross(wts_sub, wts_sup) { 
-                case (pt_sub: ir.PathType, pt_sup: ir.PathType) =>
-                    (pt_sub.tv == pt_sup.tv) && equiv(pt_sub.p, pt_sup.p)
-                    
-                case (wct_sub: ir.WcClassType, wct_sup: ir.WcClassType) =>
-                    pathHasSubClassType(tcp_sub.withTy(wct_sub), wct_sup)
-                    
-                case (_, _) => false
-            }                 
+                    (wts_sub cross wts_sup).exists {
+                        case (pt_sub: ir.PathType, pt_sup: ir.PathType) =>
+                            (pt_sub.tv == pt_sup.tv) && equiv(pt_sub.p, pt_sup.p)
+
+                        case (wct_sub: ir.WcClassType, wct_sup: ir.WcClassType) =>
+                            prog.isSubclass(wct_sub.c, wct_sup.c) &&
+                            wct_sup.wghosts.forall(pathHasSubWcGhost(tcp_sub, _)) &&
+                            wct_sup.wtargs.forall(pathHasSubWcTarg(tcp_sub, _))
+
+                        case (_, _) => false
+
+                    }                    
+                }
+            }
         }
     }
     
@@ -1137,7 +1171,7 @@ sealed case class TcEnv(
     ): Boolean = {
         log.indented(false, "isSubtype(%s, %s)?", wt_sub, wt_sup) {
             val (cp, env) = freshCp(wt_sub)
-            env.pathHasType(cp.toTcp, wt_sup)
+            env.pathHasType(cp, wt_sup)
         }
     }
     
