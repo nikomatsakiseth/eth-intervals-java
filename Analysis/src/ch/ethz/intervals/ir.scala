@@ -196,7 +196,18 @@ object ir {
     ) extends PositionalAst {
         def isNamed(n: MethodName) = (name == n)
         
-        def msig = ir.MethodSig(args.map(_.wt), name, reqs, wt_ret, wps_is)
+        def msig(
+            p_call: ir.Path,
+            lv_rcvr: ir.VarName,
+            lvs_args: List[ir.VarName]
+        ) = {
+            PathSubst.vp(
+                ir.lv_mthd  :: ir.lv_this       :: args.map(_.name),
+                p_call      :: lv_rcvr.path     :: lvs_args.map(_.path)
+            ).methodSig(            
+                ir.MethodSig(args.map(_.wt), name, reqs, wt_ret, wps_is)
+            )
+        }
         
         def setDefaultPosOnChildren() {
             reqs.foreach(_.setDefaultPos(pos))
@@ -535,7 +546,7 @@ object ir {
         def isGenerated = lv.isGenerated && rev_fs.isEmpty
         def addDependentPaths(s: Set[ir.Path]) = s + this   
         
-        def +(f: ir.FieldName) = PathField(this, f)
+        def +(f: ir.FieldName): Path = PathField(this, f)
         def ++(fs: List[ir.FieldName]) = fs.foldLeft(this)(_ + _)
         def start = this + ir.f_start
         def end = this + ir.f_end
@@ -636,7 +647,7 @@ object ir {
     ) extends CpcReified {
         def p = cpc_base.p + rfd.name
         def wt = rfd.wt
-        def wps = rfd.wps_is
+        def wps_is = rfd.wps_is
         override def toString = p.toString
     }
     

@@ -115,7 +115,7 @@ object TranslateMethodBody
         sealed case class LocalVersion(sym: Symbol, ver: Int) extends Version {
             val lv = ir.VarName(sym.name + "[" + ver + "]")
             val isLocal = true
-            def toLvDecl = ir.LvDecl(lv, sym.wtref)
+            def toLvDecl = ir.LvDecl(lv, sym.wtref, List())
         }
         sealed case class ExprVersion(sym: Symbol, lv: ir.VarName) extends Version {
             val isLocal = true
@@ -556,16 +556,17 @@ object TranslateMethodBody
                         val lv_res = freshVar
                         val wt_res = wtref(etree, ir.wgs_constructed)
                         
-                        subscope(tree, ScopeKindSwitch, None, ir.LvDecl(lv_res, wt_res)) { scope_sw =>
-                            scope_sw.subseq { seq_t =>
-                                val p_t = seq_t.rvalue(tree.getTrueExpression)                        
-                                seq_t.uncondBreak(tree, scope_sw, p_t)
-                            }
+                        subscope(tree, ScopeKindSwitch, None, ir.LvDecl(lv_res, wt_res, List())) { 
+                            scope_sw =>
+                                scope_sw.subseq { seq_t =>
+                                    val p_t = seq_t.rvalue(tree.getTrueExpression)                        
+                                    seq_t.uncondBreak(tree, scope_sw, p_t)
+                                }
                             
-                            scope_sw.subseq { seq_f =>
-                                val p_f = seq_f.rvalue(tree.getFalseExpression)
-                                seq_f.uncondBreak(tree, scope_sw, p_f)                                
-                            }                            
+                                scope_sw.subseq { seq_f =>
+                                    val p_f = seq_f.rvalue(tree.getFalseExpression)
+                                    seq_f.uncondBreak(tree, scope_sw, p_f)                                
+                                }                            
                         }
                         
                         lv_res

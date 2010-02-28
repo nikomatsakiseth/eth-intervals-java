@@ -714,7 +714,8 @@ class TranslateTypeFactory(
     def dummyLvDecl(velem: VariableElement) =
         ir.LvDecl(
             localVariableName(velem),
-            ir.t_void
+            ir.t_void,
+            List()
         )
     
     def dummyFieldDecl(velem: VariableElement) =
@@ -722,15 +723,17 @@ class TranslateTypeFactory(
             ir.noAttrs,
             ir.t_void,
             fieldName(velem),
-            ir.p_this_creator
+            ir.p_this_creator,
+            List()
         )
 
     def dummyMethodDecl(eelem: ExecutableElement) =
         ir.MethodDecl(
-            wt_ret = ir.t_void,
             name = methodName(eelem),
             args = eelem.getParameters.map(dummyLvDecl).toList,
             reqs = List(),
+            wt_ret = ir.t_void,
+            wps_is = List(),
             body = ir.empty_method_body
         )
 
@@ -768,7 +771,7 @@ class TranslateTypeFactory(
                     } else if(EU.isFinal(velem)) {
                         val telem_owner = EU.enclosingClass(velem)
                         val cn = className(telem_owner)
-                        ir.ClassCtorFieldName(cn).thisPath.toString                        
+                        ir.ClassCtorFieldName(cn).thisPath.toString
                     } else
                         ir.f_creator.thisPath.toString
                 AnnotParser(env).path(s_guard)
@@ -783,7 +786,8 @@ class TranslateTypeFactory(
                     ir.noAttrs,
                     wtref(env, ir.wgs_fieldsDefault)(getAnnotatedType(velem)),
                     fieldName(velem),  
-                    fieldGuard(env)(velem)          
+                    fieldGuard(env)(velem),
+                    List()       
                 ).withPos(env.pos)
             }
         }        
@@ -794,7 +798,8 @@ class TranslateTypeFactory(
             at(ElementPosition(velem), dummyLvDecl(velem)) {
                 ir.LvDecl(
                     localVariableName(velem),
-                    wtref(elemEnv(velem), ir.wgs_constructed)(getAnnotatedType(velem))
+                    wtref(elemEnv(velem), ir.wgs_constructed)(getAnnotatedType(velem)),
+                    List()
                 )
             }
         }        
@@ -808,6 +813,7 @@ class TranslateTypeFactory(
                 val annty = getAnnotatedType(eelem)
                 ir.MethodDecl(
                     wt_ret = wtref(env_mthd, ir.wgs_constructed)(annty.getReturnType),
+                    wps_is = List(),
                     name = methodName(eelem), 
                     args = eelem.getParameters.map(intArgDecl).toList,
                     reqs = methodReqs(eelem),
@@ -884,14 +890,10 @@ class TranslateTypeFactory(
                 indexLog.indented("Method Impl: %s()", qualName(eelem)) {
                     at(ElementPosition(eelem), dummyMethodDecl(eelem) :: mdecls) {
                         val intMdecl = intMethodDecl(eelem)
-                        val blocks = TranslateMethodBody(logStack, this, mtree)
-
-                        ir.MethodDecl(
-                            intMdecl.wt_ret,
-                            intMdecl.name,
-                            intMdecl.args,
-                            intMdecl.reqs,
-                            blocks
+                        val body = TranslateMethodBody(logStack, this, mtree)
+                        
+                        intMdecl.copy(
+                            body = body
                         ).withPos(TreePosition(mtree, (s => s))) :: mdecls
                     }
                 }                

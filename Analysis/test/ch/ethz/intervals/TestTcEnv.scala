@@ -376,8 +376,8 @@ class TestTcEnv extends JUnitSuite {
         env = env.addGhostLocal(lv_x, ir.c_interval)
         env = env.addGhostLocal(lv_y, ir.c_interval)
         env = env.addGhostLocal(lv_z, ir.c_interval)
-        env = env.addHbInter(env.canonLv(lv_x), env.canonLv(lv_z))
-        env = env.withCurrent(env.canonLv(lv_z))
+        env = env.addHbInter(env.immutableCanonLv(lv_x), env.immutableCanonLv(lv_z))
+        env = env.withCurrent(env.immutableCanonLv(lv_z))
         
         assertEqual(
             ct_object(ir.f_creator, hbNow()),

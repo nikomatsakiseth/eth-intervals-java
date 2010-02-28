@@ -80,7 +80,7 @@ abstract class Log {
             case r: PathRelation => map("PathRelation", r.mmap.map)
             case cd: ir.ClassDecl => classDecl("", cd)
             case rfd: ir.ReifiedFieldDecl => reifiedFieldDecl("", rfd)
-            case md: ir.MethodDecl => methodDecl("", md)
+            case md: ir.MethodDecl => methodDecl(true, "", md)
             case _ => rawWrite(escape(v.toString))
         }
     }
@@ -147,8 +147,8 @@ abstract class Log {
             cd.typeArgs.foreach(apply)
             apply("extends %s", ", ".join(cd.superClasses))
             cd.reifiedFieldDecls.foreach(apply)
-            cd.ctors.foreach(methodDecl("[Ctor] ", _))
-            cd.methods.foreach(methodDecl("[Mthd] ", _))
+            cd.ctors.foreach(methodDecl(true, "[Ctor] ", _))
+            cd.methods.foreach(methodDecl(true, "[Mthd] ", _))
         }
     }
     
@@ -160,8 +160,8 @@ abstract class Log {
         }        
     }
             
-    def methodDecl(lbl: Any, md: ir.MethodDecl): Unit = ifEnabled {
-        indented("%s%s", lbl, md) {
+    def methodDecl(open: Boolean, lbl: Any, md: ir.MethodDecl): Unit = ifEnabled {
+        indented(open, "%s%s", lbl, md) {
             apply("wt_ret: %s", md.wt_ret)
             indented("args:")   { md.args.foreach(apply) }
             indented("reqs:")   { md.reqs.foreach(apply) }            

@@ -47,7 +47,7 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog)
     // ______________________________________________________________________
     // Modifying the Environment
     
-    def setCurrent(cp_cur: ir.CanonPath) = log.indented("setCurrent(%s)", cp_cur) {
+    def setCurrent(cp_cur: ir.ImmutableCanonPath) = log.indented("setCurrent(%s)", cp_cur) {
         setEnv(env.copy(ocp_cur = Some(cp_cur)))
     }
     
@@ -55,7 +55,7 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog)
         setEnv(env.copy(wt_ret = wt_ret))
     }
 
-    def addPerm(x: ir.VarName, cp: ir.CanonPath): Unit = {
+    def addPerm(x: ir.VarName, cp: ir.ImmutableCanonPath): Unit = {
         setEnv(env.addPerm(x, cp))        
     }
 
@@ -63,10 +63,6 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog)
         setEnv(env.addArg(arg))
     }      
         
-    def addTemp(p: ir.Path, q: ir.Path) = {
-        setEnv(env.addTemp(p, q))
-    }
-    
     def addReifiedLocal(x: ir.VarName, wt: ir.WcTypeRef) = {
         setEnv(env.addReifiedLocal(x, wt))
     }
@@ -79,46 +75,6 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog)
         setEnv(env.clearTemp)
     }        
 
-    def addInvalidated(p: ir.Path) = {
-        setEnv(env.addInvalidated(p))
-    }
-
-    def removeInvalidated(p: ir.Path) = {
-        setEnv(env.removeInvalidated(p))
-    }
-
-    def addHbInter(cp: ir.CanonPath, cq: ir.CanonPath): Unit = {
-        setEnv(env.addHbInter(cq, cq))
-    }
-    
-    def addDeclaredReadableBy(cp: ir.CanonPath, cq: ir.CanonPath): Unit = {
-        setEnv(env.addDeclaredReadableBy(cp, cq))
-    }
-
-    def addDeclaredWritableBy(cp: ir.CanonPath, cq: ir.CanonPath): Unit = {
-        setEnv(env.addDeclaredWritableBy(cp, cq))
-    }
-
-    def addSuspends(cp: ir.CanonPath, cq: ir.CanonPath): Unit = {
-        setEnv(env.addSuspends(cp, cq))
-    }
-
-    def addLocks(cp: ir.CanonPath, cq: ir.CanonPath): Unit = {
-        setEnv(env.addLocks(cp, cq))
-    }
-
-    def addUserHb(tp0: ir.CanonPath, tq0: ir.CanonPath) = {
-        setEnv(env.addUserHb(tp0, tq0))
-    }
-        
-    def addNonNull(cp: ir.CanonPath) {
-        setEnv(env.addNonNull(cp))
-    }
-        
-    def addReq(req: ir.Req) {
-        setEnv(env.addReq(req))
-    }
-        
     // ___ Canon Paths ______________________________________________________
     
     // Note: these are not vals but defs!  This is important
