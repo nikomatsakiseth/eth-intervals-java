@@ -78,23 +78,6 @@ object Util {
     // ____________________________________________________________
     // Extensions to List
     
-    case class UtilPairList[Q,R](i: List[(Q,R)]) {
-        def map_1[S](f: (Q => S)) = i.map { case (q, r) => (f(q), r) }
-        def map_2[S](f: (R => S)) = i.map { case (q, r) => (q, f(r)) }
-        def _1 = i.map(_._1)
-        def _2 = i.map(_._2)
-    }
-    implicit def list2UtilPairList[Q,R](i: List[(Q,R)]) = UtilPairList(i)
-    
-    case class UtilPairSeq[Q,R](i: Seq[(Q,R)]) {
-        def _1 = i.map(_._1)
-        def _2 = i.map(_._2)
-    }
-    implicit def list2UtilPairSeq[Q,R](i: Seq[(Q,R)]) = UtilPairSeq(i)
-    
-    // ____________________________________________________________
-    // Extensions to List
-    
     case class UtilList[E](l: List[E]) {
         def foldRightOpt[V](v: V)(f: ((E,V) => Option[V])) =
             l.foldRight[Option[V]](Some(v)) {
@@ -117,21 +100,7 @@ object Util {
             helper(Set(), l)
         }
     }
-    implicit def list2UtilList[Q](i: List[Q]) = UtilList(i)
-    
-    // ____________________________________________________________
-    // Extensions to Option
-    
-    case class UtilOption[X](o: Option[X]) {
-        def mapToOption[Y](f: (X => Option[Y])) = o match {
-            case None => None
-            case Some(x) => f(x)
-        }
-        
-        def foldLeft[Y](y0: Y)(f: ((Y, X) => Y)): Y =
-            o.map(f(y0, _)).getOrElse(y0)
-    }
-    implicit def option2UtilOption[X](o: Option[X]) = UtilOption(o)
+    implicit def toUtilList[Q](i: List[Q]) = UtilList(i)
     
     // ____________________________________________________________
     // Extensions to Iterator and Iterable
@@ -186,7 +155,7 @@ object Util {
     implicit def iterable2UtilIterable[I](i: Iterable[I]) = UtilIterable(i)
     
     // ____________________________________________________________
-    // Extensions for iterables of pairs
+    // Extensions for lists and iterables of pairs
     
     case class UtilPairIterable[E,F](iterable: Iterable[(E,F)]) {
         def foreachPair(func: ((E,F) => Unit)) =
@@ -204,7 +173,7 @@ object Util {
         def filterPairs(func: ((E,F) => Boolean)) =
             iterable.filter(pair => func(pair._1, pair._2))
     }
-    implicit def iterable2UtilPairIterable[E,F](i: Iterable[(E,F)]) = UtilPairIterable(i)
+    implicit def toUtilPairIterable[E,F](i: Iterable[(E,F)]) = UtilPairIterable(i)
     
     // cross(List()) => List()
     // cross(List(List(1,2,3))) => List(List(1), List(2), List(3))

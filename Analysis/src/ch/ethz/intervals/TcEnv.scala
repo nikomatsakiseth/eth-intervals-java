@@ -5,6 +5,7 @@ import scala.collection.immutable.Map
 import scala.collection.immutable.Queue
 
 import Util._
+import ir./
 
 sealed case class TcEnv(
     prog: Prog,
@@ -41,8 +42,7 @@ sealed case class TcEnv(
     def withThisClass(c_this: ir.ClassName) = addReifiedLocal(ir.lv_this, c_this.ct).copy(c_this = c_this)
     
     /** Add a local variable whose value is the canon path `cp` */
-    def addPerm(x: ir.VarName, cp: ir.CanonPath): TcEnv = {
-        assert(isImmutable(cp))
+    def addPerm(x: ir.VarName, cp: ir.ImmutableCanonPath): TcEnv = {
         perm.get(x) match {
             case Some(_) => throw new CheckFailure("intervals.shadowed", x)
             case None => copy(perm = perm + (x -> cp))
@@ -51,7 +51,7 @@ sealed case class TcEnv(
     
     /** Define a reified local variable `x` with type `wt` */
     def addReifiedLocal(x: ir.VarName, wt: ir.WcTypeRef, wps_is: List[ir.WcPath] = Nil) = {
-        addPerm(x, ir.CanonPath(x.path, List(ir.CpcReifiedLv(x, wt, wps_is))))
+        addPerm(x, ir.ImmutableCanonPath(x.path, List(ir.CpcReifiedLv(x, wt, wps_is))))
     }
     
     /** Define a local variable according to the given decl */
@@ -62,7 +62,7 @@ sealed case class TcEnv(
     
     /** Define a ghost local variable `x` with type `wt` */
     def addGhostLocal(lv: ir.VarName, c: ir.ClassName) = {
-        addPerm(lv, ir.CanonPath(lv.path, List(ir.CpcGhost(lv.path, List(), c))))
+        addPerm(lv, ir.ImmutableCanonPath(lv.path, List(ir.CpcGhostLv(lv, c, List()))))
     }
     
     /** Defines a fresh ghost variable of type `wt` */
@@ -102,9 +102,8 @@ sealed case class TcEnv(
     }
     
     /// Indicates that point cp hb point cq.
-    def addHbPnt(cp: ir.CanonPath, cq: ir.CanonPath) = {
+    def addHbPnt(cp: ir.ImmutableCanonPath, cq: ir.ImmutableCanonPath) = {
         log("addHbPnt(%s,%s)", cp, cq)
-        assert(isImmutable(cp) && isImmutable(cq))
         assert(pathCouldHaveClass(cp, ir.c_point))
         assert(pathCouldHaveClass(cq, ir.c_point))
         copy(flow = flow.copy(hbRel = 
@@ -115,37 +114,32 @@ sealed case class TcEnv(
     }
     
     /// Indicates that interval cp hb interval cq.
-    def addHbInter(cp: ir.CanonPath, cq: ir.CanonPath) = {
+    def addHbInter(cp: ir.ImmutableCanonPath, cq: ir.ImmutableCanonPath) = {
         log("addHbInter(%s,%s)", cp, cq)
-        assert(isImmutable(cp) && isImmutable(cq))
         assert(pathCouldHaveClass(cp, ir.c_interval))
         assert(pathCouldHaveClass(cq, ir.c_interval))
         copy(flow = flow.copy(hbRel = 
             (cp.paths cross cq.paths).foldLeft(flow.hbRel)(_ + _)))
     }
     
-    def addDeclaredReadableBy(cp: ir.CanonPath, cq: ir.CanonPath) = {
+    def addDeclaredReadableBy(cp: ir.ImmutableCanonPath, cq: ir.ImmutableCanonPath) = {
         log("addDeclaredReadableBy(%s, %s)", cp, cq)
-        assert(isImmutable(cp) && isImmutable(cq))
         assert(pathCouldHaveClass(cp, ir.c_guard))
         assert(pathCouldHaveClass(cq, ir.c_interval))
         copy(flow = flow.copy(readableRel = 
             (cp.paths cross cq.paths).foldLeft(flow.readableRel)(_ + _)))
     }
     
-    def addDeclaredWritableBy(cp: ir.CanonPath, cq: ir.CanonPath) = {
+    def addDeclaredWritableBy(cp: ir.ImmutableCanonPath, cq: ir.ImmutableCanonPath) = {
         log("addDeclaredWritableBy(%s, %s)", cp, cq)
-        assert(isImmutable(cp) && isImmutable(cq))
         assert(pathCouldHaveClass(cp, ir.c_guard))
         assert(pathCouldHaveClass(cq, ir.c_interval))
         copy(flow = flow.copy(writableRel = 
             (cp.paths cross cq.paths).foldLeft(flow.writableRel)(_ + _)))
     }
     
-    def addSuspends(cp: ir.CanonPath, cq: ir.CanonPath) = {
+    def addSuspends(cp: ir.ImmutableCanonPath, cq: ir.ImmutableCanonPath) = {
         log.indented(false, "addSuspends(%s, %s)", cp, cq) {
-            // This assertion is not valid during checkReifiedFieldDecl():
-            //assert(isImmutable(cp) && isImmutable(cq))
             assert(pathCouldHaveClass(cp, ir.c_interval))
             assert(pathCouldHaveClass(cq, ir.c_interval))
             copy(flow = flow.copy(inlineRel =
@@ -153,10 +147,8 @@ sealed case class TcEnv(
         }        
     }
 
-    def addLocks(cp: ir.CanonPath, cq: ir.CanonPath) = {
+    def addLocks(cp: ir.ImmutableCanonPath, cq: ir.ImmutableCanonPath) = {
         log.indented(false, "addLocks(%s, %s)", cp, cq) {
-            // This assertion is not valid during checkReifiedFieldDecl:
-            //assert(isImmutable(cp) && isImmutable(cq))
             assert(pathCouldHaveClass(cp, ir.c_interval))
             assert(pathCouldHaveClass(cq, ir.c_lock))
             copy(flow = flow.copy(locksRel =
@@ -197,7 +189,7 @@ sealed case class TcEnv(
         log.indented("addReq(%s)", req) {
             at(req, this) {
                 def cross(
-                    add: ((TcEnv, ir.CanonPath, ir.CanonPath) => TcEnv), 
+                    add: ((TcEnv, ir.ImmutableCanonPath, ir.ImmutableCanonPath) => TcEnv), 
                     ps: List[ir.Path], 
                     qs: List[ir.Path]
                 ) = {
@@ -220,6 +212,64 @@ sealed case class TcEnv(
     
     def addReqs(reqs: List[ir.Req]) = reqs.foldLeft(this)(_ addReq _)
         
+    // ___ Immutability _____________________________________________________
+    
+    /** Could the value of `cp_test` change during `cp_inter`? */
+    private[this] def compIsImmutableIn(cpc_test: ir.CanonPathComponent, cp_inter: ir.CanonPath) = {
+        def imm(cpc: ir.CanonPathComponent): Boolean = log.indented("imm(%s)", cpc) {
+            cpc match {
+                // Local variables never change value once assigned:
+                case ir.CpcReifiedLv(_, _, _) => true
+                case ir.CpcGhostLv(_, _, _) => true
+
+                // Ghosts never change value but the path they extend might:
+                case ir.CpcGhostField(cpc_base, _, _, _) => imm(cpc_base)
+                
+                // Fields guarded by past intervals cannot change but others can:
+                case ir.CpcReifiedField(cpc_base, ir.ReifiedFieldDecl(_, _, _, p_guard, _)) =>
+                    imm(cpc_base) && { 
+                        val cp_guard = canonPath(p_guard)
+                        asImmutableIn(cp_guard, cp_inter).exists(imm_guard =>
+                            hbInter(imm_guard, cp_inter)
+                        )
+                    }
+            }            
+        }
+            
+        log.indented(false, "compIsImmutableDuring(%s, %s)", cpc_test, cp_inter) {
+            log.env(false, "Environment", this)
+            imm(cpc_test)
+        }
+    }
+
+    /** Returns an `ImmutableCanonPath` from `cp_test` containing only those components
+      * that are immutable in `cp_inter`.  If there are no such components, returns `None`. */
+    def asImmutableIn(cp_test: ir.CanonPath, cp_inter: ir.CanonPath): Option[ir.ImmutableCanonPath] = {
+        log.indented(false, "asImmutableIn(%s, %s)", cp_test, cp_inter) {
+            val immutableComponents = cp_test.components.filter(compIsImmutableIn(_, cp_inter))
+            if(immutableComponents.isEmpty) None
+            else Some(ir.ImmutableCanonPath(cp_test.forPath, immutableComponents))
+        }        
+    }
+    
+    def isImmutableIn(cp_test: ir.CanonPath, cp_inter: ir.CanonPath): Boolean = {
+        asImmutableIn(cp_test, cp_inter).isDefined
+    }
+    
+    def isImmutable(cp_test: ir.CanonPath) = isImmutableIn(cp_test, cp_cur)    
+    def asImmutable(cp_test: ir.CanonPath) = asImmutableIn(cp_test, cp_cur)
+    
+    def immutableCanonPath(p: ir.Path): ir.ImmutableCanonPath = {
+        val cp = canonPath(p)
+        asImmutable(cp) match {
+            case None => throw new CheckFailure("intervals.must.be.immutable", p)
+            case Some(immcp) => immcp
+        }
+    }
+    def immutableCanonPaths(ps: List[ir.Path]) = ps.map(immutableCanonPath)
+    def immutableCanonLv(lv: ir.VarName) = immutableCanonPath(lv.path)    
+    def immutableCanonLvs(lvs: List[ir.VarName]) = lvs.map(immutableCanonLv)    
+    
     // ___ Constructing Canonical Paths _____________________________________
     
     def reifiedPath(p: ir.Path): ir.CanonPath = {
@@ -232,25 +282,15 @@ sealed case class TcEnv(
     def reifiedLv(lv: ir.VarName) = reifiedPath(lv.path)
     def reifiedLvs(lvs: List[ir.VarName]) = lvs.map(reifiedLv)
     
-    def immutableReifiedPath(p: ir.Path): ir.CanonPath = {
-        val crp = reifiedPath(p)
-        if(!isImmutable(crp))
+    def immutableReifiedPath(p: ir.Path): ir.ImmutableCanonPath = {
+        val cp = immutableCanonPath(p)
+        if(!cp.isReified)
             throw new CheckFailure("intervals.must.be.immutable", p)
-        crp
+        cp
     }    
     def immutableReifiedPaths(ps: List[ir.Path]) = ps.map(immutableReifiedPath)
     def immutableReifiedLv(lv: ir.VarName) = immutableReifiedPath(lv.path)
     def immutableReifiedLvs(lvs: List[ir.VarName]) = lvs.map(immutableReifiedLv)
-    
-    def immutableCanonPath(p: ir.Path): ir.CanonPath = {
-        val cp = canonPath(p)
-        if(!isImmutable(cp))
-            throw new CheckFailure("intervals.must.be.immutable", p)
-        cp        
-    }
-    def immutableCanonPaths(ps: List[ir.Path]) = ps.map(immutableCanonPath)
-    def immutableCanonLv(lv: ir.VarName) = immutableCanonPath(lv.path)    
-    def immutableCanonLvs(lvs: List[ir.VarName]) = lvs.map(immutableCanonLv)
     
     def canonPath(p1: ir.Path): ir.CanonPath = log.indented(false, "canonPath(%s)", p1) {
         canonicalize(Set(), p1)
@@ -270,14 +310,13 @@ sealed case class TcEnv(
             case (Some(p_redirect), _) if !ps_visited(p_redirect) =>
                 canonicalize(ps_visited, p_redirect)
                 
-            case (_, ir.Path(lv, List())) =>
+            case (_, ir.PathLv(lv)) =>
                 perm.get(lv) match {
                     case Some(cp) => cp
                     case None => throw new CheckFailure("intervals.no.such.variable", lv)
                 }
             
-            case (_, ir.Path(lv, f :: rev_fs)) =>
-                val p_base = ir.Path(lv, rev_fs)
+            case (_, ir.PathField(p_base, f)) =>
                 val cp = canonicalize(ps_visited, p_base)
                 extendCanonWithFieldNamed(p_request, ps_visited, cp, f)
         }
@@ -286,7 +325,7 @@ sealed case class TcEnv(
     private[this] def fld(cp_base: ir.CanonPath, fs: ir.FieldName*) = {
         log.indented(false, "fld(%s, %s)", cp_base, fs) {
             fs.foldLeft(cp_base) { case (cp, f) =>
-                extendCanonWithFieldNamed(cp.p + f, cp.paths.toSet, cp, f)
+                extendCanonWithFieldNamed(cp.forPath + f, cp.paths.toSet, cp, f)
             }
         }
     }
@@ -340,9 +379,9 @@ sealed case class TcEnv(
         c_gf: ir.ClassName
     ) = {
         log.indented("extendComponentWithGhostField(%s, %s, %s)", comp_base, f_gf, c_gf) {
-            val p_gf = comp_base.p + f_gf
             val wp_gf = compGhost(comp_base, f_gf)
-            ir.CpcGhost(p_gf, List(wp_gf), c_gf)
+            log("wp_gf = %s", wp_gf)
+            ir.CpcGhostField(comp_base, f_gf, c_gf, List(wp_gf))
         }
     }
     
@@ -351,7 +390,7 @@ sealed case class TcEnv(
         rfd: ir.ReifiedFieldDecl
     ) = {
         log("extendComponentWithReifiedField(%s, %s)", comp_base, rfd)
-        ir.CpcReifiedField(comp_base.p + rfd.name, rfd)
+        ir.CpcReifiedField(comp_base, rfd)
     }
     
     // ___ Locating Members _________________________________________________
@@ -365,7 +404,7 @@ sealed case class TcEnv(
     def ghostFieldsDeclaredOnComponent(comp: ir.CanonPathComponent): Set[ir.GhostFieldDecl] = {
         comp match {
             case ir.CpcReified(_, wt) => ghostFieldsDeclaredOnType(wt)
-            case ir.CpcGhost(_, _, c) => ghostFieldsDeclaredOnClassAndSuperclasses(c)
+            case ir.CpcGhost(_, c) => ghostFieldsDeclaredOnClassAndSuperclasses(c)
         }
     }
     
@@ -403,7 +442,7 @@ sealed case class TcEnv(
                             (c_fd, comp.thisSubst.reifiedFieldDecl(fd))
                     }
                     
-                case ir.CpcGhost(_, _, _) => 
+                case ir.CpcGhost(_, _) => 
                     log("Ignoring Ghost Component")
                     None
             }
@@ -414,7 +453,7 @@ sealed case class TcEnv(
     def substdReifiedFieldDecl(cp: ir.CanonPath, f: ir.FieldName) = {
         log.indented(false, "substdReifiedFieldDecl(%s::%s)", cp, f) {
             cp.components.firstSomeReturned(optSubstdReifiedFieldDeclOfComp(_, f)).getOrElse {
-                throw new CheckFailure("intervals.no.such.field", cp.p, f)
+                throw new CheckFailure("intervals.no.such.field", cp.forPath, f)
             }
         }
     }
@@ -430,8 +469,8 @@ sealed case class TcEnv(
                 case (_, md) =>
                     log.methodDecl("md: ", md)
                     PathSubst.vp(
-                        ir.lv_mthd  :: ir.lv_this :: md.args.map(_.name),
-                        p_cur       :: tcp.p      :: cqs.map(_.p)
+                        ir.lv_mthd  :: ir.lv_this   :: md.args.map(_.name),
+                        p_cur       :: tcp.forPath  :: cqs.map(_.forPath)
                     ).methodSig(md.msig)
             }
         }
@@ -450,7 +489,7 @@ sealed case class TcEnv(
         val res = cp.reifiedComponents.firstSomeReturned(comp =>
             optSubstdMethodSigOfTcp(ir.TeeCeePee(cp, comp.wt), m, cqs))
         res.getOrElse { 
-            throw new CheckFailure("intervals.no.such.method", cp.p, m) 
+            throw new CheckFailure("intervals.no.such.method", cp.forPath, m) 
         }
     }
     
@@ -461,8 +500,8 @@ sealed case class TcEnv(
         classDecl(tcp.ty.c).ctors.find(_.isNamed(m)) match {
             case Some(md) =>            
                 PathSubst.vp(
-                    ir.lv_mthd  :: ir.lv_this :: md.args.map(_.name),
-                    p_cur       :: tcp.p      :: cqs.map(_.p)
+                    ir.lv_mthd  :: ir.lv_this   :: md.args.map(_.name),
+                    p_cur       :: tcp.forPath  :: cqs.map(_.forPath)
                 ).methodSig(md.msig)
             case None =>
                 throw new CheckFailure("intervals.no.such.ctor", tcp.ty, m)
@@ -497,7 +536,7 @@ sealed case class TcEnv(
     def cp_cur = ocp_cur.get
     
     /** Path of current interval (must be defined) */
-    def p_cur = cp_cur.p
+    def p_cur = cp_cur.forPath
     
     /** Canonical path to `this` */
     def cp_this = reifiedLv(ir.lv_this)
@@ -520,7 +559,7 @@ sealed case class TcEnv(
     /** True if the path `cp` is known to be nonnull */
     def isNonnull(cp: ir.CanonPath) = log.indented(false, "isNonnull(%s)?", cp) {
         log.env(false, "Environment", this)
-        flow.nonnull(cp.p)
+        cp.paths.exists(flow.nonnull)
     }
 
     /** Does `cp0` hb `cq0`? */
@@ -530,7 +569,7 @@ sealed case class TcEnv(
             assert(isImmutable(cq0))
             val (ps, qs) = userHbPair(cp0, cq0)
             (ps cross qs).existsPair(bfs)
-        }        
+        }
     }
     
     /// Does the point cp_from hb the point cp_to?
@@ -549,12 +588,8 @@ sealed case class TcEnv(
     def hbInter(cp_from: ir.CanonPath, cp_to: ir.CanonPath) = {
         log.indented("hbInter(%s, %s)?", cp_from, cp_to) {
             log.env(false, "Environment", this)
-            ( // Sometimes we're sloppy and invoke with wrong types:
-                pathHasClass(cp_from, ir.c_interval) && 
-                pathHasClass(cp_to, ir.c_interval) &&
-                (cp_from.paths cross cp_to.paths).existsPair((p_from, p_to) =>
-                    bfs(p_from.end, p_to.start))                
-            )
+            (cp_from.paths cross cp_to.paths).existsPair((p_from, p_to) =>
+                bfs(p_from.end, p_to.start))                
         }
     }
     
@@ -570,23 +605,25 @@ sealed case class TcEnv(
         log.indented(false, "locks(%s, %s)?", cp, cq) {
             log.env(false, "Environment", this)
             
-            inlineSuperintervalsOf(cp).exists { cp_sup => flow.locks((cp_sup.p, cq.p)) }
+            inlineSuperintervalsOf(cp).exists { cp_sup => 
+                (cp_sup.paths cross cq.paths).exists(flow.locks)
+            }
         }
     }
     
     private[this] def immediateIsWritableBy(cp: ir.CanonPath, cq: ir.CanonPath): Boolean = {
         log.indented(false, "immediateIsWritableBy(%s, %s)?", cp, cq) {
             (
-                is(cp) match {
+                cp.wpaths.exists {
                     // Is cp a ghost declared writable by q?
                     case ir.WcWritableBy(qs) => among(cq, canonPaths(qs))
                     case _ => false
                 }
             ) || {
-                flow.writable((cp.p, cq.p)) ||
                 equiv(cp, cq) ||
-                locks(cq, cp) ||
-                suspends(cq, cp)
+                locks(cp, cq) ||
+                suspends(cq, cq) ||
+                (cp.paths cross cq.paths).exists(flow.writable)
             }
         }
     }
@@ -594,7 +631,7 @@ sealed case class TcEnv(
     private[this] def immediateIsReadableBy(cp: ir.CanonPath, cq: ir.CanonPath): Boolean = {
         log.indented(false, "immediateIsReadableBy(%s, %s)?", cp, cq) {
             (
-                is(cp) match {
+                cp.wpaths.exists {
                     // Is cp a ghost declared readable by q or immutable in q?
                     case ir.WcReadableBy(qs) => among(cq, canonPaths(qs))
                     case _ => false
@@ -605,7 +642,7 @@ sealed case class TcEnv(
                 // safe for us to read.  We could generalize this more to include 
                 // any interval X where cq.start -> X.start, X.end -> cq.end, and
                 // cp is immutable in X.
-                flow.readable((cp.p, cq.p)) ||
+                (cp.paths cross cq.paths).exists(flow.readable) ||
                 hbInter(cp, cq) ||
                 immediateIsWritableBy(cp, cq)            
             }  
@@ -630,7 +667,7 @@ sealed case class TcEnv(
     
     private[this] def interHappened(cp: ir.CanonPath): Boolean = {
         log.indented(true, "interHappened(%s)", cp) {
-            ocp_cur.exists(cp_cur => bfs(cp.p.end, cp_cur.p.start))
+            ocp_cur.exists(cp_cur => bfs(cp.forPath.end, p_cur.start))
         }
     }
             
@@ -640,53 +677,16 @@ sealed case class TcEnv(
             log.env(false, "Environment", this)
             
             (
-                is(cp) match {
+                cp.wpaths.exists {
                     case ir.WcHbNow(ps) => isLtCanonPaths(canonPaths(ps), cqs)
                     case _ => false
                 }
             ) || {
                 interHappened(cp) ||
                 among(cp, cqs) ||
-                cqs.exists(cq => bfs(cp.p.end, cq.p.end))
+                cqs.exists(cq => bfs(cp.forPath.end, cq.forPath.end))
             }            
         }
-    }
-    
-    /** Could the value of `cp_test` change during `cp_inter`? */
-    def isImmutableIn(cp_test: ir.CanonPath, cp_inter: ir.CanonPath) = {
-        def imm(cp1: ir.CanonPath): Boolean = log.indented("imm(%s)", cp1) {
-            cp1 match {
-                // Local variables never change value once assigned:
-                case ir.CpReifiedLv(_, _) => true
-                case ir.CpGhostLv(_, _) => true
-
-                // Ghosts never change value but the path they extend might:
-                case ir.CpGhostField(cp0, _, _) => imm(cp0)
-                case ir.CpClassCtor(cp0, _) => imm(cp0)
-                
-                // Fields guarded by past intervals cannot change but others can:
-                case ir.CpReifiedField(cp0, ir.ReifiedFieldDecl(_, _, _, p_guard)) =>
-                    imm(cp0) && { 
-                        val cp_guard = canonPath(p_guard)
-                        imm(cp_guard) && bfs(cp_guard.p.end, cp_inter.p.start)
-                    }
-            }            
-        }
-            
-        log.indented(false, "isImmutableDuring(%s, %s)", cp_test, cp_inter) {
-            log.env(false, "Environment", this)
-            imm(cp_test)
-        }
-    }
-    
-    def isImmutable(cp_test: ir.CanonPath): Boolean = cp_test match {
-        // Hackli: addPerm() sometimes asserts immutability before cp_cur is
-        // defined.  That's ok so long as the canonical path is just a LV and ghosts.
-        case ir.CpReifiedLv(_, _) => true
-        case ir.CpGhostLv(_, _) => true
-        case ir.CpGhostField(cp0, _, _) => isImmutable(cp0)
-        case ir.CpClassCtor(cp0, _) => isImmutable(cp0)
-        case _ => isImmutableIn(cp_test, cp_cur)
     }
 
     def dependentPaths(wt: ir.WcTypeRef): Set[ir.Path] = {
@@ -696,7 +696,6 @@ sealed case class TcEnv(
             }
         }
     }
-        
 
     /// A field f_l is linked to cp_o.f if its type is invalidated
     /// when p.f changes.  This occurs when p.f appears in f_l's type.
@@ -736,12 +735,13 @@ sealed case class TcEnv(
     
     // ___ Superintervals and suspended intervals ___________________________
     
-    private[this] def immediateInlineSuperintervalsOf(cp: ir.CanonPath) = {
+    private[this] def immediateInlineSuperintervalsOf(cp: ir.CanonPath): Set[ir.CanonPath] = {
         log.indented("immediateInlineSuperintervalsOf(%s)", cp) {
-            cp.paths.toSet.flatMap(flow.inlineRel).map(canonPath) ++ {
+            cp.paths.toSet.flatMap(flow.inline.values).map(canonPath) ++ {
                 log.indented("cp0.Constructor[_] < cp0.Constructor?") {
-                    cp match {
-                        case ir.CpClassCtor(cp0, _) => Some(fld(cp0, ir.f_objCtor))
+                    cp.components.flatMap {
+                        case ir.CpcGhostField(cp0, ir.ClassCtorFieldName(_), _, _) =>
+                            Some(canonPath(cp0.p + ir.f_objCtor))
                         case _ => None
                     }
                 }
@@ -757,15 +757,12 @@ sealed case class TcEnv(
     
     private[this] def immediateSuperintervalsOf(cp: ir.CanonPath) = {
         log.indented("immediateSuperintervalsOf(%s)", cp) {
-            immediateInlineSuperintervalsOf(cp) ++ (cp match {
-                case crp: ir.CanonReifiedPath => Set(fld(crp, ir.f_parent))
-                case _: ir.CanonGhostPath => Set()                    
-            })
+            immediateInlineSuperintervalsOf(cp) + fld(cp, ir.f_parent)
         }
     }
 
     private[this] def superintervalsOf(cp0: ir.CanonPath) = {
-        log.indented(false, "superintervalsOf(%s)", cp) {
+        log.indented(false, "superintervalsOf(%s)", cp0) {
             computeTransitiveClosure(immediateSuperintervalsOf, Set(cp0))
         }
     }
@@ -784,8 +781,13 @@ sealed case class TcEnv(
             }
         }
         
-        def depoint(p: ir.Path, f: ir.FieldName) = p.stripSuffix(f).map(canonPath)
-
+        def depoint(p: ir.Path, f: ir.FieldName) = p match {
+            case p_base / f() => Some(canonPath(p_base))
+            case _ => None
+        }
+        
+        def starts(cp: ir.CanonPath) = cp.paths.map(_.start)
+        def ends(cp: ir.CanonPath) = cp.paths.map(_.end)
         def isInterval(cp0: ir.CanonPath) = pathHasClass(cp0, ir.c_interval)
 
         def visitNext(vis: Set[ir.Path], queue0: Queue[ir.Path]): Boolean = {
@@ -805,49 +807,42 @@ sealed case class TcEnv(
             flow.hb.values(p) ++ {
                 log.indented("X.start -> X.end if (X: Interval)") {                    
                     depoint(p, ir.f_start) match {
-                        case Some(cp_inter) if isInterval(cp_inter) => 
-                            Some(cp_inter.p.end)
-                        case _ => None
+                        case Some(cp_inter) if isInterval(cp_inter) => ends(cp_inter)
+                        case _ => Nil
                     }
                 }
             } ++ {
                 log.indented("X.end -> X.Parent.end if (X: Interval)") {
                     depoint(p, ir.f_end) match {
-                        case Some(crp_inter: ir.CanonReifiedPath) if isInterval(crp_inter) =>
-                            Some(fld(crp_inter, ir.f_parent).p.end)
-                        case _ => None
-                    }
-                }
-            } ++ {
-                log.indented("X.Constructor[_].end -> X.Constructor.end") {
-                    depoint(p, ir.f_end) match {
-                        case Some(ir.CpClassCtor(crp0, _)) => 
-                            Some(fld(crp0, ir.f_objCtor).p.end)
-                        case _ => None
+                        case Some(cp_inter: ir.CanonPath) if isInterval(cp_inter) =>
+                            immediateSuperintervalsOf(cp_inter).flatMap(ends)
+                        case _ => Nil
                     }
                 }
             } ++ {
                 log.indented("X.Constructor[L].end -> X.Constructor[R].start if R <: L") {
-                    depoint(p, ir.f_end) match {
-                        case Some(ir.CpClassCtor(crp0, c_left)) if prog.isNotInterface(c_left) => 
+                    p match {
+                        case p_base / ir.ClassCtorFieldName(c_left) / ir.f_end()
+                        if !prog.isInterface(c_left) =>
+                            val cp = canonPath(p_base)
                             val cs_left = prog.classAndSuperclasses(c_left)
-                            var cs_right = lowerBoundingCts(crp0.wt).map(_.c)
-                            cs_right = cs_right -- cs_left
-                            cs_right = cs_right.filter(prog.isNotInterface)
-                            cs_right.map(c_right =>
-                                fld(crp0, ir.ClassCtorFieldName(c_right)).p.start).toList
-                                
-                        case _ => List()
+                            val cs_right = lowerBoundingClasses(cp).flatMap(prog.classAndSuperclasses)
+                            cs_right.toList.flatMap {
+                                case c_right if !cs_left(c_right) && !prog.isInterface(c_right) =>
+                                    starts(fld(cp, ir.ClassCtorFieldName(c_right)))
+                                case _ => List()
+                            }
+                        case _ => Nil
                     }
                 }
             } ++ {
-                log.indented("X.Constructor[_] -> X.start if (X: Interval)") {
-                    depoint(p, ir.f_end) match {
-                        case Some(ir.CpClassCtor(crp0, _)) if isInterval(crp0) => 
-                            Some(crp0.p + ir.f_start)                            
-                        case Some(ir.CpGhostField(crp0, ir.f_objCtor(), _)) if isInterval(crp0) =>
-                            Some(crp0.p + ir.f_start)
-                        case _ => None
+                log.indented("X.Constructor.end -> X.start if (X: Interval)") {
+                    p match {
+                        case p_base / ir.f_objCtor() / ir.f_end() =>
+                            val cp = canonPath(p_base)
+                            if(isInterval(cp)) starts(cp)
+                            else Nil
+                        case _ => Nil
                     }
                 }
             } ++ {
@@ -883,23 +878,8 @@ sealed case class TcEnv(
     
     // ___ Other operations on canonical paths ______________________________
 
-    // Returns an existential WcPath for 'cp' if one can be found.  
-    // For example, if p has type @Owner(? readableBy inter), then is(p.Owner) would 
-    // yield "? readableBy inter".  Returns cp.p if no existential version is found.
-    private[this] def is(cp: ir.CanonPath): ir.WcPath = {
-        log.indented(false, "is(%s)", cp) {
-            cp match {
-                case ir.CpGhostField(crp_base, f, _) =>
-                    log("Ghost field of %s", crp_base)
-                    ghost(crp_base, f).wp
-                case _ =>
-                    cp.p
-            }
-        }
-    }
-    
     private[this] def equiv(cp0: ir.CanonPath, cq0: ir.CanonPath): Boolean = {
-        cp0 equiv cq0
+        cp0.paths.exists(cq0.paths.toSet)
     }
     
     private[this] def equiv(p: ir.Path, q: ir.Path): Boolean = {
@@ -915,19 +895,19 @@ sealed case class TcEnv(
         comp: ir.CanonPathComponent, 
         f: ir.FieldName
     ): ir.WcPath = {
-        val subst = crp.thisSubst
+        val subst = comp.thisSubst
         val wgs_all = comp match {
             case ir.CpcReified(_, wt) =>
                 lowerBoundingCts(wt).flatMap { wct =>
                     wct.wghosts ++ ghostsOnClassAndSuperclasses(wct.c).map(subst.ghost)
                 }
                 
-            case ir.CpcGhost(_, _, c) =>
+            case ir.CpcGhost(_, c) =>
                 ghostsOnClassAndSuperclasses(c).map(subst.ghost)
         }
         wgs_all.find(_.isNamed(f)) match {
             case Some(wg) => wg.wp
-            case None => crp.p + f
+            case None => comp.p + f
         }
     }
     
@@ -968,12 +948,14 @@ sealed case class TcEnv(
       * `upperBoundingCts()`. */
     private[this] def boundPathType(pt: ir.PathType): ir.TypeBounds = {
         log.indented("boundPathType(%s)", pt) {
-            val crp = reifiedPath(pt.p)
-
-            val tvd = typeVarsDeclaredOnType(crp.wt).find(_.isNamed(pt.tv)) match {
-                case Some(tvd) => tvd
-                case None => throw new CheckFailure("intervals.no.such.type.var", crp.wt, pt.tv)
+            val cp = reifiedPath(pt.p)
+            
+            // search for a declaration of pt.tv:
+            val o_tvd = cp.wts.firstSomeReturned(typeVarsDeclaredOnType(_).find(_.isNamed(pt.tv)))
+            val tvd = o_tvd.getOrElse {
+                throw new CheckFailure("intervals.no.such.type.var", crp.wt, pt.tv)
             }
+            
             log("tvd=%s", tvd)
             val subst = PathSubst.vp(ir.lv_this, crp.p)
             val tvd_lbs = tvd.wts_lb.map(subst.wcTref)
@@ -1016,7 +998,14 @@ sealed case class TcEnv(
     }
     def upperBoundingCts(wt: ir.WcTypeRef) = upperBoundingWts(wt).foldLeft(Set[ir.WcClassType]())(addWcts)
     def lowerBoundingCts(wt: ir.WcTypeRef) = lowerBoundingWts(wt).foldLeft(Set[ir.WcClassType]())(addWcts)
-    
+
+    def lowerBoundingClasses(cp: ir.CanonPath) = {
+        cp.components.foldLeft(Set[ir.ClassName]()) { 
+            case (set, ir.CpcReified(_, wt)) => set ++ lowerBoundingCts(wt).map(_.c)
+            case (set, ir.CpcGhost(_, c)) => set + c
+        }        
+    }
+
     // ___ Subtyping and Subclassing ________________________________________
     
     /** Is `wt` an erased subtype of class `c`? */
@@ -1033,9 +1022,9 @@ sealed case class TcEnv(
     def pathHasClass(cp_sub: ir.CanonPath, c_sup: ir.ClassName): Boolean = {
         // Ok so the name of this function is an abuse of the english language... sue me...
         log.indented(false, "pathHasClass(%s, %s)?", cp_sub, c_sup) {
-            cp_sub match {                
-                case cgp: ir.CanonGhostPath => prog.isSubclass(cgp.c_cp, c_sup)
-                case crp: ir.CanonReifiedPath => isSubclass(crp.wt, c_sup)
+            cp_sub.components.exists { 
+                case ir.CpcGhost(_, c) => prog.isSubclass(c, c_sup)
+                case ir.CpcReified(_, wt) => isSubclass(wt, c_sup)
             }
         }
     }
@@ -1043,11 +1032,11 @@ sealed case class TcEnv(
     /** Does `cp_sub` refer to an object whose type could be `c_sup`? */
     def pathCouldHaveClass(cp_sub: ir.CanonPath, c_sup: ir.ClassName): Boolean = {
         log.indented(false, "pathCouldHaveClass(%s, %s)?", cp_sub, c_sup) {
-            cp_sub match {                
-                case cgp: ir.CanonGhostPath => 
-                    prog.isSubclass(cgp.c_cp, c_sup) || prog.isSubclass(c_sup, cgp.c_cp)
-                case crp: ir.CanonReifiedPath => 
-                    isSubclass(crp.wt, c_sup) || isSubclass(c_sup, crp.wt)
+            cp_sub.components.exists { 
+                case ir.CpcGhost(_, c) => 
+                    prog.isSubclass(c, c_sup) || prog.isSubclass(c_sup, c)
+                case ir.CpcReified(_, wt) => 
+                    isSubclass(wt, c_sup) || isSubclass(c_sup, wt)
             }
         }
     }
@@ -1059,7 +1048,7 @@ sealed case class TcEnv(
             cd.superClasses.map(ir.ClassType(_, cd.ghosts, cd.typeArgs))
         }
 
-        val subst = PathSubst.vp(ir.lv_this, tcp.p)
+        val subst = PathSubst.vp(ir.lv_this, tcp.forPath)
         ofClass(tcp.ty.c).map { ct_sup =>
             tcp.withTy(
                 ir.WcClassType(
@@ -1102,7 +1091,7 @@ sealed case class TcEnv(
         cp_sub: ir.CanonPath,
         wg_sup: ir.WcGhost
     ) = {
-        log.indented("pathHasSubWcGhost(%s, %s)?", tcp_sub, wg_sup) {
+        log.indented("pathHasSubWcGhost(%s, %s)?", cp_sub, wg_sup) {
             val cp_f = fld(cp_sub, wg_sup.f)
             isLtWpath(cp_f, wg_sup.wp)
         }
@@ -1121,7 +1110,7 @@ sealed case class TcEnv(
                     ubs_sup.forall(ub_sup =>
                         ubs_sub.exists(ub_sub =>
                             isSubtype(ub_sup, ub_sub)))
-            }            
+            }
         }
     }
     

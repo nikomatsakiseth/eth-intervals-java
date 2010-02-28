@@ -6,6 +6,7 @@ import scala.collection.immutable.ListSet
 import scala.collection.mutable.ListBuffer
 import scala.util.parsing.input.Positional
 import Util._
+import ir./
 
 class TypeCheck(prog: Prog) extends CheckPhase(prog)
 {    
@@ -684,11 +685,11 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                 def check(p_dep: ir.Path) {
                     log.indented("check_dep_path(%s)", p_dep) {
                         p_dep match {
-                            case ir.Path(lv, List()) => 
+                            case ir.PathLv(lv) =>
                                 // Always permitted, as local variables are immutable.
                                 log("dependent on local var")
 
-                            case ir.Path(ir.lv_this(), List(f)) =>
+                            case ir.PathLv(ir.lv_this()) / f =>
                                 log("dependent on another field of this")
                                 val cp_dep = env.canonPath(p_dep)
                                 if(
@@ -701,9 +702,9 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                                         "intervals.illegal.type.dep",
                                         cp_dep.p, cp_guard.p)
 
-                            case ir.Path(lv, f :: rev_fs) =>
+                            case p_base / f =>
                                 log("misc dependency")
-                                check(ir.Path(lv, rev_fs))
+                                check(p_base)
                                 val cp_dep = env.canonPath(p_dep)
                                 if(
                                     // illegal if mutable when guard is writable

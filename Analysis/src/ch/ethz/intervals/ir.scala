@@ -102,7 +102,7 @@ object ir {
     }
     
     sealed case class VarName(name: String) extends Name(name) {
-        def path = ir.Path(this, List())
+        def path = ir.PathLv(this)
         def +(f: FieldName) = path + f
         def ++(fs: List[FieldName]) = path ++ fs
     }
@@ -505,6 +505,7 @@ object ir {
         def isDependentOn(p: Path): Boolean =
             addDependentPaths(Set.empty).exists(_.hasPrefix(p))
     }
+    
     sealed abstract class WcWildcardPath(ps: List[Path]) extends WcPath {
         def isGenerated = false
         def addDependentPaths(s: Set[Path]) = s ++ ps
@@ -513,40 +514,50 @@ object ir {
             case _ => tag + " " + ps.mkString(", ")
         }
     }
+    
     sealed case class WcReadableBy(ps: List[Path]) extends WcWildcardPath(ps) {
         override def toString = toString("readableBy")
     }
+    
     sealed case class WcWritableBy(ps: List[Path]) extends WcWildcardPath(ps) {
         override def toString = toString("writableBy")
     }
+    
     sealed case class WcHbNow(ps: List[Path]) extends WcWildcardPath(ps) {
         override def toString = toString("hbNow")
     }
-        
-    sealed case class Path(
-        lv: VarName, rev_fs: List[FieldName] // Fields stored in reverse order!
-    ) extends WcPath {
-        def isGenerated = lv.isGenerated && rev_fs.isEmpty
+    
+    sealed abstract class Path extends WcPath {
+        def lv: ir.VarName
+        def rev_fs: List[ir.FieldName]
         def fs = rev_fs.reverse
-        def +(f: ir.FieldName) = Path(lv, f :: rev_fs)
+        
+        def isGenerated = lv.isGenerated && rev_fs.isEmpty
+        def addDependentPaths(s: Set[ir.Path]) = s + this   
+        
+        def +(f: ir.FieldName) = PathField(this, f)
         def ++(fs: List[ir.FieldName]) = fs.foldLeft(this)(_ + _)
-        
-        def addDependentPaths(s: Set[ir.Path]) = s + this
-        
-        def hasPrefix(p: ir.Path) =
-            lv == p.lv && rev_fs.endsWith(p.rev_fs)
-            
         def start = this + ir.f_start
         def end = this + ir.f_end
-        
-        def stripSuffix(f_suffix: ir.FieldName) = {
-            if(!rev_fs.isEmpty && rev_fs.head == f_suffix) {
-                Some(Path(lv, rev_fs.tail))
-            } else 
-                None
-        }
-        
-        override def toString = ".".join(lv :: fs)
+             
+        def hasPrefix(p: ir.Path) =
+            lv == p.lv && rev_fs.endsWith(p.rev_fs)            
+    }
+
+    sealed case class PathLv(lv: ir.VarName) extends Path {
+        def rev_fs = List()
+        override def toString = lv.toString
+    }
+    
+    sealed case class PathField(p_base: ir.Path, f: ir.FieldName) extends Path {
+        def lv = p_base.lv
+        def rev_fs = f :: p_base.rev_fs
+        override def toString = p_base.toString + "." + f
+    }
+    
+    // Used for reverse pattern matching on lists:
+    object / {
+        def unapply(pf: PathField) = Some((pf.p_base, pf.f))
     }
     
     // ___ Canonical Paths __________________________________________________
@@ -573,17 +584,36 @@ object ir {
         def thisSubst = PathSubst.vp(ir.lv_this, p)
     } 
     
-    sealed case class CpcGhost(
-        p: ir.Path,
-        wps_is: List[ir.WcPath],
-        c: ir.ClassName
-    ) extends CanonPathComponent {
-        def isReified = true
+    sealed abstract class CpcGhost extends CanonPathComponent {
+        def isReified = false
+        def c: ir.ClassName
+    }
+    
+    object CpcGhost {
+        def unapply(comp: CpcGhost) = Some((comp.p, comp.c))
+    }
+    
+    sealed case class CpcGhostLv(
+        lv: ir.VarName,
+        c: ir.ClassName,
+        wps_is: List[ir.WcPath]
+    ) extends CpcGhost {
+        def p = lv.path        
+        override def toString = p.toString
+    }
+    
+    sealed case class CpcGhostField(
+        cpc_base: ir.CanonPathComponent,
+        f: ir.FieldName,
+        c: ir.ClassName,
+        wps_is: List[ir.WcPath]
+    ) extends CpcGhost {
+        def p = cpc_base.p + f
         override def toString = p.toString
     }
     
     sealed abstract class CpcReified extends CanonPathComponent {
-        def isReified = false
+        def isReified = true
         def wt: ir.WcTypeRef
     }
     
@@ -601,20 +631,21 @@ object ir {
     }
     
     sealed case class CpcReifiedField(
-        p: ir.Path,
+        cpc_base: CanonPathComponent,
         rfd: ir.ReifiedFieldDecl
     ) extends CpcReified {
+        def p = cpc_base.p + rfd.name
         def wt = rfd.wt
         def wps = rfd.wps_is
         override def toString = p.toString
     }
     
-    sealed case class CanonPath(
+    class CanonPath(
         /** The path for which this CanonPath was constructed: */
-        p: ir.Path,
+        val forPath: ir.Path,
         
         /** Information about equivalent paths we uncovered: */
-        components: List[ir.CanonPathComponent]
+        val components: List[ir.CanonPathComponent]
     ) {
         def isReified = components.exists(_.isReified)
         def isGhost = !isReified
@@ -625,14 +656,38 @@ object ir {
         }
         
         def paths = components.map(_.p)
-        def equiv(cp: CanonPath) = components.exists(comp => cp.components.exists(_.p == comp.p))
-        override def toString = "cp(%s; %s)".format(p, ", ".join(components))
+        def wpaths = components.flatMap(_.wps_is)
+        def wts = reifiedComponents.map(_.wt)
+        
+        override def toString = "cp(%s; %s)".format(forPath, ", ".join(components))
+        override def equals(a: Any) = a match {
+            case cp: CanonPath => components.equals(cp.components)
+            case _ => false
+        }
+        override def hashCode = components.hashCode
+    }
+    
+    object CanonPath {
+        def apply(p: ir.Path, components: List[ir.CanonPathComponent]) =
+            new CanonPath(p, components)
+    }
+    
+    /** A subtype of `CanonPath` whose components have been found to be 
+      * immutable in some interval. */
+    sealed class ImmutableCanonPath(
+        forPath: ir.Path, 
+        components: List[ir.CanonPathComponent]
+    ) extends CanonPath(forPath, components)
+    
+    object ImmutableCanonPath {
+        def apply(p: ir.Path, components: List[ir.CanonPathComponent]) =
+            new ImmutableCanonPath(p, components)
     }
     
     sealed case class TeeCeePee[+T <: WcTypeRef](cp: CanonPath, ty: T) {
-        def p = cp.p
+        def forPath = cp.forPath
         def withTy[S <: WcTypeRef](ty: S) = ir.TeeCeePee(cp, ty)
-        override def toString = "tcp(%s: %s)".format(p, ty)
+        override def toString = "tcp(%s: %s)".format(forPath, ty)
     }    
     
     object TeeCeePee {
