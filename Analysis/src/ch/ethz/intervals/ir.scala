@@ -103,8 +103,8 @@ object ir {
     
     sealed case class VarName(name: String) extends Name(name) {
         def path = ir.PathLv(this)
-        def +(f: FieldName) = path + f
-        def ++(fs: List[FieldName]) = path ++ fs
+        def /(f: FieldName) = path / f
+        def /+(fs: List[FieldName]) = path /+ fs
     }
     
     sealed case class TypeVarName(name: String) extends Name(name)
@@ -116,7 +116,7 @@ object ir {
     }
 
     sealed abstract class FieldName(name: String) extends Name(name) {
-        def thisPath = p_this + this
+        def thisPath = p_this / this
     }
     
     sealed case class PlainFieldName(name: String) extends FieldName(name)
@@ -173,7 +173,7 @@ object ir {
     ) extends PositionalAst {
         def isNamed(f: ir.FieldName) = (name == f)
         def thisPath = name.thisPath                        
-        def ghostOf(p: ir.Path) = ir.Ghost(name, p + name)
+        def ghostOf(p: ir.Path) = ir.Ghost(name, p / name)
         def setDefaultPosOnChildren() { }
     }
     
@@ -546,10 +546,10 @@ object ir {
         def isGenerated = lv.isGenerated && rev_fs.isEmpty
         def addDependentPaths(s: Set[ir.Path]) = s + this   
         
-        def +(f: ir.FieldName): Path = PathField(this, f)
-        def ++(fs: List[ir.FieldName]) = fs.foldLeft(this)(_ + _)
-        def start = this + ir.f_start
-        def end = this + ir.f_end
+        def /(f: ir.FieldName): Path = PathField(this, f)
+        def /+(fs: List[ir.FieldName]) = fs.foldLeft(this)(_ / _)
+        def start = this / ir.f_start
+        def end = this / ir.f_end
              
         def hasPrefix(p: ir.Path) =
             lv == p.lv && rev_fs.endsWith(p.rev_fs)            
@@ -566,7 +566,7 @@ object ir {
         override def toString = p_base.toString + "." + f
     }
     
-    // Used for reverse pattern matching on lists:
+    // Used for reverse pattern matching on paths:
     object / {
         def unapply(pf: PathField) = Some((pf.p_base, pf.f))
     }
@@ -619,7 +619,7 @@ object ir {
         c: ir.ClassName,
         wps_is: List[ir.WcPath]
     ) extends CpcGhost {
-        def p = cpc_base.p + f
+        def p = cpc_base.p / f
         override def toString = p.toString
     }
     
@@ -645,7 +645,7 @@ object ir {
         cpc_base: CanonPathComponent,
         rfd: ir.ReifiedFieldDecl
     ) extends CpcReified {
-        def p = cpc_base.p + rfd.name
+        def p = cpc_base.p / rfd.name
         def wt = rfd.wt
         def wps_is = rfd.wps_is
         override def toString = p.toString

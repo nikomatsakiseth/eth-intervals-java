@@ -390,7 +390,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                 checkCompoundStatement(env, ss_cur, stmt_compound)
                            
             case ir.StmtSuperCtor(m, lvs_args) =>
-                val md = env.reqdMethod(env.methodDeclOfClass(env.c_super, m), m)
+                val md = env.ctorOfClass(env.c_super, m)
                 env = processCall(env, None, ir.lv_this, md, lvs_args)
                 
                 // Ctors for all supertypes now complete:
@@ -408,7 +408,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                 val cp_guard = env.immutableCanonPath(rfd.p_guard)
                 checkReadable(env, cp_guard)
                 
-                val cp_field = env.canonPath(lv_owner + f)
+                val cp_field = env.canonPath(lv_owner / f)
                 env.asImmutable(cp_field) match {
                     case Some(cp_field) => env.addPerm(lv_def, cp_field)                            
                     case None =>
@@ -427,7 +427,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                 checkWritable(env, cp_guard)
                 checkIsSubtype(env, cp_value, rfd.wt)
                 
-                val cp_field = env.canonPath(lv_owner + f)
+                val cp_field = env.canonPath(lv_owner / f)
                 env = env.addTemp(cp_field, cp_value)
         
                 env = env.removeInvalidated(cp_field)

@@ -501,14 +501,14 @@ class TranslateTypeFactory(
             
             if(declGhosts.isDefinedAt(f_ext))
                 // Exact match:
-                ParsePath(pp.p + f_ext, declGhosts(f_ext))
+                ParsePath(pp.p / f_ext, declGhosts(f_ext))
                 
             else f_ext match {
                 // Built-in constructor intervals:
                 case ir.ClassCtorFieldName(_) =>
-                    ParsePath(pp.p + f_ext, wke.Interval.ty)                    
+                    ParsePath(pp.p / f_ext, wke.Interval.ty)                    
                 case ir.f_objCtor() =>
-                    ParsePath(pp.p + f_ext, wke.Interval.ty)                    
+                    ParsePath(pp.p / f_ext, wke.Interval.ty)                    
                 
                 // Search for a non-ambigious short-name match:
                 case ir.PlainFieldName(str_ext) =>
@@ -518,14 +518,14 @@ class TranslateTypeFactory(
                     potentialMatches match {
                         // Single match: use the ghost
                         case List(f_g) => 
-                            ParsePath(pp.p + f_g, declGhosts(f_g))
+                            ParsePath(pp.p / f_g, declGhosts(f_g))
                         
                         // No matchs, search for a real field with that name:
                         case List() => 
                             findField(pp.ty, str_ext) match {
                                 case None => throw new CheckFailure("intervals.no.such.field", f_ext)
                                 case Some((elem_ext, ty_ext)) => 
-                                    ParsePath(pp.p + fieldName(elem_ext), ty_ext)
+                                    ParsePath(pp.p / fieldName(elem_ext), ty_ext)
                             }
                             
                         // Multiple matches, error:

@@ -1,6 +1,7 @@
 package ch.ethz.intervals
 
 import scala.collection.immutable.Map
+import ir./
 
 class PathSubst(private val m: Map[ir.Path, ir.Path]) extends BaseSubst {
     
@@ -11,7 +12,7 @@ class PathSubst(private val m: Map[ir.Path, ir.Path]) extends BaseSubst {
         (m.get(p), p) match {
             case (Some(q), _) => q
             case (None, ir.PathLv(lv)) => p
-            case (None, ir.PathField(p_base, f)) => path(p_base) + f
+            case (None, p_base / f) => path(p_base) / f
         }
 
 }

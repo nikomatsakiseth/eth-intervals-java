@@ -142,7 +142,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
         at(stmt, ()) {
             stmt match {                  
                 case ir.StmtSuperCtor(m, lvs_args) =>
-                    val md = env.reqdMethod(env.methodDeclOfClass(env.c_super, m), m)
+                    val md = env.ctorOfClass(env.c_super, m)
                     checkCall(ir.lv_this, md, lvs_args)
                     
                 case ir.StmtGetField(lv_def, lv_owner, f) =>

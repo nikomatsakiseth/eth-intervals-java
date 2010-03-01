@@ -162,7 +162,7 @@ sealed case class TcEnv(
         log.indented(false, "userHbPair(%s,%s)", cp_from, cp_to) {
             def make(cp: ir.CanonPath, f: ir.FieldName) = {
                 if(pathHasClass(cp, ir.c_point)) cp.paths
-                else if(pathHasClass(cp, ir.c_interval)) cp.paths.map(_ + f)
+                else if(pathHasClass(cp, ir.c_interval)) cp.paths.map(_ / f)
                 else List()
             }
 
@@ -332,7 +332,7 @@ sealed case class TcEnv(
     private[this] def fld(cp_base: ir.CanonPath, fs: ir.FieldName*) = {
         log.indented(false, "fld(%s, %s)", cp_base, fs) {
             fs.foldLeft(cp_base) { case (cp, f) =>
-                extendCanonWithFieldNamed(cp.forPath + f, cp.paths.toSet, cp, f)
+                extendCanonWithFieldNamed(cp.forPath / f, cp.paths.toSet, cp, f)
             }
         }
     }
@@ -362,12 +362,12 @@ sealed case class TcEnv(
         val comps = cp_base.components.flatMap { comp_base =>
             f match {
                 case ir.ClassCtorFieldName(_) | ir.f_objCtor() =>
-                    Some(extendComponentWithGhostField(comp_base, f, ir.c_interval))
+                    extendComponentWithGhostField(comp_base, f, ir.c_interval)
 
                 case _ =>
                     ghostFieldsDeclaredOnComponent(comp_base).find(_.isNamed(f)) match {
                         case Some(ir.GhostFieldDecl(f_gfd, c_gfd)) =>
-                            Some(extendComponentWithGhostField(comp_base, f_gfd, c_gfd))
+                            extendComponentWithGhostField(comp_base, f_gfd, c_gfd)
 
                         case None =>
                             optSubstdReifiedFieldDeclOfComp(comp_base, f).map { 
@@ -390,9 +390,27 @@ sealed case class TcEnv(
         c_gf: ir.ClassName
     ) = {
         log.indented("extendComponentWithGhostField(%s, %s, %s)", comp_base, f_gf, c_gf) {
-            val wp_gf = compGhost(comp_base, f_gf)
-            log("wp_gf = %s", wp_gf)
-            ir.CpcGhostField(comp_base, f_gf, c_gf, List(wp_gf))
+            val subst = comp_base.thisSubst
+            comp_base match {
+                case ir.CpcReified(_, wt) =>
+                    val wgs_all = lowerBoundingCts(wt).flatMap { wct =>
+                        wct.wghosts ++ ghostsOnClassAndSuperclasses(wct.c).map(subst.ghost)
+                    }
+                    Some(ir.CpcGhostField(
+                        comp_base,
+                        f_gf,
+                        c_gf,
+                        wgs_all.find(_.isNamed(f_gf)).map(_.wp).toList
+                    ))
+                    
+                case ir.CpcGhost(_, c) =>
+                    // Unlike for reified bases, we only build a path if the ghost was bound on
+                    // some class.  In other words, don't build a path like g1.g2 where g[12]
+                    // are ghost fields.  
+                    ghostsOnClassAndSuperclasses(c).find(_.isNamed(f_gf)).map(subst.ghost).map {
+                        wg => ir.CpcGhostField(comp_base, f_gf, c_gf, List(wg.wp))
+                    }
+            }
         }
     }
     
@@ -720,7 +738,7 @@ sealed case class TcEnv(
                 log.indented("cp0.Constructor[_] < cp0.Constructor?") {
                     cp.components.flatMap {
                         case ir.CpcGhostField(cp0, ir.ClassCtorFieldName(_), _, _) =>
-                            Some(canonPath(cp0.p + ir.f_objCtor))
+                            Some(canonPath(cp0.p / ir.f_objCtor))
                         case _ => None
                     }
                 }
@@ -869,27 +887,6 @@ sealed case class TcEnv(
     
     private[this] def among(cp: ir.CanonPath, cqs: List[ir.CanonPath]) = {
         cqs.exists { cq => equiv(cp, cq) || suspends(cp, cq) }
-    }
-    
-    /** Returns the binding for ghost field `f` on `comp`. */
-    private[this] def compGhost(
-        comp: ir.CanonPathComponent, 
-        f: ir.FieldName
-    ): ir.WcPath = {
-        val subst = comp.thisSubst
-        val wgs_all = comp match {
-            case ir.CpcReified(_, wt) =>
-                lowerBoundingCts(wt).flatMap { wct =>
-                    wct.wghosts ++ ghostsOnClassAndSuperclasses(wct.c).map(subst.ghost)
-                }
-                
-            case ir.CpcGhost(_, c) =>
-                ghostsOnClassAndSuperclasses(c).map(subst.ghost)
-        }
-        wgs_all.find(_.isNamed(f)) match {
-            case Some(wg) => wg.wp
-            case None => comp.p + f
-        }
     }
     
     /** Returns the binding for type arg `tv` on `comp`. */

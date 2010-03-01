@@ -11,7 +11,7 @@ PROFILEOPTS=-agentlib:hprof=cpu=samples,depth=6
 all: test
 
 clean:
-	rm -rf debug-logs bin bin-test
+	rm -rf debug-logs bin bin-test .scala_dependencies
 
 compile:
 	mkdir -p bin bin-test

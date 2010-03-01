@@ -45,7 +45,7 @@ class IrParser extends BaseParser {
     def lv = id                                 ^^ ir.VarName
     def tv = id                                 ^^ ir.TypeVarName
     
-    def p = lv~rep("."~>f)                      ^^ { case lv~fs => lv ++ fs }
+    def p = lv~rep("."~>f)                      ^^ { case lv~fs => lv /+ fs }
     def g = "@"~f~"("~p~")"                     ^^ { case _~f~_~p~_ => ir.Ghost(f, p) }    
     def ta = "<"~tv~":"~wt~">"                  ^^ { case _~tv~_~wt~_ => ir.TypeArg(tv, wt) }
     def pt = p~":"~tv                           ^^ { case p~_~tv => ir.PathType(p, tv) }

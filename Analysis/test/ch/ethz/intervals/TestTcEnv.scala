@@ -17,7 +17,7 @@ import java.io.File
 class TestTcEnv extends JUnitSuite { 
     import TestAll.DEBUG_DIR
     
-    val logTests: Set[String] = Set("mutuallyRecursiveInBaseClass")
+    val logTests: Set[String] = Set("happened")
     
     // Implicits for concisely creating WcClassTypes:
     case class EnhancedWcClassType(wct: ir.WcClassType) {
