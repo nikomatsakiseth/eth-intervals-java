@@ -191,7 +191,7 @@ object ir {
         args: List[ir.LvDecl],
         reqs: List[ir.Req],
         wt_ret: ir.WcTypeRef,
-        wps_is: List[ir.WcPath],
+        wps_identity: List[ir.WcPath],
         body: ir.StmtSeq
     ) extends PositionalAst {
         def isNamed(n: MethodName) = (name == n)
@@ -205,7 +205,7 @@ object ir {
                 ir.lv_mthd  :: ir.lv_this   :: args.map(_.name),
                 lv_cur      :: lv_rcvr      :: lvs_args
             ).methodSig(            
-                ir.MethodSig(args.map(_.wt), name, reqs, wt_ret, wps_is)
+                ir.MethodSig(args.map(_.wt), args.map(_.wps_identity), name, reqs, wt_ret, wps_identity)
             )
         }
         
@@ -219,10 +219,11 @@ object ir {
     
     sealed case class MethodSig(
         wts_args: List[ir.WcTypeRef],
+        argIdentities: List[List[ir.WcPath]],
         name: ir.MethodName,
         reqs: List[ir.Req],
         wt_ret: ir.WcTypeRef,
-        wps_is: List[ir.WcPath]
+        retIdentity: List[ir.WcPath]
     ) {
         override def toString = "(%s %s(%s)%s)".format(
             wt_ret, name, ", ".join(wts_args), "".join(" ", reqs))
@@ -231,7 +232,7 @@ object ir {
     sealed case class LvDecl(
         name: ir.VarName,
         wt: ir.WcTypeRef,
-        wps_is: List[ir.WcPath]
+        wps_identity: List[ir.WcPath]
     ) {
         override def toString = "%s: %s".format(name, wt)
     }
@@ -241,7 +242,7 @@ object ir {
         wt: ir.WcTypeRef,
         name: ir.FieldName,
         p_guard: ir.Path,
-        wps_is: List[ir.WcPath]
+        wps_identity: List[ir.WcPath]
     ) extends PositionalAst {
         def isNamed(n: FieldName) = (name == n)
         def thisPath = name.thisPath                        
@@ -586,7 +587,7 @@ object ir {
         def p: ir.Path
         
         /** List of WcPaths which apply to this component.  May include p. */
-        def wps_is: List[ir.WcPath]
+        def wps_identity: List[ir.WcPath]
         
         /** Will the path `p` exist at runtime? */
         def isReified: Boolean
@@ -607,7 +608,7 @@ object ir {
     sealed case class CpcGhostLv(
         lv: ir.VarName,
         c: ir.ClassName,
-        wps_is: List[ir.WcPath]
+        wps_identity: List[ir.WcPath]
     ) extends CpcGhost {
         def p = lv.path        
         override def toString = p.toString
@@ -617,7 +618,7 @@ object ir {
         cpc_base: ir.CanonPathComponent,
         f: ir.FieldName,
         c: ir.ClassName,
-        wps_is: List[ir.WcPath]
+        wps_identity: List[ir.WcPath]
     ) extends CpcGhost {
         def p = cpc_base.p / f
         override def toString = p.toString
@@ -635,7 +636,7 @@ object ir {
     sealed case class CpcReifiedLv(
         lv: ir.VarName,
         wt: ir.WcTypeRef,
-        wps_is: List[ir.WcPath]
+        wps_identity: List[ir.WcPath]
     ) extends CpcReified {
         def p = lv.path
         override def toString = lv.toString
@@ -647,7 +648,7 @@ object ir {
     ) extends CpcReified {
         def p = cpc_base.p / rfd.name
         def wt = rfd.wt
-        def wps_is = rfd.wps_is
+        def wps_identity = rfd.wps_identity
         override def toString = p.toString
     }
     
@@ -662,14 +663,15 @@ object ir {
         
         // The "representative" component is a good one for error messages:
         def reprComp = {
+            val sorted = components.sortWith((c1, c2) => c1.p.toString.length > c2.p.toString.length)
             // First choose a reified one without redirections:
-            components.find(comp => comp.isReified && comp.wps_is.isEmpty).getOrElse {
+            sorted.find(comp => comp.isReified && comp.wps_identity.isEmpty).getOrElse {
                 // Next take any reified path:
-                components.find(_.isReified).getOrElse {
+                sorted.find(_.isReified).getOrElse {
                     // Next take a ghost path without redirections:
-                    components.find(comp => comp.wps_is.isEmpty).getOrElse {
+                    sorted.find(comp => comp.wps_identity.isEmpty).getOrElse {
                         // Finally take anything at all:
-                        components(0)
+                        sorted(0)
                     }
                 }                
             }
@@ -686,7 +688,7 @@ object ir {
         }
         
         def paths = components.map(_.p)
-        def wpaths = components.flatMap(_.wps_is)
+        def wps_identity = components.flatMap(_.wps_identity)
         def wts = reifiedComponents.map(_.wt)
         
         override def toString = "cp(%s)".format(reprPath)
@@ -706,7 +708,9 @@ object ir {
       * immutable in some interval. */
     sealed class ImmutableCanonPath(
         components: List[ir.CanonPathComponent]
-    ) extends CanonPath(components)
+    ) extends CanonPath(components) {
+        override def toString = "immcp(%s)".format(reprPath)        
+    }
     
     object ImmutableCanonPath {
         def apply(components: List[ir.CanonPathComponent]) =
@@ -832,7 +836,7 @@ object ir {
             args   = List(),
             reqs   = List(),
             wt_ret = t_void,
-            wps_is = List(),
+            wps_identity = List(),
             body   = ir.StmtSeq(
                 List(
                     ir.StmtSuperCtor(m_init, List()),
@@ -915,7 +919,7 @@ object ir {
                     args   = List(),
                     reqs   = List(),
                     wt_ret = t_void, 
-                    wps_is = List(),
+                    wps_identity = List(),
                     body   = empty_method_body)),
             reifiedFieldDecls = List(),
             methods           = List(
@@ -926,7 +930,7 @@ object ir {
                         ir.ReqReadableBy(List(p_this_creator), List(p_mthd)),
                         req_constructed),
                     wt_ret = c_string.ct, 
-                    wps_is = List(),
+                    wps_identity = List(),
                     body   = empty_method_body))
         ),
         ClassDecl(
@@ -978,7 +982,7 @@ object ir {
                         ir.ReqSuspends(List(p_mthd), List(p_this)),
                         ir.ReqHb(List(p_this_objCtor), List(p_mthd))),
                     wt_ret = t_void, 
-                    wps_is = List(),
+                    wps_identity = List(),
                     body   = empty_method_body))
         ),
         ClassDecl(

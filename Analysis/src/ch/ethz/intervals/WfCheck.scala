@@ -163,8 +163,8 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                 case ir.StmtCall(lv_def, lv_rcvr, m, lvs_args) =>
                     val cp_rcvr = env.reifiedLv(lv_rcvr)                
                     val md = env.reqdMethod(env.methodDeclOfCp(cp_rcvr, m), m)
-                    checkCall(ir.lv_this, md, lvs_args)
-                    val msig = md.msig(env.lv_cur, ir.lv_this, lvs_args)
+                    checkCall(lv_rcvr, md, lvs_args)
+                    val msig = md.msig(env.lv_cur, lv_rcvr, lvs_args)
                     addReifiedLocal(lv_def, msig.wt_ret)
         
                 case ir.StmtSuperCall(lv_def, m, lvs_args) =>
@@ -267,7 +267,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                         stmt_c.kind.subseqs.foreach(checkStatementSeq(stmt_c :: stmts_stack))                        
                     }
                 
-                    stmt_c.defines.foreach(addArg)
+                    addCheckedArgs(stmt_c.defines)
             }        
         }
         
@@ -275,9 +275,12 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
         seq.stmts.foreach(checkStatement(stmts_stack))
     }
     
-    def addCheckedArg(arg: ir.LvDecl) {
-        addArg(arg)
-        checkWtrefWf(arg.wt) 
+    def addCheckedArgs(args: List[ir.LvDecl]) {
+        args.flatMap(_.wps_identity).foreach(checkWPathWf)
+        args.foreach { arg =>
+            setEnv(env.addArg(arg))
+            checkWtrefWf(arg.wt) 
+        }
     }
     
     def checkReq(req: ir.Req) =
@@ -308,7 +311,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                 addGhostLocal(ir.lv_mthd, ir.wt_constructedInterval)
 
                 setCurrent(ir.lv_mthd)
-                md.args.foreach(addCheckedArg)
+                addCheckedArgs(md.args)
                 checkWtrefWf(md.wt_ret)                
                 md.reqs.foreach(checkReq)
                 checkStatementSeq(List())(md.body)
@@ -323,7 +326,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                 addPerm(ir.lv_mthd, cp_ctor)
                 setCurrent(ir.lv_mthd)
                 
-                md.args.foreach(addCheckedArg)
+                addCheckedArgs(md.args)
                 md.reqs.foreach(checkReq)
         
                 // TODO -- Have the checking of super() verify that p_this is a ghost

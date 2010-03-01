@@ -28,9 +28,10 @@ abstract class Log {
     private def escape(fmt: String, args: List[Any]): String = {
         def toLogString(o: Any) = o match {
             case null => escape("null")
+            case () => escape("unit")
             case elem: Element => escape("%s[%s]".format(elem.getKind, qualName(elem)))
             case tree: Tree => escape("%s[%s]".format(tree.getKind, prefix(tree.toString)))
-            case cp: ir.CanonPath => inlineCanonPath(cp)
+            case _ if hasDetailedRepr(o) => inline(_.detailed(o))(o)
             case _ => escape(o.toString)
         }
 
@@ -55,7 +56,7 @@ abstract class Log {
             ifEnabled { rawStart(open, escape(fmt, (arg0 :: args.toList))) }
             val result = f
             if(result != ()) // no need to print Unit
-                indentedClosed("Result") { apply(result) }
+                apply("Result: %s", result)
             result
         } catch {
             case t: Throwable => 
@@ -73,18 +74,7 @@ abstract class Log {
     
     // ___ Methods to add to the log ________________________________________
     
-    def apply(v: Any): Unit = ifEnabled {
-        v match {
-            case e: TcEnv => env(true, "Env", e)
-            case f: FlowEnv => flow(true, "Flow", f)
-            case m: Map[_, _] => map("Map", m)
-            case r: PathRelation => map("PathRelation", r.mmap.map)
-            case cd: ir.ClassDecl => classDecl("", cd)
-            case rfd: ir.ReifiedFieldDecl => reifiedFieldDecl("", rfd)
-            case md: ir.MethodDecl => methodDecl(true, "", md)
-            case _ => rawWrite(escape(v.toString))
-        }
-    }
+    def apply(v: Any) = detailed(v)
     
     def apply(fmt: String, arg0: Any, args: Any*): Unit = ifEnabled {
         rawWrite(escape(fmt, (arg0 :: args.toList)))
@@ -96,6 +86,34 @@ abstract class Log {
     
     def linkTo(uri: String, fmt: String, arg0: Any, args: Any*): Unit = ifEnabled {
         rawLinkTo(uri, escape(fmt, (arg0 :: args.toList)))
+    }
+    
+    // ___ Custom ___________________________________________________________
+    
+    private def hasDetailedRepr(v: Any) = v match {
+        case e: TcEnv => true
+        case f: FlowEnv => true
+        case m: Map[_, _] => true
+        case r: PathRelation => true
+        case cd: ir.ClassDecl => true
+        case rfd: ir.ReifiedFieldDecl => true
+        case md: ir.MethodDecl => true
+        case cp: ir.CanonPath => true
+        case _ => false
+    }
+    
+    private def detailed(v: Any): Unit = ifEnabled {
+        v match {
+            case e: TcEnv => env(true, "Env", e)
+            case f: FlowEnv => flow(true, "Flow", f)
+            case m: Map[_, _] => map("Map", m)
+            case r: PathRelation => map("PathRelation", r.mmap.map)
+            case cd: ir.ClassDecl => classDecl("", cd)
+            case rfd: ir.ReifiedFieldDecl => reifiedFieldDecl("", rfd)
+            case md: ir.MethodDecl => methodDecl(true, "", md)
+            case cp: ir.CanonPath => canonPath(true, "Canonical Path: ", cp)
+            case _ => rawWrite(escape(v.toString))                    
+        }
     }
     
     def env(open: Boolean, lbl: Any, env: TcEnv): Unit = ifEnabled {
@@ -141,7 +159,7 @@ abstract class Log {
     }
     
     def classDecl(lbl: Any, cd: ir.ClassDecl): Unit = ifEnabled {
-        indented("%s%s", lbl, cd) {
+        indented("%s%s", lbl, cd.toString) {
             cd.ghostFieldDecls.foreach(apply)
             cd.typeVarDecls.foreach(apply)
             cd.ghosts.foreach(apply)
@@ -154,7 +172,7 @@ abstract class Log {
     }
     
     def reifiedFieldDecl(lbl: Any, rfd: ir.ReifiedFieldDecl): Unit = ifEnabled {
-        indented("%s%s", lbl, rfd) {
+        indented("%s%s", lbl, rfd.toString) {
             apply("attrs: %s", rfd.as)
             apply("wt: %s", rfd.wt)
             apply("p_guard: %s", rfd.p_guard)
@@ -162,7 +180,7 @@ abstract class Log {
     }
             
     def methodDecl(open: Boolean, lbl: Any, md: ir.MethodDecl): Unit = ifEnabled {
-        indented(open, "%s%s", lbl, md) {
+        indented(open, "%s%s", lbl, md.toString) {
             apply("wt_ret: %s", md.wt_ret)
             indented("args:")   { md.args.foreach(apply) }
             indented("reqs:")   { md.reqs.foreach(apply) }            
@@ -179,7 +197,7 @@ abstract class Log {
     }
     
     def statementSeq(lbl: Any, seq: ir.StmtSeq): Unit = ifEnabled {
-        indented("%s%s", lbl, seq) {
+        indented("%s%s", lbl, seq.toString) {
             seq.stmts.foreach(statement("", _))
         }
     }
@@ -215,20 +233,37 @@ abstract class Log {
                 apply("%s%s", lbl, stmt)
         }
     }
-    
-    def canonPath(open: Boolean, lbl: Any, cp: ir.CanonPath) = {
-        indented(open, "%s%s", lbl, cp.reprPath) {
-            cp.components.foreach { 
-                case ir.CpcReified(p, wt) => apply("%s: %s", p, wt)
-                case ir.CpcGhost(p, c) => apply("%s: %s", p, c)
-            }
+
+    def canonPathComponent(open: Boolean, lbl: Any, comp: ir.CanonPathComponent): Unit = ifEnabled {
+        comp match {
+            case comp @ ir.CpcReifiedField(cpc_base, rfd) => 
+                indented(open, "%s: %s", comp.p, comp.wt) { 
+                    canonPathComponent(true, "base", cpc_base)
+                    reifiedFieldDecl("rfd", rfd)
+                }
+            case comp @ ir.CpcReifiedLv(lv, wt, wps_identity) =>
+                indented(open, "%s: %s", comp.p, comp.wt) { 
+                    apply("lv: %s", lv)
+                    apply("wt: %s", wt)
+                    wps_identity.foreach { wp => apply("identity: %s", wp) }
+                }
+            case comp @ ir.CpcGhost(p, c) => 
+                apply("%s: %s", p, c)                
         }
     }
     
-    def inlineCanonPath(cp: ir.CanonPath) = {
-        val ilog = inlineLog        
-        ilog.canonPath(true, "Canonical Path: ", cp)
-        "<a href=\"%s\">%s</a>".format(ilog.uri, escape("cp(%s)".format(cp.reprPath)))
+    def canonPath(open: Boolean, lbl: Any, cp: ir.CanonPath) = {
+        indented(open, "%s%s", lbl, cp.reprPath) {
+            cp.components.foreach(canonPathComponent(false, "", _))
+        }
     }
-            
+    
+    private[this] def inline(func: (Log => Unit))(lbl: Any) = {
+        val ilog = inlineLog
+        func(ilog)
+        "<a href=\"%s\" onMouseover=\"preview(this);\" onMouseout=\"closePreview(this);\">%s</a>".format(ilog.uri, escape(lbl.toString))
+    }
+    
+    def inlineCanonPath(cp: ir.CanonPath) = inline(_.canonPath(true, "Canonical Path: ", cp))(cp)
+    
 }

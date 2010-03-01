@@ -20,7 +20,7 @@ class TestAnalysis extends JUnitSuite {
     import TestAll.DEBUG_DIR
     import TestAll.subst
     
-    val logTests: Set[String] = Set("readPhaseWithSubintervals")
+    val logTests: Set[String] = Set("simpleIsAnnots")
     
     // ___ Test running infrastructure ______________________________________
     
@@ -361,7 +361,7 @@ class TestAnalysis extends JUnitSuite {
                     
                     // Not known to be constructed:
                     unconstructed = this->unconstructed;
-                    u1 = unconstructed->built(); // ERROR intervals.requirement.not.met(built, requires this.unconstructed.#Constructor hb <method-call>)
+                    u1 = unconstructed->built(); // ERROR intervals.requirement.not.met(built, requires unconstructed.#Constructor hb <method-call>)
                     u2 = unconstructed->c; // ERROR intervals.not.readable(this.unconstructed.#Constructor)
                     
                     return;
@@ -409,11 +409,18 @@ class TestAnalysis extends JUnitSuite {
                     return;
                 }
                 
-                void readFinal2(#Object@#Creator(this.final) o) 
+                void readFinal2(#Object@#Creator(this.final) o)
                 {
-                    // This method could be invoked in the constructor,
-                    // so we can't even use this.final in an attribute.
-                    o->toString(); // ERROR intervals.must.be.immutable(o.#Creator)
+                    // Here the type system resolves o.#Creator to this.final,
+                    // but this.final is not an immutable path.  
+                    o->toString(); // ERROR intervals.requirement.not.met(toString, requires o.#Creator readableBy <method-call>)
+                    return;
+                }
+                
+                void readFinal3(#Object@#Creator(this.final) o)
+                requires o.#Creator readableBy method
+                {
+                    o->toString();
                     return;
                 }
             }
@@ -476,7 +483,7 @@ class TestAnalysis extends JUnitSuite {
                 requires method suspends this
                 {
                     obj = this->obj;
-                    obj->toString(); // ERROR intervals.requirement.not.met(toString, requires this.obj.#Creator readableBy <method-call>)
+                    obj->toString(); // ERROR intervals.requirement.not.met(toString, requires obj.#Creator readableBy <method-call>)
                     return;
                 }
             }           
@@ -957,7 +964,7 @@ class TestAnalysis extends JUnitSuite {
                 requires this.#Constructor hb method
                 {
                     foo1 = this->foo1;
-                    foo1->m1(); // ERROR intervals.requirement.not.met(m1, requires this.foo1.#Creator readableBy <method-call>)
+                    foo1->m1(); // ERROR intervals.requirement.not.met(m1, requires foo1.#Creator readableBy <method-call>)
                     return;
                 }
                 
@@ -1643,7 +1650,7 @@ class TestAnalysis extends JUnitSuite {
                     dataList->add(extData);
                     
                     extDataList = this->extDataList;
-                    extDataList->add(extData); // ERROR intervals.expected.subtype(extData, @#Constructor(hbNow) @#Creator(this.#Creator) Data, this.extDataList:E)
+                    extDataList->add(extData); // ERROR intervals.expected.subtype(extData, @#Constructor(hbNow) @#Creator(this.#Creator) Data, extDataList:E)
                     return;
                 }
                 
@@ -1668,10 +1675,10 @@ class TestAnalysis extends JUnitSuite {
                 requires this.Constructor hb method
                 {
                     dataList = this->dataList;
-                    dataList->add(extData); // ERROR intervals.expected.subtype(extData, @#Constructor(hbNow) ExtData, this.dataList:E)
+                    dataList->add(extData); // ERROR intervals.expected.subtype(extData, @#Constructor(hbNow) ExtData, dataList:E)
                     
                     extDataList = this->extDataList;
-                    extDataList->add(extData); // ERROR intervals.expected.subtype(extData, @#Constructor(hbNow) ExtData, this.extDataList:E)
+                    extDataList->add(extData); // ERROR intervals.expected.subtype(extData, @#Constructor(hbNow) ExtData, extDataList:E)
                     return;
                 }
             }
@@ -1833,51 +1840,56 @@ class TestAnalysis extends JUnitSuite {
             class TestInterval extends #Interval
             {
                 @Is(this.#Parent)
-                Interval parent requires this.#Constructor;
+                #Interval parent requires this.#Constructor;
                 
                 Constructor ok(
-                    @Is(this.#Parent) Interval parent
+                    @Is(this.#Parent) #Interval parent
                 ) {
                     this->parent = parent;
                     return;                    
                 }
                 
                 Constructor bad(
-                    Interval parent
+                    #Interval parent
                 ) {
-                    this->parent = parent; // ERROR foo
+                    this->parent = parent; // ERROR intervals.must.match(parent, this.(ch.ethz.intervals.Parent))
                     return;                    
                 }
                 
-                @Is(this.#Parent) Interval parent()
+                @Is(this.#Parent) #Interval parent()
+                requires this.#Constructor hb method
                 {
                     parent = this->parent;
                     return parent;
                 }
                 
-                @Is(this.#Parent) Interval bogusParent()
+                @Is(this.#Parent) #Interval bogusParent()
+                requires this.#Constructor hb method
                 {
-                    return this; // ERROR foo
+                    return this; // ERROR intervals.must.match(this, this.#Parent)
                 }
                 
                 void makeWithThisAsParent()
+                requires this.#Constructor hb method
                 {
                     good = new TestInterval @#Parent(this) ok(this);
-                    bad = new TestInterval @#Parent(this.#Parent) ok(this); // ERROR foo
+                    bad = new TestInterval @#Parent(this.#Parent) ok(this); // ERROR intervals.must.match(this, bad.#Parent)
                 }
                 
                 void makeSiblingWithFieldLoad()
+                requires this.#Constructor hb method
                 {
                     parent = this->parent;
                     good = new TestInterval @#Parent(this.#Parent) ok(parent);
-                    bad = new TestInterval @#Parent(this) ok(parent);  // ERROR foo
+                    bad = new TestInterval @#Parent(this) ok(parent);  // ERROR intervals.must.match(this.parent, bad.#Parent)
                 }
                 
                 void makeSiblingWithMethodReturn()
+                requires this.#Constructor hb method
                 {
                     parent = this->parent();
                     good = new TestInterval @#Parent(this.#Parent) ok(parent);
-                    bad = new TestInterval @#Parent(this) ok(parent);  // ERROR foo
+                    bad = new TestInterval @#Parent(this) ok(parent);  // ERROR intervals.must.match(parent, bad.#Parent)
                 }
                 
             }

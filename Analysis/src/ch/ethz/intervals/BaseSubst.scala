@@ -62,22 +62,23 @@ abstract class BaseSubst {
             wcTref(fd.wt), 
             fd.name, 
             path(fd.p_guard),
-            fd.wps_is.map(wpath)
+            fd.wps_identity.map(wpath)
         ).withPos(fd.pos)
         
     def lvDecl(lv: ir.LvDecl): ir.LvDecl = 
         ir.LvDecl(
             lv.name, 
             wcTref(lv.wt),
-            lv.wps_is.map(wpath)
+            lv.wps_identity.map(wpath)
         )
 
     def methodSig(msig: ir.MethodSig): ir.MethodSig =
         ir.MethodSig(
             msig.wts_args.map(wcTref), 
+            msig.argIdentities.map(_.map(wpath)),
             msig.name, 
             msig.reqs.map(req), 
             wcTref(msig.wt_ret),
-            msig.wps_is.map(wpath)
+            msig.retIdentity.map(wpath)
         )
 }

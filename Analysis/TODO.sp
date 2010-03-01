@@ -2,6 +2,11 @@ ___ To Do List _______________________________________________________
 
 ______ OOPSLA Bugs ___________________________________________________
 
+- Temp mapping: we should (a) ensure that reified fields can only be mapped to ghost fields (or
+  wildcards) using {@Is}, and then (b) only add reified fields as keys in the temp mapping.
+  Together, this should ensure that the temp mapping is reversible and eliminate our annoying
+  problem.
+
 - Check ps_is on field stores
 
 - Check ps_is on method returns

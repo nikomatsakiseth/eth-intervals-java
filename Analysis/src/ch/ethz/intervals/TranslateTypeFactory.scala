@@ -733,7 +733,7 @@ class TranslateTypeFactory(
             args = eelem.getParameters.map(dummyLvDecl).toList,
             reqs = List(),
             wt_ret = ir.t_void,
-            wps_is = List(),
+            wps_identity = List(),
             body = ir.empty_method_body
         )
 
@@ -813,7 +813,7 @@ class TranslateTypeFactory(
                 val annty = getAnnotatedType(eelem)
                 ir.MethodDecl(
                     wt_ret = wtref(env_mthd, ir.wgs_constructed)(annty.getReturnType),
-                    wps_is = List(),
+                    wps_identity = List(),
                     name = methodName(eelem), 
                     args = eelem.getParameters.map(intArgDecl).toList,
                     reqs = methodReqs(eelem),

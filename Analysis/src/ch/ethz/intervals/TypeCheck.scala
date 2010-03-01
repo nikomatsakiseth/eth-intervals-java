@@ -22,7 +22,15 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
         if(!env.pathHasType(cp_sub, wt_sup))
             throw new CheckFailure(
                 "intervals.expected.subtype", 
-                cp_sub.reprPath, cp_sub.reprWt.toUserString, wt_sup.toUserString)
+                cp_sub.reprPath, cp_sub.reprWt.toUserString, wt_sup.toUserString
+            )
+    }
+    
+    def checkPathIdentity(env: TcEnv, cp: ir.CanonPath, wps_identity: List[ir.WcPath]) {
+        wps_identity.foreach { wp_is =>
+            if(!env.pathMatchesWpath(cp, wp_is))
+                throw new CheckFailure("intervals.must.match", cp.reprPath, wp_is)
+        }
     }
     
     // ___ Statement Stack __________________________________________________
@@ -67,8 +75,11 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
             
     }
     
-    def checkArgumentTypes(env: TcEnv, msig: ir.MethodSig, cqs: List[ir.CanonPath]) =
-        foreachzip(cqs, msig.wts_args)(checkIsSubtype(env, _, _))
+    def checkArgumentTypes(env: TcEnv, msig: ir.MethodSig, cps_args: List[ir.CanonPath]) =
+        foreachzip(cps_args, msig.wts_args)(checkIsSubtype(env, _, _))
+    
+    def checkArgumentIdentities(env: TcEnv, msig: ir.MethodSig, cps_args: List[ir.CanonPath]) =
+        foreachzip(cps_args, msig.argIdentities)(checkPathIdentity(env, _, _))
     
     def checkReadable(env: TcEnv, cp_guard: ir.CanonPath) {
         if(!env.isReadableBy(cp_guard, env.cp_cur))
@@ -107,8 +118,9 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
             
             // Receiver/Arguments must have correct type and requirements must be fulfilled:
             val cps_args = env.immutableReifiedLvs(lvs_args)
-            log.indented("arguments")   { checkArgumentTypes(env, msig, cps_args) }
-            log.indented("reqs")        { msig.reqs.foreach(checkReqFulfilled(env, msig.name, _)) }
+            log.indented("argument types")  { checkArgumentTypes(env, msig, cps_args) }
+            log.indented("arguments are")   { checkArgumentIdentities(env, msig, cps_args) }
+            log.indented("reqs")            { msig.reqs.foreach(checkReqFulfilled(env, msig.name, _)) }
 
             // Any method call disrupts potential temporary assocations:
             env = env.clearTemp()
@@ -116,7 +128,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
             // Define the return value, if any:
             o_lv_result match {
                 case Some(lv_result) =>
-                    env.addReifiedLocal(lv_result, msig.wt_ret, msig.wps_is)
+                    env.addReifiedLocal(lv_result, msig.wt_ret, msig.retIdentity)
                     
                 case None => env
             }     
@@ -193,15 +205,19 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
         
         def inScope(p: ir.Path) = (p.lv != lv_outOfScope)
 
-        def mapMap(map: Map[ir.Path, ir.Path]) =
-            map.iterator.foldLeft(Map.empty[ir.Path, ir.Path]) { case (r, (p0, q0)) =>
-                // Careful: if (p0->q0) was in the original mapping and p0 was immutable,
-                // then q0 will be mapped to p1.
-                val p1 = subst.path(p0)
-                val q1 = subst.path(q0)
-                if(p1 != q1 && inScope(p1) && inScope(q1)) r + (p1 -> q1)
-                else r
-            }
+        // This caused problems with @Is, because there could be multiple
+        // entries in the map like (p1 -> lv, p2 -> lv), and we'd end up with a 
+        // map like (p1 -> p2).  Decided to just take the easy way of dealing with 
+        // this by clearing the temp mapping at every merge point.
+        //def mapMap(map: Map[ir.Path, ir.Path]) =
+        //    map.iterator.foldLeft(Map.empty[ir.Path, ir.Path]) { case (r, (p0, q0)) =>
+        //        // Careful: if (p0->q0) was in the original mapping and p0 was immutable,
+        //        // then q0 will be mapped to p1.
+        //        val p1 = subst.path(p0)
+        //        val q1 = subst.path(q0)
+        //        if(p1 != q1 && inScope(p1) && inScope(q1)) r + (p1 -> q1)
+        //        else r
+        //    }
 
         def mapPathRelation(rel: PathRelation) =
             flow_brk.mapFilter(rel, subst.path, inScope)
@@ -220,7 +236,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
         .copy(flow = 
             FlowEnv(
                 nonnull        = flow_brk.nonnull.map(subst.path).filter(inScope),
-                temp           = mapMap(flow_brk.temp),
+                temp           = Map(), //mapMap(flow_brk.temp),
                 ps_invalidated = mapInvalidated(flow_brk.ps_invalidated),
                 equivRel       = mapPathRelation(flow_brk.equivRel),
                 readableRel    = mapPathRelation(flow_brk.readableRel),
@@ -427,7 +443,9 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                 checkWritable(env, cp_guard)
                 checkIsSubtype(env, cp_value, rfd.wt)
                 
-                val cp_field = env.canonPath(lv_owner / f)
+                val cp_field = env.canonPath(lv_owner / f)                
+                checkPathIdentity(env, cp_value, cp_field.wps_identity)
+                
                 env = env.addTemp(cp_field, cp_value)
         
                 env = env.removeInvalidated(cp_field)

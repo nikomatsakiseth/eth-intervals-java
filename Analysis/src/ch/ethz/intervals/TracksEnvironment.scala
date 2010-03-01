@@ -59,10 +59,6 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog)
         setEnv(env.addPerm(x, cp))        
     }
 
-    def addArg(arg: ir.LvDecl) = {
-        setEnv(env.addArg(arg))
-    }      
-        
     def addReifiedLocal(x: ir.VarName, wt: ir.WcTypeRef) = {
         setEnv(env.addReifiedLocal(x, wt))
     }
