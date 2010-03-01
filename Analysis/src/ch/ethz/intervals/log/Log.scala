@@ -20,7 +20,7 @@ abstract class Log {
     
     // ___ Sublogs __________________________________________________________
     
-    def log(name: String): Log            // Creates a new log, inserting a link into this one.
+    def inlineLog: Log                    // Creates a new log, inserting no links.
     def splitLog(name: String): SplitLog  // Creates a new split log, inserting a link into this one.
 
     // ___ Raw methods to add to the log ____________________________________
@@ -30,6 +30,7 @@ abstract class Log {
             case null => escape("null")
             case elem: Element => escape("%s[%s]".format(elem.getKind, qualName(elem)))
             case tree: Tree => escape("%s[%s]".format(tree.getKind, prefix(tree.toString)))
+            case cp: ir.CanonPath => inlineCanonPath(cp)
             case _ => escape(o.toString)
         }
 
@@ -213,6 +214,21 @@ abstract class Log {
             case _ => 
                 apply("%s%s", lbl, stmt)
         }
+    }
+    
+    def canonPath(open: Boolean, lbl: Any, cp: ir.CanonPath) = {
+        indented(open, "%s%s", lbl, cp.forPath) {
+            cp.components.foreach { 
+                case ir.CpcReified(p, wt) => apply("%s: %s", p, wt)
+                case ir.CpcGhost(p, c) => apply("%s: %s", p, c)
+            }
+        }
+    }
+    
+    def inlineCanonPath(cp: ir.CanonPath) = {
+        val ilog = inlineLog        
+        ilog.canonPath(true, "Canonical Path: ", cp)
+        "<a href=\"%s\">%s</a>".format(ilog.uri, escape("cp(%s)".format(cp.forPath)))
     }
             
 }

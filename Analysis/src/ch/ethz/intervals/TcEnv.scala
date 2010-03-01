@@ -754,7 +754,10 @@ sealed case class TcEnv(
     
     private[this] def immediateSuperintervalsOf(cp: ir.CanonPath) = {
         log.indented("immediateSuperintervalsOf(%s)", cp) {
-            immediateInlineSuperintervalsOf(cp) + fld(cp, ir.f_parent)
+            immediateInlineSuperintervalsOf(cp) ++ {
+                if(cp.isReified) Some(fld(cp, ir.f_parent))
+                else None                
+            }
         }
     }
 
@@ -769,11 +772,32 @@ sealed case class TcEnv(
     class HbWalk(
         didNotHappen: Set[ir.Path],
         p_from: ir.Path,
-        p_to: ir.Path
-    ) {
+        p_original_to: ir.Path
+    ) {        
+        def starts(cp: ir.CanonPath) = cp.paths.map(_.start)
+        def ends(cp: ir.CanonPath) = cp.paths.map(_.end)
+        def isInterval(cp: ir.CanonPath) = pathHasClass(cp, ir.c_interval)
         
+        // Find a set of points to which we are trying to find a path.  This
+        // set includes p_original_to but also the start point of any superintervals.
+        // This is necessary because succ() cannot travel from the start point of
+        // a superinterval to the start point of its children.
+        val ps_to = {
+            def expand(p_base: ir.Path) = {
+                val cp_base = canonPath(p_base)
+                if(isInterval(cp_base)) superintervalsOf(cp_base).flatMap(starts)
+                else Set()
+            }
+
+            Set(p_original_to) ++ (p_original_to match {
+                case p_base / ir.f_start() => expand(p_base)
+                case p_base / ir.f_end() => expand(p_base)
+                case _ => Set()
+            })            
+        }
+
         def doWalk(): Boolean = {
-            log.indented(false, "bfs(%s,%s)", p_from, p_to) {
+            log.indented(false, "bfs(%s,%s)", p_from, ps_to) {
                 visitNext(Set(p_from), Queue.Empty.enqueue(p_from))
             }
         }
@@ -783,17 +807,13 @@ sealed case class TcEnv(
             case _ => None
         }
         
-        def starts(cp: ir.CanonPath) = cp.paths.map(_.start)
-        def ends(cp: ir.CanonPath) = cp.paths.map(_.end)
-        def isInterval(cp0: ir.CanonPath) = pathHasClass(cp0, ir.c_interval)
-
         def visitNext(vis: Set[ir.Path], queue0: Queue[ir.Path]): Boolean = {
             if(queue0.isEmpty)
                 false
             else {
                 val (p_cur, queue1) = queue0.dequeue
                 log("search(%s)", p_cur)
-                (p_cur == p_to) || {
+                ps_to(p_cur) || {
                     val ps_unvisited_succ = succ(p_cur).filter(p => !vis(p))
                     visitNext(vis ++ ps_unvisited_succ, queue1.enqueue(ps_unvisited_succ))
                 }                
@@ -1110,7 +1130,7 @@ sealed case class TcEnv(
     ): Boolean = {
         log.indented(false, "pathHasType(%s, %s)?", cp_sub, wt_sup) {
             cp_sub.reifiedComponents.exists { comp =>
-                log.indented("comp=%s") {
+                log.indented("comp=%s", comp) {
                     val wts_sub = lowerBoundingWts(comp.wt)
                     val wts_sup = upperBoundingWts(wt_sup)
 

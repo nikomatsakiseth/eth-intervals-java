@@ -7,6 +7,6 @@ object DevNullLog extends Log {
     def rawLinkTo(uri: String, html: String) { }
     def escape(s: String) = s
     def ifEnabled(f: => Unit): Unit = ()
-    def log(name: String) = this
+    def inlineLog = this
     def splitLog(name: String) = SplitLog.devNullSplitLog
 }

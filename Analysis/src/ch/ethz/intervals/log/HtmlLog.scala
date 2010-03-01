@@ -172,9 +172,8 @@ class HtmlLog(
 
     def ifEnabled(f: => Unit): Unit = f
     
-    def log(name: String) = {
+    def inlineLog = {
         val f = logDirectory.newFile(".html")
-        linkTo(f.getName, name)
         new HtmlLog(logDirectory, f, None)
     }
     
