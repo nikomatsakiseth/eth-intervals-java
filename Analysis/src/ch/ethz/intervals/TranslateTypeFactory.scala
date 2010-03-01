@@ -209,6 +209,16 @@ class TranslateTypeFactory(
                     (velem_field, types.asMemberOf(dty_owner, velem_field)))
         }
     }
+    
+    def identityAnnot(elem: Element) = {
+        Option(elem.getAnnotation(classOf[Is])) match {
+            case Some(annot) =>
+                val env = elemEnv(elem)
+                List(AnnotParser(env).wpath(annot.value))
+            case None =>
+                List()
+        }
+    }
         
     // ___ Ghost Fields _____________________________________________________
     
@@ -781,13 +791,13 @@ class TranslateTypeFactory(
     def intFieldDecl(velem: VariableElement) = {
         indexLog.indented("Field: %s", qualName(velem)) {
             at(ElementPosition(velem), dummyFieldDecl(velem)) {
-                val env = elemEnv(velem)
+                val env = elemEnv(velem)                
                 ir.ReifiedFieldDecl(
-                    ir.noAttrs,
-                    wtref(env, ir.wgs_fieldsDefault)(getAnnotatedType(velem)),
-                    fieldName(velem),  
-                    fieldGuard(env)(velem),
-                    List()       
+                    as           = ir.noAttrs,
+                    wt           = wtref(env, ir.wgs_fieldsDefault)(getAnnotatedType(velem)),
+                    name         = fieldName(velem),  
+                    p_guard      = fieldGuard(env)(velem),
+                    wps_identity = identityAnnot(velem)
                 ).withPos(env.pos)
             }
         }        
@@ -797,9 +807,9 @@ class TranslateTypeFactory(
         indexLog.indented("Arg: %s", qualName(velem)) {
             at(ElementPosition(velem), dummyLvDecl(velem)) {
                 ir.LvDecl(
-                    localVariableName(velem),
-                    wtref(elemEnv(velem), ir.wgs_constructed)(getAnnotatedType(velem)),
-                    List()
+                    name         = localVariableName(velem),
+                    wt           = wtref(elemEnv(velem), ir.wgs_constructed)(getAnnotatedType(velem)),
+                    wps_identity = identityAnnot(velem)
                 )
             }
         }        
@@ -812,12 +822,12 @@ class TranslateTypeFactory(
                 val env_mthd = elemEnv(eelem)
                 val annty = getAnnotatedType(eelem)
                 ir.MethodDecl(
-                    wt_ret = wtref(env_mthd, ir.wgs_constructed)(annty.getReturnType),
-                    wps_identity = List(),
-                    name = methodName(eelem), 
-                    args = eelem.getParameters.map(intArgDecl).toList,
-                    reqs = methodReqs(eelem),
-                    body = ir.empty_method_body
+                    wt_ret       = wtref(env_mthd, ir.wgs_constructed)(annty.getReturnType),
+                    wps_identity = identityAnnot(eelem),
+                    name         = methodName(eelem), 
+                    args         = eelem.getParameters.map(intArgDecl).toList,
+                    reqs         = methodReqs(eelem),
+                    body         = ir.empty_method_body
                 ).withPos(env_mthd.pos)
             }
         }        

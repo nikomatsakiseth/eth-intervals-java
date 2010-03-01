@@ -368,7 +368,7 @@ sealed case class TcEnv(
     private[this] def fld(cp_base: ir.CanonPath, fs: ir.FieldName*) = {
         log.indented(false, "fld(%s, %s)", cp_base, fs) {
             fs.foldLeft(cp_base) { case (cp, f) =>
-                extendCanonWithFieldNamed(cp.reprPath / f, cp.paths.toSet, cp, f)
+                extendCanonWithFieldNamed(cp.reprPath / f, Set(), cp, f)
             }
         }
     }

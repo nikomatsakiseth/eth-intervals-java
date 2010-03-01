@@ -10,6 +10,7 @@ import ch.ethz.intervals.guard.Guard;
 import ch.ethz.intervals.mirror.IntervalMirror;
 import ch.ethz.intervals.mirror.LockMirror;
 import ch.ethz.intervals.mirror.PointMirror;
+import ch.ethz.intervals.quals.Is;
 import ch.ethz.intervals.quals.Requires;
 import ch.ethz.intervals.util.ChunkList;
 
@@ -21,7 +22,7 @@ implements Dependency, Guard, IntervalMirror
 	// =====================================================================================
 	// Public interface (and some private supporting functions):
 	
-	public final @Parent("?") Interval parent;
+	public final @Is("Parent") Interval parent;
 	public final Point start;
 	public final Point end;
 	

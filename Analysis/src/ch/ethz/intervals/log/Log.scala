@@ -176,6 +176,7 @@ abstract class Log {
             apply("attrs: %s", rfd.as)
             apply("wt: %s", rfd.wt)
             apply("p_guard: %s", rfd.p_guard)
+            apply("wps_identity: %s", rfd.wps_identity)
         }        
     }
             
@@ -247,8 +248,17 @@ abstract class Log {
                     apply("wt: %s", wt)
                     wps_identity.foreach { wp => apply("identity: %s", wp) }
                 }
-            case comp @ ir.CpcGhost(p, c) => 
-                apply("%s: %s", p, c)                
+            case comp @ ir.CpcGhostField(cpc_base, f, c, wps_identity) =>
+                indented(open, "%s: %s", comp.p, c) { 
+                    canonPathComponent(true, "base", cpc_base)
+                    apply("f: %s", f)                    
+                    wps_identity.foreach { wp => apply("identity: %s", wp) }                    
+                }
+            case comp @ ir.CpcGhostLv(lv, c, wps_identity) => 
+                indented(open, "%s: %s", comp.p, c) { 
+                    apply("lv: %s", lv)
+                    wps_identity.foreach { wp => apply("identity: %s", wp) }
+                }
         }
     }
     
