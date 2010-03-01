@@ -18,12 +18,13 @@ class Prog(
     def errors = logStack.errors
     
     val env_empty = TcEnv(
-        this,
-        ir.c_void,
-        None,
-        ir.t_void,
-        Map(),
-        FlowEnv.empty
+        prog        = this,
+        c_this      = ir.c_void,
+        o_lv_cur    = None,
+        wt_ret      = ir.t_void,
+        identityRet = List(),
+        perm        = Map(),
+        flow        = FlowEnv.empty
     )        
 
     // ___ Class table ______________________________________________________

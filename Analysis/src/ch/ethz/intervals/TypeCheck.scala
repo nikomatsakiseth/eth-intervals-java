@@ -510,7 +510,8 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                 checkNoInvalidated(env)
                 op.foreach { p =>
                     val cp = env.immutableReifiedLv(p)
-                    checkIsSubtype(env, cp, env.wt_ret)                    
+                    checkIsSubtype(env, cp, env.wt_ret)
+                    checkPathIdentity(env, cp, env.identityRet)
                 }
                 mergeBreakEnv(env, ss_cur, ss_cur.length - 1, List())
                 ss_cur.head.env_in
@@ -620,7 +621,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
             env = env.addNonNull(env.cp_this)
             
             env = env.addArgs(md.args)
-            env = env.withReturnType(md.wt_ret)
+            env = env.withReturn(md.wt_ret, md.wps_identity)
             
             env.substdOverriddenMethodSigs(env.ct_this, md).foreach { msig_sup => 
                 checkArgumentTypesNonvariant(env, md.args, msig_sup.wts_args)

@@ -20,7 +20,7 @@ class TestAnalysis extends JUnitSuite {
     import TestAll.DEBUG_DIR
     import TestAll.subst
     
-    val logTests: Set[String] = Set("simpleIsAnnots")
+    val logTests: Set[String] = Set()
     
     // ___ Test running infrastructure ______________________________________
     
@@ -1835,7 +1835,7 @@ class TestAnalysis extends JUnitSuite {
     
     @Test
     def simpleIsAnnots() {
-        success(
+        tc(
             """
             class TestInterval extends #Interval
             {

@@ -12,6 +12,7 @@ sealed case class TcEnv(
     c_this: ir.ClassName,
     o_lv_cur: Option[ir.VarName],                 // current interval (if any)
     wt_ret: ir.WcTypeRef,                         // return type of current method
+    identityRet: List[ir.WcPath],                 // identity
     perm: Map[ir.VarName, ir.ImmutableCanonPath], // permanent equivalences, hold for duration of method
     flow: FlowEnv
 ) {
@@ -34,10 +35,11 @@ sealed case class TcEnv(
         
     // ___ Modifying the Environment ________________________________________
     
-    /** Set return type to `wt_ret` */
-    def withReturnType(wt_ret: ir.WcTypeRef) = copy(wt_ret = wt_ret)
+    def withReturn(
+        wt_ret: ir.WcTypeRef,
+        identityRet: List[ir.WcPath]
+    ) = copy(wt_ret = wt_ret, identityRet = identityRet)
     
-    /** Set current interval to `cp_cur` */
     def withCurrent(lv_cur: ir.VarName) = copy(o_lv_cur = Some(lv_cur))
 
     /** Set `c_this`, adding `this` as a local variable. */
