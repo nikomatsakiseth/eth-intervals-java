@@ -100,7 +100,7 @@ abstract class Log {
     
     def env(open: Boolean, lbl: Any, env: TcEnv): Unit = ifEnabled {
         indented(open, "%s", lbl) {
-            apply("ocp_cur: %s", env.ocp_cur)
+            apply("o_lv_cur: %s", env.o_lv_cur)
             apply("wt_ret: %s", env.wt_ret)
             map("perm:", env.perm)
             flow(true, "flow:", env.flow)
@@ -217,7 +217,7 @@ abstract class Log {
     }
     
     def canonPath(open: Boolean, lbl: Any, cp: ir.CanonPath) = {
-        indented(open, "%s%s", lbl, cp.forPath) {
+        indented(open, "%s%s", lbl, cp.reprPath) {
             cp.components.foreach { 
                 case ir.CpcReified(p, wt) => apply("%s: %s", p, wt)
                 case ir.CpcGhost(p, c) => apply("%s: %s", p, c)
@@ -228,7 +228,7 @@ abstract class Log {
     def inlineCanonPath(cp: ir.CanonPath) = {
         val ilog = inlineLog        
         ilog.canonPath(true, "Canonical Path: ", cp)
-        "<a href=\"%s\">%s</a>".format(ilog.uri, escape("cp(%s)".format(cp.forPath)))
+        "<a href=\"%s\">%s</a>".format(ilog.uri, escape("cp(%s)".format(cp.reprPath)))
     }
             
 }

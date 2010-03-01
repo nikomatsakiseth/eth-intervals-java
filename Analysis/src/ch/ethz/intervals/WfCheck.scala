@@ -19,12 +19,12 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
 
     def checkCouldHaveClass(cp: ir.CanonPath, cs: ir.ClassName*) {
         if(!cs.exists(env.pathCouldHaveClass(cp, _)))
-            throw new CheckFailure("intervals.expected.subclass.of.any", cp.forPath, ", ".join(cs))
+            throw new CheckFailure("intervals.expected.subclass.of.any", cp.reprPath, ", ".join(cs))
     }
     
     def checkSubclass(cp: ir.CanonPath, cs: ir.ClassName*) {
         if(!cs.exists(env.pathCouldHaveClass(cp, _)))
-            throw new CheckFailure("intervals.expected.subclass.of.any", cp.forPath, ", ".join(cs))
+            throw new CheckFailure("intervals.expected.subclass.of.any", cp.reprPath, ", ".join(cs))
     }
     
     def checkCanonAndSubclass[X](
@@ -164,13 +164,13 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                     val cp_rcvr = env.reifiedLv(lv_rcvr)                
                     val md = env.reqdMethod(env.methodDeclOfCp(cp_rcvr, m), m)
                     checkCall(ir.lv_this, md, lvs_args)
-                    val msig = md.msig(env.p_cur, ir.lv_this, lvs_args)
+                    val msig = md.msig(env.lv_cur, ir.lv_this, lvs_args)
                     addReifiedLocal(lv_def, msig.wt_ret)
         
                 case ir.StmtSuperCall(lv_def, m, lvs_args) =>
                     val md = env.reqdMethod(env.methodDeclOfClass(env.c_super, m), m)
                     checkCall(ir.lv_this, md, lvs_args)
-                    val msig = md.msig(env.p_cur, ir.lv_this, lvs_args)
+                    val msig = md.msig(env.lv_cur, ir.lv_this, lvs_args)
                     addReifiedLocal(lv_def, msig.wt_ret)
                 
                 case ir.StmtNew(lv_def, ct, m, lvs_args) =>
@@ -307,7 +307,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                 // Define special vars "method" and "this":
                 addGhostLocal(ir.lv_mthd, ir.wt_constructedInterval)
 
-                setCurrent(env.cp_mthd)
+                setCurrent(ir.lv_mthd)
                 md.args.foreach(addCheckedArg)
                 checkWtrefWf(md.wt_ret)                
                 md.reqs.foreach(checkReq)
@@ -321,7 +321,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                 // Define special vars "method" (== this.constructor) and "this":
                 val cp_ctor = env.immutableCanonPath(ir.ClassCtorFieldName(cd.name).thisPath)
                 addPerm(ir.lv_mthd, cp_ctor)
-                setCurrent(env.cp_mthd)
+                setCurrent(ir.lv_mthd)
                 
                 md.args.foreach(addCheckedArg)
                 md.reqs.foreach(checkReq)

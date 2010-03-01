@@ -7,7 +7,7 @@ class LogDirectory(val dir: File) {
         throw new RuntimeException("Failed to create log directory: %s".format(dir))
         
     def newFile(prefix: String, suffix: String): File = LogDirectory.newFile(dir, prefix, suffix)
-    def newFile(suffix: String): File = newFile(System.nanoTime.toString, suffix)    
+    def newFile(suffix: String): File = newFile("Z"+System.nanoTime, suffix)    
     val mainSplitLog = SplitLog.newFrameset(this, "index")
     val indexLog = mainSplitLog.indexLog
     val detailLog = mainSplitLog.detailLog

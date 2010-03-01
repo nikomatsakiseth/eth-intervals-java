@@ -197,13 +197,13 @@ object ir {
         def isNamed(n: MethodName) = (name == n)
         
         def msig(
-            p_call: ir.Path,
+            lv_cur: ir.VarName,
             lv_rcvr: ir.VarName,
             lvs_args: List[ir.VarName]
         ) = {
-            PathSubst.vp(
-                ir.lv_mthd  :: ir.lv_this       :: args.map(_.name),
-                p_call      :: lv_rcvr.path     :: lvs_args.map(_.path)
+            PathSubst.vv(
+                ir.lv_mthd  :: ir.lv_this   :: args.map(_.name),
+                lv_cur      :: lv_rcvr      :: lvs_args
             ).methodSig(            
                 ir.MethodSig(args.map(_.wt), name, reqs, wt_ret, wps_is)
             )
@@ -652,14 +652,33 @@ object ir {
     }
     
     class CanonPath(
-        /** The path for which this CanonPath was constructed: */
-        val forPath: ir.Path,
-        
         /** Information about equivalent paths we uncovered: */
         val components: List[ir.CanonPathComponent]
     ) {
+        assert(!components.isEmpty)
+        
         def isReified = components.exists(_.isReified)
         def isGhost = !isReified
+        
+        // The "representative" component is a good one for error messages:
+        def reprComp = {
+            // First choose a reified one without redirections:
+            components.find(comp => comp.isReified && comp.wps_is.isEmpty).getOrElse {
+                // Next take any reified path:
+                components.find(_.isReified).getOrElse {
+                    // Next take a ghost path without redirections:
+                    components.find(comp => comp.wps_is.isEmpty).getOrElse {
+                        // Finally take anything at all:
+                        components(0)
+                    }
+                }                
+            }
+        }        
+        def reprPath = reprComp.p
+        def reprWt = reprComp match {
+            case CpcReified(_, wt) => wt
+            case CpcGhost(_, c) => c.ct
+        }
         
         def reifiedComponents = components.flatMap {
             case rcomp @ ir.CpcReified(_, _) => Some(rcomp)
@@ -670,7 +689,7 @@ object ir {
         def wpaths = components.flatMap(_.wps_is)
         def wts = reifiedComponents.map(_.wt)
         
-        override def toString = "cp(%s; %s)".format(forPath, ", ".join(components))
+        override def toString = "cp(%s)".format(reprPath)
         override def equals(a: Any) = a match {
             case cp: CanonPath => components.equals(cp.components)
             case _ => false
@@ -679,26 +698,25 @@ object ir {
     }
     
     object CanonPath {
-        def apply(p: ir.Path, components: List[ir.CanonPathComponent]) =
-            new CanonPath(p, components)
+        def apply(components: List[ir.CanonPathComponent]) =
+            new CanonPath(components)
     }
     
     /** A subtype of `CanonPath` whose components have been found to be 
       * immutable in some interval. */
     sealed class ImmutableCanonPath(
-        forPath: ir.Path, 
         components: List[ir.CanonPathComponent]
-    ) extends CanonPath(forPath, components)
+    ) extends CanonPath(components)
     
     object ImmutableCanonPath {
-        def apply(p: ir.Path, components: List[ir.CanonPathComponent]) =
-            new ImmutableCanonPath(p, components)
+        def apply(components: List[ir.CanonPathComponent]) =
+            new ImmutableCanonPath(components)
     }
     
     sealed case class TeeCeePee[+T <: WcTypeRef](cp: CanonPath, ty: T) {
-        def forPath = cp.forPath
+        def reprPath = cp.reprPath
         def withTy[S <: WcTypeRef](ty: S) = ir.TeeCeePee(cp, ty)
-        override def toString = "tcp(%s: %s)".format(forPath, ty)
+        override def toString = "tcp(%s: %s)".format(reprPath, ty)
     }    
     
     object TeeCeePee {

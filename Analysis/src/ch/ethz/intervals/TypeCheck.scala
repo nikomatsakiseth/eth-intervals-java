@@ -22,7 +22,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
         if(!env.pathHasType(cp_sub, wt_sup))
             throw new CheckFailure(
                 "intervals.expected.subtype", 
-                cp_sub.forPath, wt_sup.toUserString)
+                cp_sub.reprPath, cp_sub.reprWt.toUserString, wt_sup.toUserString)
     }
     
     // ___ Statement Stack __________________________________________________
@@ -72,12 +72,12 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
     
     def checkReadable(env: TcEnv, cp_guard: ir.CanonPath) {
         if(!env.isReadableBy(cp_guard, env.cp_cur))
-            throw new CheckFailure("intervals.not.readable", cp_guard.forPath)
+            throw new CheckFailure("intervals.not.readable", cp_guard.reprPath)
     }
     
     def checkWritable(env: TcEnv, cp_guard: ir.CanonPath) {
         if(!env.isWritableBy(cp_guard, env.cp_cur))
-            throw new CheckFailure("intervals.not.writable", cp_guard.forPath)
+            throw new CheckFailure("intervals.not.writable", cp_guard.reprPath)
     }
         
     def checkNoInvalidated(env: TcEnv) {
@@ -103,7 +103,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
             checkNoInvalidated(env)
             
             // Substitute method, this, and the arguments into the method signature:
-            val msig = md.msig(env.p_cur, lv_rcvr, lvs_args)
+            val msig = md.msig(env.lv_cur, lv_rcvr, lvs_args)
             
             // Receiver/Arguments must have correct type and requirements must be fulfilled:
             val cps_args = env.immutableReifiedLvs(lvs_args)
@@ -133,7 +133,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
         // Add a synthetic interval lv_breakInter which happens after 
         // env_in0.cp_cur:
         val (cp_breakInter, env_brk) = {
-            val (cp_breakInter, env_brk1) = env_brk0.freshCp(ir.c_interval)
+            val (_, cp_breakInter, env_brk1) = env_brk0.freshCp(ir.c_interval)
             (cp_breakInter, env_brk1.addHbInter(env_in.cp_cur, cp_breakInter))
         }
         val flow_brk = env_brk.flow
@@ -346,7 +346,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                 env = env.addNonNull(cp_x)
                 env = env.addSuspends(cp_x, env.cp_cur)
                 env = cps_locks.foldLeft(env)(_.addLocks(cp_x, _))
-                env = env.withCurrent(cp_x)
+                env = env.withCurrent(x)
                 
                 val ss = new StmtScope(env, stmt_compound.defines, None)
                 val ss_cur = ss :: ss_prev                
@@ -431,7 +431,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                 env = env.addTemp(cp_field, cp_value)
         
                 env = env.removeInvalidated(cp_field)
-                env.linkedPaths(cp_owner, c_owner, f).foldLeft(env)(_ addInvalidated _)                            
+                env.linkedPaths(lv_owner, c_owner, f).foldLeft(env)(_ addInvalidated _)
                 
             case ir.StmtCheckType(p, wt) =>
                 val cp = env.immutableReifiedLv(p)
@@ -456,7 +456,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                     throw new CheckFailure("intervals.new.interface", ct0.c)
                     
                 // Supply a default ghost (the current interval) for @Constructor:
-                val gs_default = List(ir.Ghost(ir.f_objCtor, env.cp_cur.forPath))
+                val gs_default = List(ir.Ghost(ir.f_objCtor, env.cp_cur.reprPath))
                 val ct = ct0.withDefaultGhosts(gs_default)
                     
                 // Check Ghost Types:           
@@ -526,26 +526,28 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
     
     def checkStatementSeq(env0: TcEnv, ss_cur: List[StmtScope], seq: ir.StmtSeq) = {
         log.indented("checkStatementSeq(%s)", seq) {
-            val cp_curOnEntry = env0.cp_cur
-            log("cp_curOnEntry: %s", cp_curOnEntry)
-            val (cp_seqInterval, env1) = env0.freshCp(ir.c_interval)
-            log("cp_seqInterval: %s", cp_seqInterval)
+            val lv_curOnEntry = env0.o_lv_cur.get            
+            log("lv_curOnEntry: %s", lv_curOnEntry)
+            
+            val (lv_seqInterval, cp_seqInterval, env1) = env0.freshCp(ir.c_interval)
+            log("lv_seqInterval: %s", lv_seqInterval)
+            
             var env = env1.addSuspends(cp_seqInterval, env1.cp_cur)
-            env = env.withCurrent(cp_seqInterval)
+            env = env.withCurrent(lv_seqInterval)
             
             seq.stmts.foldLeft[Option[ir.ImmutableCanonPath]](None) { (ocp_prevInterval, stmt) =>
-                val (cp_stmtInterval, env2) = env.freshCp(ir.c_interval)
+                val (lv_stmtInterval, cp_stmtInterval, env2) = env.freshCp(ir.c_interval)
                 log("cp_stmtInterval: %s", cp_stmtInterval)
                 env = env2.addSuspends(cp_stmtInterval, cp_seqInterval)
                 ocp_prevInterval.foreach { cp_prevInterval =>
                     env = env.addHbInter(cp_prevInterval, cp_stmtInterval)
                 }
-                env = env.withCurrent(cp_stmtInterval)
+                env = env.withCurrent(lv_stmtInterval)
                 env = checkStatement(env, ss_cur, stmt)
                 Some(cp_stmtInterval)
             }
             
-            env.withCurrent(cp_curOnEntry)
+            env.withCurrent(lv_curOnEntry)
         }
     }
     
@@ -593,7 +595,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
             
             // Define special vars "method" and "this":
             env = env.addGhostLocal(ir.lv_mthd, ir.c_interval)
-            env = env.withCurrent(env.cp_mthd)
+            env = env.withCurrent(ir.lv_mthd)
             env = env.addNonNull(env.cp_mthd)
             
             // For normal methods, type of this is the defining class
@@ -633,7 +635,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
         val p_ctor = ir.ClassCtorFieldName(env.c_this).thisPath
         val cp_ctor = env.immutableCanonPath(p_ctor)
         env = env.addPerm(ir.lv_mthd, cp_ctor)
-        env = env.withCurrent(env.cp_mthd)
+        env = env.withCurrent(ir.lv_mthd)
 
         // Check method body:
         env = env.addArgs(md.args)
@@ -663,14 +665,14 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
         // Note that a type is dependent on p_dep if p.F appears in the type, so 
         // we must check all prefixes of each dependent path as well.
         env = env.addGhostLocal(ir.lv_mthd, ir.c_interval)
-        env = env.withCurrent(env.cp_mthd)
+        env = env.withCurrent(ir.lv_mthd)
         
         // Add assumptions as though guard were satisfied.
         // Also check that guards are typed as Interval, Lock, or just Guard
         // HACK-- We just "assert" the guard is immutable here.  It may not be, but it
         //        "immutable enough" for the purposes of the checks in this function.
         val cp_guard = env.canonPath(fd.p_guard)
-        val immcp_guard = ir.ImmutableCanonPath(cp_guard.forPath, cp_guard.components)
+        val immcp_guard = ir.ImmutableCanonPath(cp_guard.components)
         env = log.indented("adding appr. constraints for cp_guard %s", cp_guard) {
             if(env.pathHasClass(immcp_guard, ir.c_interval))
                 env.addSuspends(env.cp_cur, immcp_guard) 

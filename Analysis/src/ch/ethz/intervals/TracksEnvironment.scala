@@ -47,8 +47,8 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog)
     // ______________________________________________________________________
     // Modifying the Environment
     
-    def setCurrent(cp_cur: ir.ImmutableCanonPath) = log.indented("setCurrent(%s)", cp_cur) {
-        setEnv(env.copy(ocp_cur = Some(cp_cur)))
+    def setCurrent(lv_cur: ir.VarName) = log.indented("setCurrent(%s)", lv_cur) {
+        setEnv(env.withCurrent(lv_cur))
     }
     
     def setWtRet(wt_ret: ir.WcTypeRef) = {
@@ -79,7 +79,7 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog)
     
     // Note: these are not vals but defs!  This is important
     // because the outcome of ir.CanonPath() depends on the env.
-    def cp_cur = env.ocp_cur.get
+    def cp_cur = env.o_cp_cur.get
     def cp_this = env.cp_this
 
 }

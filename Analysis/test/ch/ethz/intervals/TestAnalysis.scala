@@ -20,7 +20,7 @@ class TestAnalysis extends JUnitSuite {
     import TestAll.DEBUG_DIR
     import TestAll.subst
     
-    val logTests: Set[String] = Set("reproducingThread")
+    val logTests: Set[String] = Set("readPhaseWithSubintervals")
     
     // ___ Test running infrastructure ______________________________________
     
