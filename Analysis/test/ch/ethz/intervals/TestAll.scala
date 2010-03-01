@@ -10,7 +10,7 @@ class TestAll extends SuperSuite(List(
 ))
 
 object TestAll {
-    val DEBUG_DIR = new File("debug-logs")
+    val DEBUG_DIR = new File("../debug-logs")
     
     // These substitutions are performed.  They are not needed in program
     // text, but are useful in the expected error messages:

@@ -5,13 +5,14 @@ SCALA=scala
 JARFILES=$(wildcard lib/*.jar)
 CLASSPATH=$(subst .jar ,.jar:,${JARFILES}):bin:bin-test
 PROFILEOPTS=-agentlib:hprof=cpu=samples,depth=6
+DEBUGLOGS=../debug-logs
 
 .PHONY: all clean compile test
 
 all: test
 
 clean:
-	rm -rf debug-logs bin bin-test .scala_dependencies
+	rm -rf ${DEBUGLOGS} bin bin-test .scala_dependencies
 
 compile:
 	mkdir -p bin bin-test
@@ -20,8 +21,8 @@ compile:
 	rsync -r resources/* bin/
 		
 test: compile
-	mkdir -p debug-logs
-	rm -rf debug-logs/*
+	rm -rf ${DEBUGLOGS}
+	mkdir -p ${DEBUGLOGS}
 	JAVA_HOME="${JAVA_HOME}" \
 	JAVA_OPTS="-cp ${CLASSPATH} -Xbootclasspath/p:lib/jsr308-all-1.04.jar" \
 	${SCALA} -cp ${CLASSPATH} org.scalatest.tools.Runner -oW -s \
