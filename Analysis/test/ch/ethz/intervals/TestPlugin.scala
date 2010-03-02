@@ -283,6 +283,11 @@ class TestPlugin extends JUnitSuite {
     }
     
     @Test 
+    def testOnlyFinal() {
+        javac(unitTest, "basic/OnlyFinal.java")
+    }
+    
+    @Test 
     def testInlineIntervals() {
         javac(unitTest, "basic/InlineIntervals.java")
     }

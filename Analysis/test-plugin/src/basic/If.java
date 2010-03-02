@@ -12,26 +12,25 @@ import ch.ethz.intervals.quals.Requires;
 
 class If {
 
-    void test(Interval x, @Creator("readableBy x") Data data) {
-        
+    void test(final Interval x, @Creator("readableBy x") Data data) {
     }
     
-	protected void noAdd(Interval x, Interval y, @Creator("x") Data data) {
+	protected void noAdd(final Interval x, Interval y, @Creator("x") Data data) {
 	    test(y, data); // ERROR Variable "data" has type * which is not a subtype of *.
 	}
     
-	protected void uncondAdd(Interval x, Interval y, @Creator("x") Data data) {
+	protected void uncondAdd(final Interval x, Interval y, @Creator("x") Data data) {
 	    Intervals.addHb(x, y);
 	    test(y, data);
 	}
     
-	protected void condAdd(boolean cond, Interval x, Interval y, @Creator("x") Data data) {
+	protected void condAdd(boolean cond, final Interval x, Interval y, @Creator("x") Data data) {
 	    if(cond)
     	    Intervals.addHb(x, y);	        
 	    test(y, data); // ERROR Variable "data" has type * which is not a subtype of *.
 	}
 
-	protected void bothAdd(boolean cond, Interval x, Interval y, @Creator("x") Data data) {
+	protected void bothAdd(boolean cond, final Interval x, Interval y, @Creator("x") Data data) {
 	    if(cond)
     	    Intervals.addHb(x, y);
     	else        

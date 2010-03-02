@@ -13,8 +13,8 @@ class CircularHb {
 
 	@Requires("method suspends y")
     void method(
-        Interval x, 
-        Interval y,
+        final Interval x, 
+        final Interval y,
         @Creator("x") CircularHbData xData,
         @Creator("y") CircularHbData yData
     ) {

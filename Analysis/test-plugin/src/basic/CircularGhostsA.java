@@ -27,7 +27,7 @@ class CircularGhostsA {
     void methodNoAccess(
         @CircularGhostA1("x.CircularGhostA2") 
         @CircularGhostA2("x.CircularGhostA1") 
-        CircularGhostsA x
+        final CircularGhostsA x
     ) {
         x.field1 = 10; // ERROR Guard "x.(basic.CircularGhostA1)" is not writable.
         x.field2 = 10; // ERROR Guard "x.(basic.CircularGhostA2)" is not writable.
@@ -39,7 +39,7 @@ class CircularGhostsA {
     void methodAccess(
         @CircularGhostA1("x.CircularGhostA2") 
         @CircularGhostA2("x.CircularGhostA1") 
-        CircularGhostsA x
+        final CircularGhostsA x
     ) {
         x.field1 = 10;
         x.field2 = 10;

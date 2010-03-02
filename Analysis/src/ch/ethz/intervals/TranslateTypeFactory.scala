@@ -455,14 +455,16 @@ class TranslateTypeFactory(
                 // ----------------------------------------------------------------------
                 // "Local variables:"
                 //
-                // Add method arguments to the map of things that can start a path.
+                // Add final method arguments to the map of things that can start a path.
                 // Each arg x -> (p, annty) where p = x and annty = annty(x)
 
                 var m_lvs = env_cls.m_localVariables
                 m_lvs += ("method" -> (ir.p_mthd, wke.Interval.ty))
                 m_lvs = eelem.getParameters.foldLeft(m_lvs) { case (m, velem) =>
-                    val lv = localVariableName(velem)
-                    m + (velem.getSimpleName.toString -> (lv.path, velem.asType))
+                    if(EU.isFinal(velem)) {
+                        val lv = localVariableName(velem)
+                        m + (velem.getSimpleName.toString -> (lv.path, velem.asType))                        
+                    } else m
                 }
                 log.map("Local variables", m_lvs)
 

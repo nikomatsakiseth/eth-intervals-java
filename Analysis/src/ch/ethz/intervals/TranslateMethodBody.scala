@@ -84,22 +84,30 @@ object TranslateMethodBody
 
         // ___ Symbols and Versions _____________________________________________
 
-        sealed class Symbol(val name: String, val annty: AnnotatedTypeMirror, val wtref: ir.WcTypeRef) {
+        sealed class Symbol(
+            val name: String, 
+            val isFinal: Boolean,
+            val annty: AnnotatedTypeMirror, 
+            val wtref: ir.WcTypeRef
+        ) {
             var maxVersion = 0
-            
-            // Version of the symbol provided as a method parameter.
-            def globalVersion =
-                GlobalVersion(this, ir.VarName(name))
 
-            // Version of the symbol provided as a block parameter.
-            def nextLocalVersion = {
+            // Version of the symbol used for method parameters:
+            //   This way, the names of method parameters match up
+            //   with those we find when extracting only the interface.
+            def initialParameterVersion = InitialParameterVersion(this)
+            
+            // Version of the symbol resulting from a parameter decl or phi node.
+            def nextDefinedVersion = {
                 maxVersion += 1
-                LocalVersion(this, maxVersion)
+                LocalVersion(this, maxVersion)                    
             }
 
-            // Version of the symbol resulting form an assignment.
-            def nextExprVersion(lv: ir.VarName) =
+            // Version of the symbol resulting from an assignment.
+            def nextExprVersion(lv: ir.VarName) = {
+                assert(!isFinal)
                 ExprVersion(this, lv)
+            }
 
             override def toString = "Symbol(%s)".format(name)
         }
@@ -107,19 +115,15 @@ object TranslateMethodBody
         abstract class Version {
             val sym: Symbol
             val lv: ir.VarName
-            val isLocal: Boolean
         }    
-        sealed case class GlobalVersion(sym: Symbol, lv: ir.VarName) extends Version {
-            val isLocal = false
+        sealed case class InitialParameterVersion(sym: Symbol) extends Version {
+            val lv = ir.VarName(sym.name)
         }
         sealed case class LocalVersion(sym: Symbol, ver: Int) extends Version {
             val lv = ir.VarName(sym.name + "[" + ver + "]")
-            val isLocal = true
             def toLvDecl = ir.LvDecl(lv, sym.wtref, List())
         }
-        sealed case class ExprVersion(sym: Symbol, lv: ir.VarName) extends Version {
-            val isLocal = true
-        }
+        sealed case class ExprVersion(sym: Symbol, lv: ir.VarName) extends Version
         
         def replacePairs(pairs: List[(String,String)])(s0: String) = {
             pairs.foldLeft(s0) { case (s, pair) =>
@@ -148,7 +152,7 @@ object TranslateMethodBody
             val elem = TU.elementFromDeclaration(vtree)
             val annty = ttf.getAnnotatedType(elem)
             val wtref = ttf.wtref(env, ir.wgs_constructed)(annty)
-            new Symbol(nm(elem), annty, wtref)
+            new Symbol(nm(elem), EU.isFinal(elem), annty, wtref)
         }
 
         // ___ Error placement and printing _____________________________________
@@ -167,7 +171,7 @@ object TranslateMethodBody
         val env_mthd = ttf.elemEnv(elem_mthd)
         val elems_param = mtree.getParameters.map(TU.elementFromDeclaration).toList
         val syms_mthdParam = mtree.getParameters.map(createSymbol(env_mthd)).toList
-        val vers_mthdParam = syms_mthdParam.map(_.globalVersion)
+        val vers_mthdParam = syms_mthdParam.map(_.initialParameterVersion)
         val symtab_mthdParam = SymbolTable(elems_param.map(nm), vers_mthdParam)
 
         // ___ Scopes ___________________________________________________________
@@ -202,12 +206,13 @@ object TranslateMethodBody
             // Auto defines are user-declared variables, whose most 
             // recent version is automatically carried from scope-to-scope.  
             //
-            // Xtra definesare special purpose, anonymous defines 
+            // Xtra defines are special purpose, anonymous defines 
             // such as the result of a (c ? t : f) expression.
             
             def make_auto_defines = {
-                symtab_in.toList.map { case (name, ver0) =>
-                    (name, ver0.sym.nextLocalVersion)
+                symtab_in.toList.flatMap { 
+                    case (_, ver) if ver.sym.isFinal => None
+                    case (name, ver) => Some(name -> ver.sym.nextDefinedVersion)
                 }
             }
             
@@ -331,10 +336,12 @@ object TranslateMethodBody
             // ___ Misc. Helper Functions ___________________________________________
 
             def env(tree: Tree): ttf.TranslateEnv = {
-                new ttf.TranslateEnv(
+                new ttf.TranslateEnv( // Only final variables may be named in types, etc:
                     TreePosition(tree, symtab.replaceFunc), 
-                    symtab.foldLeft(env_mthd.m_localVariables) { case (m, (name, ver)) =>
-                        m + (name -> (ver.lv.path, ver.sym.annty.getUnderlyingType))
+                    symtab.foldLeft(env_mthd.m_localVariables) { 
+                        case (m, (name, ver)) if ver.sym.isFinal =>
+                            m + (name -> (ver.lv.path, ver.sym.annty.getUnderlyingType))
+                        case (m, _) => m
                     },
                     env_mthd.m_defaultWghosts
                 )
@@ -669,8 +676,10 @@ object TranslateMethodBody
                     case tree: NewArrayTree => // p = new T[...]
                         // We don't really care about the initializers per se,
                         // just want to be sure they can be evaluated:
-                        for(initializer <- tree.getInitializers) {
-                            rvalue(initializer)
+                        if(tree.getInitializers != null) {
+                            for(initializer <- tree.getInitializers) {
+                                rvalue(initializer)
+                            }                            
                         }
                         
                         // Since arrays don't have constructors etc, just make sure

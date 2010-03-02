@@ -15,7 +15,7 @@ public class Producer extends Interval {
 	
 	public Producer(
 	    @ParentForNew("Parent") Dependency p, 
-	    Interval c, 
+	    final Interval c, 
 	    @Creator("c") ConsData cdata
 	) {
 		super(p);
