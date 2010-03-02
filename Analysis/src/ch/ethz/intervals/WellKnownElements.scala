@@ -19,15 +19,23 @@ class WellKnownElements(elements: Elements, types: Types) {
             ).get
         }
         
-        def method(mname: String, argTypes: TypeInfo[_]*): ExecutableElement = {
-            val argTypesList = argTypes.toList
-            EF.methodsIn(elem.getEnclosedElements).find(mem =>
-                mem.getSimpleName.contentEquals(mname) && 
-                mem.getParameters.size == argTypes.length &&
-                argTypesList.zip(mem.getParameters.toList).forall { case (exp, act) =>
-                    types.isSameType(exp.ty, act.asType)
+        private[this] def matches(mname: String, argTypes: List[TypeInfo[_]])(mem: ExecutableElement) = {
+            mem.getSimpleName.contentEquals(mname) && 
+            mem.getParameters.size == argTypes.length && {
+                argTypes.zip(mem.getParameters.toList).forall { case (exp, act) =>
+                    types.isSameType(
+                        types.erasure(exp.ty), 
+                        types.erasure(act.asType))
                 }
-            ).get
+            }            
+        }
+        
+        def method(mname: String, argTypes: TypeInfo[_]*): ExecutableElement = {
+            EF.methodsIn(elem.getEnclosedElements).find(matches(mname, argTypes.toList)).get
+        }
+        
+        def ctor(argTypes: TypeInfo[_]*): ExecutableElement = {
+            EF.constructorsIn(elem.getEnclosedElements).find(matches("<init>", argTypes.toList)).get
         }
     }
 
@@ -48,12 +56,12 @@ class WellKnownElements(elements: Elements, types: Types) {
     val addHbPointPoint = Intervals.method("addHb", Point, Point)
     val addHb = Set(addHbIntervalInterval, addHbIntervalPoint, addHbPointInterval, addHbPointPoint)
     
-//    val inlineTaskInit = InlineTask.method("<init>")
-//    val voidInlineTaskInit = InlineTask.method("<init>")
-//    
-//    val inlineResult = Intervals.method("inline", InlineTask)
-//    val inlineVoid = Intervals.method("inline", VoidInlineTask)
-//    val inline = Set(inlineResult, inlineVoid)
+    val inlineTaskInit = InlineTask.ctor()
+    val voidInlineTaskInit = InlineTask.ctor()
+    
+    val inlineResult = Intervals.method("inline", InlineTask)
+    val inlineVoid = Intervals.method("inline", VoidInlineTask)
+    val inline = Set(inlineResult, inlineVoid)
     
     val ofClass = DefinesGhost.method("ofClass")
     val useByDefault = DefinesGhost.method("useByDefault")
