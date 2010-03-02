@@ -2,16 +2,7 @@ ___ To Do List _______________________________________________________
 
 ______ OOPSLA Bugs ___________________________________________________
 
-- Temp mapping: we should (a) ensure that reified fields can only be mapped to ghost fields (or
-  wildcards) using {@Is}, and then (b) only add reified fields as keys in the temp mapping.
-  Together, this should ensure that the temp mapping is reversible and eliminate our annoying
-  problem.
-
-- Check ps_is on field stores
-
-- Check ps_is on method returns
-
-- Check ps_is on method invocations
+- Check variance of wps_identity on method overrides!
 
 - Assertions
 
@@ -24,6 +15,9 @@ ______ OOPSLA Bugs ___________________________________________________
 
 - Disallow a field f with a path type whose path is "this.f"
 
+- In general, disallow this.f to be redirected to this.f.g?  Or don't worry about it? The loop
+  detection in our canonicalizer WILL handle it, after all.
+
 - Introduce immutableIn to supplement readableBy?
 
   This used to be covered by <f: hb this>.  An alternative would be
@@ -33,20 +27,21 @@ ______ OOPSLA Bugs ___________________________________________________
 
 - Make java.lang.Object a subtype of c_any
   
-- Check in multiple inheritance that all paths lead to the same set of ghost parameters.
-  Alternatively, make sure that all paths are fulfilled. Latter technique is "cooler" (then,
-  for ex., a class modelling an empty set can fulfill virtually any type, etc)
+- Check in multiple inheritance that all paths lead to the same set of ghost parameters, type
+  arguments. Alternatively, make sure that all paths are fulfilled. Latter technique 
+  is "cooler" (then, for ex., a class modelling an empty set can fulfill virtually any type, etc)
     
 - Static fields, methods
 
-- Adjust "addRelation" methods
-
-  We should assert subclass when adding relations directly, but only
-  couldHaveClass when adding from method requirements.
-
-______ Bugs __________________________________________________________   
+______ Bugs __________________________________________________________
 
 - Check that there are no fields named f_objCtor declared anywhere
+
+______ Features and Improvements _____________________________________
+
+- Inference of ghosts in new statements (particularly interval Parent)
+
+- Refactor interval API so that users don't subtype interval directly
 
 - Store the environments computed from a constructor in {.class} file
 
@@ -54,9 +49,9 @@ ______ Bugs __________________________________________________________
   the constructors from all supertypes is included, but this is not a 
   general solution.
   
-- Method type parameters
+- Nested and anonymous class declarations
 
-______ Improvements to existing features _____________________________
+- Method type parameters
 
 - Add labeled blocks as subintervals and expose them early
 
@@ -81,21 +76,10 @@ ______ Improvements to existing features _____________________________
   {c @Constructor[c](hbNow)}?  In other words, //at least// the
   class {c} must be fully constructed.
   
-- Check type args in wf check
-
-- Sanity check casts or otherwise restrict them?
-
-- Circular canonical paths
-
-  [[@test-plugin/src/basic/CircularGhostA.java]] should conclude that the circular ghosts
-  are equal (which it doesn't do now).
-  
-  Three possibilities:
-  - The canon() function could return a set of canonical paths.
-  - A {CanonPath} instance could be a set of path, type pairs.  
-  - Use some strategy to pick "the best" of the options in the cycle.  Prefer reified with
-    more specific types, longer paths, something like that.
-  The last is clearly the least disruptive.
+- Temp mapping: we should (a) ensure that reified fields can only be mapped to ghost fields (or
+  wildcards) using {@Is}, and then (b) only add reified fields as keys in the temp mapping.
+  Together, this should ensure that the temp mapping is reversible and eliminate our annoying
+  problem.
 
 - More sophisticated merging with respect to temp/perm
 
@@ -128,10 +112,6 @@ ______ Improvements to existing features _____________________________
   will only be scheduled when the {run()} method which created it returns. Unsatisfying
   because it distinguishes reified inlineIntervals somewhat, but perhaps that's ok.
 
-______ Features ______________________________________________________
-
-- {@Is} annotations on methods and variable declarations
-
 - Requires in class bodies, declarations.
 
   If a class declared, for example, that two of its fields f and g have a HB relationship,
@@ -153,8 +133,6 @@ ______ Features ______________________________________________________
       }      
   }
     
-______ Things to Think About _________________________________________
-
 - Improve efficiency of reaching a steady-state
 
   Right now we bring inner loops to a fixed state and then repeat.
