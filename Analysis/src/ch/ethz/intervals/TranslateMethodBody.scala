@@ -176,7 +176,7 @@ object TranslateMethodBody
         case object ScopeKindBlock extends ScopeKind
         case object ScopeKindSwitch extends ScopeKind
         case object ScopeKindLoop extends ScopeKind
-        case class ScopeKindInlineInterval(x: ir.VarName, lvs_locks: List[ir.VarName]) extends ScopeKind
+        case class ScopeKindInlineInterval(x: ir.VarName) extends ScopeKind
         case object ScopeKindTryCatch extends ScopeKind
                 
         abstract class BranchKind(val targets: Set[ScopeKind])
@@ -248,9 +248,9 @@ object TranslateMethodBody
                         
                         ir.Loop(args, lvs_initial, seqsBuffer(0))
                         
-                    case ScopeKindInlineInterval(x, ps_locks) => 
+                    case ScopeKindInlineInterval(x) => 
                         assert(seqsBuffer.length == 1)
-                        ir.InlineInterval(x, ps_locks, seqsBuffer(0))
+                        ir.InlineInterval(x, seqsBuffer(0), seqsBuffer(1))
                         
                     case ScopeKindTryCatch =>
                         assert(seqsBuffer.length == 2)
@@ -443,6 +443,19 @@ object TranslateMethodBody
 
             // ___ Method Invocations _______________________________________________
             
+            def constructorInvocation(
+                tree: NewClassTree,
+                gs_default: List[ir.Ghost]
+            ): ir.VarName = {
+                val lv = freshVar
+                val elem = IU.constructor(tree)
+                val t = chkNoWcInTref(wtref(tree, List())).withDefaultGhosts(gs_default)
+                val m = ttf.methodName(elem)
+                val qs = tree.getArguments.map(rvalue).toList
+                addStmt(tree, ir.StmtNew(lv, t, m, qs))
+                lv                
+            }
+            
             def nonIntrinsicMethodInvocation(
                 eelem: ExecutableElement,
                 mitree: MethodInvocationTree
@@ -484,20 +497,20 @@ object TranslateMethodBody
                     throw new Unhandled(tree)     
             }
             
+            /** Translate an inline interval call:
+              *
+              * Right now, we have special support for calls like:
+              * `Intervals.inline(new SomeType())`.  We create an inline
+              * interval in the IR and add it as the @Subinterval() ghost.
+              */
 //            def inlineIntervalCall(
 //                mitree: MethodInvocationTree
 //            ): ir.VarName = {
-//                // See whether we can just inline 
-//                // the subinterval body into the method:
+//                
 //                val etree_arg = mitree.getArguments.get(0)
 //                EU.skipParens(etree_arg) match {
 //                    case nctree: NewClassTree =>
-//                        val eelem_ctor = TU.elementFromUse(nctree)
-//                        if(eelem_ctor == wke.inlineTaskInit) {
-//                            
-//                        } else if(eelem_ctor == wke.voidInlineTaskInit) {
-//                            
-//                        }
+//                        
 //                    
 //                    case _ =>
 //                    
@@ -600,13 +613,7 @@ object TranslateMethodBody
                         methodInvocation(tree)
 
                     case tree: NewClassTree => // p = new T(Q)
-                        val lv = freshVar
-                        val elem = IU.constructor(tree)
-                        val t = chkNoWcInTref(wtref(tree, List()))
-                        val m = ttf.methodName(elem)
-                        val qs = tree.getArguments.map(rvalue).toList
-                        addStmt(tree, ir.StmtNew(lv, t, m, qs))
-                        lv
+                        constructorInvocation(tree, List())
                         
                     case tree: ParenthesizedTree =>
                         rvalue(tree.getExpression)

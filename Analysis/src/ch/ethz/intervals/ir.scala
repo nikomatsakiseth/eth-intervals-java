@@ -358,9 +358,9 @@ object ir {
         override def toString = "Loop"
         def subseqs = List(seq)
     }
-    sealed case class InlineInterval(lv_inter: VarName, lvs_locks: List[VarName], seq: StmtSeq) extends CompoundKind {
-        override def toString = "InlineInterval[%s locks %s]".format(lv_inter, ", ".join(lvs_locks))
-        def subseqs = List(seq)
+    sealed case class InlineInterval(lv_inter: VarName, init: StmtSeq, run: StmtSeq) extends CompoundKind {
+        override def toString = "InlineInterval[%s]".format(lv_inter)
+        def subseqs = List(init, run)
     }
     sealed case class TryCatch(seq_try: StmtSeq, seq_catch: StmtSeq) extends CompoundKind {
         override def toString = "TryCatch"

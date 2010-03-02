@@ -88,7 +88,7 @@ class IrParser extends BaseParser {
         "{"~>seq<~"}"                               ^^ ir.Block
     |   "switch"~"{"~rep(seq)~"}"                   ^^ { case _~_~ss~_ => ir.Switch(ss) }
     |   "loop"~"("~comma(loopArg)~")"~seq           ^^ { case _~_~args~_~b => ir.Loop(args.map(_._1), args.map(_._2), b) }
-    |   "inlineInterval"~lv~locks~seq                  ^^ { case _~x~ps~s => ir.InlineInterval(x, ps, s) }
+    |   "inlineInterval"~lv~seq~"="~seq             ^^ { case _~x~s1~_~s2 => ir.InlineInterval(x, s1, s2) }
     |   "try"~seq~"catch"~seq                       ^^ { case _~t~_~c => ir.TryCatch(t, c) }
     )
     

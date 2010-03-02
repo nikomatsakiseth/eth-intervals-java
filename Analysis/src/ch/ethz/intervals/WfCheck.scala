@@ -255,8 +255,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                         case ir.Switch(_) =>
                         case ir.Loop(_, lvs_initial, _) =>
                             env.reifiedLvs(lvs_initial)
-                        case ir.InlineInterval(x, lvs_locks, _) =>
-                            env.reifiedLvs(lvs_locks)
+                        case ir.InlineInterval(x, _, _) =>
                             addReifiedLocal(x, ir.wt_constructedInterval)
                         case ir.TryCatch(_, _) =>
                     }

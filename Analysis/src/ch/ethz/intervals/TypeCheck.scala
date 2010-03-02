@@ -351,20 +351,20 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                 iterate(ss.oenv_continue.get)
                 ss.oenv_break
                 
-            case ir.InlineInterval(x, ps_locks, seq) =>
+            case ir.InlineInterval(x, seq_init, seq_run) =>
                 var env = env_in
             
-                val cps_locks = env.immutableReifiedLvs(ps_locks)                    
                 env = env.addReifiedLocal(x, ir.wt_constructedInterval)
                 val cp_x = env.immutableReifiedLv(x)
                 env = env.addNonNull(cp_x)
                 env = env.addSuspends(cp_x, env.cp_cur)
-                env = cps_locks.foldLeft(env)(_.addLocks(cp_x, _))
-                env = env.withCurrent(x)
                 
                 val ss = new StmtScope(env, stmt_compound.defines, None)
-                val ss_cur = ss :: ss_prev                
-                env = checkStatementSeq(env, ss_cur, seq)
+                val ss_cur = ss :: ss_prev
+                
+                env = checkStatementSeq(env, ss_cur, seq_init)
+                env = env.withCurrent(x)
+                env = checkStatementSeq(env, ss_cur, seq_run)
                 ss.oenv_break
                 
             case ir.TryCatch(seq_try, seq_catch) =>

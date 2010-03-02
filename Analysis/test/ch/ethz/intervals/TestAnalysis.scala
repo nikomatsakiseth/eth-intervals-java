@@ -854,8 +854,10 @@ class TestAnalysis extends JUnitSuite {
                 #String get() 
                 requires this.Constructor hb method
                 {
-                    lock = this->lock;
-                    inlineInterval x locks lock {
+                    inlineInterval x {
+                        lock = this->lock;
+                        x locks lock;
+                    } = {
                         v = this->value;                         
                         break 0(v); // 0 == seq, 1 == subinter
                     } => (#String v1);
@@ -865,8 +867,10 @@ class TestAnalysis extends JUnitSuite {
                 void set(#String v) 
                 requires this.Constructor hb method
                 {
-                    lock = this->lock;
-                    inlineInterval x locks lock {
+                    inlineInterval x {
+                        lock = this->lock;
+                        x locks lock;
+                    } = {
                         this->value = v;
                         break 0();
                     }
@@ -1256,7 +1260,9 @@ class TestAnalysis extends JUnitSuite {
                     lock = new #Lock();
                     this->lock = lock;
                     
-                    inlineInterval x locks lock {
+                    inlineInterval x {
+                        x locks lock;
+                    } = {
                         data = (Data@lock(this.lock))null;
                         this->data = data;                        
                         
@@ -1733,7 +1739,7 @@ class TestAnalysis extends JUnitSuite {
                 {
                     // Create two asynchronous subintervals which will
                     // read from data and write to outData[12]:
-                    inlineInterval sub {
+                    inlineInterval sub {} = {
                         inter1 = new TestInterval @#Parent(sub) (data);
                         inter2 = new TestInterval @#Parent(sub) (data);                        
                         break 0(inter1, inter2);
@@ -1758,7 +1764,7 @@ class TestAnalysis extends JUnitSuite {
                 {
                     // Create two asynchronous subintervals which will
                     // read from data and write to outData[12]:
-                    inlineInterval sub {
+                    inlineInterval sub {} = {
                         inter1 = new TestInterval @#Parent(parent) (data); // ERROR intervals.expected.subtype(data, @(ch.ethz.intervals.quals.Constructor)(hbNow) @(ch.ethz.intervals.quals.Creator)(writableBy method) Data, @(ch.ethz.intervals.quals.Constructor)(hbNow) @(ch.ethz.intervals.quals.Creator)(readableBy inter1) Data)
                         inter2 = new TestInterval @#Parent(parent) (data); // ERROR intervals.expected.subtype(data, @(ch.ethz.intervals.quals.Constructor)(hbNow) @(ch.ethz.intervals.quals.Creator)(writableBy method) Data, @(ch.ethz.intervals.quals.Constructor)(hbNow) @(ch.ethz.intervals.quals.Creator)(readableBy inter2) Data)                        
                         break 0();
@@ -1772,7 +1778,7 @@ class TestAnalysis extends JUnitSuite {
                 {
                     // Create two asynchronous subintervals which will
                     // read from data and write to outData[12]:
-                    inlineInterval sub {
+                    inlineInterval sub {} = {
                         inter1 = new TestInterval @#Parent(parent) (data);
                         inter2 = new TestInterval @#Parent(parent) (data);
                         break 0(inter1, inter2);
