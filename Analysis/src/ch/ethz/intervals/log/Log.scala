@@ -271,7 +271,7 @@ abstract class Log {
     private[this] def inline(func: (Log => Unit))(lbl: Any) = {
         val ilog = inlineLog
         func(ilog)
-        "<a href=\"%s\" onMouseover=\"preview(this);\" onMouseout=\"closePreview(this);\">%s</a>".format(ilog.uri, escape(lbl.toString))
+        "<a href=\"%s\" target=\"_blank\">%s</a>".format(ilog.uri, escape(lbl.toString))
     }
     
     def inlineCanonPath(cp: ir.CanonPath) = inline(_.canonPath(true, "Canonical Path: ", cp))(cp)

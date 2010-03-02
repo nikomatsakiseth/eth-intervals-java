@@ -27,7 +27,7 @@ import ch.ethz.intervals.log.LogDirectory
 class TestPlugin extends JUnitSuite {
     import TestAll.DEBUG_DIR
     
-    val logTests: Set[String] = Set("testInlineIntervals")
+    val logTests: Set[String] = Set("testIf", "testTspTspSolver", "testTspTourElement")
     
     def fileName(jfo: JavaFileObject) =
         if(jfo == null) "null"
@@ -128,7 +128,27 @@ class TestPlugin extends JUnitSuite {
             "lib/jsr308-all-1.04.jar"
         ),
         debug = true,
-        isolated = false)
+        isolated = false
+    )
+    
+    def deleteContentsOfDirectory(baseDir: File, delDir: File): Unit = {
+        if(delDir.getCanonicalPath.startsWith(baseDir.getCanonicalPath)) { // safeguard
+            for(file <- delDir.listFiles) {
+                if(!file.getName.startsWith(".")) {
+                    if(file.isDirectory) {
+                        deleteContentsOfDirectory(baseDir, file)
+                    } 
+                    file.delete                                    
+                }
+            }
+        }
+    }
+    
+    @Before
+    def cleanUnitTestBinDirectory() {
+        val binDir = new File(unitTest.binDir)
+        deleteContentsOfDirectory(binDir, binDir)
+    }
     
     def expectedErrors(jfos: List[JavaFileObject]): List[DiagError] = {
         var expErrors = List[DiagError]()
@@ -197,7 +217,7 @@ class TestPlugin extends JUnitSuite {
         val testName = {
             val stelems = new Throwable().fillInStackTrace.getStackTrace
             stelems(1).getMethodName
-        }        
+        }
         
         // Create debug directory for this test and subdirectory for the checker:
         val logDirectory = LogDirectory.newLogDirectory(DEBUG_DIR, testName)
@@ -225,6 +245,8 @@ class TestPlugin extends JUnitSuite {
         compareAndReport(logDirectory, config, diagnostics, compUnits.toList, success.booleanValue)
     }
     
+    // ___ Basic Tests ______________________________________________________
+    
     @Test 
     def testParseReqs() {
         javac(unitTest, "basic/ParseReqs.java")        
@@ -238,11 +260,6 @@ class TestPlugin extends JUnitSuite {
     @Test 
     def testVariousLoops() {
         javac(unitTest, "basic/VariousLoops.java")        
-    }
-    
-    @Test 
-    def testBbpc() {
-        javac(unitTest, "bbpc/Producer.java")
     }
     
     @Test 
@@ -261,7 +278,32 @@ class TestPlugin extends JUnitSuite {
     }
     
     @Test 
+    def testIf() {
+        javac(unitTest, "basic/If.java")
+    }
+    
+    @Test 
     def testInlineIntervals() {
         javac(unitTest, "basic/InlineIntervals.java")
     }
+    
+    // ___ BBPC Application Tests ___________________________________________
+    
+    @Test 
+    def testBbpc() {
+        javac(unitTest, "bbpc/Producer.java")
+    }
+    
+    // ___ TSP Application Tests ____________________________________________
+    
+    @Test
+    def testTspTourElement() {
+        javac(unitTest, "erco/intervals/tsp/TourElement.java")
+    }
+
+    @Test
+    def testTspTspSolver() {
+        javac(unitTest, "erco/intervals/tsp/TspSolver.java")
+    }
+    
 }

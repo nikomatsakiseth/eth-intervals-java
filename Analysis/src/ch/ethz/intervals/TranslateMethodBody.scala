@@ -666,6 +666,17 @@ object TranslateMethodBody
                     case tree: MethodInvocationTree => // p.m(Q)
                         methodInvocation(tree)
 
+                    case tree: NewArrayTree => // p = new T[...]
+                        // We don't really care about the initializers per se,
+                        // just want to be sure they can be evaluated:
+                        for(initializer <- tree.getInitializers) {
+                            rvalue(initializer)
+                        }
+                        
+                        // Since arrays don't have constructors etc, just make sure
+                        // we create a variable with the right TYPE:
+                        nullStmt(tree)
+                        
                     case tree: NewClassTree => // p = new T(Q)
                         constructorInvocation(tree, List())
                         
@@ -745,6 +756,7 @@ object TranslateMethodBody
                                 }                                
                             }
                         }
+                        
                     case tree: EmptyStatementTree => ()
 
                     case tree: EnhancedForLoopTree => throw new Unhandled(tree) // XXX enhanced for loops
@@ -783,6 +795,21 @@ object TranslateMethodBody
                                         seq_inner.uncondContinue(tree, scope_inner)                                        
                                     }
                                 }                                
+                            }
+                        }
+                        
+                    case tree: IfTree =>
+                        rvalue(tree.getCondition)
+                        subscope(tree, ScopeKindSwitch, label_tree) { scope =>
+                            scope.subseq { seq =>
+                                seq.stmt(None, tree.getThenStatement)
+                                seq.uncondBreak(tree, scope)
+                            }
+                            
+                            scope.subseq { seq =>
+                                if(tree.getElseStatement != null)
+                                    seq.stmt(None, tree.getElseStatement)
+                                seq.uncondBreak(tree, scope)
                             }
                         }
 
