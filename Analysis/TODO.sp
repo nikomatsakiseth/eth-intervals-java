@@ -4,6 +4,9 @@ ______ OOPSLA Bugs ___________________________________________________
 
 ______ Bugs __________________________________________________________
 
+- "Constructor" cannot be used alone in annotations because it is a 
+  keyword.
+
 - Assertions
 
   || a hb b              | user's pnt.hb(pnt) ||

@@ -9,7 +9,7 @@ package erco.intervals.tsp;
  */
 import ch.ethz.intervals.quals.Creator;
 
-@Creator("Constructor")
+@Creator("this.Constructor")
 public class TourElement 
 implements Comparable<TourElement>
 {

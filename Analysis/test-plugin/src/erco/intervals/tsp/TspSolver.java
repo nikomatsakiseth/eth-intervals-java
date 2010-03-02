@@ -3,11 +3,10 @@ package erco.intervals.tsp;
 import java.util.BitSet;
 
 import ch.ethz.intervals.Dependency;
-import ch.ethz.intervals.InlineTask;
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
+import ch.ethz.intervals.Parent;
 import ch.ethz.intervals.ParentForNew;
-import ch.ethz.intervals.quals.Constructor;
 import ch.ethz.intervals.quals.Creator;
 import ch.ethz.intervals.quals.GuardedBy;
 import ch.ethz.intervals.quals.Requires;
@@ -60,77 +59,14 @@ public class TspSolver extends Interval {
 			boolean t3 = (curr.lowerBound + wt) <= config.minTourLength;
 			if (t1 && t2 && t3) {					
 				final int newNode = i;
-				TourElement newTour = Intervals.inline(new InlineTask<TourElement>() {
-					@Override public TourElement run(Interval subinterval) {
-						@Constructor("initNewTour") TourElement newTour = 
-							new /*@Constructor("initNewTour")*/ TourElement(newNode);
-						newTour.previous = curr;
-						newTour.length += curr.length;
-						newTour.visited |= curr.visited;
-						newTour.prefixWeight = curr.prefixWeight + wt;
-						newTour.lowerBound = calcBound(newTour);
-						return newTour;
-					}
-				});
+				TourElement newTour = Intervals.inline(new SplitTour(newNode, wt, curr, config));
 				
 				if(newTour != null) {
 					config.enqueue(newTour);
-					new TspSolver(parent, config);
+					new @Parent("parent") TspSolver(parent, config);
 				}					
 			}
 		}
-	}
-
-	private int calcBound(@Constructor("readableBy method") TourElement newTour) {
-		assert newTour.length < config.numNodes - 2;
-
-		/*
-		 * Add up the lowest weights for edges connected to vertices not yet
-		 * used or at the ends of the current tour, and divide by two. This
-		 * could be tweaked quite a bit. For example: (1) Check to make sure
-		 * that using an edge would not make it impossible for a vertex to
-		 * have degree two. (2) Check to make sure that the edge doesn't
-		 * give some vertex degree 3.
-		 */
-
-		int mstWeight = 0;
-		for (int i = 0; i < config.numNodes; i++) {
-			if(newTour.visited(i)) continue;
-			
-			/*
-			 * wt1: the value of the edge with the lowest weight from the node
-			 * we're testing to another unconnected node. wt2: the value of the
-			 * edge with the second lowest weight
-			 */
-			int wt1 = Integer.MAX_VALUE, wt2 = Integer.MAX_VALUE;
-			for (int j = 0; j < config.numNodes; j++) {
-				/*
-				 * Ignore j's that are not connected to i
-				 * (global->weights[i][j]==0),
-				 */
-				/* or that are already in the tour and aren't either the */
-				/* first or last node in the current tour. */
-				int wt = config.weights[i][j];
-				if(wt == 0) continue;				
-
-				/* Might want to check that edges go to unused vertices */
-				if (wt < wt1) {
-					wt2 = wt1;
-					wt1 = wt;
-				} else if (wt < wt2)
-					wt2 = wt;
-			}
-
-			/* At least three unconnected nodes? */
-			if (wt2 != Integer.MAX_VALUE)
-				mstWeight += ((wt1 + wt2) >> 1);
-			
-			/* Exactly two unconnected nodes? */
-			else if (wt1 != Integer.MAX_VALUE)
-				mstWeight += wt1;
-		}
-		mstWeight += 1;
-		return mstWeight + newTour.prefixWeight;
 	}
 
 	private void solveTour(TourElement curr) {

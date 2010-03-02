@@ -107,7 +107,9 @@ object ir {
         def /+(fs: List[FieldName]) = path /+ fs
     }
     
-    sealed case class TypeVarName(name: String) extends Name(name)
+    sealed case class TypeVarName(name: String) extends Name(name) {
+        def thisPtype = ir.PathType(ir.p_this, this)
+    }
     
     sealed case class MethodName(name: String) extends Name(name)
     
@@ -892,13 +894,35 @@ object ir {
             name              = c_array,
             ghostFieldDecls   = List(),
             typeVarDecls      = List(ir.TypeVarDecl(ir.tv_arrayElem, List(c_any.ct))),
-            superClasses      = List(c_any),
+            superClasses      = List(c_object),
             ghosts            = List(),
             typeArgs          = List(),
             reqs              = List(),
             ctors             = List(),
             reifiedFieldDecls = List(),
-            methods           = List()
+            methods           = List(
+                MethodDecl(
+                    name   = m_arrayGet, 
+                    args   = List(
+                        ir.LvDecl(ir.VarName("index"), ir.c_scalar.ct, List())),
+                    reqs   = List(
+                        ir.ReqReadableBy(List(p_this_creator), List(p_mthd)),
+                        req_constructed),
+                    wt_ret = ir.tv_arrayElem.thisPtype, 
+                    wps_identity = List(),
+                    body   = empty_method_body),
+                MethodDecl(
+                    name   = m_arraySet, 
+                    args   = List(
+                        ir.LvDecl(ir.VarName("index"), ir.c_scalar.ct, List()),
+                        ir.LvDecl(ir.VarName("value"), ir.tv_arrayElem.thisPtype, List())),
+                    reqs   = List(
+                        ir.ReqWritableBy(List(p_this_creator), List(p_mthd)),
+                        req_constructed),
+                    wt_ret = c_void.ct, 
+                    wps_identity = List(),
+                    body   = empty_method_body)
+            )
         )        
     )
     

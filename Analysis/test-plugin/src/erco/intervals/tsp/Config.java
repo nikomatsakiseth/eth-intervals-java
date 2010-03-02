@@ -11,11 +11,11 @@ import ch.ethz.intervals.quals.Creator;
 import ch.ethz.intervals.quals.GuardedBy;
 
 public class Config {
-	private final Lock minLock;
-	private final Lock queueLock;
-	private final @Creator("queueLock") PriorityQueue<TourElement> queue;	
+	final Lock minLock;
+	final Lock queueLock;
+	final @Creator("queueLock") PriorityQueue<TourElement> queue;	
 	final int numNodes;
-	final int/*@Creator("Constructor")*/[]/*@Creator("Constructor")*/[] weights;
+	final int/*@Creator("this.Constructor")*/[]/*@Creator("this.Constructor")*/[] weights;
 	
 	@GuardedBy("Constructor") int startNode;
 	@GuardedBy("Constructor") int nodesFromEnd;

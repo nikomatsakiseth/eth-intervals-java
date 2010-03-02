@@ -10,7 +10,7 @@ import ch.ethz.intervals.quals.DefinesGhost;
 import ch.ethz.intervals.quals.GuardedBy;
 import ch.ethz.intervals.quals.Requires;
 
-class If {
+class OnlyFinal {
 
     void test(Interval x, @Creator("readableBy x") Data data) { // ERROR Variable "x" was not declared.
     }

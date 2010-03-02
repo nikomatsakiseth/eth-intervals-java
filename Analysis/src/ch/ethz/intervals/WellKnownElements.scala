@@ -64,6 +64,8 @@ class WellKnownElements(elements: Elements, types: Types) {
     val addHbPointPoint = Intervals.method("addHb", Point, Point)
     val addHb = Set(addHbIntervalInterval, addHbIntervalPoint, addHbPointInterval, addHbPointPoint)
     
+    val toStringEelem = Object.method("toString")
+    
     val inlineTaskCtor = InlineTask.ctor()
     val inlineTaskInit = InlineTask.method("init", Interval)
     val inlineTaskRun = InlineTask.method("run", Interval)

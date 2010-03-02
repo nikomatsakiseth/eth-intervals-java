@@ -493,7 +493,10 @@ class TranslateTypeFactory(
     
     val parserLog = log // log is inherited from BaseParser, so create an alias
     class AnnotParser(env: TranslateEnv) extends BaseParser {
-        def p = id~rep("."~>f)          ^^ { case s~ss => ss.foldLeft(startPath(s))(extendPath).p }
+        def p = (
+            id~rep("."~>f)          ^^ { case s~fs => fs.foldLeft(startPath(s))(extendPath).p }
+        |   f~repsep(f, ".")        ^^ { case f~fs => (f :: fs).foldLeft(startPath("this"))(extendPath).p }
+        )
         
         def startPath(id: String): ParsePath = {
             parserLog("startPath(%s)", id)
@@ -535,7 +538,7 @@ class TranslateTypeFactory(
                         // No matchs, search for a real field with that name:
                         case List() => 
                             findField(pp.ty, str_ext) match {
-                                case None => throw new CheckFailure("intervals.no.such.field", f_ext)
+                                case None => throw new CheckFailure("intervals.no.such.field", pp.p, f_ext)
                                 case Some((elem_ext, ty_ext)) => 
                                     ParsePath(pp.p / fieldName(elem_ext), ty_ext)
                             }
@@ -755,7 +758,7 @@ class TranslateTypeFactory(
             name = className(telem),
             ghostFieldDecls = List(),
             typeVarDecls = List(),
-            superClasses = List(),
+            superClasses = List(ir.c_any),
             ghosts = List(),
             typeArgs = List(),
             reqs = List(),

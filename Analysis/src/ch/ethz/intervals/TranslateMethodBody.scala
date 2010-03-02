@@ -105,7 +105,6 @@ object TranslateMethodBody
 
             // Version of the symbol resulting from an assignment.
             def nextExprVersion(lv: ir.VarName) = {
-                assert(!isFinal)
                 ExprVersion(this, lv)
             }
 
@@ -194,6 +193,8 @@ object TranslateMethodBody
             val symtab_in: SymbolTable,
             val defines_xtra: List[ir.LvDecl]
         ) {
+            override def toString = "Scope(%s,%s)".format(kind, label)
+            
             // ___ Subseqs __________________________________________________________
             
             private val seqsBuffer = new ListBuffer[ir.StmtSeq]()
@@ -361,7 +362,7 @@ object TranslateMethodBody
                 val p = rvalue(etree)
                 val annty = ttf.getAnnotatedType(etree)
                 if(!annty.getKind.isPrimitive)
-                    call(etree, p, ir.m_toString)
+                    call(etree, p, methodName(wke.toStringEelem))
             }
             
             // Produces a fresh variable whose type is 'annty' (whose value is null)
@@ -746,7 +747,7 @@ object TranslateMethodBody
                             case None =>
                                 throw new CheckFailure(
                                     "intervals.internal.error",
-                                    "Could not find target for continue %s".format(tree)
+                                    "Could not find target for continue %s in scopes %s".format(tree, scopes)
                                 )
                         }
 
