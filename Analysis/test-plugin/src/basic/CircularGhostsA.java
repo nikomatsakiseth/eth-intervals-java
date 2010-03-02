@@ -3,6 +3,7 @@ package basic;
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.quals.DefinesGhost;
 import ch.ethz.intervals.quals.GuardedBy;
+import ch.ethz.intervals.quals.Requires;
 
 @DefinesGhost(ofClass=Interval.class)
 @interface CircularGhostA1 {
@@ -23,13 +24,25 @@ class CircularGhostsA {
     @GuardedBy("CircularGhostA2")
     int field2;
 
-    void method(
+    void methodNoAccess(
         @CircularGhostA1("x.CircularGhostA2") 
         @CircularGhostA2("x.CircularGhostA1") 
         CircularGhostsA x
     ) {
-        x.field1 = 10; // ERROR Guard "x.(basic.CircularGhostA2)" is not writable.
-        x.field2 = 10; // ERROR Guard "x.(basic.CircularGhostA1)" is not writable.
+        x.field1 = 10; // ERROR Guard "x.(basic.CircularGhostA1)" is not writable.
+        x.field2 = 10; // ERROR Guard "x.(basic.CircularGhostA2)" is not writable.
     }
     
+    // Note that the type checker knows that both A1 and A2 are the same object,
+    // so if one is writable both are:
+    @Requires("x.CircularGhostA1 writableBy method")
+    void methodAccess(
+        @CircularGhostA1("x.CircularGhostA2") 
+        @CircularGhostA2("x.CircularGhostA1") 
+        CircularGhostsA x
+    ) {
+        x.field1 = 10;
+        x.field2 = 10;
+    }
+        
 }
