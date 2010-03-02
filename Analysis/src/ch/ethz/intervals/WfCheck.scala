@@ -121,6 +121,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
             
             case wt: ir.WcClassType =>
                 checkWghostsWf(wt)
+                checkWtargsWf(wt)
         }
     }
     
