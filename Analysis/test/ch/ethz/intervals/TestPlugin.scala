@@ -34,13 +34,13 @@ class TestPlugin extends JUnitSuite {
         else jfo.getName
         
     // Simple "glob" style patterns: * == .*, everything else is normal.
-    def glob(pat: String, str: String) = {
+    def glob(pat0: String, str: String) = {
         val replacements = List(
             ("""[?+.$\(\)\[\]\\\^]""" -> """\\$0"""),
             ("""\*""" -> """.*""")
         )        
-        val re = replacements.foldLeft(str)((s,p) => s.replaceAll(p._1, p._2))
-        Pattern.matches(re, str)
+        val pat1 = replacements.foldLeft(pat0)((p,r) => p.replaceAll(r._1, r._2))
+        Pattern.matches(pat1, str)
     }
         
     case class DiagError(jfo: JavaFileObject, line: Long, msg: String) 
