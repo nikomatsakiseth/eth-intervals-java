@@ -41,8 +41,8 @@ object TranslateMethodBody
     ): ir.StmtSeq = logStack.log.indented("translateMethodBody(%s)", mtree) {
         import logStack.log
         import ttf.TreePosition
-        import ttf.getAnnotatedType
         import ttf.fieldName
+        import ttf.methodName
         import ttf.wke
 
         // ___ Miscellany _______________________________________________________
@@ -220,10 +220,11 @@ object TranslateMethodBody
             
             // ___ Subsequences _____________________________________________________            
             
-            def subseq(func: (MutableStmtSeq => Unit)) {
+            def subseq[R](func: (MutableStmtSeq => R)) = {
                 val msubseq = new MutableStmtSeq(symtab_in, this :: parents)
-                func(msubseq)
+                val result = func(msubseq)
                 addSeq(msubseq.toStmtSeq)
+                result
             }
             
             // ___ Finalizing into a compound statement _____________________________            
@@ -249,7 +250,7 @@ object TranslateMethodBody
                         ir.Loop(args, lvs_initial, seqsBuffer(0))
                         
                     case ScopeKindInlineInterval(x) => 
-                        assert(seqsBuffer.length == 1)
+                        assert(seqsBuffer.length == 2)
                         ir.InlineInterval(x, seqsBuffer(0), seqsBuffer(1))
                         
                     case ScopeKindTryCatch =>
@@ -279,18 +280,19 @@ object TranslateMethodBody
             
             // ___ Finalizing into a Compound Stmt __________________________________
 
-            def subscope(
+            def subscope[R](
                 tree: Tree,
                 subkind: ScopeKind, 
                 sublabel: Option[Name], 
                 decls_xtra: ir.LvDecl*
             )(
-                ctor_func: (Scope => Unit)
+                ctor_func: (Scope => R)
             ) = {
                 val subscope = new Scope(subkind, scopes, sublabel, symtab, decls_xtra.toList)
-                ctor_func(subscope)
+                val result = ctor_func(subscope)
                 addStmt(tree, subscope.toCompoundStmt)
                 symtab ++= subscope.defines_auto
+                result
             }
             
             // ___ Break, Continue statements _______________________________________
@@ -339,7 +341,7 @@ object TranslateMethodBody
             }
                         
             def wtref(etree: ExpressionTree, wgs_default: List[ir.WcGhost]) = {
-                ttf.wtref(env(etree), wgs_default)(getAnnotatedType(etree))
+                ttf.wtref(env(etree), wgs_default)(ttf.getAnnotatedType(etree))
             }
 
             def call(treePos: Tree, lv_rcvr: ir.VarName, m: ir.MethodName, lvs_args: ir.VarName*) = {
@@ -350,7 +352,7 @@ object TranslateMethodBody
 
             def toString(etree: ExpressionTree) {
                 val p = rvalue(etree)
-                val annty = getAnnotatedType(etree)
+                val annty = ttf.getAnnotatedType(etree)
                 if(!annty.getKind.isPrimitive)
                     call(etree, p, ir.m_toString)
             }
@@ -497,25 +499,77 @@ object TranslateMethodBody
                     throw new Unhandled(tree)     
             }
             
+            /** Translate the argument to an `inline()` call during
+              * `explicitInvocationsOfInitAndRun`.
+              */
+            def inlineTaskObj(
+                lv_intervalName: ir.VarName,
+                etree: ExpressionTree
+            ) = etree match {
+                case nctree: NewClassTree =>
+                    constructorInvocation(nctree, List(
+                        ir.Ghost(fieldName(wke.Subinterval.elem), lv_intervalName.path)))
+                case _ => rvalue(etree)
+            }
+            
             /** Translate an inline interval call:
               *
               * Right now, we have special support for calls like:
               * `Intervals.inline(new SomeType())`.  We create an inline
               * interval in the IR and add it as the @Subinterval() ghost.
               */
-//            def inlineIntervalCall(
-//                mitree: MethodInvocationTree
-//            ): ir.VarName = {
-//                
-//                val etree_arg = mitree.getArguments.get(0)
-//                EU.skipParens(etree_arg) match {
-//                    case nctree: NewClassTree =>
-//                        
-//                    
-//                    case _ =>
-//                    
-//                }
-//            }
+            def inlineCall(
+                mitree: MethodInvocationTree
+            ): ir.VarName = {
+                val eelem = TU.elementFromUse(mitree)
+                val etree_arg = mitree.getArguments.get(0)
+                val lv_intervalName = freshVar
+                
+                val (eelem_taskInit, eelem_taskRun) = {
+                    if(eelem == wke.inlineVoid) (wke.voidInlineTaskInit, wke.voidInlineTaskRun)
+                    else (wke.inlineTaskInit, wke.inlineTaskRun)
+                }
+                val (m_taskInit, m_taskRun) = (methodName(eelem_taskInit), methodName(eelem_taskRun))
+                
+                def explicitInvocationsOfInitAndRun = {
+                    val wt_result = wtref(mitree, ir.wgs_constructed)
+                    val decl = ir.LvDecl(freshVar, wt_result, List())
+
+                    subscope(mitree, ScopeKindInlineInterval(lv_intervalName), None, decl) {
+                        scope_interval =>
+                            val lv_taskObj = scope_interval.subseq { seq_init =>
+                                val lv_taskObj = seq_init.inlineTaskObj(lv_intervalName, etree_arg)
+                                seq_init.call(mitree, lv_taskObj, m_taskInit, lv_intervalName)
+                                lv_taskObj
+                            }
+                            
+                            scope_interval.subseq { seq_run =>
+                                val lv_ret = seq_run.call(mitree, lv_taskObj, m_taskRun, lv_intervalName)
+                                seq_run.uncondBreak(mitree, scope_interval, lv_ret)
+                            }
+                            
+                            decl.name
+                    }
+                }
+                
+                TU.skipParens(etree_arg) match {
+                    case nctree: NewClassTree =>
+                        val ctorElem = TU.elementFromUse(nctree)
+                        Option(nctree.getClassBody) match {
+                            case Some(ctree) if ctorElem == wke.inlineTaskInit =>
+                                explicitInvocationsOfInitAndRun
+                            
+                            case Some(ctree) if ctorElem == wke.voidInlineTaskInit =>
+                                explicitInvocationsOfInitAndRun
+                            
+                            case _ =>
+                                explicitInvocationsOfInitAndRun
+                        }
+                    
+                    case _ =>
+                        explicitInvocationsOfInitAndRun
+                }
+            }
             
             def methodInvocation(
                 mitree: MethodInvocationTree
@@ -527,8 +581,8 @@ object TranslateMethodBody
                     val qs = mitree.getArguments.map(rvalue)
                     addStmt(mitree, ir.StmtHb(qs(0), qs(1)))
                     ir.lv_this // Dummy return value.
-//                } else if(wke.inline(eelem)) {
-//                    inlineIntervalCall(mitree)
+                } else if(wke.inline(eelem)) {
+                    inlineCall(mitree)
                 } else {
                     nonIntrinsicMethodInvocation(eelem, mitree)
                 }            
@@ -619,7 +673,7 @@ object TranslateMethodBody
                         rvalue(tree.getExpression)
 
                     case tree: UnaryTree => // !p, p++, p-- etc
-                        assert(getAnnotatedType(tree).getKind.isPrimitive)
+                        assert(ttf.getAnnotatedType(tree).getKind.isPrimitive)
                         tree.getKind match {
                             // p++, p-- are effectively writes:
                             case TRK.POSTFIX_DECREMENT | TRK.POSTFIX_INCREMENT | TRK.PREFIX_DECREMENT | TRK.PREFIX_INCREMENT =>

@@ -44,6 +44,25 @@ sealed case class TcEnv(
     
     def withCurrent(lv_cur: ir.VarName) = copy(o_lv_cur = Some(lv_cur))
 
+    def withFreshChildInterval(lv_parent: ir.VarName) = {
+        val cp_parent = immutableCanonLv(lv_parent)
+        val (lv_interval, cp_interval, env) = freshCp(ir.c_interval)        
+        env.addSuspends(cp_interval, cp_parent).withCurrent(lv_interval)
+    }
+    
+    def withSiblingInterval(lv_interval: ir.VarName, lv_parent: ir.VarName) = {
+        val cp_parent = immutableCanonLv(lv_parent)
+        val cp_interval = immutableCanonLv(lv_interval)
+        this.addHbInter(cp_cur, cp_interval)
+            .addSuspends(cp_interval, cp_parent)
+            .withCurrent(lv_interval)
+    }
+    
+    def withFreshSiblingInterval(lv_parent: ir.VarName) = {
+        val (lv_interval, _, env) = freshCp(ir.c_interval)
+        env.withSiblingInterval(lv_interval, lv_parent)
+    }
+    
     /** Set `c_this`, adding `this` as a local variable. */
     def withThisClass(c_this: ir.ClassName) = addReifiedLocal(ir.lv_this, c_this.ct).copy(c_this = c_this)
     

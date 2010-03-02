@@ -362,9 +362,13 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                 val ss = new StmtScope(env, stmt_compound.defines, None)
                 val ss_cur = ss :: ss_prev
                 
+                val lv_parent = env.lv_cur
+                env = env.withFreshChildInterval(lv_parent)
                 env = checkStatementSeq(env, ss_cur, seq_init)
-                env = env.withCurrent(x)
+                
+                env = env.withSiblingInterval(x, lv_parent)
                 env = checkStatementSeq(env, ss_cur, seq_run)
+                
                 ss.oenv_break
                 
             case ir.TryCatch(seq_try, seq_catch) =>
@@ -543,28 +547,21 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
     
     def checkStatementSeq(env0: TcEnv, ss_cur: List[StmtScope], seq: ir.StmtSeq) = {
         log.indented("checkStatementSeq(%s)", seq) {
-            val lv_curOnEntry = env0.o_lv_cur.get            
-            log("lv_curOnEntry: %s", lv_curOnEntry)
+            var env = env0
             
-            val (lv_seqInterval, cp_seqInterval, env1) = env0.freshCp(ir.c_interval)
-            log("lv_seqInterval: %s", lv_seqInterval)
+            val lv_onEntry = env.lv_cur
             
-            var env = env1.addSuspends(cp_seqInterval, env1.cp_cur)
-            env = env.withCurrent(lv_seqInterval)
-            
-            seq.stmts.foldLeft[Option[ir.ImmutableCanonPath]](None) { (ocp_prevInterval, stmt) =>
-                val (lv_stmtInterval, cp_stmtInterval, env2) = env.freshCp(ir.c_interval)
-                log("cp_stmtInterval: %s", cp_stmtInterval)
-                env = env2.addSuspends(cp_stmtInterval, cp_seqInterval)
-                ocp_prevInterval.foreach { cp_prevInterval =>
-                    env = env.addHbInter(cp_prevInterval, cp_stmtInterval)
-                }
-                env = env.withCurrent(lv_stmtInterval)
+            seq.stmts.take(1).foreach { stmt =>
+                env = env.withFreshChildInterval(lv_onEntry)
                 env = checkStatement(env, ss_cur, stmt)
-                Some(cp_stmtInterval)
             }
             
-            env.withCurrent(lv_curOnEntry)
+            seq.stmts.drop(1).foreach { stmt =>
+                env = env.withFreshSiblingInterval(lv_onEntry)
+                env = checkStatement(env, ss_cur, stmt)
+            }
+            
+            env.withCurrent(lv_onEntry)
         }
     }
     

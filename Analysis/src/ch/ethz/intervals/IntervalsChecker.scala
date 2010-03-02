@@ -181,6 +181,13 @@ class IntervalsChecker extends SourceChecker {
                 } else {
                     addTypesOfAnnotations(referencedElements, elem)                    
                 }
+                
+                // n.b.: for InlineTask or VoidInlineTask, make sure to
+                // add init() and run(), as these methods may be invoked
+                // implicitly when translating calls to Intervals.inline().
+                // Actually we just add all elements (too lazy to filter).
+                if(ttf.wke.inlineTaskClasses.exists(_.isSuperElementOf(elem)))
+                    referencedElements ++= EF.methodsIn(elem.getEnclosedElements)
 
                 // n.b.: we visit only the (non-private) enclosed fields; 
                 // if any of the methods are actually invoked, we'll visit 

@@ -3,6 +3,7 @@ package ch.ethz.intervals
 import scala.collection.JavaConversions._
 
 import javax.lang.model.element.ExecutableElement
+import javax.lang.model.element.Element
 import javax.lang.model.util.Elements
 import javax.lang.model.util.{ElementFilter => EF}
 import javax.lang.model.util.Types
@@ -37,6 +38,11 @@ class WellKnownElements(elements: Elements, types: Types) {
         def ctor(argTypes: TypeInfo[_]*): ExecutableElement = {
             EF.constructorsIn(elem.getEnclosedElements).find(matches("<init>", argTypes.toList)).get
         }
+        
+        def isSuperElementOf(otherElem: Element) = {
+            val otherTy = otherElem.asType
+            types.isSubtype(types.erasure(otherTy), types.erasure(ty))
+        }
     }
 
     val Intervals = new TypeInfo(classOf[Intervals])
@@ -50,6 +56,7 @@ class WellKnownElements(elements: Elements, types: Types) {
     
     val InlineTask = new TypeInfo(classOf[ch.ethz.intervals.InlineTask[_]])
     val VoidInlineTask = new TypeInfo(classOf[ch.ethz.intervals.VoidInlineTask])
+    val inlineTaskClasses = Set(InlineTask, VoidInlineTask)
     
     val addHbIntervalInterval = Intervals.method("addHb", Interval, Interval)
     val addHbIntervalPoint = Intervals.method("addHb", Interval, Point)
@@ -57,9 +64,14 @@ class WellKnownElements(elements: Elements, types: Types) {
     val addHbPointPoint = Intervals.method("addHb", Point, Point)
     val addHb = Set(addHbIntervalInterval, addHbIntervalPoint, addHbPointInterval, addHbPointPoint)
     
-    val inlineTaskInit = InlineTask.ctor()
-    val voidInlineTaskInit = InlineTask.ctor()
-    val inlineInit = Set(inlineTaskInit, voidInlineTaskInit)
+    val inlineTaskCtor = InlineTask.ctor()
+    val inlineTaskInit = InlineTask.method("init", Interval)
+    val inlineTaskRun = InlineTask.method("run", Interval)
+    
+    val voidInlineTaskCtor = VoidInlineTask.ctor()
+    val voidInlineTaskInit = VoidInlineTask.method("init", Interval)
+    val voidInlineTaskRun = VoidInlineTask.method("run", Interval)
+
     
     val inlineResult = Intervals.method("inline", InlineTask)
     val inlineVoid = Intervals.method("inline", VoidInlineTask)

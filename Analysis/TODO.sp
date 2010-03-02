@@ -2,7 +2,7 @@ ___ To Do List _______________________________________________________
 
 ______ OOPSLA Bugs ___________________________________________________
 
-- Check variance of wps_identity on method overrides!
+______ Bugs __________________________________________________________
 
 - Assertions
 
@@ -33,9 +33,11 @@ ______ OOPSLA Bugs ___________________________________________________
     
 - Static fields, methods
 
-______ Bugs __________________________________________________________
-
 - Check that there are no fields named f_objCtor declared anywhere
+
+- Fix WF for compound stmts to get variable scoping right
+
+- Check variance of wps_identity on method overrides!
 
 ______ Features and Improvements _____________________________________
 

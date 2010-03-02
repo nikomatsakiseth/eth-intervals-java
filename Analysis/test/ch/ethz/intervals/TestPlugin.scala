@@ -20,17 +20,28 @@ import javax.tools.StandardJavaFileManager
 import javax.tools.ToolProvider
 
 import java.net.URLEncoder
+import java.util.regex.Pattern
 
 import ch.ethz.intervals.log.LogDirectory
 
 class TestPlugin extends JUnitSuite {
     import TestAll.DEBUG_DIR
     
-    val logTests: Set[String] = Set()
+    val logTests: Set[String] = Set("testInlineIntervals")
     
     def fileName(jfo: JavaFileObject) =
         if(jfo == null) "null"
         else jfo.getName
+        
+    // Simple "glob" style patterns: * == .*, everything else is normal.
+    def glob(pat: String, str: String) = {
+        val replacements = List(
+            ("""[?+.$\(\)\[\]\\\^]""" -> """\\$0"""),
+            ("""\*""" -> """.*""")
+        )        
+        val re = replacements.foldLeft(str)((s,p) => s.replaceAll(p._1, p._2))
+        Pattern.matches(re, str)
+    }
         
     case class DiagError(jfo: JavaFileObject, line: Long, msg: String) 
     extends Ordered[DiagError] {
@@ -44,6 +55,10 @@ class TestPlugin extends JUnitSuite {
                 line.compare(d.line)
             else
                 msg.compare(d.msg)
+        }
+        
+        def matches(diag: DiagError) = {
+            jfo == diag.jfo && line == diag.line && glob(msg, diag.msg)
         }
         
         def toTxmtUrl = {
@@ -150,33 +165,26 @@ class TestPlugin extends JUnitSuite {
         var matchedErrors = 0
         
         try {
-            log.indented("Expected Errors") { expErrors.foreach(log.apply) }
-
-            log.indented("Encountered Errors") {
-                actErrors.foreach { actError =>
-                    expErrorsRemaining.indexOf(actError) match {
-                        case -1 => // Unexpected error:
-                            log.linkTo(
-                                actError.toTxmtUrl,
-                                "Unexpected Error: %s", actError)
-                        case i => // Skipped some errors
-                            expErrorsRemaining.take(i).foreach { expError =>
-                                log.linkTo(
-                                    expError.toTxmtUrl,
-                                    "Skipped Error: %s", expError)
-                            }
-                            expErrorsRemaining = expErrorsRemaining.drop(i+1)
-                            matchedErrors += 1
-                            log.linkTo(
-                                actError.toTxmtUrl,
-                                "Matched Error: %s", actError)
-                    }
-                }            
+            val unexpectedErrors = actErrors.filterNot(actError => 
+                expErrors.exists(_ matches actError))
+            val missingErrors = expErrors.filterNot(expError =>
+                actErrors.exists(expError matches _))
+                
+            def logErrors(adj: String, errors: Iterable[DiagError]) = {
+                log.indented("%s Errors", adj) {
+                    errors.foreach { error =>
+                        log.linkTo(error.toTxmtUrl, "%s Error: %s", adj, error)                
+                    }                    
+                }
             }
-
-            assertEquals(matchedErrors, expErrors.length)
-            assertEquals(matchedErrors, actErrors.length)
-            assertEquals(expErrors.isEmpty, success)            
+            
+            logErrors("Unexpected", unexpectedErrors)
+            logErrors("Missing", missingErrors)
+            logErrors("Expected", expErrors)
+            logErrors("Actual", actErrors)
+                
+            assertEquals(0, unexpectedErrors.length)
+            assertEquals(0, missingErrors.length)
         } catch {
             case t: Throwable => // only print log if test fails:
                 System.out.println("Error matching output for failed test:")
@@ -250,5 +258,10 @@ class TestPlugin extends JUnitSuite {
     @Test 
     def testLists() {
         javac(unitTest, "basic/Lists.java")
+    }
+    
+    @Test 
+    def testInlineIntervals() {
+        javac(unitTest, "basic/InlineIntervals.java")
     }
 }
