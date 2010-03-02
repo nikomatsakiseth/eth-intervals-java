@@ -8,9 +8,6 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
     import prog.logStack.log
     import prog.logStack.indexLog
     import prog.logStack.at
-    import prog.classDecl
-    import prog.unboundGhostFieldsOnClassAndSuperclasses
-    import prog.unboundTypeVarsDeclaredOnClassAndSuperclasses
     
     def canonPath = env.canonPath _
     def canonLv = env.canonLv _
@@ -80,7 +77,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
         wt.wghosts.map(_.wp).foreach(checkWPathWf)
 
         // Every ghost should be for some unbound ghost field:
-        val gfds_unbound = unboundGhostFieldsOnClassAndSuperclasses(wt.c)
+        val gfds_unbound = env.unboundGhostFieldsOnClassAndSuperclasses(wt.c)
         val expectedFieldNames: Set[ir.FieldName] = gfds_unbound.map(_.name) + ir.f_objCtor
         wt.wghosts.find(wg => !expectedFieldNames(wg.f)).foreach { wg =>
             throw new CheckFailure("intervals.no.such.ghost", wt.c, wg.f)
@@ -105,7 +102,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
         wt.wtargs.foreach(checkWtargWf)
         
         // Every type arg should be for some unbound type variable:
-        val tvds_unbound = unboundTypeVarsDeclaredOnClassAndSuperclasses(wt.c)
+        val tvds_unbound = env.unboundTypeVarsDeclaredOnClassAndSuperclasses(wt.c)
         val expectedTvNames = tvds_unbound.map(_.name)
         wt.wtargs.find(wta => !expectedTvNames(wta.tv)).foreach { wta =>
             throw new CheckFailure("intervals.no.such.type.var", wt.c, wta.tv)            
@@ -174,7 +171,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                     addReifiedLocal(lv_def, msig.wt_ret)
                 
                 case ir.StmtNew(lv_def, ct, m, lvs_args) =>
-                    if(classDecl(ct.c).attrs.interface)
+                    if(env.classDecl(ct.c).attrs.interface)
                         throw new CheckFailure("intervals.new.interface", ct.c)
                         
                     // XXX currently you cannot specify an explicit
@@ -193,14 +190,14 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                     val cps_args = env.reifiedLvs(lvs_args)
                     
                     // Check that all ghosts on the type C being instantiated are given a value:
-                    val gfds_unbound = unboundGhostFieldsOnClassAndSuperclasses(ct.c)
+                    val gfds_unbound = env.unboundGhostFieldsOnClassAndSuperclasses(ct.c)
                     gfds_unbound.find(gfd => ct.ghosts.find(_.isNamed(gfd.name)).isEmpty) match {
                         case Some(gfd) => throw new CheckFailure("intervals.no.value.for.ghost", gfd.name)
                         case None =>
                     }
                     
                     // Check that all type vars on the type C being instantiated are given a value:
-                    val tvds_unbound = unboundTypeVarsDeclaredOnClassAndSuperclasses(ct.c)
+                    val tvds_unbound = env.unboundTypeVarsDeclaredOnClassAndSuperclasses(ct.c)
                     tvds_unbound.find(tvd => ct.targs.find(_.isNamed(tvd.name)).isEmpty) match {
                         case Some(tvd) => throw new CheckFailure("intervals.no.value.for.type.var", tvd.name)
                         case None =>
@@ -343,14 +340,14 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
     ) = {
         log.indented("checkFieldNameNotShadowed(%s)", decl) {
             val f = decl.name
-            prog.classAndSuperclasses(env.c_this).foreach { c =>
+            env.classAndSuperclasses(env.c_this).foreach { c =>
                 log.indented("class(%s)", c) {
-                    classDecl(c).ghostFieldDecls.filter(_.isNamed(f)).foreach { gfd =>
+                    env.classDecl(c).ghostFieldDecls.filter(_.isNamed(f)).foreach { gfd =>
                         log("gfd: %s (eq? %s)", gfd, gfd eq decl)
                         if(gfd ne decl)
                             throw new CheckFailure("intervals.shadowed", c, f)                
                     }
-                    classDecl(c).reifiedFieldDecls.filter(_.isNamed(f)).foreach { rfd =>
+                    env.classDecl(c).reifiedFieldDecls.filter(_.isNamed(f)).foreach { rfd =>
                         log("rfd: %s (eq? %s)", rfd, rfd eq decl)
                         if(rfd ne decl)
                             throw new CheckFailure("intervals.shadowed", c, f)                
@@ -374,7 +371,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
         at(gfd, ()) {
             savingEnv {
                 checkFieldNameNotShadowed(env, gfd)
-                classDecl(gfd.c)
+                env.classDecl(gfd.c)
             }
         }        
     }
@@ -383,8 +380,8 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
         at(tvd, ()) {
             savingEnv {
                 // Check that type vars are not shadowed:
-                prog.classAndSuperclasses(cd.name).foreach { c =>
-                    classDecl(c).typeVarDecls.filter(_.isNamed(tvd.name)).foreach { tvd1 =>
+                env.classAndSuperclasses(cd.name).foreach { c =>
+                    env.classDecl(c).typeVarDecls.filter(_.isNamed(tvd.name)).foreach { tvd1 =>
                         if(tvd ne tvd1)
                             throw new CheckFailure("intervals.shadowed.type.var", c, tvd.name)                        
                     }
@@ -398,13 +395,13 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
     // ___ Classes and interfaces ___________________________________________
     
     def checkIsInterface(c: ir.ClassName) {
-        val cd = classDecl(c)
+        val cd = env.classDecl(c)
         if(!cd.attrs.interface) 
             throw new CheckFailure("intervals.superType.not.interface", c)
     }
     
     def checkInterfaceSuperclass(c: ir.ClassName) {
-        val cd = classDecl(c)
+        val cd = env.classDecl(c)
         if(c != ir.c_object) checkIsInterface(c)
     }
     
@@ -436,7 +433,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
     }
         
     def checkIsNotInterface(c: ir.ClassName) {
-        val cd_super = classDecl(c)
+        val cd_super = env.classDecl(c)
         if(cd_super.attrs.interface) 
             throw new CheckFailure("intervals.superType.interface", c)
     }

@@ -12,8 +12,6 @@ abstract class TracksEnvironment(prog: Prog) extends CheckPhase(prog)
     import prog.logStack.log
     import prog.logStack.indexLog
     import prog.logStack.at    
-    import prog.classDecl
-    import prog.unboundGhostFieldsOnClassAndSuperclasses
     
     // ______________________________________________________________________
     // Current Environment

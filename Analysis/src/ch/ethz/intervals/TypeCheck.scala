@@ -14,8 +14,6 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
     import prog.logStack.indexLog
     import prog.logStack.at
     import prog.logStack.indexAt
-    import prog.classDecl
-    import prog.strictSuperclasses
     
     /// wt(cp_sub) <: wt_sup
     def checkIsSubtype(env: TcEnv, cp_sub: ir.CanonPath, wt_sup: ir.WcTypeRef) {
@@ -410,7 +408,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                 env = processCall(env, None, ir.lv_this, md, lvs_args)
                 
                 // Ctors for all supertypes now complete:
-                strictSuperclasses(env.c_this).foreach { case c =>
+                env.strictSuperclasses(env.c_this).foreach { case c =>
                     val cp_cCtor = env.immutableCanonPath(ir.ClassCtorFieldName(c).thisPath)
                     env = env.addHbInter(cp_cCtor, env.cp_cur)
                 }
@@ -468,7 +466,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                 processCall(env, Some(x), ir.lv_this, md, lvs_args)
             
             case ir.StmtNew(x, ct0, m, lvs_args) =>
-                val cd = classDecl(ct0.c)
+                val cd = env.classDecl(ct0.c)
                 
                 if(cd.attrs.interface)
                     throw new CheckFailure("intervals.new.interface", ct0.c)
@@ -672,7 +670,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
         fd: ir.ReifiedFieldDecl
     ) = indexAt(fd, ()) {
         var env = env_cd
-        val cd = classDecl(env.c_this)
+        val cd = env.classDecl(env.c_this)
         
         // Rules:
         //

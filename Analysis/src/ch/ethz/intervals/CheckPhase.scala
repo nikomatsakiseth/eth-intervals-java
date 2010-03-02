@@ -16,7 +16,7 @@ abstract class CheckPhase(val prog: Prog) {
     def checkClassDeclAfterSuperclasses(cd: ir.ClassDecl) {
         if(!checkedClasses(cd.name) && userClassNames(cd.name)) {
             cd.superClasses.foreach(c => 
-                checkClassDeclAfterSuperclasses(prog.classDecl(c)))
+                checkClassDeclAfterSuperclasses(prog.topLevelClassTable(c)))
             checkClassDecl(cd)          
             checkedClasses += cd.name
         }
