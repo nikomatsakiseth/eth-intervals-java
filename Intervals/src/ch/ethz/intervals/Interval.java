@@ -84,7 +84,7 @@ implements Dependency, Guard, IntervalMirror
 	 * 
 	 * <p>Executed by the scheduler when {@code this}
 	 * is the current interval.  <b>Do not invoke manually.</b> */
-	@Requires("method subintervalOf this")
+	@Requires("method suspends this")
 	protected abstract void run();
 	
 	/** Invoked if an error occurs in this interval or in a child.  Gives the

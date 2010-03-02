@@ -12,7 +12,7 @@ import java.lang.annotation.Target;
  * <li> <tt>[guard] writableBy [interval]</tt>
  * <li> <tt>[guard] immutableIn [interval]</tt>
  * <li> <tt>[interval/point] hb [interval/point]</tt>
- * <li> <tt>[interval] subintervalOf [interval]</tt>
+ * <li> <tt>[interval] suspends [interval]</tt>
  * </ul>
  */
 @Target(ElementType.METHOD)
