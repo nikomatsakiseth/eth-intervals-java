@@ -242,6 +242,7 @@ class IntervalsChecker extends SourceChecker {
             val tv = new TreeExplorer(ttf)
             val resultSet = MutableSet.empty[Element]
             tree.accept(tv, true)
+            tv.referencedElements += ttf.wke.toStringEelem // sometimes there are implicit calls to toString
             addElements(resultSet, tv.referencedElements)
             
             // Ensure that elements on which our analysis relies are present:
