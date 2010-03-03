@@ -71,7 +71,7 @@ class IntervalsChecker extends SourceChecker {
                 val tctx = new TranslateContext(logStack, ttf)
                 
                 val classTree = treePath.getLeaf.asInstanceOf[ClassTree]
-                val refdElems = referenceClosure(ttf, classTree)
+                val refdElems = referenceClosure(ttf, classTree) -- ttf.wke.intrinsics
                 
                 indexLog.indented("Build IR") {
                     tctx.addClassImplementation(classTree) // XXX Supertypes?

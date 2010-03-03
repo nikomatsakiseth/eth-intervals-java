@@ -1,6 +1,6 @@
 package ch.ethz.intervals
 
-import scala.collection.immutable.Map
+import scala.collection.immutable.ListMap
 import ir./
 
 class PathSubst(private val m: Map[ir.Path, ir.Path]) extends BaseSubst {
@@ -19,9 +19,9 @@ class PathSubst(private val m: Map[ir.Path, ir.Path]) extends BaseSubst {
 
 object PathSubst {
     def pp(p: ir.Path, q: ir.Path): PathSubst = 
-        new PathSubst(Map((p, q)))
+        new PathSubst(ListMap((p, q)))
     def pp(ps: List[ir.Path], qs: List[ir.Path]): PathSubst =
-        new PathSubst(Map(ps.zip(qs): _*))
+        new PathSubst(ListMap(ps.zip(qs): _*))
     def vp(lv: ir.VarName, q: ir.Path): PathSubst = 
         pp(lv.path, q)
     def vp(lv: List[ir.VarName], q: List[ir.Path]): PathSubst = 

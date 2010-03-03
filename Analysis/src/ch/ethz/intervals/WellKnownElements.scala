@@ -81,4 +81,6 @@ class WellKnownElements(elements: Elements, types: Types) {
     
     val ofClass = DefinesGhost.method("ofClass")
     val useByDefault = DefinesGhost.method("useByDefault")
+    
+    val intrinsics = inline ++ addHb
 }

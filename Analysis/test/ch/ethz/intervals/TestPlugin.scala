@@ -1,7 +1,7 @@
 package ch.ethz.intervals
 
-import org.scalatest.junit.JUnitSuite
-import org.scalatest.FunSuite
+import org.scalatest.Suite
+import org.scalatest.BeforeAndAfter
 import scala.collection.mutable.ListBuffer
 import scala.collection.JavaConversions._
 import org.junit.Assert._
@@ -24,10 +24,10 @@ import java.util.regex.Pattern
 
 import ch.ethz.intervals.log.LogDirectory
 
-class TestPlugin extends JUnitSuite {
+class TestPlugin extends Suite with BeforeAndAfter {
     import TestAll.DEBUG_DIR
     
-    val logTests: Set[String] = Set("testTspTspSolver", "testTspTourElement")
+    val logTests: Set[String] = Set("testTspTspSolver", "testTspTourElement", "testVariousLoops")
     
     def fileName(jfo: JavaFileObject) =
         if(jfo == null) "null"
@@ -144,8 +144,7 @@ class TestPlugin extends JUnitSuite {
         }
     }
     
-    @Before
-    def cleanUnitTestBinDirectory() {
+    override def beforeEach() {
         val binDir = new File(unitTest.binDir)
         deleteContentsOfDirectory(binDir, binDir)
     }
@@ -247,68 +246,61 @@ class TestPlugin extends JUnitSuite {
     
     // ___ Basic Tests ______________________________________________________
     
-    @Test 
     def testParseReqs() {
         javac(unitTest, "basic/ParseReqs.java")        
     }
     
-    @Test 
     def testWriteFromWrongInterval() {
         javac(unitTest, "basic/WriteFromWrongInterval.java")        
     }
     
-    @Test 
+    @ActivelyDebugging
     def testVariousLoops() {
         javac(unitTest, "basic/VariousLoops.java")        
     }
     
-    @Test 
     def testCircularGhostsA() {
         javac(unitTest, "basic/CircularGhostsA.java")
     }
     
-    @Test 
     def testCircularHb() {
         javac(unitTest, "basic/CircularHb.java")
     }
     
-    @Test 
     def testLists() {
         javac(unitTest, "basic/Lists.java")
     }
     
-    @Test 
     def testIf() {
         javac(unitTest, "basic/If.java")
     }
     
-    @Test 
     def testOnlyFinal() {
         javac(unitTest, "basic/OnlyFinal.java")
     }
     
-    @Test 
     def testInlineIntervals() {
         javac(unitTest, "basic/InlineIntervals.java")
     }
     
     // ___ BBPC Application Tests ___________________________________________
     
-    @Test 
     def testBbpc() {
         javac(unitTest, "bbpc/Producer.java")
     }
     
     // ___ TSP Application Tests ____________________________________________
     
-    @Test
     def testTspTourElement() {
         javac(unitTest, "erco/intervals/tsp/TourElement.java")
     }
 
-    @Test
     def testTspTspSolver() {
         javac(unitTest, "erco/intervals/tsp/TspSolver.java")
     }
     
+    def testTspSplitTour() {
+        javac(unitTest, "erco/intervals/tsp/SplitTour.java")
+    }
+
 }

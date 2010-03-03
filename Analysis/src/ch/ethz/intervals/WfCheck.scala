@@ -250,20 +250,29 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                     }
 
                 case stmt_c: ir.StmtCompound =>
+                    val new_stack = stmt_c :: stmts_stack
                     stmt_c.kind match {
-                        case ir.Block(_) =>
-                        case ir.Switch(_) =>
-                        case ir.Loop(_, lvs_initial, _) =>
+                        case ir.Block(seq) =>
+                            savingEnv { checkStatementSeq(new_stack)(seq) }
+                        case ir.Switch(seqs) =>
+                            savingEnv { seqs.foreach(checkStatementSeq(new_stack)) }
+                        case ir.Loop(args, lvs_initial, seq) =>
                             env.reifiedLvs(lvs_initial)
-                        case ir.InlineInterval(x, _, _) =>
+                            savingEnv {
+                                addCheckedArgs(args)
+                                checkStatementSeq(new_stack)(seq)
+                            }
+                        case ir.InlineInterval(x, init, run) =>
                             addReifiedLocal(x, ir.wt_constructedInterval)
-                        case ir.TryCatch(_, _) =>
+                            savingEnv { 
+                                checkStatementSeq(new_stack)(init) 
+                                checkStatementSeq(new_stack)(run)
+                            }
+                        case ir.TryCatch(t, c) =>
+                            savingEnv { checkStatementSeq(new_stack)(t) }
+                            savingEnv { checkStatementSeq(new_stack)(c) }
                     }
                     
-                    savingEnv {
-                        stmt_c.kind.subseqs.foreach(checkStatementSeq(stmt_c :: stmts_stack))                        
-                    }
-                
                     addCheckedArgs(stmt_c.defines)
             }        
         }

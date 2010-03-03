@@ -1,7 +1,6 @@
 package ch.ethz.intervals
 
-import org.scalatest.junit.JUnitSuite
-import org.scalatest.FunSuite
+import org.scalatest.Suite
 import scala.collection.mutable.ListBuffer
 import org.junit.Assert._
 import org.junit.Test
@@ -16,7 +15,7 @@ import java.io.File
 
 case class ExpError(msg: String, args: List[String])
 
-class TestAnalysis extends JUnitSuite { 
+class TestAnalysis extends Suite { 
     import TestAll.DEBUG_DIR
     import TestAll.subst
     
@@ -150,8 +149,7 @@ class TestAnalysis extends JUnitSuite {
     
     // ___ Tests ____________________________________________________________
 
-    @Test
-    def linkedFields() {
+    def test_linkedFields() {
         tc(
             """
             class Linked extends #Object {
@@ -243,8 +241,7 @@ class TestAnalysis extends JUnitSuite {
         )
     }    
     
-    @Test
-    def neverLinkedToLockWhichGuardsYou() {
+    def test_neverLinkedToLockWhichGuardsYou() {
         tc(
             """
             class Data@lock(#Lock) extends #Object@#Creator(this.lock) {                
@@ -273,8 +270,7 @@ class TestAnalysis extends JUnitSuite {
         )
     }
     
-    @Test
-    def constructorTypes() {
+    def test_constructorTypes() {
         tc(
             """
             class Ctor extends #Object@#Creator(this.Constructor) {
@@ -371,8 +367,7 @@ class TestAnalysis extends JUnitSuite {
         )
     }    
 
-    @Test
-    def inheritedAssumptionsFromCtor() {
+    def test_inheritedAssumptionsFromCtor() {
         tc(
             """
             class Foo extends #Interval {
@@ -428,8 +423,7 @@ class TestAnalysis extends JUnitSuite {
         )
     }
 
-    @Test
-    def inheritedAssumptionsFromSupertypes() {
+    def test_inheritedAssumptionsFromSupertypes() {
         tc(
             """
             class Super extends #Interval 
@@ -491,8 +485,7 @@ class TestAnalysis extends JUnitSuite {
         )
     }
     
-    @Test
-    def inheritedAssumptionsFromMultipleCtors() {
+    def test_inheritedAssumptionsFromMultipleCtors() {
         tc(
             """
             class Foo extends #Interval {
@@ -548,8 +541,7 @@ class TestAnalysis extends JUnitSuite {
         )
     }
     
-    @Test
-    def inheritedAssumptionsOnlyIncludeTemporarilyAliasedFields() {
+    def test_inheritedAssumptionsOnlyIncludeTemporarilyAliasedFields() {
         tc(
             """
             class Foo extends #Interval {
@@ -583,8 +575,7 @@ class TestAnalysis extends JUnitSuite {
         )
     }    
 
-    @Test
-    def overriddenMethodsCannotAddRequirements() {
+    def test_overriddenMethodsCannotAddRequirements() {
         tc(
             """
             class A@a(#Interval)@b(#Interval) extends #Object@#Creator(this.Constructor) 
@@ -658,8 +649,7 @@ class TestAnalysis extends JUnitSuite {
         )
     }
     
-    @Test
-    def superCtors() {
+    def test_superCtors() {
         wf(
             """
             class Z extends #Object {
@@ -710,8 +700,7 @@ class TestAnalysis extends JUnitSuite {
         )
     }
     
-    @Test
-    def superInterval() {
+    def test_superInterval() {
         tc(
             """
             class A extends #Object@#Creator(this.Constructor) {
@@ -776,8 +765,7 @@ class TestAnalysis extends JUnitSuite {
         )
     }
     
-    @Test
-    def extendedInit() {
+    def test_extendedInit() {
         tc(
             """
             class ExtendedInit@init(#Interval) extends #Object@#Creator(this.init) {
@@ -814,8 +802,7 @@ class TestAnalysis extends JUnitSuite {
         )
     } 
     
-    @Test
-    def inlineInterval() {
+    def test_inlineInterval() {
         tc(
             """
             class Monitor extends #Object@#Creator(this.Constructor) {
@@ -889,8 +876,7 @@ class TestAnalysis extends JUnitSuite {
         )
     }
     
-    @Test
-    def multipleInheritance() {
+    def test_multipleInheritance() {
         tc(
             """
             interface class IFoo extends #Object {
@@ -984,8 +970,7 @@ class TestAnalysis extends JUnitSuite {
         )
     }
     
-    @Test
-    def ghostTypesLocals()
+    def test_ghostTypesLocals()
     {
         tc(
             """
@@ -1051,8 +1036,7 @@ class TestAnalysis extends JUnitSuite {
         )
     }
     
-    @Test
-    def illegalLinkedFields()
+    def test_illegalLinkedFields()
     {
         tc(
             """
@@ -1103,8 +1087,7 @@ class TestAnalysis extends JUnitSuite {
         )
     }
     
-    @Test
-    def illegalClassInReq
+    def test_illegalClassInReq
     {
         wf(
             """
@@ -1128,8 +1111,7 @@ class TestAnalysis extends JUnitSuite {
         )    
     }
     
-    @Test
-    def mutableHbRequirements
+    def test_mutableHbRequirements
     {
         tc(
             """
@@ -1151,8 +1133,7 @@ class TestAnalysis extends JUnitSuite {
         )   
     }
     
-    @Test
-    def fieldsTypesWf()
+    def test_fieldsTypesWf()
     {
         wf(
             """
@@ -1169,8 +1150,7 @@ class TestAnalysis extends JUnitSuite {
         )
     }    
     
-    @Test
-    def superTypePreservesGhosts()
+    def test_superTypePreservesGhosts()
     {
         tc(
             """
@@ -1219,8 +1199,7 @@ class TestAnalysis extends JUnitSuite {
     // Checks the basic rules for interface inheritance.  We should
     // add more complete tests, but since these are enforced by javac
     // anyway they are hardly high priority.
-    @Test
-    def interfaceInheritance() {
+    def test_interfaceInheritance() {
         wf(
             """
             interface class IFoo extends #Object {
@@ -1241,8 +1220,7 @@ class TestAnalysis extends JUnitSuite {
         )
     }
 
-    @Test
-    def hoh() {
+    def test_hoh() {
         success(
             """
             class Data@lock(#Lock) extends #Object@#Creator(this.lock) {
@@ -1319,8 +1297,7 @@ class TestAnalysis extends JUnitSuite {
         )
     }
 
-    @Test
-    def blockBranchCheckIndices() {
+    def test_blockBranchCheckIndices() {
         wf(
             """
             class Class extends #Object {
@@ -1376,8 +1353,7 @@ class TestAnalysis extends JUnitSuite {
     //    )
     //}
     
-    @Test
-    def shadowGhostsInSuperType() {
+    def test_shadowGhostsInSuperType() {
         wf(
             """
             class Super
@@ -1393,8 +1369,7 @@ class TestAnalysis extends JUnitSuite {
         )
     }
     
-    @Test
-    def duplicateGhostsInSameType() {
+    def test_duplicateGhostsInSameType() {
         wf(
             """
             class Sub
@@ -1406,8 +1381,7 @@ class TestAnalysis extends JUnitSuite {
         )
     }
 
-    @Test
-    def bbpcData() {
+    def test_bbpcData() {
         success(
             """
             class Data extends #Object {
@@ -1518,8 +1492,7 @@ class TestAnalysis extends JUnitSuite {
         )
     }  
 
-    @Test
-    def getFromGenericList() {
+    def test_getFromGenericList() {
         tc(
             """
             class List 
@@ -1600,8 +1573,7 @@ class TestAnalysis extends JUnitSuite {
         )
     }  
     
-    @Test
-    def addToGenericList() {
+    def test_addToGenericList() {
         tc(
             """
             class List 
@@ -1692,8 +1664,7 @@ class TestAnalysis extends JUnitSuite {
         )
     }
 
-    @Test
-    def readPhaseWithSubintervals() {
+    def test_readPhaseWithSubintervals() {
         tc(
             """
             class Data
@@ -1799,8 +1770,7 @@ class TestAnalysis extends JUnitSuite {
         )
     }
 
-    @Test
-    def reproducingThread() {
+    def test_reproducingThread() {
         success(
             """
             class Data
@@ -1839,8 +1809,7 @@ class TestAnalysis extends JUnitSuite {
         )
     }
     
-    @Test
-    def simpleIsAnnots() {
+    def test_simpleIsAnnots() {
         tc(
             """
             class TestInterval extends #Interval

@@ -1,7 +1,6 @@
 package ch.ethz.intervals
 
-import org.scalatest.junit.JUnitSuite
-import org.scalatest.FunSuite
+import org.scalatest.Suite
 import scala.collection.mutable.ListBuffer
 import org.junit.Assert._
 import org.junit.Test
@@ -14,7 +13,7 @@ import scala.util.parsing.input.Position
 import java.net.URLEncoder
 import java.io.File
 
-class TestTcEnv extends JUnitSuite { 
+class TestTcEnv extends Suite { 
     import TestAll.DEBUG_DIR
     
     val logTests: Set[String] = Set()
@@ -212,8 +211,7 @@ class TestTcEnv extends JUnitSuite {
     val tv_E = ir.TypeVarName("E")
     val tv_F = ir.TypeVarName("F")    
     
-    @Test
-    def listTypeArgNonVariant() = setup(listText) { prog =>
+    def test_listTypeArgNonVariant() = setup(listText) { prog =>
         implicit val env = prog.env_empty
 
         assertSubtype(ct_List(tv_E, ct_interval), ct_List(tv_E, ct_interval))
@@ -222,8 +220,7 @@ class TestTcEnv extends JUnitSuite {
         assertNotSubtype(ct_List(tv_E, ct_interval), ct_List(tv_E, ct_guard))
     }
     
-    @Test
-    def listWithLowerBoundedTypeArgs() = setup(listText) { prog =>
+    def test_listWithLowerBoundedTypeArgs() = setup(listText) { prog =>
         implicit val env = prog.env_empty
         
         val List_extends_guard = ct_List(tv_E, ext(ct_guard))
@@ -241,8 +238,7 @@ class TestTcEnv extends JUnitSuite {
         assertNotSubtype(List_extends_guard, ct_List(tv_E, ct_guard))
     }
     
-    @Test
-    def listWithUpperBoundedTypeArgs() = setup(listText) { prog =>
+    def test_listWithUpperBoundedTypeArgs() = setup(listText) { prog =>
         implicit val env = prog.env_empty
         
         val List_super_guard = ct_List(tv_E, sup(ct_guard))
@@ -260,8 +256,7 @@ class TestTcEnv extends JUnitSuite {
         assertNotSubtype(List_super_guard, ct_List(tv_E, ct_guard))
     }
     
-    @Test
-    def boundTypeArgs() = setup(listText) { prog =>
+    def test_boundTypeArgs() = setup(listText) { prog =>
         implicit val env = prog.env_empty
         
         assertSubtype(ct_IntervalList, ct_List(tv_E, ct_interval))
@@ -273,8 +268,7 @@ class TestTcEnv extends JUnitSuite {
         assertNotSubtype(ct_List(tv_E, ct_interval), ct_IntervalList)
     }    
     
-    @Test
-    def inheritedUnboundTypeArgs() = setup(listText) { prog =>
+    def test_inheritedUnboundTypeArgs() = setup(listText) { prog =>
         implicit val env = prog.env_empty
         
         assertSubtype(ct_YourList(tv_E, ct_guard), ct_List(tv_E, ct_guard))
@@ -289,8 +283,7 @@ class TestTcEnv extends JUnitSuite {
         assertSubtype(ct_YourList(tv_E, ct_guard), ct_List(tv_E, sup(ct_guard)))
     }    
     
-    @Test
-    def redirectedTypeArgs() = setup(listText) { prog =>
+    def test_redirectedTypeArgs() = setup(listText) { prog =>
         implicit val env = prog.env_empty
         
         assertSubtype(ct_MyList(tv_F, ct_guard), ct_List(tv_E, ct_guard))
@@ -329,8 +322,7 @@ class TestTcEnv extends JUnitSuite {
     val ct_InBaseClass = ir.ClassName("InBaseClass").ct
     val ct_TwoParam = ir.ClassName("TwoParam").ct
     
-    @Test
-    def mutuallyRecursiveInBaseClass() = setup(recursiveText) { prog =>
+    def test_mutuallyRecursiveInBaseClass() = setup(recursiveText) { prog =>
         implicit var env = prog.env_empty
         
         val lv_x = ir.VarName("x")
@@ -351,8 +343,7 @@ class TestTcEnv extends JUnitSuite {
         assertEqual(ct_InBaseClass(tv_E, ext(ct_guard)), ct_InBaseClass(tv_F, ext(ct_guard)))
     }
     
-    @Test
-    def mutuallyRecursiveParameters() = setup(recursiveText) { prog =>
+    def test_mutuallyRecursiveParameters() = setup(recursiveText) { prog =>
         implicit var env = prog.env_empty
         
         val lv_x = ir.VarName("x")
@@ -364,8 +355,7 @@ class TestTcEnv extends JUnitSuite {
 
     // ___ HbNow ____________________________________________________________
     
-    @Test
-    def happened() = setup("") { prog =>
+    def test_happened() = setup("") { prog =>
         val lv_w = ir.VarName("w")
         val lv_x = ir.VarName("x")
         val lv_y = ir.VarName("y")

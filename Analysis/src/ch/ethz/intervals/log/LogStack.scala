@@ -43,7 +43,7 @@ class LogStack(mainLog: SplitLog) {
                     val err = failure.toError(loc.pos)
                     report(err)
                     default
-            }
+            } 
         }
         
     def indexAt[R](loc: Positional, default: => R)(g: => R): R = 
