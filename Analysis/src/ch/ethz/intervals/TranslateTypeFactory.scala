@@ -615,6 +615,9 @@ class TranslateTypeFactory(
                 
             case TK.ARRAY =>
                 ir.c_array
+                
+            case TK.WILDCARD | TK.NULL =>
+                ir.c_object
             
             case tk if tk.isPrimitive =>
                 ir.c_scalar
