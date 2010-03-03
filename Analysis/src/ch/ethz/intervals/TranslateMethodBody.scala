@@ -176,29 +176,40 @@ object TranslateMethodBody
         // ___ Scopes ___________________________________________________________
         
         abstract class ScopeKind
-        case object ScopeKindBlock extends ScopeKind
-        case object ScopeKindSwitch extends ScopeKind
-        case object ScopeKindContinueToBreak extends ScopeKind
-        case object ScopeKindLoop extends ScopeKind
-        case class ScopeKindInlineInterval(x: ir.VarName) extends ScopeKind
-        case object ScopeKindTryCatch extends ScopeKind
+        case object SkAnonBlock extends ScopeKind        // /* ... */
+        case object SkSwitch extends ScopeKind           // switch(...) { ... }
+        case object SkIf extends ScopeKind               // if(...) { ... }, (... ? ... : ...)
+        case class SkInlineInterval(x: ir.VarName) extends ScopeKind
+        case object SkTryCatch extends ScopeKind
+        
+        // Loops are actually encoded using three nested scopes.  See
+        // the loopStmt() function for more details.
+        case object SkLoopBreak extends ScopeKind
+        case object SkLoopProper extends ScopeKind
+        case object SkLoopContinue extends ScopeKind
 
         // The different kinds of targets indicate which kinds of scopes can be
         // targeted by a break vs a continue.  Note that unlike in Java we break each
         // loop in a Block scope, out of which the user can break, and a Loop scope,
         // to which the user can continue.
-        abstract class BranchKind(val targets: Set[ScopeKind])
-        case object BranchBreak extends BranchKind(Set(ScopeKindBlock, ScopeKindSwitch))
-        case object BranchContinue extends BranchKind(Set(ScopeKindLoop, ScopeKindContinueToBreak))
+        abstract class BranchKind(
+            val namedTargets: Set[ScopeKind],
+            val anonTargets: Set[ScopeKind])
+        case object BranchBreak extends BranchKind(
+            Set(SkLoopBreak, SkSwitch, SkAnonBlock),
+            Set(SkLoopBreak, SkSwitch))
+        case object BranchContinue extends BranchKind(
+            Set(SkLoopContinue),
+            Set(SkLoopContinue))
         
         class Scope(
             val kind: ScopeKind,
             val parents: List[Scope],
-            val label: Option[Name],
+            val o_label: Option[Name],
             val symtab_in: SymbolTable,
             val defines_xtra: List[ir.LvDecl]
         ) {
-            override def toString = "Scope(%s,%s)".format(kind, label)
+            override def toString = "Scope(%s,%s)".format(kind, o_label)
             
             // ___ Subseqs __________________________________________________________
             
@@ -223,7 +234,7 @@ object TranslateMethodBody
             }
             
             val defines_loop = kind match {
-                case ScopeKindLoop => make_auto_defines
+                case SkLoopProper => make_auto_defines
                 case _ => List()
             }
             
@@ -242,14 +253,14 @@ object TranslateMethodBody
             
             def toCompoundStmt = {
                 val ckind = kind match {
-                    case ScopeKindContinueToBreak | ScopeKindBlock => 
+                    case SkAnonBlock | SkLoopBreak | SkLoopContinue => 
                         assert(seqsBuffer.length == 1)
                         ir.Block(seqsBuffer(0))
                         
-                    case ScopeKindSwitch => 
+                    case SkSwitch | SkIf => 
                         ir.Switch(seqsBuffer.toList)
                         
-                    case ScopeKindLoop => 
+                    case SkLoopProper => 
                         assert(seqsBuffer.length == 1)
                         
                         val args = defines_loop.map(_._2.toLvDecl)
@@ -260,11 +271,11 @@ object TranslateMethodBody
                         
                         ir.Loop(args, lvs_initial, seqsBuffer(0))
                         
-                    case ScopeKindInlineInterval(x) => 
+                    case SkInlineInterval(x) => 
                         assert(seqsBuffer.length == 2)
                         ir.InlineInterval(x, seqsBuffer(0), seqsBuffer(1))
                         
-                    case ScopeKindTryCatch =>
+                    case SkTryCatch =>
                         assert(seqsBuffer.length == 2)
                         ir.TryCatch(seqsBuffer(0), seqsBuffer(1))
                 }
@@ -308,10 +319,16 @@ object TranslateMethodBody
             
             // ___ Break, Continue statements _______________________________________
             
-            def branchTarget(branchKind: BranchKind, olabel: Option[Name]): Option[Scope] = {
-                scopes.find { scope =>
-                    branchKind.targets(scope.kind) &&
-                    (olabel == None || olabel == scope.label)
+            def branchTarget(branchKind: BranchKind, o_label: Option[Name]): Option[Scope] = {
+                o_label match {
+                    case None =>
+                        scopes.find { scope =>
+                            branchKind.anonTargets(scope.kind)
+                        }
+                    case Some(_) =>
+                        scopes.find { scope =>
+                            branchKind.namedTargets(scope.kind) && o_label == scope.o_label
+                        }                    
                 }
             }
 
@@ -336,12 +353,8 @@ object TranslateMethodBody
             
             def uncondContinue(treePos: Tree, scope: Scope) {
                 val idx = scopes.indexOf(scope)
-                scopes(idx).kind match {
-                    case ScopeKindContinueToBreak =>
-                        addStmt(treePos, ir.StmtBreak(idx, branchArguments(idx)))
-                    case _ =>
-                        addStmt(treePos, ir.StmtContinue(idx, branchArguments(idx)))
-                }
+                assert(scopes(idx).kind == SkLoopProper)
+                addStmt(treePos, ir.StmtContinue(idx, branchArguments(idx)))
             }            
             
             // ___ Misc. Helper Functions ___________________________________________
@@ -553,7 +566,7 @@ object TranslateMethodBody
                     val wt_result = wtref(mitree, ir.wgs_constructed)
                     val decl = ir.LvDecl(freshVar, wt_result, List())
 
-                    subscope(mitree, ScopeKindInlineInterval(lv_intervalName), None, decl) {
+                    subscope(mitree, SkInlineInterval(lv_intervalName), None, decl) {
                         scope_interval =>
                             val lv_taskObj = scope_interval.subseq { seq_init =>
                                 val lv_taskObj = seq_init.inlineTaskObj(lv_intervalName, etree_arg)
@@ -641,7 +654,7 @@ object TranslateMethodBody
                         val lv_res = freshVar
                         val wt_res = wtref(etree, ir.wgs_constructed)
                         
-                        subscope(tree, ScopeKindSwitch, None, ir.LvDecl(lv_res, wt_res, List())) { 
+                        subscope(tree, SkIf, None, ir.LvDecl(lv_res, wt_res, List())) { 
                             scope_sw =>
                                 scope_sw.subseq { seq_t =>
                                     val p_t = seq_t.rvalue(tree.getTrueExpression)                        
@@ -720,6 +733,62 @@ object TranslateMethodBody
             
             // ___ Statements and Control-Flow ______________________________________
             
+            /** Translates the various kinds of loops.  We use a structure like so:
+              *
+              *     LoopBreak
+              *        <initializers>
+              *        LoopProper
+              *            <break from LoopBreak if pre-condition not met>
+              *            LoopContinue
+              *                <loop body>
+              *            <break from LoopBreak if post-condition not met>
+              *            <updates>
+              *            <continue with LoopProper>
+              * 
+              * Note that any "continues" from the user are translated to
+              * a *break* out of the LoopContinue scope (which then performs
+              * any post-condition test and updates and re-iterates). */
+            def loopStmt(
+                o_loopLabel: Option[Name],
+                tree: StatementTree,
+                body: StatementTree,
+                o_preCondition: Option[ExpressionTree] = None,
+                o_postCondition: Option[ExpressionTree] = None,
+                initializers: Iterable[StatementTree] = List(),
+                updates: Iterable[StatementTree] = List()
+            ): Unit = {
+                subscope(tree, SkLoopBreak, o_loopLabel) { scope_break =>
+                    scope_break.subseq { seq_break =>
+                        initializers.foreach(seq_break.stmt(None, _))
+                        
+                        seq_break.subscope(tree, SkLoopProper, None) { scope_loop =>
+                            scope_loop.subseq { seq_loop =>
+                                
+                                o_preCondition.foreach { condition =>
+                                    seq_loop.rvalue(condition)
+                                    seq_loop.condBreak(tree, scope_break)                                    
+                                }
+                                
+                                seq_loop.subscope(tree, SkLoopContinue, o_loopLabel) { scope_iter =>
+                                    scope_iter.subseq { seq_iter =>
+                                        seq_iter.stmt(None, body)
+                                        seq_iter.uncondBreak(tree, scope_iter)
+                                    }
+                                }
+                                
+                                o_postCondition.foreach { condition =>
+                                    seq_loop.rvalue(condition)
+                                    seq_loop.condBreak(tree, scope_break)                                    
+                                }
+                                
+                                updates.foreach(seq_loop.stmt(None, _))
+                                seq_loop.uncondContinue(tree, scope_loop)                                        
+                            }
+                        }
+                    }
+                }
+            }
+            
             def stmt(
                 label_tree: Option[Name],
                 tree: StatementTree
@@ -733,7 +802,7 @@ object TranslateMethodBody
                         rvalue(tree.getCondition)
 
                     case tree: BlockTree =>
-                        subscope(tree, ScopeKindBlock, label_tree) { scope_blk =>
+                        subscope(tree, SkAnonBlock, label_tree) { scope_blk =>
                             scope_blk.subseq { seq =>
                                 tree.getStatements.foreach(seq.stmt(None, _))                                
                                 seq.uncondBreak(tree, scope_blk)                        
@@ -757,7 +826,8 @@ object TranslateMethodBody
                     case tree: ContinueTree =>
                         branchTarget(BranchContinue, Option(tree.getLabel)) match {
                             case Some(scope) =>
-                                uncondContinue(tree, scope)
+                                // n.b.: User continues are translated to *breaks* from an inner scope.
+                                uncondBreak(tree, scope) 
                             case None =>
                                 throw new CheckFailure(
                                     "intervals.internal.error",
@@ -766,20 +836,10 @@ object TranslateMethodBody
                         }
 
                     case tree: DoWhileLoopTree =>
-                        // The "outer" scope is the target for breaks, 
-                        // "inner" is the target for continues.
-                        subscope(tree, ScopeKindBlock, label_tree) { scope_outer =>
-                            scope_outer.subseq { seq_outer =>
-                                seq_outer.subscope(tree, ScopeKindLoop, label_tree) { scope_inner =>
-                                    scope_inner.subseq { seq_inner =>
-                                        seq_inner.stmt(None, tree.getStatement)
-                                        seq_inner.rvalue(tree.getCondition)
-                                        seq_inner.condBreak(tree, scope_outer)
-                                        seq_inner.uncondContinue(tree, scope_inner)                            
-                                    }
-                                }                                
-                            }
-                        }
+                        loopStmt(label_tree, tree,
+                            o_postCondition = Some(tree.getCondition),
+                            body = tree.getStatement
+                        )
                         
                     case tree: EmptyStatementTree => ()
 
@@ -788,48 +848,16 @@ object TranslateMethodBody
                     case tree: ExpressionStatementTree => rvalue(tree.getExpression)
 
                     case tree: ForLoopTree =>
-                        // Rather involved transformation:
-                        //  break: Block {
-                        //      <initializers>
-                        //      loop: Loop {
-                        //          <condition>
-                        //          condBreak outer;
-                        //          iter: ContinueToBreak {
-                        //            <statement>
-                        //          }
-                        //          <update>
-                        //          continue inner;
-                        //      }
-                        //  }
-                        // The 'iter' scope ensures that any continues in the loop
-                        // body still perform the <update> actions.
+                        loopStmt(label_tree, tree,
+                            initializers = tree.getInitializer,
+                            o_preCondition = Some(tree.getCondition),
+                            updates = tree.getUpdate,
+                            body = tree.getStatement
+                        )
 
-                        subscope(tree, ScopeKindBlock, label_tree) { scope_break =>
-                            scope_break.subseq { seq_break =>
-                                tree.getInitializer.foreach(seq_break.stmt(None, _))
-                                
-                                seq_break.subscope(tree, ScopeKindLoop, label_tree) { scope_loop =>
-                                    scope_loop.subseq { seq_loop =>
-                                        seq_loop.rvalue(tree.getCondition)
-                                        seq_loop.condBreak(tree, scope_break)
-                                        
-                                        seq_loop.subscope(tree, ScopeKindContinueToBreak, label_tree) { scope_iter =>
-                                            scope_iter.subseq { seq_iter =>
-                                                seq_iter.stmt(None, tree.getStatement)
-                                                seq_iter.uncondBreak(tree, scope_iter)
-                                            }
-                                        }
-                                        
-                                        tree.getUpdate.foreach(seq_loop.stmt(None, _))
-                                        seq_loop.uncondContinue(tree, scope_loop)                                        
-                                    }
-                                }
-                            }
-                        }
-                        
                     case tree: IfTree =>
                         rvalue(tree.getCondition)
-                        subscope(tree, ScopeKindSwitch, label_tree) { scope =>
+                        subscope(tree, SkIf, label_tree) { scope =>
                             scope.subseq { seq =>
                                 seq.stmt(None, tree.getThenStatement)
                                 seq.uncondBreak(tree, scope)
@@ -860,20 +888,10 @@ object TranslateMethodBody
                         symtab += Pair(sym.name, ver)
 
                     case tree: WhileLoopTree =>
-                        // The "outer" scope is the target for breaks, 
-                        // "inner" is the target for continues.
-                        subscope(tree, ScopeKindBlock, label_tree) { scope_outer =>
-                            scope_outer.subseq { seq_outer =>
-                                seq_outer.subscope(tree, ScopeKindLoop, label_tree) { scope_inner =>
-                                    scope_inner.subseq { seq_inner =>
-                                        seq_inner.rvalue(tree.getCondition)
-                                        seq_inner.condBreak(tree, scope_outer)
-                                        seq_inner.stmt(None, tree.getStatement)
-                                        seq_inner.uncondContinue(tree, scope_inner)                            
-                                    }
-                                }                                
-                            }
-                        }
+                        loopStmt(label_tree, tree,
+                            o_preCondition = Some(tree.getCondition),
+                            body = tree.getStatement
+                        )
 
                     case _ => throw new Unhandled(tree)
                 }

@@ -12,3 +12,5 @@ bin/
 bin-test/
 test-plugin/bin-test/
 test-plugin/bin-eclipse
+java.hprof.txt
+profile.txt

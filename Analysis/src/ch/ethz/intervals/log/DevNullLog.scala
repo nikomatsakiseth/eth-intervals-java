@@ -9,4 +9,5 @@ object DevNullLog extends Log {
     def ifEnabled(f: => Unit): Unit = ()
     def inlineLog = this
     def splitLog(name: String) = SplitLog.devNullSplitLog
+    def flush = ()
 }

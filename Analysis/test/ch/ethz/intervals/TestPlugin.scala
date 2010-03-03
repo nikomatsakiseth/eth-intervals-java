@@ -20,28 +20,17 @@ import javax.tools.StandardJavaFileManager
 import javax.tools.ToolProvider
 
 import java.net.URLEncoder
-import java.util.regex.Pattern
 
 import ch.ethz.intervals.log.LogDirectory
 
 class TestPlugin extends Suite with BeforeAndAfter {
     import TestAll.DEBUG_DIR
     
-    val logTests: Set[String] = Set("testTspTspSolver", "testTspTourElement", "testVariousLoops")
+    val logTests: Set[String] = Set()
     
     def fileName(jfo: JavaFileObject) =
         if(jfo == null) "null"
         else jfo.getName
-        
-    // Simple "glob" style patterns: * == .*, everything else is normal.
-    def glob(pat0: String, str: String) = {
-        val replacements = List(
-            ("""[?+.$\(\)\[\]\\\^]""" -> """\\$0"""),
-            ("""\*""" -> """.*""")
-        )        
-        val pat1 = replacements.foldLeft(pat0)((p,r) => p.replaceAll(r._1, r._2))
-        Pattern.matches(pat1, str)
-    }
         
     case class DiagError(jfo: JavaFileObject, line: Long, msg: String) 
     extends Ordered[DiagError] {
@@ -58,7 +47,7 @@ class TestPlugin extends Suite with BeforeAndAfter {
         }
         
         def matches(diag: DiagError) = {
-            jfo == diag.jfo && line == diag.line && glob(msg, diag.msg)
+            (jfo == diag.jfo) && (line == diag.line) && (msg glob diag.msg)
         }
         
         def toTxmtUrl = {
@@ -220,28 +209,32 @@ class TestPlugin extends Suite with BeforeAndAfter {
         
         // Create debug directory for this test and subdirectory for the checker:
         val logDirectory = LogDirectory.newLogDirectory(DEBUG_DIR, testName)
-        val log = logDirectory.detailLog
-        val checkerDebugDir = LogDirectory.newFile(logDirectory.dir, "IntervalsChecker", "")        
-        var opts = config.opts
-        if(logTests(testName)) opts = "-AINTERVALS_DEBUG_DIR=%s".format(checkerDebugDir) :: opts
-        logDirectory.indexLog.linkTo(
-            new File(checkerDebugDir, "index.html").toURI.toString, 
-            "IntervalsChecker logs")
-        
-        // Determine list of filenames and get JavaFileObjects:
-        val fileNames = (fileName0 :: otherFileNames.toList).toArray
-        val files = fileNames.map(fileName => new File("%s/%s".format(config.srcDir, fileName)))
-        val compiler = ToolProvider.getSystemJavaCompiler
-        val diagnostics = new DiagnosticCollector[JavaFileObject]
-        val fileManager = compiler.getStandardFileManager(diagnostics, null, null)
-        val compUnits = fileManager.getJavaFileObjects(files: _*)
-        
-        // Invoke javac and compare results:
-        log("compUnits: %s", compUnits)
-        log.indented("javac opts") { opts.foreach(log.apply) }
-        val optsColl = asCollection(opts)
-        val success = compiler.getTask(null, fileManager, diagnostics, optsColl, null, compUnits).call
-        compareAndReport(logDirectory, config, diagnostics, compUnits.toList, success.booleanValue)
+        try {
+            val log = logDirectory.detailLog
+            val checkerDebugDir = LogDirectory.newFile(logDirectory.dir, "IntervalsChecker", "")        
+            var opts = config.opts
+            if(logTests(testName)) opts = "-AINTERVALS_DEBUG_DIR=%s".format(checkerDebugDir) :: opts
+            logDirectory.indexLog.linkTo(
+                new File(checkerDebugDir, "index.html").toURI.toString, 
+                "IntervalsChecker logs")
+
+            // Determine list of filenames and get JavaFileObjects:
+            val fileNames = (fileName0 :: otherFileNames.toList).toArray
+            val files = fileNames.map(fileName => new File("%s/%s".format(config.srcDir, fileName)))
+            val compiler = ToolProvider.getSystemJavaCompiler
+            val diagnostics = new DiagnosticCollector[JavaFileObject]
+            val fileManager = compiler.getStandardFileManager(diagnostics, null, null)
+            val compUnits = fileManager.getJavaFileObjects(files: _*)
+
+            // Invoke javac and compare results:
+            log("compUnits: %s", compUnits)
+            log.indented("javac opts") { opts.foreach(log.apply) }
+            val optsColl = asCollection(opts)
+            val success = compiler.getTask(null, fileManager, diagnostics, optsColl, null, compUnits).call
+            compareAndReport(logDirectory, config, diagnostics, compUnits.toList, success.booleanValue)            
+        } finally {
+            logDirectory.mainSplitLog.flush            
+        }
     }
     
     // ___ Basic Tests ______________________________________________________
@@ -254,7 +247,6 @@ class TestPlugin extends Suite with BeforeAndAfter {
         javac(unitTest, "basic/WriteFromWrongInterval.java")        
     }
     
-    @ActivelyDebugging
     def testVariousLoops() {
         javac(unitTest, "basic/VariousLoops.java")        
     }

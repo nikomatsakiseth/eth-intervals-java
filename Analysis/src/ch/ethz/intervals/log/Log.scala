@@ -17,6 +17,7 @@ abstract class Log {
     def rawClose(): Unit                                // Finishes a log message.
     def rawLinkTo(uri: String, html: String): Unit      // Starts a log message with a link to 'uri'
     def escape(s: String): String                       // Escapes into HTML.
+    def flush: Unit                                     // Flushes to disk
     
     // ___ Sublogs __________________________________________________________
     
@@ -271,6 +272,7 @@ abstract class Log {
     private[this] def inline(func: (Log => Unit))(lbl: Any) = {
         val ilog = inlineLog
         func(ilog)
+        ilog.flush
         "<a href=\"%s\" target=\"_blank\">%s</a>".format(ilog.uri, escape(lbl.toString))
     }
     

@@ -44,6 +44,11 @@ sealed case class TcEnv(
     
     def withCurrent(lv_cur: ir.VarName) = copy(o_lv_cur = Some(lv_cur))
 
+    def withFreshIntervalAsCurrent = {
+        val (lv_interval, cp_interval, env) = freshCp(ir.c_interval)        
+        env.withCurrent(lv_interval)
+    }
+    
     def withFreshChildInterval(lv_parent: ir.VarName) = {
         val cp_parent = immutableCanonLv(lv_parent)
         val (lv_interval, cp_interval, env) = freshCp(ir.c_interval)        

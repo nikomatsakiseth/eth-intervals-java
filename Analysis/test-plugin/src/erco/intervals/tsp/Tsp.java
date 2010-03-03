@@ -5,10 +5,8 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.util.StringTokenizer;
 
-import ch.ethz.intervals.Interval;
-import ch.ethz.intervals.Intervals;
-import ch.ethz.intervals.VoidInlineTask;
-import ch.ethz.intervals.quals.Constructor;
+import ch.ethz.intervals.*;
+import ch.ethz.intervals.quals.*;
 
 public class Tsp {
 	

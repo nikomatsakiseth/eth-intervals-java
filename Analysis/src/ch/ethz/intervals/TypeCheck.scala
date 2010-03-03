@@ -492,7 +492,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                         case None if (g.f == ir.f_objCtor) =>
                             val cp = env.canonPath(g.p)
                             if(!env.suspends(env.cp_cur, cp)) // also implies must be an interval
-                                throw new CheckFailure("intervals.ctor.must.encompass.current", cp, env.cp_cur)
+                                throw new CheckFailure("intervals.ctor.must.encompass.current", cp.reprPath, env.cp_cur.reprPath)
                         case None =>
                             throw new CheckFailure("intervals.internal.error", "No ghost field %s".format(g.f))
                     }
@@ -511,9 +511,12 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
             case ir.StmtReturn(op) =>
                 checkNoInvalidated(env)
                 op.foreach { p =>
+                    // Set current to some interval which happens after method.
                     val cp = env.immutableReifiedLv(p)
-                    checkIsSubtype(env, cp, env.wt_ret)
-                    checkPathIdentity(env, cp, env.identityRet)
+                    var env_ret = env.withFreshIntervalAsCurrent
+                    env_ret = env_ret.addHbInter(env_ret.cp_mthd, env_ret.cp_cur)
+                    checkIsSubtype(env_ret, cp, env_ret.wt_ret)
+                    checkPathIdentity(env_ret, cp, env_ret.identityRet)
                 }
                 mergeBreakEnv(env, ss_cur, ss_cur.length - 1, List())
                 ss_cur.head.env_in

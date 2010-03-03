@@ -704,24 +704,46 @@ class TranslateTypeFactory(
             wt.withDefaultWghosts(wgs_default)                        
         }
     }
+
+    // ___ Defaults _________________________________________________________
+    //
+    // Scan for an @Defaults on an element.  If none is found, instantiate
+    // the default.  
+    
+    /** Searches for an annotation of type `tinfo` on `elem0`.  If not found, then searches
+      * up all enclosing elements of `elem0`.  If it STILL can't find one, then it just
+      * synthesizes one: only legal for use on an annotation where all fields have default
+      * values, such as `Defaults` or `BaseRequirements` */
+    private[this] def searchForAnnotation(
+        tinfo: wke.TypeInfo[_ <: java.lang.annotation.Annotation], 
+        elem0: Element
+    ) = {
+        def search(elem: Element): AnnotationMirror = {
+            if(elem == null) new AU.AnnotationBuilder(processingEnvironment, tinfo.cls).build
+            else findAm(elem.getAnnotationMirrors, tinfo.ty).getOrElse(search(elem.getEnclosingElement))
+        }
+        search(elem0)
+    }
+    
+    def defaults(elem: Element): AnnotationMirror = searchForAnnotation(wke.Defaults, elem)
     
     // ___ Requirements _____________________________________________________
     
+    def baseRequirementsAm(elem: Element) = searchForAnnotation(wke.BaseRequirements, elem)
+    
     def methodReqs(eelem: ExecutableElement): List[ir.Req] = {
-        // Find the @Requires annotation.  If none is found, then just pretend
-        // user wrote "@Requires()". 
-        // XXX Smarter defaults.
         val env = elemEnv(eelem)
-        val am = findAm(eelem.getAnnotationMirrors, wke.Requires.ty).getOrElse(
-            new AU.AnnotationBuilder(processingEnvironment, wke.Requires.cls).build)
-        var reqs: List[jList[String]] = 
-            eelem.getKind match {
-                case EK.CONSTRUCTOR => List(AU.parseStringArrayValue(am, "constructor"))
-                case EK.METHOD if !EU.isStatic(eelem) => List(AU.parseStringArrayValue(am, "instanceMethod"))
-                case _ => List()
-            }
-        reqs = reqs ++ List(AU.parseStringArrayValue(am, "value"))
-        reqs.flatMap(strs => strs.map(AnnotParser(env).req))
+        val baseAm = baseRequirementsAm(eelem)
+        val baseReqs = eelem.getKind match {
+            case EK.CONSTRUCTOR => AU.parseStringArrayValue(baseAm, "constructor").toList
+            case EK.METHOD if !EU.isStatic(eelem) => AU.parseStringArrayValue(baseAm, "instanceMethod").toList
+            case _ => List()
+        }
+        val addReqs = findAm(eelem.getAnnotationMirrors, wke.Requires.ty) match {
+            case Some(am) => AU.parseStringArrayValue(am, "value").toList
+            case None => List()
+        }
+        (baseReqs ++ addReqs).map(AnnotParser(env).req)
     }   
     
     // ___ Dummy Entries ____________________________________________________ 

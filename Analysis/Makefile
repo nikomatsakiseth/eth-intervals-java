@@ -6,7 +6,9 @@ SCALA=scala
 JARFILES=$(wildcard lib/*.jar)
 JARPATH=$(subst .jar ,.jar:,${JARFILES})
 CLASSPATH=$(JARPATH):bin:bin-test
-PROFILEOPTS=-agentlib:hprof=cpu=samples,depth=6
+LIBDIR=$(CURDIR)/lib
+HPROFOPTS=-agentlib:hprof=cpu=samples,depth=6
+JPROFILEROPTS=-javaagent:${LIBDIR}/profile.jar -Dprofile.properties=${LIBDIR}/profile.properties
 DEBUGLOGS=../debug-logs
 
 .PHONY: all clean compile test
@@ -22,12 +24,13 @@ compile:
 	rsync -r resources/* bin/
 	${JAVAC} -d bin-test -sourcepath test $$(find test -name '*.java')
 	${SCALAC} -d bin-test -sourcepath test $$(find test -name '*.*')
-		
+	
+# to enable profiling add: ${JPROFILEROPTS} or ${HPROFOPTS} to JAVA_OPTS
+# to restrict tests add: -n ch.ethz.intervals.ActivelyDebugging
 test: compile
 	rm -rf ${DEBUGLOGS}
 	mkdir -p ${DEBUGLOGS}
 	JAVA_HOME="${JAVA_HOME}" \
 	JAVA_OPTS="-cp ${CLASSPATH} -Xbootclasspath/p:lib/jsr308-all-1.04.jar" \
-	${SCALA} -cp ${CLASSPATH} org.scalatest.tools.Runner -oW \
-	    -n ch.ethz.intervals.ActivelyDebugging \
-		-s ch.ethz.intervals.TestPlugin
+	${SCALA} -cp ${CLASSPATH} org.scalatest.tools.Runner -c -oW \
+		-s ch.ethz.intervals.TestAnalysis

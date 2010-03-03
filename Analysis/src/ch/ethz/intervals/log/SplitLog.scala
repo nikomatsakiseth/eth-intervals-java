@@ -5,7 +5,13 @@ class SplitLog(
     val indexLog: Log, 
     val errorLog: Log,
     val detailLog: Log
-)    
+) {
+    def flush = {
+        indexLog.flush
+        errorLog.flush
+        detailLog.flush
+    }
+}
 
 object SplitLog {
     val devNullSplitLog = new SplitLog("", DevNullLog, DevNullLog, DevNullLog)

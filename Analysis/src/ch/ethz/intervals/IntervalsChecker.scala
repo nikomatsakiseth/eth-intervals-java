@@ -81,6 +81,7 @@ class IntervalsChecker extends SourceChecker {
                     refdElems.filter(e => typeElemKinds(e.getKind)).foreach(refdElem =>
                         tctx.addClassInterface(refdElem.asInstanceOf[TypeElement], refdElems))
                 }
+                logStack.flush
                 
                 indexLog.indented("Constructed IR") {
                     tctx.cds.foreach { cd =>
@@ -89,15 +90,18 @@ class IntervalsChecker extends SourceChecker {
                         }
                     }
                 }
+                logStack.flush
                 
                 indexLog.indented("Run type checker") {
                     val prog = tctx.createProg
                     new CheckAll(prog).check                  
                 }
+                logStack.flush
                 
                 indexLog.indented("Reporting Errors") {
                     ttf.reportErrorsFromLogStack()
                 }
+                logStack.flush
                 
             }
             case _ => ()

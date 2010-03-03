@@ -2,14 +2,11 @@ package erco.intervals.tsp;
 
 import java.util.PriorityQueue;
 
-import ch.ethz.intervals.InlineTask;
-import ch.ethz.intervals.Interval;
-import ch.ethz.intervals.Intervals;
-import ch.ethz.intervals.Lock;
-import ch.ethz.intervals.VoidInlineTask;
-import ch.ethz.intervals.quals.Creator;
-import ch.ethz.intervals.quals.GuardedBy;
+import ch.ethz.intervals.*;
+import ch.ethz.intervals.quals.*;
 
+@Creator("Constructor")
+@BaseRequirements(instanceMethod="Creator readableBy method")
 public class Config {
 	final Lock minLock;
 	final Lock queueLock;

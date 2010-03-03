@@ -4,7 +4,8 @@ import java.lang.annotation.ElementType;
 import java.lang.annotation.Target;
 
 /**
- * Specifies the requirements for a METHOD to be executed.
+ * Specifies additional requirements for a METHOD to be executed beyond
+ * those contained in the {@link BaseRequirements}.
  * 
  * Requirements are strings and can be of the following forms:
  * <ul>
@@ -17,21 +18,5 @@ import java.lang.annotation.Target;
  */
 @Target(ElementType.METHOD)
 public @interface Requires {
-	/**
-	 * Requirements that are only applied to constructor.
-	 */
-	public String[] constructor() default { "method suspends this.Constructor" };
-
-	/**
-	 * Requirements that are only applied to regular instance methods.
-	 */
-	public String[] instanceMethod() default { 
-		"this.Constructor hb method",
-		"this.Creator writableBy method"
-	};
-
-	/**
-	 * Requirements applied to any method.
-	 */
 	public String[] value() default { };
 }

@@ -13,9 +13,9 @@ public final class SplitTour extends InlineTask<TourElement> {
 	private final int newNode;
 	private final int wt;
 	private final TourElement curr;
-	private final @Creator("readableBy Subinterval") Config config;
+	private final Config config;
 
-	public SplitTour(int newNode, int wt, TourElement curr, @Creator("readableBy Subinterval") Config config) {
+	public SplitTour(int newNode, int wt, TourElement curr, Config config) {
 		this.newNode = newNode;
 		this.wt = wt;
 		this.curr = curr;

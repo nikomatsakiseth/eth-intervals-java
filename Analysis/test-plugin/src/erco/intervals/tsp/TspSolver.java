@@ -2,27 +2,21 @@ package erco.intervals.tsp;
 
 import java.util.BitSet;
 
-import ch.ethz.intervals.Dependency;
-import ch.ethz.intervals.Interval;
-import ch.ethz.intervals.Intervals;
-import ch.ethz.intervals.Parent;
-import ch.ethz.intervals.ParentForNew;
-import ch.ethz.intervals.quals.Creator;
-import ch.ethz.intervals.quals.GuardedBy;
-import ch.ethz.intervals.quals.Requires;
+import ch.ethz.intervals.*;
+import ch.ethz.intervals.quals.*;
 
 public class TspSolver extends Interval {
 	
-	final @Creator("readableBy parent") Config config;
+	final Config config;
 	
 	@GuardedBy("this") int curDist;
 	@GuardedBy("this") int pathLen;
-	@GuardedBy("this") int path[];
+	@GuardedBy("this") int path/*@Creator("this")*/[];
 	@GuardedBy("this") BitSet visited;
 
 	public TspSolver(
 			@ParentForNew("Parent") Dependency dep,
-			@Creator("readableBy parent") Config config
+            Config config
 	) {
 		super(dep);
 		this.config = config;
@@ -63,17 +57,18 @@ public class TspSolver extends Interval {
 				
 				if(newTour != null) {
 					config.enqueue(newTour);
-					new @Parent("parent") TspSolver(parent, config);
+					new /*@Parent("parent")*/ TspSolver(parent, config);
 				}					
 			}
 		}
 	}
 
+	@Requires("method suspends this")
 	private void solveTour(TourElement curr) {
 		curDist = curr.prefixWeight;
 		pathLen = curr.length;
 		visited = new BitSet(config.numNodes);
-		path = new int[config.numNodes+1];
+		path = new int/*@Creator("this")*/[config.numNodes+1];
 		
 //		StringBuilder sb = new StringBuilder("SolveTour:");
 		

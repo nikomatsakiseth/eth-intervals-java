@@ -7,9 +7,11 @@ package erco.intervals.tsp;
  * @version $Id: TourElement.java 2094 2003-01-30 09:41:18Z praun $
  * @author Florian Schneider
  */
+import ch.ethz.intervals.quals.BaseRequirements;
 import ch.ethz.intervals.quals.Creator;
 
 @Creator("this.Constructor")
+@BaseRequirements(instanceMethod="Creator readableBy method")
 public class TourElement 
 implements Comparable<TourElement>
 {

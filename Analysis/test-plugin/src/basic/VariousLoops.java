@@ -132,7 +132,7 @@ public abstract class VariousLoops {
 	        Intervals.addHb(x, y);
 	        i++;
 	    } while(i < 1);	    
-	    readableByYObject = xObject; // ERROR Variable "xObject" has type * which is not a subtype of *. 
+	    readableByYObject = xObject; // ERROR Variable "xObject" has type * which is not a subtype of *.
 	}
 
 	@Requires("method suspends x")	

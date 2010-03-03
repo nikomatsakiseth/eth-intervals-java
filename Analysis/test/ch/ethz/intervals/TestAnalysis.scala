@@ -19,7 +19,7 @@ class TestAnalysis extends Suite {
     import TestAll.DEBUG_DIR
     import TestAll.subst
     
-    val logTests: Set[String] = Set()
+    val logTests: Set[String] = Set("test_methodHbReturn")
     
     // ___ Test running infrastructure ______________________________________
     
@@ -97,7 +97,7 @@ class TestAnalysis extends Suite {
                                 )                                
                                 indexLog(pos.longString)
                             }
-                        case Some((msg, _)) if error.toString != msg.trim =>
+                        case Some((msg, _)) if !(msg glob error.toString) =>
                             indexLog.indented("Wrong message (not '%s')", msg.trim) {
                                 logError(
                                     pos.line.toInt, 
@@ -126,7 +126,9 @@ class TestAnalysis extends Suite {
                 System.out.println("Debugging output for \"%s\":".format(invokingMthdName))
                 System.out.println(mainSplitLog.uri)
                 throw t
-        }        
+        } finally {
+            logStack.flush
+        } 
     }
     
     // The name of the method indicates the phase in which errors are expected:
@@ -1872,4 +1874,24 @@ class TestAnalysis extends Suite {
         )
     }
     
+    def test_methodHbReturn() {
+        tc(
+            """
+            class Test extends #Object
+            {
+                #Object someMethod()
+                {
+                    obj = new #Object @#Creator(method) @#Constructor(method) ();
+                    return obj;
+                }
+                
+                #Object someMethod(#Interval x)
+                {
+                    obj = new #Object @#Creator(method) @#Constructor(x) (); // ERROR intervals.ctor.must.encompass.current(x, *)
+                    return obj; // ERROR intervals.no.such.variable(obj)
+                }
+            }
+            """
+        )
+    }    
 }

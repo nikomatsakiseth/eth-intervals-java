@@ -21,8 +21,9 @@ abstract class CheckPhase(val prog: Prog) {
             checkedClasses += cd.name
         }
     }    
-    def checkProg = 
+    def checkProg = {
         logStack.withSplitLog(indexLog.splitLog(getClass.getName)) {
             prog.cds_user.foreach(checkClassDeclAfterSuperclasses)            
-        }
+        }        
+    }
 }

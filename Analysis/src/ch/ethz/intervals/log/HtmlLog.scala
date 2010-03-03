@@ -30,7 +30,7 @@ class HtmlLog(
         val pw = 
             new java.io.PrintWriter(
                 new java.io.BufferedWriter(
-                    new FileWriter(outFile)))
+                    new java.io.FileWriter(outFile)))
         
         pw.print("""
         <HTML>
@@ -152,7 +152,7 @@ class HtmlLog(
             val linkId = l.rawStart(open, "<I>%s</I>".format(msg))
             writeLink(l.uri + "#" + linkId, "details")
         }
-        //outWriter.flush
+//        outWriter.flush
         id
     }
     
@@ -161,14 +161,14 @@ class HtmlLog(
         detailsLog.foreach { l =>
             l.rawClose()
         }
-        //outWriter.flush            
+//        outWriter.flush            
     }
     
     override def rawLinkTo(uri: String, msg: String) {
         val id = openDiv(true, msg)
         writeLink(uri, "_top")
         closeDiv
-        //outWriter.flush            
+//        outWriter.flush            
     }
     
     def escape(s0: String) = HtmlLog.escape(s0)

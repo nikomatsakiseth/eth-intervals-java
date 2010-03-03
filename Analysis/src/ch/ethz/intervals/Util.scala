@@ -71,6 +71,16 @@ object Util {
             join("", iterable, "")
         def join(elements: Iterator[Any]): String =
             join("", elements, "")
+            
+        // Simple "glob" style patterns: * == .*, everything else is normal.
+        def glob(str: String) = {
+            val replacements = List(
+                ("""[?+.$\(\)\[\]\\\^]""" -> """\\$0"""),
+                ("""\*""" -> """.*""")
+            )
+            val pat = replacements.foldLeft(s)((p,r) => p.replaceAll(r._1, r._2))
+            java.util.regex.Pattern.matches("^%s$".format(pat.trim), str)
+        }
     }
     
     implicit def string2UtilString(s: String) = UtilString(s)

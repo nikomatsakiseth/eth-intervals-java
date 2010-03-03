@@ -10,21 +10,25 @@ class LogStack(mainLog: SplitLog) {
     
     // ___ Logging __________________________________________________________
     
-    var splitLog = mainLog
+    var splitLogs = List(mainLog)
+    def splitLog = splitLogs.head
     def indexLog = splitLog.indexLog
     def errorLog = splitLog.errorLog
     def log = splitLog.detailLog
     
     def withSplitLog[R](newSplitLog: SplitLog)(func: => Unit) = {
-        val oldLog = splitLog
         try {
-            splitLog = newSplitLog; func
+            splitLogs = newSplitLog :: splitLogs
+            func
         } finally {
-            splitLog = oldLog
+            splitLog.flush
+            splitLogs = splitLogs.tail
         }
     }
     
     // ___ Error Reporting __________________________________________________
+    
+    def flush = splitLogs.foreach(_.flush)
     
     var errors = ListSet.empty[ir.Error] // use a list set to keep ordering
     
@@ -35,16 +39,18 @@ class LogStack(mainLog: SplitLog) {
         errors += err
     }
     
-    def baseAt[R](aLog: Log, loc: Positional, default: => R)(g: => R): R = 
-        aLog.indented("At: %s", loc) {
-            assert(loc.pos != NoPosition)
-            try { g } catch {
-                case failure: CheckFailure =>
-                    val err = failure.toError(loc.pos)
-                    report(err)
-                    default
-            } 
-        }
+    private[this] def baseAt[R](aLog: Log, loc: Positional, default: => R)(g: => R): R = 
+        try {            
+            aLog.indented("At: %s", loc) {
+                assert(loc.pos != NoPosition)
+                try { g } catch {
+                    case failure: CheckFailure =>
+                        val err = failure.toError(loc.pos)
+                        report(err)
+                        default
+                } 
+            }
+        } finally { splitLog.flush }
         
     def indexAt[R](loc: Positional, default: => R)(g: => R): R = 
         baseAt(indexLog, loc, default)(g)
