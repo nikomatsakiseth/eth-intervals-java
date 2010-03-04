@@ -240,6 +240,9 @@ object TranslateMethodBody
             
             val defines_auto = make_auto_defines
             
+            /** Set to true if a cond or uncond break targets this scope. */
+            var targetOfBreak = false
+            
             // ___ Subsequences _____________________________________________________            
             
             def subseq[R](func: (MutableStmtSeq => R)) = {
@@ -302,19 +305,19 @@ object TranslateMethodBody
             
             // ___ Finalizing into a Compound Stmt __________________________________
 
-            def subscope[R](
+            def subscope(
                 tree: Tree,
                 subkind: ScopeKind, 
                 sublabel: Option[Name], 
                 decls_xtra: ir.LvDecl*
             )(
-                ctor_func: (Scope => R)
-            ) = {
+                ctor_func: (Scope => Unit)
+            ): Boolean = {
                 val subscope = new Scope(subkind, scopes, sublabel, symtab, decls_xtra.toList)
-                val result = ctor_func(subscope)
+                ctor_func(subscope)
                 addStmt(tree, subscope.toCompoundStmt)
                 symtab ++= subscope.defines_auto
-                result
+                subscope.targetOfBreak
             }
             
             // ___ Break, Continue statements _______________________________________
@@ -341,20 +344,25 @@ object TranslateMethodBody
                 lvs_auto ++ lvs_xtra
             }
             
-            def uncondBreak(treePos: Tree, scope: Scope, lvs_xtra: ir.VarName*) {
+            def uncondBreak(treePos: Tree, scope: Scope, lvs_xtra: ir.VarName*) = {
+                scope.targetOfBreak = true
                 val idx = scopes.indexOf(scope)
                 addStmt(treePos, ir.StmtBreak(idx, branchArguments(idx, lvs_xtra: _*)))
+                false
             }
             
-            def condBreak(treePos: Tree, scope: Scope, lvs_xtra: ir.VarName*) {
+            def condBreak(treePos: Tree, scope: Scope, lvs_xtra: ir.VarName*) = {
+                scope.targetOfBreak = true
                 val idx = scopes.indexOf(scope)
                 addStmt(treePos, ir.StmtCondBreak(idx, branchArguments(idx, lvs_xtra: _*)))
+                true
             }
             
-            def uncondContinue(treePos: Tree, scope: Scope) {
+            def uncondContinue(treePos: Tree, scope: Scope) = {
                 val idx = scopes.indexOf(scope)
                 assert(scopes(idx).kind == SkLoopProper)
                 addStmt(treePos, ir.StmtContinue(idx, branchArguments(idx)))
+                false
             }            
             
             // ___ Misc. Helper Functions ___________________________________________
@@ -578,9 +586,8 @@ object TranslateMethodBody
                                 val lv_ret = seq_run.call(mitree, lv_taskObj, m_taskRun, lv_intervalName)
                                 seq_run.uncondBreak(mitree, scope_interval, lv_ret)
                             }
-                            
-                            decl.name
                     }
+                    decl.name
                 }
                 
                 TU.skipParens(etree_arg) match {
@@ -756,56 +763,69 @@ object TranslateMethodBody
                 o_postCondition: Option[ExpressionTree] = None,
                 initializers: Iterable[StatementTree] = List(),
                 updates: Iterable[StatementTree] = List()
-            ): Unit = {
+            ): Boolean = {
                 subscope(tree, SkLoopBreak, o_loopLabel) { scope_break =>
                     scope_break.subseq { seq_break =>
-                        initializers.foreach(seq_break.stmt(None, _))
-                        
-                        seq_break.subscope(tree, SkLoopProper, None) { scope_loop =>
-                            scope_loop.subseq { seq_loop =>
-                                
-                                o_preCondition.foreach { condition =>
-                                    seq_loop.rvalue(condition)
-                                    seq_loop.condBreak(tree, scope_break)                                    
-                                }
-                                
-                                seq_loop.subscope(tree, SkLoopContinue, o_loopLabel) { scope_iter =>
-                                    scope_iter.subseq { seq_iter =>
-                                        seq_iter.stmt(None, body)
-                                        seq_iter.uncondBreak(tree, scope_iter)
+                        if(seq_break.stmts(initializers)) {
+                                seq_break.subscope(tree, SkLoopProper, None) { scope_loop =>
+                                    scope_loop.subseq { seq_loop =>
+
+                                        o_preCondition.foreach { condition =>
+                                            seq_loop.rvalue(condition)
+                                            seq_loop.condBreak(tree, scope_break)                                    
+                                        }
+
+                                        seq_loop.subscope(tree, SkLoopContinue, o_loopLabel) { scope_iter =>
+                                            scope_iter.subseq { seq_iter =>
+                                                if(seq_iter.stmt(None, body))
+                                                    seq_iter.uncondBreak(tree, scope_iter)
+                                            }
+                                        }
+
+                                        o_postCondition.foreach { condition =>
+                                            seq_loop.rvalue(condition)
+                                            seq_loop.condBreak(tree, scope_break)                                    
+                                        }
+
+                                        if(seq_loop.stmts(updates))
+                                            seq_loop.uncondContinue(tree, scope_loop)                                        
                                     }
                                 }
-                                
-                                o_postCondition.foreach { condition =>
-                                    seq_loop.rvalue(condition)
-                                    seq_loop.condBreak(tree, scope_break)                                    
-                                }
-                                
-                                updates.foreach(seq_loop.stmt(None, _))
-                                seq_loop.uncondContinue(tree, scope_loop)                                        
-                            }
+                            }                            
                         }
-                    }
                 }
             }
             
+            /** Processes each statement in turn, returning true if control-flow
+              * continues after all of them. */
+            def stmts(lst: Iterable[StatementTree]) = {
+                lst.foldLeft(true) { 
+                    case (true, s) => stmt(None, s)
+                    case (false, _) => false
+                }                
+            }
+            
+            /** Processes `tree` producing one or more statements.
+              * Returns true if the control-flow continues afterwards. */
             def stmt(
                 label_tree: Option[Name],
                 tree: StatementTree
-            ): Unit = at(tree, symtab, "stmt", ()) { 
+            ): Boolean = at(tree, symtab, "stmt", true) { 
                 tree match {
                     case null => 
                         // in practice, null statements are always optional code where we
                         // don't want to generate anything.
+                        true
                     
                     case tree: AssertTree =>
                         rvalue(tree.getCondition)
+                        true
 
                     case tree: BlockTree =>
                         subscope(tree, SkAnonBlock, label_tree) { scope_blk =>
                             scope_blk.subseq { seq =>
-                                tree.getStatements.foreach(seq.stmt(None, _))                                
-                                seq.uncondBreak(tree, scope_blk)                        
+                                if(stmts(tree.getStatements))
+                                    seq.uncondBreak(tree, scope_blk)
                             }
                         }
 
@@ -841,11 +861,11 @@ object TranslateMethodBody
                             body = tree.getStatement
                         )
                         
-                    case tree: EmptyStatementTree => ()
+                    case tree: EmptyStatementTree => true
 
                     case tree: EnhancedForLoopTree => throw new Unhandled(tree) // XXX enhanced for loops
 
-                    case tree: ExpressionStatementTree => rvalue(tree.getExpression)
+                    case tree: ExpressionStatementTree => rvalue(tree.getExpression); true
 
                     case tree: ForLoopTree =>
                         loopStmt(label_tree, tree,
@@ -859,13 +879,13 @@ object TranslateMethodBody
                         rvalue(tree.getCondition)
                         subscope(tree, SkIf, label_tree) { scope =>
                             scope.subseq { seq =>
-                                seq.stmt(None, tree.getThenStatement)
-                                seq.uncondBreak(tree, scope)
+                                if(seq.stmt(None, tree.getThenStatement))
+                                    seq.uncondBreak(tree, scope)
                             }
                             
                             scope.subseq { seq =>
-                                seq.stmt(None, tree.getElseStatement)
-                                seq.uncondBreak(tree, scope)
+                                if(seq.stmt(None, tree.getElseStatement))
+                                    seq.uncondBreak(tree, scope)
                             }
                         }
 
@@ -877,6 +897,7 @@ object TranslateMethodBody
                             tree, 
                             ir.StmtReturn(
                                 Option(tree.getExpression).map(rvalue)))
+                        false
 
                     case tree: VariableTree =>
                         val sym = createSymbol(env(tree))(tree)
@@ -886,6 +907,7 @@ object TranslateMethodBody
                         }
                         val ver = sym.nextExprVersion(p)
                         symtab += Pair(sym.name, ver)
+                        true
 
                     case tree: WhileLoopTree =>
                         loopStmt(label_tree, tree,
