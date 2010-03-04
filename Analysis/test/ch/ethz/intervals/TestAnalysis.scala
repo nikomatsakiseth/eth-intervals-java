@@ -19,7 +19,7 @@ class TestAnalysis extends Suite {
     import TestAll.DEBUG_DIR
     import TestAll.subst
     
-    val logTests: Set[String] = Set("test_racyGuard", "test_fieldsOfStaticCounterpart")
+    val logTests: Set[String] = Set()
     
     // ___ Test running infrastructure ______________________________________
     
@@ -1901,7 +1901,6 @@ class TestAnalysis extends Suite {
         )
     }    
 
-    @ActivelyDebugging
     def test_racyGuard() {
         success(
             """
@@ -1920,9 +1919,8 @@ class TestAnalysis extends Suite {
         )
     }
     
-    @ActivelyDebugging
     def test_fieldsOfStaticCounterpart() {
-        success(
+        tc(
             """
             class static[Test] extends #Object
             {
@@ -1948,9 +1946,8 @@ class TestAnalysis extends Suite {
         )
     }
     
-    @ActivelyDebugging
     def test_methodsOfStaticCounterpart() {
-        success(
+        tc(
             """
             class static[Test] extends #Object
             {
