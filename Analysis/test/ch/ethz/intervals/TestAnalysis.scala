@@ -1894,4 +1894,22 @@ class TestAnalysis extends Suite {
             """
         )
     }    
+
+    def test_racyGuard() {
+        success(
+            """
+            class Test extends #Object
+            {
+                scalar fld requires RacyGuard#racy;
+                
+                scalar setFld(scalar i)
+                { // n.b.: No requirements required to read and write.
+                    old = this->fld;
+                    this->fld = i;
+                    return old;
+                }
+            }
+            """
+        )
+    }    
 }

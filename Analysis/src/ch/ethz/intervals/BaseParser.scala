@@ -78,7 +78,7 @@ abstract class BaseParser extends StandardTokenParsers {
     def reqBase = (
         comma(p)~"readableBy"~comma(p)          ^^ { case lp~_~lq => ir.ReqReadableBy(lp, lq) }
     |   comma(p)~"writableBy"~comma(p)          ^^ { case lp~_~lq => ir.ReqWritableBy(lp, lq) }
-    |   comma(p)~"suspends"~comma(p)       ^^ { case lp~_~lq => ir.ReqSuspends(lp, lq) }
+    |   comma(p)~"suspends"~comma(p)            ^^ { case lp~_~lq => ir.ReqSuspends(lp, lq) }
     |   comma(p)~"hb"~comma(p)                  ^^ { case lp~_~lq => ir.ReqHb(lp, lq) }
     )    
     

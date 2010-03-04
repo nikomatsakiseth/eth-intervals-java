@@ -225,6 +225,8 @@ class IntervalsChecker extends SourceChecker {
     }
     
     def referenceClosure(ttf: TranslateTypeFactory, tree: ClassTree): MutableSet[Element] = {
+        import ttf.wke
+        
         def addElements(
             resultSet: MutableSet[Element],
             newSet: Iterable[Element]
@@ -247,7 +249,11 @@ class IntervalsChecker extends SourceChecker {
             val tv = new TreeExplorer(ttf)
             val resultSet = MutableSet.empty[Element]
             tree.accept(tv, true)
-            tv.referencedElements += ttf.wke.toStringEelem // sometimes there are implicit calls to toString
+            
+            // Our translator and type checker always require these to be included:
+            tv.referencedElements += wke.toStringEelem
+            tv.referencedElements ++= Set(wke.Interval, wke.RacyGuard, wke.Guard, wke.Point).map(_.elem)
+            
             addElements(resultSet, tv.referencedElements)
             
             // Ensure that elements on which our analysis relies are present:

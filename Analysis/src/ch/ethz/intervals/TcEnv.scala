@@ -749,6 +749,7 @@ sealed case class TcEnv(
                     case _ => false
                 }
             ) || {
+                pathHasClass(cp, ir.c_RacyGuard) ||
                 equiv(cp, cq) ||
                 locks(cq, cp) ||    // lock cp is writable by interval cq if cq locks cp
                 suspends(cq, cp) || // interval cp is writable by cq if cp suspends cp

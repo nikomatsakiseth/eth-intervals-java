@@ -494,7 +494,8 @@ class TranslateTypeFactory(
     val parserLog = log // log is inherited from BaseParser, so create an alias
     class AnnotParser(env: TranslateEnv) extends BaseParser {
         def p = (
-            id~rep("."~>f)          ^^ { case s~fs => fs.foldLeft(startPath(s))(extendPath).p }
+            c~"#"~f                 ^^ { case c~_~f => ir.VarName(c+"#"+f).path } // XXX Really support static fields
+        |   id~rep("."~>f)          ^^ { case s~fs => fs.foldLeft(startPath(s))(extendPath).p }
         |   f~repsep(f, ".")        ^^ { case f~fs => (f :: fs).foldLeft(startPath("this"))(extendPath).p }
         )
         

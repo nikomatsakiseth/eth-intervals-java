@@ -55,6 +55,7 @@ class WellKnownElements(elements: Elements, types: Types) {
     val BaseRequirements = new TypeInfo(classOf[ch.ethz.intervals.quals.BaseRequirements])
     val Defaults = new TypeInfo(classOf[ch.ethz.intervals.quals.Defaults])
     val Subinterval = new TypeInfo(classOf[ch.ethz.intervals.Subinterval])
+    val RacyGuard = new TypeInfo(classOf[ch.ethz.intervals.guard.RacyGuard])
     
     val InlineTask = new TypeInfo(classOf[ch.ethz.intervals.InlineTask[_]])
     val VoidInlineTask = new TypeInfo(classOf[ch.ethz.intervals.VoidInlineTask])
@@ -86,5 +87,5 @@ class WellKnownElements(elements: Elements, types: Types) {
     val ofClass = DefinesGhost.method("ofClass")
     val useByDefault = DefinesGhost.method("useByDefault")
     
-    val intrinsics = inline ++ addHb
+    val intrinsics: Set[Element] = inline ++ addHb
 }

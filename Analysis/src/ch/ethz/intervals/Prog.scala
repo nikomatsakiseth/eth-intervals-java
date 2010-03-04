@@ -27,7 +27,9 @@ class Prog(
         identityRet = List(),
         perm        = Map(),
         flow        = FlowEnv.empty
-    )        
+    ).addGhostLocal(
+        ir.VarName("RacyGuard#racy"), ir.c_RacyGuard // XXX This will be removed once we add support for static fields.
+    )
 
     // ___ Computed results _________________________________________________
     //

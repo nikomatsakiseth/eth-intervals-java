@@ -801,6 +801,7 @@ object ir {
     val c_object = ir.ClassName("java.lang.Object")
     val c_interval = ir.ClassName("ch.ethz.intervals.Interval")
     val c_guard = ir.ClassName("ch.ethz.intervals.guard.Guard")
+    val c_RacyGuard = ir.ClassName("ch.ethz.intervals.guard.RacyGuard")
     val c_point = ir.ClassName("ch.ethz.intervals.Point")
     val c_lock = ir.ClassName("ch.ethz.intervals.Lock")
     val c_string = ir.ClassName("java.lang.String") // used only in unit testing
@@ -976,6 +977,19 @@ object ir {
             ghostFieldDecls   = List(),
             typeVarDecls      = List(),
             superClasses      = List(c_object),
+            ghosts            = List(),
+            typeArgs          = List(),
+            reqs              = List(),
+            ctors             = List(md_emptyCtor),
+            reifiedFieldDecls = List(),
+            methods           = List()
+        ),
+        ClassDecl(
+            attrs             = interfaceAttrs,
+            name              = c_RacyGuard,
+            ghostFieldDecls   = List(),
+            typeVarDecls      = List(),
+            superClasses      = List(c_guard),
             ghosts            = List(),
             typeArgs          = List(),
             reqs              = List(),

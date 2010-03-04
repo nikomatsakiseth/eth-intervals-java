@@ -27,8 +27,8 @@ class TestPlugin extends Suite with BeforeAndAfter {
     import TestAll.DEBUG_DIR
     
     // Edit these to control logging:
-    val logTests: Set[String] = Set("testTspTspSolver")
-    val logPertinent: List[String] = List("TypeCheck(*splitTour*)")
+    val logTests: Set[String] = Set()
+    val logPertinent: List[String] = List()
     
     def fileName(jfo: JavaFileObject) =
         if(jfo == null) "null"

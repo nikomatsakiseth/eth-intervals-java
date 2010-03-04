@@ -17,7 +17,7 @@ public class Config {
 	@GuardedBy("Constructor") int startNode;
 	@GuardedBy("Constructor") int nodesFromEnd;
 	
-	@GuardedBy("minLock") int minTourLength;
+	@GuardedBy("RacyGuard#racy") int minTourLength;
 	@GuardedBy("minLock") int[] minTour;
 	
 	Config(int tspSize) {
