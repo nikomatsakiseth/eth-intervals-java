@@ -285,6 +285,11 @@ class TestPlugin extends Suite with BeforeAndAfter {
         javac(unitTest, "basic/StaticFields.java")
     }
     
+    @ActivelyDebugging
+    def testStaticMethods() {
+        javac(unitTest, "basic/StaticMethods.java")
+    }
+    
     // ___ BBPC Application Tests ___________________________________________
     
     def testBbpc() {

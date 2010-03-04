@@ -707,12 +707,11 @@ object TranslateMethodBody
                             ir.lv_this // TODO: Inner classes also use qualified forms of this
                         else elem.getKind match {
                             case EK.PARAMETER | EK.LOCAL_VARIABLE => symtab(nm_elem).lv
-                            case EK.FIELD =>
+                            case k if k.isField =>
                                 val lv_owner = loadOwner(tree, elem)
                                 load(tree, lv_owner, fieldName(elem))
                             case EK.METHOD => ir.lv_this // happens for "implicit this" calls like foo(...)
-                            case EK.CONSTRUCTOR => throw new Unhandled(tree)
-                            case EK.CLASS | EK.INTERFACE | EK.ENUM | EK.ANNOTATION_TYPE =>
+                            case k if k.isClass || k.isInterface =>
                                 loadStatic(tree, elem.asInstanceOf[TypeElement])
                             case _ => throw new Unhandled(tree)
                         }
@@ -722,11 +721,15 @@ object TranslateMethodBody
 
                     case tree: MemberSelectTree =>
                         val elem = TU.elementFromUse(tree)
-                        if(elem.getKind.isField) { // p.f
-                            val p = rvalue(tree.getExpression)
-                            load(tree, p, fieldName(elem))
-                        } else { // p.m, just evaluate receiver
-                            rvalue(tree.getExpression)
+                        elem.getKind match {
+                            case k if k.isField =>  // p.f
+                                val p = rvalue(tree.getExpression)
+                                load(tree, p, fieldName(elem))
+                            case k if k.isClass || k.isInterface =>
+                                loadStatic(tree, elem.asInstanceOf[TypeElement])
+                            case EK.METHOD => // p.m, just evaluate receiver
+                                rvalue(tree.getExpression)
+                            case _ => throw new Unhandled(tree)
                         }
 
                     case tree: MethodInvocationTree => // p.m(Q)
