@@ -27,8 +27,6 @@ class Prog(
         identityRet = List(),
         perm        = Map(),
         flow        = FlowEnv.empty
-    ).addGhostLocal(
-        ir.VarName("RacyGuard#racy"), ir.c_RacyGuard // XXX This will be removed once we add support for static fields.
     )
 
     // ___ Computed results _________________________________________________
@@ -37,6 +35,7 @@ class Prog(
     // of its constructors in this table.  These can be used by subclasses.
     
     var exportedCtorEnvs = Map[(ir.AnyClassName, ir.MethodName), FlowEnv](
+        ((ir.c_any, ir.m_init) -> FlowEnv.empty),
         ((ir.c_object, ir.m_init) -> FlowEnv.empty),
         ((ir.c_interval, ir.m_init) -> FlowEnv.empty)
     )

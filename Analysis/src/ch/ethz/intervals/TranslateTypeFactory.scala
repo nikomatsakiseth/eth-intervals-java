@@ -395,6 +395,30 @@ class TranslateTypeFactory(
     )
     
     val emptyEnv = TranslateEnv(NullPosition, Map.empty, Map.empty)
+    
+    private[this] def addStaticFieldsToMap(
+        m_lvs: Map[String, (ir.Path, TypeMirror)],
+        telem: TypeElement
+    ): Map[String, (ir.Path, TypeMirror)] = {
+        val c = className(telem)
+        val elems_fields = EF.fieldsIn(elements.getAllMembers(telem)).filter(EU.isStatic)
+        elems_fields.foldLeft(m_lvs) { case (m, elem) =>
+            val f = fieldName(elem)
+            m + (shortFieldName(f) -> Pair(ir.PathStatic(c) / f, elem.asType))
+        }
+    }
+    
+    def staticClassEnv(telem: TypeElement) = log.indented("staticClassEnv(%s)", telem) {
+        var m_lvs = addStaticFieldsToMap(Map(), telem)
+        
+        // n.b.: We add "this -> telem" even for static fields.  In the type checker,
+        // the type of this will in fact be static[telem].  This discrepancy is ok because
+        // the Java type telem is in fact the superset of the two internal types, 
+        // containing both static and regular instance fields.  
+        m_lvs += (ir.lv_this.name -> Pair(ir.p_this, telem.asType))
+        
+        TranslateEnv(ElementPosition(telem), m_lvs, Map())
+    }
 
     def elemEnv(elem: Element): TranslateEnv = log.indented("elemEnv(%s)", elem) {
         elem.getKind match {
@@ -418,11 +442,12 @@ class TranslateTypeFactory(
 
                 var m_lvs = Map.empty[String, (ir.Path, TypeMirror)]
 
-                val elems_fields = EF.fieldsIn(elements.getAllMembers(telem))
+                val elems_fields = EF.fieldsIn(elements.getAllMembers(telem)).filterNot(EU.isStatic)
                 m_lvs = elems_fields.foldLeft(m_lvs) { case (m, elem) =>
                     val f = fieldName(elem)
-                    m + (shortFieldName(f) -> Pair(f.thisPath, types.asMemberOf(dty_this, elem)))
+                    m + (shortFieldName(f) -> Pair(ir.lv_this / f, types.asMemberOf(dty_this, elem)))
                 }
+                m_lvs = addStaticFieldsToMap(m_lvs, telem)
 
                 val ghostFields = ghostFieldsDeclaredOnElemAndSuperelems(telem)
                 m_lvs = ghostFields.foldLeft(m_lvs) { case (m, (f, ty)) =>
@@ -450,7 +475,9 @@ class TranslateTypeFactory(
             // Computing method environment:
             case EK.CONSTRUCTOR | EK.METHOD => {
                 val eelem = elem.asInstanceOf[ExecutableElement]
-                val env_cls = elemEnv(eelem.getEnclosingElement)
+                val env_cls = 
+                    if(EU.isStatic(eelem)) staticClassEnv(EU.enclosingClass(eelem))
+                    else elemEnv(EU.enclosingClass(eelem))
 
                 // ----------------------------------------------------------------------
                 // "Local variables:"
@@ -480,6 +507,10 @@ class TranslateTypeFactory(
                 TranslateEnv(ElementPosition(eelem), m_lvs, m_defaultWghosts)                
             }
             
+            case EK.FIELD =>
+                if(EU.isStatic(elem)) staticClassEnv(EU.enclosingClass(elem))
+                else elemEnv(elem.getEnclosingElement)
+            
             case _ =>
                 elemEnv(elem.getEnclosingElement)
         }            
@@ -491,13 +522,31 @@ class TranslateTypeFactory(
     
     case class ParsePath(p: ir.Path, ty: TypeMirror)
     
+    object ElemLookup extends PartialFunction[String, TypeElement] {
+        def apply(nm: String) =
+            elements.getTypeElement(nm)
+            
+        def isDefinedAt(nm: String) =
+            apply(nm) != null
+    }
+    
     val parserLog = log // log is inherited from BaseParser, so create an alias
     class AnnotParser(env: TranslateEnv) extends BaseParser {
+        // For parsing AnnotatedTypes:
+        //     Eventually could be improved to allow annotations,
+        //     use imports, and in numerous other ways.
+        def dotted = repsep(ident, ".")     ^^ { case idents => ".".join(idents) }
+        def elem = dotted                   ^? ( ElemLookup, (nm => "No such type: " + nm) )
+        
         def p = (
-            c~"#"~f                 ^^ { case c~_~f => ir.VarName(c+"#"+f).path } // XXX Really support static fields
+            elem~"#"~f~rep("."~>f)  ^^ { case c~_~f~fs => (f :: fs).foldLeft(startStaticPath(c))(extendPath).p }
         |   id~rep("."~>f)          ^^ { case s~fs => fs.foldLeft(startPath(s))(extendPath).p }
         |   f~repsep(f, ".")        ^^ { case f~fs => (f :: fs).foldLeft(startPath("this"))(extendPath).p }
         )
+        
+        def startStaticPath(elem: TypeElement): ParsePath = {
+            ParsePath(ir.PathStatic(className(elem)), elem.asType)
+        }
         
         def startPath(id: String): ParsePath = {
             parserLog("startPath(%s)", id)
@@ -571,39 +620,6 @@ class TranslateTypeFactory(
     
     object AnnotParser {
         def apply(env: TranslateEnv) = new AnnotParser(env)
-    }
-    
-    object ElemLookup extends PartialFunction[String, TypeElement] {
-        def apply(nm: String) =
-            elements.getTypeElement(nm)
-            
-        def isDefinedAt(nm: String) =
-            apply(nm) != null
-    }
-    
-    class AnnTyParser extends BaseParser {
-        def p = null // Unused here.
-        
-        // For parsing AnnotatedTypes:
-        //     Eventually could be improved to allow annotations,
-        //     use imports, and in numerous other ways.
-        def di = repsep(ident, ".")     ^^ { case idents => ".".join(idents) }
-        def elem = di                   ^? ( ElemLookup, (nm => "No such type: " + nm) )
-        def annty = elem                ^^ { case e => getAnnotatedType(e) }
-    }
-
-    object AnnTyParser {
-        def typeElement(s: String): TypeElement = 
-            parserLog.indented("parse elem(%s)", s) {
-                val parser = new AnnTyParser()
-                parser.parseToResult(parser.elem)(s)
-            }
-        
-        def apply(s: String): AnnotatedTypeMirror =
-            parserLog.indented("parse annty(%s)", s) {
-                val parser = new AnnTyParser()
-                parser.parseToResult(parser.annty)(s)
-            }
     }
     
     // ___ Translating types ________________________________________________
@@ -777,20 +793,23 @@ class TranslateTypeFactory(
             body = ir.empty_method_body
         )
 
-    def dummyClassDecl(telem: TypeElement) = 
-        ir.ClassDecl(
-            attrs = classAttrs(telem),
-            name = className(telem),
-            ghostFieldDecls = List(),
-            typeVarDecls = List(),
-            superClasses = List(ir.c_any),
-            ghosts = List(),
-            typeArgs = List(),
-            reqs = List(),
-            ctors = List(ir.md_emptyCtor),
-            reifiedFieldDecls = List(),
-            methods = List()
-        )    
+    def dummyClassDecls(telem: TypeElement) = 
+        List(
+            ir.ClassDecl(
+                attrs = classAttrs(telem),
+                name = className(telem),
+                ghostFieldDecls = List(),
+                typeVarDecls = List(),
+                superClasses = List(ir.c_any),
+                ghosts = List(),
+                typeArgs = List(),
+                reqs = List(),
+                ctors = List(ir.md_emptyCtor),
+                reifiedFieldDecls = List(),
+                methods = List()
+            ),
+            ir.emptyStaticCounterpart(className(telem))
+        )
     
     // ___ Translating the class interface __________________________________
     //
@@ -869,16 +888,19 @@ class TranslateTypeFactory(
         )
     }
     
-    def intClassDecl(filter: (Element => Boolean), telem: TypeElement): ir.ClassDecl = 
+    /** Returns class decls with interface for `telem` and its static counterpart */
+    def intClassDecls(filter: (Element => Boolean), telem: TypeElement): List[ir.ClassDecl] =
         indexLog.indented("Class Inter: %s", qualName(telem)) {
-            at(ElementPosition(telem), dummyClassDecl(telem)) {                
+            at(ElementPosition(telem), dummyClassDecls(telem)) {                
                 val env = elemEnv(telem)
                 
                 // Translate the interface of those members accepted by `filter`:
                 val enclElems = telem.getEnclosedElements
                 val ctorDecls = EF.constructorsIn(enclElems).filter(filter).map(intMethodDecl)
-                val methodDecls = EF.methodsIn(enclElems).filter(filter).map(intMethodDecl)
-                val fieldDecls = EF.fieldsIn(enclElems).filter(filter).map(intFieldDecl)
+                val methodDecls = EF.methodsIn(enclElems).filterNot(EU.isStatic).filter(filter).map(intMethodDecl)
+                val fieldDecls = EF.fieldsIn(enclElems).filterNot(EU.isStatic).filter(filter).map(intFieldDecl)
+                val staticMethodDecls = EF.methodsIn(enclElems).filter(EU.isStatic).filter(filter).map(intMethodDecl)
+                val staticFieldDecls = EF.fieldsIn(enclElems).filter(EU.isStatic).filter(filter).map(intFieldDecl)
                 val tvDecls = telem.getTypeParameters.map(intTypeVarDecl)
                 
                 // Extract bound type arguments from superclass:
@@ -901,20 +923,27 @@ class TranslateTypeFactory(
                     ir.GhostFieldDecl(f, c) }
                 val gs_bound = ghostFieldsBoundOnElem(telem).map { case (f, s) =>
                     ir.Ghost(f, AnnotParser(env).path(s)) }
-        
-                ir.ClassDecl(
-                    attrs = classAttrs(telem),
-                    name = className(telem),
-                    ghostFieldDecls = gfds.toList,
-                    typeVarDecls = tvDecls.toList,
-                    superClasses = directSupertys(telem).map(erasedTy(_)),
-                    ghosts = gs_bound.toList,
-                    typeArgs = tas_bound.toList,
-                    reqs = List(),
-                    ctors = ctorDecls.toList,
-                    reifiedFieldDecls = fieldDecls.toList,
-                    methods = methodDecls.toList
-                ).withPos(env.pos)
+                    
+                List(
+                    ir.ClassDecl(
+                        attrs             = classAttrs(telem),
+                        name              = className(telem),
+                        ghostFieldDecls   = gfds.toList,
+                        typeVarDecls      = tvDecls.toList,
+                        superClasses      = directSupertys(telem).map(erasedTy(_)),
+                        ghosts            = gs_bound.toList,
+                        typeArgs          = tas_bound.toList,
+                        reqs              = List(),
+                        ctors             = ctorDecls.toList,
+                        reifiedFieldDecls = fieldDecls.toList,
+                        methods           = methodDecls.toList
+                    ).withPos(env.pos),
+                    
+                    ir.emptyStaticCounterpart(className(telem)).copy(
+                        reifiedFieldDecls = staticFieldDecls.toList,
+                        methods           = staticMethodDecls.toList
+                    ).withPos(env.pos)
+                )
             }            
         }
         
@@ -922,8 +951,13 @@ class TranslateTypeFactory(
     //
     // The class implementation includes all the classes method bodies.
     
-    def implMethodDecl(ek: ElementKind)(tree: Tree, mdecls: List[ir.MethodDecl]): List[ir.MethodDecl] = tree match {
-        case mtree: MethodTree =>
+    def isStatic(mtree: MethodTree) = mtree.getModifiers.getFlags.contains(Modifier.STATIC)
+    
+    def implMethodDecl(ek: ElementKind, beStatic: Boolean)(
+        tree: Tree, 
+        mdecls: List[ir.MethodDecl]
+    ): List[ir.MethodDecl] = tree match {
+        case mtree: MethodTree if isStatic(mtree) == beStatic =>
             val eelem = TU.elementFromDeclaration(mtree)
             if(eelem.getKind == ek) {
                 logStack.ifPertinent("TranslateMethodBody(%s)".format(methodName(eelem))) {
@@ -940,31 +974,29 @@ class TranslateTypeFactory(
                 mdecls
         case _ => mdecls
     }
-     
-    def implClassDecl(ctree: ClassTree): ir.ClassDecl = {
+    
+    def implClassDecls(ctree: ClassTree): List[ir.ClassDecl] = {
         val telem = TU.elementFromDeclaration(ctree)
         indexLog.indented("Class Impl %s", qualName(telem)) {
-            at(ElementPosition(telem), dummyClassDecl(telem)) {
+            at(ElementPosition(telem), dummyClassDecls(telem)) {
                 // Fields are the same for the interface and the implementation:
-                val intCdecl = intClassDecl((_ => true), telem)
+                val intCdecls = intClassDecls((_ => true), telem)
                 val enclElems = telem.getEnclosedElements
                 val members = ctree.getMembers.toList
-                val ctorDecls = members.foldRight(List[ir.MethodDecl]())(implMethodDecl(EK.CONSTRUCTOR))
-                val methodDecls = members.foldRight(List[ir.MethodDecl]())(implMethodDecl(EK.METHOD))
+                val ctorDecls = members.foldRight(List[ir.MethodDecl]())(implMethodDecl(EK.CONSTRUCTOR, false))
+                val methodDecls = members.foldRight(List[ir.MethodDecl]())(implMethodDecl(EK.METHOD, false))
+                val staticMethodDecls = members.foldRight(List[ir.MethodDecl]())(implMethodDecl(EK.METHOD, true))
                 
-                ir.ClassDecl(
-                    attrs = intCdecl.attrs,
-                    name = intCdecl.name,
-                    typeVarDecls = intCdecl.typeVarDecls,
-                    typeArgs = intCdecl.typeArgs,
-                    superClasses = intCdecl.superClasses,
-                    ghosts = intCdecl.ghosts,
-                    ghostFieldDecls = intCdecl.ghostFieldDecls,
-                    reqs = intCdecl.reqs,
-                    ctors = ctorDecls,
-                    reifiedFieldDecls = intCdecl.reifiedFieldDecls,
-                    methods = methodDecls
-                ).withPos(TreePosition(ctree, (s => s)))
+                List(
+                    intCdecls(0).copy(
+                        ctors   = ctorDecls,
+                        methods = methodDecls
+                    ).withPos(TreePosition(ctree, (s => s))),
+                    
+                    intCdecls(1).copy(
+                        methods = staticMethodDecls
+                    ).withPos(TreePosition(ctree, (s => s)))
+                )
             }
         }        
     }

@@ -864,20 +864,28 @@ object ir {
     val f_racy = ir.PlainFieldName("racy")
     val wt_constructedRacyGuard = c_RacyGuard.ct.withDefaultWghosts(wgs_constructed)
     
-    val md_emptyCtor = 
-        ir.MethodDecl(
-            name   = m_init,
-            args   = List(),
-            reqs   = List(),
-            wt_ret = t_void,
-            wps_identity = List(),
-            body   = ir.StmtSeq(
-                List(
-                    ir.StmtSuperCtor(m_init, List()),
-                    ir.StmtReturn(None)
-                )
+    val md_baseCtor = ir.MethodDecl(
+        name   = m_init, 
+        args   = List(),
+        reqs   = List(),
+        wt_ret = t_void, 
+        wps_identity = List(),
+        body   = empty_method_body
+    )
+    
+    val md_emptyCtor = ir.MethodDecl(
+        name   = m_init,
+        args   = List(),
+        reqs   = List(),
+        wt_ret = t_void,
+        wps_identity = List(),
+        body   = ir.StmtSeq(
+            List(
+                ir.StmtSuperCtor(m_init, List()),
+                ir.StmtReturn(None)
             )
         )
+    )
     
     // Special classes defined by us to represent some of the oddities of
     // the Java type system:
@@ -891,7 +899,7 @@ object ir {
             ghosts            = List(),
             typeArgs          = List(),
             reqs              = List(),
-            ctors             = List(),
+            ctors             = List(md_baseCtor),
             reifiedFieldDecls = List(),
             methods           = List()
         ),
@@ -969,14 +977,7 @@ object ir {
             ghosts            = List(),
             typeArgs          = List(),
             reqs              = List(),
-            ctors             = List(
-                MethodDecl(
-                    name   = m_init, 
-                    args   = List(),
-                    reqs   = List(),
-                    wt_ret = t_void, 
-                    wps_identity = List(),
-                    body   = empty_method_body)),
+            ctors             = List(md_emptyCtor),
             reifiedFieldDecls = List(),
             methods           = List(
                 MethodDecl(
@@ -1096,9 +1097,9 @@ object ir {
         )
     )
     
-    def emptyStaticCounterpartClass(cd: ir.ClassDecl) = ir.ClassDecl(
+    def emptyStaticCounterpart(c: ir.ClassName) = ir.ClassDecl(
         attrs             = noAttrs,
-        name              = StaticClassName(cd.name.asInstanceOf[ClassName]),
+        name              = StaticClassName(c),
         ghostFieldDecls   = List(),
         typeVarDecls      = List(),
         superClasses      = List(c_any),

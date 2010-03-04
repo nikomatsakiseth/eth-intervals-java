@@ -292,7 +292,6 @@ class TestPlugin extends Suite with BeforeAndAfter {
         javac(unitTest, "erco/intervals/tsp/TourElement.java")
     }
 
-    @ActivelyDebugging
     def testTspTspSolver() {
         javac(unitTest, "erco/intervals/tsp/TspSolver.java")
     }

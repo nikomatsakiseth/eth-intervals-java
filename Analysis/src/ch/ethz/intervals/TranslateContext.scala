@@ -20,18 +20,16 @@ class TranslateContext(
     
     def addClassInterface(elem: TypeElement, referencedElements: (Element => Boolean)) =
         indexLog.indented("TranslateContext.addClassInterface(%s, ...)", elem) {
-            val cd = ttf.intClassDecl(referencedElements, elem)
-            cd.setDefaultPos(ttf.ElementPosition(elem))
-            cds += cd
-            log.classDecl("Result: ", cd)
+            val cds_new = ttf.intClassDecls(referencedElements, elem)
+            cds_new.foreach(_.setDefaultPos(ttf.ElementPosition(elem)))
+            cds ++= cds_new
         }
     
     def addClassImplementation(tree: ClassTree) = 
         indexLog.indented("TranslateContext.addClassImplementation(tree)", tree) {
-            val cd = ttf.implClassDecl(tree)
-            cd.setDefaultPos(ttf.TreePosition(tree, (s => s)))
-            cds += cd
-            log.classDecl("Result: ", cd)
+            val cds_new = ttf.implClassDecls(tree)
+            cds_new.foreach(_.setDefaultPos(ttf.TreePosition(tree, (s => s))))
+            cds ++= cds_new
         }
         
     def createProg =
