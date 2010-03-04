@@ -280,12 +280,10 @@ class TestPlugin extends Suite with BeforeAndAfter {
         javac(unitTest, "basic/InlineIntervals.java")
     }
     
-    @ActivelyDebugging
     def testStaticFields() {
         javac(unitTest, "basic/StaticFields.java")
     }
     
-    @ActivelyDebugging
     def testStaticMethods() {
         javac(unitTest, "basic/StaticMethods.java")
     }

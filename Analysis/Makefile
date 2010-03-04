@@ -33,7 +33,6 @@ test: compile
 	JAVA_HOME="${JAVA_HOME}" \
 	JAVA_OPTS="-cp ${CLASSPATH} -Xbootclasspath/p:lib/jsr308-all-1.04.jar" \
 	${SCALA} -cp ${CLASSPATH} org.scalatest.tools.Runner -c -oW \
-	    -n ch.ethz.intervals.ActivelyDebugging \
 		-s ch.ethz.intervals.TestAnalysis \
 		-s ch.ethz.intervals.TestTcEnv \
 		-s ch.ethz.intervals.TestPlugin

@@ -55,8 +55,7 @@ public final class SplitTour extends InlineTask<TourElement> {
 			 * we're testing to another unconnected node. wt2: the value of the
 			 * edge with the second lowest weight
 			 */
-			final int MAX_VALUE = 2147483647; // XXX Avoid static fields for now.
-			int wt1 = MAX_VALUE, wt2 = MAX_VALUE;
+			int wt1 = Integer.MAX_VALUE, wt2 = Integer.MAX_VALUE;
 			for (int j = 0; j < config.numNodes; j++) {
 				/*
 				 * Ignore j's that are not connected to i
@@ -76,11 +75,11 @@ public final class SplitTour extends InlineTask<TourElement> {
 			}
 
 			/* At least three unconnected nodes? */
-			if (wt2 != MAX_VALUE)
+			if (wt2 != Integer.MAX_VALUE)
 				mstWeight += ((wt1 + wt2) >> 1);
 			
 			/* Exactly two unconnected nodes? */
-			else if (wt1 != MAX_VALUE)
+			else if (wt1 != Integer.MAX_VALUE)
 				mstWeight += wt1;
 		}
 		mstWeight += 1;
