@@ -3,7 +3,7 @@ package basic;
 import ch.ethz.intervals.*;
 import ch.ethz.intervals.quals.*;
 
-public class StaticStuff {
+public class StaticFields {
     
     // For now I don't worry about accessing aDataField.  
     // In reality, of course, they'd have to be protected
@@ -48,5 +48,5 @@ public class StaticStuff {
         int i = data.integer; // ERROR Guard "data.(ch.ethz.intervals.quals.Creator)" is not readable.
         return i; // ERROR Variable "i" was not declared.
     }
-	
+    
 }
