@@ -58,7 +58,7 @@ abstract class BaseSubst {
         
     def reifiedFieldDecl(fd: ir.ReifiedFieldDecl): ir.ReifiedFieldDecl =
         ir.ReifiedFieldDecl(
-            fd.as, 
+            fd.attrs, 
             wcTref(fd.wt), 
             fd.name, 
             path(fd.p_guard),

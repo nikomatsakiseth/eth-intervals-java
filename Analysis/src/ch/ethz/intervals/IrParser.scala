@@ -17,7 +17,7 @@ class IrParser extends BaseParser {
         "requires", "super", 
         "inlineInterval", "push", "pop", 
         "interface", "break", "continue", "cbreak",
-        "switch", "loop", "try", "catch", "assert", "Is"
+        "switch", "loop", "try", "catch", "assert", "Is", "static"
     )
 
     def optd[A](d: => A, p: Parser[A]) = (
@@ -34,7 +34,8 @@ class IrParser extends BaseParser {
     // Not all attributes are suitable in all contexts, but as this is an
     // internal IR we don't prevent irrelevant attributes from being added:
     def attr = (
-        "interface"                             ^^ { case _ => ir.AttrInterface }
+        "interface"                             ^^^ ir.AttrInterface
+    |   "static"                                ^^^ ir.AttrStatic
     )
     def attrs = rep(attr)                       ^^ { case la => ir.Attrs(Set(la: _*)) }
     
@@ -124,17 +125,17 @@ class IrParser extends BaseParser {
     def reqs = rep(req)
     
     def methodDecl = positioned(
-        isdecl~wt_dflt~m~"("~comma(lvdecl)~")"~reqs~seq        
+        attrs~isdecl~wt_dflt~m~"("~comma(lvdecl)~")"~reqs~seq        
     ^^ {
-        case is~wt_ret~name~"("~args~")"~reqs~seq =>
-            ir.MethodDecl(name, args, reqs, wt_ret, is, seq)
+        case as~is~wt_ret~name~"("~args~")"~reqs~seq =>
+            ir.MethodDecl(as, name, args, reqs, wt_ret, is, seq)
     })
     
     def constructor = positioned(
         ir.ctor~cm~"("~comma(lvdecl)~")"~reqs~seq
     ^^ {
         case _~m~"("~args~")"~reqs~seq =>
-            ir.MethodDecl(m, args, reqs, ir.t_void, List(), seq)
+            ir.MethodDecl(ir.noAttrs, m, args, reqs, ir.t_void, List(), seq)
     })
     
     def createReifiedFieldDecl(as: ir.Attrs, wt: ir.WcTypeRef, f: ir.FieldName, p_guard: ir.Path, is: List[ir.WcPath]) = {

@@ -69,7 +69,9 @@ sealed case class TcEnv(
     }
     
     /** Set `c_this`, adding `this` as a local variable. */
-    def withThisClass(c_this: ir.ClassName) = addReifiedLocal(ir.lv_this, c_this.ct).copy(c_this = c_this)
+    def withThisClass(c_this: ir.ClassName) = copy(c_this = c_this)
+    
+    def addThisVariable = addReifiedLocal(ir.lv_this, c_this.ct)
     
     /** Add a local variable whose value is the canon path `cp` */
     def addPerm(x: ir.VarName, cp: ir.ImmutableCanonPath): TcEnv = {
@@ -331,7 +333,7 @@ sealed case class TcEnv(
     }
     
     /** Is `c` an interface class? */
-    def isInterface(c: ir.ClassName) = classDecl(c).attrs.interface
+    def isInterface(c: ir.ClassName) = classDecl(c).attrs.isInterface
     
     /** Is `c` an interface class? */
     def isNotInterface(c: ir.ClassName) = !isInterface(c)

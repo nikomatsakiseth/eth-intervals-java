@@ -172,7 +172,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                     addReifiedLocal(lv_def, msig.wt_ret)
                 
                 case ir.StmtNew(lv_def, ct, m, lvs_args) =>
-                    if(env.classDecl(ct.c).attrs.interface)
+                    if(env.classDecl(ct.c).attrs.isInterface)
                         throw new CheckFailure("intervals.new.interface", ct.c)
                         
                     // XXX currently you cannot specify an explicit
@@ -314,6 +314,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
         at(md, ()) {
             savingEnv {
                 // Define special vars "method" and "this":
+                setEnv(if(md.attrs.isStatic) env else env.addThisVariable)
                 addGhostLocal(ir.lv_mthd, ir.wt_constructedInterval)
 
                 setCurrent(ir.lv_mthd)
@@ -328,6 +329,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
         at(md, ()) {
             savingEnv {
                 // Define special vars "method" (== this.constructor) and "this":
+                setEnv(if(md.attrs.isStatic) env else env.addThisVariable)
                 val cp_ctor = env.immutableCanonPath(ir.ClassCtorFieldName(cd.name).thisPath)
                 addPerm(ir.lv_mthd, cp_ctor)
                 setCurrent(ir.lv_mthd)
@@ -369,6 +371,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
     def checkReifiedFieldDecl(cd: ir.ClassDecl, rfd: ir.ReifiedFieldDecl): Unit = {
         at(rfd, ()) {
             savingEnv {
+                setEnv(if(rfd.attrs.isStatic) env else env.addThisVariable)
                 checkFieldNameNotShadowed(env, rfd)
                 checkWtrefWf(rfd.wt)
                 env.canonPath(rfd.p_guard)
@@ -405,7 +408,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
     
     def checkIsInterface(c: ir.ClassName) {
         val cd = env.classDecl(c)
-        if(!cd.attrs.interface) 
+        if(!cd.attrs.isInterface) 
             throw new CheckFailure("intervals.superType.not.interface", c)
     }
     
@@ -443,7 +446,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
         
     def checkIsNotInterface(c: ir.ClassName) {
         val cd_super = env.classDecl(c)
-        if(cd_super.attrs.interface) 
+        if(cd_super.attrs.isInterface) 
             throw new CheckFailure("intervals.superType.interface", c)
     }
 
@@ -461,7 +464,7 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
         }
         
     def checkClassDecl(cd: ir.ClassDecl) = log.indented(cd) {        
-        if(cd.attrs.interface) checkInterfaceClassDecl(cd)
+        if(cd.attrs.isInterface) checkInterfaceClassDecl(cd)
         else checkNoninterfaceClassDecl(cd)
     }        
 }

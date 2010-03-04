@@ -6,6 +6,8 @@ ______ Bugs __________________________________________________________
 
 - "Constructor" cannot be used alone in annotations because it is a 
   keyword.
+  
+- Enhanced for loop support
 
 - Assertions
 
@@ -43,6 +45,10 @@ ______ Bugs __________________________________________________________
 - Check variance of wps_identity on method overrides!
 
 ______ Features and Improvements _____________________________________
+
+- "Unbindable" ghost fields: for example, a synthetic .lock ghost field
+  that would allow us to integrate synchronized as an anonymous 
+  inline interval
 
 - Inference of ghosts in new statements (particularly interval Parent)
 

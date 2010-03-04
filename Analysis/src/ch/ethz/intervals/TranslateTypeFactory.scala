@@ -754,49 +754,55 @@ class TranslateTypeFactory(
     
     def dummyLvDecl(velem: VariableElement) =
         ir.LvDecl(
-            localVariableName(velem),
-            ir.t_void,
-            List()
+            name         = localVariableName(velem),
+            wt           = ir.t_void,
+            wps_identity = List()
         )
     
     def dummyFieldDecl(velem: VariableElement) =
         ir.ReifiedFieldDecl(
-            ir.noAttrs,
-            ir.t_void,
-            fieldName(velem),
-            ir.p_this_creator,
-            List()
+            attrs        = memberAttrs(velem),
+            wt           = ir.t_void,
+            name         = fieldName(velem),
+            p_guard      = ir.p_this_creator,
+            wps_identity = List()
         )
 
     def dummyMethodDecl(eelem: ExecutableElement) =
         ir.MethodDecl(
-            name = methodName(eelem),
-            args = eelem.getParameters.map(dummyLvDecl).toList,
-            reqs = List(),
-            wt_ret = ir.t_void,
+            attrs        = memberAttrs(eelem),
+            name         = methodName(eelem),
+            args         = eelem.getParameters.map(dummyLvDecl).toList,
+            reqs         = List(),
+            wt_ret       = ir.t_void,
             wps_identity = List(),
-            body = ir.empty_method_body
+            body         = ir.empty_method_body
         )
 
     def dummyClassDecl(telem: TypeElement) = 
         ir.ClassDecl(
-            attrs = classAttrs(telem),
-            name = className(telem),
-            ghostFieldDecls = List(),
-            typeVarDecls = List(),
-            superClasses = List(ir.c_any),
-            ghosts = List(),
-            typeArgs = List(),
-            reqs = List(),
-            ctors = List(ir.md_emptyCtor),
+            attrs             = classAttrs(telem),
+            name              = className(telem),
+            ghostFieldDecls   = List(),
+            typeVarDecls      = List(),
+            superClasses      = List(ir.c_any),
+            ghosts            = List(),
+            typeArgs          = List(),
+            reqs              = List(),
+            ctors             = List(ir.md_emptyCtor),
             reifiedFieldDecls = List(),
-            methods = List()
+            methods           = List()
         )    
     
     // ___ Translating the class interface __________________________________
     //
     // The class interface includes all fields, methods, constructors, etc
     // but does not include any method bodies.
+    
+    def memberAttrs(elem: Element) = {
+        if(EU.isStatic(elem)) ir.staticAttrs
+        else ir.noAttrs
+    }
     
     def classAttrs(telem: TypeElement) = {
         if(telem.getKind.isInterface) ir.interfaceAttrs
@@ -824,7 +830,7 @@ class TranslateTypeFactory(
             at(ElementPosition(velem), dummyFieldDecl(velem)) {
                 val env = elemEnv(velem)                
                 ir.ReifiedFieldDecl(
-                    as           = ir.noAttrs,
+                    attrs        = memberAttrs(velem),
                     wt           = wtref(env, ir.wgs_fieldsDefault)(getAnnotatedType(velem)),
                     name         = fieldName(velem),  
                     p_guard      = fieldGuard(env)(velem),
@@ -853,6 +859,7 @@ class TranslateTypeFactory(
                 val env_mthd = elemEnv(eelem)
                 val annty = getAnnotatedType(eelem)
                 ir.MethodDecl(
+                    attrs        = memberAttrs(eelem),            
                     wt_ret       = wtref(env_mthd, ir.wgs_constructed)(annty.getReturnType),
                     wps_identity = identityAnnot(eelem),
                     name         = methodName(eelem), 

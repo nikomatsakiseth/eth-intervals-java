@@ -472,9 +472,6 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
             case ir.StmtNew(x, ct0, m, lvs_args) =>
                 val cd = env.classDecl(ct0.c)
                 
-                if(cd.attrs.interface)
-                    throw new CheckFailure("intervals.new.interface", ct0.c)
-                    
                 // Supply a default ghost (the current interval) for @Constructor:
                 val gs_default = List(ir.Ghost(ir.f_objCtor, env.cp_cur.reprPath))
                 val ct = ct0.withDefaultGhosts(gs_default)
@@ -611,6 +608,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
             var env = env_cd
             
             // Define special vars "method" and "this":
+            env = if(md.attrs.isStatic) env else env.addThisVariable
             env = env.addGhostLocal(ir.lv_mthd, ir.c_interval)
             env = env.withCurrent(ir.lv_mthd)
             env = env.addNonNull(env.cp_mthd)
@@ -645,10 +643,9 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
     ) = indexAt(md, "TypeCheck(%s::%s)".format(env_cd.c_this, md.name), FlowEnv.empty) {
         var env = env_cd
         
-        // Define special var "method" (== this.constructor):
-        env = env.addNonNull(env.cp_this)
-        
         // Method == this.constructor[env.c_this]
+        env = if(md.attrs.isStatic) env else env.addThisVariable
+        env = env.addNonNull(env.cp_this)
         val p_ctor = ir.ClassCtorFieldName(env.c_this).thisPath
         val cp_ctor = env.immutableCanonPath(p_ctor)
         env = env.addPerm(ir.lv_mthd, cp_ctor)
@@ -681,6 +678,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
         //
         // Note that a type is dependent on p_dep if p.F appears in the type, so 
         // we must check all prefixes of each dependent path as well.
+        env = if(fd.attrs.isStatic) env else env.addThisVariable
         env = env.addGhostLocal(ir.lv_mthd, ir.c_interval)
         env = env.withCurrent(ir.lv_mthd)
         
@@ -753,7 +751,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
             
     def checkClassDecl(cd: ir.ClassDecl) = {
         var env = prog.env_empty.withThisClass(cd.name)
-        if(cd.attrs.interface) checkInterfaceClassDecl(env, cd)
+        if(cd.attrs.isInterface) checkInterfaceClassDecl(env, cd)
         else checkNoninterfaceClassDecl(env, cd)        
     }
         

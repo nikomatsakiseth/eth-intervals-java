@@ -61,30 +61,29 @@ object ir {
         def setDefaultPosOnChildren(): Unit
     }
     
-    // ___ Attributes attached to paths, types, methods _____________________
-    
-    sealed abstract class Attr(c: String, val adj: String) {
-        override def toString = c
-    }
-    
-    // Attrs for class definitions:
-    case object AttrInterface extends Attr("i", "interface")
+    // ___ Attributes attached to various declarations ______________________
 
-    sealed case class Attrs(private val s: Set[Attr]) {
-        def +(a: Attr) = Attrs(s + a)
+    sealed abstract class Attr
+    case object AttrInterface extends Attr {
+        override def toString = "interface"
+    }
+    case object AttrStatic extends Attr {
+        override def toString = "static"        
+    }
+
+    sealed case class Attrs(private val set: Set[Attr]) {
+        def +(a: Attr) = Attrs(set + a)
         
-        def interface = s.contains(AttrInterface)
-        def withInterface = this + AttrInterface
+        def isInterface = set.contains(AttrInterface)
+        def isStatic = set.contains(AttrStatic)
         
-        def diff(as: Attrs): Set[Attr] = s -- as.s
-        
-        def preWords = "".join("", s.map(_.adj), " ")
-        def postWords = "".join(" ", s.map(_.adj), "")
-        
-        override def toString = "{%s}".format(s.mkString(""))
+        def preWords = "".join("", set, " ")
+        def postWords = "".join(" ", set, "")        
+        override def toString = "{%s}".format(" ".join(set))
     }
     val noAttrs = Attrs(ListSet.empty)
     val interfaceAttrs = Attrs(ListSet(AttrInterface))
+    val staticAttrs = Attrs(ListSet(AttrInterface))
 
     // ___ Names of variables, fields, methods, classes _____________________   
     
@@ -189,6 +188,7 @@ object ir {
     }
     
     sealed case class MethodDecl(
+        attrs: ir.Attrs,
         name: ir.MethodName,
         args: List[ir.LvDecl],
         reqs: List[ir.Req],
@@ -240,7 +240,7 @@ object ir {
     }
 
     sealed case class ReifiedFieldDecl(
-        as: ir.Attrs,       
+        attrs: ir.Attrs,       
         wt: ir.WcTypeRef,
         name: ir.FieldName,
         p_guard: ir.Path,
@@ -835,6 +835,7 @@ object ir {
     
     val md_emptyCtor = 
         ir.MethodDecl(
+            attrs  = noAttrs,
             name   = m_init,
             args   = List(),
             reqs   = List(),
@@ -903,6 +904,7 @@ object ir {
             reifiedFieldDecls = List(),
             methods           = List(
                 MethodDecl(
+                    attrs  = noAttrs,
                     name   = m_arrayGet, 
                     args   = List(
                         ir.LvDecl(ir.VarName("index"), ir.c_scalar.ct, List())),
@@ -913,6 +915,7 @@ object ir {
                     wps_identity = List(),
                     body   = empty_method_body),
                 MethodDecl(
+                    attrs  = noAttrs,
                     name   = m_arraySet, 
                     args   = List(
                         ir.LvDecl(ir.VarName("index"), ir.c_scalar.ct, List()),
@@ -940,6 +943,7 @@ object ir {
             reqs              = List(),
             ctors             = List(
                 MethodDecl(
+                    attrs  = noAttrs,
                     name   = m_init, 
                     args   = List(),
                     reqs   = List(),
@@ -949,6 +953,7 @@ object ir {
             reifiedFieldDecls = List(),
             methods           = List(
                 MethodDecl(
+                    attrs  = noAttrs,
                     name   = m_toString, 
                     args   = List(),
                     reqs   = List(
@@ -1014,6 +1019,7 @@ object ir {
                 ReifiedFieldDecl(noAttrs, wt_constructedPoint, f_end, p_this_intervalCtor, List())),
             methods           = List(
                 MethodDecl(
+                    attrs  = noAttrs,
                     name   = m_run, 
                     args   = List(),
                     reqs   = List(

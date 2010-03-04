@@ -292,13 +292,34 @@ class TestPlugin extends Suite with BeforeAndAfter {
         javac(unitTest, "erco/intervals/tsp/TourElement.java")
     }
 
-    @ActivelyDebugging
     def testTspTspSolver() {
         javac(unitTest, "erco/intervals/tsp/TspSolver.java")
+    }
+    
+    def testTspTsp() {
+        javac(unitTest, 
+            "erco/intervals/tsp/Tsp.java",
+            "erco/intervals/tsp/RunSolver.java"
+        )
     }
     
     def testTspSplitTour() {
         javac(unitTest, "erco/intervals/tsp/SplitTour.java")
     }
 
+/*    def testTspConfig() {
+        javac(unitTest, "erco/intervals/tsp/Config.java")
+    }
+    
+    def testTspAll() {
+        javac(unitTest, 
+            "erco/intervals/tsp/TourElement.java",
+            "erco/intervals/tsp/TspSolver.java",
+            "erco/intervals/tsp/Tsp.java",
+            "erco/intervals/tsp/RunSolver.java",
+            "erco/intervals/tsp/SplitTour.java",
+            "erco/intervals/tsp/Config.java"
+        )
+    }
+*/    
 }

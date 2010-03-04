@@ -174,7 +174,7 @@ abstract class Log {
     
     def reifiedFieldDecl(lbl: Any, rfd: ir.ReifiedFieldDecl): Unit = ifEnabled {
         indented("%s%s", lbl, rfd.toString) {
-            apply("attrs: %s", rfd.as)
+            apply("attrs: %s", rfd.attrs)
             apply("wt: %s", rfd.wt)
             apply("p_guard: %s", rfd.p_guard)
             apply("wps_identity: %s", rfd.wps_identity)
@@ -183,6 +183,7 @@ abstract class Log {
             
     def methodDecl(open: Boolean, lbl: Any, md: ir.MethodDecl): Unit = ifEnabled {
         indented(open, "%s%s", lbl, md.toString) {
+            apply("attrs: %s", md.attrs)
             apply("wt_ret: %s", md.wt_ret)
             indented("args:")   { md.args.foreach(apply) }
             indented("reqs:")   { md.reqs.foreach(apply) }            

@@ -20,7 +20,7 @@ public class Tsp {
 			String line = in.readLine();
 			StringTokenizer tok = new StringTokenizer(line, " ");
 			for(int j = 0; tok.hasMoreTokens(); j++)
-				config.weights[i][j] = Integer.parseInt(tok.nextToken());
+				config.weights[i][j] = 0; // XXX Integer.parseInt(tok.nextToken());
 		}
 		return config;
 	}
@@ -30,23 +30,20 @@ public class Tsp {
 		final Config config = loadConfig(fname);
 		TourElement first = new TourElement(config.startNode);
 		config.enqueue(first);
-		Intervals.inline(new VoidInlineTask() {
-			@Override public void run(Interval subinterval) {
-				new /*@ch.ethz.intervals.Parent("subinterval")*/ TspSolver(subinterval, config);
-			}
-		});		
+		Intervals.inline(new RunSolver(config));		
 		return config.minTour;
 	}
 	
 	public static void main(String args[]) throws IOException {
-		for(String fname : args) {
+		for(int i = 0; i < args.length; i++) {
+			String fname = args[i];
 			Tsp tsp = new Tsp();
 			int[] tour = tsp.solve(fname);
 			
-			System.out.printf("%s:", fname);
-			for(int i = 0; i < tour.length; i++)
-				System.out.printf(" %d", tour[i]);
-			System.out.println();
+			//XXX System.out.printf("%s:", fname);
+			//XXX for(int j = 0; i < tour.length; i++)
+			//XXX	System.out.printf(" %d", tour[j]);
+			//XXX System.out.println();
 		}
 	}
 	
