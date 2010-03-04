@@ -412,6 +412,26 @@ object TranslateMethodBody
                 addStmt(treePos, ir.StmtGetField(lv_def, lv_owner, f))
                 lv_def
             }
+            
+            def loadStatic(tree: Tree, telem: TypeElement) = {
+                val cname = ttf.className(telem)
+                val lv_def = freshVar
+                addStmt(tree, ir.StmtGetStatic(lv_def, cname))
+                lv_def                
+            }
+            
+            /** Returns a local variable that owns `elem`, which must be some
+              * member element of the current class accessed in an unqualified fashion.  
+              * For example,  it might refer to a field (static or otherwise) or a
+              * plain method call like `m(...)`. */
+            def loadOwner(tree: Tree, elem: Element) = {
+                if(EU.isStatic(elem)) {
+                    loadStatic(tree, EU.enclosingClass(elem))
+                } else {
+                    // XXX Nested classes.
+                    ir.lv_this
+                }
+            }
 
             def store(treePos: Tree, lv_owner: ir.VarName, f: ir.FieldName, lv_value: ir.VarName) = {
                 addStmt(treePos, ir.StmtSetField(lv_owner, f, lv_value))
@@ -461,7 +481,8 @@ object TranslateMethodBody
                                 ver.lv
 
                             case EK.FIELD => // [this.]f = q
-                                store(tree, ir.lv_this, fieldName(elem), q)
+                                val lv_owner = loadOwner(tree, elem)
+                                store(tree, lv_owner, fieldName(elem), q)
                                 q // See [1] above
 
                             case _ =>
@@ -472,7 +493,7 @@ object TranslateMethodBody
                     case tree: MemberSelectTree => // p.f = q
                         val elem = TU.elementFromUse(tree).asInstanceOf[VariableElement]
                         assert(elem.getKind == EK.FIELD)
-                        val p = rvalueIfNotStatic(elem, tree.getExpression)
+                        val p = rvalue(tree.getExpression)
                         val q = rvalueOrNull(etree_lval, oetree_rval)
                         store(tree, p, fieldName(elem), q)
                         q // See [1] above
@@ -523,14 +544,14 @@ object TranslateMethodBody
                             }
 
                         case _ =>
-                            // XXX Nested classes can use a different this.
+                            val lv_owner = loadOwner(tree, eelem)
                             val qs = mitree.getArguments.map(rvalue)
-                            call(mitree, ir.lv_this, m, qs: _*)
+                            call(mitree, lv_owner, m, qs: _*)
                     }
 
                 case tree: MemberSelectTree => // p.m(...)
                     val m = ttf.methodName(eelem)
-                    val p = rvalueIfNotStatic(eelem, tree.getExpression)
+                    val p = rvalue(tree.getExpression)
                     val qs = mitree.getArguments.map(rvalue)
                     call(mitree, p, m, qs: _*)
 
@@ -628,10 +649,6 @@ object TranslateMethodBody
 
             // ___ Rvalue: Evaluating an expression to a path _______________________
 
-            def rvalueIfNotStatic(elem: Element, etree: ExpressionTree): ir.VarName =
-                if(EU.isStatic(elem)) throw new Unhandled(etree) // XXX static
-                else rvalue(etree)
-                
             def rvalue(
                 etree: ExpressionTree
             ): ir.VarName = at(etree, symtab, "rvalue", nullStmt(etree)) {
@@ -690,9 +707,13 @@ object TranslateMethodBody
                             ir.lv_this // TODO: Inner classes also use qualified forms of this
                         else elem.getKind match {
                             case EK.PARAMETER | EK.LOCAL_VARIABLE => symtab(nm_elem).lv
-                            case EK.FIELD => load(tree, ir.lv_this, fieldName(elem))
+                            case EK.FIELD =>
+                                val lv_owner = loadOwner(tree, elem)
+                                load(tree, lv_owner, fieldName(elem))
                             case EK.METHOD => ir.lv_this // happens for "implicit this" calls like foo(...)
                             case EK.CONSTRUCTOR => throw new Unhandled(tree)
+                            case EK.CLASS | EK.INTERFACE | EK.ENUM | EK.ANNOTATION_TYPE =>
+                                loadStatic(tree, elem.asInstanceOf[TypeElement])
                             case _ => throw new Unhandled(tree)
                         }
 
