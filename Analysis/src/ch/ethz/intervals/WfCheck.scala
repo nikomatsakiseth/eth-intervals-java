@@ -148,11 +148,19 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                     val (_, rfd) = env.substdReifiedFieldDecl(cp_owner, f) 
                     addReifiedLocal(lv_def, rfd.wt)
                     
+                case ir.StmtGetStaticField(lv_def, c_owner, f) =>
+                    val rfd = env.staticFieldDecl(c_owner, f) 
+                    addReifiedLocal(lv_def, rfd.wt)
+                    
                 case ir.StmtSetField(lv_owner, f, lv_value) =>
                     env.reifiedLv(lv_value)
                     
                     val cp_owner = env.reifiedLv(lv_owner)
                     env.substdReifiedFieldDecl(cp_owner, f) 
+
+                case ir.StmtSetStaticField(c_owner, f, lv_value) =>
+                    env.reifiedLv(lv_value)
+                    env.staticFieldDecl(c_owner, f) 
 
                 case ir.StmtCheckType(lv, wt) =>
                     env.reifiedLv(lv)

@@ -47,7 +47,7 @@ class IrParser extends BaseParser {
     def tv = id                                 ^^ ir.TypeVarName
     
     def p = (
-        c~"#"~f                                 ^^ { case c~_~f => ir.VarName(c+"#"+f).path }
+        c~"#"~f                                 ^^ { case c~_~f => ir.PathStatic(c, f) }
     |   lv~rep("."~>f)                          ^^ { case lv~fs => lv /+ fs }
     )
     def g = "@"~f~"("~p~")"                     ^^ { case _~f~_~p~_ => ir.Ghost(f, p) }    
@@ -138,8 +138,9 @@ class IrParser extends BaseParser {
             ir.MethodDecl(ir.noAttrs, m, args, reqs, ir.t_void, List(), seq)
     })
     
-    def createReifiedFieldDecl(as: ir.Attrs, wt: ir.WcTypeRef, f: ir.FieldName, p_guard: ir.Path, is: List[ir.WcPath]) = {
-        ir.ReifiedFieldDecl(as, wt.withDefaultWghosts(ir.wgs_fieldsDefault), f, p_guard, is)
+    def createReifiedFieldDecl(attrs: ir.Attrs, wt: ir.WcTypeRef, f: ir.FieldName, p_guard: ir.Path, is: List[ir.WcPath]) = {
+        val defs = if(attrs.isStatic) ir.wgs_constructed else ir.wgs_fieldsDefault
+        ir.ReifiedFieldDecl(attrs, wt.withDefaultWghosts(defs), f, p_guard, is)
     }
     def reifiedFieldDecl = positioned(
         isdecl~attrs~wt~f~"requires"~p~";"          ^^ { case is~as~wt~f~_~p~_ => createReifiedFieldDecl(as, wt, f, p, is) }

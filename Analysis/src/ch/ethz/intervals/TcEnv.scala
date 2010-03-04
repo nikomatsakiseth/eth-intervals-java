@@ -466,6 +466,10 @@ sealed case class TcEnv(
                     case Some(cp) => cp
                     case None => throw new CheckFailure("intervals.no.such.variable", lv)
                 }
+                
+            case (_, ir.PathStatic(c, f)) =>
+                val rfd = staticFieldDecl(c, f)
+                expandComponents(ps_visited, Set(ir.CpcStaticField(c, rfd)))
             
             case (_, ir.PathField(p_base, f)) =>
                 val cp = canonicalize(ps_visited, p_base)
@@ -547,6 +551,8 @@ sealed case class TcEnv(
         rfd: ir.ReifiedFieldDecl
     ) = {
         log("extendComponentWithReifiedField(%s, %s)", comp_base, rfd)
+        if(rfd.attrs.isStatic)
+            throw new CheckFailure("intervals.static.field.in.path", comp_base.p, rfd.name)
         ir.CpcReifiedField(comp_base, rfd)
     }
     
@@ -618,6 +624,15 @@ sealed case class TcEnv(
                 throw new CheckFailure("intervals.no.such.field", cp.reprPath, f)
             }
         }
+    }
+    
+    def staticFieldDecl(c: ir.ClassName, f: ir.FieldName) = {
+        val cd = classDecl(c)
+        cd.reifiedFieldDecls.find(_.isNamed(f)) match {
+            case None => throw new CheckFailure("intervals.no.such.field.class", c, f)
+            case Some(rfd) if !rfd.attrs.isStatic => throw new CheckFailure("intervals.field.not.static", c, f)
+            case Some(rfd) => rfd
+        }        
     }
     
     def methodDeclOfClass(c: ir.ClassName, m: ir.MethodName): Option[(ir.ClassName, ir.MethodDecl)] = {

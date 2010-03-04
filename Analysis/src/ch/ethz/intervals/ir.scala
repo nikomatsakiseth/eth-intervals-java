@@ -271,6 +271,9 @@ object ir {
     sealed case class StmtGetField(lv_def: VarName, lv_owner: VarName, f: FieldName) extends Stmt {
         override def toString = "%s = %s->%s".format(lv_def, lv_owner, f)
     }
+    sealed case class StmtGetStaticField(lv_def: VarName, c: ir.ClassName, f: FieldName) extends Stmt {
+        override def toString = "%s = %s#%s".format(lv_def, c, f)
+    }
     sealed case class StmtNew(lv_def: VarName, ct: ClassType, m: ir.MethodName, lvs_arg: List[VarName]) extends Stmt {
         override def toString = "%s = new %s %s(%s);".format(lv_def, ct, m, lvs_arg.mkString(", "))
     }
@@ -285,6 +288,9 @@ object ir {
     }
     sealed case class StmtSetField(lv_owner: VarName, f: FieldName, lv_value: VarName) extends Stmt {
         override def toString = "%s->%s = %s;".format(lv_owner, f, lv_value)
+    }
+    sealed case class StmtSetStaticField(c: ir.ClassType, f: FieldName, lv_value: VarName) extends Stmt {
+        override def toString = "%s#%s = %s;".format(c, f, lv_value)
     }
     sealed case class StmtHb(lv_from: VarName, lv_to: VarName) extends Stmt {
         override def toString = "%s hb %s;".format(lv_from, lv_to)        
@@ -563,6 +569,11 @@ object ir {
         override def toString = lv.toString
     }
     
+    sealed case class PathStatic(c: ir.ClassName, f: ir.FieldName) extends Path {
+        def rev_fs = List()
+        override def toString = lv.toString
+    }
+    
     sealed case class PathField(p_base: ir.Path, f: ir.FieldName) extends Path {
         def lv = p_base.lv
         def rev_fs = f :: p_base.rev_fs
@@ -642,6 +653,16 @@ object ir {
     ) extends CpcReified {
         def p = lv.path
         override def toString = lv.toString
+    }
+    
+    sealed case class CpcStaticField(
+        c: ir.ClassName,
+        rfd: ir.ReifiedFieldDecl
+    ) extends CpcReified {
+        def p = ir.PathStatic(c, rfd.name)
+        def wt = rfd.wt
+        def wps_identity = rfd.wps_identity
+        override def toString = p.toString
     }
     
     sealed case class CpcReifiedField(

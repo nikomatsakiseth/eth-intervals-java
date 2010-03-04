@@ -400,6 +400,41 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
         }
     }
     
+    def processFieldLoad(lv_def: ir.VarName, p_field: ir.Path, rfd: ir.ReifiedFieldDecl) = {
+        val cp_guard = env.immutableCanonPath(rfd.p_guard)
+        checkReadable(env, cp_guard)
+        
+        val cp_field = env.canonPath(p_field)
+        env.asImmutable(cp_field) match {
+            case Some(cp_field) => env.addPerm(lv_def, cp_field)                            
+            case None =>
+                env = env.addReifiedLocal(lv_def, rfd.wt)
+                env.addTemp(cp_field, env.reifiedLv(lv_def))
+        }        
+    }    
+    
+    def processFieldStore(
+        lv_def: ir.VarName, 
+        c_owner: ir.ClassName, 
+        p_field: ir.Path,
+        rfd: ir.ReifiedFieldDecl,
+        lv_value: ir.VarName
+    ) = {
+        val cp_value = env.immutableReifiedLv(lv_value)
+    
+        val cp_guard = env.immutableCanonPath(rfd.p_guard)
+        checkWritable(env, cp_guard)
+        checkIsSubtype(env, cp_value, rfd.wt)
+    
+        val cp_field = env.canonPath(p_field)
+        checkPathIdentity(env, cp_value, cp_field.wps_identity)
+    
+        env = env.addTemp(cp_field, cp_value)
+
+        env = env.removeInvalidated(cp_field)
+        env.linkedPaths(lv_owner, c_owner, f).foldLeft(env)(_ addInvalidated _)
+    }
+    
     def checkStatement(env0: TcEnv, ss_cur: List[StmtScope], stmt: ir.Stmt) = indexAt(stmt, "TypeCheck(%s)".format(stmt), env0) {
         var env = env0
         log.env(false, "Input Environment: ", env)
@@ -420,38 +455,23 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                 
             case ir.StmtGetField(lv_def, lv_owner, f) =>
                 val cp_owner = env.immutableReifiedLv(lv_owner)
-                env = env.addNonNull(cp_owner)
-                
+                env = env.addNonNull(cp_owner)                
                 val (_, rfd) = env.substdReifiedFieldDecl(cp_owner, f)
-                val cp_guard = env.immutableCanonPath(rfd.p_guard)
-                checkReadable(env, cp_guard)
+                processFieldLoad(lv_def, lv_owner / f, rfd)
                 
-                val cp_field = env.canonPath(lv_owner / f)
-                env.asImmutable(cp_field) match {
-                    case Some(cp_field) => env.addPerm(lv_def, cp_field)                            
-                    case None =>
-                        env = env.addReifiedLocal(lv_def, rfd.wt)
-                        env.addTemp(cp_field, env.reifiedLv(lv_def))
-                }
+            case ir.StmtGetStaticField(lv_def, c_owner, f) =>
+                val rfd = env.staticFieldDecl(c_owner, f)
+                processFieldLoad(lv_def, ir.PathStatic(c_owner, f), rfd)
                 
             case ir.StmtSetField(lv_owner, f, lv_value) =>
                 val cp_owner = env.immutableReifiedLv(lv_owner)
                 env = env.addNonNull(cp_owner)
-                
-                val cp_value = env.immutableReifiedLv(lv_value)
-                
                 val (c_owner, rfd) = env.substdReifiedFieldDecl(cp_owner, f) 
-                val cp_guard = env.immutableCanonPath(rfd.p_guard)
-                checkWritable(env, cp_guard)
-                checkIsSubtype(env, cp_value, rfd.wt)
+                processFieldStore(lv_def, c_owner, lv_owner / f, rfd, lv_value)                
                 
-                val cp_field = env.canonPath(lv_owner / f)                
-                checkPathIdentity(env, cp_value, cp_field.wps_identity)
-                
-                env = env.addTemp(cp_field, cp_value)
-        
-                env = env.removeInvalidated(cp_field)
-                env.linkedPaths(lv_owner, c_owner, f).foldLeft(env)(_ addInvalidated _)
+            case ir.StmtSetStaticField(c_owner, f, lv_value) =>
+                val rfd = env.staticFieldDecl(c_owner, f)
+                processFieldStore(lv_def, c_owner, ir.PathStatic(c_owner, f), rfd, lv_value)                
                 
             case ir.StmtCheckType(p, wt) =>
                 val cp = env.immutableReifiedLv(p)

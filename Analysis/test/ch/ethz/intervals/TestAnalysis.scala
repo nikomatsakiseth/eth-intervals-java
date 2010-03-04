@@ -19,7 +19,7 @@ class TestAnalysis extends Suite {
     import TestAll.DEBUG_DIR
     import TestAll.subst
     
-    val logTests: Set[String] = Set("test_methodHbReturn")
+    val logTests: Set[String] = Set("test_staticFieldInPath")
     
     // ___ Test running infrastructure ______________________________________
     
@@ -1912,4 +1912,37 @@ class TestAnalysis extends Suite {
             """
         )
     }    
+    
+    @ActivelyDebugging
+    def test_staticFieldInPath() {
+        wf(
+            """
+            class Test extends #Object
+            {
+                static scalar fld requires RacyGuard#racy;
+                
+                scalar setFld(scalar i) 
+                requires this.fld readableBy method // ERROR intervals.static.field.in.path(this, fld)
+                { 
+                    return;
+                }
+            }
+            """
+        )
+    }
+
+    @ActivelyDebugging
+    def test_staticNoThis() {
+        wf(
+            """
+            class Test extends #Object
+            {
+                scalar normalFld;
+                
+                static scalar staticFld requires this.normalFld; // ERROR intervals.no.such.variable(this)
+            }
+            """
+        )
+    }
+
 }
