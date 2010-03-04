@@ -39,7 +39,7 @@ abstract class BaseParser extends StandardTokenParsers {
     )
     lexical.reserved += (
         "hbNow", "hb", "suspends", "readableBy", "writableBy", 
-        "locks", ir.ctor
+        "locks", ir.ctor, "static"
     )
     
     def parse[A](p: Parser[A])(text: String) = {
@@ -61,8 +61,8 @@ abstract class BaseParser extends StandardTokenParsers {
     )
     
     def id = (
-            ident
-        |   "("~>repsep(idString, ".")<~")"     ^^ { case ids => ".".join(ids) }
+        ident
+    |   "("~>repsep(idString, ".")<~")"     ^^ { case ids => ".".join(ids) }
     )
     
     def f = (
@@ -72,6 +72,8 @@ abstract class BaseParser extends StandardTokenParsers {
     )
     
     def c = id                                  ^^ ir.ClassName
+    def staticC = "static"~>"["~>c<~"]"         ^^ ir.StaticClassName
+    def anyC = (c | staticC)
     
     def p: Parser[ir.Path]
     

@@ -10,8 +10,8 @@ import ir./
 
 sealed case class TcEnv(
     prog: Prog,
-    classTable: Map[ir.ClassName, ir.ClassDecl],
-    c_this: ir.ClassName,
+    classTable: Map[ir.AnyClassName, ir.ClassDecl],
+    c_this: ir.AnyClassName,
     o_lv_cur: Option[ir.VarName],                 // current interval (if any)
     wt_ret: ir.WcTypeRef,                         // return type of current method
     identityRet: List[ir.WcPath],                 // identity
@@ -25,7 +25,7 @@ sealed case class TcEnv(
     
     // ___ Class table ______________________________________________________
     
-    def classDecl(c: ir.ClassName) = classTable.get(c) match {
+    def classDecl(c: ir.AnyClassName) = classTable.get(c) match {
         case Some(cd) => cd
         case None => throw new CheckFailure("intervals.no.such.class", c)
     }
@@ -69,7 +69,7 @@ sealed case class TcEnv(
     }
     
     /** Set `c_this`, adding `this` as a local variable. */
-    def withThisClass(c_this: ir.ClassName) = addReifiedLocal(ir.lv_this, c_this.ct).copy(c_this = c_this)
+    def withThisClass(c_this: ir.AnyClassName) = addReifiedLocal(ir.lv_this, c_this.ct).copy(c_this = c_this)
     
     /** Add a local variable whose value is the canon path `cp` */
     def addPerm(x: ir.VarName, cp: ir.ImmutableCanonPath): TcEnv = {
@@ -261,13 +261,14 @@ sealed case class TcEnv(
             cpc match {
                 // Local variables never change value once assigned:
                 case ir.CpcReifiedLv(_, _, _) => true
+                case ir.CpcReifiedStatic(_) => true
                 case ir.CpcGhostLv(_, _, _) => true
 
                 // Ghosts never change value but the path they extend might:
                 case ir.CpcGhostField(cpc_base, _, _, _) => imm(cpc_base)
                 
                 // Fields guarded by past intervals cannot change but others can:
-                case ir.CpcReifiedField(cpc_base, ir.ReifiedFieldDecl(_, _, _, p_guard, _)) =>
+                case ir.CpcReifiedField(cpc_base, ir.ReifiedFieldDecl(_, _, p_guard, _)) =>
                     imm(cpc_base) && o_cp_inter.exists { cp_inter =>
                         val cp_guard = canonPath(p_guard)
                         asImmutableIn(cp_guard, Some(cp_inter)).exists(imm_guard =>
@@ -320,39 +321,39 @@ sealed case class TcEnv(
     // ___ Operations on the class hierarchy ________________________________
     
     /** Is `c_sub` an erased subtype of class `c_sup`? */
-    def isStrictSubclass(c_sub: ir.ClassName, c_sup: ir.ClassName): Boolean = {
+    def isStrictSubclass(c_sub: ir.AnyClassName, c_sup: ir.AnyClassName): Boolean = {
         val cd_sub = classDecl(c_sub)
         cd_sub.superClasses.exists { c => isSubclass(c, c_sup) }
     }
     
     /** Is `c_sub` an erased subtype of class `c_sup`? */
-    def isSubclass(c_sub: ir.ClassName, c_sup: ir.ClassName): Boolean = {
+    def isSubclass(c_sub: ir.AnyClassName, c_sup: ir.AnyClassName): Boolean = {
         (c_sub == c_sup) || isStrictSubclass(c_sub, c_sup)
     }
     
     /** Is `c` an interface class? */
-    def isInterface(c: ir.ClassName) = classDecl(c).attrs.interface
+    def isInterface(c: ir.AnyClassName) = classDecl(c).attrs.interface
     
     /** Is `c` an interface class? */
-    def isNotInterface(c: ir.ClassName) = !isInterface(c)
+    def isNotInterface(c: ir.AnyClassName) = !isInterface(c)
     
-    def classAndSuperclasses(c0: ir.ClassName): Set[ir.ClassName] = {
-        def accumulate(sc: Set[ir.ClassName], c: ir.ClassName): Set[ir.ClassName] = {
+    def classAndSuperclasses(c0: ir.AnyClassName): Set[ir.AnyClassName] = {
+        def accumulate(sc: Set[ir.AnyClassName], c: ir.AnyClassName): Set[ir.AnyClassName] = {
             classDecl(c).superClasses.foldLeft(sc + c)(accumulate)
         }
         accumulate(Set.empty, c0)
     }
     
-    def strictSuperclasses(c0: ir.ClassName) = classAndSuperclasses(c0) - c0
+    def strictSuperclasses(c0: ir.AnyClassName) = classAndSuperclasses(c0) - c0
     
     /// Higher-order function that takes a func 'func' which adds
     /// values of type X for a given class.  'func' is applied
     /// to 'c' and all its supertypes in a bottom-up fashion starting
     /// from Object.
     def addClassAndSuperclasses[X](
-        func: ((X, ir.ClassName) => X)
+        func: ((X, ir.AnyClassName) => X)
     )(
-        set0: X, c: ir.ClassName
+        set0: X, c: ir.AnyClassName
     ): X = {
         val cd = classDecl(c)
         val set1 = cd.superClasses.foldLeft(set0)(addClassAndSuperclasses(func))
@@ -360,38 +361,38 @@ sealed case class TcEnv(
     }
     
     /// Ghost fields declared:
-    def addGhostFieldsDeclaredOnClass(gfds0: Set[ir.GhostFieldDecl], c: ir.ClassName) =
+    def addGhostFieldsDeclaredOnClass(gfds0: Set[ir.GhostFieldDecl], c: ir.AnyClassName) =
         gfds0 ++ classDecl(c).ghostFieldDecls
-    def ghostFieldsDeclaredOnClassAndSuperclasses(c: ir.ClassName) =
+    def ghostFieldsDeclaredOnClassAndSuperclasses(c: ir.AnyClassName) =
         addClassAndSuperclasses(addGhostFieldsDeclaredOnClass)(ListSet.empty, c)
     
     /// Ghosts (bound ghost fields) on a class:
-    def addGhostsOnClass(fs0: Set[ir.Ghost], c: ir.ClassName) =
+    def addGhostsOnClass(fs0: Set[ir.Ghost], c: ir.AnyClassName) =
         fs0 ++ classDecl(c).ghosts
-    def ghostsOnClassAndSuperclasses(c: ir.ClassName) =
+    def ghostsOnClassAndSuperclasses(c: ir.AnyClassName) =
         addClassAndSuperclasses(addGhostsOnClass)(ListSet.empty, c)        
         
     /// Type variables declared:
-    def addTypeVarsDeclaredOnClass(s0: Set[ir.TypeVarDecl], c: ir.ClassName) =
+    def addTypeVarsDeclaredOnClass(s0: Set[ir.TypeVarDecl], c: ir.AnyClassName) =
         s0 ++ classDecl(c).typeVarDecls
-    def typeVarsDeclaredOnClassAndSuperclasses(c: ir.ClassName) =
+    def typeVarsDeclaredOnClassAndSuperclasses(c: ir.AnyClassName) =
         addClassAndSuperclasses(addTypeVarsDeclaredOnClass)(ListSet.empty, c)
         
     /// Type arguments (bound type variables) on a class:
-    def addTypeArgsOnClass(s0: Set[ir.TypeArg], c: ir.ClassName) =
+    def addTypeArgsOnClass(s0: Set[ir.TypeArg], c: ir.AnyClassName) =
         s0 ++ classDecl(c).typeArgs
-    def typeArgsOnClassAndSuperclasses(c: ir.ClassName) =
+    def typeArgsOnClassAndSuperclasses(c: ir.AnyClassName) =
         addClassAndSuperclasses(addTypeArgsOnClass)(ListSet.empty, c)
         
     /// All ghost fields declared on c or a superclass which have not been bound.
-    def unboundGhostFieldsOnClassAndSuperclasses(c: ir.ClassName) = {
+    def unboundGhostFieldsOnClassAndSuperclasses(c: ir.AnyClassName) = {
         val gfds = ghostFieldsDeclaredOnClassAndSuperclasses(c)
         val boundFields = ghostsOnClassAndSuperclasses(c).map(_.f)
         gfds.filter(gfd => !boundFields(gfd.name))
     }
     
     /// All type variables declared on c or a superclass which have not been bound.
-    def unboundTypeVarsDeclaredOnClassAndSuperclasses(c: ir.ClassName) = {
+    def unboundTypeVarsDeclaredOnClassAndSuperclasses(c: ir.AnyClassName) = {
         val tvds = typeVarsDeclaredOnClassAndSuperclasses(c)
         val boundTypeVars = typeArgsOnClassAndSuperclasses(c).map(_.tv)
         tvds.filter(tvd => !boundTypeVars(tvd.name))
@@ -464,6 +465,9 @@ sealed case class TcEnv(
                     case Some(cp) => cp
                     case None => throw new CheckFailure("intervals.no.such.variable", lv)
                 }
+            
+            case (_, ir.PathStatic(c)) =>
+                ir.CanonPath(List(ir.CpcReifiedStatic(c)))
             
             case (_, ir.PathField(p_base, f)) =>
                 val cp = canonicalize(ps_visited, p_base)
@@ -577,8 +581,8 @@ sealed case class TcEnv(
     private[this] def searchClassAndSuperclasses[X](
         func: (ir.ClassDecl => Option[X])
     )(
-        c: ir.ClassName
-    ): Option[(ir.ClassName, X)] = {
+        c: ir.AnyClassName
+    ): Option[(ir.AnyClassName, X)] = {
         val cd = classDecl(c)
         func(cd) match {
             case Some(x) =>
@@ -618,7 +622,7 @@ sealed case class TcEnv(
         }
     }
     
-    def methodDeclOfClass(c: ir.ClassName, m: ir.MethodName): Option[(ir.ClassName, ir.MethodDecl)] = {
+    def methodDeclOfClass(c: ir.AnyClassName, m: ir.MethodName): Option[(ir.AnyClassName, ir.MethodDecl)] = {
         searchClassAndSuperclasses(_.methods.find(_.isNamed(m)))(c)        
     }
 
@@ -626,14 +630,14 @@ sealed case class TcEnv(
         lowerBoundingClasses(cp).firstSomeReturned(methodDeclOfClass(_, m))
     }
     
-    def reqdMethod(o: Option[(ir.ClassName, ir.MethodDecl)], m: ir.MethodName): ir.MethodDecl = {
+    def reqdMethod(o: Option[(ir.AnyClassName, ir.MethodDecl)], m: ir.MethodName): ir.MethodDecl = {
         o match {
             case Some((_, md)) => md
             case None => throw new CheckFailure("intervals.no.such.method", m)
         }
     }
 
-    def ctorOfClass(c: ir.ClassName, m: ir.MethodName) = {
+    def ctorOfClass(c: ir.AnyClassName, m: ir.MethodName) = {
         classDecl(c).ctors.find(_.isNamed(m)) match {
             case Some(md) => md
             case None => throw new CheckFailure("intervals.no.such.ctor", c, m)
@@ -836,7 +840,7 @@ sealed case class TcEnv(
         /** Variable owning the field */
         lv_owner: ir.VarName, 
         /** Class declaring the field */
-        c_f: ir.ClassName, 
+        c_f: ir.AnyClassName, 
         /** Field name being accessed */
         f: ir.FieldName
     ) = {
@@ -1139,7 +1143,7 @@ sealed case class TcEnv(
     def lowerBoundingCts(wt: ir.WcTypeRef) = lowerBoundingWts(wt).foldLeft(Set[ir.WcClassType]())(addWcts)
 
     def lowerBoundingClasses(cp: ir.CanonPath) = {
-        cp.components.foldLeft(Set[ir.ClassName]()) { 
+        cp.components.foldLeft(Set[ir.AnyClassName]()) { 
             case (set, ir.CpcReified(_, wt)) => set ++ lowerBoundingCts(wt).map(_.c)
             case (set, ir.CpcGhost(_, c)) => set + c
         }        
@@ -1148,17 +1152,17 @@ sealed case class TcEnv(
     // ___ Subtyping and Subclassing ________________________________________
     
     /** Is `wt` an erased subtype of class `c`? */
-    def isSubclass(wt: ir.WcTypeRef, c: ir.ClassName): Boolean = {
+    def isSubclass(wt: ir.WcTypeRef, c: ir.AnyClassName): Boolean = {
         lowerBoundingCts(wt).exists(wct => isSubclass(wct.c, c))
     }
     
     /** Is class `c` an erased subtype of `wt`? */
-    def isSubclass(c: ir.ClassName, wt: ir.WcTypeRef): Boolean = {
+    def isSubclass(c: ir.AnyClassName, wt: ir.WcTypeRef): Boolean = {
         upperBoundingCts(wt).exists(wct => isSubclass(c, wct.c))
     }
     
     /** Does `cp_sub` refer to an object whose type is a subclass of `c_sup`? */
-    def pathHasClass(cp_sub: ir.CanonPath, c_sup: ir.ClassName): Boolean = {
+    def pathHasClass(cp_sub: ir.CanonPath, c_sup: ir.AnyClassName): Boolean = {
         // Ok so the name of this function is an abuse of the english language... sue me...
         log.indented(false, "pathHasClass(%s, %s)?", cp_sub, c_sup) {
             cp_sub.components.exists { 
@@ -1169,7 +1173,7 @@ sealed case class TcEnv(
     }
     
     /** Does `cp_sub` refer to an object whose type could be `c_sup`? */
-    def pathCouldHaveClass(cp_sub: ir.CanonPath, c_sup: ir.ClassName): Boolean = {
+    def pathCouldHaveClass(cp_sub: ir.CanonPath, c_sup: ir.AnyClassName): Boolean = {
         log.indented(false, "pathCouldHaveClass(%s, %s)?", cp_sub, c_sup) {
             cp_sub.components.exists { 
                 case ir.CpcGhost(_, c) => 

@@ -11,7 +11,7 @@ class PathSubst(private val m: Map[ir.Path, ir.Path]) extends BaseSubst {
     def path(p: ir.Path): ir.Path =
         (m.get(p), p) match {
             case (Some(q), _) => q
-            case (None, ir.PathLv(lv)) => p
+            case (None, ir.PathLv(_) | ir.PathStatic(_)) => p
             case (None, p_base / f) => path(p_base) / f
         }
 

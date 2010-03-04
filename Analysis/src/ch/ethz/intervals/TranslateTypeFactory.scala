@@ -761,7 +761,6 @@ class TranslateTypeFactory(
     
     def dummyFieldDecl(velem: VariableElement) =
         ir.ReifiedFieldDecl(
-            ir.noAttrs,
             ir.t_void,
             fieldName(velem),
             ir.p_this_creator,
@@ -824,7 +823,6 @@ class TranslateTypeFactory(
             at(ElementPosition(velem), dummyFieldDecl(velem)) {
                 val env = elemEnv(velem)                
                 ir.ReifiedFieldDecl(
-                    as           = ir.noAttrs,
                     wt           = wtref(env, ir.wgs_fieldsDefault)(getAnnotatedType(velem)),
                     name         = fieldName(velem),  
                     p_guard      = fieldGuard(env)(velem),

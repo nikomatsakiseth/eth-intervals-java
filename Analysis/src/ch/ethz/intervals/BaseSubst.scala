@@ -58,27 +58,26 @@ abstract class BaseSubst {
         
     def reifiedFieldDecl(fd: ir.ReifiedFieldDecl): ir.ReifiedFieldDecl =
         ir.ReifiedFieldDecl(
-            fd.as, 
-            wcTref(fd.wt), 
-            fd.name, 
-            path(fd.p_guard),
-            fd.wps_identity.map(wpath)
+            wt = wcTref(fd.wt), 
+            name = fd.name, 
+            p_guard = path(fd.p_guard),
+            wps_identity = fd.wps_identity.map(wpath)
         ).withPos(fd.pos)
         
     def lvDecl(lv: ir.LvDecl): ir.LvDecl = 
         ir.LvDecl(
-            lv.name, 
-            wcTref(lv.wt),
-            lv.wps_identity.map(wpath)
+            name = lv.name, 
+            wt = wcTref(lv.wt),
+            wps_identity = lv.wps_identity.map(wpath)
         )
 
     def methodSig(msig: ir.MethodSig): ir.MethodSig =
         ir.MethodSig(
-            msig.wts_args.map(wcTref), 
-            msig.argIdentities.map(_.map(wpath)),
-            msig.name, 
-            msig.reqs.map(req), 
-            wcTref(msig.wt_ret),
-            msig.retIdentity.map(wpath)
+            wts_args = msig.wts_args.map(wcTref), 
+            argIdentities = msig.argIdentities.map(_.map(wpath)),
+            name = msig.name, 
+            reqs = msig.reqs.map(req), 
+            wt_ret = wcTref(msig.wt_ret),
+            retIdentity = msig.retIdentity.map(wpath)
         )
 }

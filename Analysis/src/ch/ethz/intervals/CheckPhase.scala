@@ -12,7 +12,7 @@ abstract class CheckPhase(val prog: Prog) {
     // ___ Class-check ordering _____________________________________________
     def checkClassDecl(cd: ir.ClassDecl)
     val userClassNames = Set(prog.cds_user.map(_.name): _*)
-    val checkedClasses = MutableSet.empty[ir.ClassName]
+    val checkedClasses = MutableSet.empty[ir.AnyClassName]
     def checkClassDeclAfterSuperclasses(cd: ir.ClassDecl) {
         if(!checkedClasses(cd.name) && userClassNames(cd.name)) {
             cd.superClasses.foreach(c => 

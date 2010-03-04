@@ -201,7 +201,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
         // ----------------------------------------------------------------------
         // Apply map to relations and keep only those not affecting lv_outOfScope
         
-        def inScope(p: ir.Path) = (p.lv != lv_outOfScope)
+        def inScope(p: ir.Path) = !p.basedOnVar(lv_outOfScope)
 
         // This caused problems with @Is, because there could be multiple
         // entries in the map like (p1 -> lv, p2 -> lv), and we'd end up with a 
@@ -417,6 +417,10 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                     env = env.addHbInter(cp_cCtor, env.cp_cur)
                 }
                 env.addFlow(prog.exportedCtorEnvs((env.c_super, m)))
+                
+            case ir.StmtGetStatic(lv_def, c) =>
+                val cp = env.immutableCanonPath(ir.PathStatic(c))
+                env.addPerm(lv_def, cp)
                 
             case ir.StmtGetField(lv_def, lv_owner, f) =>
                 val cp_owner = env.immutableReifiedLv(lv_owner)
@@ -709,6 +713,10 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                         case ir.PathLv(lv) =>
                             // Always permitted, as local variables are immutable.
                             log("dependent on local var")
+                            
+                        case ir.PathStatic(_) =>
+                            // Always permitted, as static counterparts are immutable.
+                            log("dependent on static counterpart")
 
                         case ir.PathLv(ir.lv_this()) / f =>
                             log("dependent on another field of this")

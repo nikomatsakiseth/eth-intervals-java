@@ -143,6 +143,10 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                     val md = env.ctorOfClass(env.c_super, m)
                     checkCall(ir.lv_this, md, lvs_args)
                     
+                case ir.StmtGetStatic(lv_def, c) =>
+                    val cp = env.immutableCanonPath(ir.PathStatic(c))
+                    setEnv(env.addPerm(lv_def, cp))
+                
                 case ir.StmtGetField(lv_def, lv_owner, f) =>
                     val cp_owner = env.reifiedLv(lv_owner)
                     val (_, rfd) = env.substdReifiedFieldDecl(cp_owner, f) 

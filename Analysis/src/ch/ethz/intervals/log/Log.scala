@@ -174,7 +174,6 @@ abstract class Log {
     
     def reifiedFieldDecl(lbl: Any, rfd: ir.ReifiedFieldDecl): Unit = ifEnabled {
         indented("%s%s", lbl, rfd.toString) {
-            apply("attrs: %s", rfd.as)
             apply("wt: %s", rfd.wt)
             apply("p_guard: %s", rfd.p_guard)
             apply("wps_identity: %s", rfd.wps_identity)
@@ -249,6 +248,8 @@ abstract class Log {
                     apply("wt: %s", wt)
                     wps_identity.foreach { wp => apply("identity: %s", wp) }
                 }
+            case comp @ ir.CpcReifiedStatic(_) =>
+                apply("%s", comp.p)
             case comp @ ir.CpcGhostField(cpc_base, f, c, wps_identity) =>
                 indented(open, "%s: %s", comp.p, c) { 
                     canonPathComponent(true, "base", cpc_base)

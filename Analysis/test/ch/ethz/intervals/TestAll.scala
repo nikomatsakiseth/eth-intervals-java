@@ -17,6 +17,7 @@ object TestAll {
         ("#Point", ir.c_point),
         ("#Lock", ir.c_lock),
         ("#String", ir.c_string),
+        ("#RacyGuard", ir.c_RacyGuard),
         ("#void", ir.c_void)
     )
     

@@ -89,7 +89,9 @@ object ir {
     // ___ Names of variables, fields, methods, classes _____________________   
     
     val quoteRegex = "[^a-zA-Z0-9._]".r
-    sealed abstract class Name(name: String) {
+    sealed abstract class Name {
+        val name: String
+        
         override def toString = 
             if(name.contains(".")) "(%s)".format(name)
             else name
@@ -101,32 +103,37 @@ object ir {
         def unapply(ar: AnyRef): Boolean = (ar == this)
     }
     
-    sealed case class VarName(name: String) extends Name(name) {
+    sealed case class VarName(name: String) extends Name {
         def path = ir.PathLv(this)
         def /(f: FieldName) = path / f
         def /+(fs: List[FieldName]) = path /+ fs
     }
     
-    sealed case class TypeVarName(name: String) extends Name(name) {
+    sealed case class TypeVarName(name: String) extends Name {
         def thisPtype = ir.PathType(ir.p_this, this)
     }
     
-    sealed case class MethodName(name: String) extends Name(name)
+    sealed case class MethodName(name: String) extends Name
     
-    sealed case class ClassName(name: String) extends Name(name) {
+    sealed abstract class AnyClassName extends Name {
         def ct = ir.ClassType(this, List(), List())
     }
+    
+    sealed case class ClassName(name: String) extends AnyClassName
 
-    sealed abstract class FieldName(name: String) extends Name(name) {
+    sealed case class StaticClassName(c: ClassName) extends AnyClassName {
+        val name = "static[%s]".format(c)
+    }
+
+    sealed abstract class FieldName extends Name {
         def thisPath = p_this / this
     }
     
-    sealed case class PlainFieldName(name: String) extends FieldName(name)
+    sealed case class PlainFieldName(name: String) extends FieldName
     
     val ctor = "Constructor"
-    sealed case class ClassCtorFieldName(c: ir.ClassName) extends {
+    sealed case class ClassCtorFieldName(c: ir.AnyClassName) extends FieldName {
         val name = "%s[%s]".format(ctor, c) // wacky syntax to initialize a field before super ctor:
-    } with FieldName(name) {
         override def toString = name 
     }
     
@@ -144,7 +151,7 @@ object ir {
     
     sealed case class ClassDecl(
         attrs: Attrs,       
-        name: ClassName,
+        name: AnyClassName,
         ghostFieldDecls: List[ir.GhostFieldDecl],
         typeVarDecls: List[TypeVarDecl],
         superClasses: List[ClassName],
@@ -155,7 +162,7 @@ object ir {
         reifiedFieldDecls: List[ReifiedFieldDecl],
         methods: List[MethodDecl]
     ) extends PositionalAst {
-        def isNamed(n: ClassName) = (name == n)
+        def isNamed(n: AnyClassName) = (name == n)
         
         def setDefaultPosOnChildren() {
             ghostFieldDecls.foreach(_.setDefaultPos(pos))
@@ -240,7 +247,6 @@ object ir {
     }
 
     sealed case class ReifiedFieldDecl(
-        as: ir.Attrs,       
         wt: ir.WcTypeRef,
         name: ir.FieldName,
         p_guard: ir.Path,
@@ -264,6 +270,9 @@ object ir {
     }
     sealed case class StmtCheckType(lv: ir.VarName, wt: ir.WcTypeRef) extends Stmt {
         override def toString = "%s <: %s".format(lv, wt)
+    }
+    sealed case class StmtGetStatic(lv: ir.VarName, c: ir.ClassName) extends Stmt {
+        override def toString = "%s = static[%s]".format(lv, c)
     }
     sealed case class StmtCall(lv_def: VarName, lv_rcvr: VarName, m: MethodName, lvs_arg: List[VarName]) extends Stmt {
         override def toString = "%s = %s->%s(%s)".format(lv_def, lv_rcvr, m, lvs_arg)        
@@ -396,7 +405,7 @@ object ir {
     }
     
     sealed case class WcClassType(
-        c: ir.ClassName,                            // Name of class being referenced
+        c: ir.AnyClassName,                         // Name of class being referenced
         wghosts: List[ir.WcGhost],                  // Ghost arguments 
         wtargs: List[ir.WcTypeArg]                  // Generic type arguments
     ) extends WcTypeRef {
@@ -423,7 +432,7 @@ object ir {
     }
     
     sealed class ClassType(
-        c: ir.ClassName,
+        c: ir.AnyClassName,
         val ghosts: List[ir.Ghost],
         val targs: List[ir.TypeArg] 
     ) extends WcClassType(c, ghosts, targs) {
@@ -434,7 +443,7 @@ object ir {
     }
     
     object ClassType {
-        def apply(c: ir.ClassName, ghosts: List[ir.Ghost], targs: List[ir.TypeArg]) = {
+        def apply(c: ir.AnyClassName, ghosts: List[ir.Ghost], targs: List[ir.TypeArg]) = {
             new ClassType(c, ghosts, targs)
         }
     }
@@ -542,11 +551,7 @@ object ir {
     }
     
     sealed abstract class Path extends WcPath {
-        def lv: ir.VarName
-        def rev_fs: List[ir.FieldName]
-        def fs = rev_fs.reverse
-        
-        def isGenerated = lv.isGenerated && rev_fs.isEmpty
+        def isGenerated: Boolean
         def addDependentPaths(s: Set[ir.Path]) = s + this   
         
         def /(f: ir.FieldName): Path = PathField(this, f)
@@ -554,19 +559,32 @@ object ir {
         def start = this / ir.f_start
         def end = this / ir.f_end
              
-        def hasPrefix(p: ir.Path) =
-            lv == p.lv && rev_fs.endsWith(p.rev_fs)            
+        def hasPrefix(p: ir.Path): Boolean
+        def basedOnVar(lv1: ir.VarName): Boolean
     }
 
     sealed case class PathLv(lv: ir.VarName) extends Path {
-        def rev_fs = List()
+        def isGenerated = lv.isGenerated
         override def toString = lv.toString
+        def hasPrefix(p: ir.Path) = (this == p)
+        def basedOnVar(lv1: ir.VarName) = (lv == lv1)
+    }
+    
+    sealed case class PathStatic(c: ClassName) extends Path {
+        def isGenerated = false
+        override def toString = "static[%s]".format(c)
+        def hasPrefix(p: ir.Path) = (this == p)
+        def basedOnVar(lv1: ir.VarName) = false
     }
     
     sealed case class PathField(p_base: ir.Path, f: ir.FieldName) extends Path {
-        def lv = p_base.lv
-        def rev_fs = f :: p_base.rev_fs
-        override def toString = p_base.toString + "." + f
+        def isGenerated = false
+        override def toString = p_base match {
+            case PathStatic(c) => "%s#%s".format(c, f)
+            case _ => p_base.toString + "." + f
+        }
+        def hasPrefix(p: ir.Path) = (this == p) || (p_base == p)
+        def basedOnVar(lv1: ir.VarName) = p_base.basedOnVar(lv1)
     }
     
     // Used for reverse pattern matching on paths:
@@ -642,6 +660,16 @@ object ir {
     ) extends CpcReified {
         def p = lv.path
         override def toString = lv.toString
+    }
+    
+    sealed case class CpcReifiedStatic(
+        c: ir.ClassName
+    ) extends CpcReified {
+        val staticC = ir.StaticClassName(c)
+        val wt = staticC.ct.withDefaultWghosts(wgs_constructed)
+        val p = ir.PathStatic(c)
+        val wps_identity = List()
+        override def toString = "static[%s]".format(c)
     }
     
     sealed case class CpcReifiedField(
@@ -801,10 +829,10 @@ object ir {
     val c_object = ir.ClassName("java.lang.Object")
     val c_interval = ir.ClassName("ch.ethz.intervals.Interval")
     val c_guard = ir.ClassName("ch.ethz.intervals.guard.Guard")
-    val c_RacyGuard = ir.ClassName("ch.ethz.intervals.guard.RacyGuard")
     val c_point = ir.ClassName("ch.ethz.intervals.Point")
     val c_lock = ir.ClassName("ch.ethz.intervals.Lock")
     val c_string = ir.ClassName("java.lang.String") // used only in unit testing
+    val c_RacyGuard = ir.ClassName("ch.ethz.intervals.guard.RacyGuard")
 
     // Types used to translate Java constructs into classes:
     //    These types are not treated specially by the type system,
@@ -832,6 +860,9 @@ object ir {
     
     val wgs_constructed = List(ir.wg_objCtorHbNow)
     val wgs_fieldsDefault = List(ir.WcGhost(ir.f_objCtor, ir.WcHbNow(List(ir.p_this_objCtor))))
+    
+    val f_racy = ir.PlainFieldName("racy")
+    val wt_constructedRacyGuard = c_RacyGuard.ct.withDefaultWghosts(wgs_constructed)
     
     val md_emptyCtor = 
         ir.MethodDecl(
@@ -985,7 +1016,7 @@ object ir {
             methods           = List()
         ),
         ClassDecl(
-            attrs             = interfaceAttrs,
+            attrs             = noAttrs,
             name              = c_RacyGuard,
             ghostFieldDecls   = List(),
             typeVarDecls      = List(),
@@ -995,6 +1026,20 @@ object ir {
             reqs              = List(),
             ctors             = List(md_emptyCtor),
             reifiedFieldDecls = List(),
+            methods           = List()
+        ),
+        ClassDecl(
+            attrs             = noAttrs,
+            name              = ir.StaticClassName(c_RacyGuard),
+            ghostFieldDecls   = List(),
+            typeVarDecls      = List(),
+            superClasses      = List(c_any),
+            ghosts            = List(),
+            typeArgs          = List(),
+            reqs              = List(),
+            ctors             = List(md_emptyCtor),
+            reifiedFieldDecls = List(
+                ReifiedFieldDecl(wt_constructedRacyGuard, f_racy, p_this_objCtor, List())),
             methods           = List()
         ),
         ClassDecl( 
@@ -1010,8 +1055,8 @@ object ir {
             reqs              = List(),
             ctors             = List(md_emptyCtor),
             reifiedFieldDecls = List(
-                ReifiedFieldDecl(noAttrs, wt_constructedPoint, f_start, p_this_intervalCtor, List()),
-                ReifiedFieldDecl(noAttrs, wt_constructedPoint, f_end, p_this_intervalCtor, List())),
+                ReifiedFieldDecl(wt_constructedPoint, f_start, p_this_intervalCtor, List()),
+                ReifiedFieldDecl(wt_constructedPoint, f_end, p_this_intervalCtor, List())),
             methods           = List(
                 MethodDecl(
                     name   = m_run, 
@@ -1049,6 +1094,20 @@ object ir {
             reifiedFieldDecls = List(),
             methods           = List()
         )
+    )
+    
+    def emptyStaticCounterpartClass(cd: ir.ClassDecl) = ir.ClassDecl(
+        attrs             = noAttrs,
+        name              = StaticClassName(cd.name.asInstanceOf[ClassName]),
+        ghostFieldDecls   = List(),
+        typeVarDecls      = List(),
+        superClasses      = List(c_any),
+        ghosts            = List(),
+        typeArgs          = List(),
+        reqs              = List(),
+        ctors             = List(md_emptyCtor),
+        reifiedFieldDecls = List(),
+        methods           = List()
     )
     
     val builtinPosition = new Position {

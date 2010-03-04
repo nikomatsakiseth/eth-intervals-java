@@ -17,7 +17,7 @@ class Prog(
     import logStack.log
     def errors = logStack.errors
     
-    val topLevelClassTable = Util.nameMap[ir.ClassName, ir.ClassDecl](cds_user ++ cds_sys)
+    val topLevelClassTable = Util.nameMap[ir.AnyClassName, ir.ClassDecl](cds_user ++ cds_sys)
     val env_empty = TcEnv(
         prog        = this,
         classTable  = topLevelClassTable,
@@ -36,9 +36,9 @@ class Prog(
     // When we check a class, we store the exported environments from each 
     // of its constructors in this table.  These can be used by subclasses.
     
-    var exportedCtorEnvs = Map(
-        ((ir.c_object, ir.m_init), FlowEnv.empty),
-        ((ir.c_interval, ir.m_init), FlowEnv.empty)
+    var exportedCtorEnvs = Map[(ir.AnyClassName, ir.MethodName), FlowEnv](
+        ((ir.c_object, ir.m_init) -> FlowEnv.empty),
+        ((ir.c_interval, ir.m_init) -> FlowEnv.empty)
     )
     
     // ___ Fresh variables __________________________________________________

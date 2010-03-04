@@ -46,7 +46,7 @@ class IrParser extends BaseParser {
     def tv = id                                 ^^ ir.TypeVarName
     
     def p = (
-        c~"#"~f                                 ^^ { case c~_~f => ir.VarName(c+"#"+f).path }
+        c~"#"~f                                 ^^ { case c~_~f => ir.PathStatic(c) / f }
     |   lv~rep("."~>f)                          ^^ { case lv~fs => lv /+ fs }
     )
     def g = "@"~f~"("~p~")"                     ^^ { case _~f~_~p~_ => ir.Ghost(f, p) }    
@@ -102,21 +102,22 @@ class IrParser extends BaseParser {
     )
     
     def stmt: Parser[ir.Stmt] = positioned(
-       "super"~cm~"("~comma(lv)~")"~";"              ^^ { case _~m~_~ps~_~_ => ir.StmtSuperCtor(m,ps) }
-    |   optLv~lv~"->"~m~"("~comma(lv)~")"~";"        ^^ { case x~p~"->"~m~"("~qs~")"~_ => ir.StmtCall(x, p, m, qs) }
-    |   optLv~"super"~"->"~m~"("~comma(lv)~")"~";"   ^^ { case x~_~"->"~m~"("~qs~")"~_ => ir.StmtSuperCall(x, m, qs) }
-    |   lv~"="~lv~"->"~f~";"                         ^^ { case x~"="~p~"->"~f~_ => ir.StmtGetField(x, p, f) }
-    |   lv~"="~"new"~ct~cm~"("~comma(lv)~")"~";"     ^^ { case x~"="~"new"~ct~m~"("~qs~")"~_ => ir.StmtNew(x, ct, m, qs) }
-    |   lv~"="~"("~wt_dflt~")"~lv~";"                ^^ { case x~"="~"("~wt~")"~p~";" => ir.StmtCast(x, wt, p) }
-    |   lv~"="~"("~wt_dflt~")"~"null"~";"            ^^ { case x~"="~"("~wt~")"~"null"~";" => ir.StmtNull(x, wt) }
-    |   lv~"->"~f~"="~lv~";"                         ^^ { case p~_~f~_~q~_ => ir.StmtSetField(p, f, q) }
-    |   "assert"~lv~"<:"~wt_dflt~";"                 ^^ { case _~p~_~wt~_ => ir.StmtCheckType(p, wt) }
-    |   lv~"hb"~lv~";"                               ^^ { case p~_~q~_ => ir.StmtHb(p, q) }
-    |   lv~"locks"~lv~";"                            ^^ { case p~_~q~_ => ir.StmtLocks(p, q) }
-    |   "break"~integer~"("~comma(lv)~")"~";"        ^^ { case _~i~"("~ps~")"~";" => ir.StmtBreak(i, ps) }
-    |   "cbreak"~integer~"("~comma(lv)~")"~";"       ^^ { case _~i~"("~ps~")"~";" => ir.StmtCondBreak(i, ps) }
-    |   "continue"~integer~"("~comma(lv)~")"~";"     ^^ { case _~i~"("~ps~")"~";" => ir.StmtContinue(i, ps) }
-    |   "return"~opt(lv)~";"                         ^^ { case _~p~_ => ir.StmtReturn(p) }
+       "super"~cm~"("~comma(lv)~")"~";"             ^^ { case _~m~_~ps~_~_ => ir.StmtSuperCtor(m,ps) }
+    |   optLv~lv~"->"~m~"("~comma(lv)~")"~";"       ^^ { case x~p~"->"~m~"("~qs~")"~_ => ir.StmtCall(x, p, m, qs) }
+    |   optLv~"super"~"->"~m~"("~comma(lv)~")"~";"  ^^ { case x~_~"->"~m~"("~qs~")"~_ => ir.StmtSuperCall(x, m, qs) }
+    |   lv~"="~"static"~"["~c~"]"~";"               ^^ { case x~_~_~_~c~_~_ => ir.StmtGetStatic(x, c) }
+    |   lv~"="~lv~"->"~f~";"                        ^^ { case x~"="~p~"->"~f~_ => ir.StmtGetField(x, p, f) }
+    |   lv~"="~"new"~ct~cm~"("~comma(lv)~")"~";"    ^^ { case x~"="~"new"~ct~m~"("~qs~")"~_ => ir.StmtNew(x, ct, m, qs) }
+    |   lv~"="~"("~wt_dflt~")"~lv~";"               ^^ { case x~"="~"("~wt~")"~p~";" => ir.StmtCast(x, wt, p) }
+    |   lv~"="~"("~wt_dflt~")"~"null"~";"           ^^ { case x~"="~"("~wt~")"~"null"~";" => ir.StmtNull(x, wt) }
+    |   lv~"->"~f~"="~lv~";"                        ^^ { case p~_~f~_~q~_ => ir.StmtSetField(p, f, q) }
+    |   "assert"~lv~"<:"~wt_dflt~";"                ^^ { case _~p~_~wt~_ => ir.StmtCheckType(p, wt) }
+    |   lv~"hb"~lv~";"                              ^^ { case p~_~q~_ => ir.StmtHb(p, q) }
+    |   lv~"locks"~lv~";"                           ^^ { case p~_~q~_ => ir.StmtLocks(p, q) }
+    |   "break"~integer~"("~comma(lv)~")"~";"       ^^ { case _~i~"("~ps~")"~";" => ir.StmtBreak(i, ps) }
+    |   "cbreak"~integer~"("~comma(lv)~")"~";"      ^^ { case _~i~"("~ps~")"~";" => ir.StmtCondBreak(i, ps) }
+    |   "continue"~integer~"("~comma(lv)~")"~";"    ^^ { case _~i~"("~ps~")"~";" => ir.StmtContinue(i, ps) }
+    |   "return"~opt(lv)~";"                        ^^ { case _~p~_ => ir.StmtReturn(p) }
     |   stmt_compound
     )
     
@@ -137,12 +138,12 @@ class IrParser extends BaseParser {
             ir.MethodDecl(m, args, reqs, ir.t_void, List(), seq)
     })
     
-    def createReifiedFieldDecl(as: ir.Attrs, wt: ir.WcTypeRef, f: ir.FieldName, p_guard: ir.Path, is: List[ir.WcPath]) = {
-        ir.ReifiedFieldDecl(as, wt.withDefaultWghosts(ir.wgs_fieldsDefault), f, p_guard, is)
+    def createReifiedFieldDecl(wt: ir.WcTypeRef, f: ir.FieldName, p_guard: ir.Path, is: List[ir.WcPath]) = {
+        ir.ReifiedFieldDecl(wt.withDefaultWghosts(ir.wgs_fieldsDefault), f, p_guard, is)
     }
     def reifiedFieldDecl = positioned(
-        isdecl~attrs~wt~f~"requires"~p~";"          ^^ { case is~as~wt~f~_~p~_ => createReifiedFieldDecl(as, wt, f, p, is) }
-    |   isdecl~attrs~wt~f~";"                       ^^ { case is~as~wt~f~_ => createReifiedFieldDecl(as, wt, f, ir.p_this_creator, is) }
+        isdecl~wt~f~"requires"~p~";"                ^^ { case is~wt~f~_~p~_ => createReifiedFieldDecl(wt, f, p, is) }
+    |   isdecl~wt~f~";"                             ^^ { case is~wt~f~_ => createReifiedFieldDecl(wt, f, ir.p_this_creator, is) }
     )
     
     def constructors = rep(constructor)             ^^ {
@@ -159,7 +160,7 @@ class IrParser extends BaseParser {
     )
     
     def classDecl = positioned(
-        attrs~"class"~c~
+        attrs~"class"~anyC~
         rep(ghostFieldDecl)~
         rep(typeVarDecl)~
         optl("extends"~>comma(c))~

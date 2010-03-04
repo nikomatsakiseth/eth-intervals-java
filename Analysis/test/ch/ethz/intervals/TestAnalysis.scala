@@ -19,7 +19,7 @@ class TestAnalysis extends Suite {
     import TestAll.DEBUG_DIR
     import TestAll.subst
     
-    val logTests: Set[String] = Set("test_methodHbReturn")
+    val logTests: Set[String] = Set("test_racyGuard", "test_fieldsOfStaticCounterpart")
     
     // ___ Test running infrastructure ______________________________________
     
@@ -74,6 +74,12 @@ class TestAnalysis extends Suite {
                         cds
                 }            
             val prog = new Prog(logStack, cds, ir.cds_special ++ ir.cds_unit_test)
+            
+            mainSplitLog.detailLog.indented("Declared Classes:") {
+                prog.topLevelClassTable.keySet.foreach { c =>
+                    mainSplitLog.detailLog("%s", c)
+                }
+            }
             
             val failPhase = new CheckAll(prog).check
             
@@ -1895,12 +1901,13 @@ class TestAnalysis extends Suite {
         )
     }    
 
+    @ActivelyDebugging
     def test_racyGuard() {
         success(
             """
             class Test extends #Object
             {
-                scalar fld requires RacyGuard#racy;
+                scalar fld requires #RacyGuard#racy;
                 
                 scalar setFld(scalar i)
                 { // n.b.: No requirements required to read and write.
@@ -1911,5 +1918,63 @@ class TestAnalysis extends Suite {
             }
             """
         )
-    }    
+    }
+    
+    @ActivelyDebugging
+    def test_fieldsOfStaticCounterpart() {
+        success(
+            """
+            class static[Test] extends #Object
+            {
+                #Guard fld requires #RacyGuard#racy;
+            }
+            
+            class Test extends #Object
+            {
+                #String loadField()
+                {
+                    c = static[Test];
+                    fld = c->fld;
+                    return fld; // ERROR intervals.expected.subtype(fld, *#Guard, *#String)
+                }
+                
+                void storeField(#String inter)
+                {
+                    c = static[Test];
+                    c->fld = inter; // ERROR intervals.expected.subtype(inter, *#String, *#Guard)
+                }
+            }
+            """
+        )
+    }
+    
+    @ActivelyDebugging
+    def test_methodsOfStaticCounterpart() {
+        success(
+            """
+            class static[Test] extends #Object
+            {
+                #Guard method(#Guard guard) {
+                    return guard;
+                }
+            }
+            
+            class Test extends #Object
+            {
+                void callMethodWithWrongType(#String string)
+                {
+                    c = static[Test];
+                    c->method(string); // ERROR intervals.expected.subtype(string, *#String, *#Guard)
+                }
+                
+                #String callMethodWithRightType(#Guard guard)
+                {
+                    c = static[Test];
+                    r = c->method(guard);
+                    return r; // ERROR intervals.expected.subtype(r, *#Guard, *#String)
+                }
+            }
+            """
+        )
+    }        
 }
