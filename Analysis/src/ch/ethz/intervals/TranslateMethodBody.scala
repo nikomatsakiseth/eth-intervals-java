@@ -645,8 +645,15 @@ object TranslateMethodBody
                         assign(tree, tree.getVariable, Some(tree.getExpression))
 
                     case tree: BinaryTree => // p + q (or some other operator)
-                        toString(tree.getLeftOperand)
-                        toString(tree.getRightOperand)
+                        tree.getKind match {
+                            case TRK.EQUAL_TO | TRK.NOT_EQUAL_TO =>
+                                rvalue(tree.getLeftOperand)
+                                rvalue(tree.getRightOperand)
+                            
+                            case _ =>
+                                toString(tree.getLeftOperand)
+                                toString(tree.getRightOperand)                                
+                        }
                         nullStmt(tree)
 
                     case tree: CompoundAssignmentTree => // p += q

@@ -927,7 +927,7 @@ class TranslateTypeFactory(
         case mtree: MethodTree =>
             val eelem = TU.elementFromDeclaration(mtree)
             if(eelem.getKind == ek) {
-                indexLog.indented("Method Impl: %s()", qualName(eelem)) {
+                logStack.ifPertinent("TranslateMethodBody(%s)".format(methodName(eelem))) {
                     at(ElementPosition(eelem), dummyMethodDecl(eelem) :: mdecls) {
                         val intMdecl = intMethodDecl(eelem)
                         val body = TranslateMethodBody(logStack, this, mtree)
@@ -935,8 +935,8 @@ class TranslateTypeFactory(
                         intMdecl.copy(
                             body = body
                         ).withPos(TreePosition(mtree, (s => s))) :: mdecls
-                    }
-                }                
+                    }                    
+                }
             } else
                 mdecls
         case _ => mdecls

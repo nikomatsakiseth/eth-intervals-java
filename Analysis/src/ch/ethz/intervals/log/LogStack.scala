@@ -5,8 +5,9 @@ import ch.ethz.intervals.CheckFailure
 import scala.collection.immutable.ListSet
 import scala.util.parsing.input.Positional
 import scala.util.parsing.input.NoPosition
+import ch.ethz.intervals.Util._
 
-class LogStack(mainLog: SplitLog) {
+class LogStack(mainLog: SplitLog, pertainingTo: List[String]) {
     
     // ___ Logging __________________________________________________________
     
@@ -16,13 +17,37 @@ class LogStack(mainLog: SplitLog) {
     def errorLog = splitLog.errorLog
     def log = splitLog.detailLog
     
-    def withSplitLog[R](newSplitLog: SplitLog)(func: => Unit) = {
+    def withSplitLog[R](newSplitLog: SplitLog)(func: => R) = {
         try {
             splitLogs = newSplitLog :: splitLogs
             func
         } finally {
             splitLog.flush
             splitLogs = splitLogs.tail
+        }
+    }
+    
+    // ___ Pertinence _______________________________________________________
+    //
+    // A somewhat hacky mechanism to enable logging only for specific methods, etc.
+    // This whole logging infrastructure needs to be refactored.
+    
+    private[this] var scopedPertinent = false
+    
+    def ifPertinent[R](s: String)(func: => R) = {
+        if(pertainingTo.isEmpty || scopedPertinent) {
+            func
+        } else if (pertainingTo.exists(_ glob s)) {
+            try {
+                scopedPertinent = true
+                val pertSplitLog = mainLog.indexLog.splitLog(s)
+                log.linkTo(pertSplitLog.uri, "%s", s)
+                withSplitLog(pertSplitLog)(func)
+            } finally {
+                scopedPertinent = false
+            }
+        } else {
+            withSplitLog(SplitLog.devNullSplitLog)(func)
         }
     }
     
@@ -52,8 +77,11 @@ class LogStack(mainLog: SplitLog) {
             }
         } finally { splitLog.flush }
         
-    def indexAt[R](loc: Positional, default: => R)(g: => R): R = 
-        baseAt(indexLog, loc, default)(g)
+    def indexAt[R](loc: Positional, str: String, default: => R)(g: => R): R = {
+        ifPertinent(str) {
+            baseAt(indexLog, loc, default)(g)            
+        }
+    }
         
     def at[R](loc: Positional, default: => R)(g: => R): R = 
         baseAt(log, loc, default)(g) 

@@ -400,7 +400,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
         }
     }
     
-    def checkStatement(env0: TcEnv, ss_cur: List[StmtScope], stmt: ir.Stmt) = indexAt(stmt, env0) {
+    def checkStatement(env0: TcEnv, ss_cur: List[StmtScope], stmt: ir.Stmt) = indexAt(stmt, "TypeCheck(%s)".format(stmt), env0) {
         var env = env0
         log.env(false, "Input Environment: ", env)
         stmt match {   
@@ -607,7 +607,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
         flow_ctor_assum: FlowEnv,   // relations established by the ctor
         md: ir.MethodDecl           // method to check
     ): Unit = 
-        indexAt(md, ()) {
+        indexAt(md, "TypeCheck(%s::%s)".format(env_cd.c_this, md.name), ()) {
             var env = env_cd
             
             // Define special vars "method" and "this":
@@ -642,7 +642,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
     def checkNoninterfaceConstructorDecl(
         env_cd: TcEnv, 
         md: ir.MethodDecl
-    ) = indexAt(md, FlowEnv.empty) {
+    ) = indexAt(md, "TypeCheck(%s::%s)".format(env_cd.c_this, md.name), FlowEnv.empty) {
         var env = env_cd
         
         // Define special var "method" (== this.constructor):
@@ -668,7 +668,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
     def checkReifiedFieldDecl(
         env_cd: TcEnv, 
         fd: ir.ReifiedFieldDecl
-    ) = indexAt(fd, ()) {
+    ) = indexAt(fd, "TypeCheck(%s::%s)".format(env_cd.c_this, fd.name), ()) {
         var env = env_cd
         val cd = env.classDecl(env.c_this)
         
@@ -739,12 +739,12 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
     // ___ Classes and interfaces ___________________________________________
     
     def checkInterfaceClassDecl(env: TcEnv, cd: ir.ClassDecl) =
-        indexAt(cd, ()) {
+        indexAt(cd, "TypeCheck(%s)".format(cd.name), ()) {
             cd.methods.foreach(checkMethodDecl(env, FlowEnv.empty, _))
         }            
         
     def checkNoninterfaceClassDecl(env: TcEnv, cd: ir.ClassDecl) = 
-        indexAt(cd, ()) {
+        indexAt(cd, "TypeCheck(%s)".format(cd.name), ()) {
             cd.reifiedFieldDecls.foreach(checkReifiedFieldDecl(env, _))
             val flows_ctor = cd.ctors.map(checkNoninterfaceConstructorDecl(env, _))
             val flow_all_ctors = FlowEnv.intersect(flows_ctor)

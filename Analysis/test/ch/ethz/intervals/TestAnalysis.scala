@@ -43,7 +43,7 @@ class TestAnalysis extends Suite {
                 SplitLog.devNullSplitLog
             }
         }
-        val logStack = new LogStack(mainSplitLog)
+        val logStack = new LogStack(mainSplitLog, List())
         val indexLog = mainSplitLog.indexLog
         try {
             val text = subst(text0)

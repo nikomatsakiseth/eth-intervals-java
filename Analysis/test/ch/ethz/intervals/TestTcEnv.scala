@@ -72,7 +72,7 @@ class TestTcEnv extends Suite {
                 SplitLog.devNullSplitLog
             }
         }
-        val logStack = new LogStack(mainSplitLog)
+        val logStack = new LogStack(mainSplitLog, List())
         
         val text = TestAll.subst(text0).replaceAll("//[^\n]*", "")        
         val parser = new IrParser()

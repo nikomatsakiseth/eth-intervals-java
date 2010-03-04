@@ -26,7 +26,9 @@ import ch.ethz.intervals.log.LogDirectory
 class TestPlugin extends Suite with BeforeAndAfter {
     import TestAll.DEBUG_DIR
     
-    val logTests: Set[String] = Set()
+    // Edit these to control logging:
+    val logTests: Set[String] = Set("testTspTspSolver")
+    val logPertinent: List[String] = List("TypeCheck(*splitTour*)")
     
     def fileName(jfo: JavaFileObject) =
         if(jfo == null) "null"
@@ -213,7 +215,10 @@ class TestPlugin extends Suite with BeforeAndAfter {
             val log = logDirectory.detailLog
             val checkerDebugDir = LogDirectory.newFile(logDirectory.dir, "IntervalsChecker", "")        
             var opts = config.opts
-            if(logTests(testName)) opts = "-AINTERVALS_DEBUG_DIR=%s".format(checkerDebugDir) :: opts
+            if(logTests(testName)) {
+                opts = "-AINTERVALS_DEBUG_DIR=%s".format(checkerDebugDir) :: opts
+                opts = "-AINTERVALS_PERTINENT=%s".format(",".join(logPertinent)) :: opts
+            }
             logDirectory.indexLog.linkTo(
                 new File(checkerDebugDir, "index.html").toURI.toString, 
                 "IntervalsChecker logs")
@@ -287,6 +292,7 @@ class TestPlugin extends Suite with BeforeAndAfter {
         javac(unitTest, "erco/intervals/tsp/TourElement.java")
     }
 
+    @ActivelyDebugging
     def testTspTspSolver() {
         javac(unitTest, "erco/intervals/tsp/TspSolver.java")
     }

@@ -49,7 +49,8 @@ class IntervalsChecker extends SourceChecker {
                 case dir =>
                     val logDirectory = new LogDirectory(new File(dir))
                     logDirectory.mainSplitLog
-            }
+            },
+            Option(env.getOptions.get("INTERVALS_PERTINENT")).getOrElse("").split(",").toList
         )
     }
         

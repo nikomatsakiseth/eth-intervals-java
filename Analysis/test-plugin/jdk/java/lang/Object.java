@@ -1,14 +1,14 @@
 package java.lang;
 
+import ch.ethz.intervals.quals.BaseRequirements;
 import ch.ethz.intervals.quals.Creator;
-import ch.ethz.intervals.quals.Requires;
 
-@Creator 
+@Creator  
 public class Object {
     
     public Object() {}
 
-    @Requires("Creator readableBy method")
+    @BaseRequirements(instanceMethod="Creator readableBy method")
     public String toString() { return ""; }
     
 }
