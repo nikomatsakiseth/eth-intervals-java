@@ -28,7 +28,7 @@ class TestPlugin extends Suite with BeforeAndAfter {
     
     // Edit these to control logging:
     val logTests: Set[String] = Set("testTspTsp")
-    val logPertinent: List[String] = List("*(*::*loadConfig*)")
+    val logPertinent: List[String] = List("*(*loadConfig*)")
     
     def fileName(jfo: JavaFileObject) =
         if(jfo == null) "null"

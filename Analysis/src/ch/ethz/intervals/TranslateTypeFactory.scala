@@ -50,7 +50,7 @@ class TranslateTypeFactory(
     case class TreePosition(tree: Tree, rewriteFunc: (String => String)) extends DummyPosition {
         def reportObject = tree
         def rewrite(s: String) = rewriteFunc(s)
-        override def toString = "TreePosition(%s)".format(tree)
+        override def toString = "TreePosition(%s)".format(treeToString(tree))
     }
     
     case class ElementPosition(elem: Element) extends DummyPosition {
@@ -369,18 +369,18 @@ class TranslateTypeFactory(
     }
     
     def ghostFieldsDeclaredOnElem(elem: Element) = {
-        log.indented("ghostFieldsDeclaredOnElem(%s)", elem) {
+        log.indented(false, "ghostFieldsDeclaredOnElem(%s)", elem) {
             addGhostFieldsDeclaredOnElem(Map.empty, elem)
         }        
     }
                 
     def ghostFieldsDeclaredOnElemAndSuperelems(elem: Element) =
-        log.indented("ghostFieldsDeclaredOnElemAndSuperelems(%s)", elem) {
+        log.indented(false, "ghostFieldsDeclaredOnElemAndSuperelems(%s)", elem) {
             addElemAndSuperelems(addGhostFieldsDeclaredOnElem)(Map.empty, elem)
         }
     
     def ghostFieldsDeclaredOnTyAndSupertypes(ty: TypeMirror) =
-        log.indented("ghostFieldsDeclaredOnTyAndSupertypes(%s)", ty) {
+        log.indented(false, "ghostFieldsDeclaredOnTyAndSupertypes(%s)", ty) {
             addTyAndSupertypes(addGhostFieldsDeclaredOnElem)(Map.empty, ty)
         }
     
@@ -401,7 +401,7 @@ class TranslateTypeFactory(
         }
         
     def defaultGhostFieldsDeclaredOnElemAndSuperelems(elem: Element) =
-        log.indented("defaultGhostFieldsDeclaredOnElemAndSuperelems(%s)", elem) {
+        log.indented(false, "defaultGhostFieldsDeclaredOnElemAndSuperelems(%s)", elem) {
             addElemAndSuperelems(addDefaultGhostFieldsDeclaredOnElem)(Map.empty, elem)
         }
     
@@ -410,7 +410,7 @@ class TranslateTypeFactory(
     // An unbound ghost field is one that is declared but not yet bound.
     
     def unboundGhostFieldsDeclaredOnTyAndSupertypes(ty: TypeMirror) =
-        log.indented("unboundGhostFieldsDeclaredOnTyAndSupertypes(%s)", ty) {
+        log.indented(false, "unboundGhostFieldsDeclaredOnTyAndSupertypes(%s)", ty) {
             val m_decl = ghostFieldsDeclaredOnTyAndSupertypes(ty)
             ghostFieldsBoundOnTyAndSupertypes(ty).foldLeft(m_decl) { case (m, (f, _)) =>
                 m - f
@@ -451,7 +451,7 @@ class TranslateTypeFactory(
         TranslateEnv(ElementPosition(telem), m_lvs, Map())
     }
 
-    def elemEnv(elem: Element): TranslateEnv = log.indented("elemEnv(%s)", elem) {
+    def elemEnv(elem: Element): TranslateEnv = log.indented(false, "elemEnv(%s)", elem) {
         elem.getKind match {
             case EK.PACKAGE =>
                 emptyEnv
@@ -695,7 +695,7 @@ class TranslateTypeFactory(
     def wtref(env: TranslateEnv, wgs_default: List[ir.WcGhost])(
         annty: AnnotatedTypeMirror
     ): ir.WcTypeRef = {
-        log.indented("wtref(%s)(%s)", wgs_default, annty) {
+        log.indented(false, "wtref(%s)(%s)", wgs_default, annty) {
             val c = className(annty.getUnderlyingType)
             
             val wt = annty.getKind match {

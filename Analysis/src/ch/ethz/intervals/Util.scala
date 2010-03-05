@@ -5,6 +5,8 @@ import scala.collection.immutable.Map
 import scala.collection.immutable.Set
 import scala.collection.mutable.HashMap
 
+import com.sun.source.tree.Tree
+
 import javax.lang.model.element.Element
 import javax.lang.model.element.{ElementKind => EK}
 import javax.lang.model.element.PackageElement
@@ -343,6 +345,10 @@ object Util {
             s
         else
             s.substring(0, 30)
+            
+    def treeToString(tree: Tree) = {
+        "%s[%s]".format(tree.getKind, prefix(tree.toString))
+    }
             
     // ___ JCL Conversions __________________________________________________
     

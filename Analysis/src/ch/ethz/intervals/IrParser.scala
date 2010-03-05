@@ -78,6 +78,11 @@ class IrParser extends BaseParser {
         counter = counter + 1
         ir.VarName("parser[%s]".format(ctr))
     }
+    def freshTag = {
+        val ctr = counter
+        counter = counter + 1
+        "cstmt[%d]".format(ctr)
+    }
     
     def optLv = optd(anonLv,
         lv~"="                                      ^^ { case x~_ => x }
@@ -98,7 +103,7 @@ class IrParser extends BaseParser {
     def stmt_defines = optl(("=>"~"(")~>comma(lvdecl)<~(")"~";"))
     
     def stmt_compound: Parser[ir.StmtCompound] = positioned(
-        ckind~stmt_defines                          ^^ { case ckind~defs => ir.StmtCompound(ckind, defs) }
+        ckind~stmt_defines                          ^^ { case ckind~defs => ir.StmtCompound(freshTag, ckind, defs) }
     )
     
     def stmt: Parser[ir.Stmt] = positioned(

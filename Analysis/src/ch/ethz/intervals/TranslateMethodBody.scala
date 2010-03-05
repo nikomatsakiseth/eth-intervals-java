@@ -114,15 +114,19 @@ object TranslateMethodBody
         abstract class Version {
             val sym: Symbol
             val lv: ir.VarName
-        }    
+        }
         sealed case class InitialParameterVersion(sym: Symbol) extends Version {
             val lv = ir.VarName(sym.name)
+            override def toString = lv.toString
         }
         sealed case class LocalVersion(sym: Symbol, ver: Int) extends Version {
             val lv = ir.VarName(sym.name + "[" + ver + "]")
             def toLvDecl = ir.LvDecl(lv, sym.wtref, List())
+            override def toString = lv.toString
         }
-        sealed case class ExprVersion(sym: Symbol, lv: ir.VarName) extends Version
+        sealed case class ExprVersion(sym: Symbol, lv: ir.VarName) extends Version {
+            override def toString = "(%s: %s)".format(sym, lv)
+        }
         
         def replacePairs(pairs: List[(String,String)])(s0: String) = {
             pairs.foldLeft(s0) { case (s, pair) =>
@@ -152,15 +156,6 @@ object TranslateMethodBody
             val annty = ttf.getAnnotatedType(elem)
             val wtref = ttf.wtref(env, ir.wgs_constructed)(annty)
             new Symbol(nm(elem), EU.isFinal(elem), annty, wtref)
-        }
-
-        // ___ Error placement and printing _____________________________________
-        
-        def at[R](treePos: Tree, symtab: SymbolTable, tag: String, defFunc: => R)(func: => R) = {
-            logStack.at(
-                new DummyPositional(TreePosition(treePos, symtab.replaceFunc), tag), 
-                defFunc
-            )(func)            
         }
 
         // ___ Method environment, parameters ___________________________________
@@ -209,7 +204,8 @@ object TranslateMethodBody
             val symtab_in: SymbolTable,
             val defines_xtra: List[ir.LvDecl]
         ) {
-            override def toString = "Scope(%s,%s)".format(kind, o_label)
+            val tag = fresh.next
+            override def toString = "%s(%s)".format(kind, tag)
             
             // ___ Subseqs __________________________________________________________
             
@@ -246,10 +242,13 @@ object TranslateMethodBody
             // ___ Subsequences _____________________________________________________            
             
             def subseq[R](func: (MutableStmtSeq => R)) = {
-                val msubseq = new MutableStmtSeq(symtab_in ++ defines_loop, this :: parents)
-                val result = func(msubseq)
-                addSeq(msubseq.toStmtSeq)
-                result
+                val idx = seqsBuffer.length
+                log.indented("subseq %s/%s", this, idx) {
+                    val msubseq = new MutableStmtSeq(idx, symtab_in ++ defines_loop, this :: parents)
+                    val result = func(msubseq)
+                    addSeq(msubseq.toStmtSeq)
+                    result                    
+                }
             }
             
             // ___ Finalizing into a compound statement _____________________________            
@@ -285,23 +284,34 @@ object TranslateMethodBody
                 
                 val defines = defines_auto.map(_._2.toLvDecl) ++ defines_xtra
                 
-                ir.StmtCompound(ckind, defines)
+                ir.StmtCompound(tag, ckind, defines)
             }
 
         }
         
-        class MutableStmtSeq(symtab_in: SymbolTable, scopes: List[Scope]) {
+        class MutableStmtSeq(seqidx: Int, symtab_in: SymbolTable, scopes: List[Scope]) {
+            override def toString = "MutableStmtSeq(%s/%s)".format("".join(scopes.take(1)), seqidx)
+            
             // ___ Statement List, Symbol Table _____________________________________
 
             private val stmtsBuffer = new ListBuffer[ir.Stmt]()            
+            private var dormant = false
             
             def addStmt(treePos: Tree, stmt: ir.Stmt) {
+                assert(!dormant)
+                log("addStmt(%s) (scope=%s)", stmt, scopes.take(1))
                 stmtsBuffer += stmt.withPos(TreePosition(treePos, symtab.replaceFunc))
             }
             
             def toStmtSeq = ir.StmtSeq(stmtsBuffer.toList)
                 
             var symtab = symtab_in
+            
+            def updateSymbolTable(nm: String, ver: Version) = {
+                log("Updating symbol table entry of %s for %s to %s (from %s)",
+                    this, nm, ver, symtab.get(nm))
+                symtab += (nm -> ver)                
+            }
             
             // ___ Finalizing into a Compound Stmt __________________________________
 
@@ -314,12 +324,30 @@ object TranslateMethodBody
                 ctor_func: (Scope => Unit)
             ): Boolean = {
                 val subscope = new Scope(subkind, scopes, sublabel, symtab, decls_xtra.toList)
-                ctor_func(subscope)
-                addStmt(tree, subscope.toCompoundStmt)
-                symtab ++= subscope.defines_auto
-                subscope.targetOfBreak
+                log.indented("subscope(%s, %s)", this, subscope) {
+                    dormant = true
+                    ctor_func(subscope)
+                    dormant = false
+                    addStmt(tree, subscope.toCompoundStmt)
+                    log.indented("defines_auto") {
+                        subscope.defines_auto.foreach { case (n,v) => updateSymbolTable(n,v) }
+                    }
+                    subscope.targetOfBreak
+                }
             }
             
+            // ___ Error placement and printing _____________________________________
+        
+            def at[R](treePos: Tree, tag: String, defFunc: => R)(func: => R) = {
+                logStack.at(
+                    new DummyPositional(TreePosition(treePos, symtab.replaceFunc), tag), 
+                    defFunc
+                ) {
+                    log("stmt_seq: %s", this)
+                    func
+                }
+            }
+
             // ___ Break, Continue statements _______________________________________
             
             def branchTarget(branchKind: BranchKind, o_label: Option[Name]): Option[Scope] = {
@@ -336,33 +364,43 @@ object TranslateMethodBody
             }
 
             def branchArguments(idx: Int, lvs_xtra: ir.VarName*) = {
-                val scope_tar = scopes(idx)
-                assert(scope_tar.defines_xtra.length == lvs_xtra.length)                
-                val lvs_auto = scope_tar.defines_auto.map { case (nm, _) =>
-                    symtab(nm).lv
+                log.indented("branchArguments(%s, %s, lvs_xtra=%s)", this, idx, lvs_xtra) {
+                    val scope_tar = scopes(idx)
+                    assert(scope_tar.defines_xtra.length == lvs_xtra.length)                
+                    val lvs_auto = scope_tar.defines_auto.map { case (nm, _) =>
+                        val res = symtab(nm).lv
+                        log("auto nm: %s -> %s", nm, res)
+                        res
+                    }
+                    lvs_auto ++ lvs_xtra                    
                 }
-                lvs_auto ++ lvs_xtra
             }
             
             def uncondBreak(treePos: Tree, scope: Scope, lvs_xtra: ir.VarName*) = {
-                scope.targetOfBreak = true
-                val idx = scopes.indexOf(scope)
-                addStmt(treePos, ir.StmtBreak(idx, branchArguments(idx, lvs_xtra: _*)))
-                false
+                log.indented("uncondBreak(%s, target=%s, lvs_xtra=%s)", this, scope, lvs_xtra) {
+                    scope.targetOfBreak = true
+                    val idx = scopes.indexOf(scope)
+                    addStmt(treePos, ir.StmtBreak(idx, branchArguments(idx, lvs_xtra: _*)))
+                    false                    
+                }
             }
             
             def condBreak(treePos: Tree, scope: Scope, lvs_xtra: ir.VarName*) = {
-                scope.targetOfBreak = true
-                val idx = scopes.indexOf(scope)
-                addStmt(treePos, ir.StmtCondBreak(idx, branchArguments(idx, lvs_xtra: _*)))
-                true
+                log.indented("condBreak(%s, target=%s, lvs_xtra=%s)", this, scope, lvs_xtra) {
+                    scope.targetOfBreak = true
+                    val idx = scopes.indexOf(scope)
+                    addStmt(treePos, ir.StmtCondBreak(idx, branchArguments(idx, lvs_xtra: _*)))
+                    true                    
+                }
             }
             
             def uncondContinue(treePos: Tree, scope: Scope) = {
-                val idx = scopes.indexOf(scope)
-                assert(scopes(idx).kind == SkLoopProper)
-                addStmt(treePos, ir.StmtContinue(idx, branchArguments(idx)))
-                false
+                log.indented("uncondContinue(%s, target=%s)", this, scope) {
+                    val idx = scopes.indexOf(scope)
+                    assert(scopes(idx).kind == SkLoopProper)
+                    addStmt(treePos, ir.StmtContinue(idx, branchArguments(idx)))
+                    false                    
+                }
             }            
             
             // ___ Misc. Helper Functions ___________________________________________
@@ -454,7 +492,7 @@ object TranslateMethodBody
                 tree: Tree, // location that caused the assignment
                 etree_lval: ExpressionTree, // LHS
                 oetree_rval: Option[ExpressionTree] // optional RHS (if None, treat as null)
-            ): ir.VarName = at(etree_lval, symtab, "assign", nullStmt(etree_lval)) {
+            ): ir.VarName = at(etree_lval, "assign", nullStmt(etree_lval)) {
                 // [1] I think that the correct result from an assignment is one
                 // with the value of RHS and type of LHS.  However, I simply return
                 // the value of the RHS, which means the type may be a subtype of the
@@ -477,7 +515,7 @@ object TranslateMethodBody
                                 val sym = symtab(nm(elem)).sym
                                 val ver = sym.nextExprVersion(q)
                                 addStmt(tree, ir.StmtCheckType(q, sym.wtref))
-                                symtab += Pair(nm(elem), ver)
+                                updateSymbolTable(nm(elem), ver)
                                 ver.lv
 
                             case EK.FIELD => // [this.]f = q
@@ -651,7 +689,7 @@ object TranslateMethodBody
 
             def rvalue(
                 etree: ExpressionTree
-            ): ir.VarName = at(etree, symtab, "rvalue", nullStmt(etree)) {
+            ): ir.VarName = at(etree, "rvalue", nullStmt(etree)) {
                 etree match {
                     case tree: ArrayAccessTree => // p[q]                
                         val p = rvalue(tree.getExpression)
@@ -798,32 +836,32 @@ object TranslateMethodBody
                 subscope(tree, SkLoopBreak, o_loopLabel) { scope_break =>
                     scope_break.subseq { seq_break =>
                         if(seq_break.stmts(initializers)) {
-                                seq_break.subscope(tree, SkLoopProper, None) { scope_loop =>
-                                    scope_loop.subseq { seq_loop =>
+                            seq_break.subscope(tree, SkLoopProper, None) { scope_loop =>
+                                scope_loop.subseq { seq_loop =>
 
-                                        o_preCondition.foreach { condition =>
-                                            seq_loop.rvalue(condition)
-                                            seq_loop.condBreak(tree, scope_break)                                    
-                                        }
-
-                                        seq_loop.subscope(tree, SkLoopContinue, o_loopLabel) { scope_iter =>
-                                            scope_iter.subseq { seq_iter =>
-                                                if(seq_iter.stmt(None, body))
-                                                    seq_iter.uncondBreak(tree, scope_iter)
-                                            }
-                                        }
-
-                                        o_postCondition.foreach { condition =>
-                                            seq_loop.rvalue(condition)
-                                            seq_loop.condBreak(tree, scope_break)                                    
-                                        }
-
-                                        if(seq_loop.stmts(updates))
-                                            seq_loop.uncondContinue(tree, scope_loop)                                        
+                                    o_preCondition.foreach { condition =>
+                                        seq_loop.rvalue(condition)
+                                        seq_loop.condBreak(tree, scope_break)                                    
                                     }
+
+                                    seq_loop.subscope(tree, SkLoopContinue, o_loopLabel) { scope_iter =>
+                                        scope_iter.subseq { seq_iter =>
+                                            if(seq_iter.stmt(None, body))
+                                                seq_iter.uncondBreak(tree, scope_iter)
+                                        }
+                                    }
+
+                                    o_postCondition.foreach { condition =>
+                                        seq_loop.rvalue(condition)
+                                        seq_loop.condBreak(tree, scope_break)                                    
+                                    }
+
+                                    if(seq_loop.stmts(updates))
+                                        seq_loop.uncondContinue(tree, scope_loop)                                        
                                 }
-                            }                            
-                        }
+                            }
+                        }                            
+                    }
                 }
             }
             
@@ -841,7 +879,7 @@ object TranslateMethodBody
             def stmt(
                 label_tree: Option[Name],
                 tree: StatementTree
-            ): Boolean = at(tree, symtab, "stmt", true) { 
+            ): Boolean = at(tree, "stmt", true) { 
                 tree match {
                     case null => 
                         // in practice, null statements are always optional code where we
@@ -855,7 +893,7 @@ object TranslateMethodBody
                     case tree: BlockTree =>
                         subscope(tree, SkAnonBlock, label_tree) { scope_blk =>
                             scope_blk.subseq { seq =>
-                                if(stmts(tree.getStatements))
+                                if(seq.stmts(tree.getStatements))
                                     seq.uncondBreak(tree, scope_blk)
                             }
                         }
@@ -937,7 +975,7 @@ object TranslateMethodBody
                             case expr => rvalue(expr)
                         }
                         val ver = sym.nextExprVersion(p)
-                        symtab += Pair(sym.name, ver)
+                        updateSymbolTable(sym.name, ver)
                         true
 
                     case tree: WhileLoopTree =>
@@ -953,7 +991,7 @@ object TranslateMethodBody
         
         // ___ Building the method body _________________________________________
         
-        val msubseq = new MutableStmtSeq(symtab_mthdParam, List())
+        val msubseq = new MutableStmtSeq(0, symtab_mthdParam, List())
         msubseq.stmt(None, mtree.getBody)
         msubseq.toStmtSeq
     }

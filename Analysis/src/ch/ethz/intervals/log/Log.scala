@@ -31,7 +31,7 @@ abstract class Log {
             case null => escape("null")
             case () => escape("unit")
             case elem: Element => escape("%s[%s]".format(elem.getKind, qualName(elem)))
-            case tree: Tree => escape("%s[%s]".format(tree.getKind, prefix(tree.toString)))
+            case tree: Tree => escape(treeToString(tree))
             case _ if hasDetailedRepr(o) => inline(_.detailed(o))(o)
             case _ => escape(o.toString)
         }
@@ -205,8 +205,8 @@ abstract class Log {
     
     def statement(lbl: Any, stmt: ir.Stmt): Unit = ifEnabled {
         stmt match {
-            case ir.StmtCompound(ir.Loop(args, ps_initial, seq), defines) =>
-                indented("%s%s", lbl, "Loop") {
+            case ir.StmtCompound(tag, ir.Loop(args, ps_initial, seq), defines) =>
+                indented("%s%s (%s)", lbl, "Loop", tag) {
                     indented("Loop Arguments") {
                         args.zip(ps_initial).foreach { case (lvd, p) =>
                             apply("%s = %s", lvd, p)
@@ -220,8 +220,8 @@ abstract class Log {
                     }
                 }
                 
-            case ir.StmtCompound(kind, defines) =>
-                indented("%s%s", lbl, kind) {
+            case ir.StmtCompound(tag, kind, defines) =>
+                indented("%s%s (%s)", lbl, kind, tag) {
                     kind.subseqs.foreach(statementSeq("", _))
                     if(!defines.isEmpty) {
                         indented("Defines") {

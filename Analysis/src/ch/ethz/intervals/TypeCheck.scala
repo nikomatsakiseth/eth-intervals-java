@@ -332,7 +332,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                 val ss_cur = ss :: ss_prev
                 
                 def iterate(env_continue_before: TcEnv) {
-                    log.indented("iterate()") {
+                    indexLog.indented("iterate()") {
                         // Break env is recomputed each iteration:
                         ss.oenv_break = None
 

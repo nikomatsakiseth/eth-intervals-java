@@ -47,6 +47,7 @@ class LogStack(mainLog: SplitLog, pertainingTo: List[String]) {
                 scopedPertinent = false
             }
         } else {
+            log("Not pertinent: '%s'", s)
             withSplitLog(SplitLog.devNullSplitLog)(func)
         }
     }

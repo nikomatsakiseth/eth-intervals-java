@@ -275,7 +275,7 @@ object ir {
         override def toString = "%s = static[%s]".format(lv, c)
     }
     sealed case class StmtCall(lv_def: VarName, lv_rcvr: VarName, m: MethodName, lvs_arg: List[VarName]) extends Stmt {
-        override def toString = "%s = %s->%s(%s)".format(lv_def, lv_rcvr, m, lvs_arg)        
+        override def toString = "%s = %s->%s(%s)".format(lv_def, lv_rcvr, m, ", ".join(lvs_arg))        
     }
     sealed case class StmtGetField(lv_def: VarName, lv_owner: VarName, f: FieldName) extends Stmt {
         override def toString = "%s = %s->%s".format(lv_def, lv_owner, f)
@@ -348,11 +348,16 @@ object ir {
         override def toString = "StmtSeq(length=%d)".format(stmts.length)
     }
     
-    sealed case class StmtCompound(kind: CompoundKind, defines: List[LvDecl]) extends Stmt {
+    
+    /** `tag`: purely for debugging
+      * `kind`: the kind of compound statement
+      * `defines`: the set of variables defined by an applicable break()
+      */
+    sealed case class StmtCompound(tag: String, kind: CompoundKind, defines: List[LvDecl]) extends Stmt {
         override def setDefaultPosOnChildren() {
             kind.subseqs.foreach(_.setDefaultPos(pos))
         }
-        override def toString = "%s => (...)".format(kind, ", ".join(defines))
+        override def toString = "%s: %s => (...)".format(tag, kind, ", ".join(defines))
     }
     sealed abstract class CompoundKind {
         def subseqs: List[StmtSeq]
