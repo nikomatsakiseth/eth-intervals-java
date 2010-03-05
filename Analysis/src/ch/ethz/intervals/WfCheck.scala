@@ -358,12 +358,12 @@ class WfCheck(prog: Prog) extends TracksEnvironment(prog)
                     env.classDecl(c).ghostFieldDecls.filter(_.isNamed(f)).foreach { gfd =>
                         log("gfd: %s (eq? %s)", gfd, gfd eq decl)
                         if(gfd ne decl)
-                            throw new CheckFailure("intervals.shadowed", c, f)                
+                            throw new CheckFailure("intervals.shadowed.field", c, f)                
                     }
                     env.classDecl(c).reifiedFieldDecls.filter(_.isNamed(f)).foreach { rfd =>
                         log("rfd: %s (eq? %s)", rfd, rfd eq decl)
                         if(rfd ne decl)
-                            throw new CheckFailure("intervals.shadowed", c, f)                
+                            throw new CheckFailure("intervals.shadowed.field", c, f)                
                     }
                 }
             }                    

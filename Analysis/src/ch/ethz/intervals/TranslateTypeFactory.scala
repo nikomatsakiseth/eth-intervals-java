@@ -97,15 +97,40 @@ class TranslateTypeFactory(
     /** Returns `elem` if it is a class, otherwise the class enclosing 'elem' (or null) */
     def closestClass(elem: Element): TypeElement = EU.enclosingClass(elem)
 
-    // Returns 'elem' if it is a package, otherwise the package enclosing 'elem'
+    /** Returns `elem` if it is a package, otherwise the package enclosing `elem` */
     def closestPackage(elem: Element): PackageElement = elem.getKind match {
         case EK.PACKAGE => elem.asInstanceOf[PackageElement]
         case _ => closestPackage(elem.getEnclosingElement)
     }
+    
+    def isArrayElement(elem: Element) = {
+        elem.getKind == EK.CLASS && elem.getEnclosingElement.getKind == EK.TYPE_PARAMETER
+    }
         
-    // Converts from a type element to an ir.ClassName
-    def className(typeElem: TypeElement) = {
-        ir.ClassName(qualName(typeElem))        
+    /** Converts from a type element to an `ir.ClassName` */
+    def className(typeElem: TypeElement): ir.ClassName = {
+        if(isArrayElement(typeElem)) ir.c_array
+        else ir.ClassName(qualName(typeElem))
+    }
+        
+    def className(ty: TypeMirror): ir.ClassName = {
+        ty.getKind match {
+            case TK.DECLARED => 
+                val elem = ty.asInstanceOf[DeclaredType].asElement.asInstanceOf[TypeElement]
+                className(elem)
+                
+            case TK.ARRAY =>
+                ir.c_array
+                
+            case TK.WILDCARD | TK.NULL =>
+                ir.c_object
+            
+            case tk if tk.isPrimitive =>
+                ir.c_scalar
+
+            case _ => // Just treat the other types as VOID (for example, error type etc).
+                ir.c_void
+        }        
     }
         
     def typeVarName(tpElem: TypeParameterElement) = {
@@ -159,8 +184,14 @@ class TranslateTypeFactory(
     // is a genuine field, this is just the name of that field.  If Element
     // is an annotation (i.e., an object parameter), this is the full qualified
     // name of that annotation class.
-    def fieldName(elem: Element): ir.FieldName =
-        ir.PlainFieldName(qualName(elem))              
+    def fieldName(elem: Element): ir.FieldName = {
+        if(isArrayElement(EU.enclosingClass(elem))) {
+            assert(elem.getSimpleName.toString == "length")
+            ir.f_length
+        } else {
+            ir.PlainFieldName(qualName(elem))
+        }
+    }
         
     def localVariableName(velem: VariableElement): ir.VarName =
         ir.VarName(velem.getSimpleName.toString)
@@ -624,25 +655,6 @@ class TranslateTypeFactory(
     
     // ___ Translating types ________________________________________________
     
-    def erasedTy(ty: TypeMirror): ir.ClassName =
-        ty.getKind match {
-            case TK.DECLARED => 
-                val telem = ty.asInstanceOf[DeclaredType].asElement.asInstanceOf[TypeElement]
-                className(telem)
-                
-            case TK.ARRAY =>
-                ir.c_array
-                
-            case TK.WILDCARD | TK.NULL =>
-                ir.c_object
-            
-            case tk if tk.isPrimitive =>
-                ir.c_scalar
-
-            case _ => // Just treat the other types as VOID (for example, error type etc).
-                ir.c_void
-        }
-        
     def wghosts(env: TranslateEnv)(annty: AnnotatedTypeMirror) = {
         // Find and parse the explicit annotations given on the type:
         val m_annty_str = ghostFieldsBoundInAnnotations(annty.getAnnotations.toList)
@@ -684,7 +696,7 @@ class TranslateTypeFactory(
         annty: AnnotatedTypeMirror
     ): ir.WcTypeRef = {
         log.indented("wtref(%s)(%s)", wgs_default, annty) {
-            val c = erasedTy(annty.getUnderlyingType)
+            val c = className(annty.getUnderlyingType)
             
             val wt = annty.getKind match {
                 case TK.DECLARED =>
@@ -930,7 +942,7 @@ class TranslateTypeFactory(
                         name              = className(telem),
                         ghostFieldDecls   = gfds.toList,
                         typeVarDecls      = tvDecls.toList,
-                        superClasses      = directSupertys(telem).map(erasedTy(_)),
+                        superClasses      = directSupertys(telem).map(className(_)),
                         ghosts            = gs_bound.toList,
                         typeArgs          = tas_bound.toList,
                         reqs              = List(),

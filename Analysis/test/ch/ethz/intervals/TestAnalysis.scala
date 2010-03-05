@@ -1370,7 +1370,7 @@ class TestAnalysis extends Suite {
             }
             
             class Sub
-                @i(#Interval) // ERROR intervals.shadowed(Super, i)
+                @i(#Interval) // ERROR intervals.shadowed.field(Super, i)
             extends Super {
             }
             """            
@@ -1381,8 +1381,8 @@ class TestAnalysis extends Suite {
         wf(
             """
             class Sub
-                @i(#Interval) // ERROR intervals.shadowed(Sub, i)
-                @i(#Interval) // ERROR intervals.shadowed(Sub, i)
+                @i(#Interval) // ERROR intervals.shadowed.field(Sub, i)
+                @i(#Interval) // ERROR intervals.shadowed.field(Sub, i)
             extends #Object {
             }
             """            

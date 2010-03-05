@@ -813,6 +813,7 @@ object ir {
     val f_super = ir.PlainFieldName("super")
     val f_objCtor = ir.PlainFieldName("ch.ethz.intervals.quals.Constructor")
     val f_parent = ir.PlainFieldName("ch.ethz.intervals.Parent")
+    val f_length = ir.PlainFieldName("length")
     
     val m_init = ir.MethodName("<init>")
     val m_toScalar = ir.MethodName("toScalar")
@@ -846,6 +847,7 @@ object ir {
     val p_this_objCtor = f_objCtor.thisPath
     val p_this_creator = f_creator.thisPath
     val p_this_intervalCtor = ClassCtorFieldName(c_interval).thisPath
+    val p_this_arrayCtor = ClassCtorFieldName(c_array).thisPath
     
     val t_void = ir.ClassType(c_void, List(), List())
     val t_interval = ir.ClassType(c_interval, List(), List())
@@ -909,7 +911,7 @@ object ir {
             ghostFieldDecls   = List(),
             typeVarDecls      = List(),
             superClasses      = List(c_any),
-            ghosts            = List(Ghost(f_creator, p_this_objCtor)),
+            ghosts            = List(),
             typeArgs          = List(),
             reqs              = List(),
             ctors             = List(),
@@ -922,7 +924,7 @@ object ir {
             ghostFieldDecls   = List(),
             typeVarDecls      = List(),
             superClasses      = List(c_any),
-            ghosts            = List(Ghost(f_creator, p_this_objCtor)),
+            ghosts            = List(),
             typeArgs          = List(),
             reqs              = List(),
             ctors             = List(),
@@ -939,7 +941,8 @@ object ir {
             typeArgs          = List(),
             reqs              = List(),
             ctors             = List(),
-            reifiedFieldDecls = List(),
+            reifiedFieldDecls = List(
+                ReifiedFieldDecl(c_scalar.ct, f_length, p_this_arrayCtor, List())),
             methods           = List(
                 MethodDecl(
                     name   = m_arrayGet, 

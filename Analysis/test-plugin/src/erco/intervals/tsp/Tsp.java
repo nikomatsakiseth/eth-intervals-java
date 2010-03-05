@@ -30,17 +30,14 @@ public class Tsp {
 		final Config config = loadConfig(fname);
 		TourElement first = new TourElement(config.startNode);
 		config.enqueue(first);
-		Intervals.inline(new VoidInlineTask() {
-			@Override public void run(Interval subinterval) {
-				new /*@ch.ethz.intervals.Parent("subinterval")*/ TspSolver(subinterval, config);
-			}
-		});		
+		Intervals.inline(new RunSolver(config));		
 		return config.minTour;
 	}
 	
-	public static void main(String args[]) throws IOException {
-		for(String fname : args) {
-			Tsp tsp = new Tsp();
+	public static void main(String/*@Creator("writableBy method")*/[] args) throws IOException {
+		for(int a = 0; a < args.length; a++) {
+		    String fname = args[a];
+			Tsp tsp = new /*@Creator("method")*/ Tsp();
 			int[] tour = tsp.solve(fname);
 			
 			System.out.printf("%s:", fname);

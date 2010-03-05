@@ -106,7 +106,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
         var env = env0
         
         log.indented("checkCall(...)") {
-            log.methodDecl(false, "invoked method decl:", md)
+            log("invoked method decl: %s", md)
             
             // Cannot invoke a method when there are outstanding invalidated fields:
             checkNoInvalidated(env)
@@ -261,10 +261,10 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
             val ss = ss_cur(idx)
 
             val env_map = mapAndMergeBranchEnv(ss.env_in, env, ss.defines, cps)
-            log.env(false, "env_map: ", env_map)
+            log("env_map: %s", env_map)
             ss.oenv_break = intersect(ss.oenv_break, env_map)            
             if(ss.oenv_break.get != env_map)
-                log.env(false, "env_break: ", ss.oenv_break.get)
+                log("env_break: %s", ss.oenv_break.get)
         }
     }
         
@@ -279,10 +279,10 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
             ss.loopArgs match {
                 case Some(args) =>
                     val env_map = mapAndMergeBranchEnv(ss.env_in, env, args, cps)
-                    log.env(false, "env_map: ", env_map)
+                    log("env_map: %s", env_map)
                     ss.oenv_continue = intersect(ss.oenv_continue, env_map)
                     if(ss.oenv_continue.get != env_map)
-                        log.env(false, "env_continue: ", ss.oenv_continue.get)
+                        log("env_continue: ", ss.oenv_continue.get)
                 case None =>
                     throw new CheckFailure(
                         "intervals.internal.error",
@@ -395,14 +395,14 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                 log("oenv_break unset, used env_in")
                 env_in // ...use safe approx.
             case Some(env_break) => 
-                log.env(false, "env_break: ", env_break)
+                log("env_break: %s", env_break)
                 env_break
         }
     }
     
     def checkStatement(env0: TcEnv, ss_cur: List[StmtScope], stmt: ir.Stmt) = indexAt(stmt, "TypeCheck(%s)".format(stmt), env0) {
         var env = env0
-        log.env(false, "Input Environment: ", env)
+        log("Input Environment: %s", env)
         stmt match {   
             case stmt_compound: ir.StmtCompound =>
                 checkCompoundStatement(env, ss_cur, stmt_compound)
@@ -502,6 +502,13 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                     }
                 }                        
                 
+                // Class constructors are all a subset of current interval:
+                env.classAndSuperclasses(ct0.c).foreach { case c =>
+                    val cp_cCtor = env.immutableCanonPath(x / ir.ClassCtorFieldName(c))
+                    env = env.addSuspends(cp_cCtor, env.cp_cur)
+                }
+                
+                // Check the call of the constructor:
                 val md = env.ctorOfClass(ct0.c, m)
                 processCall(env, None, x, md, lvs_args)
                 
@@ -664,7 +671,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
         val flow_exit = checkMethodBody(env, md)
         
         // Compute exit assumptions and store in prog.exportedCtorEnvs:
-        log.flow(false, "exit assumptions:", flow_exit)
+        log("exit assumptions: %s", flow_exit)
         prog.exportedCtorEnvs += (env.c_this, md.name) -> flow_exit
         flow_exit
     }

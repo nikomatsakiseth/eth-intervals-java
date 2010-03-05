@@ -9,6 +9,7 @@ import javax.lang.model.element.Element
 import javax.lang.model.element.{ElementKind => EK}
 import javax.lang.model.element.PackageElement
 import javax.lang.model.element.TypeElement
+import javax.lang.model.`type`.{TypeKind => TK}
 
 import scala.util.parsing.input.Positional
 import scala.util.parsing.input.Position

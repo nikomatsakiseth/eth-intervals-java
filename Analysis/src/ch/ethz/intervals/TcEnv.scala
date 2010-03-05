@@ -74,7 +74,7 @@ sealed case class TcEnv(
     /** Add a local variable whose value is the canon path `cp` */
     def addPerm(x: ir.VarName, cp: ir.ImmutableCanonPath): TcEnv = {
         perm.get(x) match {
-            case Some(_) => throw new CheckFailure("intervals.shadowed", x)
+            case Some(_) => throw new CheckFailure("intervals.shadowed.var", x)
             case None => copy(perm = perm + (x -> cp))
         }
     }
@@ -278,8 +278,7 @@ sealed case class TcEnv(
             }            
         }
             
-        log.indented(false, "compIsImmutableDuring(%s, %s)", cpc_test, o_cp_inter) {
-            log.env(false, "Environment", this)
+        log.indented(false, "%s.compIsImmutableDuring(%s, %s)", this, cpc_test, o_cp_inter) {
             imm(cpc_test)
         }
     }
@@ -690,8 +689,7 @@ sealed case class TcEnv(
     def cp_mthd = perm(ir.lv_mthd)    
     
     /** True if the path `cp` is known to be nonnull */
-    def isNonnull(cp: ir.CanonPath) = log.indented(false, "isNonnull(%s)?", cp) {
-        log.env(false, "Environment", this)
+    def isNonnull(cp: ir.CanonPath) = log.indented(false, "%s.isNonnull(%s)?", this, cp) {
         cp.paths.exists(flow.nonnull)
     }
 
@@ -707,8 +705,7 @@ sealed case class TcEnv(
     
     /// Does the point cp_from hb the point cp_to?
     def hbPnt(cp_from: ir.CanonPath, cp_to: ir.CanonPath) = {
-        log.indented("hbPnt(%s, %s)", cp_from, cp_to) {
-            log.env(false, "Environment", this)
+        log.indented("%s.hbPnt(%s, %s)", this, cp_from, cp_to) {
             assert(isImmutable(cp_from))
             assert(isImmutable(cp_to))
             assert(pathHasClass(cp_from, ir.c_point))
@@ -719,25 +716,20 @@ sealed case class TcEnv(
     
     /// Does the interval cp hb the interval cq?
     def hbInter(cp_from: ir.CanonPath, cp_to: ir.CanonPath) = {
-        log.indented("hbInter(%s, %s)?", cp_from, cp_to) {
-            log.env(false, "Environment", this)
+        log.indented("%s.hbInter(%s, %s)?", this, cp_from, cp_to) {
             (cp_from.paths cross cp_to.paths).existsPair((p_from, p_to) =>
                 bfs(p_from.end, p_to.start))                
         }
     }
     
     def suspends(cp: ir.CanonPath, cq: ir.CanonPath) = {
-        log.indented(false, "suspends(%s, %s)?", cp, cq) {
-            log.env(false, "Environment", this)
-
+        log.indented(false, "%s.suspends(%s, %s)?", this, cp, cq) {
             inlineSuperintervalsOf(cp).exists(equiv(_, cq))
         }
     }
     
     def locks(cp: ir.CanonPath, cq: ir.CanonPath) = {
-        log.indented(false, "locks(%s, %s)?", cp, cq) {
-            log.env(false, "Environment", this)
-            
+        log.indented(false, "%s.locks(%s, %s)?", this, cp, cq) {
             inlineSuperintervalsOf(cp).exists { cp_sup => 
                 (cp_sup.paths cross cq.paths).exists(flow.locks)
             }
@@ -756,7 +748,7 @@ sealed case class TcEnv(
                 pathHasClass(cp, ir.c_RacyGuard) ||
                 equiv(cp, cq) ||
                 locks(cq, cp) ||    // lock cp is writable by interval cq if cq locks cp
-                suspends(cq, cp) || // interval cp is writable by cq if cp suspends cp
+                suspends(cq, cp) || // interval cp is writable by cq if cq suspends cp
                 (cp.paths cross cq.paths).exists(flow.writable)
             }
         }
@@ -785,31 +777,27 @@ sealed case class TcEnv(
         
     /** Is data guarded by `cp` writable by the interval `cq`? */
     def isWritableBy(cp: ir.CanonPath, cq: ir.CanonPath): Boolean = {
-        log.indented(false, "isWritableBy(%s, %s)?", cp, cq) {
-            log.env(false, "Environment", this)
+        log.indented(false, "%s.isWritableBy(%s, %s)?", this, cp, cq) {
             inlineSuperintervalsOf(cq).exists(cq_sup => immediateIsWritableBy(cp, cq_sup))
         }
     }    
     
     /** Is data guarded by `cp` readable by the interval `cq`? */
     def isReadableBy(cp: ir.CanonPath, cq: ir.CanonPath): Boolean = {        
-        log.indented(false, "isReadableBy(%s, %s)?", cp, cq) {
-            log.env(false, "Environment", this)
+        log.indented(false, "%s.isReadableBy(%s, %s)?", this, cp, cq) {
             superintervalsOf(cq).exists(cq_sup => immediateIsReadableBy(cp, cq_sup))
         }
     }
     
     private[this] def interHappened(cp: ir.CanonPath): Boolean = {
-        log.indented(true, "interHappened(%s)", cp) {
+        log.indented(true, "%s.interHappened(%s)", this, cp) {
             o_cp_cur.exists(cp_cur => bfs(cp.reprPath.end, p_cur.start))
         }
     }
             
     /// cp hbNow cqs if either (1) cp hb cur; or (2) ∃i. cp.end hbeq cqs(i).end.
     def hbNow(cp: ir.CanonPath, cqs: List[ir.CanonPath]): Boolean = {
-        log.indented(false, "hbNow(%s, %s)", cp, cqs) {
-            log.env(false, "Environment", this)
-            
+        log.indented(false, "%s.hbNow(%s, %s)", this, cp, cqs) {
             (
                 cp.wps_identity.exists {
                     case ir.WcHbNow(ps) => isLtCanonPaths(canonPaths(ps), cqs)
@@ -914,58 +902,59 @@ sealed case class TcEnv(
     
     // ___ Happens-Before Searches __________________________________________
     
+    private[this] def starts(cp: ir.CanonPath) = cp.paths.map(_.start)
+    private[this] def ends(cp: ir.CanonPath) = cp.paths.map(_.end)
+    private[this] def isInterval(cp: ir.CanonPath) = pathHasClass(cp, ir.c_interval)
+
+    /** A set containing `p_to` along with the starts of any of its superintervals.
+      * When searching for `p_to` in the HB relation, we can stop if we find the
+      * start of any superinterval, as it must happen before `p_to`. */
+    private[this] def superPreds(p_to: ir.Path) = {
+        def expand(p_base: ir.Path) = {
+            val cp_base = canonPath(p_base)
+            if(isInterval(cp_base)) superintervalsOf(cp_base).flatMap(starts)
+            else Set()
+        }
+        
+        Set(p_to) ++ (p_to match {
+            case p_base / ir.f_start() => expand(p_base)
+            case p_base / ir.f_end() => expand(p_base)
+            case _ => Set()
+        })            
+    }
+    
     class HbWalk(
         didNotHappen: Set[ir.Path],
         p_from: ir.Path,
-        p_original_to: ir.Path
+        ps_to: Set[ir.Path]
     ) {        
-        def starts(cp: ir.CanonPath) = cp.paths.map(_.start)
-        def ends(cp: ir.CanonPath) = cp.paths.map(_.end)
-        def isInterval(cp: ir.CanonPath) = pathHasClass(cp, ir.c_interval)
-        
-        // Find a set of points to which we are trying to find a path.  This
-        // set includes p_original_to but also the start point of any superintervals.
-        // This is necessary because succ() cannot travel from the start point of
-        // a superinterval to the start point of its children.
-        val ps_to = {
-            def expand(p_base: ir.Path) = {
-                val cp_base = canonPath(p_base)
-                if(isInterval(cp_base)) superintervalsOf(cp_base).flatMap(starts)
-                else Set()
-            }
-
-            Set(p_original_to) ++ (p_original_to match {
-                case p_base / ir.f_start() => expand(p_base)
-                case p_base / ir.f_end() => expand(p_base)
-                case _ => Set()
-            })            
-        }
-
-        def doWalk(): Boolean = {
-            log.indented(false, "bfs(%s,%s)", p_from, ps_to) {
+        def doWalk() = {
+            log.indented(false, "doWalk(%s,%s)", p_from, ps_to) {
                 visitNext(Set(p_from), Queue.Empty.enqueue(p_from))
             }
         }
         
-        def depoint(p: ir.Path, f: ir.FieldName) = p match {
+        private[this] def depoint(p: ir.Path, f: ir.FieldName) = p match {
             case p_base / f() => Some(canonPath(p_base))
             case _ => None
         }
         
-        def visitNext(vis: Set[ir.Path], queue0: Queue[ir.Path]): Boolean = {
+        private[this] def visitNext(vis: Set[ir.Path], queue0: Queue[ir.Path]): (Set[ir.Path], Boolean) = {
             if(queue0.isEmpty)
-                false
+                (vis, false)
             else {
                 val (p_cur, queue1) = queue0.dequeue
+                assert(vis(p_cur))
                 log("search(%s)", p_cur)
-                ps_to(p_cur) || {
+                if(ps_to(p_cur)) (vis, true)
+                else {
                     val ps_unvisited_succ = succ(p_cur).filter(p => !vis(p))
                     visitNext(vis ++ ps_unvisited_succ, queue1.enqueue(ps_unvisited_succ))
                 }                
             }
         }
         
-        def succ(p: ir.Path): Set[ir.Path] = log.indented("succ(%s)", p) {
+        private[this] def succ(p: ir.Path): Set[ir.Path] = log.indented("succ(%s)", p) {
             flow.hb.values(p) ++ {
                 log.indented("X.start -> X.end if (X: Interval)") {                    
                     depoint(p, ir.f_start) match {
@@ -1017,7 +1006,7 @@ sealed case class TcEnv(
                         // we cannot assume that 'p' happened.
                         canonPath(q).paths.exists { q1 =>
                             !didNotHappen(q1) &&
-                            new HbWalk(didNotHappen + q1, q1.end, p_cur.start).doWalk()
+                            new HbWalk(didNotHappen + q1, q1.end, superPreds(p_cur.start)).doWalk()._2
                         }
                     }
 
@@ -1033,11 +1022,10 @@ sealed case class TcEnv(
                 }                
             }      
         }
-
     }
     
-    private def bfs(p_from: ir.Path, p_to: ir.Path) = {        
-        new HbWalk(Set(), p_from, p_to).doWalk()
+    private def bfs(p_from: ir.Path, p_to: ir.Path) = {
+        new HbWalk(Set(), p_from, superPreds(p_to)).doWalk()._2
     }
     
     // ___ Other operations on canonical paths ______________________________

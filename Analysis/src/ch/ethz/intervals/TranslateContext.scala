@@ -20,9 +20,11 @@ class TranslateContext(
     
     def addClassInterface(elem: TypeElement, referencedElements: (Element => Boolean)) =
         indexLog.indented("TranslateContext.addClassInterface(%s, ...)", elem) {
-            val cds_new = ttf.intClassDecls(referencedElements, elem)
-            cds_new.foreach(_.setDefaultPos(ttf.ElementPosition(elem)))
-            cds ++= cds_new
+            if(!ttf.isArrayElement(elem)) {
+                val cds_new = ttf.intClassDecls(referencedElements, elem)
+                cds_new.foreach(_.setDefaultPos(ttf.ElementPosition(elem)))
+                cds ++= cds_new                
+            }
         }
     
     def addClassImplementation(tree: ClassTree) = 
