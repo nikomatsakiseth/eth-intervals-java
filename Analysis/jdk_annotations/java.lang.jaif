@@ -1,0 +1,17 @@
+package ch.ethz.intervals.quals:
+	annotation @Creator:
+		String value
+	annotation @Constructor:
+		String value
+	annotation @BaseRequirements:
+		String[] constructor
+		String[] instanceMethod
+	annotation @Requires:
+		String[] value
+
+package java.lang:
+	class Object: @Creator @BaseRequirements(instanceMethod="Constructor readableBy method")
+	class String: @Creator("Constructor") @BaseRequirements(instanceMethod="Constructor readableBy method")
+	class Number: @Creator("Constructor") @BaseRequirements(instanceMethod="Constructor readableBy method")
+	class Character: @Creator("Constructor") @BaseRequirements(instanceMethod="Constructor readableBy method")
+	class Boolean: @Creator("Constructor") @BaseRequirements(instanceMethod="Constructor readableBy method")

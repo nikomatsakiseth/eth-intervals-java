@@ -1,3 +1,4 @@
+.DS_Store
 .scala_dependencies
 target/
 lib_managed/
@@ -14,3 +15,6 @@ test-plugin/bin-test/
 test-plugin/bin-eclipse
 java.hprof.txt
 profile.txt
+java_standard_library.jar
+annotated_java_standard_library.jar
+classpath-*.tar.gz
