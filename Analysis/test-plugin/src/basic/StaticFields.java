@@ -46,7 +46,7 @@ public class StaticFields {
     public int accessIncompleteData() {
         Data data = staticIncompleteData;
         int i = data.integer; // ERROR Guard "data.(ch.ethz.intervals.quals.Creator)" is not readable.
-        return i; // ERROR Variable "i" was not declared.
+        return i;
     }
     
 }

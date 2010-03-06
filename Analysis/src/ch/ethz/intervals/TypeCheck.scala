@@ -402,162 +402,182 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
         }
     }
     
-    def checkStatement(env0: TcEnv, ss_cur: List[StmtScope], stmt: ir.Stmt) = indexAt(stmt, "TypeCheck(%s)".format(stmt), env0) {
-        var env = env0
-        log("Input Environment: %s", env)
-        stmt match {   
-            case stmt_compound: ir.StmtCompound =>
-                checkCompoundStatement(env, ss_cur, stmt_compound)
-                           
-            case ir.StmtSuperCtor(m, lvs_args) =>
-                val md = env.ctorOfClass(env.c_super, m)
-                env = processCall(env, None, ir.lv_this, md, lvs_args)
-                
-                // Ctors for all supertypes now complete:
-                env.strictSuperclasses(env.c_this).foreach { case c =>
-                    val cp_cCtor = env.immutableCanonPath(ir.ClassCtorFieldName(c).thisPath)
-                    env = env.addHbInter(cp_cCtor, env.cp_cur)
-                }
-                env.addFlow(prog.exportedCtorEnvs((env.c_super, m)))
-                
-            case ir.StmtGetStatic(lv_def, c) =>
-                val cp = env.immutableCanonPath(ir.PathStatic(c))
-                env.addPerm(lv_def, cp)
-                
-            case ir.StmtGetField(lv_def, lv_owner, f) =>
-                val cp_owner = env.immutableReifiedLv(lv_owner)
-                env = env.addNonNull(cp_owner)
-                
-                val (_, rfd) = env.substdReifiedFieldDecl(cp_owner, f)
-                val cp_guard = env.immutableCanonPath(rfd.p_guard)
-                checkReadable(env, cp_guard)
-                
-                val cp_field = env.canonPath(lv_owner / f)
-                env.asImmutable(cp_field) match {
-                    case Some(cp_field) => env.addPerm(lv_def, cp_field)                            
-                    case None =>
-                        env = env.addReifiedLocal(lv_def, rfd.wt)
-                        env.addTemp(cp_field, env.reifiedLv(lv_def))
-                }
-                
-            case ir.StmtSetField(lv_owner, f, lv_value) =>
-                val cp_owner = env.immutableReifiedLv(lv_owner)
-                env = env.addNonNull(cp_owner)
-                
-                val cp_value = env.immutableReifiedLv(lv_value)
-                
-                val (c_owner, rfd) = env.substdReifiedFieldDecl(cp_owner, f) 
-                val cp_guard = env.immutableCanonPath(rfd.p_guard)
-                checkWritable(env, cp_guard)
-                checkIsSubtype(env, cp_value, rfd.wt)
-                
-                val cp_field = env.canonPath(lv_owner / f)                
-                checkPathIdentity(env, cp_value, cp_field.wps_identity)
-                
-                env = env.addTemp(cp_field, cp_value)
-        
-                env = env.removeInvalidated(cp_field)
-                env.linkedPaths(lv_owner, c_owner, f).foldLeft(env)(_ addInvalidated _)
-                
-            case ir.StmtCheckType(p, wt) =>
-                val cp = env.immutableReifiedLv(p)
-                checkIsSubtype(env, cp, wt)
-                env
-                    
-            case ir.StmtCall(x, lv_rcvr, m, lvs_args) =>
-                val cp_rcvr = env.immutableReifiedLv(lv_rcvr)                
-                val md = env.reqdMethod(env.methodDeclOfCp(cp_rcvr, m), m)
-                env = env.addNonNull(cp_rcvr)
-                processCall(env, Some(x), lv_rcvr, md, lvs_args)
+    /** Invoked when a statement encounters an error. 
+      * Adds any defined variables into the environment as
+      * error variables: any later statements that use them will
+      * fail with a DependentFailure exception.  This avoids chains
+      * of misleading "no such local variable" errors. */
+    def recoverStatement(env0: TcEnv, stmt: ir.Stmt) = {
+        stmt.lvs_def.foldLeft(env0) {
+            case (e, lv_def) =>
+                assert(!e.perm.keySet(lv_def)) // or would have failed wf check
+                e.addPerm(lv_def, ir.ImmutableCanonPath(List(ir.CpcErrorLv(lv_def))))
+        }
+    }
     
-            case ir.StmtSuperCall(x, m, lvs_args) =>
-                val cps_args = env.immutableReifiedLvs(lvs_args)
-                val md = env.reqdMethod(env.methodDeclOfClass(env.c_super, m), m)
-                processCall(env, Some(x), ir.lv_this, md, lvs_args)
-            
-            case ir.StmtNew(x, ct0, m, lvs_args) =>
-                val cd = env.classDecl(ct0.c)
-                
-                if(cd.attrs.interface)
-                    throw new CheckFailure("intervals.new.interface", ct0.c)
-                    
-                // Supply a default ghost (the current interval) for @Constructor:
-                val gs_default = List(ir.Ghost(ir.f_objCtor, env.cp_cur.reprPath))
-                val ct = ct0.withDefaultGhosts(gs_default)
-                    
-                // Check Ghost Types:           
-                env = env.addReifiedLocal(x, ct)
-                val cp_x = env.immutableReifiedLv(x)
-                env = env.addNonNull(cp_x)
-                ct.ghosts.foreach { g =>
-                    env.ghostFieldsDeclaredOnType(ct).find(_.isNamed(g.f)) match {
-                        case Some(gfd) => 
-                            val cp = env.canonPath(g.p)
-                            if(!env.pathHasClass(cp, gfd.c))
-                                throw new CheckFailure("intervals.must.be.subclass", g.p, gfd.c)
-                        case None if (g.f == ir.f_objCtor) =>
-                            val cp = env.canonPath(g.p)
-                            if(!env.suspends(env.cp_cur, cp)) // also implies must be an interval
-                                throw new CheckFailure("intervals.ctor.must.encompass.current", cp.reprPath, env.cp_cur.reprPath)
-                        case None =>
-                            throw new CheckFailure("intervals.internal.error", "No ghost field %s".format(g.f))
-                    }
-                }                        
-                
-                // Class constructors are all a subset of current interval:
-                env.classAndSuperclasses(ct0.c).foreach { case c =>
-                    val cp_cCtor = env.immutableCanonPath(x / ir.ClassCtorFieldName(c))
-                    env = env.addSuspends(cp_cCtor, env.cp_cur)
-                }
-                
-                // Check the call of the constructor:
-                val md = env.ctorOfClass(ct0.c, m)
-                processCall(env, None, x, md, lvs_args)
-                
-            case ir.StmtCast(x, wt, q) => ()
-                // TODO Validate casts?  Issue warnings at least?
-                env.addReifiedLocal(x, wt)
-                
-            case ir.StmtNull(x, wt) => 
-                env.addReifiedLocal(x, wt)
-                
-            case ir.StmtReturn(op) =>
-                checkNoInvalidated(env)
-                op.foreach { p =>
-                    // Set current to some interval which happens after method.
-                    val cp = env.immutableReifiedLv(p)
-                    var env_ret = env.withFreshIntervalAsCurrent
-                    env_ret = env_ret.addHbInter(env_ret.cp_mthd, env_ret.cp_cur)
-                    checkIsSubtype(env_ret, cp, env_ret.wt_ret)
-                    checkPathIdentity(env_ret, cp, env_ret.identityRet)
-                }
-                mergeBreakEnv(env, ss_cur, ss_cur.length - 1, List())
-                ss_cur.head.env_in
-                
-            case ir.StmtHb(p, q) =>
-                val cp = env.immutableReifiedLv(p)
-                val cq = env.immutableReifiedLv(q)
-                env.addUserHb(cp, cq)
-            
-            case ir.StmtLocks(p, q) =>
-                val cp = env.immutableReifiedLv(p)
-                val cq = env.immutableReifiedLv(q)
-                env.addLocks(cp, cq)
-            
-            case ir.StmtCondBreak(i, ps) =>
-                val cps = env.immutableReifiedLvs(ps)
-                mergeBreakEnv(env, ss_cur, i, cps)
-                env
+    /** Checks that `stmt` is safe in `env0` and returns a modified environment. */
+    def checkStatement(env0: TcEnv, ss_cur: List[StmtScope], stmt: ir.Stmt) = {
+        indexAt(stmt, "TypeCheck(%s)".format(stmt), recoverStatement(env0, stmt)) {
+            var env = env0
+            log("Input Environment: %s", env)
+            stmt match {   
+                case stmt_compound: ir.StmtCompound =>
+                    checkCompoundStatement(env, ss_cur, stmt_compound)
 
-            case ir.StmtBreak(i, ps) =>
-                val cps = env.immutableReifiedLvs(ps)
-                mergeBreakEnv(env, ss_cur, i, cps)
-                ss_cur.head.env_in
-            
-            case ir.StmtContinue(i, ps) =>
-                val cps = env.immutableReifiedLvs(ps)
-                mergeContinueEnv(env, ss_cur, i, cps)
-                ss_cur.head.env_in
+                case ir.StmtSuperCtor(m, lvs_args) =>
+                    val md = env.ctorOfClass(env.c_super, m)
+                    env = processCall(env, None, ir.lv_this, md, lvs_args)
+
+                    // Ctors for all supertypes now complete:
+                    env.strictSuperclasses(env.c_this).foreach { case c =>
+                        val cp_cCtor = env.immutableCanonPath(ir.ClassCtorFieldName(c).thisPath)
+                        env = env.addHbInter(cp_cCtor, env.cp_cur)
+                    }
+                    env.addFlow(prog.exportedCtorEnvs((env.c_super, m)))
+
+                case ir.StmtGetStatic(lv_def, c) =>
+                    val cp = env.immutableCanonPath(ir.PathStatic(c))
+                    env.addPerm(lv_def, cp)
+
+                case ir.StmtGetField(lv_def, lv_owner, f) =>
+                    val cp_owner = env.immutableReifiedLv(lv_owner)
+                    env = env.addNonNull(cp_owner)
+
+                    val (_, rfd) = env.substdReifiedFieldDecl(cp_owner, f)
+                    val cp_guard = env.immutableCanonPath(rfd.p_guard)
+                    checkReadable(env, cp_guard)
+
+                    val cp_field = env.canonPath(lv_owner / f)
+                    env.asImmutable(cp_field) match {
+                        case Some(cp_field) => env.addPerm(lv_def, cp_field)                            
+                        case None =>
+                            env = env.addReifiedLocal(lv_def, rfd.wt)
+                            env.addTemp(cp_field, env.reifiedLv(lv_def))
+                    }
+
+                case ir.StmtSetField(lv_owner, f, lv_value) =>
+                    val cp_owner = env.immutableReifiedLv(lv_owner)
+                    env = env.addNonNull(cp_owner)
+
+                    val cp_value = env.immutableReifiedLv(lv_value)
+
+                    val (c_owner, rfd) = env.substdReifiedFieldDecl(cp_owner, f) 
+                    val cp_guard = env.immutableCanonPath(rfd.p_guard)
+                    checkWritable(env, cp_guard)
+                    checkIsSubtype(env, cp_value, rfd.wt)
+
+                    val cp_field = env.canonPath(lv_owner / f)                
+                    checkPathIdentity(env, cp_value, cp_field.wps_identity)
+
+                    env = env.addTemp(cp_field, cp_value)
+
+                    env = env.removeInvalidated(cp_field)
+                    env.linkedPaths(lv_owner, c_owner, f).foldLeft(env)(_ addInvalidated _)
+
+                case ir.StmtCheckType(p, wt) =>
+                    val cp = env.immutableReifiedLv(p)
+                    checkIsSubtype(env, cp, wt)
+                    env
+
+                case ir.StmtCall(x, lv_rcvr, m, lvs_args) =>
+                    val cp_rcvr = env.immutableReifiedLv(lv_rcvr)                
+                    val md = env.reqdMethod(env.methodDeclOfCp(cp_rcvr, m), m)
+                    env = env.addNonNull(cp_rcvr)
+                    processCall(env, Some(x), lv_rcvr, md, lvs_args)
+
+                case ir.StmtSuperCall(x, m, lvs_args) =>
+                    val cps_args = env.immutableReifiedLvs(lvs_args)
+                    val md = env.reqdMethod(env.methodDeclOfClass(env.c_super, m), m)
+                    processCall(env, Some(x), ir.lv_this, md, lvs_args)
+
+                case ir.StmtNew(x, ct0, m, lvs_args) =>
+                    val cd = env.classDecl(ct0.c)
+
+                    if(cd.attrs.interface)
+                        throw new CheckFailure("intervals.new.interface", ct0.c)
+
+                    // Supply a default ghost (the current interval) for @Constructor:
+                    val gs_default = List(ir.Ghost(ir.f_objCtor, env.cp_cur.reprPath))
+                    val ct = ct0.withDefaultGhosts(gs_default)
+
+                    // Check Ghost Types:           
+                    env = env.addReifiedLocal(x, ct)
+                    val cp_x = env.immutableReifiedLv(x)
+                    env = env.addNonNull(cp_x)
+                    ct.ghosts.foreach { g =>
+                        env.ghostFieldsDeclaredOnType(ct).find(_.isNamed(g.f)) match {
+                            case Some(gfd) => 
+                                val cp = env.canonPath(g.p)
+                                if(!env.pathHasClass(cp, gfd.c))
+                                    throw new CheckFailure("intervals.must.be.subclass", g.p, gfd.c)
+                            case None if (g.f == ir.f_objCtor) =>
+                                val cp = env.canonPath(g.p)
+                                if(!env.suspends(env.cp_cur, cp)) // also implies must be an interval
+                                    throw new CheckFailure(
+                                        "intervals.ctor.must.encompass.current", 
+                                        cp.reprPath, env.cp_cur.reprPath)
+                            case None =>
+                                throw new CheckFailure(
+                                    "intervals.internal.error", 
+                                    "No ghost field %s".format(g.f))
+                        }
+                    }                        
+
+                    // Class constructors are all a subset of current interval:
+                    env.classAndSuperclasses(ct0.c).foreach { case c =>
+                        val cp_cCtor = env.immutableCanonPath(x / ir.ClassCtorFieldName(c))
+                        env = env.addSuspends(cp_cCtor, env.cp_cur)
+                    }
+
+                    // Check the call of the constructor:
+                    val md = env.ctorOfClass(ct0.c, m)
+                    processCall(env, None, x, md, lvs_args)
+
+                case ir.StmtCast(x, wt, q) => ()
+                    // TODO Validate casts?  Issue warnings at least?
+                    env.addReifiedLocal(x, wt)
+
+                case ir.StmtNull(x, wt) => 
+                    env.addReifiedLocal(x, wt)
+
+                case ir.StmtReturn(op) =>
+                    checkNoInvalidated(env)
+                    op.foreach { p =>
+                        // Set current to some interval which happens after method.
+                        val cp = env.immutableReifiedLv(p)
+                        var env_ret = env.withFreshIntervalAsCurrent
+                        env_ret = env_ret.addHbInter(env_ret.cp_mthd, env_ret.cp_cur)
+                        checkIsSubtype(env_ret, cp, env_ret.wt_ret)
+                        checkPathIdentity(env_ret, cp, env_ret.identityRet)
+                    }
+                    mergeBreakEnv(env, ss_cur, ss_cur.length - 1, List())
+                    ss_cur.head.env_in
+
+                case ir.StmtHb(p, q) =>
+                    val cp = env.immutableReifiedLv(p)
+                    val cq = env.immutableReifiedLv(q)
+                    env.addUserHb(cp, cq)
+
+                case ir.StmtLocks(p, q) =>
+                    val cp = env.immutableReifiedLv(p)
+                    val cq = env.immutableReifiedLv(q)
+                    env.addLocks(cp, cq)
+
+                case ir.StmtCondBreak(i, ps) =>
+                    val cps = env.immutableReifiedLvs(ps)
+                    mergeBreakEnv(env, ss_cur, i, cps)
+                    env
+
+                case ir.StmtBreak(i, ps) =>
+                    val cps = env.immutableReifiedLvs(ps)
+                    mergeBreakEnv(env, ss_cur, i, cps)
+                    ss_cur.head.env_in
+
+                case ir.StmtContinue(i, ps) =>
+                    val cps = env.immutableReifiedLvs(ps)
+                    mergeContinueEnv(env, ss_cur, i, cps)
+                    ss_cur.head.env_in
+            }
         }
     }
     

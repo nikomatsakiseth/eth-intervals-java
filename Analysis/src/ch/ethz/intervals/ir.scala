@@ -260,46 +260,60 @@ object ir {
     
     // ______ Leaf Statements _______________________________________________
     sealed abstract class Stmt extends PositionalAst {
-        def setDefaultPosOnChildren() { }        
+        def setDefaultPosOnChildren() { }
+        def lvs_def: List[ir.VarName]  
     }
     sealed case class StmtSuperCtor(m: ir.MethodName, lvs_arg: List[VarName]) extends Stmt {
         override def toString = "super %s(%s)".format(m, lvs_arg)
+        def lvs_def = List()
     }
     sealed case class StmtSuperCall(lv_def: VarName, m: MethodName, lvs_arg: List[VarName]) extends Stmt {
         override def toString = "%s = super->%s(%s)".format(lv_def, m, lvs_arg)
+        def lvs_def = List(lv_def)
     }
     sealed case class StmtCheckType(lv: ir.VarName, wt: ir.WcTypeRef) extends Stmt {
         override def toString = "%s <: %s".format(lv, wt)
+        def lvs_def = List()
     }
-    sealed case class StmtGetStatic(lv: ir.VarName, c: ir.ClassName) extends Stmt {
-        override def toString = "%s = static[%s]".format(lv, c)
+    sealed case class StmtGetStatic(lv_def: ir.VarName, c: ir.ClassName) extends Stmt {
+        override def toString = "%s = static[%s]".format(lv_def, c)
+        def lvs_def = List(lv_def)
     }
     sealed case class StmtCall(lv_def: VarName, lv_rcvr: VarName, m: MethodName, lvs_arg: List[VarName]) extends Stmt {
         override def toString = "%s = %s->%s(%s)".format(lv_def, lv_rcvr, m, ", ".join(lvs_arg))        
+        def lvs_def = List(lv_def)
     }
     sealed case class StmtGetField(lv_def: VarName, lv_owner: VarName, f: FieldName) extends Stmt {
         override def toString = "%s = %s->%s".format(lv_def, lv_owner, f)
+        def lvs_def = List(lv_def)
     }
     sealed case class StmtNew(lv_def: VarName, ct: ClassType, m: ir.MethodName, lvs_arg: List[VarName]) extends Stmt {
         override def toString = "%s = new %s %s(%s);".format(lv_def, ct, m, lvs_arg.mkString(", "))
+        def lvs_def = List(lv_def)
     }
     sealed case class StmtCast(lv_def: VarName, wt: WcTypeRef, y: VarName) extends Stmt {
         override def toString = "%s = (%s)%s;".format(lv_def, wt, y)
+        def lvs_def = List(lv_def)
     }
     sealed case class StmtNull(lv_def: VarName, wt: WcTypeRef) extends Stmt {
         override def toString = "%s = (%s)null;".format(lv_def, wt)
+        def lvs_def = List(lv_def)
     }
     sealed case class StmtReturn(lv_value: Option[VarName]) extends Stmt {
         override def toString = "return %s;".format(lv_value)        
+        def lvs_def = List()
     }
     sealed case class StmtSetField(lv_owner: VarName, f: FieldName, lv_value: VarName) extends Stmt {
         override def toString = "%s->%s = %s;".format(lv_owner, f, lv_value)
+        def lvs_def = List()
     }
     sealed case class StmtHb(lv_from: VarName, lv_to: VarName) extends Stmt {
         override def toString = "%s hb %s;".format(lv_from, lv_to)        
+        def lvs_def = List()
     }
     sealed case class StmtLocks(lv_inter: VarName, lv_lock: VarName) extends Stmt {
         override def toString = "%s locks %s;".format(lv_inter, lv_lock)        
+        def lvs_def = List()
     }
     
     // ______ Branching _____________________________________________________
@@ -322,12 +336,15 @@ object ir {
     
     sealed case class StmtCondBreak(i: Int, lvs: List[VarName]) extends Stmt {
         override def toString = "condBreak %d(%s);".format(i, ", ".join(lvs))
+        def lvs_def = List()
     }
     sealed case class StmtBreak(i: Int, lvs: List[VarName]) extends Stmt {
         override def toString = "break %d(%s);".format(i, ", ".join(lvs))
+        def lvs_def = List()
     }
     sealed case class StmtContinue(i: Int, lvs: List[VarName]) extends Stmt {
         override def toString = "continue %d(%s);".format(i, ", ".join(lvs))
+        def lvs_def = List()
     }
     
     // ______ Flow Control and Compound Statements __________________________
@@ -358,6 +375,7 @@ object ir {
             kind.subseqs.foreach(_.setDefaultPos(pos))
         }
         override def toString = "%s: %s => (...)".format(tag, kind, ", ".join(defines))
+        def lvs_def = defines.map(_.name)
     }
     sealed abstract class CompoundKind {
         def subseqs: List[StmtSeq]
@@ -621,6 +639,15 @@ object ir {
         def thisSubst = PathSubst.vp(ir.lv_this, p)
     } 
     
+    /** Identifiers a variable that would exist but an error
+      * occurred while checking the statement which defines it. */
+    sealed case class CpcErrorLv(lv: ir.VarName) 
+    extends CanonPathComponent {
+        def p = lv.path
+        def isReified = false
+        def wps_identity = List()
+    }
+    
     sealed abstract class CpcGhost extends CanonPathComponent {
         def isReified = false
         def c: ir.ClassName
@@ -713,6 +740,7 @@ object ir {
         }        
         def reprPath = reprComp.p
         def reprWt = reprComp match {
+            case CpcErrorLv(lv) => throw new DependentFailure(lv)
             case CpcReified(_, wt) => wt
             case CpcGhost(_, c) => c.ct
         }

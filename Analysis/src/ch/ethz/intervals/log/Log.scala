@@ -237,6 +237,8 @@ abstract class Log {
 
     def canonPathComponent(open: Boolean, lbl: Any, comp: ir.CanonPathComponent): Unit = ifEnabled {
         comp match {
+            case ir.CpcErrorLv(lv) => 
+                apply("Error: %s", lv)
             case comp @ ir.CpcReifiedField(cpc_base, rfd) => 
                 indented(open, "%s: %s", comp.p, comp.wt) { 
                     canonPathComponent(true, "base", cpc_base)

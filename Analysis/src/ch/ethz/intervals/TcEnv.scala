@@ -260,6 +260,7 @@ sealed case class TcEnv(
         def imm(cpc: ir.CanonPathComponent): Boolean = log.indented("imm(%s)", cpc) {
             cpc match {
                 // Local variables never change value once assigned:
+                case ir.CpcErrorLv(lv) => throw new DependentFailure(lv)
                 case ir.CpcReifiedLv(_, _, _) => true
                 case ir.CpcReifiedStatic(_) => true
                 case ir.CpcGhostLv(_, _, _) => true
@@ -521,6 +522,8 @@ sealed case class TcEnv(
         log.indented("extendComponentWithGhostField(%s, %s, %s)", comp_base, f_gf, c_gf) {
             val subst = comp_base.thisSubst
             comp_base match {
+                case ir.CpcErrorLv(lv) => throw new DependentFailure(lv)
+                
                 case ir.CpcReified(_, wt) =>
                     val wgs_all = lowerBoundingCts(wt).flatMap { wct =>
                         wct.wghosts ++ ghostsOnClassAndSuperclasses(wct.c).map(subst.ghost)
@@ -561,6 +564,7 @@ sealed case class TcEnv(
     /** Given a path, returns all GhostFieldDecls found on its type(s). */
     def ghostFieldsDeclaredOnComponent(comp: ir.CanonPathComponent): Set[ir.GhostFieldDecl] = {
         comp match {
+            case ir.CpcErrorLv(lv) => throw new DependentFailure(lv)
             case ir.CpcReified(_, wt) => ghostFieldsDeclaredOnType(wt)
             case ir.CpcGhost(_, c) => ghostFieldsDeclaredOnClassAndSuperclasses(c)
         }
@@ -598,6 +602,8 @@ sealed case class TcEnv(
             searchClassAndSuperclasses(_.reifiedFieldDecls.find(_.isNamed(f)))(wct.c)
         log.indented(false, "substdReifiedFieldDecl(%s::%s)", comp, f) {
             comp match {
+                case ir.CpcErrorLv(lv) => throw new DependentFailure(lv)
+                
                 case ir.CpcReified(_, wt) =>
                     log("Reified Component of type: %s", wt)
                     lowerBoundingCts(wt).firstSomeReturned(search).map { 
@@ -1048,6 +1054,8 @@ sealed case class TcEnv(
         tv: ir.TypeVarName
     ): ir.WcTypeArg = {
         comp match {
+            case ir.CpcErrorLv(lv) => throw new DependentFailure(lv)
+            
             case ir.CpcReified(_, wt) =>
                 val subst = comp.thisSubst
                 val wtas_all = lowerBoundingCts(wt).flatMap { wct =>
@@ -1132,6 +1140,7 @@ sealed case class TcEnv(
 
     def lowerBoundingClasses(cp: ir.CanonPath) = {
         cp.components.foldLeft(Set[ir.AnyClassName]()) { 
+            case (_, ir.CpcErrorLv(lv)) => throw new DependentFailure(lv)            
             case (set, ir.CpcReified(_, wt)) => set ++ lowerBoundingCts(wt).map(_.c)
             case (set, ir.CpcGhost(_, c)) => set + c
         }        
@@ -1154,6 +1163,7 @@ sealed case class TcEnv(
         // Ok so the name of this function is an abuse of the english language... sue me...
         log.indented(false, "pathHasClass(%s, %s)?", cp_sub, c_sup) {
             cp_sub.components.exists { 
+                case ir.CpcErrorLv(lv) => throw new DependentFailure(lv)            
                 case ir.CpcGhost(_, c) => isSubclass(c, c_sup)
                 case ir.CpcReified(_, wt) => isSubclass(wt, c_sup)
             }
@@ -1164,6 +1174,7 @@ sealed case class TcEnv(
     def pathCouldHaveClass(cp_sub: ir.CanonPath, c_sup: ir.AnyClassName): Boolean = {
         log.indented(false, "pathCouldHaveClass(%s, %s)?", cp_sub, c_sup) {
             cp_sub.components.exists { 
+                case ir.CpcErrorLv(lv) => throw new DependentFailure(lv)            
                 case ir.CpcGhost(_, c) => 
                     isSubclass(c, c_sup) || isSubclass(c_sup, c)
                 case ir.CpcReified(_, wt) => 

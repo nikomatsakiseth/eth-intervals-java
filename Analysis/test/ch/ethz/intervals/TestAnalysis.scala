@@ -836,7 +836,7 @@ class TestAnalysis extends Suite {
                 requires this.Constructor hb method
                 {
                     v = this->value; // ERROR intervals.not.readable(this.lock)
-                    return v; // ERROR intervals.no.such.variable(v)
+                    return v;
                 }
 
                 void brokenSet(#String v) 
@@ -1894,7 +1894,7 @@ class TestAnalysis extends Suite {
                 #Object someMethod(#Interval x)
                 {
                     obj = new #Object @#Creator(method) @#Constructor(x) (); // ERROR intervals.ctor.must.encompass.current(x, *)
-                    return obj; // ERROR intervals.no.such.variable(obj)
+                    return obj;
                 }
             }
             """

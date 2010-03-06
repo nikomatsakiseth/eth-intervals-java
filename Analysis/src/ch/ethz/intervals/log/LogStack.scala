@@ -2,6 +2,7 @@ package ch.ethz.intervals.log
 
 import ch.ethz.intervals.ir
 import ch.ethz.intervals.CheckFailure
+import ch.ethz.intervals.DependentFailure
 import scala.collection.immutable.ListSet
 import scala.util.parsing.input.Positional
 import scala.util.parsing.input.NoPosition
@@ -70,6 +71,8 @@ class LogStack(mainLog: SplitLog, pertainingTo: List[String]) {
             aLog.indented("At: %s", loc) {
                 assert(loc.pos != NoPosition)
                 try { g } catch {
+                    case _: DependentFailure =>
+                        default
                     case failure: CheckFailure =>
                         val err = failure.toError(loc.pos)
                         report(err)

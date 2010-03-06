@@ -16,10 +16,10 @@ all: test
 
 # ___ Clean ____________________________________________________________
 clean:
-	rm -rf ${DEBUGLOGS} bin bin-test .scala_dependencies classpath-*.tar.gz
+	rm -rf ${DEBUGLOGS} bin bin-test .scala_dependencies 
 
 cleaner: clean
-	rm -rf classpath-*.tar.gz *java_standard_library.jar
+	rm -rf classpath-*.tar.gz *java_standard_library.jar classpath-*.tar.gz
 
 # ___ Building the Java standard library _______________________________
 java_standard_library.jar: 				java_standard_library.sh
