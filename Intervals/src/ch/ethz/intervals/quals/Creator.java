@@ -1,5 +1,8 @@
 package ch.ethz.intervals.quals;
 
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+
 import ch.ethz.intervals.guard.Guard;
 
 

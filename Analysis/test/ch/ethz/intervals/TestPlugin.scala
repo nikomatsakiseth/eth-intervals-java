@@ -28,7 +28,7 @@ class TestPlugin extends Suite with BeforeAndAfter {
     
     // Edit these to control logging:
     val logTests: Set[String] = Set("testTspTsp")
-    val logPertinent: List[String] = List("*(*loadConfig*)")
+    val logPertinent: List[String] = List("*(*loadConfig*)", "*(*main*)")
     
     def fileName(jfo: JavaFileObject) =
         if(jfo == null) "null"
@@ -72,21 +72,22 @@ class TestPlugin extends Suite with BeforeAndAfter {
     
     case class JdkConfig(
         dir: String,
+        jdkDir: String,
         addSourcepath: List[String],
         classpath: List[String],
-        bclasspath: List[String],
-        debug: Boolean,
-        isolated: Boolean) 
+        bootClasspath: List[String],
+        xBootClasspath: List[String],
+        debug: Boolean) 
     {
         val srcDir = "%s/src".format(dir)
         val binDir = "%s/bin-test".format(dir)
-        val jdkDir = "%s/jdk".format(dir)
         
         val sourcepath = "%s:%s:%s".format(srcDir, jdkDir, addSourcepath.mkString(":"))
         
-        val isolatedOpts = 
-            if(isolated) List("-bootclasspath","","-extdirs","")
-            else List()
+        val bcpOpts = List(
+            "-bootclasspath", ":".join(bootClasspath),
+            "-extdirs", ""
+        )
             
         val debugOpts =
             if(debug) List("-g")
@@ -102,12 +103,13 @@ class TestPlugin extends Suite with BeforeAndAfter {
     			"-Xlint:-unchecked",
     			"-Xlint:-deprecation",
     			"-classpath", classpath.mkString(":"),
-    			"-Xbootclasspath/p:%s".format(bclasspath.mkString(":")),
+    			"-Xbootclasspath/p:%s".format(":".join(xBootClasspath)),
     			"-sourcepath", sourcepath
-            ) ++ isolatedOpts ++ procOpts ++ debugOpts
+            ) ++ bcpOpts ++ procOpts ++ debugOpts
     }
     val unitTest = JdkConfig(
         dir = "test-plugin", 
+        jdkDir = "test-plugin/jdk",
         addSourcepath = List(),
         classpath = List(
             "bin", 
@@ -115,11 +117,13 @@ class TestPlugin extends Suite with BeforeAndAfter {
             "lib/pcollections-1.0.0.jar",
             "lib/Intervals.jar"
         ) ++ System.getProperty("java.class.path").split(':'), 
-        bclasspath = List(
+        bootClasspath = List(
+            "annotated_java_standard_library.jar"
+        ),
+        xBootClasspath = List(
             "lib/jsr308-all-1.04.jar"
         ),
-        debug = true,
-        isolated = false
+        debug = true
     )
     
     def deleteContentsOfDirectory(baseDir: File, delDir: File): Unit = {

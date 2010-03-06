@@ -839,7 +839,7 @@ class TranslateTypeFactory(
                 val s_guard = 
                     if(velem.getAnnotation(classOf[GuardedBy]) != null) {
                         velem.getAnnotation(classOf[GuardedBy]).value
-                    } else if(EU.isFinal(velem)) {
+                    } else if(EU.isFinal(velem) || EU.isStatic(velem)) {
                         val telem_owner = EU.enclosingClass(velem)
                         val cn = className(telem_owner)
                         ir.ClassCtorFieldName(cn).thisPath.toString
