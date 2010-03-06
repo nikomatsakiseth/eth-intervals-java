@@ -982,8 +982,7 @@ object ir {
                     args   = List(
                         ir.LvDecl(ir.VarName("index"), ir.c_scalar.ct, List())),
                     reqs   = List(
-                        ir.ReqReadableBy(List(p_this_creator), List(p_mthd)),
-                        req_constructed),
+                        ir.ReqReadableBy(List(p_this_creator), List(p_mthd))),
                     wt_ret = ir.tv_arrayElem.thisPtype, 
                     wps_identity = List(),
                     body   = empty_method_body),
@@ -993,8 +992,7 @@ object ir {
                         ir.LvDecl(ir.VarName("index"), ir.c_scalar.ct, List()),
                         ir.LvDecl(ir.VarName("value"), ir.tv_arrayElem.thisPtype, List())),
                     reqs   = List(
-                        ir.ReqWritableBy(List(p_this_creator), List(p_mthd)),
-                        req_constructed),
+                        ir.ReqWritableBy(List(p_this_creator), List(p_mthd))),
                     wt_ret = c_void.ct, 
                     wps_identity = List(),
                     body   = empty_method_body)
