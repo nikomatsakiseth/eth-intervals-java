@@ -37,6 +37,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
     // track the enclosing statements and handle loops, etc.
     
     class StmtScope(
+        val tag: String,
         val env_in: TcEnv,
         val defines: List[ir.LvDecl],
         val loopArgs: Option[List[ir.LvDecl]]
@@ -306,16 +307,17 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
         ss_prev: List[StmtScope],
         stmt_compound: ir.StmtCompound
     ): TcEnv = {
+        import stmt_compound.tag
         val oenv_break = stmt_compound.kind match {
             case ir.Block(seq) =>
-                val ss = new StmtScope(env_in, stmt_compound.defines, None)
+                val ss = new StmtScope(tag, env_in, stmt_compound.defines, None)
                 val ss_cur = ss :: ss_prev
                 
                 checkStatementSeq(env_in, ss_cur, seq)
                 ss.oenv_break
 
             case ir.Switch(seqs) =>
-                val ss = new StmtScope(env_in, stmt_compound.defines, None)
+                val ss = new StmtScope(tag, env_in, stmt_compound.defines, None)
                 val ss_cur = ss :: ss_prev
                 var env = env_in
                 
@@ -328,7 +330,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                 ss.oenv_break
                 
             case ir.Loop(args, lvs_initial, seq) =>
-                val ss = new StmtScope(env_in, stmt_compound.defines, Some(args))
+                val ss = new StmtScope(tag, env_in, stmt_compound.defines, Some(args))
                 val ss_cur = ss :: ss_prev
                 
                 def iterate(env_continue_before: TcEnv) {
@@ -359,7 +361,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                 env = env.addNonNull(cp_x)
                 env = env.addSuspends(cp_x, env.cp_cur)
                 
-                val ss = new StmtScope(env, stmt_compound.defines, None)
+                val ss = new StmtScope(tag, env, stmt_compound.defines, None)
                 val ss_cur = ss :: ss_prev
                 
                 val lv_parent = env.lv_cur
@@ -372,7 +374,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
                 ss.oenv_break
                 
             case ir.TryCatch(seq_try, seq_catch) =>
-                val ss = new StmtScope(env_in, stmt_compound.defines, None)
+                val ss = new StmtScope(tag, env_in, stmt_compound.defines, None)
                 val ss_cur = ss :: ss_prev
                 
                 // Note: environment is lost unless it breaks
@@ -608,7 +610,7 @@ class TypeCheck(prog: Prog) extends CheckPhase(prog)
       * the "exit" relations; that is, those relations that are 
       * established permanently for all subsequent method calls. */
     def checkMethodBody(env: TcEnv, md: ir.MethodDecl): FlowEnv = {
-        val ss = new StmtScope(env, List(), None)
+        val ss = new StmtScope("methodBody", env, List(), None)
         checkStatementSeq(env, List(ss), md.body)
         ss.oenv_break.getOrElse(env).flow
     }
