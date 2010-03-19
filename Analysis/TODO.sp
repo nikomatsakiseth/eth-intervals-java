@@ -2,6 +2,9 @@ ___ To Do List _______________________________________________________
 
 ______ OOPSLA Bugs ___________________________________________________
 
+- "temp" aliasing as we wrote it is unsound, I think!  We need to clear
+  temp aliases whenever a field write that COULD be aliased occurs.
+
 ______ Bugs __________________________________________________________
 
 - "Constructor" cannot be used alone in annotations because it is a 

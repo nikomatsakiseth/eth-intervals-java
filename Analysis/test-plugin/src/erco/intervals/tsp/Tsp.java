@@ -25,22 +25,22 @@ public class Tsp {
 		return config;
 	}
 
-	public int[] solve(String fname) throws IOException 
+	public int/*@Creator("hbNow")*/[] solve(String fname) throws IOException 
 	{
 		final Config config = loadConfig(fname);
 		TourElement first = new TourElement(config.startNode);
 		config.enqueue(first);
 		Intervals.inline(new RunSolver(config));		
-		return config.minTour;
+		return config.getBest();
 	}
 	
 	public static void main(String/*@Creator("writableBy method")*/[] args) throws IOException {
 		for(int a = 0; a < args.length; a++) {
 		    String fname = args[a];
 			Tsp tsp = new /*@Creator("method")*/ Tsp();
-			int[] tour = tsp.solve(fname);
+			int/*@Creator("hbNow")*/[] tour = tsp.solve(fname);
 			
-			System.out.printf("%s:", fname);
+			System.out.println(fname+":");
 			for(int i = 0; i < tour.length; i++)
 				System.out.printf(" %d", tour[i]);
 			System.out.println();

@@ -67,4 +67,18 @@ public class Config {
 		});
 	}
 
+	public int/*@Creator("hbNow")*/[] getBest() {
+		Intervals.inline(new InlineTask<int/*@Creator("hbNow")*/[]>() {
+			@Override public void init(Interval subinterval) {
+				Intervals.addExclusiveLock(subinterval, minLock);
+			}
+			@Override public int/*@Creator("hbNow")*/[] run(Interval subinterval) {
+			    int[] result = new int /*@Creator("method")*/ [minTour.length];
+			    for(int i = 0; i < minTour.length; i++)
+			        result[i] = minTour[i];
+				return result;
+			}
+		});
+	}
+
 }
