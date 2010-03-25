@@ -19,7 +19,7 @@ class TestAnalysis extends Suite {
     import TestAll.DEBUG_DIR
     import TestAll.subst
     
-    val logTests: Set[String] = Set("test_ConwayLife")
+    val logTests: Set[String] = Set("test_bbpcChain")
     
     // ___ Test running infrastructure ______________________________________
     
@@ -1498,9 +1498,94 @@ class TestAnalysis extends Suite {
             
             """
         )
-    }      
-
+    }    
+    
     @ActivelyDebugging
+    def test_bbpcChain() {
+        success(
+            """
+            class Chain<Next <: Chain> extends #Interval 
+            {
+                this:Next next requires this;
+            }
+            
+            class Dummy extends Chain {
+                this:Next setNext requires this.#Parent;
+                
+                void run()
+                requires method suspends this
+                requires this.Constructor hb method
+                {
+                    setNext = this->setNext;
+                    this->next = setNext;
+                }
+            }
+            
+            class Prod extends Chain<Next: Prod> {
+                Chain cons requires this.Constructor[Prod];
+                scalar value requires this;
+                
+                Constructor(Chain cons) {
+                    this->cons = cons;
+                    cons hb this;
+                    return;
+                }
+                
+                void run()
+                requires method suspends this
+                requires this.Constructor hb method
+                {
+                    value = (scalar)null;
+                    this->value = value;
+                    cons = this->cons;
+                    nextCons = cons->next;
+                    next = new Prod @#Parent(this.#Parent) (nextCons);
+                    this->next = next;
+                    return;
+                }
+            }
+            
+            class Cons extends Chain<Next: Cons> {
+                Prod prod requires this.Constructor[Cons];
+                
+                Constructor(Prod prod) {
+                    this->prod = prod;
+                    prod hb this;
+                    return;
+                }
+                
+                void run()
+                requires method suspends this
+                requires this.Constructor hb method
+                {
+                    prod = this->prod;
+                    
+                    prodValue = prod->value;
+                    nextProd = prod->next;
+                    
+                    next = new Cons @#Parent(this.#Parent) (nextProd);
+                    this->next = next;
+                    return;
+                }
+            }
+            
+            class Start extends #Object {
+                void start() {
+                    inlineInterval join {}, {
+                        dummy = new Dummy @#Parent(join) <Next: Cons> ();
+                        prod = new Prod @#Parent(join) (dummy);
+                        cons = new Cons @#Parent(join) (prod);
+                        dummy->setNext = cons;
+                        break 0();
+                    }
+                    return;
+                }
+            }
+            """
+        )
+    }
+      
+
     def test_ConwayLife() {
         success(
             """
@@ -1570,6 +1655,7 @@ class TestAnalysis extends Suite {
                     
                     res = this->process(scnw, scn, scne, scw, sce, scsw, scs, scse);
                     this->alive = res;
+                    return;
                 }
                 
                 scalar process(

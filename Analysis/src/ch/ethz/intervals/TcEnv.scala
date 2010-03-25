@@ -855,11 +855,12 @@ sealed case class TcEnv(
         val rfds = cd.reifiedFieldDecls
         
         // find fields where cp_o.f appears in the type
-        val rfds_maybe_linked = rfds.filter(rfd => isDependentOn(rfd.wt, p_f))
+        val subst = PathSubst.vv(ir.lv_this, lv_owner)
+        val rfds_maybe_linked = rfds.filter(rfd => 
+            isDependentOn(subst.wcTref(rfd.wt), p_f))
         
         // screen out those which cannot have been written yet (and whose 
         // value is therefore null, which is valid for any type)
-        val subst = PathSubst.vv(ir.lv_this, lv_owner)
         val rfds_linked = rfds_maybe_linked.filter { rfd =>
             !o_cp_cur.exists(cp_cur =>
                 hbInter(cp_cur, canonPath(subst.path(rfd.p_guard))))
