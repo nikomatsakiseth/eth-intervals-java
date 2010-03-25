@@ -4,7 +4,7 @@
 # Generates java_standard_library.jar.  
 
 VER=classpath-0.98
-if [ -z $VER.tar.gz ]; then
+if [ ! -a $VER.tar.gz ]; then
     wget ftp://ftp.gnu.org/gnu/classpath/$VER.tar.gz
 fi
 tar zxf $VER.tar.gz

@@ -19,7 +19,7 @@ class TestAnalysis extends Suite {
     import TestAll.DEBUG_DIR
     import TestAll.subst
     
-    val logTests: Set[String] = Set()
+    val logTests: Set[String] = Set("test_ConwayLife")
     
     // ___ Test running infrastructure ______________________________________
     
@@ -1496,6 +1496,96 @@ class TestAnalysis extends Suite {
                 }
             }
             
+            """
+        )
+    }      
+
+    @ActivelyDebugging
+    def test_ConwayLife() {
+        success(
+            """
+            class Cell extends #Interval {
+                Cell nw requires this.Constructor[Cell];
+                Cell n  requires this.Constructor[Cell];
+                Cell ne requires this.Constructor[Cell];
+                Cell w  requires this.Constructor[Cell];
+                Cell e  requires this.Constructor[Cell];
+                Cell sw requires this.Constructor[Cell];
+                Cell s  requires this.Constructor[Cell];
+                Cell se requires this.Constructor[Cell];
+                scalar alive requires this;
+                
+                Constructor(
+                    Cell nw,
+                    Cell n ,
+                    Cell ne,
+                    Cell w ,
+                    Cell e ,
+                    Cell sw,
+                    Cell s ,
+                    Cell se)
+                {
+                    this->nw = nw;
+                    this->n  = n ;
+                    this->ne = ne;
+                    this->w  = w ;
+                    this->e  = e ;
+                    this->sw = sw;
+                    this->s  = s ;
+                    this->se = se;
+                    
+                    nw hb this;
+                    n  hb this;
+                    ne hb this;
+                    w  hb this;
+                    e  hb this;
+                    sw hb this;
+                    s  hb this;
+                    se hb this;
+                    
+                    return;
+                }
+                
+                void run()
+                requires method suspends this 
+                requires this.#Constructor hb method
+                {
+                    nw = this->nw;
+                    n  = this->n ;
+                    ne = this->ne;
+                    w  = this->w ;
+                    e  = this->e ;
+                    sw = this->sw;
+                    s  = this->s ;
+                    se = this->se;
+                    
+                    scnw = nw->alive;
+                    scn  = n ->alive;
+                    scne = ne->alive;
+                    scw  = w ->alive;
+                    sce  = e ->alive;
+                    scsw = sw->alive;
+                    scs  = s ->alive;
+                    scse = se->alive;
+                    
+                    res = this->process(scnw, scn, scne, scw, sce, scsw, scs, scse);
+                    this->alive = res;
+                }
+                
+                scalar process(
+                    scalar snw,
+                    scalar sn,
+                    scalar sne,
+                    scalar sw,
+                    scalar se,
+                    scalar ssw,
+                    scalar ss,
+                    scalar sse)
+                {
+                    res = (scalar)null;
+                    return res;
+                }
+            }
             """
         )
     }  

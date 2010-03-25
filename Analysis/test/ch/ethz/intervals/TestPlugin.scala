@@ -27,7 +27,7 @@ class TestPlugin extends Suite with BeforeAndAfter {
     import TestAll.DEBUG_DIR
     
     // Edit these to control logging:
-    val logTests: Set[String] = Set("testTspTsp")
+    val logTests: Set[String] = Set() // Set("testTspTsp")
     val logPertinent: List[String] = List("*(*loadConfig*)", "*(*main*)")
     
     def fileName(jfo: JavaFileObject) =
@@ -312,7 +312,6 @@ class TestPlugin extends Suite with BeforeAndAfter {
         javac(unitTest, "erco/intervals/tsp/SplitTour.java")
     }
 
-    @ActivelyDebugging
     def testTspTsp() {
         javac(unitTest, "erco/intervals/tsp/Tsp.java", "erco/intervals/tsp/RunSolver.java")
     }
