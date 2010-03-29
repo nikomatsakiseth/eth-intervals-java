@@ -80,14 +80,14 @@ class HlParser extends StandardTokenParsers with PackratParsers {
         }
     )
     
-    lazy val member: PackratParser[hl.MemberDecl] = log(
+    lazy val member: PackratParser[hl.MemberDecl] = (
         classDecl
     |   methodDecl
     |   fieldDecl
     |   intervalDecl
     |   hbDecl
     |   lockDecl
-    )("member")
+    )
     
     lazy val methodDecl = positioned(
         annotations~typeRef~rep1(declPart)~rep(requirement)~optBody ^^ {
@@ -124,9 +124,9 @@ class HlParser extends StandardTokenParsers with PackratParsers {
             case a~t~n~v~";" => hl.FieldDecl(a, n, t, v) }
     )
     
-    lazy val hbDecl = log(positioned(
+    lazy val hbDecl = positioned(
         annotations~qualName~"->"~qualName~";" ^^ { case a~l~_~r~";" => hl.HbDecl(a, l, r) }
-    ))("hbDecl")
+    )
     
     lazy val lockDecl = positioned(
         annotations~qualName~"locks"~qualName~";" ^^ { case a~l~_~r~";" => hl.LockDecl(a, l, r) }
@@ -170,18 +170,18 @@ class HlParser extends StandardTokenParsers with PackratParsers {
         "("~>comma(expr)<~")"               ^^ hl.Tuple
     )
     
-    lazy val callPart = log(positioned(
+    lazy val callPart = positioned(
         ident~tuple                         ^^ { case i~t => hl.CallPart(i, t) }
-    ))("callPart")
+    )
     
-    lazy val rootExpr: PackratParser[hl.Expr] = log(positioned(
+    lazy val rootExpr: PackratParser[hl.Expr] = positioned(
         tuple
     |   rep1(callPart)                      ^^ { case cp => hl.MethodCall(hl.ImpThis, cp) }
     |   varName                             ^^ hl.Var
     |   numericLit                          ^^ hl.Literal // XXX
     |   stringLit                           ^^ hl.Literal
     |   "new"~typeRef~tuple                 ^^ { case _~t~a => hl.New(t, a) }
-    ))("rootExpr")
+    )
     
     lazy val field = positioned(
         rootExpr~"."~varName~rep("."~>varName) ^^ { 

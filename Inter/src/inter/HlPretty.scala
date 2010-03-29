@@ -112,6 +112,11 @@ abstract class HlPretty {
         writeln("")
     }
     
+    def print(part: hl.CallPart) {
+        write("%s", part.ident)
+        print(part.arg)
+    }
+    
     def print(expr: hl.Expr) {
         expr match {
             case hl.Tuple(exprs) => {
@@ -147,10 +152,11 @@ abstract class HlPretty {
             case hl.MethodCall(rcvr, parts) => {
                 print(rcvr)
                 write(".")
-                parts.foreach { part =>
-                    write("%s", part.ident)
-                    print(part.arg)
+                parts.dropRight(1).foreach { part =>
+                    print(part)
+                    write(" ")
                 }
+                parts.takeRight(1).foreach(print)
             }
             
             case hl.New(t, a) => {
@@ -164,7 +170,7 @@ abstract class HlPretty {
                 indented("(", ")") {
                     write("if(")
                     print(c)
-                    write(")")
+                    write(") ")
                     println(t)
                 
                     write("else ")
