@@ -6,17 +6,18 @@ import scala.util.parsing.input.NoPosition
 import scala.util.parsing.syntax.Tokens
 import scala.util.parsing.syntax.StdTokens
 import scala.util.parsing.combinator.lexical.StdLexical
+import scala.util.parsing.combinator.PackratParsers
 
 import Util._
 
-class HlParser extends StandardTokenParsers {
+class HlParser extends StandardTokenParsers with PackratParsers {
     
     lexical.delimiters += (
         "{", "}", "[", "]", "(", ")", "=", "->", ",", ";", "@", ":"
     )
     lexical.reserved += (
         "class", "extends", "import", "package", "interval", "requires", "for", "while", "if",
-        "else", "throw", "locks", "new"
+        "else", "throw", "locks", "new", "break", "return", "continue"
     )
     
     def parseCompUnitFromJavaReader(javaReader: java.io.Reader) = {
@@ -25,53 +26,53 @@ class HlParser extends StandardTokenParsers {
         phrase(compUnit)(tokens)
     }
     
-    def comma[A](p: Parser[A]) = repsep(p, ",")
-    def comma1[A](p: Parser[A]) = rep1sep(p, ",")
+    def comma[A](p: PackratParser[A]) = repsep(p, ",")
+    def comma1[A](p: PackratParser[A]) = rep1sep(p, ",")
     
     // ___ Names ____________________________________________________________
     
-    def baseName = positioned(
+    lazy val baseName = positioned(
         ident ^^ hl.BaseName
     )
     
-    def qualName = positioned(
+    lazy val qualName = positioned(
         baseName~rep("."~>ident) ^^ { 
             case b~fs => fs.foldLeft[hl.QualName](b) { _ / _ } }
     )
     
-    def varName = positioned(
+    lazy val varName = positioned(
         ident ^^ hl.VarName
     )
     
     // ___ Declarations _____________________________________________________
     
-    def compUnit = positioned(
+    lazy val compUnit = positioned(
         opt(packageDecl)~rep(importDecl)~rep(classDecl) ^^ {
             case p~i~c => hl.CompUnit(p, i, c)
         }
     )
     
-    def packageDecl = positioned(
+    lazy val packageDecl = positioned(
         "package"~>qualName<~";"
     )
     
-    def importDecl = positioned(
+    lazy val importDecl = positioned(
         "import"~>qualName~opt("("~>baseName<~")")~";"  ^^ { case q~n~_ => hl.ImportOne(q, n) }
     |   "import"~>qualName<~"."<~"*"<~";"               ^^ hl.ImportAll
     )
     
-    def superClasses = opt("extends"~>comma1(qualName)) ^^ {
+    lazy val superClasses = opt("extends"~>comma1(qualName)) ^^ {
         case Some(names) => names
         case None => List()
     }
     
-    def annotation = positioned(
+    lazy val annotation = positioned(
         "["~>qualName<~"]" ^^ hl.Annotation
     )
     
-    def annotations = rep(annotation) 
+    lazy val annotations = rep(annotation) 
     
-    def classDecl = positioned(
+    lazy val classDecl = positioned(
         annotations~"class"~ident~tuplePattern~superClasses~"{"~
             rep(member)~
         "}" ^^ {
@@ -79,7 +80,7 @@ class HlParser extends StandardTokenParsers {
         }
     )
     
-    def member: Parser[hl.MemberDecl] = (
+    lazy val member: PackratParser[hl.MemberDecl] = (
         classDecl
     |   methodDecl
     |   fieldDecl
@@ -88,125 +89,135 @@ class HlParser extends StandardTokenParsers {
     |   lockDecl
     )
     
-    def methodDecl = positioned(
+    lazy val methodDecl = positioned(
         annotations~typeRef~rep1(declPart)~rep(requirement)~optBody ^^ {
             case ann~ret~parts~reqs~optBody => hl.MethodDecl(ann, parts, ret, reqs, optBody)
         }
     )
     
-    def declPart = positioned(
+    lazy val declPart = positioned(
         ident~tuplePattern ^^ { case i~p => hl.DeclPart(i, p) }
     )
     
-    def requirement = positioned(
+    lazy val requirement = positioned(
         "requires"~>qualName~reqRhs ^^ { case l~r => hl.Requirement(l, r) }
     )
     
-    def reqRhs = positioned(
+    lazy val reqRhs = positioned(
         ident~qualName ^^ { case o~r => hl.ReqRhs(o, r) }      
     )
     
-    def intervalDecl = positioned(
+    lazy val intervalDecl = log(positioned(
         annotations~"interval"~varName~";" ^^ { 
             case ann~_~nm~";" => hl.IntervalDecl(ann, nm, None, None) }
     |   annotations~"interval"~varName~"("~qualName~")"~optBody ^^ { 
             case ann~_~nm~"("~qn~")"~optBody => hl.IntervalDecl(ann, nm, Some(qn), optBody) }
-    )
+    ))("intervalDecl")
     
-    def optBody = (
+    lazy val optBody = (
         block   ^^ { case b => Some(b) }
     |   ";"     ^^^ None
     )
     
-    def fieldDecl = positioned(
+    lazy val fieldDecl = positioned(
         annotations~opt(typeRef)~varName~opt("="~>expr)~";" ^^ {
             case a~t~n~v~";" => hl.FieldDecl(a, n, t, v) }
     )
     
-    def hbDecl = positioned(
-        annotations~qualName~"->"~qualName ^^ { case a~l~_~r => hl.HbDecl(a, l, r) }
-    )
+    lazy val hbDecl = log(positioned(
+        annotations~qualName~"->"~qualName~";" ^^ { case a~l~_~r~";" => hl.HbDecl(a, l, r) }
+    ))("hbDecl")
     
-    def lockDecl = positioned(
-        annotations~qualName~"locks"~qualName ^^ { case a~l~_~r => hl.LockDecl(a, l, r) }
+    lazy val lockDecl = positioned(
+        annotations~qualName~"locks"~qualName~";" ^^ { case a~l~_~r~";" => hl.LockDecl(a, l, r) }
     )
     
     // ___ Argument Patterns ________________________________________________
     
-    def tuplePattern: Parser[hl.TuplePattern] = positioned(
+    lazy val tuplePattern: PackratParser[hl.TuplePattern] = positioned(
         "("~>comma(pattern)<~")" ^^ hl.TuplePattern
     )
-    def varPattern = positioned(
+    lazy val varPattern = positioned(
         annotations~typeRef~varName ^^ {
             case a~t~n => hl.VarPattern(a, t, n) }
     )
-    def pattern = tuplePattern | varPattern
+    lazy val pattern = tuplePattern | varPattern
     
     // ___ Type References __________________________________________________
     
-    def typeRef = pathType | classType
+    lazy val typeRef = pathType | classType
     
-    def pathType = positioned(
+    lazy val pathType = positioned(
         qualName~":"~varName ^^ { case b~":"~v => hl.PathType(b, v) }
     )
     
-    def classType = positioned(
+    lazy val classType = positioned(
         qualName~"["~comma(typeArg)~"]" ^^ { case c~"["~a~"]" => hl.ClassType(c, a) }
     |   qualName ^^ { case c => hl.ClassType(c, List()) }
     )
     
-    def typeArg = positioned(
+    lazy val typeArg = positioned(
         varName~reqRhs ^^ { case v~r => hl.TypeArg(v, r) }
     )
     
     // ___ Expressions ______________________________________________________
     
-    def block = positioned(
+    lazy val block = positioned(
         "{"~>rep(stmt)<~"}"                 ^^ hl.Block
     )
     
-    def tuple = positioned(
+    lazy val tuple = positioned(
         "("~>comma(expr)<~")"               ^^ hl.Tuple
     )
     
-    def callPart = positioned(
+    lazy val callPart = positioned(
         ident~tuple                         ^^ { case i~t => hl.CallPart(i, t) }
     )
     
-    def coreExpr: Parser[hl.Expr] = positioned(
+    lazy val rootExpr: PackratParser[hl.Expr] = log(positioned(
         tuple
-    |   coreLvalue~"="~expr                 ^^ { case l~"="~e => hl.Assign(l, e) }
     |   varName                             ^^ hl.Var
+    |   numericLit                          ^^ hl.Literal // XXX
+    |   stringLit                           ^^ hl.Literal
     |   rep1(callPart)                      ^^ { case cp => hl.MethodCall(hl.ImpThis, cp) }
     |   "new"~typeRef~tuple                 ^^ { case _~t~a => hl.New(t, a) }
-    |   field
-    |   expr~"."~rep1(callPart)             ^^ { case o~"."~cp => hl.MethodCall(o, cp) }
+    ))("rootExpr")
+    
+    lazy val field = positioned(
+        rootExpr~"."~varName~rep("."~>varName) ^^ { 
+            case e~"."~f~fs => fs.foldLeft(hl.Field(e, f))(hl.Field(_, _)) }
     )
     
-    def coreLvalue: Parser[hl.Lvalue] = positioned(
-        varName                             ^^ hl.Var
-    |   field
+    lazy val mthdCall = positioned(
+        rootExpr~rep1("."~>rep1(callPart))  ^^ { case e~cs => cs.foldLeft(e)(hl.MethodCall(_, _)) }
     )
     
-    def lvalue: Parser[hl.Lvalue] = coreLvalue | pattern
-    
-    def field = positioned(
-        expr~"."~varName                    ^^ { case o~"."~f => hl.Field(o, f) }
+    lazy val assign = positioned(
+        coreLvalue~"="~expr                 ^^ { case l~"="~e => hl.Assign(l, e) }
     )
     
-    def stmtExpr: Parser[hl.Expr] = positioned(
-        "{"~>rep(stmt)<~"}"                 ^^ hl.Block
+    lazy val coreExpr: PackratParser[hl.Expr] = log(field | mthdCall | assign | rootExpr)("coreExpr")
+    
+    lazy val coreLvalue: PackratParser[hl.Lvalue] = log(positioned(
+        field
+    |   varName                             ^^ hl.Var
+    ))("coreLvalue")
+    
+    lazy val lvalue: PackratParser[hl.Lvalue] = coreLvalue | pattern
+    
+    lazy val stmtExpr: PackratParser[hl.Expr] = log(positioned(
+        block
     |   "if"~"("~expr~")"~expr~"else"~expr  ^^ { case _~"("~c~")"~t~"else"~f => hl.IfElse(c, t, f) }
     |   "for"~"("~lvalue~":"~expr~")"~expr  ^^ { case _~"("~l~":"~s~")"~b => hl.For(l, s, b) }
     |   "while"~"("~expr~")"~expr           ^^ { case _~"("~c~")"~b => hl.While(c, b) }
     |   pattern~"="~expr~";"                ^^ { case l~"="~v~";" => hl.Assign(l, v) }
     |   pattern~";"                         ^^ { case l~";" => hl.Assign(l, hl.ImpVoid) }
     |   coreExpr<~";"
-    )
+    ))("stmtExpr")
     
-    def expr: Parser[hl.Expr] = coreExpr | stmtExpr
+    lazy val expr: PackratParser[hl.Expr] = log(coreExpr | stmtExpr)("expr")
     
-    def stmt: Parser[hl.Stmt] = positioned(
+    lazy val stmt: PackratParser[hl.Stmt] = log(positioned(
         ";"                                 ^^ { case _ => hl.Empty() }
     |   block
     |   varName~":"~block                   ^^ { case l~":"~b => hl.Labeled(l, b) }
@@ -220,7 +231,7 @@ class HlParser extends StandardTokenParsers {
     |   "while"~"("~expr~")"~stmt           ^^ { case _~"("~c~")"~b => hl.While(c, b) }
     |   "throw"~expr                        ^^ { case _~e => hl.Throw(e) }
     |   stmtExpr
-    )
+    ))("stmt")
     
 }
 

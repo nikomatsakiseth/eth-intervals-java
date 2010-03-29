@@ -82,7 +82,10 @@ abstract class HlPretty {
     
     def println(fdecl: hl.FieldDecl) {
         fdecl.annotations.foreach(println)
-        write("%s %s", fdecl.tref, fdecl.name)
+        fdecl.tref match {
+            case None => write("%s", fdecl.name)
+            case Some(tref) => write("%s %s", tref, fdecl.name)
+        }
         fdecl.value match {
             case None => 
             case Some(expr) => write(" = "); print(expr)
@@ -298,11 +301,11 @@ object HlPretty {
                 System.out.print(" " * ind)
                 nl = false
             }
-            System.out.print(fmt.format(args.map(_.toString)))
+            System.out.print(fmt.format(args.map(_.toString): _*))
         }
         override def writeln(fmt: String, args: Any*) {
             if(nl) System.out.print(" " * ind)
-            System.out.println(fmt.format(args.map(_.toString)))
+            System.out.println(fmt.format(args.map(_.toString): _*))
             nl = true
         }
     }

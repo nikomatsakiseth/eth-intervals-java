@@ -1,0 +1,6 @@
+class Sub(Interval par) {
+    [var]
+    int aRes;
+    
+    a -> b;
+}

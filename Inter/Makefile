@@ -12,7 +12,7 @@ JPROFILEROPTS=-javaagent:${LIBDIR}/profile.jar -Dprofile.properties=${LIBDIR}/pr
 DEBUGLOGS=../debug-logs
 STDLIB=java_standard_library.jar
 
-all: compile
+all: test
 
 # ___ Clean ____________________________________________________________
 clean:
@@ -29,6 +29,9 @@ compile:
 # ___ Running tests ____________________________________________________
 # to enable profiling add: ${JPROFILEROPTS} or ${HPROFOPTS} to JAVA_OPTS
 # to restrict tests add: -n ch.ethz.intervals.ActivelyDebugging
+test: compile
+	scala -cp bin inter.HlParser test/syntax.inter
+
 #test: compile annotated_java_standard_library.jar
 #	rm -rf ${DEBUGLOGS}
 #	mkdir -p ${DEBUGLOGS}

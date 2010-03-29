@@ -157,11 +157,20 @@ object hl {
     
     abstract class TypeRef extends Ast
     
-    case class PathType(path: QualName, typeVar: VarName) extends TypeRef
+    case class PathType(path: QualName, typeVar: VarName) extends TypeRef {
+        override def toString = "%s:%s".format(path, typeVar)
+    }
     
-    case class ClassType(className: QualName, typeArgs: List[TypeArg]) extends TypeRef
+    case class ClassType(className: QualName, typeArgs: List[TypeArg]) extends TypeRef {
+        override def toString = {
+            if(typeArgs.isEmpty) className.toString
+            else "%s[%s]".format(className, typeArgs.mkString(", "))
+        }
+    }
     
-    case class TypeArg(fieldName: VarName, reqRhs: ReqRhs) extends Ast
+    case class TypeArg(fieldName: VarName, reqRhs: ReqRhs) extends Ast {
+        override def toString = "%s %s".format(fieldName, reqRhs)
+    }
     
     // ___ Statements and Expressions _______________________________________
     
