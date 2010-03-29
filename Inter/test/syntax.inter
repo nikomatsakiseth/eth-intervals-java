@@ -14,6 +14,7 @@ class Basic(Interval par) {
 }
 
 class BigMethods(Interval par) {
+    
     void use(int res) with(String str) {
         x = (1, 2, 3);
         return if(cond) x else z;
@@ -22,5 +23,7 @@ class BigMethods(Interval par) {
     interval b(par) {
         use(aRes) with("a string");
     }
+    
     a -> b;
+    
 }

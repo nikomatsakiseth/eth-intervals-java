@@ -15,6 +15,14 @@ abstract class HlPretty {
         write(end)
     }
     
+    private[this] def printsep[A](seq: Seq[A], sepfunc: (() => Unit))(pfunc: (A => Unit)) {
+        seq.dropRight(1).foreach { item =>
+            pfunc(item)
+            sepfunc()
+        }
+        seq.takeRight(1).foreach(pfunc)
+    }
+    
     def println(compUnit: hl.CompUnit) {
         writeln("package %s;", compUnit.pkg)
         compUnit.imports.foreach(println)
@@ -30,11 +38,7 @@ abstract class HlPretty {
         writeln("class %s%s", cdecl.name, cdecl.pattern)
         cdecl.superClasses.foreach(c => writeln("extends %s", c))
         indented("{", "}") {
-            cdecl.members.dropRight(1).foreach { mem =>
-                println(mem)
-                writeln("")
-            }
-            cdecl.members.takeRight(1).foreach(println)
+            printsep(cdecl.members, () => writeln(""))(println)
         }
         writeln("")
     }
@@ -101,6 +105,10 @@ abstract class HlPretty {
     def println(ldecl: hl.LockDecl) {
         ldecl.annotations.foreach(println)
         writeln("%s locks %s", ldecl.interval, ldecl.lock)
+    }
+    
+    def printsp(ann: hl.Annotation) {
+        write("%s ", ann)
     }
     
     def println(ann: hl.Annotation) {
@@ -208,7 +216,15 @@ abstract class HlPretty {
     
     def print(lv: hl.Lvalue) {
         lv match {
-            case pat: hl.Pattern => write(pat.toString)
+            case hl.TuplePattern(pats) => {
+                write("(")
+                printsep(pats, () => write(";"))(print)
+                write(")")
+            }
+            case hl.VarPattern(annotations, tref, name) => {
+                annotations.foreach(printsp)
+                write("%s %s", tref, name)
+            }
             case ex: hl.Expr => print(ex.asInstanceOf[hl.Expr])
         }
     }
