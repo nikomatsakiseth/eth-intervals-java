@@ -80,14 +80,14 @@ class HlParser extends StandardTokenParsers with PackratParsers {
         }
     )
     
-    lazy val member: PackratParser[hl.MemberDecl] = (
+    lazy val member: PackratParser[hl.MemberDecl] = log(
         classDecl
     |   methodDecl
     |   fieldDecl
     |   intervalDecl
     |   hbDecl
     |   lockDecl
-    )
+    )("member")
     
     lazy val methodDecl = positioned(
         annotations~typeRef~rep1(declPart)~rep(requirement)~optBody ^^ {
@@ -107,12 +107,12 @@ class HlParser extends StandardTokenParsers with PackratParsers {
         ident~qualName ^^ { case o~r => hl.ReqRhs(o, r) }      
     )
     
-    lazy val intervalDecl = log(positioned(
+    lazy val intervalDecl = positioned(
         annotations~"interval"~varName~";" ^^ { 
             case ann~_~nm~";" => hl.IntervalDecl(ann, nm, None, None) }
     |   annotations~"interval"~varName~"("~qualName~")"~optBody ^^ { 
             case ann~_~nm~"("~qn~")"~optBody => hl.IntervalDecl(ann, nm, Some(qn), optBody) }
-    ))("intervalDecl")
+    )
     
     lazy val optBody = (
         block   ^^ { case b => Some(b) }
@@ -170,16 +170,16 @@ class HlParser extends StandardTokenParsers with PackratParsers {
         "("~>comma(expr)<~")"               ^^ hl.Tuple
     )
     
-    lazy val callPart = positioned(
+    lazy val callPart = log(positioned(
         ident~tuple                         ^^ { case i~t => hl.CallPart(i, t) }
-    )
+    ))("callPart")
     
     lazy val rootExpr: PackratParser[hl.Expr] = log(positioned(
         tuple
+    |   rep1(callPart)                      ^^ { case cp => hl.MethodCall(hl.ImpThis, cp) }
     |   varName                             ^^ hl.Var
     |   numericLit                          ^^ hl.Literal // XXX
     |   stringLit                           ^^ hl.Literal
-    |   rep1(callPart)                      ^^ { case cp => hl.MethodCall(hl.ImpThis, cp) }
     |   "new"~typeRef~tuple                 ^^ { case _~t~a => hl.New(t, a) }
     ))("rootExpr")
     
@@ -196,16 +196,16 @@ class HlParser extends StandardTokenParsers with PackratParsers {
         coreLvalue~"="~expr                 ^^ { case l~"="~e => hl.Assign(l, e) }
     )
     
-    lazy val coreExpr: PackratParser[hl.Expr] = log(field | mthdCall | assign | rootExpr)("coreExpr")
+    lazy val coreExpr: PackratParser[hl.Expr] = field | mthdCall | assign | rootExpr
     
-    lazy val coreLvalue: PackratParser[hl.Lvalue] = log(positioned(
+    lazy val coreLvalue: PackratParser[hl.Lvalue] = positioned(
         field
     |   varName                             ^^ hl.Var
-    ))("coreLvalue")
+    )
     
     lazy val lvalue: PackratParser[hl.Lvalue] = coreLvalue | pattern
     
-    lazy val stmtExpr: PackratParser[hl.Expr] = log(positioned(
+    lazy val stmtExpr: PackratParser[hl.Expr] = positioned(
         block
     |   "if"~"("~expr~")"~expr~"else"~expr  ^^ { case _~"("~c~")"~t~"else"~f => hl.IfElse(c, t, f) }
     |   "for"~"("~lvalue~":"~expr~")"~expr  ^^ { case _~"("~l~":"~s~")"~b => hl.For(l, s, b) }
@@ -213,11 +213,11 @@ class HlParser extends StandardTokenParsers with PackratParsers {
     |   pattern~"="~expr~";"                ^^ { case l~"="~v~";" => hl.Assign(l, v) }
     |   pattern~";"                         ^^ { case l~";" => hl.Assign(l, hl.ImpVoid) }
     |   coreExpr<~";"
-    ))("stmtExpr")
+    )
     
-    lazy val expr: PackratParser[hl.Expr] = log(coreExpr | stmtExpr)("expr")
+    lazy val expr: PackratParser[hl.Expr] = coreExpr | stmtExpr
     
-    lazy val stmt: PackratParser[hl.Stmt] = log(positioned(
+    lazy val stmt: PackratParser[hl.Stmt] = positioned(
         ";"                                 ^^ { case _ => hl.Empty() }
     |   block
     |   varName~":"~block                   ^^ { case l~":"~b => hl.Labeled(l, b) }
@@ -231,7 +231,7 @@ class HlParser extends StandardTokenParsers with PackratParsers {
     |   "while"~"("~expr~")"~stmt           ^^ { case _~"("~c~")"~b => hl.While(c, b) }
     |   "throw"~expr                        ^^ { case _~e => hl.Throw(e) }
     |   stmtExpr
-    ))("stmt")
+    )
     
 }
 

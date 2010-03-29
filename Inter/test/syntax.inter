@@ -1,6 +1,14 @@
-class Sub(Interval par) {
+class Basic(Interval par) {
     [var]
     int aRes;
+    
+    interval a(par) {
+        aRes = 22;
+    }
+    
+    interval b(par) {
+        use(aRes);
+    }
     
     a -> b;
 }
