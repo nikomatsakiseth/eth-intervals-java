@@ -1,4 +1,4 @@
-package intervals
+package inter
 
 import scala.collection.immutable.Set
 import scala.collection.immutable.ListSet

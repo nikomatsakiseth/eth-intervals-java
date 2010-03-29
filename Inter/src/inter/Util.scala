@@ -1,4 +1,4 @@
-package intervals
+package inter
 
 object Util {
      def javaReaderFromPath(path: String) = javaReaderFromFile(new java.io.File(path))

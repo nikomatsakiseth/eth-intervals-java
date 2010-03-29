@@ -1,4 +1,4 @@
-package intervals
+package inter
 
 abstract class HlPretty {
     protected[this] def indent(): Unit

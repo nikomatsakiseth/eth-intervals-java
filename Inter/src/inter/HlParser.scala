@@ -1,4 +1,4 @@
-package intervals
+package inter
 
 import scala.util.parsing.combinator.syntactical.StandardTokenParsers
 import scala.util.parsing.input.Reader
