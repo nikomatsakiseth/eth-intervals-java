@@ -77,7 +77,7 @@ abstract class HlPretty {
         writeln("%s", req)
     }
     
-    def printlnOptBody(optBody: Option[hl.Block]) {
+    def printlnOptBody(optBody: Option[hl.InlineTmpl]) {
         optBody match {
             case None => writeln(";")
             case Some(body) => println(body)
@@ -99,12 +99,12 @@ abstract class HlPretty {
     
     def println(hbdecl: hl.HbDecl) {
         hbdecl.annotations.foreach(println)
-        writeln("%s -> %s", hbdecl.from, hbdecl.to)
+        writeln("%s -> %s;", hbdecl.from, hbdecl.to)
     }
     
     def println(ldecl: hl.LockDecl) {
         ldecl.annotations.foreach(println)
-        writeln("%s locks %s", ldecl.interval, ldecl.lock)
+        writeln("%s locks %s;", ldecl.interval, ldecl.lock)
     }
     
     def printsp(ann: hl.Annotation) {
@@ -136,8 +136,14 @@ abstract class HlPretty {
                 write(")")
             }
             
-            case hl.Block(stmts) => {
+            case hl.InlineTmpl(stmts) => {
                 indented("{", "}") {
+                    stmts.foreach(println)                    
+                }
+            }
+            
+            case hl.AsyncTmpl(stmts) => {
+                indented("{{", "}}") {
                     stmts.foreach(println)                    
                 }
             }
@@ -154,12 +160,12 @@ abstract class HlPretty {
             
             case hl.Field(owner, name) => {
                 print(owner)
-                write(".%s", name)                
+                write(" %s", name)                
             }
             
             case hl.MethodCall(rcvr, parts) => {
                 print(rcvr)
-                write(".")
+                write(" ")
                 parts.dropRight(1).foreach { part =>
                     print(part)
                     write(" ")
@@ -173,44 +179,6 @@ abstract class HlPretty {
             }
             
             case hl.ImpVoid | hl.ImpThis => write("%s", expr)
-
-            case hl.IfElse(c, t, f) => {
-                indented("(", ")") {
-                    write("if(")
-                    print(c)
-                    write(") ")
-                    println(t)
-                
-                    write("else ")
-                    println(f)                    
-                }
-            }
-
-            case hl.For(l, s, b) => {
-                indented("(", ")") {
-                    write("for(")
-                    print(l)
-                    write(" : ")
-                    print(s)
-                    writeln(")")
-                    
-                    indent()
-                    println(b)
-                    undent()
-                }
-            }
-            
-            case hl.While(c, b) => {
-                indented("(", ")") {
-                    write("if(")
-                    print(c)
-                    writeln(")")
-                    
-                    indent()
-                    println(b)
-                    undent()
-                }
-            }
         }
     }
     
@@ -218,7 +186,7 @@ abstract class HlPretty {
         lv match {
             case hl.TuplePattern(pats) => {
                 write("(")
-                printsep(pats, () => write(";"))(print)
+                printsep(pats, () => write(", "))(print)
                 write(")")
             }
             case hl.VarPattern(annotations, tref, name) => {
@@ -231,7 +199,7 @@ abstract class HlPretty {
     
     private[this] def printsub(stmt: hl.Stmt) {
         stmt match {
-            case hl.Block(_) =>
+            case hl.InlineTmpl(_) =>
                 println(stmt)
             case _ => {
                 writeln("")
@@ -244,59 +212,9 @@ abstract class HlPretty {
     
     def println(stmt: hl.Stmt) {
         stmt match {
-            case hl.IfElse(c, t, f) => {
-                write("if(")
-                print(c)
-                write(")")
-                printsub(t)                    
-                write("else ")
-                printsub(f)                  
-            }
-
-            case hl.For(l, s, b) => {
-                write("for(")
-                print(l)
-                write(" : ")
-                print(s)
-                write(")")
-                printsub(b)
-            }
-            
-            case hl.While(c, b) => {
-                write("while(")
-                print(c)
-                write(")")
-                printsub(b)
-            }
-            
-            case hl.Throw(e) => {
-                write("throw ")
-                print(e)
-                writeln(";")
-            }
-            
-            case hl.Break(None) => writeln("break;")
-            case hl.Break(Some(v)) => writeln("break %s;", v)
-            
-            case hl.Continue(None) => writeln("continue;")
-            case hl.Continue(Some(v)) => writeln("continue %s;", v)
-
-            case hl.Return(expr) => {
-                write("return ")
-                print(expr)
-                writeln(";")
-            }
-            
             case hl.Labeled(n, b) => {
                 write("%s: ", n)
                 println(b)
-            }
-            
-            case hl.Block(stmts) => {
-                indented("{", "}") {
-                    stmts.foreach(println)
-                }
-                writeln("")
             }
             
             case expr: hl.Expr => {

@@ -74,7 +74,7 @@ object hl {
         annotations: List[Annotation],
         name: VarName,
         parent: Option[QualName],
-        optBody: Option[Block]        
+        optBody: Option[InlineTmpl]        
     ) extends MemberDecl {
         override def toString = "[interval %s(%s)]".format(name, parent)
     }
@@ -87,7 +87,7 @@ object hl {
         parts: List[DeclPart],
         retTref: TypeRef,
         requirements: List[Requirement],
-        optBody: Option[Block]
+        optBody: Option[InlineTmpl]
     ) extends MemberDecl {
         def name = MethodName(parts.map(_.ident))
         def patterns = parts.map(_.pattern)
@@ -182,9 +182,18 @@ object hl {
         override def toString = "(%s)".format(exprs.mkString(", "))
     }
     
-    case class Block(stmts: List[Stmt])
-    extends Expr {
+    abstract class Tmpl extends Expr {
+        def stmts: List[Stmt]
+    }
+    
+    case class InlineTmpl(stmts: List[Stmt])
+    extends Tmpl {
         override def toString = "{ %s }".format(stmts.mkString("", "; ", "; "))
+    }
+    
+    case class AsyncTmpl(stmts: List[Stmt])
+    extends Tmpl {
+        override def toString = "{{ %s }}".format(stmts.mkString("", "; ", "; "))
     }
     
     case class Literal(obj: Object) extends Expr {
@@ -201,10 +210,10 @@ object hl {
     }
     
     case class Field(owner: Expr, name: VarName) extends Expr with Lvalue {
-        override def toString = "%s.%s".format(owner, name)
+        override def toString = "%s %s".format(owner, name)
     }
     
-    case class CallPart(ident: String, arg: Tuple) extends Ast {
+    case class CallPart(ident: String, arg: Expr) extends Ast {
         override def toString = "%s%s".format(ident, arg)
     }
     case class MethodCall(rcvr: Expr, parts: List[CallPart])
@@ -233,42 +242,7 @@ object hl {
         override def toString = ";"
     }
     
-    case class IfElse(cond: Expr, ifTrue: Stmt, ifFalse: Stmt)
-    extends Expr {
-        override def toString = "if(%s) %s else %s".format(cond, ifTrue, ifFalse)
-    }
-    
-    case class For(lvalue: Lvalue, seq: Expr, body: Stmt)
-    extends Expr {
-        override def toString = "for(%s : %s) %s".format(lvalue, seq, body)
-    }
-    
-    case class While(cond: Expr, body: Stmt)
-    extends Expr {
-        override def toString = "while(%s) %s".format(cond)
-    }
-    
-    case class Throw(exc: Expr)
-    extends Stmt {
-        override def toString = "throw %s".format(exc)
-    }
-    
-    case class Break(optName: Option[VarName])
-    extends Stmt {
-        override def toString = "break %s".format(optName)
-    }
-    
-    case class Return(expr: Expr)
-    extends Stmt {
-        override def toString = "return %s".format(expr)
-    }
-    
-    case class Continue(optName: Option[VarName])
-    extends Stmt {
-        override def toString = "continue %s".format(optName)
-    }
-    
-    case class Labeled(name: VarName, block: Block)
+    case class Labeled(name: VarName, block: InlineTmpl)
     extends Stmt {
         override def toString = "%s: %s".format(name, block)
     }

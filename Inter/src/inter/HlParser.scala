@@ -13,11 +13,11 @@ import Util._
 class HlParser extends StandardTokenParsers with PackratParsers {
     
     lexical.delimiters += (
-        "{", "}", "[", "]", "(", ")", "=", "->", ",", ";", "@", ":"
+        "{{", "}}", "{", "}", "[", "]", "(", ")", "=", "->", ",", "@", ":", ".", ";"
     )
     lexical.reserved += (
-        "class", "extends", "import", "package", "interval", "requires", "for", "while", "if",
-        "else", "throw", "locks", "new", "break", "return", "continue"
+        "class", "extends", "import", "package", "interval", "requires",
+        "throw", "locks", "new"
     )
     
     def parseCompUnitFromJavaReader(javaReader: java.io.Reader) = {
@@ -26,8 +26,8 @@ class HlParser extends StandardTokenParsers with PackratParsers {
         phrase(compUnit)(tokens)
     }
     
-    def comma[A](p: PackratParser[A]) = repsep(p, ",")
-    def comma1[A](p: PackratParser[A]) = rep1sep(p, ",")
+    def comma[A](p: PackratParser[A]) = repsep(p, ",")<~opt(",")
+    def comma1[A](p: PackratParser[A]) = rep1sep(p, ",")<~opt(",")
     
     // ___ Names ____________________________________________________________
     
@@ -115,7 +115,7 @@ class HlParser extends StandardTokenParsers with PackratParsers {
     )
     
     lazy val optBody = (
-        block   ^^ { case b => Some(b) }
+        itmpl   ^^ { case b => Some(b) }
     |   ";"     ^^^ None
     )
     
@@ -162,21 +162,26 @@ class HlParser extends StandardTokenParsers with PackratParsers {
     
     // ___ Expressions ______________________________________________________
     
-    lazy val block = positioned(
-        "{"~>rep(stmt)<~"}"                 ^^ hl.Block
+    lazy val itmpl = positioned(
+        "{"~>stmts<~"}"                 ^^ hl.InlineTmpl
+    )
+    
+    lazy val atmpl = positioned(
+        "{{"~>stmts<~"}}"               ^^ hl.AsyncTmpl
     )
     
     lazy val tuple = positioned(
         "("~>comma(expr)<~")"               ^^ hl.Tuple
     )
     
+    lazy val arg: PackratParser[hl.Expr] = tuple | itmpl | atmpl
+    
     lazy val callPart = positioned(
-        ident~tuple                         ^^ { case i~t => hl.CallPart(i, t) }
+        ident~arg                           ^^ { case i~a => hl.CallPart(i, a) }
     )
     
-    lazy val rootExpr: PackratParser[hl.Expr] = positioned(
-        tuple
-    |   rep1(callPart)                      ^^ { case cp => hl.MethodCall(hl.ImpThis, cp) }
+    lazy val rcvr: PackratParser[hl.Expr] = positioned(
+        arg
     |   varName                             ^^ hl.Var
     |   numericLit                          ^^ hl.Literal // XXX
     |   stringLit                           ^^ hl.Literal
@@ -184,54 +189,35 @@ class HlParser extends StandardTokenParsers with PackratParsers {
     )
     
     lazy val field = positioned(
-        rootExpr~"."~varName~rep("."~>varName) ^^ { 
-            case e~"."~f~fs => fs.foldLeft(hl.Field(e, f))(hl.Field(_, _)) }
+        rcvr~varName~rep(varName)           ^^ { case r~f~fs => fs.foldLeft(hl.Field(r, f))(hl.Field(_, _)) }
     )
     
     lazy val mthdCall = positioned(
-        rootExpr~rep1("."~>rep1(callPart))  ^^ { case e~cs => cs.foldLeft(e)(hl.MethodCall(_, _)) }
+        rcvr~rep1(callPart)                 ^^ { case r~cp => hl.MethodCall(r, cp) }
+    |   rep1(callPart)                      ^^ { case cp => hl.MethodCall(hl.ImpThis, cp) }
     )
     
     lazy val assign = positioned(
         coreLvalue~"="~expr                 ^^ { case l~"="~e => hl.Assign(l, e) }
     )
     
-    lazy val coreExpr: PackratParser[hl.Expr] = field | mthdCall | assign | rootExpr
-    
     lazy val coreLvalue: PackratParser[hl.Lvalue] = positioned(
         field
     |   varName                             ^^ hl.Var
     )
     
+    lazy val expr: PackratParser[hl.Expr] = mthdCall | field | assign | rcvr
+    
     lazy val lvalue: PackratParser[hl.Lvalue] = coreLvalue | pattern
     
-    lazy val stmtExpr: PackratParser[hl.Expr] = positioned(
-        block
-    |   "if"~"("~expr~")"~expr~"else"~expr  ^^ { case _~"("~c~")"~t~"else"~f => hl.IfElse(c, t, f) }
-    |   "for"~"("~lvalue~":"~expr~")"~expr  ^^ { case _~"("~l~":"~s~")"~b => hl.For(l, s, b) }
-    |   "while"~"("~expr~")"~expr           ^^ { case _~"("~c~")"~b => hl.While(c, b) }
-    |   pattern~"="~expr~";"                ^^ { case l~"="~v~";" => hl.Assign(l, v) }
-    |   pattern~";"                         ^^ { case l~";" => hl.Assign(l, hl.ImpVoid) }
-    |   coreExpr<~";"
-    )
-    
-    lazy val expr: PackratParser[hl.Expr] = coreExpr | stmtExpr
-    
     lazy val stmt: PackratParser[hl.Stmt] = positioned(
-        ";"                                 ^^ { case _ => hl.Empty() }
-    |   block
-    |   varName~":"~block                   ^^ { case l~":"~b => hl.Labeled(l, b) }
-    |   "break"~opt(varName)~";"            ^^ { case _~n~";" => hl.Break(n) }
-    |   "return"~expr~";"                   ^^ { case _~n~";" => hl.Return(n) }
-    |   "return"~";"                        ^^ { case _ => hl.Return(hl.ImpVoid) }
-    |   "continue"~opt(varName)~";"         ^^ { case _~n~";" => hl.Continue(n) }
-    |   "if"~"("~expr~")"~stmt~"else"~stmt  ^^ { case _~"("~c~")"~t~"else"~f => hl.IfElse(c, t, f) }
-    |   "if"~"("~expr~")"~stmt              ^^ { case _~"("~c~")"~t => hl.IfElse(c, t, hl.ImpVoid) }
-    |   "for"~"("~lvalue~":"~expr~")"~stmt  ^^ { case _~"("~l~":"~s~")"~b => hl.For(l, s, b) }
-    |   "while"~"("~expr~")"~stmt           ^^ { case _~"("~c~")"~b => hl.While(c, b) }
-    |   "throw"~expr                        ^^ { case _~e => hl.Throw(e) }
-    |   stmtExpr
+        pattern~"="~expr                    ^^ { case l~"="~v => hl.Assign(l, v) }
+/*  |   pattern                             ^^ { case l => hl.Assign(l, hl.ImpVoid) }*/
+    |   varName~":"~itmpl                   ^^ { case l~":"~b => hl.Labeled(l, b) }
+    |   expr
     )
+    
+    lazy val stmts = log(repsep(stmt, ";")<~opt(";"))("stmts")
     
 }
 
