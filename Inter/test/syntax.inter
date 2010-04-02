@@ -19,7 +19,12 @@ class BigMethods(Interval par) {
     void use(int res) with(String str) {
         x = (1, 2, 3);
         (Integer x, String y) = msg();
+        (x, y) = msg();
         cond if {x} else {z};
+    }
+    
+    omitted(int arg) returnType(int otherArg) {
+        arg plus(otherArg);
     }
     
     interval b(par) {

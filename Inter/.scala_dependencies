@@ -254,8 +254,8 @@ src/inter/hl.scala -> bin/inter/Hl$AbsDot.class
 src/inter/hl.scala -> bin/inter/Hl$RelName.class
 src/inter/hl.scala -> bin/inter/Hl$FieldDecl$.class
 src/inter/hl.scala -> bin/inter/Hl$Stmt$class.class
-src/inter/hl.scala -> bin/inter/Hl$VarPattern$.class
 src/inter/hl.scala -> bin/inter/Hl$MethodCall$.class
+src/inter/hl.scala -> bin/inter/Hl$VarPattern$.class
 src/inter/hl.scala -> bin/inter/Hl$Requirement.class
 src/inter/hl.scala -> bin/inter/Hl$Assign$.class
 src/inter/hl.scala -> bin/inter/Hl$CompUnit$$anonfun$print$2.class

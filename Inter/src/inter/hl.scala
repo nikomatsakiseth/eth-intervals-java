@@ -156,7 +156,7 @@ class Hl {
     case class DeclPart(ident: String, pattern: TuplePattern) extends Ast {
         override def toString = "%s%s".format(ident, pattern)
         override def print(out: PrettyPrinter) {
-            out.write("%s ", ident)
+            out.write("%s", ident)
             pattern.print(out)
         }
     }
