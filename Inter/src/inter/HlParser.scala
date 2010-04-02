@@ -132,16 +132,27 @@ class HlParser extends StandardTokenParsers with PackratParsers {
         annotations~qualName~"locks"~qualName~";" ^^ { case a~l~_~r~";" => hl.LockDecl(a, l, r) }
     )
     
-    // ___ Argument Patterns ________________________________________________
+    // ___ Argument Patterns and Lvalues ____________________________________
     
-    lazy val tuplePattern: PackratParser[hl.TuplePattern] = positioned(
+    lazy val tuplePattern = positioned(
         "("~>comma(pattern)<~")" ^^ hl.TuplePattern
     )
     lazy val varPattern = positioned(
         annotations~typeRef~varName ^^ {
             case a~t~n => hl.VarPattern(a, t, n) }
     )
-    lazy val pattern = tuplePattern | varPattern
+    lazy val pattern: PackratParser[hl.Pattern] = tuplePattern | varPattern
+    
+    lazy val tupleLvalue= positioned(
+        "("~>comma(lvalue)<~")" ^^ hl.TupleLvalue
+    )
+    lazy val varLvalue = positioned(
+        annotations~typeRef~varName ^^ {
+            case a~t~n => hl.VarLvalue(a, Some(t), n) }
+    |   annotations~varName ^^ {
+            case a~n => hl.VarLvalue(a, None, n) }
+    )
+    lazy val lvalue: PackratParser[hl.Lvalue] = tupleLvalue | varLvalue
     
     // ___ Type References __________________________________________________
     
@@ -185,6 +196,7 @@ class HlParser extends StandardTokenParsers with PackratParsers {
     |   varName                             ^^ hl.Var
     |   numericLit                          ^^ hl.Literal // XXX
     |   stringLit                           ^^ hl.Literal
+    |   "null"                              ^^ { case _ => hl.Null() }
     |   "new"~typeRef~tuple                 ^^ { case _~t~a => hl.New(t, a) }
     )
     
@@ -198,26 +210,17 @@ class HlParser extends StandardTokenParsers with PackratParsers {
     )
     
     lazy val assign = positioned(
-        coreLvalue~"="~expr                 ^^ { case l~"="~e => hl.Assign(l, e) }
-    )
-    
-    lazy val coreLvalue: PackratParser[hl.Lvalue] = positioned(
-        field
-    |   varName                             ^^ hl.Var
+        lvalue~"="~expr                     ^^ { case l~"="~e => hl.Assign(l, e) }
     )
     
     lazy val expr: PackratParser[hl.Expr] = mthdCall | field | assign | rcvr
     
-    lazy val lvalue: PackratParser[hl.Lvalue] = coreLvalue | pattern
-    
     lazy val stmt: PackratParser[hl.Stmt] = positioned(
-        pattern~"="~expr                    ^^ { case l~"="~v => hl.Assign(l, v) }
-/*  |   pattern                             ^^ { case l => hl.Assign(l, hl.ImpVoid) }*/
-    |   varName~":"~itmpl                   ^^ { case l~":"~b => hl.Labeled(l, b) }
+        varName~":"~itmpl                   ^^ { case l~":"~b => hl.Labeled(l, b) }
     |   expr
     )
     
-    lazy val stmts = log(repsep(stmt, ";")<~opt(";"))("stmts")
+    lazy val stmts = repsep(stmt, ";")<~opt(";")
     
 }
 

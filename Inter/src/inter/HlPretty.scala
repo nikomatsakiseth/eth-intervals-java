@@ -184,6 +184,24 @@ abstract class HlPretty {
     
     def print(lv: hl.Lvalue) {
         lv match {
+            case hl.TupleLvalue(lvalues) => {
+                write("(")
+                printsep(lvalues, () => write(", "))(print)
+                write(")")
+            }
+            
+            case hl.VarLvalue(annotations, None, name) =>
+                annotations.foreach(printsp)
+                write("%s", name)
+                
+            case hl.VarLvalue(annotations, Some(tref), name) =>
+                annotations.foreach(printsp)
+                write("%s %s", tref, name)
+        }
+    }
+        
+    def print(pat: hl.Pattern) {
+        pat match {
             case hl.TuplePattern(pats) => {
                 write("(")
                 printsep(pats, () => write(", "))(print)
@@ -193,7 +211,6 @@ abstract class HlPretty {
                 annotations.foreach(printsp)
                 write("%s %s", tref, name)
             }
-            case ex: hl.Expr => print(ex.asInstanceOf[hl.Expr])
         }
     }
     

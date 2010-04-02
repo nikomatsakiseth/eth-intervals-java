@@ -4,7 +4,6 @@ class Basic(Interval par) {
     
     interval a(par) {
         aRes = 22;
-        this aRes = 22;
     }
     
     interval b(par) {

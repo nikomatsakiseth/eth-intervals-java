@@ -127,11 +127,15 @@ object hl {
         lock: QualName
     ) extends MemberDecl
     
+    case class Annotation(
+        name: QualName
+    ) extends Ast {
+        override def toString = "[%s]".format(name)
+    }
+    
     // ___ Patterns _________________________________________________________
     
-    abstract trait Lvalue extends Ast
-    
-    abstract class Pattern extends Lvalue
+    abstract class Pattern extends Ast
     
     case class TuplePattern(
         patterns: List[Pattern]
@@ -147,10 +151,22 @@ object hl {
         override def toString = "%s %s %s".format(annotations, tref, name)
     }
     
-    case class Annotation(
-        name: QualName
-    ) extends Ast {
-        override def toString = "[%s]".format(name)
+    // ___ Untyped Patterns _________________________________________________
+    
+    abstract trait Lvalue extends Ast
+    
+    case class TupleLvalue(
+        lvalues: List[Lvalue]
+    ) extends Lvalue {
+        override def toString = "(%s)".format(lvalues.mkString(", "))
+    }
+    
+    case class VarLvalue(
+        annotations: List[Annotation], 
+        tref: Option[TypeRef], 
+        name: VarName) 
+    extends Lvalue {
+        override def toString = "%s %s %s".format(annotations, tref, name)
     }
     
     // ___ Type References __________________________________________________
@@ -225,6 +241,11 @@ object hl {
     
     case class New(tref: TypeRef, arg: Tuple) extends Expr {
         override def toString = "new %s%s".format(tref, arg)
+    }
+    
+    case class Null()
+    extends Expr {
+        override def toString = "null"
     }
     
     case object ImpVoid
