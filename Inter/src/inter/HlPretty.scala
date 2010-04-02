@@ -35,7 +35,9 @@ abstract class HlPretty {
     
     def println(cdecl: hl.ClassDecl) {
         cdecl.annotations.foreach(println)
-        writeln("class %s%s", cdecl.name, cdecl.pattern)
+        write("class %s", cdecl.name)
+        print(cdecl.pattern)
+        writeln("")
         cdecl.superClasses.foreach(c => writeln("extends %s", c))
         indented("{", "}") {
             printsep(cdecl.members, () => writeln(""))(println)

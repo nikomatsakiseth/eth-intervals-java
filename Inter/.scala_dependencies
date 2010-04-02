@@ -14,8 +14,8 @@ src/inter/HlParser.scala -> bin/inter/HlParser$$anonfun$importDecl$1$$anonfun$ap
 src/inter/HlParser.scala -> bin/inter/HlParser$$anonfun$intervalDecl$1$$anonfun$apply$64$$anonfun$apply$71.class
 src/inter/HlParser.scala -> bin/inter/HlParser$$anonfun$declPart$1.class
 src/inter/HlParser.scala -> bin/inter/HlParser$$anonfun$assign$1$$anonfun$apply$148.class
-src/inter/HlParser.scala -> bin/inter/HlParser$$anonfun$rcvr$1$$anonfun$apply$127$$anonfun$apply$133$$anonfun$apply$134.class
 src/inter/HlParser.scala -> bin/inter/HlParser$$anonfun$mthdCall$1$$anonfun$apply$144.class
+src/inter/HlParser.scala -> bin/inter/HlParser$$anonfun$rcvr$1$$anonfun$apply$127$$anonfun$apply$133$$anonfun$apply$134.class
 src/inter/HlParser.scala -> bin/inter/HlParser$$anonfun$classDecl$1$$anonfun$apply$37$$anonfun$apply$38.class
 src/inter/HlParser.scala -> bin/inter/HlParser$$anonfun$comma$3.class
 src/inter/HlParser.scala -> bin/inter/HlParser$$anonfun$expr$1$$anonfun$apply$151.class
