@@ -12,12 +12,14 @@ import Util._
 
 class HlParser extends StandardTokenParsers with PackratParsers {
     
+    import Hl.{P => hl}
+    
     lexical.delimiters += (
         "{{", "}}", "{", "}", "[", "]", "(", ")", "=", "->", ",", "@", ":", ".", ";"
     )
     lexical.reserved += (
         "class", "extends", "import", "package", "interval", "requires",
-        "throw", "locks", "new"
+        "throw", "locks", "new", "locks"
     )
     
     def parseCompUnitFromJavaReader(javaReader: java.io.Reader) = {
@@ -31,14 +33,18 @@ class HlParser extends StandardTokenParsers with PackratParsers {
     
     // ___ Names ____________________________________________________________
     
-    lazy val baseName = positioned(
-        ident ^^ hl.BaseName
+    lazy val relName = positioned(ident ^^ hl.RelName)
+    
+    lazy val absDotName = positioned(
+        ident~rep1("."~>ident) ^^ { 
+            case f~fs => (f :: fs).foldLeft[hl.AbsName](hl.AbsRoot) { _ / _ } }
     )
     
-    lazy val qualName = positioned(
-        baseName~rep("."~>ident) ^^ { 
-            case b~fs => fs.foldLeft[hl.QualName](b) { _ / _ } }
+    lazy val absName = absDotName | positioned(
+        ident ^^ (hl.AbsRoot / _)
     )
+    
+    lazy val qualName = absDotName | relName
     
     lazy val varName = positioned(
         ident ^^ hl.VarName
@@ -53,12 +59,12 @@ class HlParser extends StandardTokenParsers with PackratParsers {
     )
     
     lazy val packageDecl = positioned(
-        "package"~>qualName<~";"
+        "package"~>absName<~";"
     )
     
     lazy val importDecl = positioned(
-        "import"~>qualName~opt("("~>baseName<~")")~";"  ^^ { case q~n~_ => hl.ImportOne(q, n) }
-    |   "import"~>qualName<~"."<~"*"<~";"               ^^ hl.ImportAll
+        "import"~>absName~opt("("~>relName<~")")~";"  ^^ { case q~n~_ => hl.ImportOne(q, n) }
+    |   "import"~>absName<~"."<~"*"<~";"               ^^ hl.ImportAll
     )
     
     lazy val superClasses = opt("extends"~>comma1(qualName)) ^^ {
@@ -85,13 +91,15 @@ class HlParser extends StandardTokenParsers with PackratParsers {
     |   methodDecl
     |   fieldDecl
     |   intervalDecl
-    |   hbDecl
-    |   lockDecl
+    |   relDecl
     )
     
     lazy val methodDecl = positioned(
         annotations~typeRef~rep1(declPart)~rep(requirement)~optBody ^^ {
             case ann~ret~parts~reqs~optBody => hl.MethodDecl(ann, parts, ret, reqs, optBody)
+        }
+    |   annotations~rep1(declPart)~rep(requirement)~optBody ^^ {
+            case ann~parts~reqs~optBody => hl.MethodDecl(ann, parts, hl.InferredTypeRef, reqs, optBody)
         }
     )
     
@@ -100,17 +108,28 @@ class HlParser extends StandardTokenParsers with PackratParsers {
     )
     
     lazy val requirement = positioned(
-        "requires"~>qualName~reqRhs ^^ { case l~r => hl.Requirement(l, r) }
+        "requires"~>path~reqRhs ^^ { case l~r => hl.Requirement(l, r) }
+    )
+    
+    lazy val declOp = (
+        "->"            ^^^ hl.ReqHb
+    |   "locks"         ^^^ hl.ReqLocks
+    )
+    
+    lazy val reqOp = (
+        declOp
+    |   "subOf"         ^^^ hl.ReqSubOf
+    |   "inlineSubOf"   ^^^ hl.ReqInlineSubOf
     )
     
     lazy val reqRhs = positioned(
-        ident~qualName ^^ { case o~r => hl.ReqRhs(o, r) }      
+        reqOp~path ^^ { case o~r => hl.ReqRhs(o, r) }      
     )
     
     lazy val intervalDecl = positioned(
         annotations~"interval"~varName~";" ^^ { 
             case ann~_~nm~";" => hl.IntervalDecl(ann, nm, None, None) }
-    |   annotations~"interval"~varName~"("~qualName~")"~optBody ^^ { 
+    |   annotations~"interval"~varName~"("~path~")"~optBody ^^ { 
             case ann~_~nm~"("~qn~")"~optBody => hl.IntervalDecl(ann, nm, Some(qn), optBody) }
     )
     
@@ -120,16 +139,14 @@ class HlParser extends StandardTokenParsers with PackratParsers {
     )
     
     lazy val fieldDecl = positioned(
-        annotations~opt(typeRef)~varName~opt("="~>expr)~";" ^^ {
+        annotations~typeRef~varName~opt("="~>expr)~";" ^^ {
             case a~t~n~v~";" => hl.FieldDecl(a, n, t, v) }
+    |   annotations~varName~opt("="~>expr)~";" ^^ {
+            case a~n~v~";" => hl.FieldDecl(a, n, hl.InferredTypeRef, v) }
     )
     
-    lazy val hbDecl = positioned(
-        annotations~qualName~"->"~qualName~";" ^^ { case a~l~_~r~";" => hl.HbDecl(a, l, r) }
-    )
-    
-    lazy val lockDecl = positioned(
-        annotations~qualName~"locks"~qualName~";" ^^ { case a~l~_~r~";" => hl.LockDecl(a, l, r) }
+    lazy val relDecl = positioned(
+        annotations~path~declOp~path~";" ^^ { case a~l~k~r~";" => hl.RelDecl(a, l, k, r) }
     )
     
     // ___ Argument Patterns and Lvalues ____________________________________
@@ -148,9 +165,9 @@ class HlParser extends StandardTokenParsers with PackratParsers {
     )
     lazy val varLvalue = positioned(
         annotations~typeRef~varName ^^ {
-            case a~t~n => hl.VarLvalue(a, Some(t), n) }
+            case a~t~n => hl.VarLvalue(a, t, n) }
     |   annotations~varName ^^ {
-            case a~n => hl.VarLvalue(a, None, n) }
+            case a~n => hl.VarLvalue(a, hl.InferredTypeRef, n) }
     )
     lazy val lvalue: PackratParser[hl.Lvalue] = tupleLvalue | varLvalue
     
@@ -159,7 +176,7 @@ class HlParser extends StandardTokenParsers with PackratParsers {
     lazy val typeRef = pathType | classType
     
     lazy val pathType = positioned(
-        qualName~":"~varName ^^ { case b~":"~v => hl.PathType(b, v) }
+        path~":"~varName ^^ { case b~":"~v => hl.PathType(b, v) }
     )
     
     lazy val classType = positioned(
@@ -169,6 +186,13 @@ class HlParser extends StandardTokenParsers with PackratParsers {
     
     lazy val typeArg = positioned(
         varName~reqRhs ^^ { case v~r => hl.TypeArg(v, r) }
+    )
+    
+    // ___ Paths ____________________________________________________________
+    
+    lazy val path = positioned(
+        varName~rep(varName) ^^ {
+            case v~fs => fs.foldLeft[hl.Path](hl.Var(v))(hl.PathField(_, _)) }
     )
     
     // ___ Expressions ______________________________________________________
@@ -232,7 +256,7 @@ object HlParser {
             val javaReader = Util.javaReaderFromPath(file)
             parser.parseCompUnitFromJavaReader(javaReader) match {
                 case n: parser.NoSuccess => System.err.println(n.toString)
-                case parser.Success(compUnit, _) => HlPretty.stdout.println(compUnit)
+                case parser.Success(compUnit, _) => compUnit.println(PrettyPrinter.stdout)
             }
         }
     }
