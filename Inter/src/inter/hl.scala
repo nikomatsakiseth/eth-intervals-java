@@ -406,10 +406,10 @@ class Hl {
     }
     
     case class CallPart(ident: String, arg: Expr) extends Ast {
-        override def toString = "%s%s".format(ident, arg)
+        override def toString = "%s %s".format(ident, arg)
         
         override def print(out: PrettyPrinter) {
-            out.write("%s", ident)
+            out.write("%s ", ident)
             arg.print(out)
         }        
     }
@@ -417,7 +417,7 @@ class Hl {
     extends Expr {
         def name = MethodName(parts.map(_.ident))
         def args = parts.map(_.arg)
-        override def toString = "%s.%s".format(rcvr, parts.mkString(" "))
+        override def toString = "%s %s".format(rcvr, parts.mkString(" "))
         
         override def print(out: PrettyPrinter) {
             rcvr.printsp(out)

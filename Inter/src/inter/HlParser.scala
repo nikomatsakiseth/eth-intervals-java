@@ -1,21 +1,51 @@
 package inter
 
-import scala.util.parsing.combinator.syntactical.StandardTokenParsers
+import scala.util.parsing.combinator.syntactical.StdTokenParsers
 import scala.util.parsing.input.Reader
 import scala.util.parsing.input.NoPosition
 import scala.util.parsing.syntax.Tokens
 import scala.util.parsing.syntax.StdTokens
 import scala.util.parsing.combinator.lexical.StdLexical
 import scala.util.parsing.combinator.PackratParsers
+import scala.util.parsing.input.CharArrayReader.EofCh
 
 import Util._
 
-class HlParser extends StandardTokenParsers with PackratParsers {
+class HlParser extends StdTokenParsers with PackratParsers {
     
     import Hl.{P => out}
     
+    trait HlTokens extends StdTokens {
+        case class Operator(chars: String) extends Token {
+            override def toString = "operator '%s'".format(chars)
+        }
+    }
+    
+    class HlLexical extends StdLexical with HlTokens {
+        val sep = "()[]{};\"\'"
+        def isOperCont(c: Char) = c != EofCh && !c.isWhitespace && !sep.contains(c)
+        def isOperStart(c: Char) = isOperCont(c) && !c.isLetter && !c.isDigit
+        
+        def operStart = elem("operStart", isOperStart)            
+        def operCont = elem("operCont", isOperCont)
+
+        override def token: Parser[Token] = ( 
+            // This isn't quite right: it won't work for "//" or "/*", for example.
+            operStart~rep(operCont) ^^ { case c~cs => processOper((c::cs).mkString("")) }
+        |   super.token
+        )
+        
+        protected def processOper(name: String) = {
+            if (reserved.contains(name) || delimiters.contains(name)) Keyword(name) 
+            else Operator(name)
+        }
+    }
+    
+    type Tokens = StdTokens
+    val lexical = new HlLexical
+    
     lexical.delimiters += (
-        "{{", "}}", "{", "}", "[", "]", "(", ")", "=", "->", ",", "@", ":", ".", ";"
+        "{{", "}}", "{", "}", "[", "]", "(", ")", "=", "->", ",", ":", ".", ";", "*"
     )
     lexical.reserved += (
         "class", "extends", "import", "package", "interval", "requires",
@@ -30,6 +60,10 @@ class HlParser extends StandardTokenParsers with PackratParsers {
     
     def comma[A](p: PackratParser[A]) = repsep(p, ",")<~opt(",")
     def comma1[A](p: PackratParser[A]) = rep1sep(p, ",")<~opt(",")
+    
+    lazy val oper = (
+        elem("operator", _.isInstanceOf[lexical.Operator]) ^^ (_.chars)
+    )
     
     // ___ Names ____________________________________________________________
     
@@ -235,14 +269,19 @@ class HlParser extends StandardTokenParsers with PackratParsers {
     |   rep1(callPart)                      ^^ { case cp => out.MethodCall(out.ImpThis, cp) }
     )
     
-    lazy val assign = positioned(
-        lvalue~"="~expr                     ^^ { case l~"="~e => out.Assign(l, e) }
-    )
+    lazy val unary = mthdCall | field | rcvr
     
-    lazy val expr: PackratParser[out.Expr] = mthdCall | field | assign | rcvr
+    lazy val expr: PackratParser[out.Expr] = (
+        unary~rep(oper~unary) ^^ { case l~rs => 
+            rs.foldLeft(l) { case (l, o~r) =>
+                out.MethodCall(l, List(out.CallPart(o, r)))
+            }
+        }
+    )
     
     lazy val stmt: PackratParser[out.Stmt] = positioned(
         varName~":"~itmpl                   ^^ { case l~":"~b => out.Labeled(l, b) }
+    |   lvalue~"="~expr                     ^^ { case l~"="~e => out.Assign(l, e) }
     |   expr
     )
     

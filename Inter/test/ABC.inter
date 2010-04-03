@@ -1,0 +1,24 @@
+package test;
+
+class ABC(Interval parent) {
+
+    Integer aRes;
+    interval a(parent) {
+        aRes = 22;
+    }
+    
+    Integer bRes;
+    interval b(parent) {
+        bRes = 22;
+    }
+    
+    Integer cRes;
+    interval c(parent) {
+        cRes = process(aRes + bRes);
+    }
+
+    a -> c;
+    b -> c;
+}
+
+// COMPILE
