@@ -1,0 +1,3 @@
+#!/bin/bash
+MYDIR=$(dirname $0)
+scala -classpath "$MYDIR/bin" inter.Main "$@"

@@ -33,8 +33,6 @@ class HlParser extends StandardTokenParsers with PackratParsers {
     
     // ___ Names ____________________________________________________________
     
-    lazy val relName = positioned(ident ^^ hl.RelName)
-    
     lazy val absDotName = positioned(
         ident~rep1("."~>ident) ^^ { 
             case f~fs => (f :: fs).foldLeft[hl.AbsName](hl.AbsRoot) { _ / _ } }
@@ -44,7 +42,14 @@ class HlParser extends StandardTokenParsers with PackratParsers {
         ident ^^ (hl.AbsRoot / _)
     )
     
-    lazy val qualName = absDotName | relName
+    lazy val relBase = positioned(ident ^^ hl.RelBase)
+    
+    lazy val relDot = positioned(
+        relBase~rep1("."~>ident) ^^ {
+            case b~fs => fs.foldLeft[hl.RelName](b) { _ / _ } }
+    )
+    
+    lazy val relName = relDot | relBase
     
     lazy val varName = positioned(
         ident ^^ hl.VarName
@@ -53,27 +58,27 @@ class HlParser extends StandardTokenParsers with PackratParsers {
     // ___ Declarations _____________________________________________________
     
     lazy val compUnit = positioned(
-        opt(packageDecl)~rep(importDecl)~rep(classDecl) ^^ {
+        packageDecl~rep(importDecl)~rep(classDecl) ^^ {
             case p~i~c => hl.CompUnit(p, i, c)
         }
     )
     
     lazy val packageDecl = positioned(
-        "package"~>absName<~";"
+        opt("package"~>absName<~";") ^^ { case Some(a) => a; case None => hl.AbsRoot }
     )
     
     lazy val importDecl = positioned(
-        "import"~>absName~opt("("~>relName<~")")~";"  ^^ { case q~n~_ => hl.ImportOne(q, n) }
+        "import"~>absName~opt("("~>relBase<~")")~";"  ^^ { case q~n~_ => hl.ImportOne(q, n) }
     |   "import"~>absName<~"."<~"*"<~";"               ^^ hl.ImportAll
     )
     
-    lazy val superClasses = opt("extends"~>comma1(qualName)) ^^ {
+    lazy val superClasses = opt("extends"~>comma1(relName)) ^^ {
         case Some(names) => names
         case None => List()
     }
     
     lazy val annotation = positioned(
-        "["~>qualName<~"]" ^^ hl.Annotation
+        "["~>relName<~"]" ^^ hl.Annotation
     )
     
     lazy val annotations = rep(annotation) 
@@ -180,8 +185,8 @@ class HlParser extends StandardTokenParsers with PackratParsers {
     )
     
     lazy val classType = positioned(
-        qualName~"["~comma(typeArg)~"]" ^^ { case c~"["~a~"]" => hl.ClassType(c, a) }
-    |   qualName ^^ { case c => hl.ClassType(c, List()) }
+        relName~"["~comma(typeArg)~"]" ^^ { case c~"["~a~"]" => hl.ClassType(c, a) }
+    |   relName ^^ { case c => hl.ClassType(c, List()) }
     )
     
     lazy val typeArg = positioned(

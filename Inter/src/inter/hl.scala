@@ -10,7 +10,7 @@ import Util._
 class Hl {
     
     /** Potentially relative names later become Absolute Names */
-    type QN <: QualName     
+    type PN <: PkgName     
     
     /** Optional types later become specified */
     type OT <: OptionalTypeRef
@@ -50,22 +50,37 @@ class Hl {
     
     // ___ Names ____________________________________________________________
     
-    abstract class QualName extends Ast
-    abstract class AbsName extends QualName {
-        def /(nm: String) = AbsDot(this, nm)
+    abstract class PkgName extends Ast
+
+    // ______ Potentially relative names ____________________________________
+    abstract class RelName extends PkgName {
+        def /(nm: String) = RelDot(this, nm)        
     }
-    case object AbsRoot extends AbsName
-    case class AbsDot(context: QualName, component: String) extends AbsName {
-        override def toString = "%s.%s".format(context, component)
-    }
-    case class RelName(nm: String) extends QualName {
+    case class RelBase(nm: String) extends RelName {
         override def toString = nm
     }
+    case class RelDot(context: RelName, component: String) extends RelName {
+        override def toString = "%s.%s".format(context, component)
+    }
     
+    // ______ Names known to be absolute ____________________________________
+    abstract class AbsName extends PkgName {
+        def /(nm: String) = AbsDot(this, nm)
+        def qualName: QualName
+    }
+    case object AbsRoot extends AbsName {
+        override def toString = "<root>"
+        def qualName = QualName(List())        
+    }
+    case class AbsDot(context: AbsName, component: String) extends AbsName {
+        override def toString = "%s.%s".format(context, component)
+        def qualName = context.qualName / component
+    }
+    
+    // ______ Non-qualified names ___________________________________________
     case class VarName(name: String) extends Ast {
         override def toString = name
     }
-    
     case class MethodName(parts: List[String]) {
         override def toString = parts.mkString("", "(_)", " _")
     }
@@ -73,7 +88,7 @@ class Hl {
     // ___ Declarations _____________________________________________________
     
     case class CompUnit(
-        pkg: Option[AbsName],
+        pkg: AbsName,
         imports: List[ImportDecl],
         classes: List[ClassDecl]
     ) extends Ast {
@@ -82,6 +97,10 @@ class Hl {
             out.writeln("package %s;", pkg)
             imports.foreach(_.println(out))
             printSepFunc(out, classes, () => out.writeln(""))
+        }
+        
+        def classPairs = classes.map { classDecl =>
+            (pkg.qualName / classDecl.name) -> classDecl
         }
         
     }
@@ -94,7 +113,7 @@ class Hl {
     
     case class ImportOne(
         fromName: AbsName,
-        toName: Option[RelName]
+        toName: Option[RelBase]
     ) extends ImportDecl {
         override def toString = "import %s(%s)".format(fromName, toName)
     }
@@ -108,7 +127,7 @@ class Hl {
     case class ClassDecl(
         name: String,
         annotations: List[Annotation],
-        superClasses: List[QN],
+        superClasses: List[PN],
         pattern: TuplePattern,
         members: List[MemberDecl]
     ) extends MemberDecl {
@@ -250,11 +269,12 @@ class Hl {
             left.print(out)
             out.write(" %s ", kind)
             right.print(out)
+            out.write(";")
         }
     }
     
     case class Annotation(
-        name: QN
+        name: PN
     ) extends Ast {
         override def toString = "[%s]".format(name)
         
@@ -345,7 +365,7 @@ class Hl {
         }
     }
     
-    case class ClassType(className: QN, typeArgs: List[TypeArg]) extends TypeRef {
+    case class ClassType(className: PN, typeArgs: List[TypeArg]) extends TypeRef {
         override def toString = {
             if(typeArgs.isEmpty) className.toString
             else "%s[%s]".format(className, typeArgs.mkString(", "))
@@ -496,21 +516,23 @@ class Hl {
 }
 
 object Hl {
-    
-    // Phases of High-Level IR:
-    
+
+    /** Parse phase: relative names unresolved and
+      * types uninferred. */
     object P extends Hl {
-        type QN = QualName
+        type PN = RelName
         type OT = OptionalTypeRef
     }
     
-    object AN extends Hl {
-        type QN = AbsName
+    /** Resolve Name phase: relative names resolved. */
+    object RN extends Hl {
+        type PN = AbsName
         type OT = OptionalTypeRef
     }
     
+    /** Type Inference phase: types inferred. */
     object TI extends Hl {
-        type QN = AbsName
+        type PN = AbsName
         type OT = TypeRef
     }
     

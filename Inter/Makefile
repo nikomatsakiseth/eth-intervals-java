@@ -22,15 +22,12 @@ clean:
 compile:
 	mkdir -p bin bin-test
 	${SCALAC} -d bin -sourcepath src $$(find src -name '*.scala')
-	#rsync -r resources/* bin/
-	#${JAVAC} -d bin-test -sourcepath test $$(find test -name '*.java')
-	#${SCALAC} -d bin-test -sourcepath test $$(find test -name '*.*')
 	
 # ___ Running tests ____________________________________________________
 # to enable profiling add: ${JPROFILEROPTS} or ${HPROFOPTS} to JAVA_OPTS
 # to restrict tests add: -n ch.ethz.intervals.ActivelyDebugging
 test: compile
-	scala -cp bin inter.HlParser test/syntax.inter
+	python test.py $$(find test -name '*.inter')
 
 #test: compile annotated_java_standard_library.jar
 #	rm -rf ${DEBUGLOGS}

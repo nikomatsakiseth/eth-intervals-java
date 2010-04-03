@@ -34,3 +34,4 @@ class BigMethods(Interval par) {
     a -> b;
     
 }
+// COMPILE
