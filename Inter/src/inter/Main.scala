@@ -15,6 +15,7 @@ object Main {
                     toBeParsed = config.inputFiles.toList,
                     toBeLoaded = List(),
                     toBeResolved = List(),
+                    toBeTyped = List(),
                     parsedClasses = Map()
                 ))            
             } else 1

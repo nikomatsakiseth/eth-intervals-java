@@ -9,32 +9,17 @@ import Util._
 
 class Hl {
     
+    import Hl.Ast
+    import Hl.PkgName
+    import Hl.AbsName
+    import Hl.VarName
+    import Hl.MethodName
+        
     /** Potentially relative names later become Absolute Names */
     type PN <: PkgName     
     
     /** Optional types later become specified */
     type OT <: OptionalTypeRef
-    
-    abstract class Ast extends Positional {
-        def print(out: PrettyPrinter) {
-            out.write(toString)
-        }
-        
-        def printsp(out: PrettyPrinter) {
-            print(out)
-            out.write(" ")
-        }
-        
-        def printc(out: PrettyPrinter) {
-            print(out)
-            out.write(", ")
-        }
-        
-        def println(out: PrettyPrinter) {
-            print(out)
-            out.writeln("")
-        }
-    }
     
     private def printSepFunc(out: PrettyPrinter, asts: List[Ast], sepfunc: (() => Unit)) {
         asts.dropRight(1).foreach { ast =>
@@ -50,39 +35,15 @@ class Hl {
     
     // ___ Names ____________________________________________________________
     
-    abstract class PkgName extends Ast
-
     // ______ Potentially relative names ____________________________________
-    abstract class RelName extends PkgName {
-        def /(nm: String) = RelDot(this, nm)        
+    sealed abstract class RelName extends PkgName {
+        def /(nm: String) = RelDot(this, nm)   
     }
     case class RelBase(nm: String) extends RelName {
         override def toString = nm
     }
     case class RelDot(context: RelName, component: String) extends RelName {
         override def toString = "%s.%s".format(context, component)
-    }
-    
-    // ______ Names known to be absolute ____________________________________
-    abstract class AbsName extends PkgName {
-        def /(nm: String) = AbsDot(this, nm)
-        def qualName: QualName
-    }
-    case object AbsRoot extends AbsName {
-        override def toString = "<root>"
-        def qualName = QualName(List())        
-    }
-    case class AbsDot(context: AbsName, component: String) extends AbsName {
-        override def toString = "%s.%s".format(context, component)
-        def qualName = context.qualName / component
-    }
-    
-    // ______ Non-qualified names ___________________________________________
-    case class VarName(name: String) extends Ast {
-        override def toString = name
-    }
-    case class MethodName(parts: List[String]) {
-        override def toString = parts.mkString("", "(_)", " _")
     }
     
     // ___ Declarations _____________________________________________________
@@ -105,15 +66,15 @@ class Hl {
         
     }
     
-    abstract class MemberDecl extends Ast {
+    sealed abstract class MemberDecl extends Ast {
         def annotations: List[Annotation]
     }
     
-    abstract class ImportDecl extends Ast
+    sealed abstract class ImportDecl extends Ast
     
     case class ImportOne(
         fromName: AbsName,
-        toName: Option[RelBase]
+        toName: RelBase
     ) extends ImportDecl {
         override def toString = "import %s(%s)".format(fromName, toName)
     }
@@ -157,16 +118,16 @@ class Hl {
     case class IntervalDecl(
         annotations: List[Annotation],
         name: VarName,
-        parent: Option[Path],
+        optParent: Option[Path],
         optBody: Option[InlineTmpl]        
     ) extends MemberDecl {
-        override def toString = "[interval %s(%s)]".format(name, parent)
+        override def toString = "[interval %s(%s)]".format(name, optParent)
         
         override def print(out: PrettyPrinter) {
             annotations.foreach(_.println(out))
-            parent match {
+            optParent match {
                 case None => out.writeln("interval %s", name)
-                case Some(par) => out.writeln("interval %s(%s)", name, par)
+                case Some(parent) => out.writeln("interval %s(%s)", name, parent)
             }
             printOptBody(out, optBody)
         }
@@ -211,22 +172,8 @@ class Hl {
         }
     }
     
-    sealed abstract class ReqKind
-    case object ReqHb extends ReqKind {
-        override def toString = "->"
-    }
-    case object ReqLocks extends ReqKind {
-        override def toString = "locks"
-    }
-    case object ReqSubOf extends ReqKind {
-        override def toString = "subOf"
-    }
-    case object ReqInlineSubOf extends ReqKind {
-        override def toString = "inlineSubOf"
-    }
-    
     case class ReqRhs(
-        kind: ReqKind,
+        kind: Hl.ReqKind,
         right: Path
     ) extends Ast {
         override def toString = "%s %s".format(kind, right)
@@ -260,7 +207,7 @@ class Hl {
     case class RelDecl(
         annotations: List[Annotation],        
         left: Path, 
-        kind: ReqKind,
+        kind: Hl.ReqKind,
         right: Path
     ) extends MemberDecl {
         override def toString = "%s %s %s".format(left, kind, right)
@@ -317,7 +264,7 @@ class Hl {
     
     // ___ Untyped Patterns _________________________________________________
     
-    abstract trait Lvalue extends Ast
+    sealed abstract trait Lvalue extends Ast
     
     case class TupleLvalue(
         lvalues: List[Lvalue]
@@ -347,7 +294,7 @@ class Hl {
     
     // ___ Type References __________________________________________________
     
-    abstract class OptionalTypeRef extends Ast
+    sealed abstract class OptionalTypeRef extends Ast
     
     case object InferredTypeRef extends OptionalTypeRef {
         override def toString = "<infer>"
@@ -445,11 +392,11 @@ class Hl {
         }        
     }
 
-    case class Var(name: VarName) extends Expr with Lvalue with Path {
+    case class Var(name: VarName) extends Expr with Path {
         override def toString = name.toString
     }
     
-    case class Field(owner: Expr, name: VarName) extends Expr with Lvalue {
+    case class Field(owner: Expr, name: VarName) extends Expr {
         override def toString = "%s %s".format(owner, name)
         
         override def print(out: PrettyPrinter) {
@@ -516,6 +463,71 @@ class Hl {
 }
 
 object Hl {
+    
+    // ___ Invariant Parts __________________________________________________
+    
+    abstract class Ast extends Positional {
+        def print(out: PrettyPrinter) {
+            out.write(toString)
+        }
+        
+        def printsp(out: PrettyPrinter) {
+            print(out)
+            out.write(" ")
+        }
+        
+        def printc(out: PrettyPrinter) {
+            print(out)
+            out.write(", ")
+        }
+        
+        def println(out: PrettyPrinter) {
+            print(out)
+            out.writeln("")
+        }
+    }
+    
+    sealed abstract class PkgName extends Ast
+
+    // ______ Names known to be absolute ____________________________________
+    sealed abstract class AbsName extends PkgName {
+        def /(nm: String) = AbsDot(this, nm)
+        def qualName: QualName
+    }
+    case object AbsRoot extends AbsName {
+        override def toString = "<root>"
+        def qualName = QualName(List())        
+    }
+    case class AbsDot(context: AbsName, component: String) extends AbsName {
+        override def toString = "%s.%s".format(context, component)
+        def qualName = context.qualName / component
+    }
+    def abs(names: String*) = names.foldLeft[AbsName](AbsRoot)(_ / _)
+    
+    // ______ Non-qualified names ___________________________________________
+    case class VarName(name: String) extends Ast {
+        override def toString = name
+    }
+    case class MethodName(parts: List[String]) {
+        override def toString = parts.mkString("", "(_)", " _")
+    }
+    
+    // ___ Requirement Kinds ________________________________________________
+    sealed abstract class ReqKind
+    case object ReqHb extends ReqKind {
+        override def toString = "->"
+    }
+    case object ReqLocks extends ReqKind {
+        override def toString = "locks"
+    }
+    case object ReqSubOf extends ReqKind {
+        override def toString = "subOf"
+    }
+    case object ReqInlineSubOf extends ReqKind {
+        override def toString = "inlineSubOf"
+    }
+    
+    // ___ Phases ___________________________________________________________
 
     /** Parse phase: relative names unresolved and
       * types uninferred. */
@@ -526,13 +538,13 @@ object Hl {
     
     /** Resolve Name phase: relative names resolved. */
     object RN extends Hl {
-        type PN = AbsName
+        type PN = Hl.AbsName
         type OT = OptionalTypeRef
     }
     
     /** Type Inference phase: types inferred. */
     object TI extends Hl {
-        type PN = AbsName
+        type PN = Hl.AbsName
         type OT = TypeRef
     }
     

@@ -33,16 +33,17 @@ class Config
         files ++= paths.split(":").map(s => new File(s))
     }
     
-    private[this] def relativeFiles(paths: ListBuffer[File], ext: String)(baseName: String) = {
-        paths.flatMap { path =>
+    private[this] def relativeFiles(paths: ListBuffer[File], ext: String)(name: QualName) = {
+        val baseName = name.asRelPath
+        paths.toList.flatMap { path =>
             val file = new File(path, baseName + ext)
             if(file.exists) Some(file)
             else None
         }
     }
     
-    def sourceFiles(relName: String) = relativeFiles(sourcePaths, sourceExt)(relName)
-    def classFiles(relName: String) = relativeFiles(classPaths, classExt)(relName)
+    def sourceFiles(name: QualName) = relativeFiles(sourcePaths, sourceExt)(name)
+    def classFiles(name: QualName) = relativeFiles(classPaths, classExt)(name)
     
     def loadFrom(args: Array[String]): Boolean = {
         var i = 0

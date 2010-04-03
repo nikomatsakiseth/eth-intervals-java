@@ -12,7 +12,7 @@ import Util._
 
 class HlParser extends StandardTokenParsers with PackratParsers {
     
-    import Hl.{P => hl}
+    import Hl.{P => out}
     
     lexical.delimiters += (
         "{{", "}}", "{", "}", "[", "]", "(", ")", "=", "->", ",", "@", ":", ".", ";"
@@ -33,43 +33,40 @@ class HlParser extends StandardTokenParsers with PackratParsers {
     
     // ___ Names ____________________________________________________________
     
-    lazy val absDotName = positioned(
-        ident~rep1("."~>ident) ^^ { 
-            case f~fs => (f :: fs).foldLeft[hl.AbsName](hl.AbsRoot) { _ / _ } }
+    lazy val absName = positioned(
+        ident~rep("."~>ident) ^^ { 
+            case b~fs => fs.foldLeft(Hl.AbsRoot / b) { _ / _ } }
     )
     
-    lazy val absName = absDotName | positioned(
-        ident ^^ (hl.AbsRoot / _)
-    )
-    
-    lazy val relBase = positioned(ident ^^ hl.RelBase)
+    lazy val relBase = positioned(ident ^^ out.RelBase)
     
     lazy val relDot = positioned(
         relBase~rep1("."~>ident) ^^ {
-            case b~fs => fs.foldLeft[hl.RelName](b) { _ / _ } }
+            case b~fs => fs.foldLeft[out.RelName](b) { _ / _ } }
     )
     
     lazy val relName = relDot | relBase
     
     lazy val varName = positioned(
-        ident ^^ hl.VarName
+        ident ^^ Hl.VarName
     )
     
     // ___ Declarations _____________________________________________________
     
     lazy val compUnit = positioned(
         packageDecl~rep(importDecl)~rep(classDecl) ^^ {
-            case p~i~c => hl.CompUnit(p, i, c)
+            case p~i~c => out.CompUnit(p, i, c)
         }
     )
     
     lazy val packageDecl = positioned(
-        opt("package"~>absName<~";") ^^ { case Some(a) => a; case None => hl.AbsRoot }
+        opt("package"~>absName<~";") ^^ { case Some(a) => a; case None => Hl.AbsRoot }
     )
     
     lazy val importDecl = positioned(
-        "import"~>absName~opt("("~>relBase<~")")~";"  ^^ { case q~n~_ => hl.ImportOne(q, n) }
-    |   "import"~>absName<~"."<~"*"<~";"               ^^ hl.ImportAll
+        "import"~>absName~("("~>relBase<~")")<~";"  ^^ { case q~n => out.ImportOne(q, n) }
+    |   "import"~>absName<~";"                      ^^ { case q => out.ImportOne(q, out.RelBase(q.component)) }
+    |   "import"~>absName<~"."<~"*"<~";"            ^^ out.ImportAll
     )
     
     lazy val superClasses = opt("extends"~>comma1(relName)) ^^ {
@@ -78,7 +75,7 @@ class HlParser extends StandardTokenParsers with PackratParsers {
     }
     
     lazy val annotation = positioned(
-        "["~>relName<~"]" ^^ hl.Annotation
+        "["~>relName<~"]" ^^ out.Annotation
     )
     
     lazy val annotations = rep(annotation) 
@@ -87,11 +84,11 @@ class HlParser extends StandardTokenParsers with PackratParsers {
         annotations~"class"~ident~tuplePattern~superClasses~"{"~
             rep(member)~
         "}" ^^ {
-            case a~_~n~p~sups~"{"~mems~"}" => hl.ClassDecl(n, a, sups, p, mems)
+            case a~_~n~p~sups~"{"~mems~"}" => out.ClassDecl(n, a, sups, p, mems)
         }
     )
     
-    lazy val member: PackratParser[hl.MemberDecl] = (
+    lazy val member: PackratParser[out.MemberDecl] = (
         classDecl
     |   methodDecl
     |   fieldDecl
@@ -101,41 +98,41 @@ class HlParser extends StandardTokenParsers with PackratParsers {
     
     lazy val methodDecl = positioned(
         annotations~typeRef~rep1(declPart)~rep(requirement)~optBody ^^ {
-            case ann~ret~parts~reqs~optBody => hl.MethodDecl(ann, parts, ret, reqs, optBody)
+            case ann~ret~parts~reqs~optBody => out.MethodDecl(ann, parts, ret, reqs, optBody)
         }
     |   annotations~rep1(declPart)~rep(requirement)~optBody ^^ {
-            case ann~parts~reqs~optBody => hl.MethodDecl(ann, parts, hl.InferredTypeRef, reqs, optBody)
+            case ann~parts~reqs~optBody => out.MethodDecl(ann, parts, out.InferredTypeRef, reqs, optBody)
         }
     )
     
     lazy val declPart = positioned(
-        ident~tuplePattern ^^ { case i~p => hl.DeclPart(i, p) }
+        ident~tuplePattern ^^ { case i~p => out.DeclPart(i, p) }
     )
     
     lazy val requirement = positioned(
-        "requires"~>path~reqRhs ^^ { case l~r => hl.Requirement(l, r) }
+        "requires"~>path~reqRhs ^^ { case l~r => out.Requirement(l, r) }
     )
     
     lazy val declOp = (
-        "->"            ^^^ hl.ReqHb
-    |   "locks"         ^^^ hl.ReqLocks
+        "->"            ^^^ Hl.ReqHb
+    |   "locks"         ^^^ Hl.ReqLocks
     )
     
     lazy val reqOp = (
         declOp
-    |   "subOf"         ^^^ hl.ReqSubOf
-    |   "inlineSubOf"   ^^^ hl.ReqInlineSubOf
+    |   "subOf"         ^^^ Hl.ReqSubOf
+    |   "inlineSubOf"   ^^^ Hl.ReqInlineSubOf
     )
     
     lazy val reqRhs = positioned(
-        reqOp~path ^^ { case o~r => hl.ReqRhs(o, r) }      
+        reqOp~path ^^ { case o~r => out.ReqRhs(o, r) }      
     )
     
     lazy val intervalDecl = positioned(
         annotations~"interval"~varName~";" ^^ { 
-            case ann~_~nm~";" => hl.IntervalDecl(ann, nm, None, None) }
+            case ann~_~nm~";" => out.IntervalDecl(ann, nm, None, None) }
     |   annotations~"interval"~varName~"("~path~")"~optBody ^^ { 
-            case ann~_~nm~"("~qn~")"~optBody => hl.IntervalDecl(ann, nm, Some(qn), optBody) }
+            case ann~_~nm~"("~qn~")"~optBody => out.IntervalDecl(ann, nm, Some(qn), optBody) }
     )
     
     lazy val optBody = (
@@ -145,107 +142,107 @@ class HlParser extends StandardTokenParsers with PackratParsers {
     
     lazy val fieldDecl = positioned(
         annotations~typeRef~varName~opt("="~>expr)~";" ^^ {
-            case a~t~n~v~";" => hl.FieldDecl(a, n, t, v) }
+            case a~t~n~v~";" => out.FieldDecl(a, n, t, v) }
     |   annotations~varName~opt("="~>expr)~";" ^^ {
-            case a~n~v~";" => hl.FieldDecl(a, n, hl.InferredTypeRef, v) }
+            case a~n~v~";" => out.FieldDecl(a, n, out.InferredTypeRef, v) }
     )
     
     lazy val relDecl = positioned(
-        annotations~path~declOp~path~";" ^^ { case a~l~k~r~";" => hl.RelDecl(a, l, k, r) }
+        annotations~path~declOp~path~";" ^^ { case a~l~k~r~";" => out.RelDecl(a, l, k, r) }
     )
     
     // ___ Argument Patterns and Lvalues ____________________________________
     
     lazy val tuplePattern = positioned(
-        "("~>comma(pattern)<~")" ^^ hl.TuplePattern
+        "("~>comma(pattern)<~")" ^^ out.TuplePattern
     )
     lazy val varPattern = positioned(
         annotations~typeRef~varName ^^ {
-            case a~t~n => hl.VarPattern(a, t, n) }
+            case a~t~n => out.VarPattern(a, t, n) }
     )
-    lazy val pattern: PackratParser[hl.Pattern] = tuplePattern | varPattern
+    lazy val pattern: PackratParser[out.Pattern] = tuplePattern | varPattern
     
     lazy val tupleLvalue= positioned(
-        "("~>comma(lvalue)<~")" ^^ hl.TupleLvalue
+        "("~>comma(lvalue)<~")" ^^ out.TupleLvalue
     )
     lazy val varLvalue = positioned(
         annotations~typeRef~varName ^^ {
-            case a~t~n => hl.VarLvalue(a, t, n) }
+            case a~t~n => out.VarLvalue(a, t, n) }
     |   annotations~varName ^^ {
-            case a~n => hl.VarLvalue(a, hl.InferredTypeRef, n) }
+            case a~n => out.VarLvalue(a, out.InferredTypeRef, n) }
     )
-    lazy val lvalue: PackratParser[hl.Lvalue] = tupleLvalue | varLvalue
+    lazy val lvalue: PackratParser[out.Lvalue] = tupleLvalue | varLvalue
     
     // ___ Type References __________________________________________________
     
     lazy val typeRef = pathType | classType
     
     lazy val pathType = positioned(
-        path~":"~varName ^^ { case b~":"~v => hl.PathType(b, v) }
+        path~":"~varName ^^ { case b~":"~v => out.PathType(b, v) }
     )
     
     lazy val classType = positioned(
-        relName~"["~comma(typeArg)~"]" ^^ { case c~"["~a~"]" => hl.ClassType(c, a) }
-    |   relName ^^ { case c => hl.ClassType(c, List()) }
+        relName~"["~comma(typeArg)~"]" ^^ { case c~"["~a~"]" => out.ClassType(c, a) }
+    |   relName ^^ { case c => out.ClassType(c, List()) }
     )
     
     lazy val typeArg = positioned(
-        varName~reqRhs ^^ { case v~r => hl.TypeArg(v, r) }
+        varName~reqRhs ^^ { case v~r => out.TypeArg(v, r) }
     )
     
     // ___ Paths ____________________________________________________________
     
     lazy val path = positioned(
         varName~rep(varName) ^^ {
-            case v~fs => fs.foldLeft[hl.Path](hl.Var(v))(hl.PathField(_, _)) }
+            case v~fs => fs.foldLeft[out.Path](out.Var(v))(out.PathField(_, _)) }
     )
     
     // ___ Expressions ______________________________________________________
     
     lazy val itmpl = positioned(
-        "{"~>stmts<~"}"                 ^^ hl.InlineTmpl
+        "{"~>stmts<~"}"                 ^^ out.InlineTmpl
     )
     
     lazy val atmpl = positioned(
-        "{{"~>stmts<~"}}"               ^^ hl.AsyncTmpl
+        "{{"~>stmts<~"}}"               ^^ out.AsyncTmpl
     )
     
     lazy val tuple = positioned(
-        "("~>comma(expr)<~")"               ^^ hl.Tuple
+        "("~>comma(expr)<~")"               ^^ out.Tuple
     )
     
-    lazy val arg: PackratParser[hl.Expr] = tuple | itmpl | atmpl
+    lazy val arg: PackratParser[out.Expr] = tuple | itmpl | atmpl
     
     lazy val callPart = positioned(
-        ident~arg                           ^^ { case i~a => hl.CallPart(i, a) }
+        ident~arg                           ^^ { case i~a => out.CallPart(i, a) }
     )
     
-    lazy val rcvr: PackratParser[hl.Expr] = positioned(
+    lazy val rcvr: PackratParser[out.Expr] = positioned(
         arg
-    |   varName                             ^^ hl.Var
-    |   numericLit                          ^^ hl.Literal // XXX
-    |   stringLit                           ^^ hl.Literal
-    |   "null"                              ^^ { case _ => hl.Null() }
-    |   "new"~typeRef~tuple                 ^^ { case _~t~a => hl.New(t, a) }
+    |   varName                             ^^ out.Var
+    |   numericLit                          ^^ out.Literal // XXX
+    |   stringLit                           ^^ out.Literal
+    |   "null"                              ^^ { case _ => out.Null() }
+    |   "new"~typeRef~tuple                 ^^ { case _~t~a => out.New(t, a) }
     )
     
     lazy val field = positioned(
-        rcvr~varName~rep(varName)           ^^ { case r~f~fs => fs.foldLeft(hl.Field(r, f))(hl.Field(_, _)) }
+        rcvr~varName~rep(varName)           ^^ { case r~f~fs => fs.foldLeft(out.Field(r, f))(out.Field(_, _)) }
     )
     
     lazy val mthdCall = positioned(
-        rcvr~rep1(callPart)                 ^^ { case r~cp => hl.MethodCall(r, cp) }
-    |   rep1(callPart)                      ^^ { case cp => hl.MethodCall(hl.ImpThis, cp) }
+        rcvr~rep1(callPart)                 ^^ { case r~cp => out.MethodCall(r, cp) }
+    |   rep1(callPart)                      ^^ { case cp => out.MethodCall(out.ImpThis, cp) }
     )
     
     lazy val assign = positioned(
-        lvalue~"="~expr                     ^^ { case l~"="~e => hl.Assign(l, e) }
+        lvalue~"="~expr                     ^^ { case l~"="~e => out.Assign(l, e) }
     )
     
-    lazy val expr: PackratParser[hl.Expr] = mthdCall | field | assign | rcvr
+    lazy val expr: PackratParser[out.Expr] = mthdCall | field | assign | rcvr
     
-    lazy val stmt: PackratParser[hl.Stmt] = positioned(
-        varName~":"~itmpl                   ^^ { case l~":"~b => hl.Labeled(l, b) }
+    lazy val stmt: PackratParser[out.Stmt] = positioned(
+        varName~":"~itmpl                   ^^ { case l~":"~b => out.Labeled(l, b) }
     |   expr
     )
     
