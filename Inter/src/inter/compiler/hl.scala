@@ -143,7 +143,7 @@ class Hl {
         annotations: List[Annotation],
         parts: List[DeclPart],
         retTref: OT,
-        requirements: List[Requirement],
+        requirements: List[PathRequirement],
         optBody: Option[InlineTmpl]
     ) extends MemberDecl {
         def name = Name.Method(parts.map(_.ident))
@@ -160,25 +160,14 @@ class Hl {
         }
     }
     
-    case class Requirement(
-        left: Path, rhs: ReqRhs
+    case class PathRequirement(
+        left: Path, rel: PcRel, right: Path
     ) extends Ast {
-        override def toString = "%s %s".format(left, rhs)
+        override def toString = "%s %s %s".format(left, rel, right)
         
         override def print(out: PrettyPrinter) {
             left.printsp(out)
-            rhs.print(out)
-        }
-    }
-    
-    case class ReqRhs(
-        kind: Hl.ReqKind,
-        right: Path
-    ) extends Ast {
-        override def toString = "%s %s".format(kind, right)
-        
-        override def print(out: PrettyPrinter) {
-            out.write(" %s ", kind)
+            out.write("%s ", rel)
             right.print(out)
         }
     }
@@ -206,7 +195,7 @@ class Hl {
     case class RelDecl(
         annotations: List[Annotation],        
         left: Path, 
-        kind: Hl.ReqKind,
+        kind: PcRel,
         right: Path
     ) extends MemberDecl {
         override def toString = "%s %s %s".format(left, kind, right)
@@ -327,8 +316,14 @@ class Hl {
         }
     }
     
-    case class TypeArg(fieldName: VarName, reqRhs: ReqRhs) extends Ast {
-        override def toString = "%s %s".format(fieldName, reqRhs)
+    sealed abstract class TypeArg extends Ast
+    
+    case class TypeTypeArg(name: VarName, rel: TcRel, typeRef: TypeRef) extends TypeArg {
+        override def toString = "%s %s %s".format(name, rel, typeRef)
+    }
+    
+    case class PathTypeArg(name: VarName, rel: PcRel, path: Path) extends TypeArg {
+        override def toString = "%s %s %s".format(name, rel, path)
     }
     
     // ___ Paths ____________________________________________________________
@@ -513,19 +508,6 @@ object Hl {
     }
     
     // ___ Requirement Kinds ________________________________________________
-    sealed abstract class ReqKind
-    case object ReqHb extends ReqKind {
-        override def toString = "->"
-    }
-    case object ReqLocks extends ReqKind {
-        override def toString = "locks"
-    }
-    case object ReqSubOf extends ReqKind {
-        override def toString = "subOf"
-    }
-    case object ReqInlineSubOf extends ReqKind {
-        override def toString = "inlineSubOf"
-    }
     
     // ___ Phases ___________________________________________________________
 

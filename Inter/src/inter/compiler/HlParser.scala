@@ -149,22 +149,30 @@ class HlParser extends StdTokenParsers with PackratParsers {
     )
     
     lazy val requirement = positioned(
-        "requires"~>path~reqRhs ^^ { case l~r => out.Requirement(l, r) }
+        "requires"~>path~pcRel~path ^^ { case l~p~r => out.PathRequirement(l, p, r) }
     )
     
     lazy val declOp = (
-        "->"            ^^^ Hl.ReqHb
-    |   "locks"         ^^^ Hl.ReqLocks
+        "->"            ^^^ PcHb
+    |   "locks"         ^^^ PcLocks
     )
     
-    lazy val reqOp = (
+    lazy val pcRel = (
         declOp
-    |   "subOf"         ^^^ Hl.ReqSubOf
-    |   "inlineSubOf"   ^^^ Hl.ReqInlineSubOf
+    |   "subOf"         ^^^ PcSubOf
+    |   "inlineSubOf"   ^^^ PcInlineSubOf
     )
     
-    lazy val reqRhs = positioned(
-        reqOp~path ^^ { case o~r => out.ReqRhs(o, r) }      
+    lazy val wcRel = (
+        "="             ^^^ PcEq
+    |   "permitsWr"     ^^^ PcPermitsWr
+    |   "permitsRd"     ^^^ PcPermitsRd
+    )
+    
+    lazy val tcRel = (
+        ":"             ^^^ TcEq
+    |   "<:"            ^^^ TcSub
+    |   ":>"            ^^^ TcSup
     )
     
     lazy val intervalDecl = positioned(
@@ -214,7 +222,7 @@ class HlParser extends StdTokenParsers with PackratParsers {
     
     // ___ Type References __________________________________________________
     
-    lazy val typeRef = pathType | classType
+    lazy val typeRef: PackratParser[out.TypeRef] = pathType | classType
     
     lazy val pathType = positioned(
         path~":"~varName ^^ { case b~":"~v => out.PathType(b, v) }
@@ -225,8 +233,14 @@ class HlParser extends StdTokenParsers with PackratParsers {
     |   relName ^^ { case c => out.ClassType(c, List()) }
     )
     
-    lazy val typeArg = positioned(
-        varName~reqRhs ^^ { case v~r => out.TypeArg(v, r) }
+    lazy val typeArg: PackratParser[out.TypeArg] = typeTypeArg | pathTypeArg
+    
+    lazy val typeTypeArg = positioned(
+        varName~tcRel~typeRef ^^ { case x~o~t => out.TypeTypeArg(x, o, t) }
+    )
+    
+    lazy val pathTypeArg = positioned(
+        varName~wcRel~path ^^ { case x~o~p => out.PathTypeArg(x, o, p) }
     )
     
     // ___ Paths ____________________________________________________________

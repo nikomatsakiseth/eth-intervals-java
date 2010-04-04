@@ -145,14 +145,10 @@ object ResolvePass {
             pattern = resolveTuplePattern(decl.pattern)
         )
         
-        def resolveRequirement(requirement: in.Requirement) = out.Requirement(
+        def resolveRequirement(requirement: in.PathRequirement) = out.PathRequirement(
             left = resolvePath(requirement.left),
-            rhs = resolveReqRhs(requirement.rhs)
-        )
-        
-        def resolveReqRhs(reqRhs: in.ReqRhs) = out.ReqRhs(
-            kind = reqRhs.kind,
-            right = resolvePath(reqRhs.right)
+            rel = requirement.rel,
+            right = resolvePath(requirement.right)
         )
         
         def resolveFieldDecl(decl: in.FieldDecl) = out.FieldDecl(
@@ -183,10 +179,18 @@ object ResolvePass {
             case in.PathType(path, tvar) => out.PathType(resolvePath(path), tvar)
             case in.ClassType(cn, targs) => out.ClassType(resolveName(cn), targs.map(resolveTypeArg))
         }
+
+        def resolveTypeArg(targ: in.TypeArg): out.TypeArg = targ match {
+            case ttarg: in.TypeTypeArg => resolveTypeTypeArg(ttarg)
+            case ptarg: in.PathTypeArg => resolvePathTypeArg(ptarg)
+        }
         
-        def resolveTypeArg(targ: in.TypeArg): out.TypeArg = out.TypeArg(
-            fieldName = targ.fieldName,
-            reqRhs = resolveReqRhs(targ.reqRhs)
+        def resolveTypeTypeArg(targ: in.TypeTypeArg): out.TypeTypeArg = out.TypeTypeArg(
+            name = targ.name, rel = targ.rel, typeRef = resolveTypeRef(targ.typeRef)
+        )
+        
+        def resolvePathTypeArg(targ: in.PathTypeArg): out.PathTypeArg = out.PathTypeArg(
+            name = targ.name, rel = targ.rel, path = resolvePath(targ.path)
         )
         
         def resolveStmt(stmt: in.Stmt): out.Stmt = stmt match {
