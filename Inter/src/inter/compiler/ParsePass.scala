@@ -4,6 +4,7 @@ import java.io.File
 import scala.collection.immutable.PagedSeq
 import scala.util.parsing.input.PagedSeqReader
 import scala.util.parsing.input.OffsetPosition
+import scala.util.parsing.input.Position
 
 object ParsePass {
     
@@ -21,8 +22,15 @@ object ParsePass {
         }
         
     }
+
+    class FilePosition(interFile: File) extends Position with InterPosition {
+        def file = interFile
+        def line = 1
+        def column = 1
+        override def lineContents = ""
+    }
     
-    def apply(state: CompilationState, interFile: File) = {
+    def apply(state: CompilationState, interFile: File, expClass: Option[Name.Qual]) = {
         val javaReader = Util.javaReaderFromFile(interFile)
         val parser = new HlParser()
         
@@ -37,6 +45,18 @@ object ParsePass {
                 if(state.config.dumpParsedTrees) {
                     compUnit.println(PrettyPrinter.stdout)
                 }
+                
+                expClass.foreach { expName =>
+                    compUnit.classPairs.find(_._1 == expName) match {
+                        case Some(_) =>
+                        case None => state.reporter.report(
+                            new FilePosition(interFile),
+                            "expected.to.find.class", 
+                            expName.toString
+                        )
+                    }
+                }
+                
                 state.copy(
                     parsedClasses = state.parsedClasses ++ compUnit.classPairs,
                     toBeResolved = compUnit :: state.toBeResolved

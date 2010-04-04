@@ -13,7 +13,6 @@ class Hl {
     import Hl.PkgName
     import Hl.AbsName
     import Hl.VarName
-    import Hl.MethodName
         
     /** Potentially relative names later become Absolute Names */
     type PN <: PkgName     
@@ -147,7 +146,7 @@ class Hl {
         requirements: List[Requirement],
         optBody: Option[InlineTmpl]
     ) extends MemberDecl {
-        def name = MethodName(parts.map(_.ident))
+        def name = Name.Method(parts.map(_.ident))
         def patterns = parts.map(_.pattern)
         override def toString = "[method %s]".format(name)
         
@@ -415,7 +414,7 @@ class Hl {
     }
     case class MethodCall(rcvr: Expr, parts: List[CallPart])
     extends Expr {
-        def name = MethodName(parts.map(_.ident))
+        def name = Name.Method(parts.map(_.ident))
         def args = parts.map(_.arg)
         override def toString = "%s %s".format(rcvr, parts.mkString(" "))
         
@@ -492,11 +491,11 @@ object Hl {
     // ______ Names known to be absolute ____________________________________
     sealed abstract class AbsName extends PkgName {
         def /(nm: String) = AbsDot(this, nm)
-        def qualName: QualName
+        def qualName: Name.Qual
     }
     case object AbsRoot extends AbsName {
         override def toString = "<root>"
-        def qualName = QualName(List())        
+        def qualName = Name.Qual(List())        
     }
     case class AbsDot(context: AbsName, component: String) extends AbsName {
         override def toString = "%s.%s".format(context, component)
@@ -505,11 +504,9 @@ object Hl {
     def abs(names: String*) = names.foldLeft[AbsName](AbsRoot)(_ / _)
     
     // ______ Non-qualified names ___________________________________________
-    case class VarName(name: String) extends Ast {
-        override def toString = name
-    }
-    case class MethodName(parts: List[String]) {
-        override def toString = parts.mkString("", "(_)", " _")
+    case class VarName(text: String) extends Ast {
+        def name = Name.Var(text)
+        override def toString = text
     }
     
     // ___ Requirement Kinds ________________________________________________

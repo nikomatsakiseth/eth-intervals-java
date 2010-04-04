@@ -37,7 +37,7 @@ class Config
         files ++= paths.split(":").map(s => new File(s))
     }
     
-    private[this] def relativeFiles(paths: ListBuffer[File], ext: String)(name: QualName) = {
+    private[this] def relativeFiles(paths: ListBuffer[File], ext: String)(name: Name.Qual) = {
         val baseName = name.asRelPath
         paths.toList.flatMap { path =>
             val file = new File(path, baseName + ext)
@@ -46,10 +46,10 @@ class Config
         }
     }
     
-    def sourceFiles(name: QualName) = relativeFiles(sourcePaths, sourceExt)(name)
-    def classFiles(name: QualName) = relativeFiles(classPaths, classExt)(name)
+    def sourceFiles(name: Name.Qual) = relativeFiles(sourcePaths, sourceExt)(name)
+    def classFiles(name: Name.Qual) = relativeFiles(classPaths, classExt)(name)
     
-    def reflectiveClasses(name: QualName) = {
+    def reflectiveClasses(name: Name.Qual) = {
         if(!useReflection) None
         else {
             try {

@@ -27,44 +27,55 @@ object ResolvePass {
         
         val toBeParsed = ListBuffer(state.toBeParsed: _*)
         val toBeLoaded = ListBuffer(state.toBeLoaded: _*)
-        val toBeProxied = ListBuffer[Class[_]](state.toBeProxied: _*)
+        val toBeReflected = ListBuffer[Class[_]](state.toBeReflected: _*)
+        
+        def locate(absName: Hl.AbsName) = {
+            val qualName = absName.qualName
+            val sourceFiles = state.config.sourceFiles(qualName)
+            val classFiles = state.config.classFiles(qualName)
+            val reflClasses = state.config.reflectiveClasses(qualName)
+            (sourceFiles, classFiles, reflClasses) match {
+                case (List(), List(), None) => false
+                case (List(), List(), Some(reflClass)) => {
+                    toBeReflected += reflClass
+                    true
+                }
+                case (sourceFile :: _, List(), _) => {
+                    toBeParsed += Pair(sourceFile, Some(qualName))
+                    true
+                }
+                case (List(), classFile :: _, _) => {
+                    toBeLoaded += Pair(classFile, Some(qualName))
+                    true
+                }
+                case (sourceFile :: _, classFile :: _, _) => {
+                    if (sourceFile.lastModified > classFile.lastModified) {
+                        toBeParsed += Pair(sourceFile, Some(qualName))
+                        true
+                    } else {
+                        toBeLoaded += Pair(classFile, Some(qualName))
+                        true
+                    }
+                }
+            }            
+        }
+        
         def resolveName(rn: in.RelName): Hl.AbsName = rn match {
             case in.RelDot(ctx, nm) => resolveName(ctx) / nm
             case in.RelBase(nm) => {
                 val m = allImports.firstSome { 
                     case in.ImportOne(from, to) => {
-                        if (to == nm) Some(from)
-                        else None                        
+                        if (to == nm) {
+                            if(!state.parsedClasses.isDefinedAt(from.qualName) && !locate(from))
+                                state.reporter.report(rn.pos, "cannot.find.class", from.toString)
+                            Some(from)
+                        } else None
                     }
                     case in.ImportAll(pkg) => {
                         val absName = pkg / nm
-                        val sourceFiles = state.config.sourceFiles(absName.qualName)
-                        val classFiles = state.config.classFiles(absName.qualName)
-                        val reflClasses = state.config.reflectiveClasses(absName.qualName)
-                        (sourceFiles, classFiles, reflClasses) match {
-                            case (List(), List(), None) => None
-                            case (List(), List(), Some(reflClass)) => {
-                                toBeProxied += reflClass
-                                Some(absName)
-                            }
-                            case (sourceFile :: _, List(), _) => {
-                                toBeParsed += sourceFile
-                                Some(absName)
-                            }
-                            case (List(), classFile :: _, _) => {
-                                toBeLoaded += classFile
-                                Some(absName)                                
-                            }
-                            case (sourceFile :: _, classFile :: _, _) => {
-                                if (sourceFile.lastModified > classFile.lastModified) {
-                                    toBeParsed += sourceFile
-                                    Some(absName)
-                                } else {
-                                    toBeLoaded += classFile
-                                    Some(absName)                                
-                                }
-                            }
-                        }
+                        if(state.parsedClasses.isDefinedAt(absName.qualName) || locate(absName))
+                            Some(absName)
+                        else None
                     }
                 }
                 m match {
@@ -225,6 +236,7 @@ object ResolvePass {
         state.copy(
             toBeParsed = toBeParsed.toList,
             toBeLoaded = toBeLoaded.toList,
+            toBeReflected = toBeReflected.toList,
             toBeTyped = cdecls ++ state.toBeTyped
         )
     }

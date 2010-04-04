@@ -382,7 +382,7 @@ def extract_metadata(filenm):
 
     if not provided:
         raise InvalidMetaData(
-            "No meta-data provided, expected at least one of "+TEST_TYPES)
+            "No meta-data provided, expected at least one of "+str(TEST_TYPES))
 
     return (skip, compile_opts, execute_output)
 
