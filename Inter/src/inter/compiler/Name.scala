@@ -13,6 +13,10 @@ object Name {
         def /(nm: String) = Name.Qual(nm :: rev_components)
     }
     
+    object Qual {
+        def apply(name: String) = new Qual(name.split('.').reverse.toList)
+    }
+    
     /** Method names. */
     case class Method(
         parts: List[String]
@@ -26,5 +30,14 @@ object Name {
     ) {
         override def toString = text
     }
+    
+    sealed abstract class Path
+    case class PathBase(v: Var) extends Path
+    case class PathField(base: Path, f: Var) extends Path
+    
+    val ThisVar = Name.Var("this")
+    val ThisPath = PathBase(ThisVar)
+    val ArrayQual = Qual("inter.lang.Array")
+    val ArrayElem = Var("E")
     
 }

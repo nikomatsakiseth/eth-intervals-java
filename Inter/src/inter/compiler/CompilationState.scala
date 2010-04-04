@@ -16,6 +16,8 @@ case class CompilationState(
     resolvedClasses: Map[Name.Qual, Hl.RN.ClassDecl]
 ) {
     
+    val symtab = new SymbolTable()
+    
     def popToBeParsed = {
         (toBeParsed.head, copy(toBeParsed = toBeParsed.tail))
     }
