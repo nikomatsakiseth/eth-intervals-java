@@ -17,6 +17,7 @@ all: test
 # ___ Clean ____________________________________________________________
 clean:
 	rm -rf bin bin-test .scala_dependencies 
+	find test -name '*.test' -exec rm '{}' ';'
 
 # ___ Building the code ________________________________________________
 compile:

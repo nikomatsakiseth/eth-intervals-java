@@ -19,8 +19,8 @@ object ResolvePass {
         
         val allImports = (
             in.ImportAll(Hl.AbsRoot) ::
-            in.ImportAll(Hl.abs("java", "lang")) ::
-            in.ImportAll(Hl.abs("inter", "lang")) ::
+            in.ImportAll(Hl.abs("java.lang")) ::
+            in.ImportAll(Hl.abs("inter.lang")) ::
             in.ImportAll(compUnit.pkg) ::
             compUnit.imports
         ).reverse

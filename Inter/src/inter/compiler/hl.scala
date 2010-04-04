@@ -504,7 +504,7 @@ object Hl {
         }
         def qualName = context.qualName / component
     }
-    def abs(names: String*) = names.foldLeft[AbsName](AbsRoot)(_ / _)
+    def abs(name: String) = name.split('.').foldLeft[AbsName](AbsRoot)(_ / _)
     
     // ______ Non-qualified names ___________________________________________
     case class VarName(text: String) extends Ast {

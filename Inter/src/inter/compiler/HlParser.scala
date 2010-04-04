@@ -52,8 +52,8 @@ class HlParser extends StdTokenParsers with PackratParsers {
         "{{", "}}", "{", "}", "[", "]", "(", ")", "=", "->", ",", ":", ".", ";", "*"
     )
     lexical.reserved += (
-        "class", "extends", "import", "package", "interval", "requires",
-        "throw", "locks", "new", "locks"
+        "class", "extends", "import", "package", 
+        "interval", "requires", "locks", "new"
     )
     
     def comma[A](p: PackratParser[A]) = repsep(p, ",")<~opt(",")

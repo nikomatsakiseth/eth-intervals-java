@@ -1,5 +1,5 @@
 package inter.lang;
 
-public @interface var {
+public @interface Var {
   
 }
