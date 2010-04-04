@@ -498,7 +498,10 @@ object Hl {
         def qualName = Name.Qual(List())        
     }
     case class AbsDot(context: AbsName, component: String) extends AbsName {
-        override def toString = "%s.%s".format(context, component)
+        override def toString = context match {
+            case AbsRoot => component
+            case abs => abs.toString + "." + component
+        }
         def qualName = context.qualName / component
     }
     def abs(names: String*) = names.foldLeft[AbsName](AbsRoot)(_ / _)

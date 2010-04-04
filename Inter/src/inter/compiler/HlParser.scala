@@ -96,7 +96,7 @@ class HlParser extends StdTokenParsers with PackratParsers {
     )
     
     lazy val importDecl = positioned(
-        "import"~>absName~("("~>relBase<~")")<~";"  ^^ { case q~n => out.ImportOne(q, n) }
+        "import"~>absName~("->"~>relBase)<~";"  ^^ { case q~n => out.ImportOne(q, n) }
     |   "import"~>absName<~";"                      ^^ { case q => out.ImportOne(q, out.RelBase(q.component)) }
     |   "import"~>absName<~"."<~"*"<~";"            ^^ out.ImportAll
     )
@@ -112,8 +112,15 @@ class HlParser extends StdTokenParsers with PackratParsers {
     
     lazy val annotations = rep(annotation) 
     
+    lazy val optTuplePattern = positioned(
+        opt(tuplePattern) ^^ { 
+            case Some(tp) => tp
+            case None => out.TuplePattern(List())
+        }
+    )
+    
     lazy val classDecl = positioned(
-        annotations~"class"~ident~tuplePattern~superClasses~"{"~
+        annotations~"class"~ident~optTuplePattern~superClasses~"{"~
             rep(member)~
         "}" ^^ {
             case a~_~n~p~sups~"{"~mems~"}" => out.ClassDecl(n, a, sups, p, mems)

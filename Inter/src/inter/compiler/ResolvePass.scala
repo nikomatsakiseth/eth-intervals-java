@@ -65,7 +65,7 @@ object ResolvePass {
             case in.RelBase(nm) => {
                 val m = allImports.firstSome { 
                     case in.ImportOne(from, to) => {
-                        if (to == nm) {
+                        if (to == rn) {
                             if(!state.parsedClasses.isDefinedAt(from.qualName) && !locate(from))
                                 state.reporter.report(rn.pos, "cannot.find.class", from.toString)
                             Some(from)

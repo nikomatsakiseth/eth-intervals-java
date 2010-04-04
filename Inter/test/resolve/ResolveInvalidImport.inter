@@ -1,0 +1,14 @@
+package resolve;
+
+import some.cls.that.does.not.exist;
+import another.cls.that.does.not.exist -> another;
+import java.lang.Integer -> int;
+import java.lang.Void -> void;
+
+class ResolveInvalidImport {
+    int a;
+    exist b; // ERROR cannot.find.class(some.cls.that.does.not.exist)
+    another c; // ERROR cannot.find.class(another.cls.that.does.not.exist)
+    void d;
+}
+// COMPILE
