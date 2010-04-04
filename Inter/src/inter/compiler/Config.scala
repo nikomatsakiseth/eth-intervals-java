@@ -1,4 +1,4 @@
-package inter
+package inter.compiler
 
 import java.io.File
 import java.io.PrintStream
@@ -15,6 +15,8 @@ class Config
     var outputDir = new File(".")
     var dumpParsedTrees = false
     var dumpResolvedTrees = false
+    var useReflection = true
+    var localize = false
     
     private[this] def usage(err: PrintStream) {
         err.printf("interc: Compiler for the Inter language, version %s\n", version)
@@ -22,9 +24,11 @@ class Config
         err.printf("Usage: inter [options] sourcefiles\n")
         err.printf("\n")
         err.printf("Options:\n")
+        err.printf("  -d <dir>\n")
         err.printf("  -classpath <paths>\n")
         err.printf("  -sourcepath <paths>\n")
-        err.printf("  -d <dir>\n")
+        err.printf("  --no-reflection\n")
+        err.printf("  --no-localize\n")
         err.printf("  --dump-parsed-trees\n")
         err.printf("  --dump-resolved-trees\n")
     }
@@ -44,6 +48,17 @@ class Config
     
     def sourceFiles(name: QualName) = relativeFiles(sourcePaths, sourceExt)(name)
     def classFiles(name: QualName) = relativeFiles(classPaths, classExt)(name)
+    
+    def reflectiveClasses(name: QualName) = {
+        if(!useReflection) None
+        else {
+            try {
+                Some(Class.forName(name.toString))
+            } catch {
+                case _: java.lang.ClassNotFoundException => None
+            }
+        }
+    }
     
     def loadFrom(args: Array[String]): Boolean = {
         var i = 0
@@ -65,6 +80,12 @@ class Config
                     i += 1
                 } else if(args(i) == "--dump-resolved-trees") {
                     dumpResolvedTrees = true
+                    i += 1
+                } else if(args(i) == "--no-reflection") {
+                    useReflection = false
+                    i += 1
+                } else if(args(i) == "--no-localize") {
+                    localize = false
                     i += 1
                 } else if(args(i) startsWith "-") {
                     usage(System.err)

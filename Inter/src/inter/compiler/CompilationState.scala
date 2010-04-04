@@ -1,4 +1,4 @@
-package inter
+package inter.compiler
 
 import java.io.File
 
@@ -8,6 +8,7 @@ case class CompilationState(
     
     toBeParsed: List[File], // .inter files.
     toBeLoaded: List[File], // .class files.
+    toBeProxied: List[Class[_]], // reflection
     toBeResolved: List[Hl.P.CompUnit],
     toBeTyped: List[Hl.RN.ClassDecl],
     

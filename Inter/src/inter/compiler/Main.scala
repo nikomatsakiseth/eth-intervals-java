@@ -1,4 +1,4 @@
-package inter
+package inter.compiler
 
 import scala.collection.immutable.Map
 import scala.collection.mutable.Queue
@@ -11,10 +11,11 @@ object Main {
             if(config.loadFrom(args)) {
                 compile(CompilationState(
                     config = config,
-                    reporter = new Reporter(),
+                    reporter = new Reporter(config),
                     toBeParsed = config.inputFiles.toList,
                     toBeLoaded = List(),
                     toBeResolved = List(),
+                    toBeProxied = List(),
                     toBeTyped = List(),
                     parsedClasses = Map()
                 ))            

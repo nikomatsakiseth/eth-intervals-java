@@ -1,12 +1,12 @@
-package test;
+package test.resolve;
 
-class ABCX {
-}
+/*
+ */
 
-class ABC(Interval parent) {
+class Resolve1(Interval parent) {
     
-    ABCX test;
-
+    IntervalX bad; // ERROR cannot.resolve(IntervalX)
+    
     Integer aRes;
     interval a(parent) {
         aRes = 22;

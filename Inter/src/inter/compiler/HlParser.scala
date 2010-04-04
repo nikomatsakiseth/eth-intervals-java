@@ -1,4 +1,4 @@
-package inter
+package inter.compiler
 
 import scala.util.parsing.combinator.syntactical.StdTokenParsers
 import scala.util.parsing.input.Reader
@@ -22,7 +22,10 @@ class HlParser extends StdTokenParsers with PackratParsers {
     }
     
     class HlLexical extends StdLexical with HlTokens {
-        val sep = "()[]{};\"\'"
+        def esc = elem("escape", c => c == '`')
+        def notEsc = elem("escape", c => c != '`' && c != EofCh && c != '\n')
+        
+        val sep = "()[]{};\"\'."
         def isOperCont(c: Char) = c != EofCh && !c.isWhitespace && !sep.contains(c)
         def isOperStart(c: Char) = isOperCont(c) && !c.isLetter && !c.isDigit
         
@@ -32,6 +35,7 @@ class HlParser extends StdTokenParsers with PackratParsers {
         override def token: Parser[Token] = ( 
             // This isn't quite right: it won't work for "//" or "/*", for example.
             operStart~rep(operCont) ^^ { case c~cs => processOper((c::cs).mkString("")) }
+        |   esc~rep1(notEsc)~esc    ^^ { case _~cs~_ => Keyword(cs.mkString("")) }
         |   super.token
         )
         
@@ -51,12 +55,6 @@ class HlParser extends StdTokenParsers with PackratParsers {
         "class", "extends", "import", "package", "interval", "requires",
         "throw", "locks", "new", "locks"
     )
-    
-    def parseCompUnitFromJavaReader(javaReader: java.io.Reader) = {
-        val reader = scala.util.parsing.input.StreamReader(javaReader)
-        val tokens = new lexical.Scanner(reader)
-        phrase(compUnit)(tokens)
-    }
     
     def comma[A](p: PackratParser[A]) = repsep(p, ",")<~opt(",")
     def comma1[A](p: PackratParser[A]) = rep1sep(p, ",")<~opt(",")
@@ -273,9 +271,8 @@ class HlParser extends StdTokenParsers with PackratParsers {
     
     lazy val expr: PackratParser[out.Expr] = (
         unary~rep(oper~unary) ^^ { case l~rs => 
-            rs.foldLeft(l) { case (l, o~r) =>
-                out.MethodCall(l, List(out.CallPart(o, r)))
-            }
+            val parts = rs.map { case o~r => out.CallPart(o, r) }
+            out.MethodCall(l, parts)
         }
     )
     
@@ -286,20 +283,5 @@ class HlParser extends StdTokenParsers with PackratParsers {
     )
     
     lazy val stmts = repsep(stmt, ";")<~opt(";")
-    
-}
-
-object HlParser {
-    
-    def main(files: Array[String]) {
-        val parser = new HlParser()
-        for(file <- files) {
-            val javaReader = Util.javaReaderFromPath(file)
-            parser.parseCompUnitFromJavaReader(javaReader) match {
-                case n: parser.NoSuccess => System.err.println(n.toString)
-                case parser.Success(compUnit, _) => compUnit.println(PrettyPrinter.stdout)
-            }
-        }
-    }
     
 }

@@ -1,4 +1,4 @@
-package inter
+package inter.compiler
 
 abstract class PrettyPrinter {
     def indent(): Unit

@@ -21,7 +21,8 @@ clean:
 # ___ Building the code ________________________________________________
 compile:
 	mkdir -p bin bin-test
-	${SCALAC} -d bin -sourcepath src $$(find src -name '*.scala')
+	${JAVAC} -d bin -sourcepath src $$(find src -name '*.java')
+	${SCALAC} -deprecation -d bin -sourcepath src $$(find src -name '*.scala')
 	
 # ___ Running tests ____________________________________________________
 # to enable profiling add: ${JPROFILEROPTS} or ${HPROFOPTS} to JAVA_OPTS

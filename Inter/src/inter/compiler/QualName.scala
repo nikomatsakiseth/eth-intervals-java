@@ -1,4 +1,4 @@
-package inter
+package inter.compiler
 
 case class QualName(
     rev_components: List[String]

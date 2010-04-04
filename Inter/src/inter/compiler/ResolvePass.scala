@@ -1,4 +1,4 @@
-package inter
+package inter.compiler
 
 import java.io.File
 
@@ -20,12 +20,14 @@ object ResolvePass {
         val allImports = (
             in.ImportAll(Hl.AbsRoot) ::
             in.ImportAll(Hl.abs("java", "lang")) ::
+            in.ImportAll(Hl.abs("inter", "lang")) ::
             in.ImportAll(compUnit.pkg) ::
             compUnit.imports
         ).reverse
         
         val toBeParsed = ListBuffer(state.toBeParsed: _*)
         val toBeLoaded = ListBuffer(state.toBeLoaded: _*)
+        val toBeProxied = ListBuffer[Class[_]](state.toBeProxied: _*)
         def resolveName(rn: in.RelName): Hl.AbsName = rn match {
             case in.RelDot(ctx, nm) => resolveName(ctx) / nm
             case in.RelBase(nm) => {
@@ -38,17 +40,22 @@ object ResolvePass {
                         val absName = pkg / nm
                         val sourceFiles = state.config.sourceFiles(absName.qualName)
                         val classFiles = state.config.classFiles(absName.qualName)
-                        (sourceFiles, classFiles) match {
-                            case (List(), List()) => None
-                            case (sourceFile :: _, List()) => {
+                        val reflClasses = state.config.reflectiveClasses(absName.qualName)
+                        (sourceFiles, classFiles, reflClasses) match {
+                            case (List(), List(), None) => None
+                            case (List(), List(), Some(reflClass)) => {
+                                toBeProxied += reflClass
+                                Some(absName)
+                            }
+                            case (sourceFile :: _, List(), _) => {
                                 toBeParsed += sourceFile
                                 Some(absName)
                             }
-                            case (List(), classFile :: _) => {
+                            case (List(), classFile :: _, _) => {
                                 toBeLoaded += classFile
                                 Some(absName)                                
                             }
-                            case (sourceFile :: _, classFile :: _) => {
+                            case (sourceFile :: _, classFile :: _, _) => {
                                 if (sourceFile.lastModified > classFile.lastModified) {
                                     toBeParsed += sourceFile
                                     Some(absName)

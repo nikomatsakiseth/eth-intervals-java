@@ -1,4 +1,4 @@
-package inter
+package inter.compiler
 
 import java.io.File
 

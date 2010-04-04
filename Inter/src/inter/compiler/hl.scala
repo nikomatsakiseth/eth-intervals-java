@@ -1,4 +1,4 @@
-package inter
+package inter.compiler
 
 import scala.collection.immutable.Set
 import scala.collection.immutable.ListSet

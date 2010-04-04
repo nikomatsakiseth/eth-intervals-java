@@ -195,7 +195,8 @@ class NotExecutable(Exception):
 
 COMPILE = 'COMPILE'
 EXECUTE = 'EXECUTE'
-TEST_TYPES = (COMPILE, EXECUTE)
+SKIP = 'SKIP'
+TEST_TYPES = (COMPILE, EXECUTE, SKIP)
 
 # ------------------------------------------------------------------------
 # Fragment Code
@@ -352,9 +353,6 @@ def extract_metadata(filenm):
         else:
             break
 
-    if not lines:
-        return lines
-
     lines = list(reversed(lines))
 
     provided = 0
@@ -366,6 +364,13 @@ def extract_metadata(filenm):
     else:
         execute_idx = len(lines)
         execute_output = None
+        
+    if SKIP in lines:
+        skip_idx = lines.index(SKIP)
+        skip = True
+        provided += 1
+    else:
+        skip = False
 
     if COMPILE in lines:
         compile_idx = lines.index(COMPILE)
@@ -379,7 +384,7 @@ def extract_metadata(filenm):
         raise InvalidMetaData(
             "No meta-data provided, expected at least one of "+TEST_TYPES)
 
-    return (compile_opts, execute_output)
+    return (skip, compile_opts, execute_output)
 
 # ----------------------------------------------------------------------
 # Code for logging the result of the test run
@@ -569,10 +574,14 @@ def test_file(filenm):
     def _run_test(filenm, experrors):
         try:
             # Analyze file:
-            compile_opts, execute_output = extract_metadata(filenm)            
+            (skip, compile_opts, execute_output) = extract_metadata(filenm)            
         except InvalidMetaData, e:
             res.error("Invalid metadata (%s)" % str(e))
             return 1
+            
+        if skip:
+            res.log("Skipping test")
+            return 0
 
         # It's user error if errors are expected, but there is also
         # expected output.
