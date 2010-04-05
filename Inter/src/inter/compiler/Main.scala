@@ -9,38 +9,33 @@ object Main {
         val config = new Config()
         val err = 
             if(config.loadFrom(args)) {
-                compile(CompilationState(
-                    config = config,
-                    reporter = new Reporter(config),
-                    toBeParsed = config.inputFiles.toList.map(f => (f, None)),
-                    toBeLoaded = List(),
-                    toBeResolved = List(),
-                    toBeReflected = List(),
-                    toBeTyped = List(),
-                    parsedClasses = Map(),
-                    resolvedClasses = Map()
-                ))            
+                val state = new CompilationState(config, new Reporter(config))
+                state.toBeParsed ++= config.inputFiles.toList.map(f => (f, None))
+                compile(state)
             } else 1
         System.exit(err)
     }
     
     // Note: in the future, these tasks can be parallelized.
     def compile(state: CompilationState): Int = {
-        if(!state.toBeParsed.isEmpty) {
-            val ((f, exp), state1) = state.popToBeParsed
-            compile(ParsePass(state1, f, exp))
-        } else if (!state.toBeLoaded.isEmpty) {
-            val ((f, exp), state1) = state.popToBeLoaded
-            compile(LoadPass(state1, f, exp))
-        } else if (!state.toBeResolved.isEmpty) {
-            val (cd, state1) = state.popToBeResolved
-            compile(ResolvePass(state1, cd))
-        } else if (state.reporter.hasErrors) {
-            state.reporter.print(System.err)
-            1
-        } else {
-            0
+        while(true) {
+            if(!state.toBeParsed.isEmpty) {
+                val (f, exp) = state.toBeParsed.dequeue()
+                ParsePass(state, f, exp)
+            } else if (!state.toBeLoaded.isEmpty) {
+                val (f, exp) = state.toBeLoaded.dequeue()
+                LoadPass(state, f, exp)
+            } else if (!state.toBeResolved.isEmpty) {
+                val cd = state.toBeResolved.dequeue()
+                ResolvePass(state, cd)
+            } else if (state.reporter.hasErrors) {
+                state.reporter.print(System.err)
+                return 1
+            } else {
+                return 0
+            }            
         }
+        return 0 // to satisfy type checker
     }
     
 }

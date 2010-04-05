@@ -30,7 +30,7 @@ object ParsePass {
         override def lineContents = ""
     }
     
-    def apply(state: CompilationState, interFile: File, expClass: Option[Name.Qual]) = {
+    def apply(state: CompilationState, interFile: File, expClass: Option[Name.Qual]) {
         val javaReader = Util.javaReaderFromFile(interFile)
         val parser = new HlParser()
         
@@ -39,13 +39,13 @@ object ParsePass {
         parser.phrase(parser.compUnit)(tokens) match {
             case n: parser.NoSuccess => {
                 state.reporter.report(n.next.pos, "parse.error", n.msg)
-                state
             }
             case parser.Success(compUnit, _) => {
                 if(state.config.dumpParsedTrees) {
                     compUnit.println(PrettyPrinter.stdout)
                 }
                 
+                // Check that we got (at least) what we expected to get:
                 expClass.foreach { expName =>
                     compUnit.classPairs.find(_._1 == expName) match {
                         case Some(_) =>
@@ -57,10 +57,15 @@ object ParsePass {
                     }
                 }
                 
-                state.copy(
-                    parsedClasses = state.parsedClasses ++ compUnit.classPairs,
-                    toBeResolved = compUnit :: state.toBeResolved
-                )
+                // Add entries to the symbol table:
+                compUnit.classPairs.foreach { case (qn, clsdefn) =>
+                    if(state.symtab.classes.isDefinedAt(qn))
+                        state.reporter.report(clsdefn.pos, "class.already.defined", qn.toString)
+                    else
+                        state.symtab.classes(qn) = new Symbol.Class(qn)
+                }
+
+                state.toBeResolved += compUnit
             }
         }                
     }

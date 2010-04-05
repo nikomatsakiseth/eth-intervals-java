@@ -9,7 +9,7 @@ import Hl.{RN => out}
 import Util._
 
 object ResolvePass {
-    def apply(state: CompilationState, compUnit: in.CompUnit) = {
+    def apply(state: CompilationState, compUnit: in.CompUnit) {
         
         // ___ Name Resolution __________________________________________________
         //
@@ -25,10 +25,6 @@ object ResolvePass {
             compUnit.imports
         ).reverse
         
-        val toBeParsed = ListBuffer(state.toBeParsed: _*)
-        val toBeLoaded = ListBuffer(state.toBeLoaded: _*)
-        val toBeReflected = ListBuffer[Class[_]](state.toBeReflected: _*)
-        
         def locate(absName: Hl.AbsName) = {
             val qualName = absName.qualName
             val sourceFiles = state.config.sourceFiles(qualName)
@@ -37,23 +33,23 @@ object ResolvePass {
             (sourceFiles, classFiles, reflClasses) match {
                 case (List(), List(), None) => false
                 case (List(), List(), Some(reflClass)) => {
-                    toBeReflected += reflClass
+                    state.toBeReflected += reflClass
                     true
                 }
                 case (sourceFile :: _, List(), _) => {
-                    toBeParsed += Pair(sourceFile, Some(qualName))
+                    state.toBeParsed += Pair(sourceFile, Some(qualName))
                     true
                 }
                 case (List(), classFile :: _, _) => {
-                    toBeLoaded += Pair(classFile, Some(qualName))
+                    state.toBeLoaded += Pair(classFile, Some(qualName))
                     true
                 }
                 case (sourceFile :: _, classFile :: _, _) => {
                     if (sourceFile.lastModified > classFile.lastModified) {
-                        toBeParsed += Pair(sourceFile, Some(qualName))
+                        state.toBeParsed += Pair(sourceFile, Some(qualName))
                         true
                     } else {
-                        toBeLoaded += Pair(classFile, Some(qualName))
+                        state.toBeLoaded += Pair(classFile, Some(qualName))
                         true
                     }
                 }
@@ -66,14 +62,14 @@ object ResolvePass {
                 val m = allImports.firstSome { 
                     case in.ImportOne(from, to) => {
                         if (to == rn) {
-                            if(!state.parsedClasses.isDefinedAt(from.qualName) && !locate(from))
+                            if(!state.symtab.classes.isDefinedAt(from.qualName) && !locate(from))
                                 state.reporter.report(rn.pos, "cannot.find.class", from.toString)
                             Some(from)
                         } else None
                     }
                     case in.ImportAll(pkg) => {
                         val absName = pkg / nm
-                        if(state.parsedClasses.isDefinedAt(absName.qualName) || locate(absName))
+                        if(state.symtab.classes.isDefinedAt(absName.qualName) || locate(absName))
                             Some(absName)
                         else None
                     }
@@ -236,12 +232,6 @@ object ResolvePass {
         )
         
         val cdecls = compUnit.classes.map(resolveClassDecl)
-        
-        state.copy(
-            toBeParsed = toBeParsed.toList,
-            toBeLoaded = toBeLoaded.toList,
-            toBeReflected = toBeReflected.toList,
-            toBeTyped = cdecls ++ state.toBeTyped
-        )
+        state.toBeTyped ++= cdecls
     }
 }
