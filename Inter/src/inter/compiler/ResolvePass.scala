@@ -59,9 +59,10 @@ object ResolvePass {
             }
 
             located(qualName) || {
-                val res = search()
-                if(res) located += qualName
-                res
+                if(search()) {
+                    located += qualName
+                    true
+                } else false
             }
         }
         
