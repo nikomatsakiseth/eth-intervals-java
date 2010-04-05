@@ -1,0 +1,7 @@
+package resolve;
+
+class ResolveLazyLoad2 {
+	ResolveLazyLoad1 a;
+	ResolveLazyLoad1 b;
+}
+// COMPILE

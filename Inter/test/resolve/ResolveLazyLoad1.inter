@@ -1,0 +1,5 @@
+package resolve;
+
+class ResolveLazyLoad1 {
+}
+// SKIP

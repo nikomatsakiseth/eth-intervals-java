@@ -25,35 +25,44 @@ object ResolvePass {
             compUnit.imports
         ).reverse
         
+        val located = scala.collection.mutable.Set[Name.Qual]()
         def locate(absName: Hl.AbsName) = {
             val qualName = absName.qualName
-            val sourceFiles = state.config.sourceFiles(qualName)
-            val classFiles = state.config.classFiles(qualName)
-            val reflClasses = state.config.reflectiveClasses(qualName)
-            (sourceFiles, classFiles, reflClasses) match {
-                case (List(), List(), None) => false
-                case (List(), List(), Some(reflClass)) => {
-                    state.toBeReflected += reflClass
-                    true
-                }
-                case (sourceFile :: _, List(), _) => {
-                    state.toBeParsed += Pair(sourceFile, Some(qualName))
-                    true
-                }
-                case (List(), classFile :: _, _) => {
-                    state.toBeLoaded += Pair(classFile, Some(qualName))
-                    true
-                }
-                case (sourceFile :: _, classFile :: _, _) => {
-                    if (sourceFile.lastModified > classFile.lastModified) {
+            def search() = {
+                val sourceFiles = state.config.sourceFiles(qualName)
+                val classFiles = state.config.classFiles(qualName)
+                val reflClasses = state.config.reflectiveClasses(qualName)
+                (sourceFiles, classFiles, reflClasses) match {
+                    case (List(), List(), None) => false
+                    case (List(), List(), Some(reflClass)) => {
+                        state.toBeReflected += reflClass
+                        true
+                    }
+                    case (sourceFile :: _, List(), _) => {
                         state.toBeParsed += Pair(sourceFile, Some(qualName))
                         true
-                    } else {
+                    }
+                    case (List(), classFile :: _, _) => {
                         state.toBeLoaded += Pair(classFile, Some(qualName))
                         true
                     }
-                }
-            }            
+                    case (sourceFile :: _, classFile :: _, _) => {
+                        if (sourceFile.lastModified > classFile.lastModified) {
+                            state.toBeParsed += Pair(sourceFile, Some(qualName))
+                            true
+                        } else {
+                            state.toBeLoaded += Pair(classFile, Some(qualName))
+                            true
+                        }
+                    }
+                }                
+            }
+
+            located(qualName) || {
+                val res = search()
+                if(res) located += qualName
+                res
+            }
         }
         
         def resolveName(rn: in.RelName): Hl.AbsName = rn match {
