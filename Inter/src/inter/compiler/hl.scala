@@ -20,6 +20,15 @@ class Hl {
     /** Optional types later become specified */
     type OT <: OptionalTypeRef
     
+    /** Data attached to class declarations */
+    type CSym
+    
+    /** Data attached to field declarations, access */
+    type VSym
+    
+    /** Data attached to method declarations, calls */
+    type MSym 
+    
     private def printSepFunc(out: PrettyPrinter, asts: List[Ast], sepfunc: (() => Unit)) {
         asts.dropRight(1).foreach { ast =>
             ast.print(out)
@@ -89,7 +98,8 @@ class Hl {
         annotations: List[Annotation],
         superClasses: List[PN],
         pattern: TuplePattern,
-        members: List[MemberDecl]
+        members: List[MemberDecl],
+        sym: CSym
     ) extends MemberDecl {
         override def toString = "[class %s%s]".format(
             name, pattern
@@ -118,7 +128,8 @@ class Hl {
         annotations: List[Annotation],
         name: VarName,
         optParent: Option[Path],
-        optBody: Option[InlineTmpl]        
+        optBody: Option[InlineTmpl],
+        sym: VSym      
     ) extends MemberDecl {
         override def toString = "[interval %s(%s)]".format(name, optParent)
         
@@ -144,7 +155,8 @@ class Hl {
         parts: List[DeclPart],
         retTref: OT,
         requirements: List[PathRequirement],
-        optBody: Option[InlineTmpl]
+        optBody: Option[InlineTmpl],
+        sym: MSym
     ) extends MemberDecl {
         def name = Name.Method(parts.map(_.ident))
         def patterns = parts.map(_.pattern)
@@ -176,7 +188,8 @@ class Hl {
         annotations: List[Annotation],
         name: VarName,
         tref: OT,
-        value: Option[Expr]
+        value: Option[Expr],
+        sym: VSym
     ) extends MemberDecl {
         override def print(out: PrettyPrinter) {
             annotations.foreach(_.println(out))
@@ -239,7 +252,8 @@ class Hl {
     case class VarPattern(
         annotations: List[Annotation], 
         tref: TypeRef, 
-        name: VarName) 
+        name: VarName,
+        sym: VSym) 
     extends Pattern {
         override def toString = "%s %s %s".format(annotations, tref, name)
         
@@ -269,7 +283,8 @@ class Hl {
     case class VarLvalue(
         annotations: List[Annotation], 
         tref: OT, 
-        name: VarName) 
+        name: VarName,
+        sym: VSym) 
     extends Lvalue {
         override def toString = "%s %s %s".format(annotations, tref, name)
         
@@ -386,11 +401,11 @@ class Hl {
         }        
     }
 
-    case class Var(name: VarName) extends Expr with Path {
+    case class Var(name: VarName, sym: VSym) extends Expr with Path {
         override def toString = name.toString
     }
     
-    case class Field(owner: Expr, name: VarName) extends Expr {
+    case class Field(owner: Expr, name: VarName, sym: MSym) extends Expr {
         override def toString = "%s %s".format(owner, name)
         
         override def print(out: PrettyPrinter) {
@@ -407,7 +422,7 @@ class Hl {
             arg.print(out)
         }        
     }
-    case class MethodCall(rcvr: Expr, parts: List[CallPart])
+    case class MethodCall(rcvr: Expr, parts: List[CallPart], sym: MSym)
     extends Expr {
         def name = Name.Method(parts.map(_.ident))
         def args = parts.map(_.arg)
@@ -516,18 +531,27 @@ object Hl {
     object P extends Hl {
         type PN = RelName
         type OT = OptionalTypeRef
+        type CSym = Unit
+        type VSym = Unit
+        type MSym = Unit
     }
     
     /** Resolve Name phase: relative names resolved. */
     object RN extends Hl {
         type PN = Hl.AbsName
         type OT = OptionalTypeRef
+        type CSym = Unit
+        type VSym = Unit
+        type MSym = Unit
     }
     
     /** Type Inference phase: types inferred. */
     object TI extends Hl {
         type PN = Hl.AbsName
         type OT = TypeRef
+        type CSym = Symbol.Class
+        type VSym = Symbol.Var
+        type MSym = Symbol.Method
     }
     
 }

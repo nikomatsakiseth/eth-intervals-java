@@ -25,6 +25,9 @@ object Main {
             } else if (!state.toBeLoaded.isEmpty) {
                 val (f, exp) = state.toBeLoaded.dequeue()
                 LoadPass(state, f, exp)
+            } else if (!state.toBeReflected.isEmpty) {
+                val cls = state.toBeReflected.dequeue()
+                ReflectPass(state, cls)
             } else if (!state.toBeResolved.isEmpty) {
                 val cd = state.toBeResolved.dequeue()
                 ResolvePass(state, cd)

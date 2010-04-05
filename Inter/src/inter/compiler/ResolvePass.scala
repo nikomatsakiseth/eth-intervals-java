@@ -8,6 +8,8 @@ import Hl.{P => in}
 import Hl.{RN => out}
 import Util._
 
+/** ResolvePass resolves relative names into absolute ones, making
+  * use of the imports as well as the source/classpaths. */
 object ResolvePass {
     def apply(state: CompilationState, compUnit: in.CompUnit) {
         
@@ -101,7 +103,8 @@ object ResolvePass {
             annotations = cdecl.annotations.map(resolveAnnotation),
             superClasses = cdecl.superClasses.map(resolveName),
             pattern = resolveTuplePattern(cdecl.pattern),
-            members = cdecl.members.map(resolveMember)
+            members = cdecl.members.map(resolveMember),
+            sym = cdecl.sym
         )
         
         def resolveAnnotation(ann: in.Annotation) = out.Annotation(
@@ -120,7 +123,8 @@ object ResolvePass {
         def resolveVarPattern(varPat: in.VarPattern) = out.VarPattern(
             annotations = varPat.annotations.map(resolveAnnotation),
             tref = resolveTypeRef(varPat.tref),
-            name = varPat.name
+            name = varPat.name,
+            sym = varPat.sym            
         )
         
         def resolveMember(mem: in.MemberDecl): out.MemberDecl = mem match {
@@ -135,7 +139,8 @@ object ResolvePass {
             annotations = decl.annotations.map(resolveAnnotation),
             name = decl.name,
             optParent = decl.optParent.map(resolvePath),
-            optBody = decl.optBody.map(resolveInlineTmpl)
+            optBody = decl.optBody.map(resolveInlineTmpl),
+            sym = decl.sym            
         )
         
         def resolveMethodDecl(decl: in.MethodDecl) = out.MethodDecl(
@@ -143,7 +148,8 @@ object ResolvePass {
             parts = decl.parts.map(resolveDeclPart),
             retTref = resolveOptionalTypeRef(decl.retTref),
             requirements = decl.requirements.map(resolveRequirement),
-            optBody = decl.optBody.map(resolveInlineTmpl)
+            optBody = decl.optBody.map(resolveInlineTmpl),
+            sym = decl.sym            
         )
         
         def resolveDeclPart(decl: in.DeclPart) = out.DeclPart(
@@ -161,7 +167,8 @@ object ResolvePass {
             annotations = decl.annotations.map(resolveAnnotation),
             name = decl.name,
             tref = resolveOptionalTypeRef(decl.tref),
-            value = decl.value.map(resolveExpr)
+            value = decl.value.map(resolveExpr),
+            sym = decl.sym            
         )
         
         def resolveRelDecl(decl: in.RelDecl) = out.RelDecl(
@@ -172,7 +179,7 @@ object ResolvePass {
         )
         
         def resolvePath(path: in.Path): out.Path = path match {
-            case in.Var(name) => out.Var(name)
+            case in.Var(name, ()) => out.Var(name, ())
             case in.PathField(p, f) => out.PathField(resolvePath(p), f)
         }
         
@@ -206,10 +213,11 @@ object ResolvePass {
         
         def resolveLvalue(lvalue: in.Lvalue): out.Lvalue = lvalue match {
             case in.TupleLvalue(lvalues) => out.TupleLvalue(lvalues.map(resolveLvalue))
-            case in.VarLvalue(annotations, tref, name) => out.VarLvalue(
+            case in.VarLvalue(annotations, tref, name, ()) => out.VarLvalue(
                 annotations = annotations.map(resolveAnnotation),
                 tref = resolveOptionalTypeRef(tref),
-                name = name
+                name = name,
+                sym = ()
             )
         }
         
@@ -219,9 +227,9 @@ object ResolvePass {
             case in.AsyncTmpl(stmts) => out.AsyncTmpl(stmts.map(resolveStmt))
             case in.Literal(obj) => out.Literal(obj)
             case in.Assign(lv, rv) => out.Assign(resolveLvalue(lv), resolveExpr(rv))
-            case in.Var(name) => out.Var(name)
-            case in.Field(owner, name) => out.Field(resolveExpr(owner), name)
-            case in.MethodCall(rcvr, parts) => out.MethodCall(resolveExpr(rcvr), parts.map(resolvePart))
+            case in.Var(name, ()) => out.Var(name, ())
+            case in.Field(owner, name, ()) => out.Field(resolveExpr(owner), name, ())
+            case in.MethodCall(rcvr, parts, ()) => out.MethodCall(resolveExpr(rcvr), parts.map(resolvePart), ())
             case in.New(tref, arg) => out.New(resolveTypeRef(tref), resolveTuple(arg))
             case in.Null() => out.Null()
             case in.ImpVoid => out.ImpVoid

@@ -123,7 +123,7 @@ class HlParser extends StdTokenParsers with PackratParsers {
         annotations~"class"~ident~optTuplePattern~superClasses~"{"~
             rep(member)~
         "}" ^^ {
-            case a~_~n~p~sups~"{"~mems~"}" => out.ClassDecl(n, a, sups, p, mems)
+            case a~_~n~p~sups~"{"~mems~"}" => out.ClassDecl(n, a, sups, p, mems, ())
         }
     )
     
@@ -137,10 +137,10 @@ class HlParser extends StdTokenParsers with PackratParsers {
     
     lazy val methodDecl = positioned(
         annotations~typeRef~rep1(declPart)~rep(requirement)~optBody ^^ {
-            case ann~ret~parts~reqs~optBody => out.MethodDecl(ann, parts, ret, reqs, optBody)
+            case ann~ret~parts~reqs~optBody => out.MethodDecl(ann, parts, ret, reqs, optBody, ())
         }
     |   annotations~rep1(declPart)~rep(requirement)~optBody ^^ {
-            case ann~parts~reqs~optBody => out.MethodDecl(ann, parts, out.InferredTypeRef, reqs, optBody)
+            case ann~parts~reqs~optBody => out.MethodDecl(ann, parts, out.InferredTypeRef, reqs, optBody, ())
         }
     )
     
@@ -177,9 +177,9 @@ class HlParser extends StdTokenParsers with PackratParsers {
     
     lazy val intervalDecl = positioned(
         annotations~"interval"~varName~";" ^^ { 
-            case ann~_~nm~";" => out.IntervalDecl(ann, nm, None, None) }
+            case ann~_~nm~";" => out.IntervalDecl(ann, nm, None, None, ()) }
     |   annotations~"interval"~varName~"("~path~")"~optBody ^^ { 
-            case ann~_~nm~"("~qn~")"~optBody => out.IntervalDecl(ann, nm, Some(qn), optBody) }
+            case ann~_~nm~"("~qn~")"~optBody => out.IntervalDecl(ann, nm, Some(qn), optBody, ()) }
     )
     
     lazy val optBody = (
@@ -189,9 +189,9 @@ class HlParser extends StdTokenParsers with PackratParsers {
     
     lazy val fieldDecl = positioned(
         annotations~typeRef~varName~opt("="~>expr)~";" ^^ {
-            case a~t~n~v~";" => out.FieldDecl(a, n, t, v) }
+            case a~t~n~v~";" => out.FieldDecl(a, n, t, v, ()) }
     |   annotations~varName~opt("="~>expr)~";" ^^ {
-            case a~n~v~";" => out.FieldDecl(a, n, out.InferredTypeRef, v) }
+            case a~n~v~";" => out.FieldDecl(a, n, out.InferredTypeRef, v, ()) }
     )
     
     lazy val relDecl = positioned(
@@ -205,7 +205,7 @@ class HlParser extends StdTokenParsers with PackratParsers {
     )
     lazy val varPattern = positioned(
         annotations~typeRef~varName ^^ {
-            case a~t~n => out.VarPattern(a, t, n) }
+            case a~t~n => out.VarPattern(a, t, n, ()) }
     )
     lazy val pattern: PackratParser[out.Pattern] = tuplePattern | varPattern
     
@@ -214,9 +214,9 @@ class HlParser extends StdTokenParsers with PackratParsers {
     )
     lazy val varLvalue = positioned(
         annotations~typeRef~varName ^^ {
-            case a~t~n => out.VarLvalue(a, t, n) }
+            case a~t~n => out.VarLvalue(a, t, n, ()) }
     |   annotations~varName ^^ {
-            case a~n => out.VarLvalue(a, out.InferredTypeRef, n) }
+            case a~n => out.VarLvalue(a, out.InferredTypeRef, n, ()) }
     )
     lazy val lvalue: PackratParser[out.Lvalue] = tupleLvalue | varLvalue
     
@@ -247,7 +247,7 @@ class HlParser extends StdTokenParsers with PackratParsers {
     
     lazy val path = positioned(
         varName~rep(varName) ^^ {
-            case v~fs => fs.foldLeft[out.Path](out.Var(v))(out.PathField(_, _)) }
+            case v~fs => fs.foldLeft[out.Path](out.Var(v, ()))(out.PathField(_, _)) }
     )
     
     // ___ Expressions ______________________________________________________
@@ -272,7 +272,7 @@ class HlParser extends StdTokenParsers with PackratParsers {
     
     lazy val rcvr: PackratParser[out.Expr] = positioned(
         arg
-    |   varName                             ^^ out.Var
+    |   varName                             ^^ { case n => out.Var(n, ()) }
     |   numericLit                          ^^ out.Literal // XXX
     |   stringLit                           ^^ out.Literal
     |   "null"                              ^^ { case _ => out.Null() }
@@ -280,12 +280,12 @@ class HlParser extends StdTokenParsers with PackratParsers {
     )
     
     lazy val field = positioned(
-        rcvr~varName~rep(varName)           ^^ { case r~f~fs => fs.foldLeft(out.Field(r, f))(out.Field(_, _)) }
+        rcvr~varName~rep(varName)           ^^ { case r~f~fs => fs.foldLeft(out.Field(r, f, ()))(out.Field(_, _, ())) }
     )
     
     lazy val mthdCall = positioned(
-        rcvr~rep1(callPart)                 ^^ { case r~cp => out.MethodCall(r, cp) }
-    |   rep1(callPart)                      ^^ { case cp => out.MethodCall(out.ImpThis, cp) }
+        rcvr~rep1(callPart)                 ^^ { case r~cp => out.MethodCall(r, cp, ()) }
+    |   rep1(callPart)                      ^^ { case cp => out.MethodCall(out.ImpThis, cp, ()) }
     )
     
     lazy val unary = mthdCall | field | rcvr
@@ -293,7 +293,7 @@ class HlParser extends StdTokenParsers with PackratParsers {
     lazy val expr: PackratParser[out.Expr] = (
         unary~rep(oper~unary) ^^ { case l~rs => 
             val parts = rs.map { case o~r => out.CallPart(o, r) }
-            out.MethodCall(l, parts)
+            out.MethodCall(l, parts, ())
         }
     )
     
