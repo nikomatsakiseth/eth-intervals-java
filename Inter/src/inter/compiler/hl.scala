@@ -20,6 +20,9 @@ class Hl {
     /** Optional types later become specified */
     type OT <: OptionalTypeRef
     
+    /** Type of an expression */
+    type Ty
+    
     /** Data attached to class declarations */
     type CSym
     
@@ -83,6 +86,9 @@ class Hl {
     
     sealed abstract class MemberDecl extends Ast {
         def annotations: List[Annotation]
+        
+        def asMethodNamed(name: Name.Method): Option[MethodDecl] = None
+        def asFieldNamed(name: Name.Var): Option[FieldDecl] = None
     }
     
     sealed abstract class ImportDecl extends Ast
@@ -160,7 +166,7 @@ class Hl {
     case class MethodDecl(
         annotations: List[Annotation],
         parts: List[DeclPart],
-        retTref: OT,
+        returnTref: OT,
         requirements: List[PathRequirement],
         optBody: Option[InlineTmpl],
         sym: MSym
@@ -312,6 +318,16 @@ class Hl {
     
     abstract class TypeRef extends OptionalTypeRef
     
+    case class TupleType(types: List[TypeRef]) extends TypeRef {
+        override def toString = "(%s)".format(types.mkString(", "))
+        
+        override def print(out: PrettyPrinter) {
+            out.write("(")
+            printSep(out, types, ", ")
+            out.write(")")
+        }
+    }
+    
     case class PathType(path: Path, typeVar: VarName) extends TypeRef {
         override def toString = "%s:%s".format(path, typeVar)
         
@@ -365,9 +381,11 @@ class Hl {
         }
     }
     
-    sealed abstract trait Expr extends Stmt
+    sealed abstract trait Expr extends Stmt {
+        def ty: Ty
+    }
     
-    case class Tuple(exprs: List[Expr]) extends Expr {
+    case class Tuple(exprs: List[Expr], ty: Ty) extends Expr {
         override def toString = "(%s)".format(exprs.mkString(", "))
         
         override def print(out: PrettyPrinter) {
@@ -387,18 +405,18 @@ class Hl {
         }        
     }
     
-    case class InlineTmpl(stmts: List[Stmt])
+    case class InlineTmpl(stmts: List[Stmt], ty: Ty)
     extends Tmpl("{", "}")
     
-    case class AsyncTmpl(stmts: List[Stmt])
+    case class AsyncTmpl(stmts: List[Stmt], ty: Ty)
     extends Tmpl("{{", "}}")
     
-    case class Literal(obj: Object) extends Expr {
+    case class Literal(obj: Object, ty: Ty) extends Expr {
         override def toString = obj.toString
     }
     
     case class Assign(lvalue: Lvalue, rvalue: Expr) 
-    extends Expr {
+    extends Stmt {
         override def toString = "%s = %s".format(lvalue, rvalue)
         
         override def print(out: PrettyPrinter) {
@@ -408,11 +426,11 @@ class Hl {
         }        
     }
 
-    case class Var(name: VarName, sym: VSym) extends Expr with Path {
+    case class Var(name: VarName, sym: VSym, ty: Ty) extends Expr with Path {
         override def toString = name.toString
     }
     
-    case class Field(owner: Expr, name: VarName, sym: MSym) extends Expr {
+    case class Field(owner: Expr, name: VarName, sym: MSym, ty: Ty) extends Expr {
         override def toString = "%s %s".format(owner, name)
         
         override def print(out: PrettyPrinter) {
@@ -429,7 +447,7 @@ class Hl {
             arg.print(out)
         }        
     }
-    case class MethodCall(rcvr: Expr, parts: List[CallPart], sym: MSym)
+    case class MethodCall(rcvr: Expr, parts: List[CallPart], sym: MSym, ty: Ty)
     extends Expr {
         def name = Name.Method(parts.map(_.ident))
         def args = parts.map(_.arg)
@@ -441,7 +459,7 @@ class Hl {
         }        
     }
     
-    case class New(tref: TypeRef, arg: Tuple) extends Expr {
+    case class New(tref: TypeRef, arg: Tuple, ty: Ty) extends Expr {
         override def toString = "new %s%s".format(tref, arg)
         
         override def print(out: PrettyPrinter) {
@@ -451,7 +469,7 @@ class Hl {
         }        
     }
     
-    case class Null()
+    case class Null(ty: Ty)
     extends Expr {
         override def toString = "null"
     }
@@ -544,24 +562,27 @@ object Hl {
         type CSym = Unit
         type VSym = Unit
         type MSym = Unit
+        type Ty = Unit
     }
     
-    /** Resolve Name phase: relative names resolved. */
+    /** After ResolveName(): relative names resolved. */
     object RN extends Hl {
         type PN = Hl.AbsName
         type OT = OptionalTypeRef
         type CSym = Unit
         type VSym = Unit
         type MSym = Unit
+        type Ty = Unit
     }
     
-    /** Type Inference phase: types inferred. */
-    object TI extends Hl {
+    /** After CheckTypes(): types inferred. */
+    object CT extends Hl {
         type PN = Hl.AbsName
         type OT = TypeRef
         type CSym = Symbol.Class
         type VSym = Symbol.Var
         type MSym = Symbol.Method
+        type Ty = Symbol.Type
     }
     
 }

@@ -104,7 +104,7 @@ object ResolveNames {
         def resolveMethodDecl(decl: in.MethodDecl) = out.MethodDecl(
             annotations = decl.annotations.map(resolveAnnotation),
             parts = decl.parts.map(resolveDeclPart),
-            retTref = resolveOptionalTypeRef(decl.retTref),
+            returnTref = resolveOptionalTypeRef(decl.returnTref),
             requirements = decl.requirements.map(resolveRequirement),
             optBody = decl.optBody.map(resolveInlineTmpl),
             sym = decl.sym            

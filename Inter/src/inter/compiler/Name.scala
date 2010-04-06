@@ -35,6 +35,10 @@ object Name {
         override def toString = text
     }
     
+    abstract class MemberId
+    case class MethodId(cls: Qual, method: Method) extends MemberId
+    case class FieldId(cls: Qual, method: Method) extends MemberId
+    
     sealed abstract class Path
     case class PathBase(v: Var) extends Path
     case class PathField(base: Path, f: Var) extends Path

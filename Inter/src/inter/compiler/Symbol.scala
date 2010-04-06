@@ -1,6 +1,7 @@
 package inter.compiler
 
 import scala.collection.mutable.ListBuffer
+import scala.collection.mutable.HashMap
 
 /** Symbols describe the class interfaces.  Unlike the AST,
   * they are mutable data structures, built-up during the
@@ -17,7 +18,7 @@ object Symbol {
     abstract class Class(
         val name: Name.Qual
     ) {
-        def constructors(state: CompilationState): Seq[Symbol.Method]
+        def constructors(state: CompilationState): Seq[Type]
         def superClassNames(state: CompilationState): Seq[Name.Qual]
         def methodsNamed(state: CompilationState)(name: Name.Method): List[Symbol.Method]
         def fieldNamed(state: CompilationState)(name: Name.Var): Option[Symbol.Var]
@@ -37,7 +38,7 @@ object Symbol {
         val file: java.io.File
     ) extends Class(name) {
         var loaded = false
-        var constructors = List[Symbol.Method]()
+        var constructors = List[Type]()
         var superClassNames = List[Name.Qual]()
         var methods = List[Symbol.Method]()
         var fields = List[Symbol.Var]()
@@ -91,28 +92,46 @@ object Symbol {
         name: Name.Qual
     ) extends Class(name) {
         var resolvedSource: Hl.RN.ClassDecl = null
+        val methods = new HashMap[Name.Method, List[Method]]()
         
-        def constructors(state: CompilationState) = List()
-        def superClassNames(state: CompilationState) = List()
-        def methodsNamed(state: CompilationState)(name: Name.Method) = List()
+        def constructors(state: CompilationState) = {
+            List(CheckTypes.patternType(resolvedSource.pattern))
+        }
+        
+        def superClassNames(state: CompilationState) = {
+            resolvedSource.superClasses.map(_.qualName)            
+        }
+        
+        def methodsNamed(state: CompilationState)(memName: Name.Method) = {
+            CheckTypes.symbolsForMethodsNamed(state, this, memName)
+        }
+        
         def fieldNamed(state: CompilationState)(name: Name.Var) = None
     }
     
     class Method(
         val name: Name.Method,
-        val retTypeRef: Type,
+        val returnTy: Type,
+        val receiver: Symbol.Var,
         val parameters: List[Symbol.Var]
+    )
+    
+    object ErrorMethod extends Method(
+        Name.Method(List("<error>")), TupleType(List()), List(), None
     )
     
     class Var(
         val name: Name.Var,
-        val typeRef: Type
+        val ty: Type
     )
+    
+    def errorVar(name: Name.Var) = new Var(name, NullType)
     
     sealed abstract class Type
     case class PathType(path: Name.Path, typeVar: Name.Var) extends Type
     case class ClassType(name: Name.Qual, typeArgs: List[TypeArg]) extends Type
     case class TupleType(typeRefs: List[Type]) extends Type
+    case class NullType extends Type
     
     sealed abstract class TypeArg
     case class PathTypeArg(name: Name.Var, rel: PcRel, path: Name.Path) extends TypeArg

@@ -2,6 +2,7 @@ package inter.compiler
 
 import java.io.File
 import scala.collection.mutable.Queue
+import scala.collection.mutable.HashSet
 
 class CompilationState(
     val config: Config,
@@ -9,6 +10,8 @@ class CompilationState(
 ) {
     val symtab = new SymbolTable()
     val toBeTyped = new Queue[Hl.RN.ClassDecl]()
+    val inferStack = new HashSet[Name.MemberId]()
+    val inferReported = new HashSet[Name.MemberId]()
     
     private[this] def createSymbolsAndResolve(compUnits: List[Hl.P.CompUnit]) {
         // Create symbols for each class:
