@@ -120,7 +120,7 @@ class HlParser extends StdTokenParsers with PackratParsers {
     )
     
     lazy val classDecl = positioned(
-        annotations~"class"~ident~optTuplePattern~superClasses~"{"~
+        annotations~"class"~relBase~optTuplePattern~superClasses~"{"~
             rep(member)~
         "}" ^^ {
             case a~_~n~p~sups~"{"~mems~"}" => out.ClassDecl(n, a, sups, p, mems, ())

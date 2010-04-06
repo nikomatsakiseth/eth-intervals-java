@@ -9,7 +9,7 @@ object Name {
         def components = rev_components.reverse
         def asRelPath = components.mkString("/")
         override def toString = components.mkString(".")
-
+        
         def /(nm: String) = Name.Qual(nm :: rev_components)
     }
     
@@ -21,6 +21,8 @@ object Name {
     case class Method(
         parts: List[String]
     ) {
+        def javaName = parts.mkString("$")
+        
         override def toString = parts.mkString("", "()", "()")
     }
     
@@ -28,6 +30,8 @@ object Name {
     case class Var(
         text: String
     ) {
+        def javaName = text
+        
         override def toString = text
     }
     

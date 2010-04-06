@@ -8,10 +8,10 @@ import Hl.{P => in}
 import Hl.{RN => out}
 import Util._
 
-/** ResolvePass resolves relative names into absolute ones, making
+/** `ResolveNames` resolves relative names into absolute ones, making
   * use of the imports as well as the source/classpaths. */
-object ResolvePass {
-    def apply(state: CompilationState, compUnit: in.CompUnit) {
+object ResolveNames {
+    def apply(state: CompilationState, compUnit: in.CompUnit) = {
         
         // ___ Name Resolution __________________________________________________
         //
@@ -27,62 +27,20 @@ object ResolvePass {
             compUnit.imports
         ).reverse
         
-        val located = scala.collection.mutable.Set[Name.Qual]()
-        def locate(absName: Hl.AbsName) = {
-            val qualName = absName.qualName
-            def search() = {
-                val sourceFiles = state.config.sourceFiles(qualName)
-                val classFiles = state.config.classFiles(qualName)
-                val reflClasses = state.config.reflectiveClasses(qualName)
-                (sourceFiles, classFiles, reflClasses) match {
-                    case (List(), List(), None) => false
-                    case (List(), List(), Some(reflClass)) => {
-                        state.toBeReflected += reflClass
-                        true
-                    }
-                    case (sourceFile :: _, List(), _) => {
-                        state.toBeParsed += Pair(sourceFile, Some(qualName))
-                        true
-                    }
-                    case (List(), classFile :: _, _) => {
-                        state.toBeLoaded += Pair(classFile, Some(qualName))
-                        true
-                    }
-                    case (sourceFile :: _, classFile :: _, _) => {
-                        if (sourceFile.lastModified > classFile.lastModified) {
-                            state.toBeParsed += Pair(sourceFile, Some(qualName))
-                            true
-                        } else {
-                            state.toBeLoaded += Pair(classFile, Some(qualName))
-                            true
-                        }
-                    }
-                }                
-            }
-
-            located(qualName) || {
-                if(search()) {
-                    located += qualName
-                    true
-                } else false
-            }
-        }
-        
         def resolveName(rn: in.RelName): Hl.AbsName = rn match {
             case in.RelDot(ctx, nm) => resolveName(ctx) / nm
             case in.RelBase(nm) => {
                 val m = allImports.firstSome { 
                     case in.ImportOne(from, to) => {
                         if (to == rn) {
-                            if(!state.symtab.classes.isDefinedAt(from.qualName) && !locate(from))
+                            if(!state.loadedOrLoadable(from.qualName))
                                 state.reporter.report(rn.pos, "cannot.find.class", from.toString)
                             Some(from)
                         } else None
                     }
                     case in.ImportAll(pkg) => {
                         val absName = pkg / nm
-                        if(state.symtab.classes.isDefinedAt(absName.qualName) || locate(absName))
-                            Some(absName)
+                        if(state.loadedOrLoadable(absName.qualName)) Some(absName)
                         else None
                     }
                 }
@@ -99,7 +57,7 @@ object ResolvePass {
         // ___ Walk tree and resolve names ______________________________________
         
         def resolveClassDecl(cdecl: in.ClassDecl) = out.ClassDecl(
-            name = cdecl.name,
+            name = cdecl.name.toAbs(compUnit.pkg),
             annotations = cdecl.annotations.map(resolveAnnotation),
             superClasses = cdecl.superClasses.map(resolveName),
             pattern = resolveTuplePattern(cdecl.pattern),
@@ -249,7 +207,6 @@ object ResolvePass {
             stmts = tmpl.stmts.map(resolveStmt)
         )
         
-        val cdecls = compUnit.classes.map(resolveClassDecl)
-        state.toBeTyped ++= cdecls
+        compUnit.classes.map(resolveClassDecl)
     }
 }

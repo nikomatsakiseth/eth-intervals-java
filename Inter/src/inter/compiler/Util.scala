@@ -1,8 +1,15 @@
 package inter.compiler
 
+import scala.util.parsing.input.Positional
+import scala.util.parsing.input.Position
+
 object Util {
     def javaReaderFromPath(path: String) = javaReaderFromFile(new java.io.File(path))
     def javaReaderFromFile(file: java.io.File) = new java.io.FileReader(file)
+    
+    def withPosOf[P <: Positional, Q <: Positional](from: P, to: Q): Q = {
+        to.setPos(from.pos); to
+    }
     
     // ___ Extensions to Seq ________________________________________________
     
@@ -13,4 +20,7 @@ object Util {
         }
     }
     implicit def extendedSeq[E](seq: Seq[E]) = new ExtendedSeq(seq)
+    
+    
+    
 }

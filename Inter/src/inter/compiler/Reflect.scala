@@ -10,7 +10,9 @@ import java.lang.reflect.TypeVariable
 import java.lang.reflect.ParameterizedType
 import java.lang.reflect.WildcardType
 
-object ReflectPass {
+/** Support code for Symbol.ClassFromReflection: 
+  * Creates symbols from reflective objects. */
+object Reflect {
     
     def qualName(cls: Class[_]) = {
         import Name.{Qual => qn}
@@ -57,7 +59,7 @@ object ReflectPass {
         case _ => throw new RuntimeException("Not here")
     }
     
-    def fieldSymbol(fld: Field) = new Symbol.Var(
+    def fieldSymbol(state: CompilationState)(fld: Field) = new Symbol.Var(
         name = Name.Var(fld.getName),
         typeRef = typeRef(fld.getGenericType)
     )
@@ -67,22 +69,28 @@ object ReflectPass {
         typeRef = typeRef(pair._1)
     )
     
-    def methodSymbol(mthd: Method) = new Symbol.Method(
+    def methodSymbol(state: CompilationState)(mthd: Method) = new Symbol.Method(
         name = Name.Method(List(mthd.getName)),
         retTypeRef = typeRef(mthd.getGenericReturnType),
         parameters = mthd.getGenericParameterTypes.toList.zipWithIndex.map(paramSymbol)
     )
     
-    def classSymbol(cls: Class[_]) = {
-        val clssym = new Symbol.Class(qualName(cls))
-        clssym.fields ++= cls.getDeclaredFields.map(fieldSymbol)
-        clssym.methods ++= cls.getDeclaredMethods.map(methodSymbol)
-        clssym
+    def methodsNamed(state: CompilationState, sym: Symbol.ClassFromReflection, name: Name.Method) = {
+        val methods = sym.optMethods.getOrElse {
+            val syms = sym.cls.getDeclaredMethods.map(Reflect.methodSymbol(state)).toList
+            sym.optMethods = Some(syms)
+            syms
+        }
+        methods.filter(_.name == name)        
     }
-    
-    def apply(state: CompilationState, cls: Class[_]) {
-        val sym = classSymbol(cls)
-        state.symtab.classes(sym.name) = sym
+
+    def fieldNamed(state: CompilationState, sym: Symbol.ClassFromReflection, name: Name.Var) = {
+        val fields = sym.optFields.getOrElse {
+            val syms = sym.cls.getDeclaredFields.map(Reflect.fieldSymbol(state)).toList
+            sym.optFields = Some(syms)
+            syms
+        }
+        fields.find(_.name == name)        
     }
-    
+        
 }

@@ -45,12 +45,18 @@ class Hl {
     
     // ______ Potentially relative names ____________________________________
     sealed abstract class RelName extends PkgName {
+        def toAbs(pkg: AbsName): AbsName
+        def toQual(pkg: Name.Qual): Name.Qual
         def /(nm: String) = RelDot(this, nm)   
     }
     case class RelBase(nm: String) extends RelName {
+        def toAbs(pkg: AbsName) = withPosOf(this, Hl.AbsDot(pkg, nm))
+        def toQual(pkg: Name.Qual) = pkg / nm
         override def toString = nm
     }
     case class RelDot(context: RelName, component: String) extends RelName {
+        def toAbs(pkg: AbsName) = withPosOf(this, Hl.AbsDot(context.toAbs(pkg), component))
+        def toQual(pkg: Name.Qual) = context.toQual(pkg) / component
         override def toString = "%s.%s".format(context, component)
     }
     
@@ -68,8 +74,9 @@ class Hl {
             printSepFunc(out, classes, () => out.writeln(""))
         }
         
-        def classPairs = classes.map { classDecl =>
-            (pkg.qualName / classDecl.name) -> classDecl
+        def definedClasses = {
+            val pkgQualName = pkg.qualName
+            classes.map(cdecl => (cdecl.name.toQual(pkgQualName), cdecl))
         }
         
     }
@@ -94,7 +101,7 @@ class Hl {
     }
     
     case class ClassDecl(
-        name: String,
+        name: PN,
         annotations: List[Annotation],
         superClasses: List[PN],
         pattern: TuplePattern,
@@ -496,11 +503,14 @@ object Hl {
         }
     }
     
-    sealed abstract class PkgName extends Ast
+    sealed abstract class PkgName extends Ast {
+        def toQual(pkg: Name.Qual): Name.Qual
+    }
 
     // ______ Names known to be absolute ____________________________________
     sealed abstract class AbsName extends PkgName {
         def /(nm: String) = AbsDot(this, nm)
+        def toQual(pkg: Name.Qual) = qualName
         def qualName: Name.Qual
     }
     case object AbsRoot extends AbsName {

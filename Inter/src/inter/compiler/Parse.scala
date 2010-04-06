@@ -1,12 +1,13 @@
 package inter.compiler
 
+import Hl.{P => out}
 import java.io.File
 import scala.collection.immutable.PagedSeq
 import scala.util.parsing.input.PagedSeqReader
 import scala.util.parsing.input.OffsetPosition
 import scala.util.parsing.input.Position
 
-object ParsePass {
+object Parse {
     
     class FileReader(interFile: File, seq: PagedSeq[Char], off: Int) extends PagedSeqReader(seq, off) {
         
@@ -23,14 +24,7 @@ object ParsePass {
         
     }
 
-    class FilePosition(interFile: File) extends Position with InterPosition {
-        def file = interFile
-        def line = 1
-        def column = 1
-        override def lineContents = ""
-    }
-    
-    def apply(state: CompilationState, interFile: File, expClass: Option[Name.Qual]) {
+    def apply(state: CompilationState, interFile: File) = {
         val javaReader = Util.javaReaderFromFile(interFile)
         val parser = new HlParser()
         
@@ -39,33 +33,14 @@ object ParsePass {
         parser.phrase(parser.compUnit)(tokens) match {
             case n: parser.NoSuccess => {
                 state.reporter.report(n.next.pos, "parse.error", n.msg)
+                None
             }
             case parser.Success(compUnit, _) => {
                 if(state.config.dumpParsedTrees) {
                     compUnit.println(PrettyPrinter.stdout)
                 }
                 
-                // Check that we got (at least) what we expected to get:
-                expClass.foreach { expName =>
-                    compUnit.classPairs.find(_._1 == expName) match {
-                        case Some(_) =>
-                        case None => state.reporter.report(
-                            new FilePosition(interFile),
-                            "expected.to.find.class", 
-                            expName.toString
-                        )
-                    }
-                }
-                
-                // Add entries to the symbol table:
-                compUnit.classPairs.foreach { case (qn, clsdefn) =>
-                    if(state.symtab.classes.isDefinedAt(qn))
-                        state.reporter.report(clsdefn.pos, "class.already.defined", qn.toString)
-                    else
-                        state.symtab.classes(qn) = new Symbol.Class(qn)
-                }
-
-                state.toBeResolved += compUnit
+                Some(compUnit)
             }
         }                
     }

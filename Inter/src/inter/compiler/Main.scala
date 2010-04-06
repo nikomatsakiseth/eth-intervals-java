@@ -10,35 +10,14 @@ object Main {
         val err = 
             if(config.loadFrom(args)) {
                 val state = new CompilationState(config, new Reporter(config))
-                state.toBeParsed ++= config.inputFiles.toList.map(f => (f, None))
-                compile(state)
+                state.loadInitialSources(config.inputFiles.toList)
+                state.compile()
+                if (state.reporter.hasErrors) {
+                    state.reporter.print(System.err)                
+                    1
+                } else 0
             } else 1
         System.exit(err)
-    }
-    
-    // Note: in the future, these tasks can be parallelized.
-    def compile(state: CompilationState): Int = {
-        while(true) {
-            if(!state.toBeParsed.isEmpty) {
-                val (f, exp) = state.toBeParsed.dequeue()
-                ParsePass(state, f, exp)
-            } else if (!state.toBeLoaded.isEmpty) {
-                val (f, exp) = state.toBeLoaded.dequeue()
-                LoadPass(state, f, exp)
-            } else if (!state.toBeReflected.isEmpty) {
-                val cls = state.toBeReflected.dequeue()
-                ReflectPass(state, cls)
-            } else if (!state.toBeResolved.isEmpty) {
-                val cd = state.toBeResolved.dequeue()
-                ResolvePass(state, cd)
-            } else if (state.reporter.hasErrors) {
-                state.reporter.print(System.err)
-                return 1
-            } else {
-                return 0
-            }            
-        }
-        return 0 // to satisfy type checker
     }
     
 }

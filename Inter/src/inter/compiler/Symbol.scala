@@ -14,12 +14,88 @@ import scala.collection.mutable.ListBuffer
   * (i.e., if they are implemented on different classes). */
 object Symbol {
     
-    class Class(
+    abstract class Class(
         val name: Name.Qual
     ) {
-        val superClassNames = new ListBuffer[Name.Qual]()
-        val methods = new ListBuffer[Symbol.Method]()
-        val fields = new ListBuffer[Symbol.Var]()
+        def constructors(state: CompilationState): Seq[Symbol.Method]
+        def superClassNames(state: CompilationState): Seq[Name.Qual]
+        def methodsNamed(state: CompilationState)(name: Name.Method): List[Symbol.Method]
+        def fieldNamed(state: CompilationState)(name: Name.Var): Option[Symbol.Var]
+    }
+    
+    class ClassFromErroroneousSource(
+        name: Name.Qual
+    ) extends Class(name) {
+        def constructors(state: CompilationState) = List()
+        def superClassNames(state: CompilationState) = List()
+        def methodsNamed(state: CompilationState)(name: Name.Method) = List()
+        def fieldNamed(state: CompilationState)(name: Name.Var) = None
+    }
+    
+    class ClassFromClassFile(
+        name: Name.Qual,
+        val file: java.io.File
+    ) extends Class(name) {
+        var loaded = false
+        var constructors = List[Symbol.Method]()
+        var superClassNames = List[Name.Qual]()
+        var methods = List[Symbol.Method]()
+        var fields = List[Symbol.Var]()
+        
+        def load(state: CompilationState) {
+            if(!loaded) {
+                LoadClassFile(state, this)
+                loaded = true
+            }
+        }
+        
+        def constructors(state: CompilationState) = {
+            load(state)
+            constructors
+        }
+        
+        def superClassNames(state: CompilationState) = {
+            load(state)
+            superClassNames
+        }
+        
+        def methodsNamed(state: CompilationState)(name: Name.Method) = {
+            load(state)
+            methods.filter(_.name == name)
+        }
+        
+        def fieldNamed(state: CompilationState)(name: Name.Var) = {
+            load(state)
+            fields.find(_.name == name)
+        }
+    }
+    
+    class ClassFromReflection(
+        name: Name.Qual,
+        val cls: java.lang.Class[_]
+    ) extends Class(name) {
+        var optMethods: Option[List[Symbol.Method]] = None
+        var optFields: Option[List[Symbol.Var]] = None
+        
+        def constructors(state: CompilationState) = List() // ΧΧΧ TODO
+        def superClassNames(state: CompilationState) = List() // XXX TODO
+        def methodsNamed(state: CompilationState)(name: Name.Method) = {
+            Reflect.methodsNamed(state, this, name)
+        }
+        def fieldNamed(state: CompilationState)(name: Name.Var) = {
+            Reflect.fieldNamed(state, this, name)
+        }
+    }
+    
+    class ClassFromInterFile(
+        name: Name.Qual
+    ) extends Class(name) {
+        var resolvedSource: Hl.RN.ClassDecl = null
+        
+        def constructors(state: CompilationState) = List()
+        def superClassNames(state: CompilationState) = List()
+        def methodsNamed(state: CompilationState)(name: Name.Method) = List()
+        def fieldNamed(state: CompilationState)(name: Name.Var) = None
     }
     
     class Method(
