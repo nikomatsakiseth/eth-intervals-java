@@ -32,6 +32,8 @@ object Name {
     ) {
         def javaName = text
         
+        def toPath = PathBase(this)
+        
         override def toString = text
     }
     

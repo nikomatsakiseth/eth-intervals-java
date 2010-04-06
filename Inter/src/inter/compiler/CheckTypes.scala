@@ -6,8 +6,8 @@ import Hl.{RN => in}
 import Hl.{CT => out}
 import Util._
 
-/** Performs the basic type check. This is more-or-less equivalent
-  * to your standard, run-of-the-mill Java type check, except that 
+/** Performs the basic type typeCheck. This is more-or-less equivalent
+  * to your standard, run-of-the-mill Java type typeCheck, except that 
   * it does more inference. */
 object CheckTypes {
     
@@ -64,7 +64,7 @@ object CheckTypes {
         sym: Symbol.ClassFromInterFile, 
         mthdName: Name.Method
     ) = {
-        val clsTree = sym.checkdSource
+        val clsTree = sym.typeCheckdSource
         clsTree.members.flatMap(_.asMethodNamed(mthdName)) match {
             // No methods with that name:
             case List() => List()
@@ -86,7 +86,7 @@ object CheckTypes {
                     
                     List(symbol.ErrorMethod) 
                 } else {
-                    val sym = checkMethod(state, sym.cdecl, mdecl)
+                    val sym = typeCheckMethod(state, sym.cdecl, mdecl)
                     sym.methods(mthdName) = List(sym)
                     List(sym)
                 }
@@ -131,7 +131,7 @@ object CheckTypes {
         val Empty = new LookupTable(Map())
     }
     
-    def checkMethod(state: CompilationState, cdecl: in.ClassDecl, mdecl: in.MethodDecl) = {
+    def typeCheckMethod(state: CompilationState, cdecl: in.ClassDecl, mdecl: in.MethodDecl) = {
         val clsName = cdecl.name.qualName
         val memberId = Name.MethodId(clsName, memName)
         assert(!state.inferStack(memberId))
@@ -141,8 +141,6 @@ object CheckTypes {
         val parameters = mdecl.parts.flatMap(partSyms)
         val lookup = LookupTable.Empty + receiver ++ parameters
         
-        
-
         state.inferStack -= memberId
     }
     
@@ -150,106 +148,131 @@ object CheckTypes {
     
     class TypeChecker(lookup: LookupTable) {
         
-        def checkMethodDecl(decl: in.MethodDecl) = out.MethodDecl(
-            annotations = decl.annotations.map(checkAnnotation),
-            parts = decl.parts.map(checkDeclPart),
-            returnTref = checkOptionalTypeRef(decl.returnTref),
-            requirements = decl.requirements.map(checkRequirement),
-            optBody = decl.optBody.map(checkInlineTmpl),
+        /* Yuck--- Should we first lower the AST as part of the post-processing? */
+        
+        def patSubst(allPatterns: List[Pattern], allExprs: List[in.Expr]): Subst = {
+            allPatterns.zip(allExprs).foldLeft(Subst.empty) {
+                case (subst, (Symbol.TuplePattern(patterns), in.Tuple(exprs)))
+                if patterns.length == exprs.length =>
+                    subst + patSubst(patterns, exprs)
+                
+                case (subst, (Symbol.TuplePattern(patterns), _)) =>
+                    patterns.foldLeft(subst)(dummySubst)
+                
+                case (subst, sym: Symbol.Var, in.Var(name, (), ())) =>
+                    subst + (sym.name.toPath -> name.name.toPath)
+                    
+                case (pat @ Symbol.Var(_), _) =>
+                    dummySubst(List(pat))
+            }
+        }
+    
+        def checkAssignable(allPatterns: List[Pattern], allExprs: List[out.Expr]) = {
+            allPatterns.zip(allExprs).foreach {
+                case (Symbol.TuplePattern(patterns), out.Tuple)
+            }
+        }
+    
+        def typeCheckMethodDecl(decl: in.MethodDecl) = out.MethodDecl(
+            annotations = decl.annotations.map(typeCheckAnnotation),
+            parts = decl.parts.map(typeCheckDeclPart),
+            returnTref = typeCheckOptionalTypeRef(decl.returnTref),
+            requirements = decl.requirements.map(typeCheckRequirement),
+            optBody = decl.optBody.map(typeCheckInlineTmpl),
             sym = decl.sym            
         )
     
-        def checkAnnotation(ann: in.Annotation) = out.Annotation(
-            name = checkName(ann.name)
+        def typeCheckAnnotation(ann: in.Annotation) = out.Annotation(
+            name = typeCheckName(ann.name)
         )
     
-        def checkPattern(pattern: in.Pattern): out.Pattern = pattern match {
-            case tuplePat: in.TuplePattern => checkTuplePattern(tuplePat)
-            case varPat: in.VarPattern => checkVarPattern(varPat)
+        def typeCheckPattern(pattern: in.Pattern): out.Pattern = pattern match {
+            case tuplePat: in.TuplePattern => typeCheckTuplePattern(tuplePat)
+            case varPat: in.VarPattern => typeCheckVarPattern(varPat)
         }
     
-        def checkTuplePattern(tuplePat: in.TuplePattern) = out.TuplePattern(
-            patterns = tuplePat.patterns.map(checkPattern)
+        def typeCheckTuplePattern(tuplePat: in.TuplePattern) = out.TuplePattern(
+            patterns = tuplePat.patterns.map(typeCheckPattern)
         )
     
-        def checkVarPattern(varPat: in.VarPattern) = out.VarPattern(
-            annotations = varPat.annotations.map(checkAnnotation),
-            tref = checkTypeRef(varPat.tref),
+        def typeCheckVarPattern(varPat: in.VarPattern) = out.VarPattern(
+            annotations = varPat.annotations.map(typeCheckAnnotation),
+            tref = typeCheckTypeRef(varPat.tref),
             name = varPat.name,
             sym = varPat.sym
         )
     
-        def checkMember(mem: in.MemberDecl): out.MemberDecl = mem match {
-            case decl: in.ClassDecl => checkClassDecl(decl)
-            case decl: in.IntervalDecl => checkIntervalDecl(decl)
-            case decl: in.MethodDecl => checkMethodDecl(decl)
-            case decl: in.FieldDecl => checkFieldDecl(decl)
-            case decl: in.RelDecl => checkRelDecl(decl)
+        def typeCheckMember(mem: in.MemberDecl): out.MemberDecl = mem match {
+            case decl: in.ClassDecl => typeCheckClassDecl(decl)
+            case decl: in.IntervalDecl => typeCheckIntervalDecl(decl)
+            case decl: in.MethodDecl => typeCheckMethodDecl(decl)
+            case decl: in.FieldDecl => typeCheckFieldDecl(decl)
+            case decl: in.RelDecl => typeCheckRelDecl(decl)
         }
     
-        def checkIntervalDecl(decl: in.IntervalDecl) = out.IntervalDecl(
-            annotations = decl.annotations.map(checkAnnotation),
+        def typeCheckIntervalDecl(decl: in.IntervalDecl) = out.IntervalDecl(
+            annotations = decl.annotations.map(typeCheckAnnotation),
             name = decl.name,
-            optParent = decl.optParent.map(checkPath),
-            optBody = decl.optBody.map(checkInlineTmpl),
+            optParent = decl.optParent.map(typeCheckPath),
+            optBody = decl.optBody.map(typeCheckInlineTmpl),
             sym = decl.sym            
         )
     
-        def checkDeclPart(decl: in.DeclPart) = out.DeclPart(
+        def typeCheckDeclPart(decl: in.DeclPart) = out.DeclPart(
             ident = decl.ident,
-            pattern = checkTuplePattern(decl.pattern)
+            pattern = typeCheckTuplePattern(decl.pattern)
         )
     
-        def checkRequirement(requirement: in.PathRequirement) = out.PathRequirement(
-            left = checkPath(requirement.left),
+        def typeCheckRequirement(requirement: in.PathRequirement) = out.PathRequirement(
+            left = typeCheckPath(requirement.left),
             rel = requirement.rel,
-            right = checkPath(requirement.right)
+            right = typeCheckPath(requirement.right)
         )
     
-        def checkFieldDecl(decl: in.FieldDecl) = out.FieldDecl(
-            annotations = decl.annotations.map(checkAnnotation),
+        def typeCheckFieldDecl(decl: in.FieldDecl) = out.FieldDecl(
+            annotations = decl.annotations.map(typeCheckAnnotation),
             name = decl.name,
-            tref = checkOptionalTypeRef(decl.tref),
-            value = decl.value.map(checkExpr),
+            tref = typeCheckOptionalTypeRef(decl.tref),
+            value = decl.value.map(typeCheckExpr),
             sym = decl.sym            
         )
     
-        def checkRelDecl(decl: in.RelDecl) = out.RelDecl(
-            annotations = decl.annotations.map(checkAnnotation),
-            left = checkPath(decl.left),
+        def typeCheckRelDecl(decl: in.RelDecl) = out.RelDecl(
+            annotations = decl.annotations.map(typeCheckAnnotation),
+            left = typeCheckPath(decl.left),
             kind = decl.kind,
-            right = checkPath(decl.right)
+            right = typeCheckPath(decl.right)
         )
     
-        def checkPath(path: in.Path): out.Path = path match {
+        def typeCheckPath(path: in.Path): out.Path = path match {
             case in.Var(name, ()) => out.Var(name, ())
-            case in.PathField(p, f) => out.PathField(checkPath(p), f)
+            case in.PathField(p, f) => out.PathField(typeCheckPath(p), f)
         }
     
-        def checkOptionalTypeRef(otref: in.OptionalTypeRef): out.OptionalTypeRef = otref match {
+        def typeCheckOptionalTypeRef(otref: in.OptionalTypeRef): out.OptionalTypeRef = otref match {
             case in.InferredTypeRef => out.InferredTypeRef
-            case tref: in.TypeRef => checkTypeRef(tref)
+            case tref: in.TypeRef => typeCheckTypeRef(tref)
         }
     
-        def checkTypeRef(tref: in.TypeRef): out.TypeRef = tref match {
-            case in.PathType(path, tvar) => out.PathType(checkPath(path), tvar)
-            case in.ClassType(cn, targs) => out.ClassType(checkName(cn), targs.map(checkTypeArg))
+        def typeCheckTypeRef(tref: in.TypeRef): out.TypeRef = tref match {
+            case in.PathType(path, tvar) => out.PathType(typeCheckPath(path), tvar)
+            case in.ClassType(cn, targs) => out.ClassType(typeCheckName(cn), targs.map(typeCheckTypeArg))
         }
 
-        def checkTypeArg(targ: in.TypeArg): out.TypeArg = targ match {
-            case ttarg: in.TypeTypeArg => checkTypeTypeArg(ttarg)
-            case ptarg: in.PathTypeArg => checkPathTypeArg(ptarg)
+        def typeCheckTypeArg(targ: in.TypeArg): out.TypeArg = targ match {
+            case ttarg: in.TypeTypeArg => typeCheckTypeTypeArg(ttarg)
+            case ptarg: in.PathTypeArg => typeCheckPathTypeArg(ptarg)
         }
     
-        def checkTypeTypeArg(targ: in.TypeTypeArg): out.TypeTypeArg = out.TypeTypeArg(
-            name = targ.name, rel = targ.rel, typeRef = checkTypeRef(targ.typeRef)
+        def typeCheckTypeTypeArg(targ: in.TypeTypeArg): out.TypeTypeArg = out.TypeTypeArg(
+            name = targ.name, rel = targ.rel, typeRef = typeCheckTypeRef(targ.typeRef)
         )
     
-        def checkPathTypeArg(targ: in.PathTypeArg): out.PathTypeArg = out.PathTypeArg(
-            name = targ.name, rel = targ.rel, path = checkPath(targ.path)
+        def typeCheckPathTypeArg(targ: in.PathTypeArg): out.PathTypeArg = out.PathTypeArg(
+            name = targ.name, rel = targ.rel, path = typeCheckPath(targ.path)
         )
         
-        def checkStmts(stmts: List[in.Stmt]): List[out.Stmt] = stmts match {
+        def typeCheckStmts(stmts: List[in.Stmt]): List[out.Stmt] = stmts match {
             case List() => List()
             
             case in.Assign(lv, rv) :: stmts_r => {
@@ -258,36 +281,36 @@ object CheckTypes {
             
             case in.Labeled(name, blk) :: stmts_r => {
                 out.Labeled(
-                    name, checkInlineTmpl(blk)
-                ) :: checkStmts(stmts_r)
+                    name, typeCheckInlineTmpl(blk)
+                ) :: typeCheckStmts(stmts_r)
             }
             
             case (expr: in.Expr) :: stmts_r => {
-                checkExpr(expr) :: checkStmts(stmts_r)
+                typeCheckExpr(expr) :: typeCheckStmts(stmts_r)
             }
             
         }
     
-        def checkLvalue(lvalue: in.Lvalue): out.Lvalue = lvalue match {
-            case in.TupleLvalue(lvalues) => out.TupleLvalue(lvalues.map(checkLvalue))
+        def typeCheckLvalue(lvalue: in.Lvalue): out.Lvalue = lvalue match {
+            case in.TupleLvalue(lvalues) => out.TupleLvalue(lvalues.map(typeCheckLvalue))
             case in.VarLvalue(annotations, tref, name, ()) => out.VarLvalue(
-                annotations = annotations.map(checkAnnotation),
-                tref = checkOptionalTypeRef(tref),
+                annotations = annotations.map(typeCheckAnnotation),
+                tref = typeCheckOptionalTypeRef(tref),
                 name = name,
                 sym = ()
             )
         }
     
-        def checkExpr(expr: in.Expr): out.Expr = expr match {
-            case tuple: in.Tuple => checkTuple(tuple)
-            case tmpl: in.InlineTmpl => checkInlineTmpl(tmpl)
-            case in.AsyncTmpl(stmts) => out.AsyncTmpl(stmts.map(checkStmt))
+        def typeCheckExpr(optExpTy: Option[Symbol.Ty])(expr: in.Expr): out.Expr = expr match {
+            case tuple: in.Tuple => typeCheckTuple(tuple)
+            case tmpl: in.InlineTmpl => typeCheckInlineTmpl(tmpl)
+            case in.AsyncTmpl(stmts) => out.AsyncTmpl(stmts.map(typeCheckStmt))
             case in.Literal(obj) => out.Literal(obj)
-            case in.Assign(lv, rv) => out.Assign(checkLvalue(lv), checkExpr(rv))
-            case e: in.Var => checkVar(e)
-            case in.Field(owner, name, ()) => out.Field(checkExpr(owner), name, ())
-            case e: in.MethodCall => checkMethodCall(e)
-            case in.New(tref, arg) => out.New(checkTypeRef(tref), checkTuple(arg))
+            case in.Assign(lv, rv) => out.Assign(typeCheckLvalue(lv), typeCheckExpr(rv))
+            case e: in.Var => typeCheckVar(e)
+            case in.Field(owner, name, ()) => out.Field(typeCheckExpr(owner), name, ())
+            case e: in.MethodCall => typeCheckMethodCall(e)
+            case in.New(tref, arg) => out.New(typeCheckTypeRef(tref), typeCheckTuple(arg))
             case in.Null() => out.Null(Symbol.NullType)
             case in.ImpVoid => out.ImpVoid
             case in.ImpThis => out.ImpThis
@@ -308,47 +331,56 @@ object CheckTypes {
             }
         }
 
-        def checkPart(part: in.CallPart) = {
-            out.CallPart(part.ident, checkExpr(part.arg))            
+        def typeCheckPart(optExpTy: Option[Symbol.Ty])(part: in.CallPart) = {
+            out.CallPart(part.ident, typeCheckExpr(optExpTy)(part.arg))            
         }
-    
-        def checkMethodCall(mcall: in.MethodCall) = {
-            val rcvr = checkExpr(mcall.rcvr)
-            val parts = mcall.parts.map(checkPart)
+        
+        def typeCheckMethodCall(mcall: in.MethodCall) = {
+            val rcvr = typeCheckExpr(mcall.rcvr)
             
             // Find all potential methods:
             val msyms = 
-                state.checkIntrinsics(rcvr.ty, mcall.name) match {
+                state.typeCheckIntrinsics(rcvr.ty, mcall.name) match {
                     case Some(intrinsicSym) => List(intrinsicSym)
                     case None => lookupNonintrinsicMethod(rcvr.ty, mcall.name)
                 }
                 
             // Identify the best method (if any):
-            val msym = msyms match {
+            val (parts, msym) = msyms match {
                 case List() => {
                     reporter.report(v.pos, "no.such.method", rcvr.ty.toString, mcall.name.toString)
                     Symbol.ErrorMethod
                 }
                 
-                case List(msym) => msym
+                // Exactly one match: We can do more with inferencing
+                // in this case, as we know the expected type.
+                case List(msym) => {
+                    val optExpTys = msym.parameters.map(p => Some(p.ty)) /* XXX Subst */
+                    val parts = optExpTys.zip(mcall.parts).map { case (e,p) => typeCheckPart(e)(p) }
+                    msym
+                }
                 
-                case _ => throw new RuntimeException("To Do: Overloading")
+                case _ => {
+                    val parts = mcall.parts.map(typeCheckPart(None))
+                }
             }
             
-            val subst = Subst.expr(state,
+            val subst = Subst.pattern(state,
                 msym.receiver   :: msym.parameters,
                 rcvr            :: parts
             )
 
             // Check the types of the arguments:
-            if(sym != Symbol.ErrorMethod) {
-                // XXX
-            }
-            
+            if(sym != Symbol.ErrorMethod)
+                checkAssignable(
+                    (msym.receiver  :: msym.parameters).map(subst.pattern), 
+                    (rcvr           :: parts))
+
             out.MethodCall(rcvr, parts, msym, subst.ty(msym.returnTy))
+            
         }
 
-        def checkVar(v: in.Var) = {
+        def typeCheckVar(v: in.Var) = {
             lookup.get(v.name.name) match {
                 case Some(sym) => out.Var(v.name, sym, sym.typeRef)
                 case None => {
@@ -359,13 +391,13 @@ object CheckTypes {
             }
         }
     
-        def checkTuple(tuple: in.Tuple) = {
-            val exprs = tuple.exprs.map(checkExpr)
+        def typeCheckTuple(tuple: in.Tuple) = {
+            val exprs = tuple.exprs.map(typeCheckExpr)
             out.Tuple(exprs, symbol.TupleType(exprs.map(_.ty)))
         }
     
-        def checkInlineTmpl(tmpl: in.InlineTmpl) = out.InlineTmpl(
-            stmts = tmpl.stmts.map(checkStmt)
+        def typeCheckInlineTmpl(tmpl: in.InlineTmpl) = out.InlineTmpl(
+            stmts = tmpl.stmts.map(typeCheckStmt)
         )
         
     }

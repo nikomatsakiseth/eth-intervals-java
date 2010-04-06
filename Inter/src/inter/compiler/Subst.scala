@@ -1,11 +1,16 @@
 package inter.compiler
 
-class Subst {
+import scala.collection.immutable.Map
+
+class Subst(private val map: Map[Name.Path, Name.Path]) {
+    
+    def +(s: Subst) = new Subst(map ++ s.map)
+    def +(p: Pair[Name.Path, Name.Path]) = new Subst(map + p)
+    
+    def pattern(p: Symbol.Pattern): Symbol.Pattern
     def ty(t: Symbol.Type): Symbol.Type
 }
 
 object Subst {
-    def expr(state: CompilationState, syms: List[Symbol.Var], exprs: List[Hl.CT.Expr]): Subst = {
-        null
-    }
+    val empty = new Subst(Map())
 }

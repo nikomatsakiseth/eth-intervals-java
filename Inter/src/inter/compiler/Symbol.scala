@@ -113,19 +113,27 @@ object Symbol {
         val name: Name.Method,
         val returnTy: Type,
         val receiver: Symbol.Var,
-        val parameters: List[Symbol.Var]
+        val parameters: List[Pattern]
     )
     
     object ErrorMethod extends Method(
         Name.Method(List("<error>")), TupleType(List()), List(), None
     )
     
+    sealed abstract class Pattern {
+        def ty: Type
+    }
+    
     class Var(
         val name: Name.Var,
         val ty: Type
-    )
+    ) extends Pattern
     
     def errorVar(name: Name.Var) = new Var(name, NullType)
+    
+    sealed case class TuplePattern(patterns: List[Pattern]) extends Pattern {
+        def ty = TupleType(patterns.map(_.ty))
+    }
     
     sealed abstract class Type
     case class PathType(path: Name.Path, typeVar: Name.Var) extends Type
