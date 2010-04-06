@@ -111,6 +111,12 @@ class CompilationState(
         }                
     }
     
+    /** Checks for an intrinsic method --- i.e., one that is built-in to the compiler ---
+      * defined on the type `rcvrTy` with the name `name`. */
+    def checkIntrinsics(rcvrTy: Symbol.Type, name: Name.Method): Option[Symbol.Method] = {
+        None
+    }
+    
     def compile() {
     }
     

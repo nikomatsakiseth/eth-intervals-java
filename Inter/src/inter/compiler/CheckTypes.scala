@@ -293,6 +293,60 @@ object CheckTypes {
             case in.ImpThis => out.ImpThis
         }
         
+        def lookupNonintrinsicMethod(rcvrTy: Symbol.Type, name: Name.Method): List[Symbol.Method] = {
+            rcvrTy match {
+                case Symbol.ClassType(name, _) => {
+                    val csym = state.symtab.classes(name)
+                    csym.methodsNamed(state)(name)
+                }
+                
+                case Symbol.PathType(path, tvar) => {
+                    
+                }
+                
+                case _ => List()
+            }
+        }
+
+        def checkPart(part: in.CallPart) = {
+            out.CallPart(part.ident, checkExpr(part.arg))            
+        }
+    
+        def checkMethodCall(mcall: in.MethodCall) = {
+            val rcvr = checkExpr(mcall.rcvr)
+            val parts = mcall.parts.map(checkPart)
+            
+            // Find all potential methods:
+            val msyms = 
+                state.checkIntrinsics(rcvr.ty, mcall.name) match {
+                    case Some(intrinsicSym) => List(intrinsicSym)
+                    case None => lookupNonintrinsicMethod(rcvr.ty, mcall.name)
+                }
+                
+            // Identify the best method (if any):
+            val msym = msyms match {
+                case List() => {
+                    reporter.report(v.pos, "no.such.method", rcvr.ty.toString, mcall.name.toString)
+                    Symbol.ErrorMethod
+                }
+                
+                case List(msym) => msym
+                
+                case _ => throw new RuntimeException("To Do: Overloading")
+            }
+            
+            val subst = Subst.expr(state,
+                msym.receiver   :: msym.parameters,
+                rcvr            :: parts
+            )
+
+            // Check the types of the arguments:
+            if(sym != Symbol.ErrorMethod) {
+                // XXX
+            }
+            
+            out.MethodCall(rcvr, parts, msym, subst.ty(msym.returnTy))
+        }
 
         def checkVar(v: in.Var) = {
             lookup.get(v.name.name) match {
@@ -304,11 +358,6 @@ object CheckTypes {
                 }
             }
         }
-    
-        def checkPart(part: in.CallPart) = out.CallPart(
-            ident = part.ident,
-            arg = checkExpr(part.arg)
-        )
     
         def checkTuple(tuple: in.Tuple) = {
             val exprs = tuple.exprs.map(checkExpr)
