@@ -9,11 +9,11 @@ class CompilationState(
     val reporter: Reporter
 ) {
     val symtab = new SymbolTable()
-    val toBeTyped = new Queue[Hl.RN.ClassDecl]()
+    val toBeTyped = new Queue[Ast.Resolve.ClassDecl]()
     val inferStack = new HashSet[Name.MemberId]()
     val inferReported = new HashSet[Name.MemberId]()
     
-    private[this] def createSymbolsAndResolve(compUnits: List[Hl.P.CompUnit]) {
+    private[this] def createSymbolsAndResolve(compUnits: List[Ast.Parse.CompUnit]) {
         // Create symbols for each class:
         //    We have to do this first so as to resolve 
         //    cyclic references between classes.
@@ -26,7 +26,7 @@ class CompilationState(
         
         // Resolve the compilation unit and store those into the symbol:
         compUnits.foreach { compUnit =>
-            ResolveNames(this, compUnit).foreach { cdecl =>
+            Resolve(this, compUnit).foreach { cdecl =>
                 val sym = symtab.classes(cdecl.name.qualName).asInstanceOf[Symbol.ClassFromInterFile]
                 sym.resolvedSource = cdecl
                 toBeTyped += cdecl
@@ -113,7 +113,7 @@ class CompilationState(
     
     /** Checks for an intrinsic method --- i.e., one that is built-in to the compiler ---
       * defined on the type `rcvrTy` with the name `name`. */
-    def checkIntrinsics(rcvrTy: Symbol.Type, name: Name.Method): Option[Symbol.Method] = {
+    def lookupIntrinsic(rcvrTy: Symbol.Type, name: Name.Method): Option[Symbol.Method] = {
         None
     }
     

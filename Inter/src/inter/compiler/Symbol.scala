@@ -91,7 +91,7 @@ object Symbol {
     class ClassFromInterFile(
         name: Name.Qual
     ) extends Class(name) {
-        var resolvedSource: Hl.RN.ClassDecl = null
+        var resolvedSource: Ast.Resolve.ClassDecl = null
         val methods = new HashMap[Name.Method, List[Method]]()
         
         def constructors(state: CompilationState) = {
@@ -113,7 +113,7 @@ object Symbol {
         val name: Name.Method,
         val returnTy: Type,
         val receiver: Symbol.Var,
-        val parameters: List[Pattern]
+        val parameterPatterns: List[Pattern]
     )
     
     object ErrorMethod extends Method(
@@ -129,7 +129,12 @@ object Symbol {
         val ty: Type
     ) extends Pattern
     
-    def errorVar(name: Name.Var) = new Var(name, NullType)
+    def errorVar(name: Name.Var, optExpTy: Option[Type]) = {
+        optExpTy match {
+            case None => new Var(name, NullType)
+            case Some(ty) => new Var(name, ty)
+        }
+    }
     
     sealed case class TuplePattern(patterns: List[Pattern]) extends Pattern {
         def ty = TupleType(patterns.map(_.ty))
@@ -139,7 +144,7 @@ object Symbol {
     case class PathType(path: Name.Path, typeVar: Name.Var) extends Type
     case class ClassType(name: Name.Qual, typeArgs: List[TypeArg]) extends Type
     case class TupleType(typeRefs: List[Type]) extends Type
-    case class NullType extends Type
+    case object NullType extends Type
     
     sealed abstract class TypeArg
     case class PathTypeArg(name: Name.Var, rel: PcRel, path: Name.Path) extends TypeArg

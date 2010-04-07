@@ -13,4 +13,6 @@ class Subst(private val map: Map[Name.Path, Name.Path]) {
 
 object Subst {
     val empty = new Subst(Map())
+    
+    def apply(pairs: (Name.Path, Name.Path)*) = new Subst(Map(pairs: _*))
 }
