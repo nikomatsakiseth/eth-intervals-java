@@ -503,12 +503,12 @@ class Ast {
     
     /** ImpVoid is inserted when there is an empty 
       * set of statements like "{ }". */
-    case class ImpVoid()
+    case class ImpVoid(ty: Ty)
     extends Expr {
         override def toString = "<(Void)null>"
     }
    
-    case class ImpThis()
+    case class ImpThis(ty: Ty)
     extends Expr {
         override def toString = "<this>"
     }

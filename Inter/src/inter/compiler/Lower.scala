@@ -618,6 +618,11 @@ object Lower {
             ))
         ))
         
+        def lowerImpThis(expr: in.Expr) = withPosOf(expr, {
+            val sym = lookup.get(Name.ThisVar).get
+            out.Var(astVarName(expr, Name.ThisVar)), sym, sym.ty)
+        })
+        
         def lowerExpr(optExpTy: Option[Symbol.Type])(expr: in.Expr): out.LoweredExpr = expr match {
             case tuple: in.Tuple => lowerTuple(optExpTy)(tuple)
             case tmpl: in.InlineTmpl => lowerInlineTmpl(tmpl)
@@ -628,8 +633,8 @@ object Lower {
             case e: in.MethodCall => lowerMethodCall(e)
             case e: in.New => lowerNew(e)
             case e: in.Null => lowerNull(optExpTy)(e)
-            case in.ImpVoid() => introduceVar(expr, out.ImpVoid())
-            case in.ImpThis => out.ImpThis
+            case e: in.ImpVoid => introduceVar(expr, out.ImpVoid(Symbol.VoidType))
+            case e: in.ImpThis => lowerImpThis(e)
         }
         
         def lowerExprToVar(optExpTy: Option[Symbol.Type])(expr: in.Expr): out.Var = {

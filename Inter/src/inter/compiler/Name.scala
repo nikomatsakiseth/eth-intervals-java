@@ -66,6 +66,8 @@ object Name {
     val MethodVar = Name.Var("method")
     val MethodPath = PathBase(MethodVar)
     
+    val VoidQual = Qual("java.lang.Void")
+
     val ArrayQual = Qual("inter.lang.Array")
     val ArrayElem = Var("E")
 

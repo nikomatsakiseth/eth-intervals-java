@@ -195,8 +195,8 @@ object Resolve {
             case in.MethodCall(rcvr, parts, (), ()) => out.MethodCall(resolveExpr(rcvr), parts.map(resolvePart), (), ())
             case in.New(tref, arg, ()) => out.New(resolveTypeRef(tref), resolveTuple(arg), ())
             case in.Null(()) => out.Null(())
-            case in.ImpVoid() => out.ImpVoid()
-            case in.ImpThis => out.ImpThis
+            case in.ImpVoid(()) => out.ImpVoid(())
+            case in.ImpThis(()) => out.ImpThis(())
         })
         
         def resolvePart(part: in.CallPart) = withPosOf(part, out.CallPart(

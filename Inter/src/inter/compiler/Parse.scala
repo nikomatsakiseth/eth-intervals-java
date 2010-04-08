@@ -299,7 +299,7 @@ class Parse extends StdTokenParsers with PackratParsers {
     )
     
     lazy val impThis = positioned(
-        success(()) ^^ { case () => out.ImpThis() }
+        success(()) ^^ { case () => out.ImpThis(()) }
     )
     
     lazy val mthdCall = positioned(
@@ -324,7 +324,7 @@ class Parse extends StdTokenParsers with PackratParsers {
     
     lazy val stmts = (
         rep1sep(stmt, ";")<~opt(";")
-    |   positioned(success(()) ^^ { case () => out.ImpVoid() })
+    |   positioned(success(()) ^^ { case () => out.ImpVoid(()) })
     )
     
 }

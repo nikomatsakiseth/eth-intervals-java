@@ -158,4 +158,6 @@ object Symbol {
         case TuplePattern(patterns) => patterns.flatMap(vars)
     }
     
+    val VoidType = ClassType(Name.VoidQual, List())
+        
 }
