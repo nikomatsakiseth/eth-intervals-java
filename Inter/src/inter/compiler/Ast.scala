@@ -23,6 +23,9 @@ class Ast {
     /** Nested expressions eventually become restricted */
     type NE <: Expr
     
+    /** Lvalue in an assignment: initially may omit types */
+    type LV <: Node
+    
     /** Type of an expression */
     type Ty
     
@@ -248,6 +251,8 @@ class Ast {
     }
     
     // ___ Patterns _________________________________________________________
+    //
+    // In a pattern, all types are specified.
     
     abstract class Pattern extends Node
     
@@ -278,7 +283,9 @@ class Ast {
         }
     }
     
-    // ___ Untyped Patterns _________________________________________________
+    // ___ Lvalues __________________________________________________________
+    //
+    // An lvalue is like a pattern but it may omit types.
     
     sealed abstract trait Lvalue extends Node
     
@@ -313,11 +320,15 @@ class Ast {
     
     sealed abstract class OptionalTypeRef extends Node
     
-    case object InferredTypeRef extends OptionalTypeRef {
+    case class InferredTypeRef() extends OptionalTypeRef {
         override def toString = "<infer>"
     }
     
     abstract class TypeRef extends OptionalTypeRef
+    
+    case class NullType() extends TypeRef {
+        override def toString = "null"
+    }
     
     case class TupleType(types: List[TypeRef]) extends TypeRef {
         override def toString = "(%s)".format(types.mkString(", "))
@@ -386,6 +397,8 @@ class Ast {
     }
     
     sealed abstract trait Stmt extends Node {
+        def ty: Ty
+        
         def printsemiln(out: PrettyPrinter) {
             print(out)
             out.writeln(";")
@@ -428,8 +441,9 @@ class Ast {
         override def toString = obj.toString
     }
     
-    case class Assign(lvalue: Lvalue, rvalue: Expr) 
+    case class Assign(lvalue: LV, rvalue: Expr) 
     extends Stmt {
+        def ty = rvalue.ty
         override def toString = "%s = %s".format(lvalue, rvalue)
         
         override def print(out: PrettyPrinter) {
@@ -487,23 +501,26 @@ class Ast {
         override def toString = "null"
     }
     
-    case object ImpVoid
+    /** ImpVoid is inserted when there is an empty 
+      * set of statements like "{ }". */
+    case class ImpVoid()
     extends Expr {
         override def toString = "<(Void)null>"
     }
    
-    case object ImpThis
+    case class ImpThis()
     extends Expr {
         override def toString = "<this>"
     }
    
-    case class Labeled(name: VarName, block: InlineTmpl)
+    case class Labeled(name: VarName, body: Body)
     extends Stmt {
-        override def toString = "%s: %s".format(name, block)
+        def ty = body.stmts.last.ty
+        override def toString = "%s: %s".format(name, body)
         
         override def print(out: PrettyPrinter) {
             out.write("%s: ", name)
-            block.print(out)
+            body.print(out)
         }
     }
     
@@ -559,6 +576,7 @@ object Ast {
         type PN = RelName
         type OT = OptionalTypeRef
         type NE = Expr
+        type LV = Lvalue
         type CSym = Unit
         type VSym = Unit
         type MSym = Unit
@@ -570,6 +588,7 @@ object Ast {
         type PN = Ast.AbsName
         type OT = OptionalTypeRef
         type NE = Expr
+        type LV = Lvalue
         type CSym = Unit
         type VSym = Unit
         type MSym = Unit
@@ -582,6 +601,7 @@ object Ast {
         type PN = Ast.AbsName
         type OT = TypeRef
         type NE = LoweredExpr
+        type LV = Pattern
         type CSym = Symbol.Class
         type VSym = Symbol.Var
         type MSym = Symbol.Method

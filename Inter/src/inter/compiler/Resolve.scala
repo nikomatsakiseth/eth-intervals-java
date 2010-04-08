@@ -144,13 +144,14 @@ object Resolve {
         })
         
         def resolveOptionalTypeRef(otref: in.OptionalTypeRef): out.OptionalTypeRef = withPosOf(otref, otref match {
-            case in.InferredTypeRef => out.InferredTypeRef
+            case in.InferredTypeRef() => withPosOf(otref, out.InferredTypeRef())
             case tref: in.TypeRef => resolveTypeRef(tref)
         })
         
         def resolveTypeRef(tref: in.TypeRef): out.TypeRef = withPosOf(tref, tref match {
             case in.PathType(path, tvar) => out.PathType(resolvePath(path), tvar)
             case in.ClassType(cn, targs) => out.ClassType(resolveName(cn), targs.map(resolveTypeArg))
+            case in.TupleType(trefs) => out.TupleType(trefs.map(resolveTypeRef))
         })
 
         def resolveTypeArg(targ: in.TypeArg): out.TypeArg = withPosOf(targ, targ match {
@@ -171,7 +172,7 @@ object Resolve {
         def resolveStmt(stmt: in.Stmt): out.Stmt = withPosOf(stmt, stmt match {
             case expr: in.Expr => resolveExpr(expr)
             case in.Assign(lv, rv) => out.Assign(resolveLvalue(lv), resolveExpr(rv))
-            case in.Labeled(name, blk) => out.Labeled(name, resolveInlineTmpl(blk))
+            case in.Labeled(name, body) => out.Labeled(name, resolveBody(body))
         })
         
         def resolveLvalue(lvalue: in.Lvalue): out.Lvalue = withPosOf(lvalue, lvalue match {
@@ -194,7 +195,7 @@ object Resolve {
             case in.MethodCall(rcvr, parts, (), ()) => out.MethodCall(resolveExpr(rcvr), parts.map(resolvePart), (), ())
             case in.New(tref, arg, ()) => out.New(resolveTypeRef(tref), resolveTuple(arg), ())
             case in.Null(()) => out.Null(())
-            case in.ImpVoid => out.ImpVoid
+            case in.ImpVoid() => out.ImpVoid()
             case in.ImpThis => out.ImpThis
         })
         

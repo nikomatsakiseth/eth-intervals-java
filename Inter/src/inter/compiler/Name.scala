@@ -62,8 +62,16 @@ object Name {
     
     val ThisVar = Name.Var("this")
     val ThisPath = PathBase(ThisVar)
+    
+    val MethodVar = Name.Var("method")
+    val MethodPath = PathBase(MethodVar)
+    
     val ArrayQual = Qual("inter.lang.Array")
     val ArrayElem = Var("E")
+
+    val IntervalTmplQual = Qual("inter.lang.IntervalTmpl")
+    val AsyncIntervalTmplQual = Qual("inter.lang.AsyncIntervalTmpl")
+    val IntervalTmplParent = Var("P")
     
     object Path {
         def apply(node: Ast.Lower.Path): Name.Path = node match {
