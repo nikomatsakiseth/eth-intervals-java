@@ -133,7 +133,7 @@ class Ast {
         }
     }
     
-    private def printOptBody(out: PrettyPrinter, optBody: Option[InlineTmpl]) = optBody match {
+    private def printOptBody(out: PrettyPrinter, optBody: Option[Body]) = optBody match {
         case Some(b) => b.print(out)
         case None => out.write(";")
     }
@@ -142,7 +142,7 @@ class Ast {
         annotations: List[Annotation],
         name: VarName,
         optParent: Option[Path],
-        optBody: Option[InlineTmpl],
+        optBody: Option[Body],
         sym: VSym      
     ) extends MemberDecl {
         override def toString = "[interval %s(%s)]".format(name, optParent)
@@ -169,7 +169,7 @@ class Ast {
         parts: List[DeclPart],
         returnTref: OT,
         requirements: List[PathRequirement],
-        optBody: Option[InlineTmpl],
+        optBody: Option[Body],
         sym: MSym
     ) extends MemberDecl {
         def name = Name.Method(parts.map(_.ident))
@@ -202,20 +202,18 @@ class Ast {
         annotations: List[Annotation],
         name: VarName,
         tref: OT,
-        value: Option[List[Stmt]],
+        optBody: Option[Body],
         sym: VSym
     ) extends MemberDecl {
         override def print(out: PrettyPrinter) {
             annotations.foreach(_.println(out))
             tref.printsp(out)
             name.print(out)
-            value match {
+            optBody match {
                 case None =>
-                case Some(stmts) => 
+                case Some(body) => 
                     out.write(" = ")
-                    out.indented("{", "}") {
-                        stmts.foreach(_.printsemiln(out))
-                    }
+                    body.print(out)
             }
             out.write(";")
         }
@@ -378,6 +376,14 @@ class Ast {
     }
     
     // ___ Statements and Expressions _______________________________________
+    
+    case class Body(stmts: List[Stmt]) extends Node {
+        def print(out: PrettyPrinter) {
+            out.indented("{", "}") {
+                stmts.foreach(_.printsemiln(out))
+            }            
+        }
+    }
     
     sealed abstract trait Stmt extends Node {
         def printsemiln(out: PrettyPrinter) {

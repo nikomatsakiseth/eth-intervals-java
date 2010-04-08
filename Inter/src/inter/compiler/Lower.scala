@@ -13,7 +13,83 @@ import Util._
   * - Removes nested expressions into intermediate variables. */
 object Lower {
     
-    // ___ Translate from Ast.Parse to Symbol _______________________________
+    // ___ Lookup tables ____________________________________________________
+    
+    class LookupTable(val state: CompilationState, map: Map[Name.Var, Symbol.Var]) {
+        def +(sym: Symbol.Var) = new LookupTable(state, map + (sym.name -> sym))
+        def ++(syms: Iterable[Symbol.Var]) = syms.foldLeft(this)(_ + _)
+        def get(name: Name.Var) = map.get(name)
+        def getOrError(name: Name.Var, optExpTy: Option[Symbol.Type]) = get(name) match {
+            case Some(sym) => sym
+            case None => Symbol.errorVar(name, optExpTy)
+        }
+    }
+    
+    object LookupTable {
+        def empty(state: CompilationState) = new LookupTable(state, Map())
+    }
+    
+    def lookupField(
+        state: CompilationState,
+        rcvrTy: Symbol.Type, 
+        name: Name.Var
+    ): Option[Symbol.Var] = {
+        rcvrTy match {
+            case Symbol.ClassType(className, _) => {
+                val csym = state.symtab.classes(className)
+                csym.fieldNamed(state)(name)
+            }
+            
+            case Symbol.PathType(path, tvar) => {
+                lookupField(state, upperBoundPathType(path, tvar), name)
+            }
+            
+            case _ => None
+        }
+    }
+    
+    def lookupFieldOrError(
+        state: CompilationState, 
+        rcvrTy: Symbol.Type,  
+        name: Name.Var,
+        optExpTy: Option[Symbol.Type]
+    ) = {
+        lookupField(state, rcvrTy, name).getOrElse {
+            Symbol.errorVar(name, optExpTy)
+        }
+    }    
+    
+    def lookupNonintrinsicMethods(
+        state: CompilationState,
+        rcvrTy: Symbol.Type, 
+        name: Name.Method
+    ): List[Symbol.Method] = {
+        rcvrTy match {
+            case Symbol.ClassType(className, _) => {
+                val csym = state.symtab.classes(className)
+                csym.methodsNamed(state)(name)
+            }
+            
+            case Symbol.PathType(path, tvar) => {
+                lookupNonintrinsicMethods(state, upperBoundPathType(path, tvar), name)                    
+            }
+            
+            case _ => List()
+        }
+    }
+
+    def lookupMethods(
+        state: CompilationState,
+        rcvrTy: Symbol.Type, 
+        name: Name.Method
+    ): List[Symbol.Method] = {
+        state.lookupIntrinsic(rcvrTy, name) match {
+            case Some(intrinsicSym) => List(intrinsicSym)
+            case None => lookupNonintrinsicMethods(state, rcvrTy, name)
+        }
+    }
+    
+    // ___ Translate from Ast to Symbol and back again ______________________
     
     def patternType(pattern: in.Pattern): Symbol.Type = pattern match {
         case in.TuplePattern(patterns) => Symbol.TupleType(patterns.map(patternType))
@@ -33,12 +109,69 @@ object Lower {
     
     def symbolTypeArg(targ: in.TypeArg): Symbol.TypeArg = targ match {
         case in.TypeTypeArg(name, rel, tref) => Symbol.TypeTypeArg(name.name, rel, symbolType(tref))
-        case in.PathTypeArg(name, rel, path) => Symbol.PathTypeArg(name,name, rel, namePath(path))
+        case in.PathTypeArg(name, rel, path) => Symbol.PathTypeArg(name.name, rel, namePath(path))
     }
     
     def namePath(path: in.Path): Name.Path = path match {
-        case in.PathField(base, f) => Name.PathField(namePath(base), f.name)
-        case in.Var(name) => Name.PathBase(name.name)
+        case in.PathField(base, f, (), ()) => Name.PathField(namePath(base), f.name)
+        case in.Var(name, (), ()) => Name.PathBase(name.name)
+    }
+    
+    def astVarName(from: Ast.Node, name: Name.Var) = withPosOf(from,
+        Ast.VarName(name.text)
+    )
+    
+    def astPathVar(lookup: LookupTable)(from: Ast.Node, name: Name.Var) = withPosOf(from, {
+        val sym = lookup.getOrError(name, None)
+        out.Var(astVarName(from, name), sym, sym.ty)
+    })
+    
+    def astPathField(lookup: LookupTable)(from: Ast.Node, base: Name.Path, name: Name.Var) = {
+        withPosOf(from, {
+            val astOwner = astPath(lookup)(from, base)
+            val sym = lookupFieldOrError(lookup.state, astOwner.ty, name, None)
+            out.PathField(astOwner, astVarName(from, name), sym, sym.ty)
+        })
+    }
+    
+    def astPath(lookup: LookupTable)(from: Ast.Node, path: Name.Path): out.Path = path match {
+        case Name.PathBase(name) => astPathVar(lookup)(from, name)
+        case Name.PathField(base, name) => astPathField(lookup)(from, base, name)
+    }
+    
+    def astType(lookup: LookupTable)(from: Ast.Node, ty: Symbol.Type): out.TypeRef = {
+        withPosOf(from, ty match {
+            case Symbol.TupleType(tys) => 
+                out.TupleType(tys.map(astType(lookup)(from, _)))
+            case Symbol.PathType(path, tvar) => 
+                out.PathType(
+                    astPath(lookup)(from, path),
+                    astVarName(from, tvar)
+                )
+            case Symbol.ClassType(name, targs) => 
+                out.ClassType(
+                    withPosOf(from, Ast.AbsName(name)),
+                    targs.map(astTypeArg(lookup)(from, _))
+                )
+        })        
+    }
+    
+    def astTypeArg(lookup: LookupTable)(from: Ast.Node, targ: Symbol.TypeArg) = {
+        withPosOf(from, targ match {
+            case Symbol.PathTypeArg(name, rel, path) =>
+                out.PathTypeArg(
+                    astVarName(from, name),
+                    rel,
+                    astPath(lookup)(from, path)
+                )
+
+            case Symbol.TypeTypeArg(name, rel, ty) =>
+                out.TypeTypeArg(
+                    astVarName(from, name),
+                    rel,
+                    astType(lookup)(from, ty)
+                )
+        })        
     }
     
     // ___ Method Symbol Creation ___________________________________________
@@ -49,24 +182,23 @@ object Lower {
         mthdName: Name.Method
     ) = {
         sym.methods.get(mthdName) match {
-            case None => createSymbolsForMethodsName(state, sym, mthdName)
+            case None => createSymbolsForMethodsNamed(state, sym, mthdName)
             case Some(res) => res
         }
     }
     
     def createSymbolsForMethodsNamed(
         state: CompilationState, 
-        sym: Symbol.ClassFromInterFile, 
+        csym: Symbol.ClassFromInterFile, 
         mthdName: Name.Method
     ) = {
-        val clsTree = sym.resolvedSource
-        clsTree.members.flatMap(_.asMethodNamed(mthdName)) match {
+        csym.resolvedSource.members.flatMap(_.asMethodNamed(mthdName)) match {
             // No methods with that name:
             case List() => List()
             
             // One method found, but with unspecified return type:
             case List(mdecl @ in.MethodDecl(_, _, in.InferredTypeRef, _, _, _)) => {
-                val memberId = Name.MethodId(name, memName)
+                val memberId = Name.MethodId(csym.name, mthdName)
                 
                 if(state.inferStack(memberId)) {
                     // Cyclic inference: illegal.
@@ -79,18 +211,18 @@ object Lower {
                         )
                     }
                     
-                    List(symbol.ErrorMethod) 
+                    List(Symbol.ErrorMethod) 
                 } else {
-                    val sym = lowerMethod(state, sym.cdecl, mdecl)
-                    sym.methods(mthdName) = List(sym)
-                    List(sym)
+                    val msym = lowerMethod(state, csym.resolvedSource, mdecl)
+                    csym.methods(mthdName) = List(msym)
+                    List(msym)
                 }
             }
             
             // Multiple methods found, or one method w/ explicit return type:
             //    In the former case, no inference is permitted.
-            case List(mdecls) => {
-                val syms = mdecls.flatMap {
+            case mdecls => {
+                val msyms = mdecls.flatMap {
                     case mdecl @ in.MethodDecl(_, _, in.InferredTypeRef, _, _, _) => {
                         state.reporter.report(
                             mdecl.pos,
@@ -101,40 +233,31 @@ object Lower {
                     }
                     
                     case in.MethodDecl(_, parts, returnTy: in.TypeRef, _, _, _) => {
-                        new Symbol.Method(
+                        Some(new Symbol.Method(
                             name = mthdName,
-                            retTypeRef = symbolType(returnTy),
-                            receiver = new Symbol.Var(Name.ThisVar, Symbol.ClassType(clsName, List())),
-                            parameters = parts.map(p => symbolPattern(p.pattern))
-                        )
+                            returnTy = symbolType(returnTy),
+                            receiver = new Symbol.Var(Name.ThisVar, Symbol.ClassType(csym.name, List())),
+                            parameterPatterns = parts.map(p => symbolPattern(p.pattern))
+                        ))
                     }
                 }
-                sym.methods(mthdName) = syms
-                syms
+                csym.methods(mthdName) = msyms
+                msyms
             }
         }
         
     }
     
-    class LookupTable(map: Map[Name.Var, Symbol.Var]) {
-        def +(sym: Symbol.Var) = new LookupTable(map + (sym.name -> sym))
-        def ++(syms: Iterable[Symbol.Var]) = syms.foldLeft(this)(_ + _)
-        def get(name: Name.Var) = map.get(name)
-    }
-    
-    object LookupTable {
-        val Empty = new LookupTable(Map())
-    }
-    
-    def lowerMethod(state: CompilationState, cdecl: in.ClassDecl, mdecl: in.MethodDecl) = {
+    def lowerMethod(state: CompilationState, cdecl: in.ClassDecl, mdecl: in.MethodDecl): Symbol.Method = {
         val clsName = cdecl.name.qualName
-        val memberId = Name.MethodId(clsName, memName)
+        val memberId = Name.MethodId(clsName, mdecl.name)
         assert(!state.inferStack(memberId))
         state.inferStack += memberId
         
         val receiver = new Symbol.Var(Name.ThisVar, Symbol.ClassType(clsName, List()))
-        val parameters = mdecl.parts.flatMap(partSyms)
-        val lookup = LookupTable.Empty + receiver ++ parameters
+        val parameters = mdecl.parts.map(p => symbolPattern(p.pattern))
+        val lookup = LookupTable.empty(state) + receiver ++ parameters.flatMap(Symbol.vars)
+        InScope(lookup)
         
         state.inferStack -= memberId
     }
@@ -145,40 +268,37 @@ object Lower {
         "(%s@%s)".format(fromExpr.toString, fromExpr.pos.toString)
     }
     
-    class InScope(lookup: LookupTable) {
-        
-        val stmts = new ListBuffer[out.Stmt]()
-        
+    case class InScope(lookup: LookupTable, stmts: ListBuffer[out.Stmt]) {
         def introduceVar(fromExpr: in.Expr, toExpr: out.Expr): out.Var = {
             val text = tmpVarName(fromExpr)
             val sym = new Symbol.Var(Name.Var(text), toExpr.ty)
-            val nameAst = withPosOf(fromExpr, out.VarName(text))
-            val tyAst = astType(fromExpr, sym.ty)
+            val nameAst = withPosOf(fromExpr, Ast.VarName(text))
+            val tyAst = astType(lookup)(fromExpr, sym.ty)
             val lv = withPosOf(fromExpr, out.VarLvalue(List(), tyAst, nameAst, sym))
             val assign = withPosOf(fromExpr, out.Assign(lv, withPosOf(fromExpr, toExpr)))
             stmts += assign
             withPosOf(fromExpr, out.Var(nameAst, sym, sym.ty))
         }
         
-        def dummySubst(subst: Subst)(pat: Pattern, text: String): Subst = pat match {
+        def dummySubst(subst: Subst)(pat: Symbol.Pattern, text: String): Subst = pat match {
             case sym: Symbol.Var =>
                 subst + (sym.name.toPath -> Name.PathBase(Name.Var(text)))
                 
             case Symbol.TuplePattern(patterns) =>
-                patterns.zipWithIndex.foldLeft(subst) { case ((p, i), s) =>
+                patterns.zipWithIndex.foldLeft(subst) { case (s, (p, i)) =>
                     dummySubst(s)(p, "%s_%d".format(text, i))
                 }
         }
         
-        def patSubst(subst: Subst)(pat: Pattern, expr: in.Expr): Subst = {
+        def patSubst(subst: Subst)(pat: Symbol.Pattern, expr: in.Expr): Subst = {
             (pat, expr) match {
-                case (Symbol.TuplePattern(patterns), in.Tuple(exprs)) if patterns.length == exprs.length =>
+                case (Symbol.TuplePattern(patterns), in.Tuple(exprs, ())) if patterns.length == exprs.length =>
                     patterns.zip(exprs).foldLeft(subst) { case (s, (p, e)) => patSubst(s)(p, e) }
                 
                 case (sym: Symbol.Var, in.Var(name, (), ())) =>
                     subst + (sym.name.toPath -> name.name.toPath)
                 
-                case (_, in.Tuple(List(subExpr))) =>
+                case (_, in.Tuple(List(subExpr), ())) =>
                     patSubst(subst)(pat, subExpr)
                     
                 case (Symbol.TuplePattern(List(subPat)), _) =>
@@ -189,7 +309,7 @@ object Lower {
             }
         }
         
-        def patSubsts(allPatterns: List[Pattern], allExprs: List[in.Expr]): Subst = {
+        def patSubsts(allPatterns: List[Symbol.Pattern], allExprs: List[in.Expr]): Subst = {
             assert(allPatterns.length == allExprs.length) // Guaranteed syntactically.
             allPatterns.zip(allExprs).foldLeft(Subst.empty) { case (s, (p, e)) =>
                 patSubst(s)(p, e)
@@ -200,37 +320,18 @@ object Lower {
             out.Annotation(name = ann.name)
         )
     
-        def lowerPattern(pattern: in.Pattern): out.Pattern = pattern match {
-            case tuplePat: in.TuplePattern => lowerTuplePattern(tuplePat)
-            case varPat: in.VarPattern => lowerVarPattern(varPat)
-        }
-    
-        def lowerTuplePattern(tuplePat: in.TuplePattern) = withPosOf(tuplePat, out.TuplePattern(
-            patterns = tuplePat.patterns.map(lowerPattern)
-        ))
-    
-        def lowerVarPattern(varPat: in.VarPattern) = withPosOf(varPat, out.VarPattern(
-            annotations = varPat.annotations.map(lowerAnnotation),
-            tref = lowerTypeRef(varPat.tref),
-            name = varPat.name,
-            sym = varPat.sym
-        ))
-    
-        def lowerVar(optExpTy: Option[Symbol.Ty])(v: in.Var) = withPosOf(v, {
-            lookup.get(v.name.name) match {
-                case Some(sym) => out.Var(v.name, sym, sym.typeRef)
-                case None => {
-                    reporter.report(v.pos, "no.such.var", v.name.toString)
-                    val sym = Symbol.errorVar(v.name.name, optExpTy)
-                    out.Var(v.name, sym, sym.typeRef)
-                }
+        def lowerVar(optExpTy: Option[Symbol.Type])(v: in.Var) = withPosOf(v, {
+            val sym = lookup.get(v.name.name).getOrElse {
+                state.reporter.report(v.pos, "no.such.var", v.name.toString)
+                Symbol.errorVar(v.name.name, optExpTy)
             }
+            out.Var(v.name, sym, sym.ty)
         })
         
         def lowerPathField(path: in.PathField) = withPosOf(path, {
             // Note: very similar code to lowerField() below
             val owner = lowerPath(path.owner)
-            val sym = lookupNonintrinsicField(owner.ty, path.name)
+            val sym = lookupField(state, owner.ty, path.name)
             val subst = Subst(Name.ThisPath -> Name.Path(owner))
             out.PathField(owner, path.name, sym, subst.ty(sym.ty))
         })
@@ -238,7 +339,7 @@ object Lower {
         def lowerField(expr: in.Field) = introduceVar(expr, { 
             // Note: very similar code to lowerPathField() above
             val owner = lowerExprToVar(None)(expr.owner)
-            val sym = lookupNonintrinsicField(owner.ty, expr.name)
+            val sym = lookupField(state, owner.ty, expr.name)
             val subst = Subst(Name.ThisPath -> Name.Path(owner))
             out.Field(owner, expr.name, sym, subst.ty(sym.ty))
         })
@@ -276,38 +377,6 @@ object Lower {
             out.Literal(expr.obj, ty)
         })
         
-        def lookupNonintrinsicField(rcvrTy: Symbol.Type, name: Name.Var): List[Symbol.Var] = {
-            rcvrTy match {
-                case Symbol.ClassType(name, _) => {
-                    val csym = state.symtab.classes(name)
-                    csym.fieldNamed(state)(name).getOrElse {
-                        Symbol.errorVar(name, None)
-                    }
-                }
-                
-                case Symbol.PathType(path, tvar) => {
-                    lookupNonintrinsicField(upperBoundPathType(path, tvar), name)
-                }
-                
-                case _ => List()
-            }
-        }        
-        
-        def lookupNonintrinsicMethods(rcvrTy: Symbol.Type, name: Name.Method): List[Symbol.Method] = {
-            rcvrTy match {
-                case Symbol.ClassType(name, _) => {
-                    val csym = state.symtab.classes(name)
-                    csym.methodsNamed(state)(name)
-                }
-                
-                case Symbol.PathType(path, tvar) => {
-                    lookupNonintrinsicMethods(upperBoundPathType(path, tvar), name)                    
-                }
-                
-                case _ => List()
-            }
-        }
-
         def lowerPart(optExpTy: Option[Symbol.Ty])(part: in.CallPart) = withPosOf(part, {
             out.CallPart(part.ident, lowerExpr(optExpTy)(part.arg))
         })
@@ -316,11 +385,7 @@ object Lower {
             val rcvr = lowerExpr(None)(mcall.rcvr)
             
             // Find all potential methods:
-            val msyms = 
-                state.lookupIntrinsic(rcvr.ty, mcall.name) match {
-                    case Some(intrinsicSym) => List(intrinsicSym)
-                    case None => lookupNonintrinsicMethods(rcvr.ty, mcall.name)
-                }
+            val msyms = lookupMethods(rcvr.ty, mcall.name)
                 
             // Identify the best method (if any):
             val (parts, msym) = msyms match {

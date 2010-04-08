@@ -99,7 +99,7 @@ object Resolve {
             annotations = decl.annotations.map(resolveAnnotation),
             name = decl.name,
             optParent = decl.optParent.map(resolvePath),
-            optBody = decl.optBody.map(resolveInlineTmpl),
+            optBody = decl.optBody.map(resolveBody),
             sym = decl.sym            
         ))
         
@@ -108,7 +108,7 @@ object Resolve {
             parts = decl.parts.map(resolveDeclPart),
             returnTref = resolveOptionalTypeRef(decl.returnTref),
             requirements = decl.requirements.map(resolveRequirement),
-            optBody = decl.optBody.map(resolveInlineTmpl),
+            optBody = decl.optBody.map(resolveBody),
             sym = decl.sym            
         ))
         
@@ -127,8 +127,8 @@ object Resolve {
             annotations = decl.annotations.map(resolveAnnotation),
             name = decl.name,
             tref = resolveOptionalTypeRef(decl.tref),
-            value = decl.value.map(resolveStmts),
-            sym = decl.sym            
+            optBody = decl.optBody.map(resolveBody),
+            sym = ()
         ))
         
         def resolveRelDecl(decl: in.RelDecl) = withPosOf(decl, out.RelDecl(
@@ -211,6 +211,10 @@ object Resolve {
         def resolveInlineTmpl(tmpl: in.InlineTmpl) = withPosOf(tmpl, out.InlineTmpl(
             stmts = resolveStmts(tmpl.stmts),
             ty = ()
+        ))
+        
+        def resolveBody(body: in.Body) = withPosOf(body, out.Body(
+            stmts = resolveStmts(body.stmts)
         ))
         
         compUnit.classes.map(resolveClassDecl)

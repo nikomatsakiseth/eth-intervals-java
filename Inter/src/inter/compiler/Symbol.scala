@@ -150,4 +150,9 @@ object Symbol {
     case class PathTypeArg(name: Name.Var, rel: PcRel, path: Name.Path) extends TypeArg
     case class TypeTypeArg(name: Name.Var, rel: TcRel, typeRef: Type) extends TypeArg
     
+    def vars(p: Pattern): List[Var] = p match {
+        case v: Var => List(v)
+        case TuplePattern(patterns) => patterns.flatMap(vars)
+    }
+    
 }
