@@ -3,6 +3,7 @@ package inter.compiler
 import scala.util.parsing.input.Reader
 import scala.util.parsing.input.PagedSeqReader
 import scala.util.parsing.input.NoPosition
+import scala.util.parsing.input.OffsetPosition
 import scala.util.parsing.input.CharArrayReader.EofCh
 import scala.util.parsing.syntax.Tokens
 import scala.util.parsing.syntax.StdTokens
@@ -258,7 +259,7 @@ class Parse extends StdTokenParsers with PackratParsers {
     
     lazy val path = positioned(
         varName~rep(varName) ^^ {
-            case v~fs => fs.foldLeft[out.Path](out.Var(v, ()))(out.PathField(_, _)) }
+            case v~fs => fs.foldLeft[out.Path](out.Var(v, (), ()))(out.PathField(_, _, (), ())) }
     )
     
     // ___ Expressions ______________________________________________________
@@ -268,15 +269,15 @@ class Parse extends StdTokenParsers with PackratParsers {
     )
     
     lazy val itmpl = positioned(
-        "{"~>stmts<~"}"                 ^^ out.InlineTmpl
+        "{"~>stmts<~"}"                 ^^ { s => out.InlineTmpl(s, ()) }
     )
     
     lazy val atmpl = positioned(
-        "{{"~>stmts<~"}}"               ^^ out.AsyncTmpl
+        "{{"~>stmts<~"}}"               ^^ { s => out.AsyncTmpl(s, ()) }
     )
     
     lazy val tuple = positioned(
-        "("~>comma(expr)<~")"               ^^ out.Tuple
+        "("~>comma(expr)<~")"           ^^ { e => out.Tuple(e, ()) }
     )
     
     lazy val arg: PackratParser[out.Expr] = tuple | itmpl | atmpl
@@ -287,15 +288,15 @@ class Parse extends StdTokenParsers with PackratParsers {
     
     lazy val rcvr: PackratParser[out.Expr] = positioned(
         arg
-    |   varName                             ^^ { case n => out.Var(n, ()) }
-    |   numericLit                          ^^ out.Literal // XXX
-    |   stringLit                           ^^ out.Literal
+    |   varName                             ^^ { case n => out.Var(n, (), ()) }
+    |   numericLit                          ^^ { l => out.Literal(l, ()) } // XXX Convert to number
+    |   stringLit                           ^^ { l => out.Literal(l, ()) }
     |   "null"                              ^^ { case _ => out.Null() }
-    |   "new"~typeRef~tuple                 ^^ { case _~t~a => out.New(t, a) }
+    |   "new"~typeRef~tuple                 ^^ { case _~t~a => out.New(t, a, ()) }
     )
     
     lazy val field = positioned(
-        rcvr~varName~rep(varName)           ^^ { case r~f~fs => fs.foldLeft(out.Field(r, f, ()))(out.Field(_, _, ())) }
+        rcvr~varName~rep(varName)           ^^ { case r~f~fs => fs.foldLeft(out.Field(r, f, (), ()))(out.Field(_, _, (), ())) }
     )
     
     lazy val impThis = positioned(
@@ -303,8 +304,8 @@ class Parse extends StdTokenParsers with PackratParsers {
     )
     
     lazy val mthdCall = positioned(
-        rcvr~rep1(callPart)                 ^^ { case r~cp => out.MethodCall(r, cp, ()) }
-    |   impThis~rep1(callPart)              ^^ { case r~cp => out.MethodCall(r, cp, ()) }
+        rcvr~rep1(callPart)                 ^^ { case r~cp => out.MethodCall(r, cp, (), ()) }
+    |   impThis~rep1(callPart)              ^^ { case r~cp => out.MethodCall(r, cp, (), ()) }
     )
     
     lazy val unary = mthdCall | field | rcvr
@@ -312,7 +313,7 @@ class Parse extends StdTokenParsers with PackratParsers {
     lazy val expr: PackratParser[out.Expr] = (
         unary~rep(oper~unary) ^^ { case l~rs => 
             val parts = rs.map { case o~r => out.CallPart(o, r) }
-            out.MethodCall(l, parts, ())
+            out.MethodCall(l, parts, (), ())
         }
     )
     
@@ -322,9 +323,13 @@ class Parse extends StdTokenParsers with PackratParsers {
     |   expr
     )
     
-    lazy val stmts = (
+    lazy val impVoidStmt = (
+        positioned(success(()) ^^ { case () => out.ImpVoid(()) })        
+    )
+    
+    lazy val stmts: PackratParser[List[out.Stmt]] = (
         rep1sep(stmt, ";")<~opt(";")
-    |   positioned(success(()) ^^ { case () => out.ImpVoid(()) })
+    |   impVoidStmt ^^ { s => List(s) }
     )
     
 }

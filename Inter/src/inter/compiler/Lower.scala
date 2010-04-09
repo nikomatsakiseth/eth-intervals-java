@@ -91,6 +91,10 @@ object Lower {
     
     def sameLength(lst1: List[_], lst2: List[_]) = (lst1.length == lst2.length)
     
+    def upperBoundPathType(path: Name.Path, tvar: Name.Var): Symbol.Type = {
+        throw new RuntimeException("TODO")
+    }
+    
     // ___ Translate from Ast to Symbol and back again ______________________
     
     def patternType(pattern: in.Pattern): Symbol.Type = pattern match {
@@ -620,7 +624,7 @@ object Lower {
         
         def lowerImpThis(expr: in.Expr) = withPosOf(expr, {
             val sym = lookup.get(Name.ThisVar).get
-            out.Var(astVarName(expr, Name.ThisVar)), sym, sym.ty)
+            out.Var(astVarName(expr, Name.ThisVar), sym, sym.ty)
         })
         
         def lowerExpr(optExpTy: Option[Symbol.Type])(expr: in.Expr): out.LoweredExpr = expr match {

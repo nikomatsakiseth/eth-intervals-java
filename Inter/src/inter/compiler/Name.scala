@@ -77,7 +77,7 @@ object Name {
     
     object Path {
         def apply(node: Ast.Lower.Path): Name.Path = node match {
-            case Ast.Var(name, _, _) => PathBase(name.name)
+            case Ast.Lower.Var(name, _, _) => PathBase(name.name)
             case Ast.Lower.PathField(owner, name, _, _) => PathField(Path(owner), name.name) 
         }
     }
