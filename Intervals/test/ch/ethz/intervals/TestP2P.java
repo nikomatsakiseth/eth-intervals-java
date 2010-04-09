@@ -35,9 +35,12 @@ public class TestP2P {
 	            for(int m = 1; m < M+1; m++) {
 	            	Interval i = new AddTask(parent, n, m-1);
 	                intervals[bit][m] = i.end; 
-	                Intervals.addHb(intervals[prevBit][m-1], i.start);
-	                Intervals.addHb(intervals[prevBit][m], i.start);
-	                Intervals.addHb(intervals[prevBit][m+1], i.start);
+	                if(intervals[prevBit][m-1] != null)
+	                	Intervals.addHb(intervals[prevBit][m-1], i.start);
+	                if(intervals[prevBit][m] != null)
+	                	Intervals.addHb(intervals[prevBit][m], i.start);
+	                if(intervals[prevBit][m+1] != null)
+	                	Intervals.addHb(intervals[prevBit][m+1], i.start);
 	                Intervals.schedule();
 	            }
 	        }   

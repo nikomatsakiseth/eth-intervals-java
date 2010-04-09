@@ -95,7 +95,7 @@ object Symbol {
         val methods = new HashMap[Name.Method, List[Method]]()
         
         def constructors(state: CompilationState) = {
-            List(CheckTypes.patternType(resolvedSource.pattern))
+            List(Lower.patternType(resolvedSource.pattern))
         }
         
         def superClassNames(state: CompilationState) = {
@@ -103,7 +103,7 @@ object Symbol {
         }
         
         def methodsNamed(state: CompilationState)(memName: Name.Method) = {
-            CheckTypes.symbolsForMethodsNamed(state, this, memName)
+            Lower.symbolsForMethodsNamed(state, this, memName)
         }
         
         def fieldNamed(state: CompilationState)(name: Name.Var) = None
@@ -117,7 +117,7 @@ object Symbol {
     )
     
     object ErrorMethod extends Method(
-        Name.Method(List("<error>")), TupleType(List()), List(), None
+        Name.Method(List("<error>")), NullType, VarPattern(Name.ThisVar, NullType), List()
     )
     
     class Var(
@@ -155,7 +155,7 @@ object Symbol {
     
     def createVarSymbols(p: Pattern): List[Var] = p match {
         case VarPattern(name, ty) => List(new Var(name, ty))
-        case TuplePattern(patterns) => patterns.flatMap(vars)
+        case TuplePattern(patterns) => patterns.flatMap(createVarSymbols)
     }
     
     val VoidType = ClassType(Name.VoidQual, List())

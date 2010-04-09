@@ -6,6 +6,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import com.sun.istack.internal.NotNull;
+
 import ch.ethz.intervals.guard.Guard;
 import ch.ethz.intervals.mirror.PointMirror;
 
@@ -61,29 +63,29 @@ public class Intervals {
 		};		
 	}
 	
-	/** Equivalent of {@code addHb(start(from), start(to))}
+	/** Equivalent of {@code addHb(from.end, to.start)}
 	 *  @see Intervals#start(Interval)
 	 *  @see Intervals#end(Interval)
 	 *  @see Intervals#addHb(Point, Point)
 	 */
 	public static void addHb(Interval from, Interval to) {
-		addHb(end(from), start(to));
+		addHb(from.end, to.start);
 	}
 	
-	/** Equivalent of {@code addHb(end(from), to)}
+	/** Equivalent of {@code addHb(from.end, to)}
 	 *  @see Intervals#end(Interval)
 	 *  @see Intervals#addHb(Point, Point)
 	 */
 	public static void addHb(Interval from, Point to) {
-		addHb(end(from), to);
+		addHb(from.end, to);
 	}
 	
-	/** Equivalent of {@code addHb(from, start(to))}
+	/** Equivalent of {@code addHb(from, to.start)}
 	 *  @see Intervals#start(Interval)
 	 *  @see Intervals#addHb(Point, Point)
 	 */
 	public static void addHb(Point from, Interval to) {
-		addHb(from, start(to));
+		addHb(from, to.start);
 	}
 	
 	/** 
@@ -109,9 +111,6 @@ public class Intervals {
 	 * @throws CycleException see above.
 	 */	
 	public static void addHb(Point from, Point to) {
-		if(to == null)
-			return;
-		
 		/* Subtle:
 		 * 
 		 * It is rather expensive to guarantee that adding the edge
@@ -166,9 +165,6 @@ public class Intervals {
 		
 		Current current = Current.get();
 		current.checkCanAddDep(to);
-		
-		if(from == null)
-			return;
 		
 		current.checkEdgeEndPointsProperlyBound(from, to);
 		
