@@ -92,6 +92,7 @@ object Symbol {
         name: Name.Qual
     ) extends Class(name) {
         var resolvedSource: Ast.Resolve.ClassDecl = null
+        var loweredSource: Ast.Lower.ClassDecl = null
         val methodSymbols = new HashMap[Name.Method, List[Method]]()
         val loweredMethods = new HashMap[MethodId, Ast.Lower.MethodDecl]()
         

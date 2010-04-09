@@ -9,7 +9,7 @@ class CompilationState(
     val reporter: Reporter
 ) {
     val symtab = new SymbolTable()
-    val toBeTyped = new Queue[Ast.Resolve.ClassDecl]()
+    val toBeLowered = new Queue[Symbol.ClassFromInterFile]()
     val inferStack = new HashSet[Symbol.MemberId]()
     val inferReported = new HashSet[Symbol.MemberId]()
     
@@ -29,7 +29,7 @@ class CompilationState(
             Resolve(this, compUnit).foreach { cdecl =>
                 val sym = symtab.classes(cdecl.name.qualName).asInstanceOf[Symbol.ClassFromInterFile]
                 sym.resolvedSource = cdecl
-                toBeTyped += cdecl
+                toBeLowered += sym
             }
         }
     }
@@ -118,6 +118,14 @@ class CompilationState(
     }
     
     def compile() {
+        if(reporter.hasErrors) return
+        
+        while(!toBeLowered.isEmpty) {
+            val csym = toBeLowered.dequeue()
+            csym.loweredSource = Lower.lowerClassSymbol(this, csym)
+        }
+        
+        if(reporter.hasErrors) return
     }
     
 }

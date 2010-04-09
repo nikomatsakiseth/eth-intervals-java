@@ -201,9 +201,9 @@ class Parse extends StdTokenParsers with PackratParsers {
     
     lazy val fieldDecl = positioned(
         annotations~typeRef~varName~optFieldValue~";" ^^ {
-            case a~t~n~v~";" => out.FieldDecl(a, n, t, v) }
+            case a~t~n~v~";" => out.FieldDecl(a, n, t, (), v) }
     |   annotations~infTypeRef~varName~optFieldValue~";" ^^ {
-            case a~t~n~v~";" => out.FieldDecl(a, n, t, v) }
+            case a~t~n~v~";" => out.FieldDecl(a, n, t, (), v) }
     )
     
     lazy val relDecl = positioned(

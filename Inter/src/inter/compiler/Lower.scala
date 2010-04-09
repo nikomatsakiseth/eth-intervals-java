@@ -222,7 +222,7 @@ object Lower {
                     }
                     None
                 } else {
-                    val outMdecl = lowerMethod(state, csym, mdecl)
+                    val outMdecl = lowerMethodDecl(state, csym, mdecl)
                     Some(new Symbol.Method(
                         name = mthdName,
                         returnTy = outMdecl.returnTy,
@@ -248,7 +248,65 @@ object Lower {
         msyms
     }
     
-    def lowerMethod(
+    def ThisLookup(state: CompilationState, csym: Symbol.ClassFromInterFile) = {
+        val receiver = new Symbol.Var(Name.ThisVar, Symbol.ClassType(csym.name, List()))
+        LookupTable.empty(state) + receiver
+    }
+    
+    def ThisScope(state: CompilationState, csym: Symbol.ClassFromInterFile) = {
+        InScope(ThisLookup(state, csym))
+    }
+    
+    def lowerClassDecl(
+        state: CompilationState,
+        cdecl: Ast.Resolve.ClassDecl
+    ): out.ClassDecl = {
+        val csym = state.symtab.classes(cdecl.name.qualName).asInstanceOf[Symbol.ClassFromInterFile]
+        withPosOf(cdecl, out.ClassDecl(
+            name = cdecl.name,
+            annotations = cdecl.annotations.map(ThisScope(state, csym).lowerAnnotation),
+            superClasses = cdecl.superClasses,
+            pattern = ThisScope(state, csym).lowerTuplePattern(cdecl.pattern),
+            members = cdecl.members.map(lowerMemberDecl(state, csym, _)),
+            sym = csym
+        ))
+    }
+    
+    def lowerMemberDecl(
+        state: CompilationState, 
+        csym: Symbol.ClassFromInterFile, 
+        mem: in.MemberDecl
+    ): out.MemberDecl = withPosOf(mem, mem match {
+        case decl: in.ClassDecl => lowerClassDecl(state, decl)
+        case decl: in.IntervalDecl => lowerIntervalDecl(state, csym, decl)
+        case decl: in.MethodDecl => lowerMethodDecl(state, csym, decl)
+        case decl: in.FieldDecl => lowerFieldDecl(state, csym, decl)
+        case decl: in.RelDecl => lowerRelDecl(state, csym, decl)
+    })
+    
+    def lowerRelDecl(
+        state: CompilationState, 
+        csym: Symbol.ClassFromInterFile, 
+        decl: in.RelDecl        
+    ): out.RelDecl = withPosOf(decl, out.RelDecl(
+        annotations = decl.annotations.map(ThisScope(state, csym).lowerAnnotation),
+        left = ThisScope(state, csym).lowerPath(decl.left),
+        kind = decl.kind,
+        right = ThisScope(state, csym).lowerPath(decl.right)
+    ))
+    
+    def lowerIntervalDecl(
+        state: CompilationState, 
+        csym: Symbol.ClassFromInterFile, 
+        decl: in.IntervalDecl
+    ): out.IntervalDecl = withPosOf(decl, out.IntervalDecl(
+        annotations = decl.annotations.map(ThisScope(state, csym).lowerAnnotation),
+        name = decl.name,
+        optParent = decl.optParent.map(ThisScope(state, csym).lowerPath),
+        optBody = decl.optBody.map(lowerBody(ThisLookup(state, csym), _))
+    ))
+    
+    def lowerMethodDecl(
         state: CompilationState, 
         csym: Symbol.ClassFromInterFile, 
         mdecl: in.MethodDecl
@@ -299,6 +357,38 @@ object Lower {
             outMdecl
         }
     }
+    
+    def lowerFieldDecl(
+        state: CompilationState, 
+        csym: Symbol.ClassFromInterFile, 
+        decl: in.FieldDecl
+    ): out.FieldDecl = withPosOf(decl, {
+        val optBody = decl.optBody.map(lowerBody(ThisLookup(state, csym), _))
+        val lookup = ThisLookup(state, csym)
+        val (tref, ty) = (decl.tref, optBody) match {
+            case (tref: in.TypeRef, _) => // Explicit type.
+                (InScope(lookup).lowerTypeRef(tref), symbolType(tref))
+                
+            case (in.InferredTypeRef(), Some(out.Body(stmts))) => { // Implicit type.
+                val ty = stmts.last.ty
+                (astType(lookup)(stmts.last, ty), ty)
+            }
+            
+            case (in.InferredTypeRef(), None) => {
+                state.reporter.report(
+                    decl.tref.pos, "explicit.type.reqd.if.abstract", decl.name.toString
+                )
+                (astType(lookup)(decl.tref, Symbol.NullType), Symbol.NullType)                
+            }
+        }
+        out.FieldDecl(
+            annotations = decl.annotations.map(InScope(lookup).lowerAnnotation),
+            name = decl.name,
+            tref = tref,
+            ty = ty,
+            optBody = optBody
+        )        
+    })
     
     // ___ Lowering Types ___________________________________________________
     

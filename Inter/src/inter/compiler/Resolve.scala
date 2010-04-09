@@ -126,6 +126,7 @@ object Resolve {
             annotations = decl.annotations.map(resolveAnnotation),
             name = decl.name,
             tref = resolveOptionalTypeRef(decl.tref),
+            ty = (),
             optBody = decl.optBody.map(resolveBody)
         ))
         

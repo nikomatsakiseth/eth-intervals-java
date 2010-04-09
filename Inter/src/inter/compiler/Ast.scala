@@ -204,6 +204,7 @@ class Ast {
         annotations: List[Annotation],
         name: VarName,
         tref: OT,
+        ty: Ty,
         optBody: Option[Body]
     ) extends MemberDecl {
         override def print(out: PrettyPrinter) {
