@@ -124,7 +124,7 @@ object Symbol {
     class Var(
         val name: Name.Var,
         val ty: Type
-    ) extends Pattern
+    )
     
     def errorVar(name: Name.Var, optExpTy: Option[Type]) = {
         optExpTy match {

@@ -556,6 +556,7 @@ object Ast {
 
     // ______ Names known to be absolute ____________________________________
     sealed case class AbsName(qualName: Name.Qual) extends PkgName {
+        override def toString = qualName.toString
         def toQual(pkg: Name.Qual) = qualName
         def component = qualName.rev_components.head
     }
