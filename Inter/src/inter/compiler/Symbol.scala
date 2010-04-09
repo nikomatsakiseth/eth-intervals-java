@@ -152,7 +152,7 @@ object Symbol {
     
     sealed abstract class TypeArg
     case class PathTypeArg(name: Name.Var, rel: PcRel, path: Name.Path) extends TypeArg
-    case class TypeTypeArg(name: Name.Var, rel: TcRel, typeRef: Type) extends TypeArg
+    case class TypeTypeArg(name: Name.Var, rel: TcRel, ty: Type) extends TypeArg
     
     def createVarSymbols(p: Pattern): List[Var] = p match {
         case VarPattern(name, ty) => List(new Var(name, ty))
