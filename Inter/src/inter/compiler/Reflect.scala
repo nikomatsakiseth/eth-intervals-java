@@ -45,23 +45,25 @@ object Reflect {
     
     def fieldSymbol(state: CompilationState)(fld: Field) = new Symbol.Var(
         name = Name.Var(fld.getName),
-        typeRef = typeRef(fld.getGenericType)
+        ty = typeRef(fld.getGenericType)
     )
     
-    def paramSymbol(pair: (Type, Int)) = new Symbol.Var(
+    def paramPattern(pair: (Type, Int)) = Symbol.VarPattern(
         name = Name.Var("arg"+pair._2),
-        typeRef = typeRef(pair._1)
+        ty = typeRef(pair._1)
     )
     
-    def methodSymbol(state: CompilationState)(mthd: Method) = new Symbol.Method(
+    def methodSymbol(state: CompilationState)(clsName: Name.Qual, mthd: Method) = new Symbol.Method(
         name = Name.Method(List(mthd.getName)),
-        retTypeRef = typeRef(mthd.getGenericReturnType),
-        parameters = mthd.getGenericParameterTypes.toList.zipWithIndex.map(paramSymbol)
+        returnTy = typeRef(mthd.getGenericReturnType),
+        receiver = Symbol.VarPattern(Name.ThisVar, Symbol.ClassType(clsName, List()))
+        parameterPatterns = List(Symbol.TuplePattern(
+            mthd.getGenericParameterTypes.toList.zipWithIndex.map(paramPattern)))
     )
     
     def methodsNamed(state: CompilationState, sym: Symbol.ClassFromReflection, name: Name.Method) = {
         val methods = sym.optMethods.getOrElse {
-            val syms = sym.cls.getDeclaredMethods.map(Reflect.methodSymbol(state)).toList
+            val syms = sym.cls.getDeclaredMethods.map(Reflect.methodSymbol(sym.name, state)).toList
             sym.optMethods = Some(syms)
             syms
         }
