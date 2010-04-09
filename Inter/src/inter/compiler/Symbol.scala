@@ -92,7 +92,8 @@ object Symbol {
         name: Name.Qual
     ) extends Class(name) {
         var resolvedSource: Ast.Resolve.ClassDecl = null
-        val methods = new HashMap[Name.Method, List[Method]]()
+        val methodSymbols = new HashMap[Name.Method, List[Method]]()
+        val loweredMethods = new HashMap[MethodId, Ast.Lower.MethodDecl]()
         
         def constructors(state: CompilationState) = {
             List(Lower.patternType(resolvedSource.pattern))
@@ -159,5 +160,9 @@ object Symbol {
     }
     
     val VoidType = ClassType(Name.VoidQual, List())
+    
+    abstract class MemberId
+    case class MethodId(clsName: Name.Qual, methodName: Name.Method, parameterPatterns: List[Symbol.Pattern]) extends MemberId
+    case class FieldId(clsName: Name.Qual, methodName: Name.Method) extends MemberId
         
 }

@@ -145,8 +145,7 @@ class Ast {
         annotations: List[Annotation],
         name: VarName,
         optParent: Option[Path],
-        optBody: Option[Body],
-        sym: VSym      
+        optBody: Option[Body]
     ) extends MemberDecl {
         override def toString = "[interval %s(%s)]".format(name, optParent)
         
@@ -171,9 +170,9 @@ class Ast {
         annotations: List[Annotation],
         parts: List[DeclPart],
         returnTref: OT,
+        returnTy: Ty,
         requirements: List[PathRequirement],
-        optBody: Option[Body],
-        sym: MSym
+        optBody: Option[Body]
     ) extends MemberDecl {
         def name = Name.Method(parts.map(_.ident))
         def patterns = parts.map(_.pattern)
@@ -205,8 +204,7 @@ class Ast {
         annotations: List[Annotation],
         name: VarName,
         tref: OT,
-        optBody: Option[Body],
-        sym: VSym
+        optBody: Option[Body]
     ) extends MemberDecl {
         override def print(out: PrettyPrinter) {
             annotations.foreach(_.println(out))
@@ -389,7 +387,8 @@ class Ast {
     // ___ Statements and Expressions _______________________________________
     
     case class Body(stmts: List[Stmt]) extends Node {
-        def print(out: PrettyPrinter) {
+        override def toString = "{...}"
+        override def print(out: PrettyPrinter) {
             out.indented("{", "}") {
                 stmts.foreach(_.printsemiln(out))
             }            
@@ -424,7 +423,7 @@ class Ast {
     abstract class Tmpl(l: String, r: String) extends Expr {
         def stmts: List[Stmt]
         
-        override def toString = "%s %s %s".format(l, stmts.mkString("", "; ", "; "), r)
+        override def toString = "%s...%s".format(l, r)
         
         override def print(out: PrettyPrinter) {
             out.indented(l, r) { stmts.foreach(_.printsemiln(out)) }
@@ -557,6 +556,7 @@ object Ast {
 
     // ______ Names known to be absolute ____________________________________
     sealed case class AbsName(qualName: Name.Qual) extends PkgName {
+        def toQual(pkg: Name.Qual) = qualName
         def component = qualName.rev_components.head
     }
     

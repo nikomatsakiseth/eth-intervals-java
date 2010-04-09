@@ -144,10 +144,10 @@ class Parse extends StdTokenParsers with PackratParsers {
     
     lazy val methodDecl = positioned(
         annotations~typeRef~rep1(declPart)~rep(requirement)~optBody ^^ {
-            case ann~ret~parts~reqs~optBody => out.MethodDecl(ann, parts, ret, reqs, optBody, ())
+            case ann~ret~parts~reqs~optBody => out.MethodDecl(ann, parts, ret, (), reqs, optBody)
         }
     |   annotations~infTypeRef~rep1(declPart)~rep(requirement)~optBody ^^ {
-            case ann~ret~parts~reqs~optBody => out.MethodDecl(ann, parts, ret, reqs, optBody, ())
+            case ann~ret~parts~reqs~optBody => out.MethodDecl(ann, parts, ret, (), reqs, optBody)
         }
     )
     
@@ -184,9 +184,9 @@ class Parse extends StdTokenParsers with PackratParsers {
     
     lazy val intervalDecl = positioned(
         annotations~"interval"~varName~";" ^^ { 
-            case ann~_~nm~";" => out.IntervalDecl(ann, nm, None, None, ()) }
+            case ann~_~nm~";" => out.IntervalDecl(ann, nm, None, None) }
     |   annotations~"interval"~varName~"("~path~")"~optBody ^^ { 
-            case ann~_~nm~"("~qn~")"~optBody => out.IntervalDecl(ann, nm, Some(qn), optBody, ()) }
+            case ann~_~nm~"("~qn~")"~optBody => out.IntervalDecl(ann, nm, Some(qn), optBody) }
     )
     
     lazy val optBody = (
@@ -201,9 +201,9 @@ class Parse extends StdTokenParsers with PackratParsers {
     
     lazy val fieldDecl = positioned(
         annotations~typeRef~varName~optFieldValue~";" ^^ {
-            case a~t~n~v~";" => out.FieldDecl(a, n, t, v, ()) }
+            case a~t~n~v~";" => out.FieldDecl(a, n, t, v) }
     |   annotations~infTypeRef~varName~optFieldValue~";" ^^ {
-            case a~t~n~v~";" => out.FieldDecl(a, n, t, v, ()) }
+            case a~t~n~v~";" => out.FieldDecl(a, n, t, v) }
     )
     
     lazy val relDecl = positioned(

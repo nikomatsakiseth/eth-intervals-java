@@ -97,6 +97,11 @@ object Lower {
     
     // ___ Translate from Ast to Symbol and back again ______________________
     
+    def methodId(csym: Symbol.ClassFromInterFile, mdecl: in.MethodDecl) = {
+        val parameterPatterns = mdecl.parts.map(p => symbolPattern(p.pattern))
+        Symbol.MethodId(csym.name, mdecl.name, parameterPatterns)
+    }
+
     def patternType(pattern: in.Pattern): Symbol.Type = pattern match {
         case in.TuplePattern(patterns) => Symbol.TupleType(patterns.map(patternType))
         case in.VarPattern(_, tref, _, _) => symbolType(tref)
@@ -190,7 +195,7 @@ object Lower {
         sym: Symbol.ClassFromInterFile, 
         mthdName: Name.Method
     ) = {
-        sym.methods.get(mthdName) match {
+        sym.methodSymbols.get(mthdName) match {
             case None => createSymbolsForMethodsNamed(state, sym, mthdName)
             case Some(res) => res
         }
@@ -201,14 +206,10 @@ object Lower {
         csym: Symbol.ClassFromInterFile, 
         mthdName: Name.Method
     ) = {
-        csym.resolvedSource.members.flatMap(_.asMethodNamed(mthdName)) match {
-            // No methods with that name:
-            case List() => List()
-            
-            // One method found, but with unspecified return type:
-            case List(mdecl @ in.MethodDecl(_, _, in.InferredTypeRef(), _, _, _)) => {
-                val memberId = Name.MethodId(csym.name, mthdName)
-                
+        def forMethodDecl(mdecl: in.MethodDecl) = mdecl match {
+            case in.MethodDecl(_, _, in.InferredTypeRef(), _, _, _) => {
+                val memberId = methodId(csym, mdecl)
+
                 if(state.inferStack(memberId)) {
                     // Cyclic inference: illegal.
                     if(!state.inferReported.contains(memberId)) {
@@ -219,75 +220,84 @@ object Lower {
                             mthdName.toString
                         )
                     }
-                    
-                    List(Symbol.ErrorMethod) 
+                    None
                 } else {
-                    val msym = lowerMethod(state, csym.resolvedSource, mdecl)
-                    csym.methods(mthdName) = List(msym)
-                    List(msym)
+                    val outMdecl = lowerMethod(state, csym, mdecl)
+                    Some(new Symbol.Method(
+                        name = mthdName,
+                        returnTy = outMdecl.returnTy,
+                        receiver = Symbol.VarPattern(Name.ThisVar, Symbol.ClassType(csym.name, List())),
+                        parameterPatterns = memberId.parameterPatterns
+                    ))
                 }
             }
             
-            // Multiple methods found, or one method w/ explicit return type:
-            //    In the former case, no inference is permitted.
-            case mdecls => {
-                val msyms = mdecls.flatMap {
-                    case mdecl @ in.MethodDecl(_, _, in.InferredTypeRef(), _, _, _) => {
-                        state.reporter.report(
-                            mdecl.returnTref.pos,
-                            "explicit.type.required.due.to.overloading",
-                            mthdName.toString
-                        )
-                        None
-                    }
-                    
-                    case in.MethodDecl(_, parts, returnTy: in.TypeRef, _, _, _) => {
-                        Some(new Symbol.Method(
-                            name = mthdName,
-                            returnTy = symbolType(returnTy),
-                            receiver = Symbol.VarPattern(Name.ThisVar, Symbol.ClassType(csym.name, List())),
-                            parameterPatterns = parts.map(p => symbolPattern(p.pattern))
-                        ))
-                    }
-                }
-                csym.methods(mthdName) = msyms
-                msyms
+            case in.MethodDecl(_, parts, returnTy: in.TypeRef, _, _, _) => {
+                Some(new Symbol.Method(
+                    name = mthdName,
+                    returnTy = symbolType(returnTy),
+                    receiver = Symbol.VarPattern(Name.ThisVar, Symbol.ClassType(csym.name, List())),
+                    parameterPatterns = parts.map(p => symbolPattern(p.pattern))
+                ))
             }
         }
         
+        val mdecls = csym.resolvedSource.members.flatMap(_.asMethodNamed(mthdName))
+        val msyms = mdecls.flatMap(forMethodDecl)
+        csym.methodSymbols(mthdName) = msyms
+        msyms
     }
     
-    def lowerMethod(state: CompilationState, cdecl: in.ClassDecl, mdecl: in.MethodDecl): Symbol.Method = {
-        val clsName = cdecl.name.qualName
-        val memberId = Name.MethodId(clsName, mdecl.name)
-        assert(!state.inferStack(memberId))
-        state.inferStack += memberId
-        
-        val receiver = new Symbol.Var(Name.ThisVar, Symbol.ClassType(clsName, List()))
-        val parameters = mdecl.parts.map(p => symbolPattern(p.pattern))
-        val lookup = LookupTable.empty(state) + receiver ++ parameters.flatMap(Symbol.createVarSymbols)
-        val optBody = mdecl.optBody.map(lowerBody(lookup, _))
-        
-        val (returnTref, returnTy) = (mdecl.returnTref, optBody) match {
-            case (in.InferredTypeRef(), None) => {
-                state.reporter.report(
-                    mdecl.returnTref.pos, "explicit.return.type.reqd.if.abstract", mdecl.name.toString
-                )
-                (astType(lookup)(mdecl.returnTref, Symbol.NullType), Symbol.NullType)
+    def lowerMethod(
+        state: CompilationState, 
+        csym: Symbol.ClassFromInterFile, 
+        mdecl: in.MethodDecl
+    ): out.MethodDecl = {
+        val memberId = methodId(csym, mdecl)
+        csym.loweredMethods.get(memberId).getOrElse {
+            val cdecl = csym.resolvedSource
+            val clsName = cdecl.name.qualName
+            assert(!state.inferStack(memberId))
+            state.inferStack += memberId
+
+            val receiver = new Symbol.Var(Name.ThisVar, Symbol.ClassType(clsName, List()))
+            val parameterPatterns = mdecl.parts.map(p => symbolPattern(p.pattern))
+            val parameterSymbols = parameterPatterns.flatMap(Symbol.createVarSymbols)
+            val lookup = LookupTable.empty(state) ++ (receiver :: parameterSymbols)
+            val optBody = mdecl.optBody.map(lowerBody(lookup, _))
+
+            val (returnTref, returnTy) = (mdecl.returnTref, optBody) match {
+                case (in.InferredTypeRef(), None) => {
+                    state.reporter.report(
+                        mdecl.returnTref.pos, "explicit.return.type.reqd.if.abstract", mdecl.name.toString
+                    )
+                    (astType(lookup)(mdecl.returnTref, Symbol.NullType), Symbol.NullType)
+                }
+
+                case (in.InferredTypeRef(), Some(out.Body(stmts))) => {
+                    val ty = stmts.last.ty
+                    (astType(lookup)(stmts.last, ty), ty)
+                }
+
+                case (tref: in.TypeRef, _) => {
+                    (InScope(lookup).lowerTypeRef(tref), symbolType(tref))
+                }
+
             }
+
+            val outMdecl = out.MethodDecl(
+                annotations = mdecl.annotations.map(InScope(lookup).lowerAnnotation),
+                parts = mdecl.parts.map(InScope(lookup).lowerDeclPart),
+                returnTref = returnTref,
+                returnTy = returnTy,
+                requirements = mdecl.requirements.map(InScope(lookup).lowerRequirement),
+                optBody = optBody
+            )
             
-            case (in.InferredTypeRef(), Some(out.Body(stmts))) => {
-                val ty = stmts.last.ty
-                (astType(lookup)(stmts.last, ty), ty)
-            }
-            
-            case (tref: in.TypeRef, _) => {
-                (InScope(lookup).lowerTypeRef(tref), symbolType(tref))
-            }
-            
+            csym.loweredMethods(memberId) = outMdecl
+            state.inferStack -= memberId
+            outMdecl
         }
-        
-        state.inferStack -= memberId
     }
     
     // ___ Lowering Types ___________________________________________________
@@ -299,6 +309,33 @@ object Lower {
     class InScope(lookup: LookupTable) {
         import lookup.state
         
+        def lowerDeclPart(part: in.DeclPart): out.DeclPart = withPosOf(part, out.DeclPart(
+            ident = part.ident,
+            pattern = lowerTuplePattern(part.pattern)
+        ))
+
+        def lowerTuplePattern(pattern: in.TuplePattern) = withPosOf(pattern, out.TuplePattern(
+            patterns = pattern.patterns.map(lowerPattern)
+        ))
+        
+        def lowerVarPattern(pattern: in.VarPattern) = withPosOf(pattern, out.VarPattern(
+            annotations = pattern.annotations.map(lowerAnnotation),
+            tref = lowerTypeRef(pattern.tref),
+            name = pattern.name,
+            sym = lookup.get(pattern.name.name).get // should be a variable already created
+        ))
+        
+        def lowerPattern(pattern: in.Pattern): out.Pattern = withPosOf(pattern, pattern match {
+            case p: in.TuplePattern => lowerTuplePattern(p)
+            case p: in.VarPattern => lowerVarPattern(p)
+        })
+        
+        def lowerRequirement(req: in.PathRequirement) = withPosOf(req, out.PathRequirement(
+            left = lowerPath(req.left),
+            rel = req.rel,
+            right = lowerPath(req.right)
+        ))
+
         def lowerVar(optExpTy: Option[Symbol.Type])(v: in.Var) = withPosOf(v, {
             val sym = lookup.get(v.name.name).getOrElse {
                 state.reporter.report(v.pos, "no.such.var", v.name.toString)
@@ -546,17 +583,17 @@ object Lower {
             out.CallPart(part.ident, lowerExpr(optExpTy)(part.arg))
         })
         
-        def lowerMethodCall(mcall: in.MethodCall) = introduceVar(mcall, {
+        def lowerMethodCall(optExpTy: Option[Symbol.Type])(mcall: in.MethodCall) = introduceVar(mcall, {
             val rcvr = lowerExpr(None)(mcall.rcvr)
             
             // Find all potential methods:
             val msyms = lookupMethods(state, rcvr.ty, mcall.name)
                 
             // Identify the best method (if any):
-            val (parts, msym) = msyms match {
+            msyms match {
                 case List() => {
                     state.reporter.report(mcall.pos, "no.such.method", rcvr.ty.toString, mcall.name.toString)
-                    Symbol.ErrorMethod
+                    out.Null(optExpTy.getOrElse(Symbol.NullType))
                 }
                 
                 // Exactly one match: We can do more with inferencing
@@ -568,28 +605,15 @@ object Lower {
                     )
                     val optExpTys = msym.parameterPatterns.map(p => Some(subst.ty(p.ty)))
                     val parts = optExpTys.zip(mcall.parts).map { case (e,p) => lowerPart(e)(p) }
-                    (parts, msym)
+                    out.MethodCall(rcvr, parts, msym, subst.ty(msym.returnTy))
                 }
                 
+                // Multiple matches: have to type the arguments without hints.
                 case _ => {
                     val parts = mcall.parts.map(lowerPart(None))
                     throw new RuntimeException("TODO--Method overloading")
                 }
             }
-            
-            val subst = patSubsts(
-                msym.receiver   ::  msym.parameterPatterns, 
-                mcall.rcvr      ::  mcall.parts.map(_.arg)
-            )
-
-            if(sym != Symbol.ErrorMethod) {
-                checkAssignable(
-                    (msym.receiver  :: msym.parameters).map(subst.pattern), 
-                    (rcvr           :: parts)
-                )
-            }
-
-            out.MethodCall(rcvr, parts, msym, subst.ty(msym.returnTy))
         })
         
         def lowerNew(expr: in.New) = introduceVar(expr, {
@@ -634,7 +658,7 @@ object Lower {
             case lit: in.Literal => lowerLiteralExpr(lit)
             case e: in.Var => lowerVar(optExpTy)(e)
             case e: in.Field => lowerField(optExpTy)(e)
-            case e: in.MethodCall => lowerMethodCall(e)
+            case e: in.MethodCall => lowerMethodCall(optExpTy)(e)
             case e: in.New => lowerNew(e)
             case e: in.Null => lowerNull(optExpTy)(e)
             case e: in.ImpVoid => introduceVar(expr, out.ImpVoid(Symbol.VoidType))

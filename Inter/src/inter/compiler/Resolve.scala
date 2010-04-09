@@ -99,17 +99,16 @@ object Resolve {
             annotations = decl.annotations.map(resolveAnnotation),
             name = decl.name,
             optParent = decl.optParent.map(resolvePath),
-            optBody = decl.optBody.map(resolveBody),
-            sym = decl.sym            
+            optBody = decl.optBody.map(resolveBody)
         ))
         
         def resolveMethodDecl(decl: in.MethodDecl) = withPosOf(decl, out.MethodDecl(
             annotations = decl.annotations.map(resolveAnnotation),
             parts = decl.parts.map(resolveDeclPart),
             returnTref = resolveOptionalTypeRef(decl.returnTref),
+            returnTy = (),
             requirements = decl.requirements.map(resolveRequirement),
-            optBody = decl.optBody.map(resolveBody),
-            sym = decl.sym            
+            optBody = decl.optBody.map(resolveBody)
         ))
         
         def resolveDeclPart(decl: in.DeclPart) = withPosOf(decl, out.DeclPart(
@@ -127,8 +126,7 @@ object Resolve {
             annotations = decl.annotations.map(resolveAnnotation),
             name = decl.name,
             tref = resolveOptionalTypeRef(decl.tref),
-            optBody = decl.optBody.map(resolveBody),
-            sym = ()
+            optBody = decl.optBody.map(resolveBody)
         ))
         
         def resolveRelDecl(decl: in.RelDecl) = withPosOf(decl, out.RelDecl(

@@ -10,8 +10,8 @@ class CompilationState(
 ) {
     val symtab = new SymbolTable()
     val toBeTyped = new Queue[Ast.Resolve.ClassDecl]()
-    val inferStack = new HashSet[Name.MemberId]()
-    val inferReported = new HashSet[Name.MemberId]()
+    val inferStack = new HashSet[Symbol.MemberId]()
+    val inferReported = new HashSet[Symbol.MemberId]()
     
     private[this] def createSymbolsAndResolve(compUnits: List[Ast.Parse.CompUnit]) {
         // Create symbols for each class:
