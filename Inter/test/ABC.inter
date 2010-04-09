@@ -3,8 +3,9 @@ package test;
 class ABCX {
 }
 
-class ABC(Interval parent) {
+class ABC {
     
+    Interval parent;
     ABCX test;
 
     Integer aRes;

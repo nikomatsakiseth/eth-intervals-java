@@ -217,6 +217,14 @@ object Resolve {
             stmts = resolveStmts(body.stmts)
         ))
         
-        compUnit.classes.map(resolveClassDecl)
+        val resolvedClassDecls = compUnit.classes.map(resolveClassDecl)
+        
+        if(state.config.dumpResolvedTrees) {
+            resolvedClassDecls.foreach { cdecl =>
+                cdecl.println(PrettyPrinter.stdout)
+            }
+        }
+        
+        resolvedClassDecls
     }
 }
