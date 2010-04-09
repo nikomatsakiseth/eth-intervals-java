@@ -122,7 +122,7 @@ class CompilationState(
         
         while(!toBeLowered.isEmpty) {
             val csym = toBeLowered.dequeue()
-            csym.loweredSource = Lower.lowerClassSymbol(this, csym)
+            csym.loweredSource = Lower.lowerClassDecl(this, csym.resolvedSource)
         }
         
         if(reporter.hasErrors) return
