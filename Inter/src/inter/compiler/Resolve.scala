@@ -192,7 +192,7 @@ object Resolve {
             case in.Var(name, (), ()) => out.Var(name, (), ())
             case in.Field(owner, name, (), ()) => out.Field(resolveExpr(owner), name, (), ())
             case in.MethodCall(rcvr, parts, (), ()) => out.MethodCall(resolveExpr(rcvr), parts.map(resolvePart), (), ())
-            case in.New(tref, arg, ()) => out.New(resolveTypeRef(tref), resolveTuple(arg), ())
+            case in.NewJava(tref, arg, ()) => out.NewJava(resolveTypeRef(tref), resolveTuple(arg), ())
             case in.Null(()) => out.Null(())
             case in.ImpVoid(()) => out.ImpVoid(())
             case in.ImpThis(()) => out.ImpThis(())

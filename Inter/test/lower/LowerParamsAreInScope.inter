@@ -1,0 +1,20 @@
+package lower;
+
+class LowerParamsAreInScope {
+    Integer add(Integer a, Integer b) {
+        
+    }
+    
+    Void method(Integer a, Integer b) {
+        add(
+            a, 
+            b
+        );
+        
+        add(
+            c,  // ERROR no.such.var(c)
+            d   // ERROR no.such.var(d)
+        );
+    }
+}
+// COMPILE

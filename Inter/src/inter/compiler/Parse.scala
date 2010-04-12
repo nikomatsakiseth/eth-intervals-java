@@ -57,7 +57,8 @@ class Parse extends StdTokenParsers with PackratParsers {
     )
     lexical.reserved += (
         "class", "extends", "import", "package", 
-        "interval", "requires", "locks", "new"
+        "interval", "requires", "locks", "new",
+        "type", "ghost"
     )
     
     def comma[A](p: PackratParser[A]) = repsep(p, ",")<~opt(",")
@@ -292,7 +293,7 @@ class Parse extends StdTokenParsers with PackratParsers {
     |   numericLit                          ^^ { l => out.Literal(l, ()) } // XXX Convert to number
     |   stringLit                           ^^ { l => out.Literal(l, ()) }
     |   "null"                              ^^ { case _ => out.Null() }
-    |   "new"~typeRef~tuple                 ^^ { case _~t~a => out.New(t, a, ()) }
+    |   "new"~typeRef~tuple                 ^^ { case _~t~a => out.NewJava(t, a, ()) }
     )
     
     lazy val field = positioned(
@@ -311,10 +312,11 @@ class Parse extends StdTokenParsers with PackratParsers {
     lazy val unary = mthdCall | field | rcvr
     
     lazy val expr: PackratParser[out.Expr] = (
-        unary~rep(oper~unary) ^^ { case l~rs => 
+        unary~rep1(oper~unary) ^^ { case l~rs => 
             val parts = rs.map { case o~r => out.CallPart(o, r) }
             out.MethodCall(l, parts, (), ())
         }
+    |   unary 
     )
     
     lazy val stmt: PackratParser[out.Stmt] = positioned(

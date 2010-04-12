@@ -146,14 +146,28 @@ object Symbol {
     }
     
     sealed abstract class Type
-    case class PathType(path: Name.Path, typeVar: Name.Var) extends Type
-    case class ClassType(name: Name.Qual, typeArgs: List[TypeArg]) extends Type
-    case class TupleType(typeRefs: List[Type]) extends Type
-    case object NullType extends Type
+    case class PathType(path: Name.Path, typeVar: Name.Var) extends Type {
+        override def toString = "%s:%s".format(path, typeVar)
+    }
+    case class ClassType(name: Name.Qual, typeArgs: List[TypeArg]) extends Type {
+        override def toString = 
+            if(typeArgs.isEmpty) name.toString
+            else "%s[%s]".format(name, typeArgs.mkString(", "))
+    }
+    case class TupleType(typeRefs: List[Type]) extends Type {
+        override def toString = "(%s)".format(typeRefs.mkString(", "))
+    }
+    case object NullType extends Type {
+        override def toString = "Null"
+    }
     
     sealed abstract class TypeArg
-    case class PathTypeArg(name: Name.Var, rel: PcRel, path: Name.Path) extends TypeArg
-    case class TypeTypeArg(name: Name.Var, rel: TcRel, ty: Type) extends TypeArg
+    case class PathTypeArg(name: Name.Var, rel: PcRel, path: Name.Path) extends TypeArg {
+        override def toString = "%s %s %s".format(name, rel, path)
+    }
+    case class TypeTypeArg(name: Name.Var, rel: TcRel, ty: Type) extends TypeArg {
+        override def toString = "%s %s %s".format(name, rel, ty)
+    }
     
     def createVarSymbols(p: Pattern): List[Var] = p match {
         case VarPattern(name, ty) => List(new Var(name, ty))

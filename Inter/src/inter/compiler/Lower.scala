@@ -682,6 +682,7 @@ object Lower {
             // Identify the best method (if any):
             msyms match {
                 case List() => {
+                    println("lowerMethodCall(%s)", mcall)
                     state.reporter.report(mcall.pos, "no.such.method", rcvr.ty.toString, mcall.name.toString)
                     out.Null(optExpTy.getOrElse(Symbol.NullType))
                 }
@@ -706,10 +707,10 @@ object Lower {
             }
         })
         
-        def lowerNew(expr: in.New) = introduceVar(expr, {
-            // XXX We could give an expected type for the arguments based on the constructor(s)
-            // XXX But does it matter?  Prob. not
-            out.New(lowerTypeRef(expr.tref), lowerTuple(None)(expr.arg), symbolType(expr.tref))
+        def lowerNewJava(expr: in.NewJava) = introduceVar(expr, {
+            // XXX We could give an expected type for the arguments based on the constructor(s),
+            // XXX just like in a method call.
+            out.NewJava(lowerTypeRef(expr.tref), lowerTuple(None)(expr.arg), symbolType(expr.tref))
         })
         
         def lowerNull(optExpTy: Option[Symbol.Type])(expr: in.Null) = introduceVar(expr, {
@@ -749,7 +750,7 @@ object Lower {
             case e: in.Var => lowerVar(optExpTy)(e)
             case e: in.Field => lowerField(optExpTy)(e)
             case e: in.MethodCall => lowerMethodCall(optExpTy)(e)
-            case e: in.New => lowerNew(e)
+            case e: in.NewJava => lowerNewJava(e)
             case e: in.Null => lowerNull(optExpTy)(e)
             case e: in.ImpVoid => introduceVar(expr, out.ImpVoid(Symbol.VoidType))
             case e: in.ImpThis => lowerImpThis(e)

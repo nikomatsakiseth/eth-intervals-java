@@ -177,6 +177,10 @@ class Ast {
         def name = Name.Method(parts.map(_.ident))
         def patterns = parts.map(_.pattern)
         override def toString = "[method %s]".format(name)
+        override def asMethodNamed(mthdName: Name.Method) = {
+            if(mthdName == name) Some(this)
+            else None
+        }
         
         override def print(out: PrettyPrinter) {
             annotations.foreach(_.println(out))
@@ -207,6 +211,11 @@ class Ast {
         ty: Ty,
         optBody: Option[Body]
     ) extends MemberDecl {
+        override def asFieldNamed(fldName: Name.Var) = {
+            if(name == fldName) Some(this)
+            else None
+        }
+        
         override def print(out: PrettyPrinter) {
             annotations.foreach(_.println(out))
             tref.printsp(out)
@@ -453,6 +462,9 @@ class Ast {
         }        
     }
 
+    // n.b.: A Var could refer to any sort of variable, not only a 
+    // local variable.  For example, a field of the current class or
+    // one of its enclosing classes.
     case class Var(name: VarName, sym: VSym, ty: Ty) extends LoweredExpr with Path {
         override def toString = name.toString
     }
@@ -486,7 +498,8 @@ class Ast {
         }        
     }
     
-    case class New(tref: TypeRef, arg: Tuple, ty: Ty) extends Expr {
+    /** Used to create new instances of Java classes. */
+    case class NewJava(tref: TypeRef, arg: Tuple, ty: Ty) extends Expr {
         override def toString = "new %s%s".format(tref, arg)
         
         override def print(out: PrettyPrinter) {
