@@ -27,14 +27,18 @@ object Resolve {
             compUnit.imports
         ).reverse
         
+        def requireLoadedOrLoadable(node: Ast.Node, qname: Name.Qual) {
+            if(!state.loadedOrLoadable(qname))
+                state.reporter.report(node.pos, "cannot.find.class", qname.toString)            
+        }
+        
         def resolveToQualName(rn: in.RelName): Name.Qual = rn match {
             case in.RelDot(ctx, nm) => resolveToQualName(ctx) / nm
             case in.RelBase(nm) => {
                 val m = allImports.firstSome { 
                     case in.ImportOne(from, to) => {
                         if (to == rn) {
-                            if(!state.loadedOrLoadable(from.qualName))
-                                state.reporter.report(rn.pos, "cannot.find.class", from.toString)
+                            requireLoadedOrLoadable(from, from.qualName)
                             Some(from.qualName)
                         } else None
                     }
@@ -188,7 +192,7 @@ object Resolve {
             case tuple: in.Tuple => resolveTuple(tuple)
             case tmpl: in.InlineTmpl => resolveInlineTmpl(tmpl)
             case in.AsyncTmpl(stmts, ()) => out.AsyncTmpl(resolveStmts(stmts), ())
-            case in.Literal(obj, ()) => out.Literal(obj, ())
+            case e: in.Literal => resolveLiteral(e)
             case in.Var(name, (), ()) => out.Var(name, (), ())
             case in.Field(owner, name, (), ()) => out.Field(resolveExpr(owner), name, (), ())
             case in.MethodCall(rcvr, parts, (), ()) => out.MethodCall(resolveExpr(rcvr), parts.map(resolvePart), (), ())
@@ -197,6 +201,11 @@ object Resolve {
             case in.ImpVoid(()) => out.ImpVoid(())
             case in.ImpThis(()) => out.ImpThis(())
         })
+        
+        def resolveLiteral(expr: in.Literal) = {
+            requireLoadedOrLoadable(expr, Name.Qual(expr.obj.getClass))
+            out.Literal(expr.obj, ())            
+        }
         
         def resolvePart(part: in.CallPart) = withPosOf(part, out.CallPart(
             ident = part.ident,

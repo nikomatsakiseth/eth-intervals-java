@@ -43,6 +43,7 @@ class CompilationState(
       * loaded or we can find source for it (in which case
       * that source is loaded). */
     def loadedOrLoadable(qualName: Name.Qual) = {
+        println("loadedOrLoadable(%s)".format(qualName))
         symtab.classes.isDefinedAt(qualName) || locateSource(qualName)
     }
     

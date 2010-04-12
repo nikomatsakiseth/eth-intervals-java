@@ -290,7 +290,7 @@ class Parse extends StdTokenParsers with PackratParsers {
     lazy val rcvr: PackratParser[out.Expr] = positioned(
         arg
     |   varName                             ^^ { case n => out.Var(n, (), ()) }
-    |   numericLit                          ^^ { l => out.Literal(l, ()) } // XXX Convert to number
+    |   numericLit                          ^^ { l => out.Literal(Integer.valueOf(l), ()) }
     |   stringLit                           ^^ { l => out.Literal(l, ()) }
     |   "null"                              ^^ { case _ => out.Null() }
     |   "new"~typeRef~tuple                 ^^ { case _~t~a => out.NewJava(t, a, ()) }

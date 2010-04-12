@@ -1,0 +1,10 @@
+package lower;
+
+class LowerIntrinsic {
+    Void method() {
+        a = 3;
+        b = 4;
+        a + b;
+    }
+}
+// COMPILE
