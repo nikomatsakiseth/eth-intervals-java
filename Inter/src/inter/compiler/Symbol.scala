@@ -101,7 +101,7 @@ object Symbol {
         val loweredMethods = new HashMap[MethodId, Ast.Lower.MethodDecl]()
         
         def constructors(state: CompilationState) = {
-            List(Lower.patternType(resolvedSource.pattern))
+            List(Lower(state).patternType(resolvedSource.pattern))
         }
         
         def superClassNames(state: CompilationState) = {
@@ -109,7 +109,7 @@ object Symbol {
         }
         
         def methodsNamed(state: CompilationState)(memName: Name.Method) = {
-            Lower.symbolsForMethodsNamed(state, this, memName)
+            Lower(state).symbolsForMethodsNamed(this, memName)
         }
         
         def fieldNamed(state: CompilationState)(name: Name.Var) = None

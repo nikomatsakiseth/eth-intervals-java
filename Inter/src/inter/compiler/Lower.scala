@@ -11,12 +11,12 @@ import Util._
   * main functions:
   * - Fills in any inferred types.  (Note that we don't perform a full type check!)
   * - Removes nested expressions into intermediate variables. */
-object Lower {
+case class Lower(state: CompilationState) {
     
     // ___ Lookup tables ____________________________________________________
     
-    class LookupTable(val state: CompilationState, map: Map[Name.Var, Symbol.Var]) {
-        def +(sym: Symbol.Var) = new LookupTable(state, map + (sym.name -> sym))
+    class LookupTable(map: Map[Name.Var, Symbol.Var]) {
+        def +(sym: Symbol.Var) = new LookupTable(map + (sym.name -> sym))
         def ++(syms: Iterable[Symbol.Var]) = syms.foldLeft(this)(_ + _)
         def get(name: Name.Var) = map.get(name)
         def getOrError(name: Name.Var, optExpTy: Option[Type.Ref]) = get(name) match {
@@ -26,14 +26,12 @@ object Lower {
     }
     
     object LookupTable {
-        def empty(state: CompilationState) = new LookupTable(state, Map())
+        def empty = new LookupTable(Map())
     }
     
     def lookupField(
         rcvrTy: Type.Ref, 
         name: Name.Var
-    )(
-        implicit state: CompilationState
     ): Option[Symbol.Var] = {
         rcvrTy match {
             case Type.Class(className, _) => {
@@ -53,8 +51,6 @@ object Lower {
         rcvrTy: Type.Ref,  
         name: Name.Var,
         optExpTy: Option[Type.Ref]
-    )(
-        implicit state: CompilationState
     ) = {
         lookupField(rcvrTy, name).getOrElse {
             Symbol.errorVar(name, optExpTy)
@@ -64,8 +60,6 @@ object Lower {
     def lookupNonintrinsicMethods(
         rcvrTy: Type.Ref, 
         name: Name.Method
-    )(
-        implicit state: CompilationState
     ): List[Symbol.Method] = {
         rcvrTy match {
             case Type.Class(className, _) => {
@@ -84,8 +78,6 @@ object Lower {
     def lookupMethods(
         rcvrTy: Type.Ref, 
         name: Name.Method
-    )(
-        implicit state: CompilationState
     ): List[Symbol.Method] = {
         state.lookupIntrinsic(rcvrTy, name) match {
             case List() => lookupNonintrinsicMethods(rcvrTy, name)
@@ -141,7 +133,6 @@ object Lower {
     })
     
     def astPathField(lookup: LookupTable)(from: Ast.Node, base: Path.Ref, name: Name.Var) = {
-        implicit val state = lookup.state
         withPosOf(from, {
             val astOwner = astPath(lookup)(from, base)
             val sym = lookupFieldOrError(astOwner.ty, name, None)
@@ -196,18 +187,16 @@ object Lower {
     // ___ Method Symbol Creation ___________________________________________
     
     def symbolsForMethodsNamed(
-        state: CompilationState, 
         sym: Symbol.ClassFromInterFile, 
         mthdName: Name.Method
     ) = {
         sym.methodSymbols.get(mthdName) match {
-            case None => createSymbolsForMethodsNamed(state, sym, mthdName)
+            case None => createSymbolsForMethodsNamed(sym, mthdName)
             case Some(res) => res
         }
     }
     
     def createSymbolsForMethodsNamed(
-        state: CompilationState, 
         csym: Symbol.ClassFromInterFile, 
         mthdName: Name.Method
     ) = {
@@ -227,7 +216,7 @@ object Lower {
                     }
                     None
                 } else {
-                    val outMdecl = lowerMethodDecl(state, csym, mdecl)
+                    val outMdecl = lowerMethodDecl(csym, mdecl)
                     Some(new Symbol.Method(
                         name = mthdName,
                         returnTy = outMdecl.returnTy,
@@ -253,66 +242,61 @@ object Lower {
         msyms
     }
     
-    def ThisLookup(state: CompilationState, csym: Symbol.ClassFromInterFile) = {
+    def ThisLookup(csym: Symbol.ClassFromInterFile) = {
         val receiver = new Symbol.Var(Name.ThisVar, Type.Class(csym.name, List()))
-        LookupTable.empty(state) + receiver
+        LookupTable.empty + receiver
     }
     
-    def ThisScope(state: CompilationState, csym: Symbol.ClassFromInterFile) = {
-        InScope(ThisLookup(state, csym))
+    def ThisScope(csym: Symbol.ClassFromInterFile) = {
+        InScope(ThisLookup(csym))
     }
     
     def lowerClassDecl(
-        state: CompilationState,
         cdecl: Ast.Resolve.ClassDecl
     ): out.ClassDecl = {
         val csym = state.symtab.classes(cdecl.name.qualName).asInstanceOf[Symbol.ClassFromInterFile]
         withPosOf(cdecl, out.ClassDecl(
             name = cdecl.name,
-            annotations = cdecl.annotations.map(ThisScope(state, csym).lowerAnnotation),
+            annotations = cdecl.annotations.map(ThisScope(csym).lowerAnnotation),
             superClasses = cdecl.superClasses,
-            pattern = ThisScope(state, csym).lowerTuplePattern(cdecl.pattern),
-            members = cdecl.members.map(lowerMemberDecl(state, csym, _)),
+            pattern = ThisScope(csym).lowerTuplePattern(cdecl.pattern),
+            members = cdecl.members.map(lowerMemberDecl(csym, _)),
             sym = csym
         ))
     }
     
     def lowerMemberDecl(
-        state: CompilationState, 
         csym: Symbol.ClassFromInterFile, 
         mem: in.MemberDecl
     ): out.MemberDecl = withPosOf(mem, mem match {
-        case decl: in.ClassDecl => lowerClassDecl(state, decl)
-        case decl: in.IntervalDecl => lowerIntervalDecl(state, csym, decl)
-        case decl: in.MethodDecl => lowerMethodDecl(state, csym, decl)
-        case decl: in.FieldDecl => lowerFieldDecl(state, csym, decl)
-        case decl: in.RelDecl => lowerRelDecl(state, csym, decl)
+        case decl: in.ClassDecl => lowerClassDecl(decl)
+        case decl: in.IntervalDecl => lowerIntervalDecl(csym, decl)
+        case decl: in.MethodDecl => lowerMethodDecl(csym, decl)
+        case decl: in.FieldDecl => lowerFieldDecl(csym, decl)
+        case decl: in.RelDecl => lowerRelDecl(csym, decl)
     })
     
     def lowerRelDecl(
-        state: CompilationState, 
         csym: Symbol.ClassFromInterFile, 
         decl: in.RelDecl        
     ): out.RelDecl = withPosOf(decl, out.RelDecl(
-        annotations = decl.annotations.map(ThisScope(state, csym).lowerAnnotation),
-        left = ThisScope(state, csym).lowerPath(decl.left),
+        annotations = decl.annotations.map(ThisScope(csym).lowerAnnotation),
+        left = ThisScope(csym).lowerPath(decl.left),
         kind = decl.kind,
-        right = ThisScope(state, csym).lowerPath(decl.right)
+        right = ThisScope(csym).lowerPath(decl.right)
     ))
     
     def lowerIntervalDecl(
-        state: CompilationState, 
         csym: Symbol.ClassFromInterFile, 
         decl: in.IntervalDecl
     ): out.IntervalDecl = withPosOf(decl, out.IntervalDecl(
-        annotations = decl.annotations.map(ThisScope(state, csym).lowerAnnotation),
+        annotations = decl.annotations.map(ThisScope(csym).lowerAnnotation),
         name = decl.name,
-        optParent = decl.optParent.map(ThisScope(state, csym).lowerPath),
-        optBody = decl.optBody.map(lowerBody(ThisLookup(state, csym), _))
+        optParent = decl.optParent.map(ThisScope(csym).lowerPath),
+        optBody = decl.optBody.map(lowerBody(ThisLookup(csym), _))
     ))
     
     def lowerMethodDecl(
-        state: CompilationState, 
         csym: Symbol.ClassFromInterFile, 
         mdecl: in.MethodDecl
     ): out.MethodDecl = {
@@ -326,7 +310,7 @@ object Lower {
             val receiver = new Symbol.Var(Name.ThisVar, Type.Class(clsName, List()))
             val parameterPatterns = mdecl.parts.map(p => symbolPattern(p.pattern))
             val parameterSymbols = parameterPatterns.flatMap(Symbol.createVarSymbols)
-            val lookup = LookupTable.empty(state) ++ (receiver :: parameterSymbols)
+            val lookup = LookupTable.empty ++ (receiver :: parameterSymbols)
             val optBody = mdecl.optBody.map(lowerBody(lookup, _))
 
             val (returnTref, returnTy) = (mdecl.returnTref, optBody) match {
@@ -364,12 +348,11 @@ object Lower {
     }
     
     def lowerFieldDecl(
-        state: CompilationState, 
         csym: Symbol.ClassFromInterFile, 
         decl: in.FieldDecl
     ): out.FieldDecl = withPosOf(decl, {
-        val optBody = decl.optBody.map(lowerBody(ThisLookup(state, csym), _))
-        val lookup = ThisLookup(state, csym)
+        val optBody = decl.optBody.map(lowerBody(ThisLookup(csym), _))
+        val lookup = ThisLookup(csym)
         val (tref, ty) = (decl.tref, optBody) match {
             case (tref: in.TypeRef, _) => // Explicit type.
                 (InScope(lookup).lowerTypeRef(tref), symbolType(tref))
@@ -402,8 +385,6 @@ object Lower {
     }
     
     class InScope(lookup: LookupTable) {
-        import lookup.state
-        
         def lowerDeclPart(part: in.DeclPart): out.DeclPart = withPosOf(part, out.DeclPart(
             ident = part.ident,
             pattern = lowerTuplePattern(part.pattern)
@@ -442,7 +423,7 @@ object Lower {
         def lowerPathField(optExpTy: Option[Type.Ref])(path: in.PathField) = withPosOf(path, {
             // Note: very similar code to lowerField() below
             val owner = lowerPath(path.owner)
-            val optSym = lookupField(owner.ty, path.name.name)(state)
+            val optSym = lookupField(owner.ty, path.name.name)
             val subst = Subst(Path.This -> Path.fromLoweredAst(owner))
             val sym = optSym.getOrElse {
                 state.reporter.report(path.pos, "no.such.field", owner.ty.toString, path.name.toString)
@@ -510,8 +491,6 @@ object Lower {
     }
     
     class InScopeStmt(lookup: LookupTable, stmts: ListBuffer[out.Stmt]) extends InScope(lookup) {
-        implicit val state = lookup.state
-        
         def extractSymbols(pattern: out.Pattern): List[Symbol.Var] = pattern match {
             case out.TuplePattern(patterns) => patterns.flatMap(extractSymbols)
             case out.VarPattern(_, _, _, sym) => List(sym)
