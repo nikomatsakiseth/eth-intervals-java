@@ -18,7 +18,7 @@ object Symbol {
     abstract class Class(
         val name: Name.Qual
     ) {
-        def constructors(state: CompilationState): Seq[Type]
+        def constructors(state: CompilationState): Seq[Type.Ref]
         def superClassNames(state: CompilationState): Seq[Name.Qual]
         def methodsNamed(state: CompilationState)(name: Name.Method): List[Symbol.Method]
         def fieldNamed(state: CompilationState)(name: Name.Var): Option[Symbol.Var]
@@ -38,7 +38,7 @@ object Symbol {
         val file: java.io.File
     ) extends Class(name) {
         var loaded = false
-        var constructors = List[Type]()
+        var constructors = List[Type.Ref]()
         var superClassNames = List[Name.Qual]()
         var methods = List[Symbol.Method]()
         var fields = List[Symbol.Var]()
@@ -113,68 +113,42 @@ object Symbol {
     
     class Method(
         val name: Name.Method,
-        val returnTy: Symbol.Type,
+        val returnTy: Type.Ref,
         val receiver: Symbol.VarPattern,
         val parameterPatterns: List[Symbol.Pattern]
     )
     
     object ErrorMethod extends Method(
-        Name.Method(List("<error>")), NullType, VarPattern(Name.ThisVar, NullType), List()
+        Name.Method(List("<error>")), Type.Null, VarPattern(Name.ThisVar, Type.Null), List()
     )
     
     class Var(
         val name: Name.Var,
-        val ty: Type
+        val ty: Type.Ref
     )
     
-    def errorVar(name: Name.Var, optExpTy: Option[Type]) = {
+    def errorVar(name: Name.Var, optExpTy: Option[Type.Ref]) = {
         optExpTy match {
-            case None => new Var(name, NullType)
+            case None => new Var(name, Type.Null)
             case Some(ty) => new Var(name, ty)
         }
     }
     
     sealed abstract class Pattern {
-        def ty: Type
+        def ty: Type.Ref
     }
     sealed case class VarPattern(
         val name: Name.Var,
-        val ty: Type
+        val ty: Type.Ref
     ) extends Pattern 
     sealed case class TuplePattern(patterns: List[Pattern]) extends Pattern {
-        def ty = TupleType(patterns.map(_.ty))
-    }
-    
-    sealed abstract class Type
-    case class PathType(path: Name.Path, typeVar: Name.Var) extends Type {
-        override def toString = "%s:%s".format(path, typeVar)
-    }
-    case class ClassType(name: Name.Qual, typeArgs: List[TypeArg]) extends Type {
-        override def toString = 
-            if(typeArgs.isEmpty) name.toString
-            else "%s[%s]".format(name, typeArgs.mkString(", "))
-    }
-    case class TupleType(typeRefs: List[Type]) extends Type {
-        override def toString = "(%s)".format(typeRefs.mkString(", "))
-    }
-    case object NullType extends Type {
-        override def toString = "Null"
-    }
-    
-    sealed abstract class TypeArg
-    case class PathTypeArg(name: Name.Var, rel: PcRel, path: Name.Path) extends TypeArg {
-        override def toString = "%s %s %s".format(name, rel, path)
-    }
-    case class TypeTypeArg(name: Name.Var, rel: TcRel, ty: Type) extends TypeArg {
-        override def toString = "%s %s %s".format(name, rel, ty)
+        def ty = Type.Tuple(patterns.map(_.ty))
     }
     
     def createVarSymbols(p: Pattern): List[Var] = p match {
         case VarPattern(name, ty) => List(new Var(name, ty))
         case TuplePattern(patterns) => patterns.flatMap(createVarSymbols)
     }
-    
-    val VoidType = ClassType(Name.VoidQual, List())
     
     abstract class MemberId
     case class MethodId(clsName: Name.Qual, methodName: Name.Method, parameterPatterns: List[Symbol.Pattern]) extends MemberId

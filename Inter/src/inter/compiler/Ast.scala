@@ -620,7 +620,7 @@ object Ast {
         type CSym = Symbol.Class
         type VSym = Symbol.Var
         type MSym = Symbol.Method
-        type Ty = Symbol.Type
+        type Ty = Type.Ref
     }
     
 }

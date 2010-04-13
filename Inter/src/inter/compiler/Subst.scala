@@ -18,16 +18,16 @@ class Subst(private val map: Map[Name.Path, Name.Path]) {
         case Symbol.TuplePattern(patterns) => Symbol.TuplePattern(patterns.map(pattern))
     }
     
-    def ty(t: Symbol.Type): Symbol.Type = t match {
-        case Symbol.PathType(p, tvar) => Symbol.PathType(path(p), tvar)
-        case Symbol.ClassType(clsName, targs) => Symbol.ClassType(clsName, targs.map(typeArg))
-        case Symbol.TupleType(tys) => Symbol.TupleType(tys.map(ty))
-        case Symbol.NullType => Symbol.NullType
+    def ty(t: Type.Ref): Type.Ref = t match {
+        case Type.Path(p, tvar) => Type.Path(path(p), tvar)
+        case Type.Class(clsName, targs) => Type.Class(clsName, targs.map(typeArg))
+        case Type.Tuple(tys) => Type.Tuple(tys.map(ty))
+        case Type.Null => Type.Null
     }
     
-    def typeArg(targ: Symbol.TypeArg): Symbol.TypeArg = targ match {
-        case Symbol.PathTypeArg(n, r, p) => Symbol.PathTypeArg(n, r, path(p))
-        case Symbol.TypeTypeArg(n, r, t) => Symbol.TypeTypeArg(n, r, ty(t))
+    def typeArg(targ: Type.Arg): Type.Arg = targ match {
+        case Type.PathArg(n, r, p) => Type.PathArg(n, r, path(p))
+        case Type.TypeArg(n, r, t) => Type.TypeArg(n, r, ty(t))
     }
     
 }

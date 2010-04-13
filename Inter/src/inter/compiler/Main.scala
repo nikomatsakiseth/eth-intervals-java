@@ -10,6 +10,7 @@ object Main {
         val err = 
             if(config.loadFrom(args)) {
                 val state = new CompilationState(config, new Reporter(config))
+                Intrinsic.addTo(state)
                 state.loadInitialSources(config.inputFiles.toList)
                 state.compile()
                 if (state.reporter.hasErrors) {

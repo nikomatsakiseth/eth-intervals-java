@@ -3,6 +3,7 @@ package inter.compiler
 import java.io.File
 import scala.collection.mutable.Queue
 import scala.collection.mutable.HashSet
+import scala.collection.mutable.HashMap
 
 class CompilationState(
     val config: Config,
@@ -12,6 +13,12 @@ class CompilationState(
     val toBeLowered = new Queue[Symbol.ClassFromInterFile]()
     val inferStack = new HashSet[Symbol.MemberId]()
     val inferReported = new HashSet[Symbol.MemberId]()
+    val intrinsics = new HashMap[(Type.Ref, Name.Method), List[Symbol.Method]]()
+    
+    def addIntrinsic(rcvrTy: Type.Ref, msym: Symbol.Method) {
+        val mthdName = msym.name
+        intrinsics((rcvrTy, mthdName)) = msym :: intrinsics.get((rcvrTy, mthdName)).getOrElse(Nil)
+    }
     
     private[this] def createSymbolsAndResolve(compUnits: List[Ast.Parse.CompUnit]) {
         // Create symbols for each class:
@@ -114,8 +121,8 @@ class CompilationState(
     
     /** Checks for an intrinsic method --- i.e., one that is built-in to the compiler ---
       * defined on the type `rcvrTy` with the name `name`. */
-    def lookupIntrinsic(rcvrTy: Symbol.Type, name: Name.Method): Option[Symbol.Method] = {
-        None
+    def lookupIntrinsic(rcvrTy: Type.Ref, name: Name.Method): List[Symbol.Method] = {
+        intrinsics.get((rcvrTy, name)).getOrElse(List())
     }
     
     def compile() {
