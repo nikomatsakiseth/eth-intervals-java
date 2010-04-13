@@ -19,9 +19,13 @@ object Symbol {
     
     // ___ Types ____________________________________________________________    
     
+    abstract class Any {
+        def isError: Boolean = false
+    }
+    
     abstract class Class(
         val name: Name.Qual
-    ) {
+    ) extends Any {
         def constructors(state: CompilationState): Seq[Type.Ref]
         def superClassNames(state: CompilationState): Seq[Name.Qual]
         def methodsNamed(state: CompilationState)(name: Name.Method): List[Symbol.Method]
@@ -120,21 +124,27 @@ object Symbol {
         val returnTy: Type.Ref,
         val receiver: Symbol.VarPattern,
         val parameterPatterns: List[Symbol.Pattern]
-    )
+    ) extends Any
     
-    object ErrorMethod extends Method(
-        Name.Method(List("<error>")), Type.Null, VarPattern(Name.ThisVar, Type.Null), List()
-    )
+    def errorMethod(name: Name.Method) = {
+        val receiver = Symbol.VarPattern(Name.ThisVar, Type.Null)
+        val parameterPatterns = name.parts.zipWithIndex.map { case (_, i) => 
+            Symbol.VarPattern(Name.Var("arg%d".format(i)), Type.Null)
+        }
+        new Method(name, Type.Null, receiver, parameterPatterns) {
+            override def isError = true
+        }
+    }
     
     class Var(
         val name: Name.Var,
         val ty: Type.Ref
-    )
+    ) extends Any
     
     def errorVar(name: Name.Var, optExpTy: Option[Type.Ref]) = {
-        optExpTy match {
-            case None => new Var(name, Type.Null)
-            case Some(ty) => new Var(name, ty)
+        val ty = optExpTy.getOrElse(Type.Null)
+        new Var(name, ty) {
+            override def isError = true
         }
     }
     

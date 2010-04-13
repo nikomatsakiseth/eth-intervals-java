@@ -1,5 +1,7 @@
 package inter.compiler
 
+import scala.collection.immutable.Set
+
 object Path {
     sealed abstract class Ref
     case class Base(v: Name.Var) extends Ref
@@ -19,4 +21,6 @@ object Path {
     }
     case class CanonBase(v: Name.Var, sym: Symbol.Var, ty: Type.Ref) extends Canon
     case class CanonField(base: Path.Canon, sym: Symbol.Var, ty: Type.Ref) extends Canon
+    
+    sealed case class Canons(set: Set[Canon])
 }

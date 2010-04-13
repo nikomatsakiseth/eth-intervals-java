@@ -214,30 +214,30 @@ case class Lower(state: CompilationState) {
                             mthdName.toString
                         )
                     }
-                    None
+                    Symbol.errorMethod(mthdName)
                 } else {
                     val outMdecl = lowerMethodDecl(csym, mdecl)
-                    Some(new Symbol.Method(
+                    new Symbol.Method(
                         name = mthdName,
                         returnTy = outMdecl.returnTy,
                         receiver = Symbol.VarPattern(Name.ThisVar, Type.Class(csym.name, List())),
                         parameterPatterns = memberId.parameterPatterns
-                    ))
+                    )
                 }
             }
             
             case in.MethodDecl(_, parts, returnTy: in.TypeRef, _, _, _) => {
-                Some(new Symbol.Method(
+                new Symbol.Method(
                     name = mthdName,
                     returnTy = symbolType(returnTy),
                     receiver = Symbol.VarPattern(Name.ThisVar, Type.Class(csym.name, List())),
                     parameterPatterns = parts.map(p => symbolPattern(p.pattern))
-                ))
+                )
             }
         }
         
         val mdecls = csym.resolvedSource.members.flatMap(_.asMethodNamed(mthdName))
-        val msyms = mdecls.flatMap(forMethodDecl)
+        val msyms = mdecls.map(forMethodDecl)
         csym.methodSymbols(mthdName) = msyms
         msyms
     }
