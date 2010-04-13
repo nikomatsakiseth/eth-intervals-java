@@ -47,20 +47,13 @@ object Name {
     ) {
         def javaName = text
         
-        def toPath = PathBase(this)
+        def toPath = Path.Base(this)
         
         override def toString = text
     }
     
-    sealed abstract class Path
-    case class PathBase(v: Var) extends Path
-    case class PathField(base: Path, f: Var) extends Path
-    
     val ThisVar = Name.Var("this")
-    val ThisPath = PathBase(ThisVar)
-    
     val MethodVar = Name.Var("method")
-    val MethodPath = PathBase(MethodVar)
     
     val VoidQual = Qual("java.lang.Void")
 
@@ -70,12 +63,5 @@ object Name {
     val IntervalTmplQual = Qual("inter.lang.IntervalTmpl")
     val AsyncIntervalTmplQual = Qual("inter.lang.AsyncIntervalTmpl")
     val IntervalTmplParent = Var("P")
-    
-    object Path {
-        def apply(node: Ast.Lower.Path): Name.Path = node match {
-            case Ast.Lower.Var(name, _, _) => PathBase(name.name)
-            case Ast.Lower.PathField(owner, name, _, _) => PathField(Path(owner), name.name) 
-        }
-    }
-    
+       
 }

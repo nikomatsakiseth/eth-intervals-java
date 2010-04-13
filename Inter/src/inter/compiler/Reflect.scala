@@ -27,7 +27,7 @@ object Reflect {
             val targ = typeArg(Name.ArrayElem, gat.getGenericComponentType).get
             Type.Class(Name.ArrayQual, List(targ))
         }
-        case tv: reflect.TypeVariable[_] => Type.Path(Name.ThisPath, Name.Var(tv.getName))
+        case tv: reflect.TypeVariable[_] => Type.Var(Path.This, Name.Var(tv.getName))
         case pt: reflect.ParameterizedType => {
             val cls = pt.getRawType.asInstanceOf[Class[_]]
             val tparams = cls.getTypeParameters.toList.map(tv => Name.Var(tv.getName))

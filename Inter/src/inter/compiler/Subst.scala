@@ -2,15 +2,15 @@ package inter.compiler
 
 import scala.collection.immutable.Map
 
-class Subst(private val map: Map[Name.Path, Name.Path]) {
+class Subst(private val map: Map[Path.Ref, Path.Ref]) {
     
     def +(s: Subst) = new Subst(map ++ s.map)
-    def +(p: Pair[Name.Path, Name.Path]) = new Subst(map + p)
+    def +(p: Pair[Path.Ref, Path.Ref]) = new Subst(map + p)
     
-    def path(p: Name.Path): Name.Path = (map.get(p), p) match {
+    def path(p: Path.Ref): Path.Ref = (map.get(p), p) match {
         case (Some(q), _) => q
-        case (None, Name.PathBase(v)) => Name.PathBase(v)
-        case (None, Name.PathField(owner, f)) => Name.PathField(path(owner), f)
+        case (None, Path.Base(v)) => Path.Base(v)
+        case (None, Path.Field(owner, f)) => Path.Field(path(owner), f)
     }
     
     def pattern(p: Symbol.Pattern): Symbol.Pattern = p match {
@@ -19,7 +19,7 @@ class Subst(private val map: Map[Name.Path, Name.Path]) {
     }
     
     def ty(t: Type.Ref): Type.Ref = t match {
-        case Type.Path(p, tvar) => Type.Path(path(p), tvar)
+        case Type.Var(p, tvar) => Type.Var(path(p), tvar)
         case Type.Class(clsName, targs) => Type.Class(clsName, targs.map(typeArg))
         case Type.Tuple(tys) => Type.Tuple(tys.map(ty))
         case Type.Null => Type.Null
@@ -35,5 +35,5 @@ class Subst(private val map: Map[Name.Path, Name.Path]) {
 object Subst {
     val empty = new Subst(Map())
     
-    def apply(pairs: (Name.Path, Name.Path)*) = new Subst(Map(pairs: _*))
+    def apply(pairs: (Path.Ref, Path.Ref)*) = new Subst(Map(pairs: _*))
 }

@@ -141,7 +141,7 @@ object Resolve {
             right = resolvePath(decl.right)
         ))
         
-        def resolvePath(path: in.Path): out.Path = withPosOf(path, path match {
+        def resolvePath(path: in.AstPath): out.AstPath = withPosOf(path, path match {
             case in.Var(name, (), ()) => out.Var(name, (), ())
             case in.PathField(p, f, (), ()) => out.PathField(resolvePath(p), f, (), ())
         })
@@ -152,7 +152,7 @@ object Resolve {
         })
         
         def resolveTypeRef(tref: in.TypeRef): out.TypeRef = withPosOf(tref, tref match {
-            case in.PathType(path, tvar) => out.PathType(resolvePath(path), tvar)
+            case in.VarType(path, tvar) => out.VarType(resolvePath(path), tvar)
             case in.ClassType(cn, targs) => out.ClassType(resolveName(cn), targs.map(resolveTypeArg))
             case in.TupleType(trefs) => out.TupleType(trefs.map(resolveTypeRef))
         })

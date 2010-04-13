@@ -11,6 +11,8 @@ object Util {
         to.setPos(from.pos); to
     }
     
+    def sameLength(lst1: List[_], lst2: List[_]) = (lst1.length == lst2.length)
+    
     // ___ Extensions to Seq ________________________________________________
     
     class ExtendedSeq[E](seq: Seq[E]) {

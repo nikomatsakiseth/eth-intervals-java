@@ -144,7 +144,7 @@ class Ast {
     case class IntervalDecl(
         annotations: List[Annotation],
         name: VarName,
-        optParent: Option[Path],
+        optParent: Option[AstPath],
         optBody: Option[Body]
     ) extends MemberDecl {
         override def toString = "[interval %s(%s)]".format(name, optParent)
@@ -193,7 +193,7 @@ class Ast {
     }
     
     case class PathRequirement(
-        left: Path, rel: PcRel, right: Path
+        left: AstPath, rel: PcRel, right: AstPath
     ) extends Node {
         override def toString = "%s %s %s".format(left, rel, right)
         
@@ -232,9 +232,9 @@ class Ast {
     
     case class RelDecl(
         annotations: List[Annotation],        
-        left: Path, 
+        left: AstPath, 
         kind: PcRel,
-        right: Path
+        right: AstPath
     ) extends MemberDecl {
         override def toString = "%s %s %s".format(left, kind, right)
         override def print(out: PrettyPrinter) {
@@ -348,7 +348,7 @@ class Ast {
         }
     }
     
-    case class PathType(path: Path, typeVar: VarName) extends TypeRef {
+    case class VarType(path: AstPath, typeVar: VarName) extends TypeRef {
         override def toString = "%s:%s".format(path, typeVar)
         
         override def print(out: PrettyPrinter) {
@@ -380,17 +380,17 @@ class Ast {
         override def toString = "%s %s %s".format(name, rel, typeRef)
     }
     
-    case class PathTypeArg(name: VarName, rel: PcRel, path: Path) extends TypeArg {
+    case class PathTypeArg(name: VarName, rel: PcRel, path: AstPath) extends TypeArg {
         override def toString = "%s %s %s".format(name, rel, path)
     }
     
     // ___ Paths ____________________________________________________________
     
-    sealed abstract trait Path extends Node {
+    sealed abstract trait AstPath extends Node {
         def ty: Ty
     }
     
-    case class PathField(owner: Path, name: VarName, sym: VSym, ty: Ty) extends Path {
+    case class PathField(owner: AstPath, name: VarName, sym: VSym, ty: Ty) extends AstPath {
         override def toString = owner + " " + name
     }
     
@@ -465,7 +465,7 @@ class Ast {
     // n.b.: A Var could refer to any sort of variable, not only a 
     // local variable.  For example, a field of the current class or
     // one of its enclosing classes.
-    case class Var(name: VarName, sym: VSym, ty: Ty) extends LoweredExpr with Path {
+    case class Var(name: VarName, sym: VSym, ty: Ty) extends LoweredExpr with AstPath {
         override def toString = name.toString
     }
     

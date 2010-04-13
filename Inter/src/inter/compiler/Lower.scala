@@ -2,8 +2,6 @@ package inter.compiler
 
 import scala.collection.immutable.Map
 import scala.collection.mutable.ListBuffer
-import scala.collection.mutable.HashSet
-import scala.collection.mutable.Queue
 
 import Ast.{Resolve => in}
 import Ast.{Lower => out}
@@ -32,9 +30,10 @@ object Lower {
     }
     
     def lookupField(
-        state: CompilationState,
         rcvrTy: Type.Ref, 
         name: Name.Var
+    )(
+        implicit state: CompilationState
     ): Option[Symbol.Var] = {
         rcvrTy match {
             case Type.Class(className, _) => {
@@ -42,8 +41,8 @@ object Lower {
                 csym.fieldNamed(state)(name)
             }
             
-            case Type.Path(path, tvar) => {
-                lookupField(state, upperBoundPathType(path, tvar), name)
+            case Type.Var(path, tvar) => {
+                lookupField(upperBoundPathType(path, tvar), name)
             }
             
             case _ => None
@@ -51,20 +50,22 @@ object Lower {
     }
     
     def lookupFieldOrError(
-        state: CompilationState, 
         rcvrTy: Type.Ref,  
         name: Name.Var,
         optExpTy: Option[Type.Ref]
+    )(
+        implicit state: CompilationState
     ) = {
-        lookupField(state, rcvrTy, name).getOrElse {
+        lookupField(rcvrTy, name).getOrElse {
             Symbol.errorVar(name, optExpTy)
         }
     }    
     
     def lookupNonintrinsicMethods(
-        state: CompilationState,
         rcvrTy: Type.Ref, 
         name: Name.Method
+    )(
+        implicit state: CompilationState
     ): List[Symbol.Method] = {
         rcvrTy match {
             case Type.Class(className, _) => {
@@ -72,8 +73,8 @@ object Lower {
                 csym.methodsNamed(state)(name)
             }
             
-            case Type.Path(path, tvar) => {
-                lookupNonintrinsicMethods(state, upperBoundPathType(path, tvar), name)                    
+            case Type.Var(path, tvar) => {
+                lookupNonintrinsicMethods(upperBoundPathType(path, tvar), name)                    
             }
             
             case _ => List()
@@ -81,19 +82,18 @@ object Lower {
     }
 
     def lookupMethods(
-        state: CompilationState,
         rcvrTy: Type.Ref, 
         name: Name.Method
+    )(
+        implicit state: CompilationState
     ): List[Symbol.Method] = {
         state.lookupIntrinsic(rcvrTy, name) match {
-            case List() => lookupNonintrinsicMethods(state, rcvrTy, name)
+            case List() => lookupNonintrinsicMethods(rcvrTy, name)
             case intrinsicSyms => intrinsicSyms
         }
     }
     
-    def sameLength(lst1: List[_], lst2: List[_]) = (lst1.length == lst2.length)
-    
-    def upperBoundPathType(path: Name.Path, tvar: Name.Var): Type.Ref = {
+    def upperBoundPathType(path: Path.Ref, tvar: Name.Var): Type.Ref = {
         throw new RuntimeException("TODO")
     }
     
@@ -115,7 +115,7 @@ object Lower {
     }
     
     def symbolType(tref: in.TypeRef): Type.Ref = tref match {
-        case in.PathType(path, tvar) => Type.Path(namePath(path), tvar.name)
+        case in.VarType(path, tvar) => Type.Var(namePath(path), tvar.name)
         case in.ClassType(name, targs) => Type.Class(name.qualName, targs.map(symbolTypeArg))
         case in.TupleType(types) => Type.Tuple(types.map(symbolType))
         case in.NullType() => Type.Null
@@ -126,9 +126,9 @@ object Lower {
         case in.PathTypeArg(name, rel, path) => Type.PathArg(name.name, rel, namePath(path))
     }
     
-    def namePath(path: in.Path): Name.Path = path match {
-        case in.PathField(base, f, (), ()) => Name.PathField(namePath(base), f.name)
-        case in.Var(name, (), ()) => Name.PathBase(name.name)
+    def namePath(path: in.AstPath): Path.Ref = path match {
+        case in.PathField(base, f, (), ()) => Path.Field(namePath(base), f.name)
+        case in.Var(name, (), ()) => Path.Base(name.name)
     }
     
     def astVarName(from: Ast.Node, name: Name.Var) = withPosOf(from,
@@ -140,25 +140,26 @@ object Lower {
         out.Var(astVarName(from, name), sym, sym.ty)
     })
     
-    def astPathField(lookup: LookupTable)(from: Ast.Node, base: Name.Path, name: Name.Var) = {
+    def astPathField(lookup: LookupTable)(from: Ast.Node, base: Path.Ref, name: Name.Var) = {
+        implicit val state = lookup.state
         withPosOf(from, {
             val astOwner = astPath(lookup)(from, base)
-            val sym = lookupFieldOrError(lookup.state, astOwner.ty, name, None)
+            val sym = lookupFieldOrError(astOwner.ty, name, None)
             out.PathField(astOwner, astVarName(from, name), sym, sym.ty)
         })
     }
     
-    def astPath(lookup: LookupTable)(from: Ast.Node, path: Name.Path): out.Path = path match {
-        case Name.PathBase(name) => astPathVar(lookup)(from, name)
-        case Name.PathField(base, name) => astPathField(lookup)(from, base, name)
+    def astPath(lookup: LookupTable)(from: Ast.Node, path: Path.Ref): out.AstPath = path match {
+        case Path.Base(name) => astPathVar(lookup)(from, name)
+        case Path.Field(base, name) => astPathField(lookup)(from, base, name)
     }
     
     def astType(lookup: LookupTable)(from: Ast.Node, ty: Type.Ref): out.TypeRef = {
         withPosOf(from, ty match {
             case Type.Tuple(tys) => 
                 out.TupleType(tys.map(astType(lookup)(from, _)))
-            case Type.Path(path, tvar) => 
-                out.PathType(
+            case Type.Var(path, tvar) => 
+                out.VarType(
                     astPath(lookup)(from, path),
                     astVarName(from, tvar)
                 )
@@ -441,8 +442,8 @@ object Lower {
         def lowerPathField(optExpTy: Option[Type.Ref])(path: in.PathField) = withPosOf(path, {
             // Note: very similar code to lowerField() below
             val owner = lowerPath(path.owner)
-            val optSym = lookupField(state, owner.ty, path.name.name)
-            val subst = Subst(Name.ThisPath -> Name.Path(owner))
+            val optSym = lookupField(owner.ty, path.name.name)(state)
+            val subst = Subst(Path.This -> Path.fromLoweredAst(owner))
             val sym = optSym.getOrElse {
                 state.reporter.report(path.pos, "no.such.field", owner.ty.toString, path.name.toString)
                 Symbol.errorVar(path.name.name, optExpTy)
@@ -450,7 +451,7 @@ object Lower {
             out.PathField(owner, path.name, sym, subst.ty(sym.ty))
         })
     
-        def lowerPath(path: in.Path): out.Path = withPosOf(path, path match {
+        def lowerPath(path: in.AstPath): out.AstPath = withPosOf(path, path match {
             case p: in.Var => lowerVar(None)(p)
             case p: in.PathField => lowerPathField(None)(p)
         })
@@ -461,7 +462,7 @@ object Lower {
         }
     
         def lowerTypeRef(tref: in.TypeRef): out.TypeRef = tref match {
-            case in.PathType(path, tvar) => out.PathType(lowerPath(path), tvar)
+            case in.VarType(path, tvar) => out.VarType(lowerPath(path), tvar)
             case in.ClassType(cname, targs) => out.ClassType(cname, targs.map(lowerTypeArg))
         }
 
@@ -509,7 +510,7 @@ object Lower {
     }
     
     class InScopeStmt(lookup: LookupTable, stmts: ListBuffer[out.Stmt]) extends InScope(lookup) {
-        import lookup.state
+        implicit val state = lookup.state
         
         def extractSymbols(pattern: out.Pattern): List[Symbol.Var] = pattern match {
             case out.TuplePattern(patterns) => patterns.flatMap(extractSymbols)
@@ -621,7 +622,7 @@ object Lower {
         
         def dummySubst(subst: Subst)(pat: Symbol.Pattern, text: String): Subst = pat match {
             case Symbol.VarPattern(name, _) =>
-                subst + (name.toPath -> Name.PathBase(Name.Var(text)))
+                subst + (name.toPath -> Path.Base(Name.Var(text)))
                 
             case Symbol.TuplePattern(patterns) =>
                 patterns.zipWithIndex.foldLeft(subst) { case (s, (p, i)) =>
@@ -659,8 +660,8 @@ object Lower {
             // Note: very similar code to lowerPathField() above.
             // Big difference is that this version generates statements.
             val owner = lowerExprToVar(None)(expr.owner)
-            val optSym = lookupField(state, owner.ty, expr.name.name)
-            val subst = Subst(Name.ThisPath -> Name.Path(owner))
+            val optSym = lookupField(owner.ty, expr.name.name)
+            val subst = Subst(Path.This -> Path.fromLoweredAst(owner))
             val sym = optSym.getOrElse {
                 state.reporter.report(expr.pos, "no.such.field", owner.ty.toString, expr.name.toString)
                 Symbol.errorVar(expr.name.name, optExpTy)
@@ -681,7 +682,7 @@ object Lower {
             val rcvr = lowerExpr(None)(mcall.rcvr)
             
             // Find all potential methods:
-            val msyms = lookupMethods(state, rcvr.ty, mcall.name)
+            val msyms = lookupMethods(rcvr.ty, mcall.name)
                 
             // Identify the best method (if any):
             msyms match {
@@ -735,14 +736,14 @@ object Lower {
         def lowerInlineTmpl(tmpl: in.InlineTmpl) = introduceVar(tmpl, out.InlineTmpl(
             stmts = lowerStmts(lookup, tmpl.stmts),
             ty = Type.Class(Name.IntervalTmplQual, List(
-                Type.PathArg(Name.IntervalTmplParent, PcEq, Name.MethodPath)
+                Type.PathArg(Name.IntervalTmplParent, PcEq, Path.Method)
             ))
         ))
         
         def lowerAsyncTmpl(tmpl: in.AsyncTmpl) = introduceVar(tmpl, out.AsyncTmpl(
             stmts = lowerStmts(lookup, tmpl.stmts),
             ty = Type.Class(Name.AsyncIntervalTmplQual, List(
-                Type.PathArg(Name.IntervalTmplParent, PcEq, Name.MethodPath)
+                Type.PathArg(Name.IntervalTmplParent, PcEq, Path.Method)
             ))
         ))
         

@@ -238,7 +238,7 @@ class Parse extends StdTokenParsers with PackratParsers {
     lazy val typeRef: PackratParser[out.TypeRef] = pathType | classType
     
     lazy val pathType = positioned(
-        path~":"~varName ^^ { case b~":"~v => out.PathType(b, v) }
+        path~":"~varName ^^ { case b~":"~v => out.VarType(b, v) }
     )
     
     lazy val classType = positioned(
@@ -260,7 +260,7 @@ class Parse extends StdTokenParsers with PackratParsers {
     
     lazy val path = positioned(
         varName~rep(varName) ^^ {
-            case v~fs => fs.foldLeft[out.Path](out.Var(v, (), ()))(out.PathField(_, _, (), ())) }
+            case v~fs => fs.foldLeft[out.AstPath](out.Var(v, (), ()))(out.PathField(_, _, (), ())) }
     )
     
     // ___ Expressions ______________________________________________________
