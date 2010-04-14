@@ -27,9 +27,9 @@ case class Lower(state: CompilationState) {
         case in.VarPattern(_, tref, _, _) => symbolType(tref)
     }
     
-    def symbolPattern(pattern: in.Pattern): Symbol.Pattern = pattern match {
-        case in.TuplePattern(patterns) => Symbol.TuplePattern(patterns.map(symbolPattern))
-        case in.VarPattern(_, tref, name, _) => Symbol.VarPattern(name.name, symbolType(tref))
+    def symbolPattern(pattern: in.Pattern): Pattern.Ref = pattern match {
+        case in.TuplePattern(patterns) => Pattern.Tuple(patterns.map(symbolPattern))
+        case in.VarPattern(_, tref, name, _) => Pattern.Var(name.name, symbolType(tref))
     }
     
     def symbolType(tref: in.TypeRef): Type.Ref = tref match {
@@ -146,7 +146,7 @@ case class Lower(state: CompilationState) {
                     new Symbol.Method(
                         name = mthdName,
                         returnTy = outMdecl.returnTy,
-                        receiver = Symbol.VarPattern(Name.ThisVar, Type.Class(csym.name, List())),
+                        receiver = Pattern.Var(Name.ThisVar, Type.Class(csym.name, List())),
                         parameterPatterns = memberId.parameterPatterns
                     )
                 }
@@ -156,7 +156,7 @@ case class Lower(state: CompilationState) {
                 new Symbol.Method(
                     name = mthdName,
                     returnTy = symbolType(returnTy),
-                    receiver = Symbol.VarPattern(Name.ThisVar, Type.Class(csym.name, List())),
+                    receiver = Pattern.Var(Name.ThisVar, Type.Class(csym.name, List())),
                     parameterPatterns = parts.map(p => symbolPattern(p.pattern))
                 )
             }
@@ -234,7 +234,7 @@ case class Lower(state: CompilationState) {
 
             val receiver = new Symbol.Var(Name.ThisVar, Type.Class(clsName, List()))
             val parameterPatterns = mdecl.parts.map(p => symbolPattern(p.pattern))
-            val parameterSymbols = parameterPatterns.flatMap(Symbol.createVarSymbols)
+            val parameterSymbols = parameterPatterns.flatMap(Pattern.createVarSymbols)
             val env = emptyEnv ++ (receiver :: parameterSymbols)
             val optBody = mdecl.optBody.map(lowerBody(env, _))
 
@@ -524,28 +524,28 @@ case class Lower(state: CompilationState) {
             withPosOf(fromExpr, out.Var(nameAst, sym, sym.ty))
         }
         
-        def dummySubst(subst: Subst)(pat: Symbol.Pattern, text: String): Subst = pat match {
-            case Symbol.VarPattern(name, _) =>
+        def dummySubst(subst: Subst)(pat: Pattern.Ref, text: String): Subst = pat match {
+            case Pattern.Var(name, _) =>
                 subst + (name.toPath -> Path.Base(Name.Var(text)))
                 
-            case Symbol.TuplePattern(patterns) =>
+            case Pattern.Tuple(patterns) =>
                 patterns.zipWithIndex.foldLeft(subst) { case (s, (p, i)) =>
                     dummySubst(s)(p, "%s_%d".format(text, i))
                 }
         }
         
-        def patSubst(subst: Subst)(pat: Symbol.Pattern, expr: in.Expr): Subst = {
+        def patSubst(subst: Subst)(pat: Pattern.Ref, expr: in.Expr): Subst = {
             (pat, expr) match {
-                case (Symbol.TuplePattern(patterns), in.Tuple(exprs, ())) if patterns.length == exprs.length =>
+                case (Pattern.Tuple(patterns), in.Tuple(exprs, ())) if sameLength(patterns, exprs) =>
                     patterns.zip(exprs).foldLeft(subst) { case (s, (p, e)) => patSubst(s)(p, e) }
                 
-                case (Symbol.VarPattern(lname, _), in.Var(rname, (), ())) =>
+                case (Pattern.Var(lname, _), in.Var(rname, (), ())) =>
                     subst + (lname.toPath -> rname.name.toPath)
                 
                 case (_, in.Tuple(List(subExpr), ())) =>
                     patSubst(subst)(pat, subExpr)
                     
-                case (Symbol.TuplePattern(List(subPat)), _) =>
+                case (Pattern.Tuple(List(subPat)), _) =>
                     patSubst(subst)(subPat, expr)
                     
                 case _ => 
@@ -553,7 +553,7 @@ case class Lower(state: CompilationState) {
             }
         }
         
-        def patSubsts(allPatterns: List[Symbol.Pattern], allExprs: List[in.Expr]): Subst = {
+        def patSubsts(allPatterns: List[Pattern.Ref], allExprs: List[in.Expr]): Subst = {
             assert(allPatterns.length == allExprs.length) // Guaranteed syntactically.
             allPatterns.zip(allExprs).foldLeft(Subst.empty) { case (s, (p, e)) =>
                 patSubst(s)(p, e)

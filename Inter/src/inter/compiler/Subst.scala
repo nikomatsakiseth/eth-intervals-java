@@ -13,9 +13,9 @@ class Subst(private val map: Map[Path.Ref, Path.Ref]) {
         case (None, Path.Field(owner, f)) => Path.Field(path(owner), f)
     }
     
-    def pattern(p: Symbol.Pattern): Symbol.Pattern = p match {
-        case Symbol.VarPattern(n, t) => Symbol.VarPattern(n, ty(t))
-        case Symbol.TuplePattern(patterns) => Symbol.TuplePattern(patterns.map(pattern))
+    def pattern(p: Pattern.Ref): Pattern.Ref = p match {
+        case Pattern.Var(n, t) => Pattern.Var(n, ty(t))
+        case Pattern.Tuple(patterns) => Pattern.Tuple(patterns.map(pattern))
     }
     
     def ty(t: Type.Ref): Type.Ref = t match {

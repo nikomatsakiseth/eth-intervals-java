@@ -35,8 +35,8 @@ object Intrinsic {
                 val msym = new Symbol.Method(
                     name = op, 
                     returnTy = returnTy,
-                    receiver = Symbol.VarPattern(Name.ThisVar, leftTy),
-                    parameterPatterns = List(Symbol.VarPattern(Name.Var("arg"), rightTy)))
+                    receiver = Pattern.Var(Name.ThisVar, leftTy),
+                    parameterPatterns = List(Pattern.Var(Name.Var("arg"), rightTy)))
                 state.addIntrinsic(leftTy, msym)
             }
         }

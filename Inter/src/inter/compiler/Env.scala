@@ -232,8 +232,11 @@ case class Env(
     def upperBoundType(ty: Type.Ref) = new Bounder(TcSub).compute(ty)
     def lowerBoundType(ty: Type.Ref) = new Bounder(TcSup).compute(ty)
     
-    // ___ Type Manipulation ________________________________________________
-       
+    // ___ Argument Suitability _____________________________________________
+    //
+    // This is used to resolve overloaded methods.  For this purpose, we 
+    // don't use the full 
+    
 //    def isSubclass(ty_sub: Type.Ref, ty_sup: Type.Ref): Boolean = {
 //        (ty_sub, ty_sup) match {
 //            case (Type.Var(path_sub, var_sub), Type.Var(path_sup, var_sup)) => false // XXX
@@ -249,7 +252,7 @@ case class Env(
 //        }
 //    }
 //    
-//    def matchesByClass(pattern: Symbol.Pattern, ty: Type.Ref): Boolean = {
+//    def matchesByClass(pattern: Pattern.Ref, ty: Type.Ref): Boolean = {
 //        (pattern, ty) match {
 //            // Unpack singleton tuples:
 //            case (_, Type.Tuple(List(subty))) => matches(pattern, subty)
@@ -260,9 +263,9 @@ case class Env(
 //                subpatterns.zip(subtys).forall { case (p, t) => matches(p, t) }
 //
 //            // Check for singleton tuples:
-//            case (Symbol.VarPattern(_, patty), ty) => isSubclass(patty, ty)
+//            case (Pattern.Var(_, patty), ty) => isSubclass(patty, ty)
 //            case _ => false
 //        }
 //    }
-//  
+  
 }

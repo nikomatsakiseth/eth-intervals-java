@@ -42,7 +42,7 @@ object Reflect {
         ty = typeRef(fld.getGenericType)
     )
     
-    def paramPattern(pair: (reflect.Type, Int)) = Symbol.VarPattern(
+    def paramPattern(pair: (reflect.Type, Int)) = Pattern.Var(
         name = Name.Var("arg"+pair._2),
         ty = typeRef(pair._1)
     )
@@ -50,8 +50,8 @@ object Reflect {
     def methodSymbol(state: CompilationState, clsName: Name.Qual)(mthd: reflect.Method) = new Symbol.Method(
         name = Name.Method(List(mthd.getName)),
         returnTy = typeRef(mthd.getGenericReturnType),
-        receiver = Symbol.VarPattern(Name.ThisVar, Type.Class(clsName, List())),
-        parameterPatterns = List(Symbol.TuplePattern(
+        receiver = Pattern.Var(Name.ThisVar, Type.Class(clsName, List())),
+        parameterPatterns = List(Pattern.Tuple(
             mthd.getGenericParameterTypes.toList.zipWithIndex.map(paramPattern)))
     )
     

@@ -122,14 +122,14 @@ object Symbol {
     class Method(
         val name: Name.Method,
         val returnTy: Type.Ref,
-        val receiver: Symbol.VarPattern,
-        val parameterPatterns: List[Symbol.Pattern]
+        val receiver: Pattern.Var,
+        val parameterPatterns: List[Pattern.Ref]
     ) extends Any
     
     def errorMethod(name: Name.Method) = {
-        val receiver = Symbol.VarPattern(Name.ThisVar, Type.Null)
+        val receiver = Pattern.Var(Name.ThisVar, Type.Null)
         val parameterPatterns = name.parts.zipWithIndex.map { case (_, i) => 
-            Symbol.VarPattern(Name.Var("arg%d".format(i)), Type.Null)
+            Pattern.Var(Name.Var("arg%d".format(i)), Type.Null)
         }
         new Method(name, Type.Null, receiver, parameterPatterns) {
             override def isError = true
@@ -148,24 +148,8 @@ object Symbol {
         }
     }
     
-    sealed abstract class Pattern {
-        def ty: Type.Ref
-    }
-    sealed case class VarPattern(
-        val name: Name.Var,
-        val ty: Type.Ref
-    ) extends Pattern 
-    sealed case class TuplePattern(patterns: List[Pattern]) extends Pattern {
-        def ty = Type.Tuple(patterns.map(_.ty))
-    }
-    
-    def createVarSymbols(p: Pattern): List[Var] = p match {
-        case VarPattern(name, ty) => List(new Var(name, ty))
-        case TuplePattern(patterns) => patterns.flatMap(createVarSymbols)
-    }
-    
     abstract class MemberId
-    case class MethodId(clsName: Name.Qual, methodName: Name.Method, parameterPatterns: List[Symbol.Pattern]) extends MemberId
+    case class MethodId(clsName: Name.Qual, methodName: Name.Method, parameterPatterns: List[Pattern.Ref]) extends MemberId
     case class FieldId(clsName: Name.Qual, methodName: Name.Method) extends MemberId
     
     // ___ Functions ________________________________________________________    
