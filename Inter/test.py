@@ -112,7 +112,7 @@ and can optionally be configured in the following ways:
     
     ERROR_RE: a regular expression that matches an error message in
     the output (default: r'^[a-zA-Z/_0-9.$]+:[0-9]+:')
-
+    
     COMMENT: the marker to use when looking for special comments
     (default: //)
     
@@ -203,9 +203,9 @@ TEST_TYPES = (COMPILE, EXECUTE, SKIP)
 #
 # Code to read in a file and break it into separate fragments.
 
-FRAGMENT = "// FRAGMENT"
-TRAILER  = "// TRAILER"
-ERROR    = "// ERROR"
+FRAGMENT = COMMENT + " FRAGMENT"
+TRAILER  = COMMENT + " TRAILER"
+ERROR    = COMMENT + " ERROR"
 
 class FragmentFile(object):
     def __init__(self, fname):
@@ -277,14 +277,14 @@ class FragmentFile(object):
 def add_to_header(self, line):
     self.header.append(line)
 
-def add_header_exp_error(self, experror):
+def add_header_exp_error(self, rel, experror):
     self.header_errors.append(
-        (len(self.header), experror))
+        (len(self.header) + rel, experror))
 
 def add_to_trailer(self, line):
     self.trailer.append(line)
 
-def add_trailer_exp_error(self, experror):
+def add_trailer_exp_error(self, res, experror):
     raise Exception("Trailer cannot have expected errors")
 
 def start_fragment(self, name):
@@ -295,9 +295,9 @@ def start_fragment(self, name):
 def add_to_fragment(self, line):
     self.fragment_lines[-1].append(line)
 
-def add_frag_exp_error(self, experror):
+def add_frag_exp_error(self, rel, experror):
     self.fragment_errors[-1].append(
-        (len(self.fragment_lines[-1]), experror))
+        (len(self.fragment_lines[-1]) + rel, experror))
 
     # ----------------------------------------------------------------------
     # Fragment parser
@@ -330,7 +330,11 @@ def extract_fragments(filenm):
             addfunc(res, line)
             if ERROR in line:
                 experror = line[line.index(ERROR)+len(ERROR):]
-                errorfunc(res, experror)
+                rel = 0
+                while experror.startswith("^"):
+                    rel -= 1
+                    experror = experror[1:]
+                errorfunc(res, rel, experror)
 
     return res
 
