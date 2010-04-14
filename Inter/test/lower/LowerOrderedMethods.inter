@@ -1,0 +1,14 @@
+package lower;
+
+class LowerOrderedMethods {
+    
+    quadruple(Integer n) {
+        double(n) + double(n)
+    }
+    
+    double(Integer n) {
+        n + n
+    }
+    
+}
+// COMPILE

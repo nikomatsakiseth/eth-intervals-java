@@ -8,7 +8,7 @@ class LowerRecursiveMethod {
         impFactorial(n - 1) + impFactorial(n - 2)  // ERROR no.such.method(Null, +())
     }
     
-    // Recursive method needs an explicit return type:
+    // If we provide an explicit return type, the program compiles:
     Integer expFactorial(Integer n) {
         expFactorial(n - 1) + expFactorial(n - 2)
     }
