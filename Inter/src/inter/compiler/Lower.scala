@@ -392,7 +392,7 @@ case class Lower(state: CompilationState) {
     
     // ___ Lowering Statements ______________________________________________
     
-    def tmpVarName(fromExpr: in.Expr) = {
+    def tmpVarName(fromExpr: Ast#Expr) = {
         "(%s@%s)".format(fromExpr.toString, fromExpr.pos.toString)
     }
     
@@ -534,26 +534,28 @@ case class Lower(state: CompilationState) {
                 }
         }
         
-        def patSubst(subst: Subst)(pat: Pattern.Ref, expr: in.Expr): Subst = {
+        def patSubst(subst: Subst)(pat: Pattern.Ref, expr: Ast#Expr): Subst = {
             (pat, expr) match {
-                case (Pattern.Tuple(patterns), in.Tuple(exprs, ())) if sameLength(patterns, exprs) =>
-                    patterns.zip(exprs).foldLeft(subst) { case (s, (p, e)) => patSubst(s)(p, e) }
+                case (patTup: Pattern.Tuple, astTup: Ast#Tuple) if sameLength(patTup.patterns, astTup.exprs) =>
+                    patTup.patterns.zip(astTup.exprs).foldLeft(subst) { 
+                        case (s, (p, e)) => patSubst(s)(p, e) 
+                    }
                 
-                case (Pattern.Var(lname, _), in.Var(rname, (), ())) =>
-                    subst + (lname.toPath -> rname.name.toPath)
+                case (patVar: Pattern.Var, astVar: Ast#Var) =>
+                    subst + (patVar.name.toPath -> astVar.name.name.toPath)
                 
-                case (_, in.Tuple(List(subExpr), ())) =>
-                    patSubst(subst)(pat, subExpr)
+                case (_, astTup: Ast#Tuple) if astTup.exprs.length == 1 =>
+                    patSubst(subst)(pat, astTup.exprs.head)
                     
-                case (Pattern.Tuple(List(subPat)), _) =>
-                    patSubst(subst)(subPat, expr)
+                case (patTup: Pattern.Tuple, _) if patTup.patterns.length == 1 =>
+                    patSubst(subst)(patTup.patterns.head, expr)
                     
                 case _ => 
                     dummySubst(subst)(pat, tmpVarName(expr))
             }
         }
         
-        def patSubsts(allPatterns: List[Pattern.Ref], allExprs: List[in.Expr]): Subst = {
+        def patSubsts(allPatterns: List[Pattern.Ref], allExprs: List[Ast#Expr]): Subst = {
             assert(allPatterns.length == allExprs.length) // Guaranteed syntactically.
             allPatterns.zip(allExprs).foldLeft(Subst.empty) { case (s, (p, e)) =>
                 patSubst(s)(p, e)
