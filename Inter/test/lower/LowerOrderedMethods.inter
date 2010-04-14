@@ -10,5 +10,9 @@ class LowerOrderedMethods {
         n + n
     }
     
+    Void errorGenerator(Integer m) {
+        (quadruple(m)) badMethod() // ERROR no.such.method((java.lang.Integer), badMethod())
+    }
+    
 }
 // COMPILE
