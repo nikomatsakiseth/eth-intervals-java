@@ -13,81 +13,7 @@ import Util._
   * - Removes nested expressions into intermediate variables. */
 case class Lower(state: CompilationState) {
     
-    // ___ Lookup tables ____________________________________________________
-    
-    class LookupTable(map: Map[Name.Var, Symbol.Var]) {
-        def +(sym: Symbol.Var) = new LookupTable(map + (sym.name -> sym))
-        def ++(syms: Iterable[Symbol.Var]) = syms.foldLeft(this)(_ + _)
-        def get(name: Name.Var) = map.get(name)
-        def getOrError(name: Name.Var, optExpTy: Option[Type.Ref]) = get(name) match {
-            case Some(sym) => sym
-            case None => Symbol.errorVar(name, optExpTy)
-        }
-    }
-    
-    object LookupTable {
-        def empty = new LookupTable(Map())
-    }
-    
-    def lookupField(
-        rcvrTy: Type.Ref, 
-        name: Name.Var
-    ): Option[Symbol.Var] = {
-        rcvrTy match {
-            case Type.Class(className, _) => {
-                val csym = state.symtab.classes(className)
-                csym.fieldNamed(state)(name)
-            }
-            
-            case Type.Var(path, tvar) => {
-                lookupField(upperBoundPathType(path, tvar), name)
-            }
-            
-            case _ => None
-        }
-    }
-    
-    def lookupFieldOrError(
-        rcvrTy: Type.Ref,  
-        name: Name.Var,
-        optExpTy: Option[Type.Ref]
-    ) = {
-        lookupField(rcvrTy, name).getOrElse {
-            Symbol.errorVar(name, optExpTy)
-        }
-    }    
-    
-    def lookupNonintrinsicMethods(
-        rcvrTy: Type.Ref, 
-        name: Name.Method
-    ): List[Symbol.Method] = {
-        rcvrTy match {
-            case Type.Class(className, _) => {
-                val csym = state.symtab.classes(className)
-                csym.methodsNamed(state)(name)
-            }
-            
-            case Type.Var(path, tvar) => {
-                lookupNonintrinsicMethods(upperBoundPathType(path, tvar), name)                    
-            }
-            
-            case _ => List()
-        }
-    }
-
-    def lookupMethods(
-        rcvrTy: Type.Ref, 
-        name: Name.Method
-    ): List[Symbol.Method] = {
-        state.lookupIntrinsic(rcvrTy, name) match {
-            case List() => lookupNonintrinsicMethods(rcvrTy, name)
-            case intrinsicSyms => intrinsicSyms
-        }
-    }
-    
-    def upperBoundPathType(path: Path.Ref, tvar: Name.Var): Type.Ref = {
-        throw new RuntimeException("TODO")
-    }
+    val emptyEnv = Env.empty(state)
     
     // ___ Translate from Ast to Symbol and back again ______________________
     
@@ -127,57 +53,57 @@ case class Lower(state: CompilationState) {
         Ast.VarName(name.text)
     )
     
-    def astPathVar(lookup: LookupTable)(from: Ast.Node, name: Name.Var) = withPosOf(from, {
-        val sym = lookup.getOrError(name, None)
+    def astPathVar(env: Env)(from: Ast.Node, name: Name.Var) = withPosOf(from, {
+        val sym = env.lookupLocalOrError(name, None)
         out.Var(astVarName(from, name), sym, sym.ty)
     })
     
-    def astPathField(lookup: LookupTable)(from: Ast.Node, base: Path.Ref, name: Name.Var) = {
+    def astPathField(env: Env)(from: Ast.Node, base: Path.Ref, name: Name.Var) = {
         withPosOf(from, {
-            val astOwner = astPath(lookup)(from, base)
-            val sym = lookupFieldOrError(astOwner.ty, name, None)
+            val astOwner = astPath(env)(from, base)
+            val sym = env.lookupFieldOrError(astOwner.ty, name, None)
             out.PathField(astOwner, astVarName(from, name), sym, sym.ty)
         })
     }
     
-    def astPath(lookup: LookupTable)(from: Ast.Node, path: Path.Ref): out.AstPath = path match {
-        case Path.Base(name) => astPathVar(lookup)(from, name)
-        case Path.Field(base, name) => astPathField(lookup)(from, base, name)
+    def astPath(env: Env)(from: Ast.Node, path: Path.Ref): out.AstPath = path match {
+        case Path.Base(name) => astPathVar(env)(from, name)
+        case Path.Field(base, name) => astPathField(env)(from, base, name)
     }
     
-    def astType(lookup: LookupTable)(from: Ast.Node, ty: Type.Ref): out.TypeRef = {
+    def astType(env: Env)(from: Ast.Node, ty: Type.Ref): out.TypeRef = {
         withPosOf(from, ty match {
             case Type.Tuple(tys) => 
-                out.TupleType(tys.map(astType(lookup)(from, _)))
+                out.TupleType(tys.map(astType(env)(from, _)))
             case Type.Var(path, tvar) => 
                 out.VarType(
-                    astPath(lookup)(from, path),
+                    astPath(env)(from, path),
                     astVarName(from, tvar)
                 )
             case Type.Class(name, targs) => 
                 out.ClassType(
                     withPosOf(from, Ast.AbsName(name)),
-                    targs.map(astTypeArg(lookup)(from, _))
+                    targs.map(astTypeArg(env)(from, _))
                 )
             case Type.Null =>
                 withPosOf(from, out.NullType())
         })        
     }
     
-    def astTypeArg(lookup: LookupTable)(from: Ast.Node, targ: Type.Arg) = {
+    def astTypeArg(env: Env)(from: Ast.Node, targ: Type.Arg) = {
         withPosOf(from, targ match {
             case Type.PathArg(name, rel, path) =>
                 out.PathTypeArg(
                     astVarName(from, name),
                     rel,
-                    astPath(lookup)(from, path)
+                    astPath(env)(from, path)
                 )
 
             case Type.TypeArg(name, rel, ty) =>
                 out.TypeTypeArg(
                     astVarName(from, name),
                     rel,
-                    astType(lookup)(from, ty)
+                    astType(env)(from, ty)
                 )
         })        
     }
@@ -242,13 +168,12 @@ case class Lower(state: CompilationState) {
         msyms
     }
     
-    def ThisLookup(csym: Symbol.ClassFromInterFile) = {
-        val receiver = new Symbol.Var(Name.ThisVar, Type.Class(csym.name, List()))
-        LookupTable.empty + receiver
+    def ThisEnv(csym: Symbol.ClassFromInterFile) = {
+        emptyEnv + new Symbol.Var(Name.ThisVar, Type.Class(csym.name, List()))
     }
     
     def ThisScope(csym: Symbol.ClassFromInterFile) = {
-        InScope(ThisLookup(csym))
+        InScope(ThisEnv(csym))
     }
     
     def lowerClassDecl(
@@ -293,7 +218,7 @@ case class Lower(state: CompilationState) {
         annotations = decl.annotations.map(ThisScope(csym).lowerAnnotation),
         name = decl.name,
         optParent = decl.optParent.map(ThisScope(csym).lowerPath),
-        optBody = decl.optBody.map(lowerBody(ThisLookup(csym), _))
+        optBody = decl.optBody.map(lowerBody(ThisEnv(csym), _))
     ))
     
     def lowerMethodDecl(
@@ -310,34 +235,34 @@ case class Lower(state: CompilationState) {
             val receiver = new Symbol.Var(Name.ThisVar, Type.Class(clsName, List()))
             val parameterPatterns = mdecl.parts.map(p => symbolPattern(p.pattern))
             val parameterSymbols = parameterPatterns.flatMap(Symbol.createVarSymbols)
-            val lookup = LookupTable.empty ++ (receiver :: parameterSymbols)
-            val optBody = mdecl.optBody.map(lowerBody(lookup, _))
+            val env = emptyEnv ++ (receiver :: parameterSymbols)
+            val optBody = mdecl.optBody.map(lowerBody(env, _))
 
             val (returnTref, returnTy) = (mdecl.returnTref, optBody) match {
                 case (in.InferredTypeRef(), None) => {
                     state.reporter.report(
                         mdecl.returnTref.pos, "explicit.return.type.reqd.if.abstract", mdecl.name.toString
                     )
-                    (astType(lookup)(mdecl.returnTref, Type.Null), Type.Null)
+                    (astType(env)(mdecl.returnTref, Type.Null), Type.Null)
                 }
 
                 case (in.InferredTypeRef(), Some(out.Body(stmts))) => {
                     val ty = stmts.last.ty
-                    (astType(lookup)(stmts.last, ty), ty)
+                    (astType(env)(stmts.last, ty), ty)
                 }
 
                 case (tref: in.TypeRef, _) => {
-                    (InScope(lookup).lowerTypeRef(tref), symbolType(tref))
+                    (InScope(env).lowerTypeRef(tref), symbolType(tref))
                 }
 
             }
 
             val outMdecl = out.MethodDecl(
-                annotations = mdecl.annotations.map(InScope(lookup).lowerAnnotation),
-                parts = mdecl.parts.map(InScope(lookup).lowerDeclPart),
+                annotations = mdecl.annotations.map(InScope(env).lowerAnnotation),
+                parts = mdecl.parts.map(InScope(env).lowerDeclPart),
                 returnTref = returnTref,
                 returnTy = returnTy,
-                requirements = mdecl.requirements.map(InScope(lookup).lowerRequirement),
+                requirements = mdecl.requirements.map(InScope(env).lowerRequirement),
                 optBody = optBody
             )
             
@@ -351,26 +276,26 @@ case class Lower(state: CompilationState) {
         csym: Symbol.ClassFromInterFile, 
         decl: in.FieldDecl
     ): out.FieldDecl = withPosOf(decl, {
-        val optBody = decl.optBody.map(lowerBody(ThisLookup(csym), _))
-        val lookup = ThisLookup(csym)
+        val optBody = decl.optBody.map(lowerBody(ThisEnv(csym), _))
+        val env = ThisEnv(csym)
         val (tref, ty) = (decl.tref, optBody) match {
             case (tref: in.TypeRef, _) => // Explicit type.
-                (InScope(lookup).lowerTypeRef(tref), symbolType(tref))
+                (InScope(env).lowerTypeRef(tref), symbolType(tref))
                 
             case (in.InferredTypeRef(), Some(out.Body(stmts))) => { // Implicit type.
                 val ty = stmts.last.ty
-                (astType(lookup)(stmts.last, ty), ty)
+                (astType(env)(stmts.last, ty), ty)
             }
             
             case (in.InferredTypeRef(), None) => {
                 state.reporter.report(
                     decl.tref.pos, "explicit.type.reqd.if.abstract", decl.name.toString
                 )
-                (astType(lookup)(decl.tref, Type.Null), Type.Null)                
+                (astType(env)(decl.tref, Type.Null), Type.Null)                
             }
         }
         out.FieldDecl(
-            annotations = decl.annotations.map(InScope(lookup).lowerAnnotation),
+            annotations = decl.annotations.map(InScope(env).lowerAnnotation),
             name = decl.name,
             tref = tref,
             ty = ty,
@@ -381,10 +306,10 @@ case class Lower(state: CompilationState) {
     // ___ Lowering Types ___________________________________________________
     
     object InScope {
-        def apply(lookup: LookupTable) = new InScope(lookup)
+        def apply(env: Env) = new InScope(env)
     }
     
-    class InScope(lookup: LookupTable) {
+    class InScope(env: Env) {
         def lowerDeclPart(part: in.DeclPart): out.DeclPart = withPosOf(part, out.DeclPart(
             ident = part.ident,
             pattern = lowerTuplePattern(part.pattern)
@@ -398,7 +323,7 @@ case class Lower(state: CompilationState) {
             annotations = pattern.annotations.map(lowerAnnotation),
             tref = lowerTypeRef(pattern.tref),
             name = pattern.name,
-            sym = lookup.get(pattern.name.name).get // should be a variable already created
+            sym = env.lookupLocal(pattern.name.name).get // should be a variable already created
         ))
         
         def lowerPattern(pattern: in.Pattern): out.Pattern = withPosOf(pattern, pattern match {
@@ -413,7 +338,7 @@ case class Lower(state: CompilationState) {
         ))
 
         def lowerVar(optExpTy: Option[Type.Ref])(v: in.Var) = withPosOf(v, {
-            val sym = lookup.get(v.name.name).getOrElse {
+            val sym = env.lookupLocal(v.name.name).getOrElse {
                 state.reporter.report(v.pos, "no.such.var", v.name.toString)
                 Symbol.errorVar(v.name.name, optExpTy)
             }
@@ -423,7 +348,7 @@ case class Lower(state: CompilationState) {
         def lowerPathField(optExpTy: Option[Type.Ref])(path: in.PathField) = withPosOf(path, {
             // Note: very similar code to lowerField() below
             val owner = lowerPath(path.owner)
-            val optSym = lookupField(owner.ty, path.name.name)
+            val optSym = env.lookupField(owner.ty, path.name.name)
             val subst = Subst(Path.This -> Path.fromLoweredAst(owner))
             val sym = optSym.getOrElse {
                 state.reporter.report(path.pos, "no.such.field", owner.ty.toString, path.name.toString)
@@ -471,49 +396,49 @@ case class Lower(state: CompilationState) {
         "(%s@%s)".format(fromExpr.toString, fromExpr.pos.toString)
     }
     
-    def lowerBody(lookup: LookupTable, body: in.Body): out.Body = {
-        withPosOf(body, out.Body(lowerStmts(lookup, body.stmts)))
+    def lowerBody(env: Env, body: in.Body): out.Body = {
+        withPosOf(body, out.Body(lowerStmts(env, body.stmts)))
     }
     
-    def lowerStmts(lookup0: LookupTable, stmts: List[in.Stmt]): List[out.Stmt] = {
-        var lookup = lookup0
+    def lowerStmts(env0: Env, stmts: List[in.Stmt]): List[out.Stmt] = {
+        var env = env0
         val result = new ListBuffer[out.Stmt]()
         
         stmts.foreach { stmt =>
-            lookup = InScopeStmt(lookup, result).appendLoweredStmt(stmt)
+            env = InScopeStmt(env, result).appendLoweredStmt(stmt)
         }
         
         result.toList
     }
     
     object InScopeStmt {
-        def apply(lookup: LookupTable, stmts: ListBuffer[out.Stmt]) = new InScopeStmt(lookup, stmts)
+        def apply(env: Env, stmts: ListBuffer[out.Stmt]) = new InScopeStmt(env, stmts)
     }
     
-    class InScopeStmt(lookup: LookupTable, stmts: ListBuffer[out.Stmt]) extends InScope(lookup) {
+    class InScopeStmt(env: Env, stmts: ListBuffer[out.Stmt]) extends InScope(env) {
         def extractSymbols(pattern: out.Pattern): List[Symbol.Var] = pattern match {
             case out.TuplePattern(patterns) => patterns.flatMap(extractSymbols)
             case out.VarPattern(_, _, _, sym) => List(sym)
         }
         
-        def appendLoweredStmt(stmt: in.Stmt): LookupTable = {
+        def appendLoweredStmt(stmt: in.Stmt): Env = {
             stmt match {
                 case in.Assign(lvalue, rvalue) => {
                     val optExpTy = optTypeFromLvalue(lvalue)
                     val outRvalue = lowerExpr(optExpTy)(rvalue)
                     val outPattern = lowerLvalue(outRvalue.ty, lvalue)
                     stmts += withPosOf(stmt, out.Assign(outPattern, outRvalue))
-                    lookup ++ extractSymbols(outPattern)
+                    env ++ extractSymbols(outPattern)
                 }
                 
                 case in.Labeled(name, body) => {
-                    stmts += withPosOf(stmt, out.Labeled(name, lowerBody(lookup, body)))
-                    lookup
+                    stmts += withPosOf(stmt, out.Labeled(name, lowerBody(env, body)))
+                    env
                 }
                 
                 case expr: in.Expr => {
                     stmts += lowerExpr(None)(expr)
-                    lookup
+                    env
                 }
             }
         }
@@ -565,7 +490,7 @@ case class Lower(state: CompilationState) {
                 
                 // Pattern w/o type specified, use type from RHS:
                 case (ty, in.VarLvalue(anns, inTref @ in.InferredTypeRef(), name, ())) => {
-                    val tref = astType(lookup)(inTref, ty)
+                    val tref = astType(env)(inTref, ty)
                     out.VarPattern(
                         anns.map(lowerAnnotation),
                         tref,
@@ -592,7 +517,7 @@ case class Lower(state: CompilationState) {
             val text = tmpVarName(fromExpr)
             val sym = new Symbol.Var(Name.Var(text), toExpr.ty)
             val nameAst = withPosOf(fromExpr, Ast.VarName(text))
-            val tyAst = astType(lookup)(fromExpr, sym.ty)
+            val tyAst = astType(env)(fromExpr, sym.ty)
             val lv = withPosOf(fromExpr, out.VarPattern(List(), tyAst, nameAst, sym))
             val assign = withPosOf(fromExpr, out.Assign(lv, withPosOf(fromExpr, toExpr)))
             stmts += assign
@@ -639,7 +564,7 @@ case class Lower(state: CompilationState) {
             // Note: very similar code to lowerPathField() above.
             // Big difference is that this version generates statements.
             val owner = lowerExprToVar(None)(expr.owner)
-            val optSym = lookupField(owner.ty, expr.name.name)
+            val optSym = env.lookupField(owner.ty, expr.name.name)
             val subst = Subst(Path.This -> Path.fromLoweredAst(owner))
             val sym = optSym.getOrElse {
                 state.reporter.report(expr.pos, "no.such.field", owner.ty.toString, expr.name.toString)
@@ -661,7 +586,7 @@ case class Lower(state: CompilationState) {
             val rcvr = lowerExpr(None)(mcall.rcvr)
             
             // Find all potential methods:
-            val msyms = lookupMethods(rcvr.ty, mcall.name)
+            val msyms = env.lookupMethods(rcvr.ty, mcall.name)
                 
             // Identify the best method (if any):
             msyms match {
@@ -713,21 +638,21 @@ case class Lower(state: CompilationState) {
         })
     
         def lowerInlineTmpl(tmpl: in.InlineTmpl) = introduceVar(tmpl, out.InlineTmpl(
-            stmts = lowerStmts(lookup, tmpl.stmts),
+            stmts = lowerStmts(env, tmpl.stmts),
             ty = Type.Class(Name.IntervalTmplQual, List(
                 Type.PathArg(Name.IntervalTmplParent, PcEq, Path.Method)
             ))
         ))
         
         def lowerAsyncTmpl(tmpl: in.AsyncTmpl) = introduceVar(tmpl, out.AsyncTmpl(
-            stmts = lowerStmts(lookup, tmpl.stmts),
+            stmts = lowerStmts(env, tmpl.stmts),
             ty = Type.Class(Name.AsyncIntervalTmplQual, List(
                 Type.PathArg(Name.IntervalTmplParent, PcEq, Path.Method)
             ))
         ))
         
         def lowerImpThis(expr: in.Expr) = withPosOf(expr, {
-            val sym = lookup.get(Name.ThisVar).get
+            val sym = env.lookupThis
             out.Var(astVarName(expr, Name.ThisVar), sym, sym.ty)
         })
         

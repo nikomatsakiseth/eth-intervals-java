@@ -13,15 +13,15 @@ object Util {
     
     def sameLength(lst1: List[_], lst2: List[_]) = (lst1.length == lst2.length)
     
-    // ___ Extensions to Seq ________________________________________________
+    // ___ Extensions to Collection Classes _________________________________
     
-    class ExtendedSeq[E](seq: Seq[E]) {
-        def firstSome[F](func: (E => Option[F])) = seq.foldLeft[Option[F]](None) {
+    class ExtendedIterable[E](iterable: Iterable[E]) {
+        def firstSome[F](func: (E => Option[F])) = iterable.foldLeft[Option[F]](None) {
             case (None, elem) => func(elem)
             case (result, _) => result
         }
     }
-    implicit def extendedSeq[E](seq: Seq[E]) = new ExtendedSeq(seq)
+    implicit def extendedIterable[E](iterable: Iterable[E]) = new ExtendedIterable(iterable)
     
     
     

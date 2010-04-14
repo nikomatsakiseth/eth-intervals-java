@@ -49,7 +49,7 @@ ImportAll	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Ast.scala	/^  
 ImportDecl	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Ast.scala	/^    sealed abstract class ImportDecl extends Node$/;"	classes	line:98
 ImportOne	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Ast.scala	/^    case class ImportOne($/;"	classes	line:100
 InScope	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Lower.scala	/^    class InScope(lookup: LookupTable) {$/;"	classes	line:295
-InScopeStmt	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Lower.scala	/^    class InScopeStmt(lookup: LookupTable, stmts: ListBuffer[out.Stmt]) extends InScope(lookup) {$/;"	classes	line:376
+InScopeStmt	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Lower.scala	/^    class InScopeStmt(lookup: LookupTable, stmts: ListBuffer[out.Stmt]) extends InScope(env) {$/;"	classes	line:376
 InferredTypeRef	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Ast.scala	/^    case class InferredTypeRef() extends OptionalTypeRef {$/;"	classes	line:323
 InlineTmpl	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Ast.scala	/^    case class InlineTmpl(stmts: List[Stmt], ty: Ty)$/;"	classes	line:434
 Interval	/Users/niko/git/intervals-java/Inter/src/inter/lang/Interval.java	/^public interface Interval {$/;"	interface	line:3
@@ -107,9 +107,9 @@ PathField	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Ast.scala	/^  
 PathField	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Name.scala	/^    case class PathField(base: Path, f: Var) extends Path$/;"	classes	line:61
 PathRequirement	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Ast.scala	/^    case class PathRequirement($/;"	classes	line:192
 PathType	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Ast.scala	/^    case class PathType(path: Path, typeVar: VarName) extends TypeRef {$/;"	classes	line:343
-PathType	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Symbol.scala	/^    case class PathType(path: Path.Ref, typeVar: Name.Var) extends Type$/;"	classes	line:147
+PathType	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Symbol.scala	/^    case class PathType(path: (env), typeVar: Name.Var) extends Type$/;"	classes	line:147
 PathTypeArg	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Ast.scala	/^    case class PathTypeArg(name: VarName, rel: PcRel, path: Path) extends TypeArg {$/;"	classes	line:375
-PathTypeArg	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Symbol.scala	/^    case class PathTypeArg(name: Name.Var, rel: PcRel, path: Path.Ref) extends TypeArg$/;"	classes	line:153
+PathTypeArg	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Symbol.scala	/^    case class PathTypeArg(name: Name.Var, rel: PcRel, path: (env)) extends TypeArg$/;"	classes	line:153
 Pattern	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Ast.scala	/^    abstract class Pattern extends Node$/;"	classes	line:257
 Pattern	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Symbol.scala	/^    sealed abstract class Pattern {$/;"	classes	line:135
 PcRel	/Users/niko/git/intervals-java/Inter/src/inter/compiler/PcRel.scala	/^sealed abstract class PcRel$/;"	classes	line:3
@@ -180,14 +180,14 @@ annotations	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Ast.scala	/^
 annotations	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Parse.scala	/^    lazy val annotations = rep(annotation) $/;"	constants	line:115
 appendLoweredStmt	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Lower.scala	/^        def appendLoweredStmt(stmt: in.Stmt): LookupTable = {$/;"	methods	line:384
 apply	/Users/niko/git/intervals-java/Inter/src/inter/compiler/LoadClassFile.scala	/^    def apply(state: CompilationState, sym: Symbol.ClassFromClassFile) {$/;"	methods	line:8
-apply	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Lower.scala	/^        def apply(lookup: LookupTable) = new InScope(lookup)$/;"	methods	line:292
+apply	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Lower.scala	/^        def apply(lookup: LookupTable) = new InScope(env)$/;"	methods	line:292
 apply	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Lower.scala	/^        def apply(lookup: LookupTable, stmts: ListBuffer[out.Stmt]) = new InScopeStmt(lookup, stmts)$/;"	methods	line:373
 apply	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Name.scala	/^        def apply(cls: java.lang.Class[_]): Qual = cls match {$/;"	methods	line:21
 apply	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Name.scala	/^        def apply(name: String): Qual = new Qual(name.split('.').reverse.toList)$/;"	methods	line:19
-apply	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Name.scala	/^        def apply(node: Ast.Lower.Path): Path.Ref = node match {$/;"	methods	line:77
+apply	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Name.scala	/^        def apply(node: Ast.Lower.Path): (env) = node match {$/;"	methods	line:77
 apply	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Parse.scala	/^    def apply(state: CompilationState, interFile: File) = {$/;"	methods	line:336
 apply	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Resolve.scala	/^    def apply(state: CompilationState, compUnit: in.CompUnit) = {$/;"	methods	line:14
-apply	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Subst.scala	/^    def apply(pairs: (Path.Ref, Path.Ref)*) = new Subst(Map(pairs: _*))$/;"	methods	line:17
+apply	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Subst.scala	/^    def apply(pairs: ((env), (env))*) = new Subst(Map(pairs: _*))$/;"	methods	line:17
 arg	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Parse.scala	/^    lazy val arg: PackratParser[out.Expr] = tuple | itmpl | atmpl$/;"	constants	line:273
 args	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Ast.scala	/^        def args = parts.map(_.arg)$/;"	methods	line:480
 asFieldNamed	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Ast.scala	/^        def asFieldNamed(name: Name.Var): Option[FieldDecl] = None$/;"	methods	line:95
@@ -195,9 +195,9 @@ asMethodNamed	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Ast.scala	
 asRelPath	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Name.scala	/^        def asRelPath = components.mkString("\/")$/;"	methods	line:10
 assemble	/Users/niko/git/intervals-java/Inter/test.py	/^    def assemble(self, fragnum, ):$/;"	member	line:229
 assign	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Lower.scala	/^            val assign = withPosOf(fromExpr, out.Assign(lv, withPosOf(fromExpr, toExpr)))$/;"	constants	line:475
-astOwner	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Lower.scala	/^            val astOwner = astPath(lookup)(from, base)$/;"	constants	line:134
-astPath	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Lower.scala	/^    def astPath(lookup: LookupTable)(from: Ast.Node, path: Path.Ref): out.AstPath = path match {$/;"	methods	line:140
-astPathField	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Lower.scala	/^    def astPathField(lookup: LookupTable)(from: Ast.Node, base: Path.Ref, name: Name.Var) = {$/;"	methods	line:132
+astOwner	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Lower.scala	/^            val astOwner = astPath(env)(from, base)$/;"	constants	line:134
+astPath	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Lower.scala	/^    def astPath(lookup: LookupTable)(from: Ast.Node, path: (env)): out.AstPath = path match {$/;"	methods	line:140
+astPathField	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Lower.scala	/^    def astPathField(lookup: LookupTable)(from: Ast.Node, base: (env), name: Name.Var) = {$/;"	methods	line:132
 astPathVar	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Lower.scala	/^    def astPathVar(lookup: LookupTable)(from: Ast.Node, name: Name.Var) = withPosOf(from, {$/;"	methods	line:127
 astType	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Lower.scala	/^    def astType(lookup: LookupTable)(from: Ast.Node, ty: Type.Ref): out.TypeRef = {$/;"	methods	line:145
 astTypeArg	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Lower.scala	/^    def astTypeArg(lookup: LookupTable)(from: Ast.Node, targ: Type.TypeArg) = {$/;"	methods	line:164
@@ -372,7 +372,7 @@ lvalue	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Parse.scala	/^   
 m	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Resolve.scala	/^                val m = allImports.firstSome { $/;"	constants	line:33
 main	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Main.scala	/^    def main(args: Array[String]) {$/;"	methods	line:8
 main	/Users/niko/git/intervals-java/Inter/test.py	/^def main(args):$/;"	function	line:650
-map	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Subst.scala	/^class Subst(private val map: Map[Path.Ref, Path.Ref]) {$/;"	constants	line:5
+map	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Subst.scala	/^class Subst(private val map: Map[(env), (env)]) {$/;"	constants	line:5
 member	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Parse.scala	/^    lazy val member: PackratParser[out.MemberDecl] = ($/;"	constants	line:132
 memberId	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Lower.scala	/^                val memberId = Name.MethodId(csym.name, mthdName)$/;"	constants	line:206
 memberId	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Lower.scala	/^        val memberId = Name.MethodId(clsName, mdecl.name)$/;"	constants	line:258
@@ -400,7 +400,7 @@ name	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Symbol.scala	/^    
 name	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Symbol.scala	/^        val name: Name.Var,$/;"	constants	line:124
 name	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Symbol.scala	/^        val name: Name.Var,$/;"	constants	line:139
 nameAst	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Lower.scala	/^            val nameAst = withPosOf(fromExpr, Ast.VarName(text))$/;"	constants	line:472
-namePath	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Lower.scala	/^    def namePath(path: in.AstPath): Path.Ref = path match {$/;"	methods	line:118
+namePath	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Lower.scala	/^    def namePath(path: in.AstPath): (env) = path match {$/;"	methods	line:118
 nl	/Users/niko/git/intervals-java/Inter/src/inter/compiler/PrettyPrinter.scala	/^        var nl = false$/;"	local variables	line:23
 normalize_whitespace	/Users/niko/git/intervals-java/Inter/test.py	/^def normalize_whitespace(str):$/;"	function	line:515
 notEsc	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Parse.scala	/^        def notEsc = elem("escape", c => c != '`' && c != EofCh && c != '\\n')$/;"	methods	line:29
@@ -543,8 +543,8 @@ stmt	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Parse.scala	/^    l
 stmts	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Ast.scala	/^        def stmts: List[Stmt]$/;"	methods	line:425
 stmts	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Parse.scala	/^    lazy val stmts = ($/;"	constants	line:312
 subst	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Lower.scala	/^                    val subst = patSubsts($/;"	constants	line:554
-subst	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Lower.scala	/^            val subst = Subst(Path.This -> Path.Ref(owner))$/;"	constants	line:310
-subst	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Lower.scala	/^            val subst = Subst(Path.This -> Path.Ref(owner))$/;"	constants	line:521
+subst	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Lower.scala	/^            val subst = Subst(Path.This -> (env)(owner))$/;"	constants	line:310
+subst	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Lower.scala	/^            val subst = Subst(Path.This -> (env)(owner))$/;"	constants	line:521
 subst	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Lower.scala	/^            val subst = patSubsts($/;"	constants	line:569
 superClassNames	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Symbol.scala	/^        def superClassNames(state: CompilationState) = List() \/\/ XXX TODO$/;"	methods	line:82
 superClassNames	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Symbol.scala	/^        def superClassNames(state: CompilationState) = List()$/;"	methods	line:31
@@ -654,7 +654,7 @@ ty	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Symbol.scala	/^      
 ty	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Symbol.scala	/^        def ty: Type$/;"	methods	line:136
 ty	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Symbol.scala	/^        val ty: Type$/;"	constants	line:125
 ty	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Symbol.scala	/^        val ty: Type$/;"	constants	line:140
-tyAst	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Lower.scala	/^            val tyAst = astType(lookup)(fromExpr, sym.ty)$/;"	constants	line:473
+tyAst	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Lower.scala	/^            val tyAst = astType(env)(fromExpr, sym.ty)$/;"	constants	line:473
 typeArg	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Parse.scala	/^    lazy val typeArg: PackratParser[out.TypeArg] = typeTypeArg | pathTypeArg$/;"	constants	line:242
 typeArg	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Reflect.scala	/^    def typeArg(pair: (Name.Var, Type)): Option[Type.TypeArg] = pair match {$/;"	methods	line:17
 typeRef	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Parse.scala	/^    lazy val typeRef: PackratParser[out.TypeRef] = pathType | classType$/;"	constants	line:231

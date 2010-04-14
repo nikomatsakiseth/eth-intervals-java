@@ -1,18 +1,63 @@
 package inter.compiler
 
 import scala.collection.immutable.Set
+import scala.collection.immutable.Queue
+import scala.collection.mutable.HashSet
 
-/** The environment used during a type check. */
+import Util._
+
+object Env {
+    def empty(state: CompilationState) = Env(
+        state = state,
+        locals = Map(),
+        pathRels = Nil,
+        typeRels = Nil
+    )
+}
+
+/** The environment is used during a type check but also in other phases
+  * It stores information known by the compiler. */
 case class Env(
     state: CompilationState,
     
     /** In-scope local variables. */
     locals: Map[Name.Var, Symbol.Var],
     
-    /** Relations. */
+    /** Tuples describing relations between paths. */
     pathRels: List[(Path.Ref, PcRel, Path.Ref)],
+    
+    /** Tuples describing relations between type variables and other types. */
     typeRels: List[(Type.Var, TcRel, Type.Ref)]
 ) {
+    
+    /** Base class that captures the basic pattern of computing
+      * the transitive closure. */
+    abstract class TransitiveCloser[T] {
+        val visited = new HashSet[T]()
+        
+        def compute(item: T) = expand(Queue(item), Set())
+        
+        private[this] def expand(queue0: Queue[T], result: Set[T]): Set[T] = {
+            if(queue0.isEmpty) result
+            else {
+                val (item, queue1) = queue0.dequeue
+                val queue2 = 
+                    if(visited(item)) queue1
+                    else {
+                        visited += item
+                        successors(item).foldLeft(queue1)(_ enqueue _)
+                    }
+                expand(queue2, result + item)
+            }
+        }
+        
+        protected[this] def successors(item: T): Iterable[T]
+    }
+    
+    // ___ Extending the Environment ________________________________________
+    
+    def +(sym: Symbol.Var) = copy(locals = locals + (sym.name -> sym))
+    def ++(syms: Iterable[Symbol.Var]) = syms.foldLeft(this)(_ + _)
     
     // ___ Querying the relations ___________________________________________
     
@@ -31,17 +76,163 @@ case class Env(
         case _ => None
     }
     
-    // ___ Canonicalization _________________________________________________   
+    // ___ Looking up fields and methods ____________________________________
+    //
+    // Note: this can trigger lowering to occur!  
+    
+    def lookupLocal(name: Name.Var) = 
+        locals.get(name)
+    
+    def lookupLocalOrError(name: Name.Var, optExpTy: Option[Type.Ref]) = 
+        locals.get(name).getOrElse(Symbol.errorVar(name, optExpTy))
+        
+    def lookupThis = locals(Name.ThisVar)
+    
+    def lookupField(
+        rcvrTy: Type.Ref, 
+        name: Name.Var
+    ): Option[Symbol.Var] = {
+        rcvrTy match {
+            case Type.Class(className, _) => {
+                val csym = state.symtab.classes(className)
+                csym.fieldNamed(state)(name)
+            }
+            
+            case tyVar: Type.Var => {
+                upperBoundType(tyVar).firstSome(lookupField(_, name))
+            }
+            
+            case _ => None
+        }
+    }
+    
+    def lookupFieldOrError(
+        rcvrTy: Type.Ref,  
+        name: Name.Var,
+        optExpTy: Option[Type.Ref]
+    ) = {
+        lookupField(rcvrTy, name).getOrElse {
+            Symbol.errorVar(name, optExpTy)
+        }
+    }    
+    
+    def lookupNonintrinsicMethods(
+        rcvrTy: Type.Ref, 
+        name: Name.Method
+    ): List[Symbol.Method] = {
+        rcvrTy match {
+            case Type.Class(className, _) => {
+                val csym = state.symtab.classes(className)
+                csym.methodsNamed(state)(name)
+            }
+            
+            case tyVar: Type.Var => {
+                upperBoundType(tyVar).toList.flatMap(lookupNonintrinsicMethods(_, name))
+            }
+            
+            case _ => List()
+        }
+    }
 
-    /** Returns the set of paths that are known to be equatable with `p1` */
-//    def canons(p1: Path.Ref): Path.Canons = p1 match {
-//        case Path.Base(v) => locals.get(v) match {
-//            case None => {
-//            }
-//            case Some(sym) =>
-//        }
-//        case Path.Field(base, f) =>
-//    }
+    def lookupMethods(
+        rcvrTy: Type.Ref, 
+        name: Name.Method
+    ): List[Symbol.Method] = {
+        state.lookupIntrinsic(rcvrTy, name) match {
+            case List() => lookupNonintrinsicMethods(rcvrTy, name)
+            case intrinsicSyms => intrinsicSyms
+        }
+    }
+    
+    // ___ Typed Paths ______________________________________________________   
+    //
+    // A Typed Path is simply a path where the symbols and type have been
+    // determined.  A typed path may include error symbols if fields or local
+    // variables found within are not defined.
+    
+    def typedPath(path: Path.Ref): Path.Typed = path match {
+        case Path.Base(name) => {
+            val sym = locals.get(name).getOrElse(Symbol.errorVar(name, None))
+            Path.TypedBase(name, sym, sym.ty)
+        }
+        
+        case Path.Field(base, name) => {
+            val typedBase = typedPath(base)
+            val sym = lookupFieldOrError(typedBase.ty, name, None)
+            val subst = Subst(Path.This -> base)
+            Path.TypedField(typedBase, sym, subst.ty(sym.ty))
+        }
+    }
+    
+    def typeOfPath(path: Path.Ref) = typedPath(path).ty
+    
+    // ___ Equating Paths ___________________________________________________   
+    //
+    // Two paths are equatable if they will always refer to the same object
+    // at runtime.
+    
+    class Equater extends TransitiveCloser[Path.Ref] {
+        protected[this] def successors(P1: Path.Ref): Iterable[Path.Ref] = {
+            val byField = P1 match {
+                case Path.Base(_) => Set()
+                case Path.Field(base, name) => {
+                    compute(base).map(Path.Field(_, name))
+                }
+            }
+            val byRel = pathRels.flatMap {
+                case (P1, PcEq, p2) => Some(p2)
+                case (p2, PcEq, P1) => Some(p2)
+                case _ => None
+            }
+            byField ++ byRel
+        }
+    }
+    
+    def equatable(path: Path.Ref) = new Equater().compute(path)
+    def areEquatable(path1: Path.Ref, path2: Path.Ref) = equatable(path1) contains path2
+    
+    // ___ Bounding Type Variables __________________________________________
+    
+    class Bounder(Rel: TcRel) extends TransitiveCloser[Type.Ref] {
+        protected[this] def successors(ty: Type.Ref) = ty match {
+            case tyVar: Type.Var => typeVarBounds(tyVar)
+            case _ => Nil
+        }
+
+        private[this] def typeVarBounds(tyVar: Type.Var) = {
+            val TyVarName = tyVar.typeVar
+            
+            def boundsFromClassType(tyClass: Type.Class) = {
+                // Add bounds from class:
+                val classBounds = List[Type.Ref]() // XXX
+                
+                // Add bounds from type arguments in tyClass:
+                tyClass.typeArgs.foldLeft(classBounds) { 
+                    case (l, Type.TypeArg(TyVarName, TcEq, ty)) => ty :: l
+                    case (l, Type.TypeArg(TyVarName, Rel, ty)) => ty :: l
+                    case (l, _) => l
+                }
+            }
+            
+            typeOfPath(tyVar.path) match {
+                case tyClass: Type.Class => boundsFromClassType(tyClass)
+                case tyVar: Type.Var => {
+                    compute(tyVar).toList.flatMap {
+                        case tyClass: Type.Class => boundsFromClassType(tyClass)
+                        case _ => Nil
+                    }
+                }
+                
+                case Type.Tuple(_) => Nil
+                case Type.Null => Nil
+            }
+        }
+    }
+       
+    def upperBoundType(ty: Type.Ref) = new Bounder(TcSub).compute(ty)
+    def lowerBoundType(ty: Type.Ref) = new Bounder(TcSup).compute(ty)
+    
+    // ___ Type Manipulation ________________________________________________
        
 //    def isSubclass(ty_sub: Type.Ref, ty_sup: Type.Ref): Boolean = {
 //        (ty_sub, ty_sup) match {

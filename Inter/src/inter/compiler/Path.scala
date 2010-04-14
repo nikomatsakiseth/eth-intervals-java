@@ -15,12 +15,15 @@ object Path {
     val This = Path.Base(Name.ThisVar)    
     val Method = Path.Base(Name.MethodVar)
     
-    sealed abstract class Canon {
+    sealed abstract class Typed {
         def sym: Symbol.Var
         def ty: Type.Ref
+        def toPath: Path.Ref
     }
-    case class CanonBase(v: Name.Var, sym: Symbol.Var, ty: Type.Ref) extends Canon
-    case class CanonField(base: Path.Canon, sym: Symbol.Var, ty: Type.Ref) extends Canon
-    
-    sealed case class Canons(set: Set[Canon])
+    case class TypedBase(v: Name.Var, sym: Symbol.Var, ty: Type.Ref) extends Typed {
+        def toPath = Path.Base(v)
+    }
+    case class TypedField(base: Path.Typed, sym: Symbol.Var, ty: Type.Ref) extends Typed {
+        def toPath = Path.Field(base.toPath, sym.name)
+    }
 }
