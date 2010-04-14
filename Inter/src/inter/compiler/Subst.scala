@@ -13,10 +13,10 @@ class Subst(private val map: Map[Path.Ref, Path.Ref]) {
         case (None, Path.Field(owner, f)) => Path.Field(path(owner), f)
     }
     
-    def pattern(p: Pattern.Ref): Pattern.Ref = p match {
-        case Pattern.Var(n, t) => Pattern.Var(n, ty(t))
-        case Pattern.Tuple(patterns) => Pattern.Tuple(patterns.map(pattern))
-    }
+    //def pattern(p: Pattern.Ref): Pattern.Ref = p match {
+    //    case Pattern.Var(n, t) => Pattern.Var(n, ty(t))
+    //    case Pattern.Tuple(patterns) => Pattern.Tuple(patterns.map(pattern))
+    //}
     
     def ty(t: Type.Ref): Type.Ref = t match {
         case Type.Var(p, tvar) => Type.Var(path(p), tvar)

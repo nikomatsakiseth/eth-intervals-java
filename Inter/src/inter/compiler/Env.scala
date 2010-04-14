@@ -2,7 +2,7 @@ package inter.compiler
 
 import scala.collection.immutable.Set
 import scala.collection.immutable.Queue
-import scala.collection.mutable.HashSet
+import scala.collection.mutable
 
 import Util._
 
@@ -13,6 +13,7 @@ object Env {
         pathRels = Nil,
         typeRels = Nil
     )
+    
 }
 
 /** The environment is used during a type check but also in other phases
@@ -33,7 +34,7 @@ case class Env(
     /** Base class that captures the basic pattern of computing
       * the transitive closure. */
     abstract class TransitiveCloser[T] {
-        val visited = new HashSet[T]()
+        val visited = new mutable.HashSet[T]()
         
         def compute(item: T) = expand(Queue(item), Set())
         
@@ -189,7 +190,7 @@ case class Env(
     }
     
     def equatable(path: Path.Ref) = new Equater().compute(path)
-    def areEquatable(path1: Path.Ref, path2: Path.Ref) = equatable(path1) contains path2
+    def pathsAreEquatable(path1: Path.Ref, path2: Path.Ref) = equatable(path1) contains path2
     
     // ___ Bounding Type Variables __________________________________________
     
@@ -234,8 +235,55 @@ case class Env(
     
     // ___ Argument Suitability _____________________________________________
     //
-    // This is used to resolve overloaded methods.  For this purpose, we 
-    // don't use the full 
+    // Argument suitability is used to resolve overloaded arguments.  We do not
+    // consider the full subtyping relation but rather only the erased type
+    // and (to a limited extent) type variables.
+    
+    private[this] def symbolsSubclass(csym_sub: Symbol.Class, csym_sup: Symbol.Class) = {
+        val queued = new mutable.Queue[Symbol.Class]()
+        val visited = new mutable.HashSet[Symbol.Class]()
+        queued += csym_sub
+        while(!visited(csym_sup) && !queued.isEmpty) {
+            val csym_next = queued.dequeue()
+            visited += csym_next
+            queued ++= csym_next.superClassNames(state).map(state.symtab.classes).filterNot(visited)
+        }
+        visited(csym_sup)
+    }
+    
+    private[this] def isSuitableArgumentBounded(ty_val: Type.Ref, ty_pat: Type.Ref): Boolean = {
+        (ty_val, ty_pat) match {
+            case (Type.Class(name_val, _), Type.Class(name_pat, _)) => {
+                val sym_val = state.symtab.classes(name_val)
+                val sym_pat = state.symtab.classes(name_pat)
+                symbolsSubclass(sym_val, sym_pat)                
+            }
+            
+            case (Type.Var(path_val, tvar_val), Type.Var(path_pat, tvar_pat)) if tvar_val == tvar_pat =>
+                pathsAreEquatable(path_val, path_pat)
+                
+            case (Type.Tuple(tys_val), Type.Tuple(tys_pat)) if sameLength(tys_val, tys_pat) =>
+                tys_val.zip(tys_pat).forall { case (v, p) => isSuitableArgument(v, p) }
+                
+            case (Type.Tuple(List(ty)), _) =>
+                isSuitableArgument(ty, ty_pat)
+                
+            case (_, Type.Tuple(List(ty))) =>
+                isSuitableArgument(ty_val, ty)
+                
+            case (Type.Null, _) => 
+                true
+                
+            case _ =>
+                false
+        }
+    }
+    
+    def isSuitableArgument(ty_val: Type.Ref, ty_pat: Type.Ref): Boolean = {
+        (upperBoundType(ty_val) cross lowerBoundType(ty_pat)).exists {
+            case (u, l) => isSuitableArgumentBounded(u, l)
+        }
+    }
     
 //    def isSubclass(ty_sub: Type.Ref, ty_sup: Type.Ref): Boolean = {
 //        (ty_sub, ty_sup) match {

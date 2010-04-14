@@ -561,6 +561,13 @@ case class Lower(state: CompilationState) {
                 patSubst(s)(p, e)
             }
         }
+        
+        def mthdSubst(msym: Symbol.Method, rcvr: Ast#Expr, parts: List[Ast#CallPart]) = {
+            patSubsts(
+                msym.receiver   ::  msym.parameterPatterns, 
+                rcvr            ::  parts.map(_.arg)
+            )
+        }
     
         def lowerField(optExpTy: Option[Type.Ref])(expr: in.Field) = introduceVar(expr, { 
             // Note: very similar code to lowerPathField() above.
@@ -601,10 +608,7 @@ case class Lower(state: CompilationState) {
                 // Exactly one match: We can do more with inferencing
                 // in this case, as we know the expected type.
                 case List(msym) => {
-                    val subst = patSubsts(
-                        msym.receiver   ::  msym.parameterPatterns, 
-                        mcall.rcvr      ::  mcall.parts.map(_.arg)
-                    )
+                    val subst = mthdSubst(msym, mcall.rcvr, mcall.parts)
                     val optExpTys = msym.parameterPatterns.map(p => Some(subst.ty(p.ty)))
                     val parts = optExpTys.zip(mcall.parts).map { case (e,p) => lowerPart(e)(p) }
                     out.MethodCall(rcvr, parts, msym, subst.ty(msym.returnTy))
@@ -613,12 +617,63 @@ case class Lower(state: CompilationState) {
                 // Multiple matches: have to type the arguments without hints.
                 case _ => {
                     val parts = mcall.parts.map(lowerPart(None))
+                    val partTys = parts.map(_.arg.ty)
                     
+                    // Find those symbols that are potentially applicable
+                    // to the arguments provided:
                     def potentiallyApplicable(msym: Symbol.Method) = {
-                        msym.parameterPatterns
+                        val subst = mthdSubst(msym, rcvr, parts)
+                        val parameterTys = msym.parameterPatterns.map(p => subst.ty(p.ty))
+                        // XXX Add suitable temps to the environment for the vars ref'd in subst.
+                        partTys.zip(parameterTys).forall { case (p, a) => env.isSuitableArgument(p, a) }
                     }
+                    val applicableMsyms = msyms.filter(potentiallyApplicable)
                     
-                    throw new RuntimeException("TODO")
+                    // Try to find an unambiguously "best" choice:
+                    def isBetterChoiceThan(msym_better: Symbol.Method, msym_worse: Symbol.Method) = {
+                        Pattern.optSubst(
+                            msym_better.parameterPatterns,
+                            msym_worse.parameterPatterns
+                        ) match {
+                            case None => false
+                            case Some(subst) => {
+                                msym_better.parameterPatterns.zip(msym_worse.parameterPatterns).forall {
+                                    case (pat_better, pat_worse) =>
+                                        env.isSuitableArgument(subst.ty(pat_better.ty), pat_worse.ty)
+                                }
+                            }
+                        }
+                    }
+                    def isBestChoice(msym: Symbol.Method) = {
+                        applicableMsyms.forall { msym_other =>
+                            msym == msym_other || isBetterChoiceThan(msym, msym_other)
+                        }
+                    }
+                    val bestMsyms = applicableMsyms.filter(isBestChoice)
+                    
+                    (bestMsyms, applicableMsyms) match {
+                        case (List(msym), _) => {
+                            val subst = mthdSubst(msym, rcvr, parts)
+                            out.MethodCall(rcvr, parts, msym, subst.ty(msym.returnTy))
+                        }
+                        
+                        case (List(), List()) => {
+                            state.reporter.report(
+                                mcall.pos,
+                                "no.applicable.methods"
+                            )
+                            out.Null(optExpTy.getOrElse(Type.Null))
+                        }
+                        
+                        case _ => {
+                            state.reporter.report(
+                                mcall.pos,
+                                "ambiguous.method.call",
+                                bestMsyms.length.toString
+                            )
+                            out.Null(optExpTy.getOrElse(Type.Null))
+                        }
+                    }
                 }
             }
         })

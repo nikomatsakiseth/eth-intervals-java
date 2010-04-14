@@ -2,6 +2,15 @@ package inter.compiler
 
 object Intrinsic {
     
+    val resolveClases = List(
+        classOf[java.lang.Byte],
+        classOf[java.lang.Short],
+        classOf[java.lang.Integer],
+        classOf[java.lang.Long],
+        classOf[java.lang.Float],
+        classOf[java.lang.Double]
+    )
+    
     private[this] def addMathTo(state: CompilationState) = {
         
         val integralTypes = List[Class[_]](
@@ -44,6 +53,11 @@ object Intrinsic {
     }
     
     def addTo(state: CompilationState) = {
+        resolveClases.foreach { cls =>
+            if(!state.loadedOrLoadable(Name.Qual(cls)))
+                state.reporter.report(InterPosition.forClass(cls), "cannot.find.class", cls.toString)
+        }
+        
         addMathTo(state)
     }
     

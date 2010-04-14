@@ -20,6 +20,9 @@ object Util {
             case (None, elem) => func(elem)
             case (result, _) => result
         }
+        
+        def cross[J](js: Iterable[J]) = 
+            for(i <- iterable.view; j <- js.view) yield (i,j)
     }
     implicit def extendedIterable[E](iterable: Iterable[E]) = new ExtendedIterable(iterable)
     

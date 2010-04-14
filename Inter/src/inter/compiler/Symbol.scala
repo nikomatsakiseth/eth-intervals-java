@@ -152,18 +152,4 @@ object Symbol {
     case class MethodId(clsName: Name.Qual, methodName: Name.Method, parameterPatterns: List[Pattern.Ref]) extends MemberId
     case class FieldId(clsName: Name.Qual, methodName: Name.Method) extends MemberId
     
-    // ___ Functions ________________________________________________________    
-    
-    def isSubclass(csym_sub: Symbol.Class, csym_sup: Symbol.Class)(implicit state: CompilationState) = {
-        val queued = new Queue[Symbol.Class]()
-        val visited = new HashSet[Symbol.Class]()
-        queued += csym_sub
-        while(!visited(csym_sup) && !queued.isEmpty) {
-            val csym_next = queued.dequeue()
-            visited += csym_next
-            queued ++= csym_next.superClassNames(state).map(state.symtab.classes).filterNot(visited)
-        }
-        visited(csym_sup)
-    }
-    
 }
