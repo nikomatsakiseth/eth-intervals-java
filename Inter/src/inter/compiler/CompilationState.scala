@@ -131,6 +131,10 @@ class CompilationState(
         while(!toBeLowered.isEmpty) {
             val csym = toBeLowered.dequeue()
             csym.loweredSource = Lower(this).lowerClassDecl(csym.resolvedSource)
+            
+            if(config.dumpLoweredTrees) {
+                csym.loweredSource.println(PrettyPrinter.stdout)
+            }
         }
         
         if(reporter.hasErrors) return

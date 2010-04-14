@@ -15,6 +15,7 @@ class Config
     var outputDir = new File(".")
     var dumpParsedTrees = false
     var dumpResolvedTrees = false
+    var dumpLoweredTrees = false
     var useReflection = true
     var localize = false
     
@@ -31,6 +32,7 @@ class Config
         err.printf("  --no-localize\n")
         err.printf("  --dump-parsed-trees\n")
         err.printf("  --dump-resolved-trees\n")
+        err.printf("  --dump-lowered-trees\n")
     }
     
     private[this] def addDirs(files: ListBuffer[File], paths: String) {
@@ -80,6 +82,9 @@ class Config
                     i += 1
                 } else if(args(i) == "--dump-resolved-trees") {
                     dumpResolvedTrees = true
+                    i += 1
+                } else if(args(i) == "--dump-lowered-trees") {
+                    dumpLoweredTrees = true
                     i += 1
                 } else if(args(i) == "--no-reflection") {
                     useReflection = false
