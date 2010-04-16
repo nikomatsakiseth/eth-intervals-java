@@ -81,13 +81,16 @@ case class Env(
     //
     // Note: this can trigger lowering to occur!  
     
+    def localIsDefined(name: Name.Var) = 
+        locals.isDefinedAt(name)
+    
     def lookupLocal(name: Name.Var) = 
         locals.get(name)
     
     def lookupLocalOrError(name: Name.Var, optExpTy: Option[Type.Ref]) = 
         locals.get(name).getOrElse(Symbol.errorVar(name, optExpTy))
         
-    def lookupThis = locals(Name.ThisVar)
+    def lookupThis = locals(Name.This)
     
     def lookupField(
         rcvrTy: Type.Ref, 

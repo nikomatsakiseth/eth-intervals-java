@@ -19,13 +19,13 @@ object Symbol {
     
     // ___ Types ____________________________________________________________    
     
-    abstract class Any {
+    abstract class Ref {
         def isError: Boolean = false
     }
     
     abstract class Class(
         val name: Name.Qual
-    ) extends Any {
+    ) extends Ref {
         def constructors(state: CompilationState): Seq[Type.Ref]
         def superClassNames(state: CompilationState): Seq[Name.Qual]
         def methodsNamed(state: CompilationState)(name: Name.Method): List[Symbol.Method]
@@ -119,15 +119,24 @@ object Symbol {
         def fieldNamed(state: CompilationState)(name: Name.Var) = None
     }
     
+    sealed abstract class MethodKind
+    case object IntrinsicMath extends MethodKind
+    case object Inter extends MethodKind
+    case object JavaVirtual extends MethodKind
+    case object JavaInterface extends MethodKind
+    case object JavaStatic extends MethodKind
+    case object ErrorMethod extends MethodKind
+    
     class Method(
+        val kind: MethodKind,
         val name: Name.Method,
         val returnTy: Type.Ref,
         val receiver: Pattern.Var,
         val parameterPatterns: List[Pattern.Ref]
-    ) extends Any
+    ) extends Ref
     
     def errorMethod(name: Name.Method) = {
-        val receiver = Pattern.Var(Name.ThisVar, Type.Null)
+        val receiver = Pattern.Var(Name.This, Type.Null)
         val parameterPatterns = name.parts.zipWithIndex.map { case (_, i) => 
             Pattern.Var(Name.Var("arg%d".format(i)), Type.Null)
         }
@@ -139,7 +148,7 @@ object Symbol {
     class Var(
         val name: Name.Var,
         val ty: Type.Ref
-    ) extends Any
+    ) extends Ref
     
     def errorVar(name: Name.Var, optExpTy: Option[Type.Ref]) = {
         val ty = optExpTy.getOrElse(Type.Null)

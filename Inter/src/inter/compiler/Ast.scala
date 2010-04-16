@@ -23,11 +23,11 @@ class Ast {
     /** Nested expressions eventually become restricted */
     type NE <: Expr
     
-    /** Lvalue in an assignment: initially may omit types */
-    type LV <: Node
-    
     /** Type of an expression */
     type Ty
+    
+    /** Type of a tuple */
+    type TyTuple <: Ty
     
     /** Data attached to class declarations */
     type CSym
@@ -168,6 +168,7 @@ class Ast {
     }
     case class MethodDecl(
         annotations: List[Annotation],
+        receiverSym: VSym,
         parts: List[DeclPart],
         returnTref: OT,
         returnTy: Ty,
@@ -262,12 +263,16 @@ class Ast {
     //
     // In a pattern, all types are specified.
     
-    abstract class Pattern extends Node
+    abstract class Pattern extends Node {
+        def symbols: List[VSym]        
+    }
     
     case class TuplePattern(
         patterns: List[Pattern]
     ) extends Pattern {
         override def toString = "(%s)".format(patterns.mkString(", "))
+        
+        override def symbols = patterns.flatMap(_.symbols)
         
         override def print(out: PrettyPrinter) {
             out.write("(")
@@ -284,6 +289,8 @@ class Ast {
     extends Pattern {
         override def toString = "%s %s %s".format(annotations, tref, name)
         
+        override def symbols = List(sym)
+        
         override def print(out: PrettyPrinter) {
             annotations.foreach(_.printsp(out))
             tref.printsp(out)
@@ -293,14 +300,22 @@ class Ast {
     
     // ___ Lvalues __________________________________________________________
     //
-    // An lvalue is like a pattern but it may omit types.
+    // An lvalue is like a pattern but it may omit types.  After lowering,
+    // all newly introduced variables are typed, but variables being re-assigned
+    // remain typeless.
     
-    sealed abstract trait Lvalue extends Node
+    sealed abstract trait Lvalue extends Node {
+        def symbols: List[VSym]
+        def ty: Ty
+    }
     
     case class TupleLvalue(
-        lvalues: List[Lvalue]
+        lvalues: List[Lvalue],
+        ty: TyTuple
     ) extends Lvalue {
         override def toString = "(%s)".format(lvalues.mkString(", "))
+        
+        def symbols = lvalues.flatMap(_.symbols)
         
         override def print(out: PrettyPrinter) {
             out.write("(")
@@ -311,11 +326,13 @@ class Ast {
     
     case class VarLvalue(
         annotations: List[Annotation], 
-        tref: OT, 
+        tref: OptionalTypeRef, // n.b.: Remains optional after lowering!
         name: VarName,
         sym: VSym) 
     extends Lvalue {
         override def toString = "%s %s %s".format(annotations, tref, name)
+        
+        def symbols = List(sym)
         
         override def print(out: PrettyPrinter) {
             annotations.foreach(_.printsp(out))
@@ -450,7 +467,7 @@ class Ast {
         override def toString = obj.toString
     }
     
-    case class Assign(lvalue: LV, rvalue: Expr) 
+    case class Assign(lvalue: Lvalue, rvalue: Expr) 
     extends Stmt {
         def ty = rvalue.ty
         override def toString = "%s = %s".format(lvalue, rvalue)
@@ -596,6 +613,7 @@ object Ast {
         type VSym = Unit
         type MSym = Unit
         type Ty = Unit
+        type TyTuple = Unit
     }
     
     /** After Resolve(): relative names resolved. */
@@ -608,6 +626,7 @@ object Ast {
         type VSym = Unit
         type MSym = Unit
         type Ty = Unit
+        type TyTuple = Unit
     }
 
     /** After Lower(): types inferred (but not checked!) and 
@@ -621,6 +640,7 @@ object Ast {
         type VSym = Symbol.Var
         type MSym = Symbol.Method
         type Ty = Type.Ref
+        type TyTuple = Type.Tuple
     }
     
 }

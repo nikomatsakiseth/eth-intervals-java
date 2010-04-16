@@ -145,10 +145,10 @@ class Parse extends StdTokenParsers with PackratParsers {
     
     lazy val methodDecl = positioned(
         annotations~typeRef~rep1(declPart)~rep(requirement)~optBody ^^ {
-            case ann~ret~parts~reqs~optBody => out.MethodDecl(ann, parts, ret, (), reqs, optBody)
+            case ann~ret~parts~reqs~optBody => out.MethodDecl(ann, (), parts, ret, (), reqs, optBody)
         }
     |   annotations~infTypeRef~rep1(declPart)~rep(requirement)~optBody ^^ {
-            case ann~ret~parts~reqs~optBody => out.MethodDecl(ann, parts, ret, (), reqs, optBody)
+            case ann~ret~parts~reqs~optBody => out.MethodDecl(ann, (), parts, ret, (), reqs, optBody)
         }
     )
     
@@ -223,7 +223,7 @@ class Parse extends StdTokenParsers with PackratParsers {
     lazy val pattern: PackratParser[out.Pattern] = tuplePattern | varPattern
     
     lazy val tupleLvalue= positioned(
-        "("~>comma(lvalue)<~")" ^^ out.TupleLvalue
+        "("~>comma(lvalue)<~")" ^^ { case lvs => out.TuplePattern(lvs, ()) }
     )
     lazy val varLvalue = positioned(
         annotations~typeRef~varName ^^ {
@@ -231,7 +231,7 @@ class Parse extends StdTokenParsers with PackratParsers {
     |   annotations~infTypeRef~varName ^^ {
             case a~t~n => out.VarLvalue(a, t, n, ()) }
     )
-    lazy val lvalue: PackratParser[out.Lvalue] = tupleLvalue | varLvalue
+    lazy val lvalue: PackratParser[out.Pattern] = tupleLvalue | varLvalue
     
     // ___ Type References __________________________________________________
     

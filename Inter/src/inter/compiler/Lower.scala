@@ -108,8 +108,6 @@ case class Lower(state: CompilationState) {
         })        
     }
     
-    // ___ Subclassing ______________________________________________________
-    
     // ___ Method Symbol Creation ___________________________________________
     
     def symbolsForMethodsNamed(
@@ -127,7 +125,7 @@ case class Lower(state: CompilationState) {
         mthdName: Name.Method
     ) = {
         def forMethodDecl(mdecl: in.MethodDecl) = mdecl match {
-            case in.MethodDecl(_, _, in.InferredTypeRef(), _, _, _) => {
+            case in.MethodDecl(_, _, _, in.InferredTypeRef(), _, _, _) => {
                 val memberId = methodId(csym, mdecl)
 
                 if(state.inferStack(memberId)) {
@@ -146,17 +144,17 @@ case class Lower(state: CompilationState) {
                     new Symbol.Method(
                         name = mthdName,
                         returnTy = outMdecl.returnTy,
-                        receiver = Pattern.Var(Name.ThisVar, Type.Class(csym.name, List())),
+                        receiver = Pattern.Var(Name.This, Type.Class(csym.name, List())),
                         parameterPatterns = memberId.parameterPatterns
                     )
                 }
             }
             
-            case in.MethodDecl(_, parts, returnTy: in.TypeRef, _, _, _) => {
+            case in.MethodDecl(_, _, parts, returnTy: in.TypeRef, _, _, _) => {
                 new Symbol.Method(
                     name = mthdName,
                     returnTy = symbolType(returnTy),
-                    receiver = Pattern.Var(Name.ThisVar, Type.Class(csym.name, List())),
+                    receiver = Pattern.Var(Name.This, Type.Class(csym.name, List())),
                     parameterPatterns = parts.map(p => symbolPattern(p.pattern))
                 )
             }
@@ -169,7 +167,7 @@ case class Lower(state: CompilationState) {
     }
     
     def ThisEnv(csym: Symbol.ClassFromInterFile) = {
-        emptyEnv + new Symbol.Var(Name.ThisVar, Type.Class(csym.name, List()))
+        emptyEnv + new Symbol.Var(Name.This, Type.Class(csym.name, List()))
     }
     
     def ThisScope(csym: Symbol.ClassFromInterFile) = {
@@ -232,10 +230,10 @@ case class Lower(state: CompilationState) {
             assert(!state.inferStack(memberId))
             state.inferStack += memberId
 
-            val receiver = new Symbol.Var(Name.ThisVar, Type.Class(clsName, List()))
+            val receiverSym = new Symbol.Var(Name.This, Type.Class(clsName, List()))
             val parameterPatterns = mdecl.parts.map(p => symbolPattern(p.pattern))
-            val parameterSymbols = parameterPatterns.flatMap(Pattern.createVarSymbols)
-            val env = emptyEnv ++ (receiver :: parameterSymbols)
+            val parameterSyms = parameterPatterns.flatMap(Pattern.createVarSymbols)
+            val env = emptyEnv ++ (receiverSym :: parameterSyms)
             val optBody = mdecl.optBody.map(lowerBody(env, _))
 
             val (returnTref, returnTy) = (mdecl.returnTref, optBody) match {
@@ -259,6 +257,7 @@ case class Lower(state: CompilationState) {
 
             val outMdecl = out.MethodDecl(
                 annotations = mdecl.annotations.map(InScope(env).lowerAnnotation),
+                receiverSym = receiverSym,
                 parts = mdecl.parts.map(InScope(env).lowerDeclPart),
                 returnTref = returnTref,
                 returnTy = returnTy,
@@ -416,19 +415,14 @@ case class Lower(state: CompilationState) {
     }
     
     class InScopeStmt(env: Env, stmts: ListBuffer[out.Stmt]) extends InScope(env) {
-        def extractSymbols(pattern: out.Pattern): List[Symbol.Var] = pattern match {
-            case out.TuplePattern(patterns) => patterns.flatMap(extractSymbols)
-            case out.VarPattern(_, _, _, sym) => List(sym)
-        }
-        
         def appendLoweredStmt(stmt: in.Stmt): Env = {
             stmt match {
                 case in.Assign(lvalue, rvalue) => {
-                    val optExpTy = optTypeFromLvalue(lvalue)
+                    val optExpTy = optTypeFromLvalue(env, lvalue)
                     val outRvalue = lowerExpr(optExpTy)(rvalue)
-                    val outPattern = lowerLvalue(outRvalue.ty, lvalue)
-                    stmts += withPosOf(stmt, out.Assign(outPattern, outRvalue))
-                    env ++ extractSymbols(outPattern)
+                    val outLvalue = lowerLvalue(outRvalue.ty, lvalue)
+                    stmts += withPosOf(stmt, out.Assign(outLvalue, outRvalue))
+                    env ++ outLvalue.symbols
                 }
                 
                 case in.Labeled(name, body) => {
@@ -447,15 +441,18 @@ case class Lower(state: CompilationState) {
           * the lvalue expects to be assigned to it.  This may
           * not be possible if the user has not fully specified
           * the type. In that case, None is returned. */
-        def optTypeFromLvalue(lvalue0: in.Lvalue): Option[Type.Ref] = {
+        def optTypeFromLvalue(env: Env, lvalue0: in.Pattern): Option[Type.Ref] = {
             case class FailedException() extends Exception
             
-            def theOldCollegeTry(lvalue: in.Lvalue): Type.Ref = lvalue match {
-                case in.TupleLvalue(lvalues) => 
+            def theOldCollegeTry(lvalue: in.Pattern): Type.Ref = lvalue match {
+                case in.TuplePattern(lvalues, ()) => 
                     Type.Tuple(lvalues.map(theOldCollegeTry))
-                case in.VarLvalue(_, in.InferredTypeRef(), _, _) =>
-                    throw FailedException()
-                case in.VarLvalue(_, tref: in.TypeRef, name, _) =>
+                case in.VarLvalue(_, in.InferredTypeRef(), name, _) =>
+                    env.lookupLocal(name.name) match {
+                        case Some(sym) => sym.ty
+                        case None => throw FailedException()
+                    }
+                case in.VarLvalue(_, tref: in.TypeRef, _, _) =>
                     symbolType(tref)
             }
             
@@ -466,43 +463,67 @@ case class Lower(state: CompilationState) {
             }
         }
         
-        /** Converts an Lvalue into a fully-typed Pattern, using hints from the
-          * type of the RHS `rvalueTy` */
-        def lowerLvalue(rvalueTy: Type.Ref, lvalue: in.Lvalue): out.Pattern = {
+        /** Lowers an Lvalue, using hints from the type of the RHS `rvalueTy`. */
+        def lowerLvalue(rvalueTy: Type.Ref, lvalue: in.Pattern): out.Pattern = {
+            def outTuple(outLvalues: List[out.Pattern]) = {
+                out.TuplePattern(
+                    outLvalues,
+                    Type.Tuple(outLvalues.map(_.ty))
+                )
+            }
+            
             withPosOf(lvalue, (rvalueTy, lvalue) match {
                 // Unpack singleton tuples:
-                case (ty, in.TupleLvalue(List(lv))) => lowerLvalue(ty, lv)
+                case (ty, in.TuplePattern(List(lv), ())) => lowerLvalue(ty, lv)
                 case (Type.Tuple(List(ty)), lv) => lowerLvalue(ty, lv)
                 
                 // Unpack matching tuples:
-                case (Type.Tuple(tys), in.TupleLvalue(lvalues)) if sameLength(tys, lvalues) => {
-                    out.TuplePattern(
-                        tys.zip(lvalues).map { case (t, l) => lowerLvalue(t, l) }
-                    )
+                case (Type.Tuple(tys), in.TuplePattern(lvalues, ())) if sameLength(tys, lvalues) => {
+                    val outLvalues = tys.zip(lvalues).map { case (t, l) => lowerLvalue(t, l) }
+                    outTuple(outLvalues)
                 }
                 
                 // If tuple sizes don't match, just infer NullType:
-                case (_, in.TupleLvalue(lvalues)) => {
-                    out.TuplePattern(
-                        lvalues.map(lowerLvalue(Type.Null, _))
-                    )
+                case (_, in.TuplePattern(lvalues, ())) => {
+                    val outLvalues = lvalues.map(lowerLvalue(Type.Null, _))
+                    outTuple(outLvalues)
                 }
                 
-                // Pattern w/o type specified, use type from RHS:
+                // Pattern w/o type specified, either reassign pre-existing sym or use type from RHS:
                 case (ty, in.VarLvalue(anns, inTref @ in.InferredTypeRef(), name, ())) => {
-                    val tref = astType(env)(inTref, ty)
-                    out.VarPattern(
-                        anns.map(lowerAnnotation),
-                        tref,
-                        name,
-                        new Symbol.Var(name.name, ty)
-                    )
+                    env.lookupLocal(name.name) match {
+                        case Some(sym) => {
+                            out.VarLvalue(
+                                anns.map(lowerAnnotation),
+                                withPosOf(inTref, out.InferredTypeRef()),
+                                name, 
+                                sym
+                            )
+                        }
+                        
+                        case None => {
+                            out.VarLvalue(
+                                anns.map(lowerAnnotation),
+                                astType(env)(inTref, ty),
+                                name,
+                                new Symbol.Var(name.name, ty)
+                            )                            
+                        }
+                    }
                 }
                     
                 // Pattern w/ type specified, use type given:
                 case (_, in.VarLvalue(anns, tref: in.TypeRef, name, sym)) => {
+                    if(env.localIsDefined(name.name)) {
+                        state.reporter.report(
+                            lvalue.pos,
+                            "shadowed.local.variable",
+                            name.toString
+                        )
+                    }                        
+                    
                     val ty = symbolType(tref)
-                    out.VarPattern(
+                    out.VarLvalue(
                         anns.map(lowerAnnotation),
                         lowerTypeRef(tref),
                         name,
@@ -518,7 +539,7 @@ case class Lower(state: CompilationState) {
             val sym = new Symbol.Var(Name.Var(text), toExpr.ty)
             val nameAst = withPosOf(fromExpr, Ast.VarName(text))
             val tyAst = astType(env)(fromExpr, sym.ty)
-            val lv = withPosOf(fromExpr, out.VarPattern(List(), tyAst, nameAst, sym))
+            val lv = withPosOf(fromExpr, out.VarLvalue(List(), tyAst, nameAst, sym))
             val assign = withPosOf(fromExpr, out.Assign(lv, withPosOf(fromExpr, toExpr)))
             stmts += assign
             withPosOf(fromExpr, out.Var(nameAst, sym, sym.ty))
@@ -710,7 +731,7 @@ case class Lower(state: CompilationState) {
         
         def lowerImpThis(expr: in.Expr) = withPosOf(expr, {
             val sym = env.lookupThis
-            out.Var(astVarName(expr, Name.ThisVar), sym, sym.ty)
+            out.Var(astVarName(expr, Name.This), sym, sym.ty)
         })
         
         def lowerExpr(optExpTy: Option[Type.Ref])(expr: in.Expr): out.LoweredExpr = expr match {

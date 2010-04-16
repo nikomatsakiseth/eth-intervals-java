@@ -16,6 +16,7 @@ class Config
     var dumpParsedTrees = false
     var dumpResolvedTrees = false
     var dumpLoweredTrees = false
+    var dumpBytecode = false
     var useReflection = true
     var localize = false
     
@@ -33,6 +34,7 @@ class Config
         err.printf("  --dump-parsed-trees\n")
         err.printf("  --dump-resolved-trees\n")
         err.printf("  --dump-lowered-trees\n")
+        err.printf("  --dump-bytecode\n")
     }
     
     private[this] def addDirs(files: ListBuffer[File], paths: String) {

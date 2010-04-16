@@ -108,6 +108,7 @@ object Resolve {
         
         def resolveMethodDecl(decl: in.MethodDecl) = withPosOf(decl, out.MethodDecl(
             annotations = decl.annotations.map(resolveAnnotation),
+            receiverSym = (),
             parts = decl.parts.map(resolveDeclPart),
             returnTref = resolveOptionalTypeRef(decl.returnTref),
             returnTy = (),
@@ -178,8 +179,8 @@ object Resolve {
             case in.Labeled(name, body) => out.Labeled(name, resolveBody(body))
         })
         
-        def resolveLvalue(lvalue: in.Lvalue): out.Lvalue = withPosOf(lvalue, lvalue match {
-            case in.TupleLvalue(lvalues) => out.TupleLvalue(lvalues.map(resolveLvalue))
+        def resolveLvalue(lvalue: in.Pattern): out.Pattern = withPosOf(lvalue, lvalue match {
+            case in.TuplePattern(lvalues, ()) => out.TuplePattern(lvalues.map(resolveLvalue), ())
             case in.VarLvalue(annotations, tref, name, ()) => out.VarLvalue(
                 annotations = annotations.map(resolveAnnotation),
                 tref = resolveOptionalTypeRef(tref),

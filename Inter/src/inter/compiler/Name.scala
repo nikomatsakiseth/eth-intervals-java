@@ -10,6 +10,8 @@ object Name {
         def asRelPath = components.mkString("/")
         override def toString = components.mkString(".")
         
+        def internalName = asRelPath
+        
         def /(nm: String) = Name.Qual(nm :: rev_components)
     }
     
@@ -52,7 +54,8 @@ object Name {
         override def toString = text
     }
     
-    val ThisVar = Name.Var("this")
+    val This = Name.Var("this")
+
     val MethodVar = Name.Var("method")
     
     val VoidQual = Qual("java.lang.Void")

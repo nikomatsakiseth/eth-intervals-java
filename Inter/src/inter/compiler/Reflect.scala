@@ -50,7 +50,7 @@ object Reflect {
     def methodSymbol(state: CompilationState, clsName: Name.Qual)(mthd: reflect.Method) = new Symbol.Method(
         name = Name.Method(List(mthd.getName)),
         returnTy = typeRef(mthd.getGenericReturnType),
-        receiver = Pattern.Var(Name.ThisVar, Type.Class(clsName, List())),
+        receiver = Pattern.Var(Name.This, Type.Class(clsName, List())),
         parameterPatterns = List(Pattern.Tuple(
             mthd.getGenericParameterTypes.toList.zipWithIndex.map(paramPattern)))
     )

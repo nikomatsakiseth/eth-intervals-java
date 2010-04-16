@@ -42,9 +42,10 @@ object Intrinsic {
                 else leftTy
             for(op <- mathOps) {
                 val msym = new Symbol.Method(
+                    kind = Symbol.IntrinsicMath,
                     name = op, 
                     returnTy = returnTy,
-                    receiver = Pattern.Var(Name.ThisVar, leftTy),
+                    receiver = Pattern.Var(Name.This, leftTy),
                     parameterPatterns = List(Pattern.Var(Name.Var("arg"), rightTy)))
                 state.addIntrinsic(leftTy, msym)
             }
