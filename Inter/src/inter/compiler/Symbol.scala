@@ -140,7 +140,7 @@ object Symbol {
         val parameterPatterns = name.parts.zipWithIndex.map { case (_, i) => 
             Pattern.Var(Name.Var("arg%d".format(i)), Type.Null)
         }
-        new Method(name, Type.Null, receiver, parameterPatterns) {
+        new Method(ErrorMethod, name, Type.Null, receiver, parameterPatterns) {
             override def isError = true
         }
     }

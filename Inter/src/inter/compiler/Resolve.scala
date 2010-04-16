@@ -66,7 +66,7 @@ object Resolve {
             name = cdecl.name.toAbs(compUnit.pkg),
             annotations = cdecl.annotations.map(resolveAnnotation),
             superClasses = cdecl.superClasses.map(resolveName),
-            pattern = resolveTuplePattern(cdecl.pattern),
+            pattern = resolveTupleParam(cdecl.pattern),
             members = cdecl.members.map(resolveMember),
             sym = cdecl.sym
         ))
@@ -75,20 +75,20 @@ object Resolve {
             name = resolveName(ann.name)
         ))
         
-        def resolvePattern(pattern: in.Pattern): out.Pattern = withPosOf(pattern, pattern match {
-            case tuplePat: in.TuplePattern => resolveTuplePattern(tuplePat)
-            case varPat: in.VarPattern => resolveVarPattern(varPat)
+        def resolveParam(param: in.Param): out.Param = withPosOf(param, param match {
+            case tupleParam: in.TupleParam => resolveTupleParam(tupleParam)
+            case varParam: in.VarParam => resolveVarParam(varParam)
         })
         
-        def resolveTuplePattern(tuplePat: in.TuplePattern) = withPosOf(tuplePat, out.TuplePattern(
-            patterns = tuplePat.patterns.map(resolvePattern)
+        def resolveTupleParam(tupleParam: in.TupleParam) = withPosOf(tupleParam, out.TupleParam(
+            params = tupleParam.params.map(resolveParam)
         ))
         
-        def resolveVarPattern(varPat: in.VarPattern) = withPosOf(varPat, out.VarPattern(
-            annotations = varPat.annotations.map(resolveAnnotation),
-            tref = resolveTypeRef(varPat.tref),
-            name = varPat.name,
-            sym = varPat.sym            
+        def resolveVarParam(varParam: in.VarParam) = withPosOf(varParam, out.VarParam(
+            annotations = varParam.annotations.map(resolveAnnotation),
+            tref = resolveTypeRef(varParam.tref),
+            name = varParam.name,
+            sym = ()
         ))
         
         def resolveMember(mem: in.MemberDecl): out.MemberDecl = withPosOf(mem, mem match {
@@ -118,7 +118,7 @@ object Resolve {
         
         def resolveDeclPart(decl: in.DeclPart) = withPosOf(decl, out.DeclPart(
             ident = decl.ident,
-            pattern = resolveTuplePattern(decl.pattern)
+            param = resolveTupleParam(decl.param)
         ))
         
         def resolveRequirement(requirement: in.PathRequirement) = withPosOf(requirement, out.PathRequirement(
@@ -143,7 +143,7 @@ object Resolve {
         ))
         
         def resolvePath(path: in.AstPath): out.AstPath = withPosOf(path, path match {
-            case in.Var(name, (), ()) => out.Var(name, (), ())
+            case in.Var(name, ()) => out.Var(name, ())
             case in.PathField(p, f, (), ()) => out.PathField(resolvePath(p), f, (), ())
         })
         
@@ -175,13 +175,13 @@ object Resolve {
         
         def resolveStmt(stmt: in.Stmt): out.Stmt = withPosOf(stmt, stmt match {
             case expr: in.Expr => resolveExpr(expr)
-            case in.Assign(lv, rv) => out.Assign(resolveLvalue(lv), resolveExpr(rv))
+            case in.Assign(lv, rv) => out.Assign(resolveLocal(lv), resolveExpr(rv))
             case in.Labeled(name, body) => out.Labeled(name, resolveBody(body))
         })
         
-        def resolveLvalue(lvalue: in.Pattern): out.Pattern = withPosOf(lvalue, lvalue match {
-            case in.TuplePattern(lvalues, ()) => out.TuplePattern(lvalues.map(resolveLvalue), ())
-            case in.VarLvalue(annotations, tref, name, ()) => out.VarLvalue(
+        def resolveLocal(local: in.Local): out.Local = withPosOf(local, local match {
+            case in.TupleLocal(locals) => out.TupleLocal(locals.map(resolveLocal))
+            case in.VarLocal(annotations, tref, name, ()) => out.VarLocal(
                 annotations = annotations.map(resolveAnnotation),
                 tref = resolveOptionalTypeRef(tref),
                 name = name,
@@ -194,7 +194,7 @@ object Resolve {
             case tmpl: in.InlineTmpl => resolveInlineTmpl(tmpl)
             case in.AsyncTmpl(stmts, ()) => out.AsyncTmpl(resolveStmts(stmts), ())
             case e: in.Literal => resolveLiteral(e)
-            case in.Var(name, (), ()) => out.Var(name, (), ())
+            case in.Var(name, ()) => out.Var(name, ())
             case in.Field(owner, name, (), ()) => out.Field(resolveExpr(owner), name, (), ())
             case in.MethodCall(rcvr, parts, (), ()) => out.MethodCall(resolveExpr(rcvr), parts.map(resolvePart), (), ())
             case in.NewJava(tref, arg, ()) => out.NewJava(resolveTypeRef(tref), resolveTuple(arg), ())
@@ -214,8 +214,7 @@ object Resolve {
         ))
         
         def resolveTuple(tuple: in.Tuple) = withPosOf(tuple, out.Tuple(
-            exprs = tuple.exprs.map(resolveExpr),
-            ty = ()
+            exprs = tuple.exprs.map(resolveExpr)
         ))
         
         def resolveInlineTmpl(tmpl: in.InlineTmpl) = withPosOf(tmpl, out.InlineTmpl(

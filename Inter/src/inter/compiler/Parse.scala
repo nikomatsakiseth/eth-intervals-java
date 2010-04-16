@@ -116,15 +116,15 @@ class Parse extends StdTokenParsers with PackratParsers {
     
     lazy val annotations = rep(annotation) 
     
-    lazy val optTuplePattern = positioned(
-        opt(tuplePattern) ^^ { 
+    lazy val optTupleParam = positioned(
+        opt(tupleParam) ^^ { 
             case Some(tp) => tp
-            case None => out.TuplePattern(List())
+            case None => out.TupleParam(List())
         }
     )
     
     lazy val classDecl = positioned(
-        annotations~"class"~relBase~optTuplePattern~superClasses~"{"~
+        annotations~"class"~relBase~optTupleParam~superClasses~"{"~
             rep(member)~
         "}" ^^ {
             case a~_~n~p~sups~"{"~mems~"}" => out.ClassDecl(n, a, sups, p, mems, ())
@@ -153,7 +153,7 @@ class Parse extends StdTokenParsers with PackratParsers {
     )
     
     lazy val declPart = positioned(
-        ident~tuplePattern ^^ { case i~p => out.DeclPart(i, p) }
+        ident~tupleParam ^^ { case i~p => out.DeclPart(i, p) }
     )
     
     lazy val requirement = positioned(
@@ -211,27 +211,27 @@ class Parse extends StdTokenParsers with PackratParsers {
         annotations~path~declOp~path~";" ^^ { case a~l~k~r~";" => out.RelDecl(a, l, k, r) }
     )
     
-    // ___ Argument Patterns and Lvalues ____________________________________
+    // ___ Lvalues: Parameters and Locals ___________________________________
     
-    lazy val tuplePattern = positioned(
-        "("~>comma(pattern)<~")" ^^ out.TuplePattern
+    lazy val tupleParam = positioned(
+        "("~>comma(param)<~")" ^^ { case ps => out.TupleParam(ps) }
     )
-    lazy val varPattern = positioned(
+    lazy val varParam = positioned(
         annotations~typeRef~varName ^^ {
-            case a~t~n => out.VarPattern(a, t, n, ()) }
+            case a~t~n => out.VarParam(a, t, n, ()) }
     )
-    lazy val pattern: PackratParser[out.Pattern] = tuplePattern | varPattern
+    lazy val param: PackratParser[out.Param] = tupleParam | varParam
     
-    lazy val tupleLvalue= positioned(
-        "("~>comma(lvalue)<~")" ^^ { case lvs => out.TuplePattern(lvs, ()) }
+    lazy val tupleLocal = positioned(
+        "("~>comma(local)<~")" ^^ { case ls => out.TupleLocal(ls) }
     )
-    lazy val varLvalue = positioned(
+    lazy val varLocal = positioned(
         annotations~typeRef~varName ^^ {
-            case a~t~n => out.VarLvalue(a, t, n, ()) }
+            case a~t~n => out.VarLocal(a, t, n, ()) }
     |   annotations~infTypeRef~varName ^^ {
-            case a~t~n => out.VarLvalue(a, t, n, ()) }
+            case a~t~n => out.VarLocal(a, t, n, ()) }
     )
-    lazy val lvalue: PackratParser[out.Pattern] = tupleLvalue | varLvalue
+    lazy val local: PackratParser[out.Local] = tupleLocal | varLocal
     
     // ___ Type References __________________________________________________
     
@@ -260,7 +260,7 @@ class Parse extends StdTokenParsers with PackratParsers {
     
     lazy val path = positioned(
         varName~rep(varName) ^^ {
-            case v~fs => fs.foldLeft[out.AstPath](out.Var(v, (), ()))(out.PathField(_, _, (), ())) }
+            case v~fs => fs.foldLeft[out.AstPath](out.Var(v, ()))(out.PathField(_, _, (), ())) }
     )
     
     // ___ Expressions ______________________________________________________
@@ -278,7 +278,7 @@ class Parse extends StdTokenParsers with PackratParsers {
     )
     
     lazy val tuple = positioned(
-        "("~>comma(expr)<~")"           ^^ { e => out.Tuple(e, ()) }
+        "("~>comma(expr)<~")"           ^^ { e => out.Tuple(e) }
     )
     
     lazy val arg: PackratParser[out.Expr] = tuple | itmpl | atmpl
@@ -289,7 +289,7 @@ class Parse extends StdTokenParsers with PackratParsers {
     
     lazy val rcvr: PackratParser[out.Expr] = positioned(
         arg
-    |   varName                             ^^ { case n => out.Var(n, (), ()) }
+    |   varName                             ^^ { case n => out.Var(n, ()) }
     |   numericLit                          ^^ { l => out.Literal(Integer.valueOf(l), ()) }
     |   stringLit                           ^^ { l => out.Literal(l, ()) }
     |   "null"                              ^^ { case _ => out.Null() }
@@ -321,7 +321,7 @@ class Parse extends StdTokenParsers with PackratParsers {
     
     lazy val stmt: PackratParser[out.Stmt] = positioned(
         varName~":"~body                    ^^ { case l~":"~b => out.Labeled(l, b) }
-    |   lvalue~"="~expr                     ^^ { case l~"="~e => out.Assign(l, e) }
+    |   local~"="~expr                      ^^ { case l~"="~e => out.Assign(l, e) }
     |   expr
     )
     

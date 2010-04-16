@@ -36,7 +36,10 @@ class Ast {
     type VSym
     
     /** Data attached to method declarations, calls */
-    type MSym 
+    type MSym
+    
+    def symTy(vsym: VSym): Ty
+    def tupleTy(tys: List[Ty]): TyTuple
     
     private def printSepFunc(out: PrettyPrinter, asts: List[Node], sepfunc: (() => Unit)) {
         asts.dropRight(1).foreach { ast =>
@@ -114,7 +117,7 @@ class Ast {
         name: PN,
         annotations: List[Annotation],
         superClasses: List[PN],
-        pattern: TuplePattern,
+        pattern: TupleParam,
         members: List[MemberDecl],
         sym: CSym
     ) extends MemberDecl {
@@ -159,11 +162,11 @@ class Ast {
         }
     }
     
-    case class DeclPart(ident: String, pattern: TuplePattern) extends Node {
-        override def toString = "%s%s".format(ident, pattern)
+    case class DeclPart(ident: String, param: TupleParam) extends Node {
+        override def toString = "%s%s".format(ident, param)
         override def print(out: PrettyPrinter) {
             out.write("%s", ident)
-            pattern.print(out)
+            param.print(out)
         }
     }
     case class MethodDecl(
@@ -176,7 +179,7 @@ class Ast {
         optBody: Option[Body]
     ) extends MemberDecl {
         def name = Name.Method(parts.map(_.ident))
-        def patterns = parts.map(_.pattern)
+        def params = parts.map(_.param)
         override def toString = "[method %s]".format(name)
         override def asMethodNamed(mthdName: Name.Method) = {
             if(mthdName == name) Some(this)
@@ -259,86 +262,68 @@ class Ast {
         }
     }
     
-    // ___ Patterns _________________________________________________________
-    //
-    // In a pattern, all types are specified.
-    
-    abstract class Pattern extends Node {
-        def symbols: List[VSym]        
-    }
-    
-    case class TuplePattern(
-        patterns: List[Pattern]
-    ) extends Pattern {
-        override def toString = "(%s)".format(patterns.mkString(", "))
-        
-        override def symbols = patterns.flatMap(_.symbols)
-        
-        override def print(out: PrettyPrinter) {
-            out.write("(")
-            printSep(out, patterns, ", ")
-            out.write(")")
-        }
-    }
-    
-    case class VarPattern(
-        annotations: List[Annotation], 
-        tref: TypeRef, 
-        name: VarName,
-        sym: VSym) 
-    extends Pattern {
-        override def toString = "%s %s %s".format(annotations, tref, name)
-        
-        override def symbols = List(sym)
-        
-        override def print(out: PrettyPrinter) {
-            annotations.foreach(_.printsp(out))
-            tref.printsp(out)
-            name.print(out)
-        }
-    }
-    
     // ___ Lvalues __________________________________________________________
     //
-    // An lvalue is like a pattern but it may omit types.  After lowering,
-    // all newly introduced variables are typed, but variables being re-assigned
-    // remain typeless.
+    // Lvalues are the AST version of patterns.  There are two variants: Param
+    // and Local.  The former always has all types fully specified and the latter
+    // does not.  Note that Locals may contain InferredTypeRefs even after lowering---
+    // in this case it means that the symbol being assigned was declared elsewhere.
     
     sealed abstract trait Lvalue extends Node {
         def symbols: List[VSym]
         def ty: Ty
     }
-    
-    case class TupleLvalue(
-        lvalues: List[Lvalue],
-        ty: TyTuple
-    ) extends Lvalue {
-        override def toString = "(%s)".format(lvalues.mkString(", "))
+    sealed abstract trait TupleLvalue extends Node {
+        def lvalues: List[Lvalue]
+        def ty = tupleTy(lvalues.map(_.ty))
         
         def symbols = lvalues.flatMap(_.symbols)
-        
-        override def print(out: PrettyPrinter) {
-            out.write("(")
-            printSep(out, lvalues, ", ")
-            out.write(")")
-        }
     }
-    
-    case class VarLvalue(
-        annotations: List[Annotation], 
-        tref: OptionalTypeRef, // n.b.: Remains optional after lowering!
-        name: VarName,
-        sym: VSym) 
-    extends Lvalue {
-        override def toString = "%s %s %s".format(annotations, tref, name)
+    sealed abstract trait VarLvalue extends Node {
+        def annotations: List[Annotation]
+        def tref: OptionalTypeRef // n.b.: Remains optional after lowering!
+        def name: VarName
+        def sym: VSym
+        def ty: Ty
         
         def symbols = List(sym)
-        
-        override def print(out: PrettyPrinter) {
-            annotations.foreach(_.printsp(out))
-            tref.printsp(out)
-            name.print(out)
-        }
+    }
+    
+    object TupleLvalue {
+        def unapply(lv: TupleLvalue) = Some((lv.lvalues, lv.ty))
+    }
+    object VarLvalue {
+        def unapply(lv: VarLvalue) = Some((lv.annotations, lv.tref, lv.name, lv.sym))
+    }
+    
+    sealed abstract class Param extends Lvalue
+    case class TupleParam(
+        params: List[Param]
+    ) extends Param with TupleLvalue {
+        def lvalues = params
+    }
+    case class VarParam(
+        annotations: List[Annotation], 
+        tref: TypeRef,
+        name: VarName,
+        sym: VSym
+    ) extends Param with VarLvalue {
+        def ty = symTy(sym)
+    }
+    
+    sealed abstract class Local extends Lvalue
+    case class TupleLocal(
+        locals: List[Local]
+    ) extends Local with TupleLvalue {
+        def lvalues = locals
+    }
+    case class VarLocal(
+        annotations: List[Annotation], 
+        tref: OptionalTypeRef,
+        name: VarName,
+        sym: VSym
+    ) extends Local with VarLvalue {
+        def ty = symTy(sym)
     }
     
     // ___ Type References __________________________________________________
@@ -437,8 +422,10 @@ class Ast {
     
     sealed abstract trait LoweredExpr extends Expr
     
-    case class Tuple(exprs: List[NE], ty: Ty) extends LoweredExpr {
+    case class Tuple(exprs: List[NE]) extends LoweredExpr {
         override def toString = "(%s)".format(exprs.mkString(", "))
+        
+        def ty = tupleTy(exprs.map(_.ty))
         
         override def print(out: PrettyPrinter) {
             out.write("(")
@@ -467,7 +454,7 @@ class Ast {
         override def toString = obj.toString
     }
     
-    case class Assign(lvalue: Lvalue, rvalue: Expr) 
+    case class Assign(lvalue: Local, rvalue: Expr) 
     extends Stmt {
         def ty = rvalue.ty
         override def toString = "%s = %s".format(lvalue, rvalue)
@@ -482,8 +469,9 @@ class Ast {
     // n.b.: A Var could refer to any sort of variable, not only a 
     // local variable.  For example, a field of the current class or
     // one of its enclosing classes.
-    case class Var(name: VarName, sym: VSym, ty: Ty) extends LoweredExpr with AstPath {
+    case class Var(name: VarName, sym: VSym) extends LoweredExpr with AstPath {
         override def toString = name.toString
+        def ty = symTy(sym)
     }
     
     case class Field(owner: NE, name: VarName, sym: VSym, ty: Ty) extends Expr {
@@ -608,12 +596,14 @@ object Ast {
         type PN = RelName
         type OT = OptionalTypeRef
         type NE = Expr
-        type LV = Lvalue
         type CSym = Unit
         type VSym = Unit
         type MSym = Unit
         type Ty = Unit
         type TyTuple = Unit
+        
+        def symTy(unit: Unit) = ()
+        def tupleTy(tys: List[Ty]) = ()
     }
     
     /** After Resolve(): relative names resolved. */
@@ -621,12 +611,14 @@ object Ast {
         type PN = Ast.AbsName
         type OT = OptionalTypeRef
         type NE = Expr
-        type LV = Lvalue
         type CSym = Unit
         type VSym = Unit
         type MSym = Unit
         type Ty = Unit
         type TyTuple = Unit
+
+        def symTy(unit: Unit) = ()
+        def tupleTy(tys: List[Ty]) = ()
     }
 
     /** After Lower(): types inferred (but not checked!) and 
@@ -635,12 +627,14 @@ object Ast {
         type PN = Ast.AbsName
         type OT = TypeRef
         type NE = LoweredExpr
-        type LV = Pattern
         type CSym = Symbol.Class
         type VSym = Symbol.Var
         type MSym = Symbol.Method
         type Ty = Type.Ref
         type TyTuple = Type.Tuple
+
+        def symTy(vsym: Symbol.Var) = vsym.ty
+        def tupleTy(tys: List[Type.Ref]) = Type.Tuple(tys)
     }
     
 }

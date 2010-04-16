@@ -37,23 +37,30 @@ object Reflect {
         case _ => throw new RuntimeException("Not here")
     }
     
-    def fieldSymbol(state: CompilationState)(fld: reflect.Field) = new Symbol.Var(
-        name = Name.Var(fld.getName),
-        ty = typeRef(fld.getGenericType)
-    )
+    def fieldSymbol(state: CompilationState)(fld: reflect.Field) = {
+        new Symbol.Var(
+            name = Name.Var(fld.getName),
+            ty = typeRef(fld.getGenericType)
+        )        
+    }
     
-    def paramPattern(pair: (reflect.Type, Int)) = Pattern.Var(
-        name = Name.Var("arg"+pair._2),
-        ty = typeRef(pair._1)
-    )
+    def paramPattern(pair: (reflect.Type, Int)) = {
+        Pattern.Var(
+            name = Name.Var("arg"+pair._2),
+            ty = typeRef(pair._1)
+        )
+    }    
     
-    def methodSymbol(state: CompilationState, clsName: Name.Qual)(mthd: reflect.Method) = new Symbol.Method(
-        name = Name.Method(List(mthd.getName)),
-        returnTy = typeRef(mthd.getGenericReturnType),
-        receiver = Pattern.Var(Name.This, Type.Class(clsName, List())),
-        parameterPatterns = List(Pattern.Tuple(
-            mthd.getGenericParameterTypes.toList.zipWithIndex.map(paramPattern)))
-    )
+    def methodSymbol(state: CompilationState, clsName: Name.Qual)(mthd: reflect.Method) = {
+        new Symbol.Method(
+            kind = Symbol.JavaVirtual, // XXX 
+            name = Name.Method(List(mthd.getName)),
+            returnTy = typeRef(mthd.getGenericReturnType),
+            receiver = Pattern.Var(Name.This, Type.Class(clsName, List())),
+            parameterPatterns = List(Pattern.Tuple(
+                mthd.getGenericParameterTypes.toList.zipWithIndex.map(paramPattern)))
+        )
+    }
     
     def methodsNamed(state: CompilationState, sym: Symbol.ClassFromReflection, name: Name.Method) = {
         val methods = sym.optMethods.getOrElse {

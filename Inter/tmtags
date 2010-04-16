@@ -30,7 +30,7 @@ ClassType	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Symbol.scala	/
 CompUnit	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Ast.scala	/^    case class CompUnit($/;"	classes	line:72
 CompilationFailed	/Users/niko/git/intervals-java/Inter/test.py	/^class CompilationFailed(Exception):$/;"	class	line:190
 DEBUGLOGS	/Users/niko/git/intervals-java/Inter/Makefile	/^DEBUGLOGS=..\/debug-logs$/;"	macro	line:12
-DeclPart	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Ast.scala	/^    case class DeclPart(ident: String, pattern: TuplePattern) extends Node {$/;"	classes	line:163
+DeclPart	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Ast.scala	/^    case class DeclPart(ident: String, pattern: TupleParam) extends Node {$/;"	classes	line:163
 Error	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Reporter.scala	/^    case class Error(pos: Position, msgKey: String, msgArgs: List[String]) {$/;"	classes	line:8
 Expr	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Ast.scala	/^    sealed abstract trait Expr extends Stmt {$/;"	traits	line:408
 ExtendedSeq	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Util.scala	/^    class ExtendedSeq[E](seq: Seq[E]) {$/;"	classes	line:16
@@ -135,9 +135,9 @@ This	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Name.scala	/^    va
 Tmpl	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Ast.scala	/^    abstract class Tmpl(l: String, r: String) extends Expr {$/;"	classes	line:424
 Tokens	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Parse.scala	/^    type Tokens = StdTokens$/;"	types	line:51
 Tuple	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Ast.scala	/^    case class Tuple(exprs: List[NE], ty: Ty) extends LoweredExpr {$/;"	classes	line:414
-TuplePattern	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Ast.scala	/^    case class TuplePattern($/;"	classes	line:292
-TuplePattern	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Ast.scala	/^    case class TuplePattern($/;"	classes	line:259
-TuplePattern	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Symbol.scala	/^    sealed case class TuplePattern(patterns: List[Pattern]) extends Pattern {$/;"	classes	line:142
+TupleParam	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Ast.scala	/^    case class TupleParam($/;"	classes	line:292
+TupleParam	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Ast.scala	/^    case class TupleParam($/;"	classes	line:259
+TupleParam	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Symbol.scala	/^    sealed case class TupleParam(patterns: List[Pattern]) extends Pattern {$/;"	classes	line:142
 TupleType	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Ast.scala	/^    case class TupleType(types: List[TypeRef]) extends TypeRef {$/;"	classes	line:333
 TupleType	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Symbol.scala	/^    case class TupleType(typeRefs: List[Type]) extends Type$/;"	classes	line:149
 Ty	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Ast.scala	/^        type Ty = Type.Ref$/;"	types	line:608
@@ -415,7 +415,7 @@ optFields	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Symbol.scala	/
 optMethods	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Symbol.scala	/^        var optMethods: Option[List[Symbol.Method]] = None$/;"	local variables	line:78
 optSym	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Lower.scala	/^            val optSym = lookupField(state, owner.ty, expr.name.name)$/;"	constants	line:520
 optSym	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Lower.scala	/^            val optSym = lookupField(state, owner.ty, path.name.name)$/;"	constants	line:309
-optTuplePattern	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Parse.scala	/^    lazy val optTuplePattern = positioned($/;"	constants	line:117
+optTupleParam	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Parse.scala	/^    lazy val optTupleParam = positioned($/;"	constants	line:117
 optTypeFromLvalue	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Lower.scala	/^        def optTypeFromLvalue(lvalue0: in.Pattern): Option[Type.Ref] = {$/;"	methods	line:410
 outPattern	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Lower.scala	/^                    val outPattern = lowerLvalue(outRvalue.ty, lvalue)$/;"	constants	line:389
 outRvalue	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Lower.scala	/^                    val outRvalue = lowerExpr(optExpTy)(rvalue)$/;"	constants	line:388
@@ -519,7 +519,7 @@ resolveStmt	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Resolve.scal
 resolveStmts	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Resolve.scala	/^        def resolveStmts(stmts: List[in.Stmt]) = stmts.map(resolveStmt)$/;"	methods	line:170
 resolveToQualName	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Resolve.scala	/^        def resolveToQualName(rn: in.RelName): Name.Qual = rn match {$/;"	methods	line:30
 resolveTuple	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Resolve.scala	/^        def resolveTuple(tuple: in.Tuple) = withPosOf(tuple, out.Tuple($/;"	methods	line:207
-resolveTuplePattern	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Resolve.scala	/^        def resolveTuplePattern(tuplePat: in.TuplePattern) = withPosOf(tuplePat, out.TuplePattern($/;"	methods	line:79
+resolveTupleParam	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Resolve.scala	/^        def resolveTupleParam(tuplePat: in.TupleParam) = withPosOf(tuplePat, out.TupleParam($/;"	methods	line:79
 resolveTypeArg	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Resolve.scala	/^        def resolveTypeArg(targ: in.TypeArg): out.TypeArg = withPosOf(targ, targ match {$/;"	methods	line:157
 resolveTypeRef	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Resolve.scala	/^        def resolveTypeRef(tref: in.TypeRef): out.TypeRef = withPosOf(tref, tref match {$/;"	methods	line:151
 resolveTypeTypeArg	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Resolve.scala	/^        def resolveTypeTypeArg(targ: in.TypeTypeArg): out.TypeTypeArg = withPosOf(targ, out.TypeTypeArg($/;"	methods	line:162

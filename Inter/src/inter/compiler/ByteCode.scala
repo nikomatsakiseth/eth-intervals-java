@@ -213,21 +213,21 @@ class ByteCode(state: CompilationState) {
         val empty = SymbolSummary(Set(), Set(), Set(), Set())
     }
 
-    def symbolsReassignedInLvalue(lvalue: in.Pattern[in.OptionalTypeRef]): List[Symbol.Var] = lvalue match {
-        case in.TuplePattern(lvalues, _) => lvalues.flatMap(symbolsReassignedInLvalue)
-        case in.VarPattern(_, in.InferredTypeRef(), _, sym) => List(sym)
-        case in.VarPattern(_, _, _, _) => Nil
+    def symbolsReassignedInLocal(local: in.Local): List[Symbol.Var] = local match {
+        case in.TupleLocal(locals) => locals.flatMap(symbolsReassignedInLocal)
+        case in.VarLocal(_, in.InferredTypeRef(), _, sym) => List(sym)
+        case in.VarLocal(_, _, _, _) => Nil
     }
     
-    def symbolsDeclaredInLvalue(lvalue: in.Pattern[in.OptionalTypeRef]): List[Symbol.Var] = lvalue match {
-        case in.TuplePattern(lvalues, _) => lvalues.flatMap(symbolsDeclaredInLvalue)
-        case in.VarPattern(_, in.InferredTypeRef(), _, _) => Nil
-        case in.VarPattern(_, _, _, sym) => List(sym)
+    def symbolsDeclaredInLocal(local: in.Local): List[Symbol.Var] = local match {
+        case in.TupleLocal(locals) => locals.flatMap(symbolsDeclaredInLocal)
+        case in.VarLocal(_, in.InferredTypeRef(), _, _) => Nil
+        case in.VarLocal(_, _, _, sym) => List(sym)
     }
     
     def summarizeSymbolsInExpr(summary: SymbolSummary, expr: in.Expr): SymbolSummary = {
         expr match {
-            case in.Tuple(exprs, _) => exprs.foldLeft(summary)(summarizeSymbolsInExpr)
+            case in.Tuple(exprs) => exprs.foldLeft(summary)(summarizeSymbolsInExpr)
             case tmpl: in.Tmpl => {
                 val summaryTmpl = summarizeSymbolsInStmts(tmpl.stmts)
                 summary.copy(
@@ -237,7 +237,7 @@ class ByteCode(state: CompilationState) {
                 )
             }
             case in.Literal(_, _) => summary
-            case in.Var(_, sym, _) => summary.copy(readSyms = summary.readSyms + sym)
+            case in.Var(_, sym) => summary.copy(readSyms = summary.readSyms + sym)
             case in.Field(owner, _, _, _) => summarizeSymbolsInExpr(summary, owner)
             case in.MethodCall(receiver, parts, _, _) => {
                 val receiverSummary = summarizeSymbolsInExpr(summary, receiver)
@@ -258,10 +258,10 @@ class ByteCode(state: CompilationState) {
                 stmts.foldLeft(summary)(summarizeSymbolsInStmt)
             }
             
-            case in.Assign(lvalue, expr) => {
+            case in.Assign(local, expr) => {
                 summarizeSymbolsInExpr(summary, expr).copy(
-                    declaredSyms = summary.declaredSyms ++ symbolsDeclaredInLvalue(lvalue),
-                    writeSyms = summary.writeSyms ++ symbolsReassignedInLvalue(lvalue)
+                    declaredSyms = summary.declaredSyms ++ symbolsDeclaredInLocal(local),
+                    writeSyms = summary.writeSyms ++ symbolsReassignedInLocal(local)
                 )
             }
         }
@@ -275,7 +275,7 @@ class ByteCode(state: CompilationState) {
     
     def constructAccessMap(
         receiverSymbol: Symbol.Var, 
-        parameterPatterns: List[in.Pattern[in.TypeRef]], 
+        parameterPatterns: List[in.Param],
         stmts: List[in.Stmt]
     ) = {
         val accessMapParams = AccessMap(receiverSymbol :: parameterPatterns.flatMap(_.symbols))
@@ -296,15 +296,15 @@ class ByteCode(state: CompilationState) {
           */
         def evalExpr(expr: in.Expr) {
             expr match {
-                case in.Tuple(List(), _) => {
+                case in.Tuple(List()) => {
                     mvis.visitInsn(O.ACONST_NULL)
                 }
                 
-                case in.Tuple(List(expr), _) => {
+                case in.Tuple(List(expr)) => {
                     evalExpr(expr)
                 }
                 
-                case in.Tuple(exprs, _) => {
+                case in.Tuple(exprs) => {
                     mvis.pushIntegerConstant(exprs.length)
                     mvis.visitTypeInsn(O.ANEWARRAY, asmObjectType.getInternalName)
                     exprs.zipWithIndex.foreach { case (expr, index) =>
@@ -326,7 +326,7 @@ class ByteCode(state: CompilationState) {
                     mvis.visitLdcInsn(obj)
                 }
                 
-                case in.Var(name, sym, _) => {
+                case in.Var(name, sym) => {
                     accessMap.syms(sym).push(mvis)
                 }
                 
@@ -376,13 +376,13 @@ class ByteCode(state: CompilationState) {
           *
           * Stack: ..., value => ...
           */
-        def storeLvalue(lvalue: in.Pattern[_]) {
+        def storeLvalue(lvalue: in.Lvalue) {
             lvalue match {
-                case in.TuplePattern(List(lvalue), _) => {
+                case in.TupleLvalue(List(lvalue), _) => {
                     storeLvalue(lvalue)
                 }
                 
-                case in.TuplePattern(lvalues, Type.Tuple(tys)) => {
+                case in.TupleLvalue(lvalues, Type.Tuple(tys)) => {
                     lvalues.zip(tys).zipWithIndex.foreach { case ((lvalue, ty), idx) =>
                         mvis.visitInsn(O.DUP)
                         mvis.pushIntegerConstant(idx)
@@ -490,7 +490,7 @@ class ByteCode(state: CompilationState) {
             val minter = inter.visitMethod(
                 O.ACC_PUBLIC,
                 mdecl.name.javaName,
-                methodDesc(mdecl.returnTy, mdecl.parts.map(_.pattern)),
+                methodDesc(mdecl.returnTy, mdecl.params),
                 null, // generic signature
                 null  // thrown exceptions
             )
