@@ -1,6 +1,6 @@
 import re
 
-COMPILE_CMD = ["./interc", "--no-localize", "-sourcepath", "test", "@compile_opts", "$filenm"]
+COMPILE_CMD = ["./interc", "--no-localize", "--dump-bytecode", "-d", "bin-test", "-sourcepath", "test", "@compile_opts", "$filenm"]
 EXECUTE_CMD = ["inter", "$classnm"]
 EXTENSION = ".inter"
 

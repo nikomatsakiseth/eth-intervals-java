@@ -11,6 +11,7 @@ class CompilationState(
 ) {
     val symtab = new SymbolTable()
     val toBeLowered = new Queue[Symbol.ClassFromInterFile]()
+    val toBeBytecoded = new Queue[Symbol.ClassFromInterFile]()
     val inferStack = new HashSet[Symbol.MemberId]()
     val inferReported = new HashSet[Symbol.MemberId]()
     val intrinsics = new HashMap[(Type.Ref, Name.Method), List[Symbol.Method]]()
@@ -130,6 +131,7 @@ class CompilationState(
         while(!toBeLowered.isEmpty) {
             val csym = toBeLowered.dequeue()
             csym.loweredSource = Lower(this).lowerClassDecl(csym.resolvedSource)
+            toBeBytecoded += csym
             
             if(config.dumpLoweredTrees) {
                 csym.loweredSource.println(PrettyPrinter.stdout)
@@ -137,6 +139,11 @@ class CompilationState(
         }
         
         if(reporter.hasErrors) return
+        
+        while(!toBeBytecoded.isEmpty) {
+            val csym = toBeBytecoded.dequeue()
+            ByteCode(this).writeClassSymbol(csym)
+        }
     }
     
 }

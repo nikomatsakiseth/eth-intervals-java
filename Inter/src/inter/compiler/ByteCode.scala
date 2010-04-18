@@ -19,7 +19,7 @@ import Util._
   *   members making it suitable for use for any new statement
   *   that does not define new members.
   */
-class ByteCode(state: CompilationState) {
+case class ByteCode(state: CompilationState) {
     
     val interSuffix = ""
     val implSuffix = "$"
@@ -28,6 +28,17 @@ class ByteCode(state: CompilationState) {
     
     val asmObjectArrayType = asm.Type.getType("[Ljava/lang/Object;")
     val asmObjectType = asm.Type.getObjectType("java/lang/Object")
+    
+    val primitives = Map[java.lang.Class[_], asm.Type](
+        (classOf[java.lang.Boolean] -> asm.Type.BOOLEAN_TYPE),
+        (classOf[java.lang.Byte] -> asm.Type.BYTE_TYPE),
+        (classOf[java.lang.Character] -> asm.Type.CHAR_TYPE),
+        (classOf[java.lang.Short] -> asm.Type.SHORT_TYPE),
+        (classOf[java.lang.Integer] -> asm.Type.INT_TYPE),
+        (classOf[java.lang.Long] -> asm.Type.LONG_TYPE),
+        (classOf[java.lang.Float] -> asm.Type.FLOAT_TYPE),
+        (classOf[java.lang.Double] -> asm.Type.DOUBLE_TYPE)
+    )
     
     def asmType(ty: Type.Ref) = ty match {
         case Type.Class(name, List()) => asm.Type.getObjectType(name.internalName)
@@ -185,11 +196,13 @@ class ByteCode(state: CompilationState) {
             maxIndex += 1
         }
         
-        def createArray(mvis: asm.MethodVisitor) = {
-            boxedArrayPath.pushLvalue(mvis)
-            mvis.pushIntegerConstant(maxIndex)
-            mvis.visitTypeInsn(O.ANEWARRAY, asmObjectType.getInternalName)
-            boxedArrayPath.storeLvalue(mvis)
+        def createArrayIfNeeded(mvis: asm.MethodVisitor) = {
+            if(maxIndex > 0) {
+                boxedArrayPath.pushLvalue(mvis)
+                mvis.pushIntegerConstant(maxIndex)
+                mvis.visitTypeInsn(O.ANEWARRAY, asmObjectType.getInternalName)
+                boxedArrayPath.storeLvalue(mvis)                
+            }
         }
     }
     
@@ -295,7 +308,8 @@ class ByteCode(state: CompilationState) {
             if(summary.boxedSyms(sym)) boxedArray.addBoxedSym(sym)
             else accessMap.addUnboxedSym(sym)
         }
-        boxedArray.createArray(mvis)
+        boxedArray.createArrayIfNeeded(mvis)
+        accessMap
     }
     
     class StatementVisitor(accessMap: AccessMap, mvis: asm.MethodVisitor) {
@@ -442,8 +456,23 @@ class ByteCode(state: CompilationState) {
                     throw new RuntimeException("TODO")                    
                 }
                 
+                case in.Literal(obj: java.lang.String, _) => {
+                    mvis.visitLdcInsn(obj)
+                }
+                
                 case in.Literal(obj, _) => {
                     mvis.visitLdcInsn(obj)
+                    
+                    val objClass = obj.getClass
+                    val classType = asm.Type.getType(objClass)
+                    val primType = primitives(objClass)
+                    
+                    mvis.visitMethodInsn(
+                        O.INVOKESTATIC,
+                        classType.getInternalName,
+                        "valueOf",
+                        asm.Type.getMethodDescriptor(classType, Array(primType))
+                    )
                 }
                 
                 case in.Var(name, sym) => {
@@ -506,7 +535,7 @@ class ByteCode(state: CompilationState) {
             }
         }
         
-        /** Executes `stmt`.  Stack is unaffected.
+        /** Executes `stmt` and discards the result.
           *
           * Stack: ... => ...
           */
@@ -523,6 +552,21 @@ class ByteCode(state: CompilationState) {
 
                 case in.Assign(lvalue, rvalue) => {
                     store(lvalue, rvalue)
+                }
+            }
+        }
+
+        /** Executes `stmt` and pushes the result 
+          * onto the stack. */
+        def pushStatement(stmt: in.Stmt) {
+            stmt match {
+                case expr: in.Expr => {
+                    pushExprValue(expr)
+                }
+                
+                case _ => {
+                    execStatement(stmt)
+                    mvis.visitInsn(O.ACONST_NULL)                                        
                 }
             }
         }
@@ -584,6 +628,12 @@ class ByteCode(state: CompilationState) {
             Array(csym.name.internalName)
         )
         
+        def visitMember(mem: in.MemberDecl) = mem match {
+            case decl: in.FieldDecl => // TODO
+            case decl: in.MethodDecl => visitMethod(decl)
+            case _ => // TODO
+        }
+        
         def visitMethod(mdecl: in.MethodDecl) = {
             val paramTys = mdecl.params.map(_.ty)
             
@@ -603,6 +653,20 @@ class ByteCode(state: CompilationState) {
                 null  // thrown exceptions                
             )
             
+            mdecl.optBody.foreach { body =>
+                val accessMap = constructAccessMap(
+                    mimpl, 
+                    mdecl.receiverSym, 
+                    mdecl.params, 
+                    body.stmts
+                )
+                
+                val stmtVisitor = new StatementVisitor(accessMap, mimpl)
+                body.stmts.dropRight(1).foreach(stmtVisitor.execStatement)
+                body.stmts.takeRight(1).foreach(stmtVisitor.pushStatement)
+                mimpl.visitInsn(O.ARETURN)
+            }
+            
             mimpl.visitEnd
             minter.visitEnd
         }
@@ -614,6 +678,7 @@ class ByteCode(state: CompilationState) {
         ) = {
             val clsFile = file(qualName, suffix, ".class")
             try {
+                clsFile.getParentFile.mkdirs
                 val out = new java.io.FileOutputStream(clsFile)
                 out.write(classWriter.toByteArray)
                 out.close()
@@ -639,8 +704,9 @@ class ByteCode(state: CompilationState) {
     }
     
     def writeClassSymbol(csym: Symbol.ClassFromInterFile) = {
-        // XXX Need to generate only a class if we extend a Java class.
-        val visitors = new ClassVisitors(csym)
+        val cvis = new ClassVisitors(csym)
+        csym.loweredSource.members.foreach(cvis.visitMember)
+        cvis.end
     }
     
 }

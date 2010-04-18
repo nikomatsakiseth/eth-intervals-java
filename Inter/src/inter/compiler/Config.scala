@@ -88,6 +88,9 @@ class Config
                 } else if(args(i) == "--dump-lowered-trees") {
                     dumpLoweredTrees = true
                     i += 1
+                } else if(args(i) == "--dump-bytecode") {
+                    dumpBytecode = true
+                    i += 1
                 } else if(args(i) == "--no-reflection") {
                     useReflection = false
                     i += 1
