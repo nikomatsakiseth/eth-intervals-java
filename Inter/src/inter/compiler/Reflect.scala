@@ -55,10 +55,12 @@ object Reflect {
         new Symbol.Method(
             kind = Symbol.JavaVirtual, // XXX 
             name = Name.Method(List(mthd.getName)),
-            returnTy = typeRef(mthd.getGenericReturnType),
-            receiver = Pattern.Var(Name.This, Type.Class(clsName, List())),
-            parameterPatterns = List(Pattern.Tuple(
-                mthd.getGenericParameterTypes.toList.zipWithIndex.map(paramPattern)))
+            Symbol.MethodSignature(
+                returnTy = typeRef(mthd.getGenericReturnType),
+                receiver = Pattern.Var(Name.This, Type.Class(clsName, List())),
+                parameterPatterns = List(Pattern.Tuple(
+                    mthd.getGenericParameterTypes.toList.zipWithIndex.map(paramPattern)))
+            )
         )
     }
     

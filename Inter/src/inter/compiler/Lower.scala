@@ -144,9 +144,11 @@ case class Lower(state: CompilationState) {
                     new Symbol.Method(
                         kind = Symbol.Inter,
                         name = mthdName,
-                        returnTy = outMdecl.returnTy,
-                        receiver = Pattern.Var(Name.This, Type.Class(csym.name, List())),
-                        parameterPatterns = memberId.parameterPatterns
+                        Symbol.MethodSignature(
+                            returnTy = outMdecl.returnTy,
+                            receiver = Pattern.Var(Name.This, Type.Class(csym.name, List())),
+                            parameterPatterns = memberId.parameterPatterns
+                        )                        
                     )
                 }
             }
@@ -155,9 +157,11 @@ case class Lower(state: CompilationState) {
                 new Symbol.Method(
                     kind = Symbol.Inter,
                     name = mthdName,
-                    returnTy = symbolType(returnTy),
-                    receiver = Pattern.Var(Name.This, Type.Class(csym.name, List())),
-                    parameterPatterns = parts.map(p => symbolPattern(p.param))
+                    Symbol.MethodSignature(
+                        returnTy = symbolType(returnTy),
+                        receiver = Pattern.Var(Name.This, Type.Class(csym.name, List())),
+                        parameterPatterns = parts.map(p => symbolPattern(p.param))
+                    )
                 )
             }
         }
@@ -581,9 +585,9 @@ case class Lower(state: CompilationState) {
             }
         }
         
-        def mthdSubst(msym: Symbol.Method, rcvr: Ast#Expr, parts: List[Ast#CallPart]) = {
+        def mthdSubst(msig: Symbol.MethodSignature, rcvr: Ast#Expr, parts: List[Ast#CallPart]) = {
             patSubsts(
-                msym.receiver   ::  msym.parameterPatterns, 
+                msig.receiver   ::  msig.parameterPatterns, 
                 rcvr            ::  parts.map(_.arg)
             )
         }
@@ -627,10 +631,11 @@ case class Lower(state: CompilationState) {
                 // Exactly one match: We can do more with inferencing
                 // in this case, as we know the expected type.
                 case List(msym) => {
-                    val subst = mthdSubst(msym, mcall.rcvr, mcall.parts)
-                    val optExpTys = msym.parameterPatterns.map(p => Some(subst.ty(p.ty)))
+                    val subst = mthdSubst(msym.msig, mcall.rcvr, mcall.parts)
+                    val optExpTys = msym.msig.parameterPatterns.map(p => Some(subst.ty(p.ty)))
                     val parts = optExpTys.zip(mcall.parts).map { case (e,p) => lowerPart(e)(p) }
-                    out.MethodCall(rcvr, parts, msym, subst.ty(msym.returnTy))
+                    val msig = subst.methodSignature(msym.msig)
+                    out.MethodCall(rcvr, parts, (msym, msig))
                 }
                 
                 // Multiple matches: have to type the arguments without hints.
@@ -641,8 +646,8 @@ case class Lower(state: CompilationState) {
                     // Find those symbols that are potentially applicable
                     // to the arguments provided:
                     def potentiallyApplicable(msym: Symbol.Method) = {
-                        val subst = mthdSubst(msym, rcvr, parts)
-                        val parameterTys = msym.parameterPatterns.map(p => subst.ty(p.ty))
+                        val subst = mthdSubst(msym.msig, rcvr, parts)
+                        val parameterTys = msym.msig.parameterPatterns.map(p => subst.ty(p.ty))
                         // XXX Add suitable temps to the environment for the vars ref'd in subst.
                         partTys.zip(parameterTys).forall { case (p, a) => env.isSuitableArgument(p, a) }
                     }
@@ -651,12 +656,12 @@ case class Lower(state: CompilationState) {
                     // Try to find an unambiguously "best" choice:
                     def isBetterChoiceThan(msym_better: Symbol.Method, msym_worse: Symbol.Method) = {
                         Pattern.optSubst(
-                            msym_better.parameterPatterns,
-                            msym_worse.parameterPatterns
+                            msym_better.msig.parameterPatterns,
+                            msym_worse.msig.parameterPatterns
                         ) match {
                             case None => false
                             case Some(subst) => {
-                                msym_better.parameterPatterns.zip(msym_worse.parameterPatterns).forall {
+                                msym_better.msig.parameterPatterns.zip(msym_worse.msig.parameterPatterns).forall {
                                     case (pat_better, pat_worse) =>
                                         env.isSuitableArgument(subst.ty(pat_better.ty), pat_worse.ty)
                                 }
@@ -672,8 +677,9 @@ case class Lower(state: CompilationState) {
                     
                     (bestMsyms, applicableMsyms) match {
                         case (List(msym), _) => {
-                            val subst = mthdSubst(msym, rcvr, parts)
-                            out.MethodCall(rcvr, parts, msym, subst.ty(msym.returnTy))
+                            val subst = mthdSubst(msym.msig, rcvr, parts)
+                            val msig = subst.methodSignature(msym.msig)
+                            out.MethodCall(rcvr, parts, (msym, msig))
                         }
                         
                         case (List(), List()) => {

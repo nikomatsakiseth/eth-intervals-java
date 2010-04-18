@@ -44,9 +44,12 @@ object Intrinsic {
                 val msym = new Symbol.Method(
                     kind = Symbol.IntrinsicMath,
                     name = op, 
-                    returnTy = returnTy,
-                    receiver = Pattern.Var(Name.This, leftTy),
-                    parameterPatterns = List(Pattern.Var(Name.Var("arg"), rightTy)))
+                    Symbol.MethodSignature(
+                        returnTy = returnTy,
+                        receiver = Pattern.Var(Name.This, leftTy),
+                        parameterPatterns = List(Pattern.Var(Name.Var("arg"), rightTy))
+                    )
+                )
                 state.addIntrinsic(leftTy, msym)
             }
         }

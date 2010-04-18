@@ -240,7 +240,7 @@ class ByteCode(state: CompilationState) {
             case in.Literal(_, _) => summary
             case in.Var(_, sym) => summary.copy(readSyms = summary.readSyms + sym)
             case in.Field(owner, _, _, _) => summarizeSymbolsInExpr(summary, owner)
-            case in.MethodCall(receiver, parts, _, _) => {
+            case in.MethodCall(receiver, parts, _) => {
                 val receiverSummary = summarizeSymbolsInExpr(summary, receiver)
                 parts.map(_.arg).foldLeft(receiverSummary)(summarizeSymbolsInExpr)
             }
@@ -333,7 +333,7 @@ class ByteCode(state: CompilationState) {
                 case (_, in.Tuple(List(subexpr))) =>
                     pushRvalues(lvalue, subexpr)
                     
-                case (Pattern.Tuple(sublvalues, _), in.Tuple(subexprs)) 
+                case (Pattern.Tuple(sublvalues), in.Tuple(subexprs)) 
                 if sameLength(sublvalues, subexprs) =>
                     sublvalues.zip(subexprs).foreach { case (l, e) => pushRvalues(l, e) }
                     
@@ -447,13 +447,13 @@ class ByteCode(state: CompilationState) {
                     pushExprValue(owner)
                 }
                 
-                case in.MethodCall(receiver, parts, (sym, msig), _) => {
+                case in.MethodCall(receiver, parts, (sym, msig)) => {
                     def callWithOpcode(op: Int) = {
                         pushExprValue(receiver)
                         msig.parameterPatterns.zip(parts).foreach { case (pattern, part) =>
                             pushRvalues(pattern, part.arg)
                         }
-                        mvis.visitMethodInsn(op, owner, sym.name.javaName, desc)
+                        //mvis.visitMethodInsn(op, owner, sym.name.javaName, desc)
                     }
                     
                     sym.kind match {

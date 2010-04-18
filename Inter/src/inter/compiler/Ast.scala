@@ -7,7 +7,7 @@ import scala.util.parsing.input.Position
 import scala.util.parsing.input.NoPosition
 import Util._
 
-class Ast {
+abstract class Ast {
     
     import Ast.Node    
     import Ast.PkgName
@@ -43,6 +43,7 @@ class Ast {
     
     def symTy(vsym: VSym): Ty
     def tupleTy(tys: List[Ty]): TyTuple
+    def returnTy(data: MCallData): Ty
     
     private def printSepFunc(out: PrettyPrinter, asts: List[Node], sepfunc: (() => Unit)) {
         asts.dropRight(1).foreach { ast =>
@@ -494,10 +495,11 @@ class Ast {
             arg.print(out)
         }        
     }
-    case class MethodCall(rcvr: NE, parts: List[CallPart], data: MCallData, ty: Ty)
+    case class MethodCall(rcvr: NE, parts: List[CallPart], data: MCallData)
     extends Expr {
         def name = Name.Method(parts.map(_.ident))
         def args = parts.map(_.arg)
+        def ty = returnTy(data)
         override def toString = "%s %s".format(rcvr, parts.mkString(" "))
         
         override def print(out: PrettyPrinter) {
@@ -602,12 +604,13 @@ object Ast {
         type CSym = Unit
         type VSym = Unit
         type MSym = Unit
-        type MCallData = (Symbol.Method, Symbol.MethodSignature)
+        type MCallData = Unit
         type Ty = Unit
         type TyTuple = Unit
         
         def symTy(unit: Unit) = ()
         def tupleTy(tys: List[Ty]) = ()
+        def returnTy(unit: Unit) = ()
     }
     
     /** After Resolve(): relative names resolved. */
@@ -618,12 +621,13 @@ object Ast {
         type CSym = Unit
         type VSym = Unit
         type MSym = Unit
-        type MCallData = (Symbol.Method, Symbol.MethodSignature)
+        type MCallData = Unit
         type Ty = Unit
         type TyTuple = Unit
 
         def symTy(unit: Unit) = ()
         def tupleTy(tys: List[Ty]) = ()
+        def returnTy(unit: Unit) = ()
     }
 
     /** After Lower(): types inferred (but not checked!) and 
@@ -641,10 +645,11 @@ object Ast {
 
         def symTy(vsym: Symbol.Var) = vsym.ty
         def tupleTy(tys: List[Type.Ref]) = Type.Tuple(tys)
+        def returnTy(data: MCallData) = data._2.returnTy
         
         def toPattern(lvalue: Lvalue): Pattern.Ref = lvalue match {
             case TupleLvalue(lvalues, _) => Pattern.Tuple(lvalues.map(toPattern))
-            case VarLvalue(_, _, name, ty) => Pattern.Var(name.name, ty)
+            case VarLvalue(_, _, name, sym) => Pattern.Var(name.name, sym.ty)
         }
     }
     

@@ -305,8 +305,8 @@ class Parse extends StdTokenParsers with PackratParsers {
     )
     
     lazy val mthdCall = positioned(
-        rcvr~rep1(callPart)                 ^^ { case r~cp => out.MethodCall(r, cp, (), ()) }
-    |   impThis~rep1(callPart)              ^^ { case r~cp => out.MethodCall(r, cp, (), ()) }
+        rcvr~rep1(callPart)                 ^^ { case r~cp => out.MethodCall(r, cp, ()) }
+    |   impThis~rep1(callPart)              ^^ { case r~cp => out.MethodCall(r, cp, ()) }
     )
     
     lazy val unary = mthdCall | field | rcvr
@@ -314,7 +314,7 @@ class Parse extends StdTokenParsers with PackratParsers {
     lazy val expr: PackratParser[out.Expr] = (
         unary~rep1(oper~unary) ^^ { case l~rs => 
             val parts = rs.map { case o~r => out.CallPart(o, r) }
-            out.MethodCall(l, parts, (), ())
+            out.MethodCall(l, parts, ())
         }
     |   unary 
     )

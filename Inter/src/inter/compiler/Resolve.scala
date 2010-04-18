@@ -196,7 +196,7 @@ object Resolve {
             case e: in.Literal => resolveLiteral(e)
             case in.Var(name, ()) => out.Var(name, ())
             case in.Field(owner, name, (), ()) => out.Field(resolveExpr(owner), name, (), ())
-            case in.MethodCall(rcvr, parts, (), ()) => out.MethodCall(resolveExpr(rcvr), parts.map(resolvePart), (), ())
+            case in.MethodCall(rcvr, parts, ()) => out.MethodCall(resolveExpr(rcvr), parts.map(resolvePart), ())
             case in.NewJava(tref, arg, ()) => out.NewJava(resolveTypeRef(tref), resolveTuple(arg), ())
             case in.Null(()) => out.Null(())
             case in.ImpVoid(()) => out.ImpVoid(())
