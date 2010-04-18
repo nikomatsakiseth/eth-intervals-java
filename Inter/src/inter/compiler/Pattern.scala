@@ -11,8 +11,8 @@ object Pattern {
         val ty: Type.Ref
     ) extends Ref
     
-    case class Tuple(patterns: List[Ref]) extends Ref {
-        def ty = Type.Tuple(patterns.map(_.ty))
+    case class Tuple(patterns: List[Pattern.Ref]) extends Ref {
+        def ty: Type.Tuple = Type.Tuple(patterns.map(_.ty))
     }
     
     def createVarSymbols(p: Pattern.Ref): List[Symbol.Var] = p match {

@@ -38,6 +38,9 @@ class Ast {
     /** Data attached to method declarations, calls */
     type MSym
     
+    /** Data attached to method calls */
+    type MCallData
+    
     def symTy(vsym: VSym): Ty
     def tupleTy(tys: List[Ty]): TyTuple
     
@@ -491,7 +494,7 @@ class Ast {
             arg.print(out)
         }        
     }
-    case class MethodCall(rcvr: NE, parts: List[CallPart], sym: MSym, ty: Ty)
+    case class MethodCall(rcvr: NE, parts: List[CallPart], data: MCallData, ty: Ty)
     extends Expr {
         def name = Name.Method(parts.map(_.ident))
         def args = parts.map(_.arg)
@@ -599,6 +602,7 @@ object Ast {
         type CSym = Unit
         type VSym = Unit
         type MSym = Unit
+        type MCallData = (Symbol.Method, Symbol.MethodSignature)
         type Ty = Unit
         type TyTuple = Unit
         
@@ -614,6 +618,7 @@ object Ast {
         type CSym = Unit
         type VSym = Unit
         type MSym = Unit
+        type MCallData = (Symbol.Method, Symbol.MethodSignature)
         type Ty = Unit
         type TyTuple = Unit
 
@@ -630,11 +635,17 @@ object Ast {
         type CSym = Symbol.Class
         type VSym = Symbol.Var
         type MSym = Symbol.Method
+        type MCallData = (Symbol.Method, Symbol.MethodSignature)
         type Ty = Type.Ref
         type TyTuple = Type.Tuple
 
         def symTy(vsym: Symbol.Var) = vsym.ty
         def tupleTy(tys: List[Type.Ref]) = Type.Tuple(tys)
+        
+        def toPattern(lvalue: Lvalue): Pattern.Ref = lvalue match {
+            case TupleLvalue(lvalues, _) => Pattern.Tuple(lvalues.map(toPattern))
+            case VarLvalue(_, _, name, ty) => Pattern.Var(name.name, ty)
+        }
     }
     
 }

@@ -1,11 +1,13 @@
 package inter.compiler
 
 import org.objectweb.asm
+import scala.collection.mutable
 import scala.collection.immutable.Map
 import scala.collection.immutable.Set
 import asm.{Opcodes => O}
 
 import Ast.{Lower => in}
+import Util._
 
 /** The final step in compilation: generates appropriate 
   * .class files for each class.
@@ -34,12 +36,6 @@ class ByteCode(state: CompilationState) {
     }
     
     def methodDesc(returnTy: Type.Ref, parameterTypes: List[Type.Ref]): String = {
-        def types(pattern: Pattern.Ref): List[Type.Ref] = pattern match {
-            case Pattern.Var(_, ty) => List(ty)
-            case Pattern.Tuple(patterns) => patterns.flatMap(types)
-        }
-        
-        val parameterTypes = parameterPatterns.flatMap(types)
         asm.Type.getMethodDescriptor(
             asmType(returnTy),
             parameterTypes.map(asmType).toArray
@@ -149,39 +145,44 @@ class ByteCode(state: CompilationState) {
         }        
     }
     
-    case class AccessMap(
-        syms: Map[Symbol.Var, AccessPath],
-        boxedArrayPath: AccessPath,
-        stashSlot: Int,
-        maxSlot: Int,
-        maxIndex: Int
-    ) {
+    class AccessMap 
+    {
+        val syms = new mutable.HashMap[Symbol.Var, AccessPath]()
+        private[this] var maxSlot = 0
         
+        def pathToFreshSlot(asmTy: asm.Type) = {
+            val slot = maxSlot
+            maxSlot += 1
+            AccessVar(slot, asmTy)
+        }
+
         def addUnboxedSym(sym: Symbol.Var) = {
-            copy(
-                syms = syms + (sym -> AccessVar(maxSlot, asmType(sym.ty))),
-                maxSlot = maxSlot + 1
-            )
+            syms(sym) = pathToFreshSlot(asmType(sym.ty))
         }
         
-        def addBoxedSym(sym: Symbol.Var) = {
-            copy(
-                syms = syms + (sym -> AccessIndex(boxedArrayPath, maxIndex, asmType(sym.ty))),
-                maxIndex = maxIndex + 1
-            )
+        def withStashSlot(func: (Int => Unit)) {
+            val stashSlot = maxSlot
+            maxSlot += 1
+            func(stashSlot)
+            maxSlot -= 1
         }
-        
     }
     
-    object AccessMap {
-        def apply(parameterSymbols: List[Symbol.Var]) = {
-            var accessMap = new AccessMap(Map(), AccessVar(0, asmObjectArrayType), 0, 0, 0)
-            accessMap = parameterSymbols.foldLeft(accessMap)(_ addUnboxedSym _)
-            accessMap.copy(
-                boxedArrayPath = AccessVar(accessMap.maxSlot, asmObjectArrayType),
-                stashSlot = accessMap.maxSlot + 1,
-                maxSlot = accessMap.maxSlot + 2
-            )
+    class BoxedArray(accessMap: AccessMap)
+    {
+        private[this] val boxedArrayPath = accessMap.pathToFreshSlot(asmObjectArrayType)
+        private[this] var maxIndex = 0
+        
+        def addBoxedSym(sym: Symbol.Var) = {
+            accessMap.syms(sym) = AccessIndex(boxedArrayPath, maxIndex, asmType(sym.ty))
+            maxIndex += 1
+        }
+        
+        def createArray(mvis: asm.MethodVisitor) = {
+            boxedArrayPath.pushLvalue(mvis)
+            mvis.pushIntegerConstant(maxIndex)
+            mvis.visitTypeInsn(O.ANEWARRAY, asmObjectType.getInternalName)
+            boxedArrayPath.storeLvalue(mvis)
         }
     }
     
@@ -274,16 +275,20 @@ class ByteCode(state: CompilationState) {
     // ___ Method Bodies ____________________________________________________
     
     def constructAccessMap(
+        mvis: asm.MethodVisitor,
         receiverSymbol: Symbol.Var, 
         parameterPatterns: List[in.Param],
         stmts: List[in.Stmt]
     ) = {
-        val accessMapParams = AccessMap(receiverSymbol :: parameterPatterns.flatMap(_.symbols))
+        val accessMap = new AccessMap()
+        (receiverSymbol :: parameterPatterns.flatMap(_.symbols)).foreach(accessMap.addUnboxedSym)
+        val boxedArray = new BoxedArray(accessMap)
         val summary = summarizeSymbolsInStmts(stmts)
-        summary.declaredSyms.foldLeft(accessMapParams) {
-            case (am, sym) if summary.boxedSyms(sym) => am.addBoxedSym(sym)
-            case (am, sym) => am.addUnboxedSym(sym)
+        summary.declaredSyms.foreach { sym =>
+            if(summary.boxedSyms(sym)) boxedArray.addBoxedSym(sym)
+            else accessMap.addUnboxedSym(sym)
         }
+        boxedArray.createArray(mvis)
     }
     
     class StatementVisitor(accessMap: AccessMap, mvis: asm.MethodVisitor) {
@@ -295,7 +300,7 @@ class ByteCode(state: CompilationState) {
           */
         def store(lvalue: in.Lvalue, rvalue: in.Expr) {
             lvalue match {
-                case in.TupleLvalue(List(sublvalue)) => {
+                case in.TupleLvalue(List(sublvalue), _) => {
                     store(sublvalue, rvalue)
                 }
                 
@@ -308,8 +313,8 @@ class ByteCode(state: CompilationState) {
                 }
                 
                 case _ => {
-                    pushRvalues(lvalue)(rvalue)
-                    popRvalues(lvalue)(rvalue)
+                    pushRvalues(in.toPattern(lvalue), rvalue)
+                    popRvalues(lvalue, rvalue)
                 }
             }
         }
@@ -320,27 +325,29 @@ class ByteCode(state: CompilationState) {
           * pattern like `((a, b), c)`, then the values for `a`, `b`, 
           * and `c` would be pushed in that order.
           */
-        def pushRvalues(lvalue: in.Lvalue, rvalue: in.Expr) {
+        def pushRvalues(lvalue: Pattern.Ref, rvalue: in.Expr) {
             (lvalue, rvalue) match {
-                case (in.TupleLvalue(List(sublvalue), _), _) =>
+                case (Pattern.Tuple(List(sublvalue)), _) =>
                     pushRvalues(sublvalue, rvalue)
                     
                 case (_, in.Tuple(List(subexpr))) =>
                     pushRvalues(lvalue, subexpr)
                     
-                case (in.TupleLvalue(sublvalues, _), in.Tuple(subexprs)) 
+                case (Pattern.Tuple(sublvalues, _), in.Tuple(subexprs)) 
                 if sameLength(sublvalues, subexprs) =>
                     sublvalues.zip(subexprs).foreach { case (l, e) => pushRvalues(l, e) }
                     
-                case _ => 
-                    pushExprValue(expr)
+                case _ => {
+                    pushExprValue(rvalue)
+                    expand(lvalue)                    
+                }
             }
         }
         
         /** Pops the rvalues which were pushed by `pushRvalues(lvalue)(rvalue)`,
           * storing them into `lvalue`. */
-        def popRvalues(lvalue: in.Lvalue)(rvalue: in.Expr) {
-            (lvalue, expr) match {
+        def popRvalues(lvalue: in.Lvalue, rvalue: in.Expr) {
+            (lvalue, rvalue) match {
                 case (in.TupleLvalue(List(sublvalue), _), _) =>
                     popRvalues(sublvalue, rvalue)
                     
@@ -351,37 +358,48 @@ class ByteCode(state: CompilationState) {
                 if sameLength(sublvalues, subexprs) =>
                     sublvalues.zip(subexprs).reverse.foreach { case (l, e) => popRvalues(l, e) }
                     
-                case _ => 
-                    popValueIntoLvalue(lvalue)
+                case _ => {
+                    contract(lvalue)                    
+                }
             }
         }
         
-        /** Pops a single from the stack, storing it into `lvalue`.  If `lvalue` is 
-          * a tuple this may cause the value to be expanded (which could cause a 
-          * `NullPointerException` at runtime). */
-        def popValueIntoLvalue(lvalue: in.Lvalue) {
-            // Stack: ..., value
+        def expand(lvalue: Pattern.Ref) {
             lvalue match {
-                case (in.TupleLvalue(sublvalues, tys), _) => {
-                    mvis.visitIntInsn(O.ASTORE, stashSlot) // Stack: ...
-                    sublvalues.zip(tys).zipWithIndex.foreach { case ((sublvalue, ty), idx) =>
-                        mvis.visitIntInsn(O.ALOAD, stashSlot) // Stack: ..., array
-                        mvis.pushIntegerConstant(idx) // Stack: ..., array, index
-                        mvis.visitInsn(O.AALOAD) // Stack: ..., array[index]
-                        mvis.downcast(ty) // Stack: ..., array[index]
+                case Pattern.Tuple(sublvalues) => {
+                    accessMap.withStashSlot { stashSlot =>
+                        mvis.visitIntInsn(O.ASTORE, stashSlot) // Stack: ...
+                        sublvalues.zipWithIndex.foreach { case (sublvalue, idx) =>
+                            mvis.visitIntInsn(O.ALOAD, stashSlot) // Stack: ..., array
+                            mvis.pushIntegerConstant(idx) // Stack: ..., array, index
+                            mvis.visitInsn(O.AALOAD) // Stack: ..., array[index]
+                            mvis.downcast(sublvalue.ty) // Stack: ..., array[index]
+                            expand(sublvalue) 
+                        }
+                        // Stack: ..., array[0], ..., array[N]
                     }
-                    // Stack: ..., array[0], ..., array[N]
-                    tupLvalue.lvalues.reverse.foreach(popValueIntoLvalue)
+                }
+
+                case _: Pattern.Var => 
+            }
+        }
+        
+        def contract(lvalue: in.Lvalue) {
+            lvalue match {
+                case in.TupleLvalue(sublvalues, _) => {
+                    sublvalues.reverse.foreach(contract)
                 }
 
                 case in.VarLvalue(_, _, _, sym) => {
-                    import accessMap.stashSlot
-                    mvis.visitIntInsn(O.ASTORE, stashSlot) // Stack: ...
-                    val accessPath = accessMap.syms(sym)
-                    accessPath.pushLvalue(mvis)
-                    mvis.visitIntInsn(O.ALOAD, stashSlot) // Stack: ..., value
-                    accessPath.storeLvalue(mvis)
-                }                
+                    accessMap.withStashSlot { stashSlot =>
+                        // Stack: ..., value
+                        mvis.visitIntInsn(O.ASTORE, stashSlot) // Stack: ...
+                        val accessPath = accessMap.syms(sym)
+                        accessPath.pushLvalue(mvis)
+                        mvis.visitIntInsn(O.ALOAD, stashSlot) // Stack: ..., value
+                        accessPath.storeLvalue(mvis)
+                    }
+                }
             }
         }
         
@@ -396,7 +414,7 @@ class ByteCode(state: CompilationState) {
                 }
                 
                 case in.Tuple(List(expr)) => {
-                    evalExpr(expr)
+                    pushExprValue(expr)
                 }
                 
                 case in.Tuple(exprs) => {
@@ -426,13 +444,15 @@ class ByteCode(state: CompilationState) {
                 }
                 
                 case in.Field(owner, name, sym, _) => {
-                    evalExpr(owner)
+                    pushExprValue(owner)
                 }
                 
-                case in.MethodCall(receiver, parts, sym, _) => {
+                case in.MethodCall(receiver, parts, (sym, msig), _) => {
                     def callWithOpcode(op: Int) = {
-                        evalExpr(receiver)
-                        parts.foreach(p => evalExpr(p.arg))
+                        pushExprValue(receiver)
+                        msig.parameterPatterns.zip(parts).foreach { case (pattern, part) =>
+                            pushRvalues(pattern, part.arg)
+                        }
                         mvis.visitMethodInsn(op, owner, sym.name.javaName, desc)
                     }
                     
@@ -472,22 +492,17 @@ class ByteCode(state: CompilationState) {
           */
         def execStatement(stmt: in.Stmt) {
             stmt match {
-                case expr: in.Expr => evalExpr(expr); mvis.visitInsn(O.POP)
+                case expr: in.Expr => {
+                    pushExprValue(expr)
+                    mvis.visitInsn(O.POP)
+                }
 
                 case in.Labeled(name, in.Body(stmts)) => {
                     stmts.foreach(execStatement) // XXX Not really right.
                 }
 
-                case in.Assign(in.VarLvalue(_, _, _, sym), expr) => {
-                    val accessPath = accessMap.syms(sym)
-                    accessPath.pushLvalue(mvis)
-                    evalExpr(expr)
-                    accessPath.storeLvalue(mvis)
-                }
-
-                case in.Assign(lvalue, expr) => {
-                    evalExpr(expr)
-                    storeLvalue(lvalue)
+                case in.Assign(lvalue, rvalue) => {
+                    store(lvalue, rvalue)
                 }
             }
         }
@@ -550,19 +565,20 @@ class ByteCode(state: CompilationState) {
         )
         
         def visitMethod(mdecl: in.MethodDecl) = {
+            val paramTys = mdecl.params.map(_.ty)
+            
             val minter = inter.visitMethod(
                 O.ACC_PUBLIC,
                 mdecl.name.javaName,
-                methodDesc(mdecl.returnTy, mdecl.params),
+                methodDesc(mdecl.returnTy, paramTys),
                 null, // generic signature
                 null  // thrown exceptions
             )
             
-            val thisPattern = Pattern.Var(Name.This, Type.Class(csym.name, List()))
             val mimpl = impl.visitMethod(
                 O.ACC_PUBLIC + O.ACC_STATIC,
                 mdecl.name.javaName,
-                methodDesc(mdecl.returnTy, thisPattern :: mdecl.parts.map(_.pattern)),
+                methodDesc(mdecl.returnTy, Type.Class(csym.name, List()) :: paramTys),
                 null, // generic signature
                 null  // thrown exceptions                
             )

@@ -130,9 +130,7 @@ object Symbol {
     class Method(
         val kind: MethodKind,
         val name: Name.Method,
-        val returnTy: Type.Ref,
-        val receiver: Pattern.Var,
-        val parameterPatterns: List[Pattern.Ref]
+        val msig: MethodSignature
     ) extends Ref
     
     def errorMethod(name: Name.Method) = {
@@ -140,10 +138,16 @@ object Symbol {
         val parameterPatterns = name.parts.zipWithIndex.map { case (_, i) => 
             Pattern.Var(Name.Var("arg%d".format(i)), Type.Null)
         }
-        new Method(ErrorMethod, name, Type.Null, receiver, parameterPatterns) {
+        new Method(ErrorMethod, name, MethodSignature(Type.Null, receiver, parameterPatterns)) {
             override def isError = true
         }
     }
+    
+    case class MethodSignature(
+        val returnTy: Type.Ref,
+        val receiver: Pattern.Var,
+        val parameterPatterns: List[Pattern.Ref]        
+    )
     
     class Var(
         val name: Name.Var,
