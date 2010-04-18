@@ -12,7 +12,7 @@ object Path {
         case Ast.Lower.PathField(owner, name, _, _) => Path.Field(fromLoweredAst(owner), name.name) 
     }
     
-    val This = Path.Base(Name.This)    
+    val This = Path.Base(Name.ThisVar)    
     val Method = Path.Base(Name.MethodVar)
     
     sealed abstract class Typed {

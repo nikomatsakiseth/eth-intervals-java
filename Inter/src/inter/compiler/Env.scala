@@ -90,7 +90,7 @@ case class Env(
     def lookupLocalOrError(name: Name.Var, optExpTy: Option[Type.Ref]) = 
         locals.get(name).getOrElse(Symbol.errorVar(name, optExpTy))
         
-    def lookupThis = locals(Name.This)
+    def lookupThis = locals(Name.ThisVar)
     
     def lookupField(
         rcvrTy: Type.Ref, 

@@ -438,7 +438,7 @@ abstract class Ast {
         }        
     }
     
-    abstract class Tmpl(l: String, r: String) extends Expr {
+    abstract class Tmpl(l: String, r: String, className: Name.Qual) extends Expr {
         def stmts: List[Stmt]
         
         override def toString = "%s...%s".format(l, r)
@@ -449,10 +449,10 @@ abstract class Ast {
     }
     
     case class InlineTmpl(stmts: List[Stmt], ty: Ty)
-    extends Tmpl("{", "}")
+    extends Tmpl("{", "}", Name.IntervalTmplQual)
     
     case class AsyncTmpl(stmts: List[Stmt], ty: Ty)
-    extends Tmpl("{{", "}}")
+    extends Tmpl("{{", "}}", Name.AsyncIntervalTmplQual)
     
     case class Literal(obj: Object, ty: Ty) extends Expr {
         override def toString = obj.toString

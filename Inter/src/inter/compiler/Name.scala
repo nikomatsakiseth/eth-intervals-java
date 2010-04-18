@@ -13,6 +13,11 @@ object Name {
         def internalName = asRelPath
         
         def /(nm: String) = Name.Qual(nm :: rev_components)
+        
+        def withSuffix(suffix: String) = rev_components match {
+            case hd :: tl => Name.Qual((nm + suffix) :: tl)
+            case List() => throw new RuntimeException("Non-empty name expected")
+        }
     }
     
     val QualRoot = Qual(List())
@@ -54,8 +59,8 @@ object Name {
         override def toString = text
     }
     
-    val This = Name.Var("this")
-
+    val ThisVar = Name.Var("this")
+    
     val MethodVar = Name.Var("method")
     
     val VoidQual = Qual("java.lang.Void")
@@ -65,6 +70,7 @@ object Name {
 
     val IntervalTmplQual = Qual("inter.lang.IntervalTmpl")
     val AsyncIntervalTmplQual = Qual("inter.lang.AsyncIntervalTmpl")
-    val IntervalTmplParent = Var("P")
+    val IntervalTmplParent = Var("Parent")
+    val ValueMethod = Method("value")
        
 }

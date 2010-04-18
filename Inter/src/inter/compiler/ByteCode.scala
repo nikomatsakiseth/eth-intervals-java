@@ -22,8 +22,18 @@ import Util._
   */
 case class ByteCode(state: CompilationState) {
     
-    val interSuffix = ""
+    val noSuffix = ""
     val implSuffix = "$"
+    
+    // ___ Generating fresh, unique class names _____________________________
+    
+    private[this] var freshCounter = 0
+    
+    def freshQualName(context: Name.Qual) = {
+        val counter = freshCounter
+        freshCounter += 1
+        context.withSuffix("$" + counter)
+    }
     
     // ___ Types and Asm Types ______________________________________________
     
@@ -212,7 +222,7 @@ case class ByteCode(state: CompilationState) {
         }        
     }
     
-    class AccessMap 
+    class AccessMap(val context: Name.Qual)
     {
         val syms = new mutable.HashMap[Symbol.Var, AccessPath]()
         private[this] var maxSlot = 0
@@ -276,6 +286,7 @@ case class ByteCode(state: CompilationState) {
         //    (A subset of readSyms and writeSyms)
         sharedSyms: Set[Symbol.Var]
     ) {
+        def accessSyms = readSyms ++ writeSyms
         def boxedSyms(sym: Symbol.Var) = writeSyms(sym) && sharedSyms(sym)
     }
     
@@ -601,7 +612,64 @@ case class ByteCode(state: CompilationState) {
                 }
             }
         }
+        
+        def returnResultOfStatements(stmts: in.Stmt) {
+            case List() => 
+                throw new RuntimeException("No empty lists")
+            case List(stmt) => {
+                pushStatement(tl)
+                mvis.visitInsn(O.ARETURN)                
+            }
+            case hd :: tl => {
+                execStatement(hd)
+                returnResultOfStatements(tl)
+            }
+        }
+        
+        def deriveAccessMap(
+            cname: Name.Qual,
+            cvis: asm.ClassVisitor,
+            stmts: List[in.Stmt]
+        ) = {
+            val summary = summarizeSymbolsInStmts(stmts)
+            val cache = new mutable.HashMap[AccessPath, AccessPath]()
+            
+            summary.
+        }
+        
+        def anonymousIntervalTemplate() {
+            tmpl: in.Tmpl
+        ) {
+            val name = freshQualName(accessMap.context)
+            val wr = new ClassWriter(name, noSuffix)
+            import wr.cvis
 
+            cvis.visit(
+                O.V1_5,
+                O.ACC_PUBLIC,
+                name.internalName,
+                null, // XXX Signature
+                "java/lang/Object",
+                Array(tmpl.className.internalName)
+            )
+
+            val derivedAccessMap = deriveAccessMap(name, stmts)
+
+            val mvis = cvis.visitMethod(
+                O.ACC_PUBLIC,
+                Name.ValueMethod.javaName,
+                getMethodDescriptor(asmObjectType, Array(asmObjectType))
+                null, // generic signature
+                null  // thrown exceptions
+            )
+
+            val stmtVisitor = new StatementVisitor(accessMap, mvis)
+            stmtVisitor.returnResultOfStatements(tmpl.stmts)
+            mvis.visitEnd
+
+            wr.end()
+        }
+        
     }
     
     // ___ Methods __________________________________________________________
@@ -649,9 +717,7 @@ case class ByteCode(state: CompilationState) {
                 body.stmts
             )
             val stmtVisitor = new StatementVisitor(accessMap, mvis)
-            body.stmts.dropRight(1).foreach(stmtVisitor.execStatement)
-            body.stmts.takeRight(1).foreach(stmtVisitor.pushStatement)
-            mvis.visitInsn(O.ARETURN)
+            stmtVisitor.returnResultOfStatements(body.stmts)
         }
         mvis.visitEnd
     }
@@ -677,7 +743,7 @@ case class ByteCode(state: CompilationState) {
     // ___ Classes __________________________________________________________
     
     def writeInterClassInterface(csym: Symbol.ClassFromInterFile) {
-        val wr = new ClassWriter(csym.name, interSuffix)
+        val wr = new ClassWriter(csym.name, noSuffix)
         import wr.cvis
         
         val superClassNames = csym.superClassNames(state).toList

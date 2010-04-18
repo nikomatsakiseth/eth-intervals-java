@@ -482,7 +482,7 @@ qualName	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Resolve.scala	/
 rcvr	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Lower.scala	/^            val rcvr = lowerExpr(None)(mcall.rcvr)$/;"	constants	line:539
 rcvr	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Parse.scala	/^    lazy val rcvr: PackratParser[out.Expr] = positioned($/;"	constants	line:279
 reader	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Parse.scala	/^        val reader = new FileReader(interFile, PagedSeq.fromReader(javaReader), 0)$/;"	constants	line:340
-receiver	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Lower.scala	/^        val receiver = new Symbol.Var(Name.This, Type.Class(clsName, List()))$/;"	constants	line:262
+receiver	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Lower.scala	/^        val receiver = new Symbol.Var(Name.ThisVar, Type.Class(clsName, List()))$/;"	constants	line:262
 receiver	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Symbol.scala	/^        val receiver: Pattern.Var,$/;"	constants	line:115
 reflClasses	/Users/niko/git/intervals-java/Inter/src/inter/compiler/CompilationState.scala	/^        val reflClasses = config.reflectiveClasses(qualName)$/;"	constants	line:87
 reflectiveClasses	/Users/niko/git/intervals-java/Inter/src/inter/compiler/Config.scala	/^    def reflectiveClasses(name: Name.Qual) = {$/;"	methods	line:52

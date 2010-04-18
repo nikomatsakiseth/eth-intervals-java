@@ -173,7 +173,7 @@ case class Lower(state: CompilationState) {
     }
     
     def ThisEnv(csym: Symbol.ClassFromInterFile) = {
-        emptyEnv + new Symbol.Var(Name.This, Type.Class(csym.name, List()))
+        emptyEnv + new Symbol.Var(Name.ThisVar, Type.Class(csym.name, List()))
     }
     
     def ThisScope(csym: Symbol.ClassFromInterFile) = {
@@ -236,7 +236,7 @@ case class Lower(state: CompilationState) {
             assert(!state.inferStack(memberId))
             state.inferStack += memberId
 
-            val receiverSym = new Symbol.Var(Name.This, Type.Class(clsName, List()))
+            val receiverSym = new Symbol.Var(Name.ThisVar, Type.Class(clsName, List()))
             val parameterPatterns = mdecl.params.map(symbolPattern)
             val parameterSyms = parameterPatterns.flatMap(Pattern.createVarSymbols)
             val env = emptyEnv ++ (receiverSym :: parameterSyms)
@@ -746,7 +746,7 @@ case class Lower(state: CompilationState) {
         
         def lowerImpThis(expr: in.Expr) = withPosOf(expr, {
             val sym = env.lookupThis
-            out.Var(astVarName(expr, Name.This), sym)
+            out.Var(astVarName(expr, Name.ThisVar), sym)
         })
         
         def lowerExpr(optExpTy: Option[Type.Ref])(expr: in.Expr): out.LoweredExpr = expr match {
