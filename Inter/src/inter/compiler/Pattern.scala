@@ -2,18 +2,41 @@ package inter.compiler
 
 object Pattern {
     
-    sealed abstract class Ref {
+    /** Base type for all patterns.  Contains no names
+      * for the variables being assigned to. */
+    sealed abstract trait Anon {
         def ty: Type.Ref
     }
     
-    case class Var(
-        val name: Name.Var,
-        val ty: Type.Ref
-    ) extends Ref
+    /** Base type for patterns that include variable names. */
+    sealed abstract trait Ref extends Anon
     
-    case class Tuple(patterns: List[Pattern.Ref]) extends Ref {
+    /** An anonymous reference to a variable. */
+    sealed trait AnonVar extends Anon
+    
+    object AnonVar {
+        def unapply(anon: AnonVar) = Some(anon.ty)
+    }
+    
+    sealed trait AnonTuple extends Anon {
+        def patterns: List[Pattern.Anon]
         def ty: Type.Tuple = Type.Tuple(patterns.map(_.ty))
     }
+    
+    object AnonTuple {
+        def unapply(anon: AnonTuple) = Some(anon.patterns)
+    }
+    
+    case class SubstdVar(ty: Type.Ref) extends AnonVar
+    
+    case class SubstdTuple(patterns: List[Pattern.Anon]) extends AnonTuple
+    
+    case class Var(
+        name: Name.Var,
+        ty: Type.Ref
+    ) extends AnonVar with Ref
+    
+    case class Tuple(patterns: List[Pattern.Ref]) extends AnonTuple with Ref
     
     def createVarSymbols(p: Pattern.Ref): List[Symbol.Var] = p match {
         case Pattern.Var(name, ty) => List(new Symbol.Var(name, ty))

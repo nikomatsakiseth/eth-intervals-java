@@ -639,7 +639,7 @@ object Ast {
         type CSym = Symbol.Class
         type VSym = Symbol.Var
         type MSym = Symbol.Method
-        type MCallData = (Symbol.Method, Symbol.MethodSignature)
+        type MCallData = (Symbol.Method, Symbol.MethodSignature[Pattern.Anon])
         type Ty = Type.Ref
         type TyTuple = Type.Tuple
 

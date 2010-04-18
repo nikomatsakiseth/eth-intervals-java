@@ -325,15 +325,15 @@ class ByteCode(state: CompilationState) {
           * pattern like `((a, b), c)`, then the values for `a`, `b`, 
           * and `c` would be pushed in that order.
           */
-        def pushRvalues(lvalue: Pattern.Ref, rvalue: in.Expr) {
+        def pushRvalues(lvalue: Pattern.Anon, rvalue: in.Expr) {
             (lvalue, rvalue) match {
-                case (Pattern.Tuple(List(sublvalue)), _) =>
+                case (Pattern.AnonTuple(List(sublvalue)), _) =>
                     pushRvalues(sublvalue, rvalue)
                     
                 case (_, in.Tuple(List(subexpr))) =>
                     pushRvalues(lvalue, subexpr)
                     
-                case (Pattern.Tuple(sublvalues), in.Tuple(subexprs)) 
+                case (Pattern.AnonTuple(sublvalues), in.Tuple(subexprs)) 
                 if sameLength(sublvalues, subexprs) =>
                     sublvalues.zip(subexprs).foreach { case (l, e) => pushRvalues(l, e) }
                     
@@ -364,9 +364,9 @@ class ByteCode(state: CompilationState) {
             }
         }
         
-        def expand(lvalue: Pattern.Ref) {
+        def expand(lvalue: Pattern.Anon) {
             lvalue match {
-                case Pattern.Tuple(sublvalues) => {
+                case Pattern.AnonTuple(sublvalues) => {
                     accessMap.withStashSlot { stashSlot =>
                         mvis.visitIntInsn(O.ASTORE, stashSlot) // Stack: ...
                         sublvalues.zipWithIndex.foreach { case (sublvalue, idx) =>
@@ -380,7 +380,7 @@ class ByteCode(state: CompilationState) {
                     }
                 }
 
-                case _: Pattern.Var => 
+                case _: Pattern.AnonVar => 
             }
         }
         

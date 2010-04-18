@@ -46,7 +46,7 @@ object Intrinsic {
                     name = op, 
                     Symbol.MethodSignature(
                         returnTy = returnTy,
-                        receiver = Pattern.Var(Name.This, leftTy),
+                        receiverTy = leftTy,
                         parameterPatterns = List(Pattern.Var(Name.Var("arg"), rightTy))
                     )
                 )

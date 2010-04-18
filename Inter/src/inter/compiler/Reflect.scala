@@ -57,7 +57,7 @@ object Reflect {
             name = Name.Method(List(mthd.getName)),
             Symbol.MethodSignature(
                 returnTy = typeRef(mthd.getGenericReturnType),
-                receiver = Pattern.Var(Name.This, Type.Class(clsName, List())),
+                receiverTy = Type.Class(clsName, List()),
                 parameterPatterns = List(Pattern.Tuple(
                     mthd.getGenericParameterTypes.toList.zipWithIndex.map(paramPattern)))
             )

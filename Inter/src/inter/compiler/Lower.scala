@@ -146,7 +146,7 @@ case class Lower(state: CompilationState) {
                         name = mthdName,
                         Symbol.MethodSignature(
                             returnTy = outMdecl.returnTy,
-                            receiver = Pattern.Var(Name.This, Type.Class(csym.name, List())),
+                            receiverTy = Type.Class(csym.name, List()),
                             parameterPatterns = memberId.parameterPatterns
                         )                        
                     )
@@ -159,7 +159,7 @@ case class Lower(state: CompilationState) {
                     name = mthdName,
                     Symbol.MethodSignature(
                         returnTy = symbolType(returnTy),
-                        receiver = Pattern.Var(Name.This, Type.Class(csym.name, List())),
+                        receiverTy = Type.Class(csym.name, List()),
                         parameterPatterns = parts.map(p => symbolPattern(p.param))
                     )
                 )
@@ -585,10 +585,11 @@ case class Lower(state: CompilationState) {
             }
         }
         
-        def mthdSubst(msig: Symbol.MethodSignature, rcvr: Ast#Expr, parts: List[Ast#CallPart]) = {
+        def mthdSubst(msym: Symbol.Method, rcvr: Ast#Expr, parts: List[Ast#CallPart]) = {
+            val msig = msym.msig
             patSubsts(
-                msig.receiver   ::  msig.parameterPatterns, 
-                rcvr            ::  parts.map(_.arg)
+                msig.thisPattern    ::  msig.parameterPatterns, 
+                rcvr                ::  parts.map(_.arg)
             )
         }
     
@@ -631,7 +632,7 @@ case class Lower(state: CompilationState) {
                 // Exactly one match: We can do more with inferencing
                 // in this case, as we know the expected type.
                 case List(msym) => {
-                    val subst = mthdSubst(msym.msig, mcall.rcvr, mcall.parts)
+                    val subst = mthdSubst(msym, mcall.rcvr, mcall.parts)
                     val optExpTys = msym.msig.parameterPatterns.map(p => Some(subst.ty(p.ty)))
                     val parts = optExpTys.zip(mcall.parts).map { case (e,p) => lowerPart(e)(p) }
                     val msig = subst.methodSignature(msym.msig)
@@ -646,7 +647,7 @@ case class Lower(state: CompilationState) {
                     // Find those symbols that are potentially applicable
                     // to the arguments provided:
                     def potentiallyApplicable(msym: Symbol.Method) = {
-                        val subst = mthdSubst(msym.msig, rcvr, parts)
+                        val subst = mthdSubst(msym, rcvr, parts)
                         val parameterTys = msym.msig.parameterPatterns.map(p => subst.ty(p.ty))
                         // XXX Add suitable temps to the environment for the vars ref'd in subst.
                         partTys.zip(parameterTys).forall { case (p, a) => env.isSuitableArgument(p, a) }
@@ -677,7 +678,7 @@ case class Lower(state: CompilationState) {
                     
                     (bestMsyms, applicableMsyms) match {
                         case (List(msym), _) => {
-                            val subst = mthdSubst(msym.msig, rcvr, parts)
+                            val subst = mthdSubst(msym, rcvr, parts)
                             val msig = subst.methodSignature(msym.msig)
                             out.MethodCall(rcvr, parts, (msym, msig))
                         }

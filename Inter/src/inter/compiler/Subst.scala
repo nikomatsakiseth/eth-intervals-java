@@ -13,12 +13,9 @@ class Subst(private val map: Map[Path.Ref, Path.Ref]) {
         case (None, Path.Field(owner, f)) => Path.Field(path(owner), f)
     }
     
-    /** Caution: The names of the Variables in the pattern are
-      * not substitued and are no longer relevant after substitution. 
-      * Should really introduce a new type for this but I've been too lazy. */
-    def pattern(p: Pattern.Ref): Pattern.Ref = p match {
-        case Pattern.Var(n, t) => Pattern.Var(n, ty(t))
-        case Pattern.Tuple(patterns) => Pattern.Tuple(patterns.map(pattern))
+    def pattern(p: Pattern.Anon): Pattern.Anon = p match {
+        case Pattern.AnonVar(t) => Pattern.SubstdVar(ty(t))
+        case Pattern.AnonTuple(patterns) => Pattern.SubstdTuple(patterns.map(pattern))
     }
     
     def ty(t: Type.Ref): Type.Ref = t match {
@@ -33,14 +30,13 @@ class Subst(private val map: Map[Path.Ref, Path.Ref]) {
         case Type.TypeArg(n, r, t) => Type.TypeArg(n, r, ty(t))
     }
     
-    /** Caution: a substituted method signature does not affect 
-      * the names of the formal parameters. But those names are
-      * no longer relevant to the substitued types! */
-    def methodSignature(msig: Symbol.MethodSignature) = Symbol.MethodSignature(
-        returnTy = ty(msig.returnTy),
-        receiver = Pattern.Var(msig.receiver.name, ty(msig.receiver.ty)),
-        parameterPatterns = msig.parameterPatterns.map(pattern)
-    )
+    def methodSignature(msig: Symbol.MethodSignature[Pattern.Anon]) = {
+        Symbol.MethodSignature(
+            returnTy = ty(msig.returnTy),
+            receiverTy = ty(msig.receiverTy),
+            parameterPatterns = msig.parameterPatterns.map(pattern)
+        )
+    }
     
 }
 

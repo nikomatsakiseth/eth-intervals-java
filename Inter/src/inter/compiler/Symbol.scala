@@ -130,24 +130,26 @@ object Symbol {
     class Method(
         val kind: MethodKind,
         val name: Name.Method,
-        val msig: MethodSignature
+        val msig: MethodSignature[Pattern.Ref]
     ) extends Ref
     
     def errorMethod(name: Name.Method) = {
-        val receiver = Pattern.Var(Name.This, Type.Null)
         val parameterPatterns = name.parts.zipWithIndex.map { case (_, i) => 
             Pattern.Var(Name.Var("arg%d".format(i)), Type.Null)
         }
-        new Method(ErrorMethod, name, MethodSignature(Type.Null, receiver, parameterPatterns)) {
+        new Method(ErrorMethod, name, MethodSignature(Type.Null, Type.Null, parameterPatterns)) {
             override def isError = true
         }
     }
     
-    case class MethodSignature(
+    case class MethodSignature[+P <: Pattern.Anon](
         val returnTy: Type.Ref,
-        val receiver: Pattern.Var,
-        val parameterPatterns: List[Pattern.Ref]        
-    )
+        val receiverTy: Type.Ref,
+        val parameterPatterns: List[P]        
+    ) {
+        def receiverAnonPattern: Pattern.AnonVar = Pattern.SubstdVar(receiverTy)
+        def thisPattern: Pattern.Var = Pattern.Var(Name.This, receiverTy)
+    }
     
     class Var(
         val name: Name.Var,
