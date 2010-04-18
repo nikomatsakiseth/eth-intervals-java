@@ -6,13 +6,16 @@ object Pattern {
       * for the variables being assigned to. */
     sealed abstract trait Anon {
         def ty: Type.Ref
+        def varTys: List[Type.Ref]
     }
     
     /** Base type for patterns that include variable names. */
     sealed abstract trait Ref extends Anon
     
     /** An anonymous reference to a variable. */
-    sealed trait AnonVar extends Anon
+    sealed trait AnonVar extends Anon {
+        def varTys = List(ty)        
+    }
     
     object AnonVar {
         def unapply(anon: AnonVar) = Some(anon.ty)
@@ -21,6 +24,7 @@ object Pattern {
     sealed trait AnonTuple extends Anon {
         def patterns: List[Pattern.Anon]
         def ty: Type.Tuple = Type.Tuple(patterns.map(_.ty))
+        def varTys = patterns.flatMap(_.varTys)
     }
     
     object AnonTuple {

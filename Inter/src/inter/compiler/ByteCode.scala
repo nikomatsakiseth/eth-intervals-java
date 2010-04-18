@@ -42,6 +42,13 @@ class ByteCode(state: CompilationState) {
         )
     }
     
+    def methodDesc(msig: Symbol.MethodSignature[Pattern.Anon]): String = {
+        methodDesc(
+            msig.returnTy,
+            msig.parameterPatterns.flatMap(_.varTys)
+        )
+    }
+    
     sealed case class ExtendedVisitor(mvis: asm.MethodVisitor) {
         def pushIntegerConstant(value: Int) = value match {
             case 0 => mvis.visitInsn(O.ICONST_0)
@@ -447,16 +454,18 @@ class ByteCode(state: CompilationState) {
                     pushExprValue(owner)
                 }
                 
-                case in.MethodCall(receiver, parts, (sym, msig)) => {
+                case in.MethodCall(receiver, parts, (msym, msig)) => {
                     def callWithOpcode(op: Int) = {
                         pushExprValue(receiver)
                         msig.parameterPatterns.zip(parts).foreach { case (pattern, part) =>
                             pushRvalues(pattern, part.arg)
                         }
-                        //mvis.visitMethodInsn(op, owner, sym.name.javaName, desc)
+                        val ownerAsmType = asmType(msig.receiverTy)
+                        val desc = methodDesc(msym.msig)
+                        mvis.visitMethodInsn(op, ownerAsmType.getInternalName, msym.name.javaName, desc)
                     }
                     
-                    sym.kind match {
+                    msym.kind match {
                         case Symbol.IntrinsicMath => {
                             
                         }
