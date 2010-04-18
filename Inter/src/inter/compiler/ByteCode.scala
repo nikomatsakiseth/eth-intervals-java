@@ -33,7 +33,7 @@ class ByteCode(state: CompilationState) {
         case _ => asmObjectType
     }
     
-    def methodDesc(returnTy: Type.Ref, parameterPatterns: List[Pattern.Ref]): String = {
+    def methodDesc(returnTy: Type.Ref, parameterTypes: List[Type.Ref]): String = {
         def types(pattern: Pattern.Ref): List[Type.Ref] = pattern match {
             case Pattern.Var(_, ty) => List(ty)
             case Pattern.Tuple(patterns) => patterns.flatMap(types)
@@ -288,13 +288,108 @@ class ByteCode(state: CompilationState) {
     
     class StatementVisitor(accessMap: AccessMap, mvis: asm.MethodVisitor) {
         
-        def evalExpr()
+        /** Generates the instructions to store to an lvalue, unpacking
+          * tuple values as needed.  
+          *
+          * Stack: ..., value => ...
+          */
+        def store(lvalue: in.Lvalue, rvalue: in.Expr) {
+            lvalue match {
+                case in.TupleLvalue(List(sublvalue)) => {
+                    store(sublvalue, rvalue)
+                }
+                
+                case in.VarLvalue(_, _, _, sym) => {
+                    // Micro-optimize generated code to avoid using stashSlot:
+                    val accessPath = accessMap.syms(sym)
+                    accessPath.pushLvalue(mvis)
+                    pushExprValue(rvalue)
+                    accessPath.storeLvalue(mvis)
+                }
+                
+                case _ => {
+                    pushRvalues(lvalue)(rvalue)
+                    popRvalues(lvalue)(rvalue)
+                }
+            }
+        }
+
+        /** Evaluates `expr` to a form suitable for being stored
+          * into `lvalue`.  Values for each variable in lvalue 
+          * are pushed in pre-order. In other words, if `lvalue` were a 
+          * pattern like `((a, b), c)`, then the values for `a`, `b`, 
+          * and `c` would be pushed in that order.
+          */
+        def pushRvalues(lvalue: in.Lvalue, rvalue: in.Expr) {
+            (lvalue, rvalue) match {
+                case (in.TupleLvalue(List(sublvalue), _), _) =>
+                    pushRvalues(sublvalue, rvalue)
+                    
+                case (_, in.Tuple(List(subexpr))) =>
+                    pushRvalues(lvalue, subexpr)
+                    
+                case (in.TupleLvalue(sublvalues, _), in.Tuple(subexprs)) 
+                if sameLength(sublvalues, subexprs) =>
+                    sublvalues.zip(subexprs).foreach { case (l, e) => pushRvalues(l, e) }
+                    
+                case _ => 
+                    pushExprValue(expr)
+            }
+        }
+        
+        /** Pops the rvalues which were pushed by `pushRvalues(lvalue)(rvalue)`,
+          * storing them into `lvalue`. */
+        def popRvalues(lvalue: in.Lvalue)(rvalue: in.Expr) {
+            (lvalue, expr) match {
+                case (in.TupleLvalue(List(sublvalue), _), _) =>
+                    popRvalues(sublvalue, rvalue)
+                    
+                case (_, in.Tuple(List(subexpr))) =>
+                    popRvalues(lvalue, subexpr)
+                    
+                case (in.TupleLvalue(sublvalues, _), in.Tuple(subexprs)) 
+                if sameLength(sublvalues, subexprs) =>
+                    sublvalues.zip(subexprs).reverse.foreach { case (l, e) => popRvalues(l, e) }
+                    
+                case _ => 
+                    popValueIntoLvalue(lvalue)
+            }
+        }
+        
+        /** Pops a single from the stack, storing it into `lvalue`.  If `lvalue` is 
+          * a tuple this may cause the value to be expanded (which could cause a 
+          * `NullPointerException` at runtime). */
+        def popValueIntoLvalue(lvalue: in.Lvalue) {
+            // Stack: ..., value
+            lvalue match {
+                case (in.TupleLvalue(sublvalues, tys), _) => {
+                    mvis.visitIntInsn(O.ASTORE, stashSlot) // Stack: ...
+                    sublvalues.zip(tys).zipWithIndex.foreach { case ((sublvalue, ty), idx) =>
+                        mvis.visitIntInsn(O.ALOAD, stashSlot) // Stack: ..., array
+                        mvis.pushIntegerConstant(idx) // Stack: ..., array, index
+                        mvis.visitInsn(O.AALOAD) // Stack: ..., array[index]
+                        mvis.downcast(ty) // Stack: ..., array[index]
+                    }
+                    // Stack: ..., array[0], ..., array[N]
+                    tupLvalue.lvalues.reverse.foreach(popValueIntoLvalue)
+                }
+
+                case in.VarLvalue(_, _, _, sym) => {
+                    import accessMap.stashSlot
+                    mvis.visitIntInsn(O.ASTORE, stashSlot) // Stack: ...
+                    val accessPath = accessMap.syms(sym)
+                    accessPath.pushLvalue(mvis)
+                    mvis.visitIntInsn(O.ALOAD, stashSlot) // Stack: ..., value
+                    accessPath.storeLvalue(mvis)
+                }                
+            }
+        }
         
         /** Evaluates `expr`, pushing the result onto the stack.
           *
           * Stack: ... => ..., value
           */
-        def evalExpr(expr: in.Expr) {
+        def pushExprValue(expr: in.Expr) {
             expr match {
                 case in.Tuple(List()) => {
                     mvis.visitInsn(O.ACONST_NULL)
@@ -371,38 +466,6 @@ class ByteCode(state: CompilationState) {
             }
         }
         
-        /** Generates the instructionso to store to an lvalue, unpacking
-          * tuple values as needed.  
-          *
-          * Stack: ..., value => ...
-          */
-        def storeLvalue(lvalue: in.Lvalue) {
-            lvalue match {
-                case in.TupleLvalue(List(lvalue), _) => {
-                    storeLvalue(lvalue)
-                }
-                
-                case in.TupleLvalue(lvalues, Type.Tuple(tys)) => {
-                    lvalues.zip(tys).zipWithIndex.foreach { case ((lvalue, ty), idx) =>
-                        mvis.visitInsn(O.DUP)
-                        mvis.pushIntegerConstant(idx)
-                        mvis.visitInsn(O.AALOAD)
-                        mvis.downcast(ty)
-                        storeLvalue(lvalue)
-                    }
-                    mvis.visitInsn(O.POP)
-                }
-                
-                case in.VarLvalue(_, _, _, sym) => {
-                    mvis.visitIntInsn(O.ASTORE, accessMap.stashSlot)
-                    val accessPath = accessMap.syms(sym)
-                    accessPath.pushLvalue(mvis)
-                    mvis.visitIntInsn(O.ALOAD, accessMap.stashSlot)
-                    accessPath.storeLvalue(mvis)
-                }
-            }
-        }
-
         /** Executes `stmt`.  Stack is unaffected.
           *
           * Stack: ... => ...

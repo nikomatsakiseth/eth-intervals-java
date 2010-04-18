@@ -275,7 +275,7 @@ class Ast {
     }
     sealed abstract trait TupleLvalue extends Node {
         def lvalues: List[Lvalue]
-        def ty = tupleTy(lvalues.map(_.ty))
+        def ty: TyTuple = tupleTy(lvalues.map(_.ty))
         
         def symbols = lvalues.flatMap(_.symbols)
     }
