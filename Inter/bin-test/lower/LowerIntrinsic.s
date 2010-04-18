@@ -4,5 +4,5 @@ public abstract interface lower/LowerIntrinsic {
 
 
   // access flags 1
-  public method([Ljava/lang/Object;)Ljava/lang/Integer;
+  public method()Ljava/lang/Integer;
 }

@@ -1,6 +1,7 @@
 package inter.compiler
 
 import org.objectweb.asm
+import org.objectweb.asm.Type.getMethodDescriptor
 import scala.collection.mutable
 import scala.collection.immutable.Map
 import scala.collection.immutable.Set
@@ -47,7 +48,7 @@ case class ByteCode(state: CompilationState) {
     }
     
     def methodDesc(returnTy: Type.Ref, parameterTypes: List[Type.Ref]): String = {
-        asm.Type.getMethodDescriptor(
+        getMethodDescriptor(
             asmType(returnTy),
             parameterTypes.map(asmType).toArray
         )
@@ -77,9 +78,57 @@ case class ByteCode(state: CompilationState) {
     }
     implicit def extendedVisitor(mvis: asm.MethodVisitor) = ExtendedVisitor(mvis)
     
-    // ___ Intrinsics _______________________________________________________
+    // ___ Writing .class, .s files _________________________________________
     
-    
+    class ClassWriter(qualName: Name.Qual, suffix: String) 
+    {
+        private[this] def fileWithExtension(ext: String) = {
+            val relPath = qualName.components.mkString("/") + suffix + ext
+            new java.io.File(state.config.outputDir, relPath)
+        }
+
+        private[this] def trace(cvis: asm.ClassVisitor) = {
+            if(!state.config.dumpBytecode) {
+                (cvis, None)
+            } else {
+                val sFile = fileWithExtension(".s")
+                try {
+                    val writer = new java.io.FileWriter(sFile)
+                    (new asm.util.TraceClassVisitor(cvis, new java.io.PrintWriter(writer)), Some(writer))
+                } catch {
+                    case err: java.io.IOException => {
+                        println("Error writing to %s: %s".format(sFile, err))
+                        (cvis, None)
+                    }
+                }
+
+            }
+        }
+
+        val writer = new asm.ClassWriter(0)
+        val (cvis, optTraceWriter) = trace(writer)
+
+        def end() {
+            cvis.visitEnd()
+            optTraceWriter.foreach(_.close())
+            
+            val clsFile = fileWithExtension(".class")
+            try {
+                clsFile.getParentFile.mkdirs()
+                val out = new java.io.FileOutputStream(clsFile)
+                out.write(writer.toByteArray)
+                out.close()
+            } catch {
+                case err: java.io.IOError => {
+                    state.reporter.report(
+                        InterPosition.forFile(clsFile),
+                        "io.error",
+                        err.toString
+                    )
+                }
+            }
+        }
+    }
     
     // ___ Access Paths and Maps ____________________________________________
     //
@@ -292,25 +341,7 @@ case class ByteCode(state: CompilationState) {
         stmts.foldLeft(SymbolSummary.empty)(summarizeSymbolsInStmt)
     }
     
-    // ___ Method Bodies ____________________________________________________
-    
-    def constructAccessMap(
-        mvis: asm.MethodVisitor,
-        receiverSymbol: Symbol.Var, 
-        parameterPatterns: List[in.Param],
-        stmts: List[in.Stmt]
-    ) = {
-        val accessMap = new AccessMap()
-        (receiverSymbol :: parameterPatterns.flatMap(_.symbols)).foreach(accessMap.addUnboxedSym)
-        val boxedArray = new BoxedArray(accessMap)
-        val summary = summarizeSymbolsInStmts(stmts)
-        summary.declaredSyms.foreach { sym =>
-            if(summary.boxedSyms(sym)) boxedArray.addBoxedSym(sym)
-            else accessMap.addUnboxedSym(sym)
-        }
-        boxedArray.createArrayIfNeeded(mvis)
-        accessMap
-    }
+    // ___ Statements _______________________________________________________
     
     class StatementVisitor(accessMap: AccessMap, mvis: asm.MethodVisitor) {
         
@@ -471,7 +502,7 @@ case class ByteCode(state: CompilationState) {
                         O.INVOKESTATIC,
                         classType.getInternalName,
                         "valueOf",
-                        asm.Type.getMethodDescriptor(classType, Array(primType))
+                        getMethodDescriptor(classType, Array(primType))
                     )
                 }
                 
@@ -503,7 +534,7 @@ case class ByteCode(state: CompilationState) {
                                 O.INVOKESTATIC, 
                                 asm.Type.getType(classOf[IntrinsicMathGen]).getInternalName, 
                                 mthdName,
-                                asm.Type.getMethodDescriptor(
+                                getMethodDescriptor(
                                     asm.Type.getType(returnClass),
                                     Array(asm.Type.getType(leftClass), asm.Type.getType(rightClass))
                                 )
@@ -573,140 +604,124 @@ case class ByteCode(state: CompilationState) {
 
     }
     
-    // ___ Tracing __________________________________________________________
+    // ___ Methods __________________________________________________________
     
-    def file(qualName: Name.Qual, suffix: String, ext: String) = {
-        val relPath = qualName.components.mkString("/") + suffix + ext
-        new java.io.File(state.config.outputDir, relPath)
+    def methodParameterTypes(params: List[in.Param]) = 
+        params.flatMap(p => in.toPattern(p).varTys)
+    
+    def writeInterMethodInterface(
+        csym: Symbol.ClassFromInterFile, 
+        cvis: asm.ClassVisitor, 
+        decl: in.MethodDecl
+    ) {
+        val returnAsmTy = asmType(decl.returnTy)
+        val paramAsmTys = methodParameterTypes(decl.params).map(asmType)
+        val mvis = cvis.visitMethod(
+            O.ACC_PUBLIC,
+            decl.name.javaName,
+            getMethodDescriptor(returnAsmTy, paramAsmTys.toArray),
+            null, // generic signature
+            null  // thrown exceptions
+        )
+        mvis.visitEnd
+    }
+    
+    def writeInterMethodImpl(
+        csym: Symbol.ClassFromInterFile, 
+        cvis: asm.ClassVisitor, 
+        decl: in.MethodDecl
+    ) {
+        val returnAsmTy = asmType(decl.returnTy)
+        val receiverAsmTy = asm.Type.getObjectType(csym.name.internalName)
+        val paramAsmTys = methodParameterTypes(decl.params).map(asmType)
+        val mvis = cvis.visitMethod(
+            O.ACC_PUBLIC,
+            decl.name.javaName,
+            getMethodDescriptor(returnAsmTy, (receiverAsmTy :: paramAsmTys).toArray),
+            null, // generic signature
+            null  // thrown exceptions
+        )
+        decl.optBody.foreach { body =>
+            val accessMap = constructAccessMap(
+                mvis, 
+                decl.receiverSym, 
+                decl.params, 
+                body.stmts
+            )
+            val stmtVisitor = new StatementVisitor(accessMap, mvis)
+            body.stmts.dropRight(1).foreach(stmtVisitor.execStatement)
+            body.stmts.takeRight(1).foreach(stmtVisitor.pushStatement)
+            mvis.visitInsn(O.ARETURN)
+        }
+        mvis.visitEnd
+    }
+    
+    def constructAccessMap(
+        mvis: asm.MethodVisitor,
+        receiverSymbol: Symbol.Var, 
+        parameterPatterns: List[in.Param],
+        stmts: List[in.Stmt]
+    ) = {
+        val accessMap = new AccessMap()
+        (receiverSymbol :: parameterPatterns.flatMap(_.symbols)).foreach(accessMap.addUnboxedSym)
+        val boxedArray = new BoxedArray(accessMap)
+        val summary = summarizeSymbolsInStmts(stmts)
+        summary.declaredSyms.foreach { sym =>
+            if(summary.boxedSyms(sym)) boxedArray.addBoxedSym(sym)
+            else accessMap.addUnboxedSym(sym)
+        }
+        boxedArray.createArrayIfNeeded(mvis)
+        accessMap
     }
 
-    def trace(qualName: Name.Qual, suffix: String, cvis: asm.ClassVisitor) = {
-        if(!state.config.dumpBytecode) {
-            (cvis, None)
-        } else {
-            val sFile = file(qualName, suffix, ".s")
-            try {
-                val writer = new java.io.FileWriter(sFile)
-                (new asm.util.TraceClassVisitor(cvis, new java.io.PrintWriter(writer)), Some(writer))
-            } catch {
-                case err: java.io.IOException => {
-                    println("Error writing to %s: %s".format(sFile, err))
-                    (cvis, None)
-                }
-            }
-            
-        }
-    }
-    
     // ___ Classes __________________________________________________________
     
-    class ClassVisitors(csym: Symbol.ClassFromInterFile) {
-        val interWriter = new asm.ClassWriter(0)
-        val implWriter = new asm.ClassWriter(0)
+    def writeInterClassInterface(csym: Symbol.ClassFromInterFile) {
+        val wr = new ClassWriter(csym.name, interSuffix)
+        import wr.cvis
         
-        val (interTracer, interTraceWriter) = trace(csym.name, interSuffix, interWriter)
-        val (implTracer, implTraceWriter) = trace(csym.name, implSuffix, implWriter)
-        
-        val inter = interTracer
-        val impl = implTracer
-        
-        inter.visit(
+        val superClassNames = csym.superClassNames(state).toList
+        cvis.visit(
             O.V1_5,
             O.ACC_ABSTRACT + O.ACC_INTERFACE + O.ACC_PUBLIC,
             csym.name.internalName,
             null, // XXX Signature
             "java/lang/Object",
-            csym.superClassNames(state).map(_.internalName).toArray
+            superClassNames.map(_.internalName).toArray
         )
         
-        impl.visit(
+        csym.loweredSource.members.foreach {
+            case decl: in.MethodDecl => writeInterMethodInterface(csym, cvis, decl)
+            case _ =>
+        }
+        
+        wr.end()
+    }
+    
+    def writeInterClassImpl(csym: Symbol.ClassFromInterFile) {
+        val wr = new ClassWriter(csym.name, implSuffix)
+        import wr.cvis
+
+        cvis.visit(
             O.V1_5,
             O.ACC_PUBLIC,
-            csym.name.internalName + "$",
+            csym.name.internalName + implSuffix,
             null, // XXX Signature
             "java/lang/Object",
             Array(csym.name.internalName)
         )
         
-        def visitMember(mem: in.MemberDecl) = mem match {
-            case decl: in.FieldDecl => // TODO
-            case decl: in.MethodDecl => visitMethod(decl)
-            case _ => // TODO
+        csym.loweredSource.members.foreach {
+            case decl: in.MethodDecl => writeInterMethodImpl(csym, cvis, decl)
+            case _ =>
         }
         
-        def visitMethod(mdecl: in.MethodDecl) = {
-            val paramTys = mdecl.params.map(_.ty)
-            
-            val minter = inter.visitMethod(
-                O.ACC_PUBLIC,
-                mdecl.name.javaName,
-                methodDesc(mdecl.returnTy, paramTys),
-                null, // generic signature
-                null  // thrown exceptions
-            )
-            
-            val mimpl = impl.visitMethod(
-                O.ACC_PUBLIC + O.ACC_STATIC,
-                mdecl.name.javaName,
-                methodDesc(mdecl.returnTy, Type.Class(csym.name, List()) :: paramTys),
-                null, // generic signature
-                null  // thrown exceptions                
-            )
-            
-            mdecl.optBody.foreach { body =>
-                val accessMap = constructAccessMap(
-                    mimpl, 
-                    mdecl.receiverSym, 
-                    mdecl.params, 
-                    body.stmts
-                )
-                
-                val stmtVisitor = new StatementVisitor(accessMap, mimpl)
-                body.stmts.dropRight(1).foreach(stmtVisitor.execStatement)
-                body.stmts.takeRight(1).foreach(stmtVisitor.pushStatement)
-                mimpl.visitInsn(O.ARETURN)
-            }
-            
-            mimpl.visitEnd
-            minter.visitEnd
-        }
-        
-        private[this] def writeClassFile(
-            qualName: Name.Qual, 
-            suffix: String, 
-            classWriter: asm.ClassWriter
-        ) = {
-            val clsFile = file(qualName, suffix, ".class")
-            try {
-                clsFile.getParentFile.mkdirs
-                val out = new java.io.FileOutputStream(clsFile)
-                out.write(classWriter.toByteArray)
-                out.close()
-            } catch {
-                case err: java.io.IOError => {
-                    state.reporter.report(
-                        InterPosition.forFile(clsFile),
-                        "io.error",
-                        err.toString
-                    )
-                }
-            }
-        }
-
-        def end {
-            inter.visitEnd
-            impl.visitEnd
-            interTraceWriter.foreach(_.close)
-            implTraceWriter.foreach(_.close)
-            writeClassFile(csym.name, interSuffix, interWriter)
-            writeClassFile(csym.name, implSuffix, implWriter)
-        }
+        wr.end()
     }
     
     def writeClassSymbol(csym: Symbol.ClassFromInterFile) = {
-        val cvis = new ClassVisitors(csym)
-        csym.loweredSource.members.foreach(cvis.visitMember)
-        cvis.end
+        writeInterClassInterface(csym)
+        writeInterClassImpl(csym)
     }
     
 }
