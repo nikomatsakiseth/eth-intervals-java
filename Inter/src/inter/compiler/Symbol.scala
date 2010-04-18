@@ -120,7 +120,12 @@ object Symbol {
     }
     
     sealed abstract class MethodKind
-    case object IntrinsicMath extends MethodKind
+    case class IntrinsicMath(
+        staticMthdName: String,
+        leftClass: java.lang.Class[_], 
+        rightClass: java.lang.Class[_], 
+        resultClass: java.lang.Class[_]
+    ) extends MethodKind
     case object Inter extends MethodKind
     case object JavaVirtual extends MethodKind
     case object JavaInterface extends MethodKind

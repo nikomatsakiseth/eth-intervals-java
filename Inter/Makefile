@@ -5,6 +5,8 @@ SCALAC=scalac -make:changed
 SCALA=scala
 JARFILES=$(wildcard lib/*.jar)
 JARPATH=$(subst .jar ,.jar:,${JARFILES})
+GENERATEDPY=$(wildcard src/inter/compiler/*Gen.py)
+GENERATEDJAVA=$(subst Gen.py,Gen.java,${GENERATEDPY})
 CLASSPATH=$(JARPATH):bin:bin-test
 LIBDIR=$(CURDIR)/lib
 HPROFOPTS=-agentlib:hprof=cpu=samples,depth=6
@@ -20,7 +22,10 @@ clean:
 	find test -name '*.test' -exec rm '{}' ';'
 
 # ___ Building the code ________________________________________________
-compile:
+%Gen.java: %Gen.py
+	python $< > $@
+
+compile: ${GENERATEDJAVA}
 	mkdir -p bin bin-test
 	${JAVAC} -cp ${CLASSPATH} -d bin -sourcepath src $$(find src -name '*.java')
 	${SCALAC} -cp ${CLASSPATH} -deprecation -d bin -sourcepath src $$(find src -name '*.scala')

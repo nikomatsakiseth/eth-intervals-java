@@ -466,8 +466,19 @@ class ByteCode(state: CompilationState) {
                     }
                     
                     msym.kind match {
-                        case Symbol.IntrinsicMath => {
-                            
+                        case Symbol.IntrinsicMath(mthdName, leftClass, rightClass, returnClass) => {
+                            assert(parts.length == 1)
+                            pushExprValue(receiver)
+                            pushExprValue(parts.head.arg)
+                            mvis.visitMethodInsn(
+                                O.INVOKESTATIC, 
+                                asm.Type.getType(classOf[IntrinsicMathGen]).getInternalName, 
+                                mthdName,
+                                asm.Type.getMethodDescriptor(
+                                    asm.Type.getType(returnClass),
+                                    Array(asm.Type.getType(leftClass), asm.Type.getType(rightClass))
+                                )
+                            )
                         }
                         
                         case Symbol.Inter => callWithOpcode(O.INVOKEINTERFACE)

@@ -16,6 +16,9 @@ object Type {
             if(typeArgs.isEmpty) name.toString
             else "%s[%s]".format(name, typeArgs.mkString(", "))
     }
+    object Class {
+        def apply(cls: java.lang.Class[_]): Type.Class = Class(Name.Qual(cls), List())
+    }
     case class Tuple(typeRefs: List[Type.Ref]) extends Ref {
         override def toString = "(%s)".format(typeRefs.mkString(", "))
     }
