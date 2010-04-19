@@ -1,6 +1,6 @@
 package lower;
 
-class LowerIntrinsic {
+class LowerIntrinsicMath {
     method() {
         a = 3;
         b = 4;

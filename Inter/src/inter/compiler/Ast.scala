@@ -438,7 +438,7 @@ abstract class Ast {
         }        
     }
     
-    abstract class Tmpl(l: String, r: String, className: Name.Qual) extends Expr {
+    abstract class Tmpl(l: String, r: String, val className: Name.Qual) extends Expr {
         def stmts: List[Stmt]
         
         override def toString = "%s...%s".format(l, r)

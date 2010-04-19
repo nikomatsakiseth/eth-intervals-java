@@ -15,7 +15,7 @@ object Name {
         def /(nm: String) = Name.Qual(nm :: rev_components)
         
         def withSuffix(suffix: String) = rev_components match {
-            case hd :: tl => Name.Qual((nm + suffix) :: tl)
+            case hd :: tl => Name.Qual((hd + suffix) :: tl)
             case List() => throw new RuntimeException("Non-empty name expected")
         }
     }
@@ -71,6 +71,6 @@ object Name {
     val IntervalTmplQual = Qual("inter.lang.IntervalTmpl")
     val AsyncIntervalTmplQual = Qual("inter.lang.AsyncIntervalTmpl")
     val IntervalTmplParent = Var("Parent")
-    val ValueMethod = Method("value")
+    val ValueMethod = Method(List("value"))
        
 }

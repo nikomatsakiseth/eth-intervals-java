@@ -1,0 +1,9 @@
+package lower;
+
+class LowerTmpl {
+    method(Boolean cond) {
+        a = 3;
+        v = { a };
+    }
+}
+// COMPILE

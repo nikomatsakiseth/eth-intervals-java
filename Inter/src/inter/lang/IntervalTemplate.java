@@ -1,4 +1,4 @@
-package inter.compiler;
+package inter.lang;
 
 interface IntervalTemplate<R, A> {
     

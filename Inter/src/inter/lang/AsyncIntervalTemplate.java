@@ -1,4 +1,4 @@
-package inter.compiler;
+package inter.lang;
 
 interface AsyncIntervalTemplate<R, A> extends IntervalTemplate<R, A> {
 

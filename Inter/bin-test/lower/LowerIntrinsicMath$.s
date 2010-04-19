@@ -1,10 +1,10 @@
 // class version 49.0 (49)
 // access flags 1
-public class lower/LowerIntrinsic$ implements lower/LowerIntrinsic  {
+public class lower/LowerIntrinsicMath$ implements lower/LowerIntrinsicMath  {
 
 
   // access flags 1
-  public method(Llower/LowerIntrinsic;)Ljava/lang/Integer;
+  public method(Llower/LowerIntrinsicMath;)Ljava/lang/Integer;
     LDC 3
     INVOKESTATIC java/lang/Integer.valueOf (I)Ljava/lang/Integer;
     ASTORE 4

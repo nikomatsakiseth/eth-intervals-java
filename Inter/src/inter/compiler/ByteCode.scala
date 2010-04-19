@@ -35,6 +35,12 @@ case class ByteCode(state: CompilationState) {
         context.withSuffix("$" + counter)
     }
     
+    def freshVarName(base: Option[Name.Var]) = {
+        val counter = freshCounter
+        freshCounter += 1
+        Name.Var("$%s$%s".format(base.getOrElse(""), freshCounter))
+    }
+    
     // ___ Types and Asm Types ______________________________________________
     
     val asmObjectArrayType = asm.Type.getType("[Ljava/lang/Object;")
@@ -56,6 +62,8 @@ case class ByteCode(state: CompilationState) {
         case Type.Tuple(_) => asmObjectArrayType
         case _ => asmObjectType
     }
+    
+    def asmClassType(name: Name.Qual) = asm.Type.getObjectType(name.internalName)
     
     def methodDesc(returnTy: Type.Ref, parameterTypes: List[Type.Ref]): String = {
         getMethodDescriptor(
@@ -231,6 +239,10 @@ case class ByteCode(state: CompilationState) {
             val slot = maxSlot
             maxSlot += 1
             AccessVar(slot, asmTy)
+        }
+        
+        def addSym(sym: Symbol.Var, accessPath: AccessPath) {
+            syms(sym) = accessPath
         }
 
         def addUnboxedSym(sym: Symbol.Var) = {
@@ -490,12 +502,12 @@ case class ByteCode(state: CompilationState) {
                     }
                 }
                 
-                case in.InlineTmpl(stmts, _) => {
-                    throw new RuntimeException("TODO")
+                case tmpl: in.InlineTmpl => {
+                    pushAnonymousIntervalTemplate(tmpl)
                 }
                 
-                case in.AsyncTmpl(stmts, _) => {
-                    throw new RuntimeException("TODO")                    
+                case tmpl: in.AsyncTmpl => {
+                    pushAnonymousIntervalTemplate(tmpl)
                 }
                 
                 case in.Literal(obj: java.lang.String, _) => {
@@ -613,38 +625,104 @@ case class ByteCode(state: CompilationState) {
             }
         }
         
-        def returnResultOfStatements(stmts: in.Stmt) {
-            case List() => 
-                throw new RuntimeException("No empty lists")
-            case List(stmt) => {
-                pushStatement(tl)
-                mvis.visitInsn(O.ARETURN)                
-            }
-            case hd :: tl => {
-                execStatement(hd)
-                returnResultOfStatements(tl)
+        def returnResultOfStatements(stmts: List[in.Stmt]) {
+            stmts match {
+                case List() => 
+                    throw new RuntimeException("No empty lists")
+                case List(stmt) => {
+                    pushStatement(stmt)
+                    mvis.visitInsn(O.ARETURN)                
+                }
+                case hd :: tl => {
+                    execStatement(hd)
+                    returnResultOfStatements(tl)
+                }                
             }
         }
         
+        /** Returns an access map for a method-local class with
+          * the name `cname`.  Any local variables defined in the
+          * current scope but referenced by `cname` will be stored
+          * into fields of the new object.  Emits instructions to
+          * copy those values, assuming that an instance of
+          * `cname` is at the top of the stack.
+          *
+          * Stack: ..., instance => ..., instance
+          */
         def deriveAccessMap(
             cname: Name.Qual,
             cvis: asm.ClassVisitor,
             stmts: List[in.Stmt]
         ) = {
+            val derivedAccessMap = new AccessMap(cname)
             val summary = summarizeSymbolsInStmts(stmts)
             val cache = new mutable.HashMap[AccessPath, AccessPath]()
+            val thisAccessPath = AccessVar(0, asmClassType(cname))
             
-            summary.
+            def redirect(optName: Option[Name.Var], accessPath: AccessPath): AccessPath = {
+                cache.get(accessPath) match {
+                    case Some(redirectedAccessPath) => redirectedAccessPath
+                    case None => accessPath match {
+                        case AccessVar(index, asmType) => {
+                            val fieldName = freshVarName(optName)
+                            
+                            // Add declaration for field:
+                            val fvis = cvis.visitField(
+                                O.ACC_PUBLIC, 
+                                fieldName.javaName,
+                                asmType.getDescriptor,
+                                null,
+                                null
+                            )
+                            fvis.visitEnd
+                            
+                            // Emit instructions to store the result:
+                            mvis.visitInsn(O.DUP)
+                            accessPath.push(mvis)
+                            mvis.visitFieldInsn(
+                                O.PUTFIELD,
+                                cname.internalName,
+                                fieldName.javaName,
+                                asmType.getDescriptor
+                            )
+                            
+                            // Final result:
+                            val result = AccessField(thisAccessPath, fieldName.javaName, asmType)
+                            cache(accessPath) = result
+                            result
+                        }
+                        
+                        case AccessIndex(owner, index, asmType) =>
+                            AccessIndex(redirect(None, owner), index, asmType)
+                            
+                        case AccessField(owner, name, asmType) =>
+                            AccessField(redirect(None, owner), name, asmType)
+                    }
+                }
+            }
+            
+            summary.accessSyms.foreach { sym => // For every symbol `sym` accessed by `stmts`:
+                if(!summary.declaredSyms(sym)) {
+                    // Not declared in `stmts`, must come from outside:
+                    val accessPath = accessMap.syms(sym)
+                    val redirectedAccessPath = redirect(Some(sym.name), accessPath)
+                    derivedAccessMap.addSym(sym, redirectedAccessPath)
+                }
+            }
         }
         
-        def anonymousIntervalTemplate() {
+        /** Creates a new class representing the statements
+          * in `tmpl` and pushes an instance of that class
+          * onto the bytecode stack.  The class will have fields
+          * for any captured local variables.  Also emits 
+          * instructions to initialize those fields. */
+        def pushAnonymousIntervalTemplate(
             tmpl: in.Tmpl
         ) {
             val name = freshQualName(accessMap.context)
-            val wr = new ClassWriter(name, noSuffix)
-            import wr.cvis
+            val tmplwr = new ClassWriter(name, noSuffix)
 
-            cvis.visit(
+            tmplwr.cvis.visit(
                 O.V1_5,
                 O.ACC_PUBLIC,
                 name.internalName,
@@ -652,22 +730,24 @@ case class ByteCode(state: CompilationState) {
                 "java/lang/Object",
                 Array(tmpl.className.internalName)
             )
+            
+            // Create the new object and copy over values for
+            // any local variables which it references:
+            mvis.visitTypeInsn(O.NEW, name.internalName)
+            val derivedAccessMap = deriveAccessMap(name, tmplwr.cvis, tmpl.stmts)
 
-            val derivedAccessMap = deriveAccessMap(name, stmts)
-
-            val mvis = cvis.visitMethod(
+            val tmplmvis = tmplwr.cvis.visitMethod(
                 O.ACC_PUBLIC,
                 Name.ValueMethod.javaName,
-                getMethodDescriptor(asmObjectType, Array(asmObjectType))
+                getMethodDescriptor(asmObjectType, Array(asmObjectType)),
                 null, // generic signature
                 null  // thrown exceptions
             )
-
-            val stmtVisitor = new StatementVisitor(accessMap, mvis)
+            val stmtVisitor = new StatementVisitor(derivedAccessMap, tmplmvis)
             stmtVisitor.returnResultOfStatements(tmpl.stmts)
-            mvis.visitEnd
+            tmplmvis.visitEnd
 
-            wr.end()
+            tmplwr.end()
         }
         
     }
@@ -711,6 +791,7 @@ case class ByteCode(state: CompilationState) {
         )
         decl.optBody.foreach { body =>
             val accessMap = constructAccessMap(
+                csym.name.withSuffix("$" + decl.name),
                 mvis, 
                 decl.receiverSym, 
                 decl.params, 
@@ -723,12 +804,13 @@ case class ByteCode(state: CompilationState) {
     }
     
     def constructAccessMap(
+        context: Name.Qual,
         mvis: asm.MethodVisitor,
         receiverSymbol: Symbol.Var, 
         parameterPatterns: List[in.Param],
         stmts: List[in.Stmt]
     ) = {
-        val accessMap = new AccessMap()
+        val accessMap = new AccessMap(context)
         (receiverSymbol :: parameterPatterns.flatMap(_.symbols)).foreach(accessMap.addUnboxedSym)
         val boxedArray = new BoxedArray(accessMap)
         val summary = summarizeSymbolsInStmts(stmts)
