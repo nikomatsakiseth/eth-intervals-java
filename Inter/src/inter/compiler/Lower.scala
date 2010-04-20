@@ -635,7 +635,6 @@ case class Lower(state: CompilationState) {
                     val optExpTys = msym.msig.parameterPatterns.map(p => Some(subst.ty(p.ty)))
                     val parts = optExpTys.zip(mcall.parts).map { case (e,p) => lowerPart(e)(p) }
                     val msig = subst.methodSignature(msym.msig)
-                    println("Chose %s with sig %s".format(msym, msig))
                     out.MethodCall(rcvr, parts, (msym, msig))
                 }
                 
