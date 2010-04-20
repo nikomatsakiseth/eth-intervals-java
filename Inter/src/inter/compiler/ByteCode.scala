@@ -46,6 +46,7 @@ case class ByteCode(state: CompilationState) {
     val asmObjectArrayType = asm.Type.getType("[Ljava/lang/Object;")
     val asmObjectType = asm.Type.getObjectType("java/lang/Object")
     val asmVoidType = asm.Type.getObjectType("java/lang/Void")
+    val asmBooleanType = asm.Type.getObjectType("java/lang/Boolean")
     
     val primitives = Map[java.lang.Class[_], asm.Type](
         (classOf[java.lang.Boolean] -> asm.Type.BOOLEAN_TYPE),
@@ -532,6 +533,24 @@ case class ByteCode(state: CompilationState) {
                 
                 case in.Literal(obj: java.lang.String, _) => {
                     mvis.visitLdcInsn(obj)
+                }
+                
+                case in.Literal(java.lang.Boolean.TRUE, _) => {
+                    mvis.visitFieldInsn(
+                        O.GETSTATIC, 
+                        asmBooleanType.getInternalName,
+                        "TRUE",
+                        asmBooleanType.getDescriptor
+                    )
+                }
+                
+                case in.Literal(java.lang.Boolean.FALSE, _) => {
+                    mvis.visitFieldInsn(
+                        O.GETSTATIC, 
+                        asmBooleanType.getInternalName,
+                        "FALSE",
+                        asmBooleanType.getDescriptor
+                    )                    
                 }
                 
                 case in.Literal(obj, _) => {

@@ -360,7 +360,7 @@ abstract class Ast {
     abstract class TypeRef extends OptionalTypeRef
     
     case class NullType() extends TypeRef {
-        override def toString = "null"
+        override def toString = Type.Null.toString
     }
     
     case class TupleType(types: List[TypeRef]) extends TypeRef {

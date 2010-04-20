@@ -177,7 +177,7 @@ object Intrinsic {
                 )
             )
         )
-
+        
         // (Iterable<T>) forEach { (T i) -> ... }
         val typeT = Type.Var(Path.This, Name.Var("T"))
         state.addIntrinsic(
@@ -201,6 +201,26 @@ object Intrinsic {
                 )
             )
         )
+
+        // (IntervalTemplate<Boolean,_>) while { ... }
+        state.addIntrinsic(
+            Name.Qual(templateClass),
+            new Symbol.Method(
+                kind = Symbol.IntrinsicControlFlow(
+                    "while_",
+                    Array(templateClass, templateClass),
+                    objectClass
+                ),
+                name = Name.Method(List("while")),
+                Symbol.MethodSignature(
+                    returnTy = voidTy, 
+                    receiverTy = templateTy(booleanTy, voidTy),
+                    parameterPatterns = List(
+                        Pattern.Var(Name.Var("bodyTmpl"), templateTy(voidTy, voidTy))
+                    )
+                )
+            )
+        )    
 
     }
     

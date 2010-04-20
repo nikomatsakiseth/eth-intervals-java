@@ -58,7 +58,7 @@ class Parse extends StdTokenParsers with PackratParsers {
     lexical.reserved += (
         "class", "extends", "import", "package", 
         "interval", "requires", "locks", "new",
-        "type", "ghost"
+        "type", "ghost", "true", "false"
     )
     
     def comma[A](p: PackratParser[A]) = repsep(p, ",")<~opt(",")
@@ -307,6 +307,8 @@ class Parse extends StdTokenParsers with PackratParsers {
     |   varName                             ^^ { case n => out.Var(n, ()) }
     |   numericLit                          ^^ { l => out.Literal(Integer.valueOf(l), ()) }
     |   stringLit                           ^^ { l => out.Literal(l, ()) }
+    |   "true"                              ^^ { l => out.Literal(java.lang.Boolean.TRUE, ()) }
+    |   "false"                             ^^ { l => out.Literal(java.lang.Boolean.FALSE, ()) }
     |   "null"                              ^^ { case _ => out.Null() }
     |   "new"~typeRef~tuple                 ^^ { case _~t~a => out.NewJava(t, a, ()) }
     )

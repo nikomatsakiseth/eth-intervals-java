@@ -56,4 +56,15 @@ class IntrinsicControlFlow {
         return null;
     }
     
+    public static Void while_(
+        IntervalTemplate<Boolean, Void> condTmpl,
+        IntervalTemplate<Void, Void> bodyTmpl
+    ) {
+        while(true) {
+            if(!condTmpl.value(null))
+                return null;
+            bodyTmpl.value(null);
+        }
+    }
+    
 }

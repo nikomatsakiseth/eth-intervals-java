@@ -401,7 +401,8 @@ case class Lower(state: CompilationState) {
     // ___ Lowering Statements ______________________________________________
     
     def tmpVarName(fromExpr: Ast#Expr) = {
-        "(%s@%s)".format(fromExpr.toString, fromExpr.pos.toString)
+        //"(%s@%s)".format(fromExpr.toString, fromExpr.pos.toString)
+        "(%s@%s)".format(fromExpr.getClass.getSimpleName, fromExpr.pos.toString)
     }
     
     def lowerBody(env: Env, body: in.Body): out.Body = {
