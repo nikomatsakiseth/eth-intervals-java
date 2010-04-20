@@ -2,14 +2,22 @@ package lower;
 
 class LowerForEach {
     
-    sum(Iterable[T: Integer] list) {
+    sumObjects(Iterable[T: Object] list) {
+        result = 0;
+        list forEach { value ->
+            result = result + value; // ERROR no.applicable.methods(list:T)
+        };
+        result
+    }
+
+    sumIntegers(Iterable[T: Integer] list) {
         result = 0;
         list forEach { value ->
             result = result + value;
         };
         result
     }
-
+    
 }
 // COMPILE
 // --dump-lowered-trees

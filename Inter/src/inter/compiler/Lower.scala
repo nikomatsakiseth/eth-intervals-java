@@ -616,14 +616,10 @@ case class Lower(state: CompilationState) {
         })
         
         def lowerMethodCall(optExpTy: Option[Type.Ref])(mcall: in.MethodCall) = introduceVar(mcall, {
-            println("lowerMethodCall at %s: %s".format(mcall.pos, mcall))
             val rcvr = lowerExpr(None)(mcall.rcvr)
             
             // Find all potential methods:
             val msyms = env.lookupMethods(rcvr.ty, mcall.name)
-            msyms.zipWithIndex.foreach { case (msym, i) =>
-                println("  msym #%d: %s".format(i, msym))
-            }
                 
             // Identify the best method (if any):
             msyms match {
@@ -639,6 +635,7 @@ case class Lower(state: CompilationState) {
                     val optExpTys = msym.msig.parameterPatterns.map(p => Some(subst.ty(p.ty)))
                     val parts = optExpTys.zip(mcall.parts).map { case (e,p) => lowerPart(e)(p) }
                     val msig = subst.methodSignature(msym.msig)
+                    println("Chose %s with sig %s".format(msym, msig))
                     out.MethodCall(rcvr, parts, (msym, msig))
                 }
                 
@@ -653,7 +650,9 @@ case class Lower(state: CompilationState) {
                         val subst = mthdSubst(msym, rcvr, parts)
                         val parameterTys = msym.msig.parameterPatterns.map(p => subst.ty(p.ty))
                         // XXX Add suitable temps to the environment for the vars ref'd in subst.
-                        partTys.zip(parameterTys).forall { case (p, a) => env.isSuitableArgument(p, a) }
+                        partTys.zip(parameterTys).forall { case (p, a) => 
+                            env.isSuitableArgument(p, a) 
+                        }
                     }
                     val applicableMsyms = msyms.filter(potentiallyApplicable)
                     

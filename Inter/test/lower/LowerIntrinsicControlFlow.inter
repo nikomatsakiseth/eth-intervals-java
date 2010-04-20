@@ -34,10 +34,10 @@ class LowerIntrinsicControlFlow {
     
     Void errors(Boolean c) {
         // XXX: the first example should really have return type java.lang.Integer
-        (chooseOne(c)) badMethod();                // ERROR no.such.method((java.lang.Object), badMethod())
+        (chooseOne(c)) badMethod();                // ERROR no.such.method((java.lang.Void), badMethod())
         (conditionallyModifyLocal(c)) badMethod(); // ERROR no.such.method((java.lang.Integer), badMethod())
         (checkForNull(c)) badMethod();             // ERROR no.such.method((java.lang.Integer), badMethod())
-        (checkForNullElse(c)) badMethod();         // ERROR no.such.method((java.lang.Object), badMethod())
+        (checkForNullElse(c)) badMethod();         // ERROR no.such.method((java.lang.Void), badMethod())
     }
 
 }

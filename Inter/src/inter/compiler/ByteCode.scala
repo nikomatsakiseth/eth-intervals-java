@@ -45,6 +45,7 @@ case class ByteCode(state: CompilationState) {
     
     val asmObjectArrayType = asm.Type.getType("[Ljava/lang/Object;")
     val asmObjectType = asm.Type.getObjectType("java/lang/Object")
+    val asmVoidType = asm.Type.getObjectType("java/lang/Void")
     
     val primitives = Map[java.lang.Class[_], asm.Type](
         (classOf[java.lang.Boolean] -> asm.Type.BOOLEAN_TYPE),
@@ -349,7 +350,6 @@ case class ByteCode(state: CompilationState) {
             case in.Tuple(exprs) => exprs.foldLeft(summary)(summarizeSymbolsInExpr)
             case tmpl: in.IntervalTemplate => {
                 val summaryTmpl = summarizeSymbolsInStmts(tmpl.stmts)
-                println("summaryTmpl.writeSyms=%s".format(summaryTmpl.writeSyms))
                 summary.copy(
                     readSyms = summary.readSyms ++ summaryTmpl.readSyms,
                     writeSyms = summary.writeSyms ++ summaryTmpl.writeSyms,
@@ -691,7 +691,7 @@ case class ByteCode(state: CompilationState) {
             val derivedAccessMap = new AccessMap(cname)
             val summary = summarizeSymbolsInStmts(stmts)
             val cache = new mutable.HashMap[AccessPath, AccessPath]()
-            val thisAccessPath = AccessVar(0, asmClassType(cname))
+            val thisAccessPath = derivedAccessMap.pathToFreshSlot(asmClassType(cname))
             
             def redirect(optName: Option[Name.Var], accessPath: AccessPath): AccessPath = {
                 cache.get(accessPath) match {
@@ -735,14 +735,11 @@ case class ByteCode(state: CompilationState) {
                 }
             }
             
-            summary.accessSyms.foreach { sym => // For every symbol `sym` accessed by `stmts`:
-                println("Accessed Symbol: %s".format(sym))
-                if(!summary.declaredSyms(sym)) {
-                    // Not declared in `stmts`, must come from outside:
-                    val accessPath = accessMap.syms(sym)
+            // For every symbol `sym` accessed by `stmts` and in scope from the outside:
+            summary.accessSyms.foreach { sym => 
+                accessMap.syms.get(sym).foreach { accessPath =>
                     val redirectedAccessPath = redirect(Some(sym.name), accessPath)
                     derivedAccessMap.addSym(sym, redirectedAccessPath)
-                    println("  Redirected to: %s".format(redirectedAccessPath))
                 }
             }
             
@@ -774,6 +771,7 @@ case class ByteCode(state: CompilationState) {
             mvis.visitTypeInsn(O.NEW, name.internalName)
             val derivedAccessMap = deriveAccessMap(name, tmplwr.cvis, tmpl.stmts)
 
+            // 
             val tmplmvis = tmplwr.cvis.visitMethod(
                 O.ACC_PUBLIC,
                 Name.ValueMethod.javaName,
@@ -782,7 +780,21 @@ case class ByteCode(state: CompilationState) {
                 null  // thrown exceptions
             )
             
+            // Add parameters to the access map:
+            //    If there are no parameter, there will still be one in the bytecode of type Void,
+            //    so just reserve the local variable slot.
+            //    XXX -> This won't really work.  Bytecode always has a single param, we have to
+            //           explode the tuple etc.  In fact, this is a more general problem that needs
+            //           to be addressed.  
+            tmpl.param.symbols match {
+                case List() => accessMap.pathToFreshSlot(asmVoidType)
+                case syms => syms.foreach(derivedAccessMap.addUnboxedSym)
+            }
+            
+            // Add local variables declared within `tmpl.stmts` to the access map:
             addSymbolsDeclaredIn(derivedAccessMap, tmpl.stmts, tmplmvis)
+            
+            // Visit the statements:
             val stmtVisitor = new StatementVisitor(derivedAccessMap, tmplmvis)
             stmtVisitor.returnResultOfStatements(tmpl.stmts)
             tmplmvis.visitEnd
@@ -863,13 +875,7 @@ case class ByteCode(state: CompilationState) {
     ) {
         val boxedArray = new BoxedArray(accessMap)
         val summary = summarizeSymbolsInStmts(stmts)
-        println("------------------")
-        println("stmts:")
         stmts.foreach(_.println(PrettyPrinter.stdout))
-        println("declared = %s".format(summary.declaredSyms))
-        println("write = %s".format(summary.writeSyms))
-        println("read = %s".format(summary.readSyms))
-        println("shared = %s".format(summary.sharedSyms))
         summary.declaredSyms.foreach { sym =>
             if(summary.boxedSyms(sym)) boxedArray.addBoxedSym(sym)
             else accessMap.addUnboxedSym(sym)

@@ -67,7 +67,7 @@ object Intrinsic {
     private[this] def addControlFlow(state: CompilationState) = {
         
         val booleanClass = classOf[java.lang.Boolean]
-        val voidClass = classOf[java.lang.Object]
+        val voidClass = classOf[java.lang.Void]
         val objectClass = classOf[java.lang.Object]
         val iterableClass = classOf[java.lang.Iterable[_]]
         val templateClass = classOf[inter.lang.IntervalTemplate[_, _]]
@@ -195,7 +195,7 @@ object Intrinsic {
                     parameterPatterns = List(
                         Pattern.Var(
                             Name.Var("eachTmpl"), 
-                            templateTy(voidTy, objectTy) // typeT)
+                            templateTy(voidTy, typeT)
                         )
                     )
                 )

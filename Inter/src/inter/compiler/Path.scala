@@ -4,8 +4,12 @@ import scala.collection.immutable.Set
 
 object Path {
     sealed abstract class Ref
-    case class Base(v: Name.Var) extends Ref
-    case class Field(base: Path.Ref, f: Name.Var) extends Ref
+    case class Base(v: Name.Var) extends Ref {
+        override def toString = v.toString
+    }
+    case class Field(base: Path.Ref, f: Name.Var) extends Ref {
+        override def toString = base.toString + f.toString
+    }
     
     def fromLoweredAst(node: Ast.Lower.AstPath): Path.Ref = node match {
         case Ast.Lower.Var(name, _) => Path.Base(name.name)

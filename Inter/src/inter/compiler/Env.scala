@@ -259,7 +259,7 @@ case class Env(
             case (Type.Class(name_val, _), Type.Class(name_pat, _)) => {
                 val sym_val = state.symtab.classes(name_val)
                 val sym_pat = state.symtab.classes(name_pat)
-                symbolsSubclass(sym_val, sym_pat)                
+                symbolsSubclass(sym_val, sym_pat)
             }
             
             case (Type.Var(path_val, tvar_val), Type.Var(path_pat, tvar_pat)) if tvar_val == tvar_pat =>
