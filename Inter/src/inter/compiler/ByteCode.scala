@@ -158,9 +158,17 @@ case class ByteCode(state: CompilationState) {
         /** Type of the value at the other end of this path. */
         def asmType: asm.Type
         
+        // Stack: ... => ..., value
         def push(mvis: asm.MethodVisitor): Unit
+        
+        // Stack: ... => ..., <lvalue>
         def pushLvalue(mvis: asm.MethodVisitor): Unit
+        
+        // Stack: ..., <lvalue>, val => ...
         def storeLvalue(mvis: asm.MethodVisitor): Unit
+
+        // Stack: ..., val => ...
+        def storeLvalueWithoutPush(mvis: asm.MethodVisitor): Unit
     }
     
     sealed case class AccessVar(
@@ -175,8 +183,12 @@ case class ByteCode(state: CompilationState) {
         }
         
         def storeLvalue(mvis: asm.MethodVisitor) {
-            mvis.visitIntInsn(O.ASTORE, index)            
+            storeLvalueWithoutPush(mvis)
         }
+        
+        def storeLvalueWithoutPush(mvis: asm.MethodVisitor) {
+            mvis.visitIntInsn(O.ASTORE, index)            
+        } 
     }
     
     sealed case class AccessIndex(
@@ -199,6 +211,14 @@ case class ByteCode(state: CompilationState) {
         def storeLvalue(mvis: asm.MethodVisitor) {
             mvis.visitInsn(O.AASTORE)
         }        
+        
+        def storeLvalueWithoutPush(mvis: asm.MethodVisitor) {
+            owner.push(mvis)
+            mvis.visitInsn(O.SWAP)
+            mvis.pushIntegerConstant(index)
+            mvis.visitInsn(O.SWAP)
+            storeLvalue(mvis)
+        } 
     }
     
     sealed case class AccessField(
@@ -227,7 +247,13 @@ case class ByteCode(state: CompilationState) {
                 name,
                 asmType.getDescriptor
             )
-        }        
+        }       
+         
+        def storeLvalueWithoutPush(mvis: asm.MethodVisitor) {
+            owner.push(mvis)
+            mvis.visitInsn(O.SWAP)
+            storeLvalue(mvis)
+        } 
     }
     
     class AccessMap(val context: Name.Qual)
@@ -468,14 +494,9 @@ case class ByteCode(state: CompilationState) {
                 }
 
                 case in.VarLvalue(_, _, _, sym) => {
-                    accessMap.withStashSlot { stashSlot =>
-                        // Stack: ..., value
-                        mvis.visitIntInsn(O.ASTORE, stashSlot) // Stack: ...
-                        val accessPath = accessMap.syms(sym)
-                        accessPath.pushLvalue(mvis)
-                        mvis.visitIntInsn(O.ALOAD, stashSlot) // Stack: ..., value
-                        accessPath.storeLvalue(mvis)
-                    }
+                    // Stack: ..., value
+                    val accessPath = accessMap.syms(sym)
+                    accessPath.storeLvalueWithoutPush(mvis)
                 }
             }
         }
@@ -499,7 +520,8 @@ case class ByteCode(state: CompilationState) {
                     mvis.visitTypeInsn(O.ANEWARRAY, asmObjectType.getInternalName)
                     exprs.zipWithIndex.foreach { case (expr, index) =>
                         mvis.visitInsn(O.DUP)
-                        mvis.pushIntegerConstant(index)         
+                        mvis.pushIntegerConstant(index)
+                        pushExprValue(expr)
                         mvis.visitInsn(O.AASTORE)
                     }
                 }

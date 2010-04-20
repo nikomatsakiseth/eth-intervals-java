@@ -2,7 +2,19 @@ package lower;
 
 class LowerTuple {
     tuple4() {
-        (1, "harmonic", "interval", 2)
+        (1, "harmonic", "interval", 2);
+    }
+    
+    unpack() {
+        (a, b, c, d) = tuple4();
+    }
+    
+    arguments(Integer a, String b, String c, Integer d) {
+    }
+    
+    toVar() {
+        (a, b, c, d) = (1, "harmonic", "interval", 2);
+        arguments(a, b, c, d);
     }
     
     Void errors(Object obj) {
@@ -15,3 +27,4 @@ class LowerTuple {
 
 }
 // COMPILE
+// --dump-lowered-trees
