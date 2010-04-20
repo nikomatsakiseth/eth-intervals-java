@@ -1,0 +1,18 @@
+package lower;
+
+class LowerIntrinsicControlFlow {
+    invokeToString(Object obj) {
+        obj toString();
+    }
+    
+    invokeHashCode(Object obj) {
+        obj hashCode();
+    }
+    
+    Void errors(Object obj) {
+        (invokeToString(obj)) badMethod(); // ERROR no.such.method((java.lang.String), badMethod())
+        (invokeHashCode(obj)) badMethod(); // ERROR no.such.method((java.lang.Integer), badMethod())
+    }
+
+}
+// COMPILE
