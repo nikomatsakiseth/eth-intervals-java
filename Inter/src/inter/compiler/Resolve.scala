@@ -179,8 +179,12 @@ object Resolve {
             case in.Labeled(name, body) => out.Labeled(name, resolveBody(body))
         })
         
+        def resolveTupleLocal(tupLocal: in.TupleLocal): out.TupleLocal = withPosOf(tupLocal, {
+            out.TupleLocal(tupLocal.locals.map(resolveLocal))
+        })
+        
         def resolveLocal(local: in.Local): out.Local = withPosOf(local, local match {
-            case in.TupleLocal(locals) => out.TupleLocal(locals.map(resolveLocal))
+            case tupLocal: in.TupleLocal => resolveTupleLocal(tupLocal)
             case in.VarLocal(annotations, tref, name, ()) => out.VarLocal(
                 annotations = annotations.map(resolveAnnotation),
                 tref = resolveOptionalTypeRef(tref),
@@ -191,8 +195,7 @@ object Resolve {
         
         def resolveExpr(expr: in.Expr): out.Expr = withPosOf(expr, expr match {
             case tuple: in.Tuple => resolveTuple(tuple)
-            case tmpl: in.InlineTmpl => resolveInlineTmpl(tmpl)
-            case in.AsyncTmpl(stmts, ()) => out.AsyncTmpl(resolveStmts(stmts), ())
+            case tmpl: in.IntervalTemplate => resolveIntervalTemplate(tmpl)
             case e: in.Literal => resolveLiteral(e)
             case in.Var(name, ()) => out.Var(name, ())
             case in.Field(owner, name, (), ()) => out.Field(resolveExpr(owner), name, (), ())
@@ -217,7 +220,10 @@ object Resolve {
             exprs = tuple.exprs.map(resolveExpr)
         ))
         
-        def resolveInlineTmpl(tmpl: in.InlineTmpl) = withPosOf(tmpl, out.InlineTmpl(
+        def resolveIntervalTemplate(tmpl: in.IntervalTemplate) = withPosOf(tmpl, out.IntervalTemplate(
+            async = tmpl.async,
+            returnTref = resolveOptionalTypeRef(tmpl.returnTref),
+            param = resolveTupleLocal(tmpl.param),
             stmts = resolveStmts(tmpl.stmts),
             ty = ()
         ))

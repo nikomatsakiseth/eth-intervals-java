@@ -34,6 +34,6 @@ object Type {
         override def toString = "%s %s %s".format(name, rel, ty)
     }
     
-    val Void = Type.Class(Name.VoidQual, List())    
+    val Void = Type.Class(Name.VoidQual, List())
 
 }

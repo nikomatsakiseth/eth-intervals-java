@@ -269,12 +269,27 @@ class Parse extends StdTokenParsers with PackratParsers {
         "{"~>stmts<~"}"                 ^^ out.Body
     )
     
+    lazy val infTmplParam = positioned(
+        success(()) ^^ { case () => out.TupleLocal(List()) }
+    )
+    
+    lazy val oneTmplParam = positioned(
+        varLocal                            ^^ { case l => out.TupleLocal(List(l)) }
+    |   tupleLocal
+    )
+    
+    lazy val tmplBody: PackratParser[(out.OptionalTypeRef, out.TupleLocal, List[out.Stmt])] = (
+        typeRef~tupleLocal~"->"~stmts       ^^ { case (r~p~"->"~s) => (r, p, s) }
+    |   infTypeRef~oneTmplParam~"->"~stmts  ^^ { case (r~p~"->"~s) => (r, p, s) }
+    |   infTypeRef~infTmplParam~stmts       ^^ { case (r~p~s) => (r, p, s) }
+    )
+    
     lazy val itmpl = positioned(
-        "{"~>stmts<~"}"                 ^^ { s => out.InlineTmpl(s, ()) }
+        "{"~>tmplBody<~"}"                  ^^ { case (r, p, s) => out.IntervalTemplate(false, r, p, s, ()) }
     )
     
     lazy val atmpl = positioned(
-        "{{"~>stmts<~"}}"               ^^ { s => out.AsyncTmpl(s, ()) }
+        "{{"~>tmplBody<~"}}"                ^^ { case (r, p, s) => out.IntervalTemplate(true, r, p, s, ()) }
     )
     
     lazy val tuple = positioned(

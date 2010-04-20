@@ -72,6 +72,8 @@ object Name {
 
     val IntervalTmplQual = Qual(classOf[inter.lang.IntervalTemplate[_, _]])
     val AsyncIntervalTmplQual = Qual(classOf[inter.lang.AsyncIntervalTemplate[_, _]])
+    val RVar = Name.Var("R")
+    val AVar = Name.Var("A")
     val IntervalTmplParent = Var("Parent")
     val ValueMethod = Method(List("value"))
        

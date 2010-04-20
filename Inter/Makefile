@@ -31,20 +31,8 @@ compile: ${GENERATEDJAVA}
 	${SCALAC} -cp ${CLASSPATH} -deprecation -d bin -sourcepath src $$(find src -name '*.scala')
 	
 # ___ Running tests ____________________________________________________
-# to enable profiling add: ${JPROFILEROPTS} or ${HPROFOPTS} to JAVA_OPTS
-# to restrict tests add: -n ch.ethz.intervals.ActivelyDebugging
 test: compile
 	rm -rf bin-test/*
-	python test.py $$(find test -name '*.inter')
+	python test.py --preserve $$(find test -name '*.inter')
 
-#test: compile annotated_java_standard_library.jar
-#	rm -rf ${DEBUGLOGS}
-#	mkdir -p ${DEBUGLOGS}
-#	JAVA_HOME="${JAVA_HOME}" \
-#	JAVA_OPTS="-cp ${CLASSPATH} -Xbootclasspath/p:lib/jsr308-all-1.04.jar" \
-#	${SCALA} -cp ${CLASSPATH} org.scalatest.tools.Runner -c -oW \
-#		-n ch.ethz.intervals.ActivelyDebugging \
-#		-s ch.ethz.intervals.TestAnalysis \
-#		-s ch.ethz.intervals.TestTcEnv \
-#		-s ch.ethz.intervals.TestPlugin
 		

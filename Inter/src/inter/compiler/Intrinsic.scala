@@ -67,19 +67,31 @@ object Intrinsic {
     private[this] def addControlFlow(state: CompilationState) = {
         
         val booleanClass = classOf[java.lang.Boolean]
-        val templateClass = classOf[inter.lang.IntervalTemplate[_, _]]
         val voidClass = classOf[java.lang.Object]
         val objectClass = classOf[java.lang.Object]
+        val templateClass = classOf[inter.lang.IntervalTemplate[_, _]]
         
         val booleanTy = Type.Class(booleanClass)
-        val templateTy = Type.Class(templateClass)
         val voidTy = Type.Class(voidClass)
         val objectTy = Type.Class(objectClass)
         
         ensureLoadable(state, booleanClass)
-        ensureLoadable(state, templateClass)
         ensureLoadable(state, voidClass)
         ensureLoadable(state, objectClass)
+        ensureLoadable(state, templateClass)
+        
+        def templateTy(
+            returnTy: Type.Ref,
+            argumentTy: Type.Ref
+        ) = {
+            Type.Class(
+                Name.Qual(templateClass),
+                List(
+                    Type.TypeArg(Name.RVar, TcEq, returnTy),
+                    Type.TypeArg(Name.AVar, TcEq, argumentTy)
+                )
+            )
+        }
         
         // (boolean) if {...}
         state.addIntrinsic(
@@ -95,7 +107,7 @@ object Intrinsic {
                     returnTy = voidTy,
                     receiverTy = booleanTy,
                     parameterPatterns = List(
-                        Pattern.Var(Name.Var("ifTmpl"), templateTy)
+                        Pattern.Var(Name.Var("ifTmpl"), templateTy(voidTy, voidTy))
                     )
                 )
             )
@@ -115,7 +127,7 @@ object Intrinsic {
                     returnTy = voidTy,
                     receiverTy = objectTy,
                     parameterPatterns = List(
-                        Pattern.Var(Name.Var("ifTmpl"), templateTy)
+                        Pattern.Var(Name.Var("ifTmpl"), templateTy(voidTy, voidTy))
                     )
                 )
             )
@@ -135,8 +147,8 @@ object Intrinsic {
                     returnTy = voidTy, /* ΧΧΧ Generic Method */
                     receiverTy = booleanTy,
                     parameterPatterns = List(
-                        Pattern.Var(Name.Var("ifTmpl"), templateTy),
-                        Pattern.Var(Name.Var("elseTmpl"), templateTy)
+                        Pattern.Var(Name.Var("ifTmpl"), templateTy(voidTy, voidTy)),
+                        Pattern.Var(Name.Var("elseTmpl"), templateTy(voidTy, voidTy))
                     )
                 )
             )
@@ -156,8 +168,8 @@ object Intrinsic {
                     returnTy = voidTy, /* ΧΧΧ Generic Method */
                     receiverTy = objectTy,
                     parameterPatterns = List(
-                        Pattern.Var(Name.Var("ifTmpl"), templateTy),
-                        Pattern.Var(Name.Var("elseTmpl"), templateTy)
+                        Pattern.Var(Name.Var("ifTmpl"), templateTy(voidTy, voidTy)),
+                        Pattern.Var(Name.Var("elseTmpl"), templateTy(voidTy, voidTy))
                     )
                 )
             )

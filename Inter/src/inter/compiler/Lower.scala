@@ -729,20 +729,92 @@ case class Lower(state: CompilationState) {
                 }
             }
         })
-    
-        def lowerInlineTmpl(tmpl: in.InlineTmpl) = introduceVar(tmpl, out.InlineTmpl(
-            stmts = lowerStmts(env, tmpl.stmts),
-            ty = Type.Class(Name.IntervalTmplQual, List(
-                Type.PathArg(Name.IntervalTmplParent, PcEq, Path.Method)
-            ))
-        ))
         
-        def lowerAsyncTmpl(tmpl: in.AsyncTmpl) = introduceVar(tmpl, out.AsyncTmpl(
-            stmts = lowerStmts(env, tmpl.stmts),
-            ty = Type.Class(Name.AsyncIntervalTmplQual, List(
-                Type.PathArg(Name.IntervalTmplParent, PcEq, Path.Method)
-            ))
-        ))
+        def optTypeArg(TypeVarName: Name.Var, optExpTy: Option[Type.Ref]) = optExpTy match {
+            case Some(Type.Class(_, typeArgs)) => {
+                typeArgs.firstSome {
+                    case Type.TypeArg(TypeVarName, TcEq, ty) => Some(ty)
+                    case Type.TypeArg(TypeVarName, TcSub, ty) => Some(ty)
+                    case _ => None
+                }
+            }
+            case _ => None
+        }
+        
+        def lowerIntervalTemplateArgument(expArgumentTy: Type.Ref, local: in.Local): out.Param = {
+            withPosOf(local, (expArgumentTy, local) match {
+                // Unpack singleton tuples:
+                //    We keep the TupleParam() wrapper around a singleton entry just for pretty printing.
+                case (ty, in.TupleLocal(List(lv))) => out.TupleParam(List(lowerIntervalTemplateArgument(ty, lv)))
+                case (Type.Tuple(List(ty)), lv) => lowerIntervalTemplateArgument(ty, lv)
+                
+                // Unpack matching tuples:
+                case (Type.Tuple(tys), in.TupleLocal(locals)) if sameLength(tys, locals) => {
+                    val outParams = tys.zip(locals).map { case (t, l) => lowerIntervalTemplateArgument(t, l) }
+                    out.TupleParam(outParams)
+                }
+                
+                // If tuple sizes don't match, just infer NullType:
+                case (_, in.TupleLocal(locals)) => {
+                    val outParams = locals.map(lowerIntervalTemplateArgument(Type.Null, _))
+                    out.TupleParam(outParams)
+                }
+                
+                // Pattern w/o type specified, either reassign pre-existing sym or use type from RHS:
+                case (ty, in.VarLocal(anns, inTref @ in.InferredTypeRef(), name, ())) => {
+                    out.VarParam(
+                        anns.map(lowerAnnotation),
+                        astType(env)(inTref, ty),
+                        name,
+                        new Symbol.Var(name.name, ty)
+                    )                            
+                }
+                    
+                // Pattern w/ type specified, use type given:
+                case (_, in.VarLocal(anns, tref: in.TypeRef, name, sym)) => {
+                    if(env.localIsDefined(name.name)) {
+                        state.reporter.report(
+                            local.pos,
+                            "shadowed.local.variable",
+                            name.toString
+                        )
+                    }                        
+                    
+                    val ty = symbolType(tref)
+                    out.VarParam(
+                        anns.map(lowerAnnotation),
+                        lowerTypeRef(tref),
+                        name,
+                        new Symbol.Var(name.name, ty)
+                    )                    
+                }
+                    
+            })
+        }
+        
+        def lowerIntervalTemplate(optExpTy: Option[Type.Ref])(tmpl: in.IntervalTemplate) = introduceVar(tmpl, {
+            val expReturnTy = optTypeArg(Name.RVar, optExpTy).getOrElse(Type.Void)
+            val expArgumentTy = optTypeArg(Name.AVar, optExpTy).getOrElse(Type.Void)
+            
+            val (outReturnTypeRef, returnTy) = tmpl.returnTref match {
+                case tref: in.TypeRef => (lowerTypeRef(tref), symbolType(tref))
+                case in.InferredTypeRef() => (astType(env)(tmpl.returnTref, expReturnTy), expReturnTy)
+            }
+            
+            val outParam = lowerIntervalTemplateArgument(expArgumentTy, tmpl.param)
+            
+            out.IntervalTemplate(
+                async = tmpl.async,
+                returnTref = outReturnTypeRef,
+                param = outParam,
+                stmts = lowerStmts(env, tmpl.stmts),
+                ty = Type.Class(tmpl.className, List(
+                    Type.PathArg(Name.IntervalTmplParent, PcEq, Path.Method),
+                    Type.TypeArg(Name.RVar, TcEq, returnTy),
+                    Type.TypeArg(Name.AVar, TcEq, outParam.ty)
+                ))
+            )
+        })
         
         def lowerImpThis(expr: in.Expr) = withPosOf(expr, {
             val sym = env.lookupThis
@@ -751,8 +823,7 @@ case class Lower(state: CompilationState) {
         
         def lowerExpr(optExpTy: Option[Type.Ref])(expr: in.Expr): out.LoweredExpr = expr match {
             case tuple: in.Tuple => lowerTuple(optExpTy)(tuple)
-            case tmpl: in.InlineTmpl => lowerInlineTmpl(tmpl)
-            case tmpl: in.AsyncTmpl => lowerAsyncTmpl(tmpl)
+            case tmpl: in.IntervalTemplate => lowerIntervalTemplate(optExpTy)(tmpl)
             case lit: in.Literal => lowerLiteralExpr(lit)
             case e: in.Var => lowerVar(optExpTy)(e)
             case e: in.Field => lowerField(optExpTy)(e)

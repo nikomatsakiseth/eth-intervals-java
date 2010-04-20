@@ -23,6 +23,9 @@ abstract class Ast {
     /** Nested expressions eventually become restricted */
     type NE <: Expr
     
+    /** Type of a template's parameter: becomes a Param */
+    type TmplLv <: Lvalue
+    
     /** Type of an expression */
     type Ty
     
@@ -396,14 +399,23 @@ abstract class Ast {
         }
     }
     
-    sealed abstract class TypeArg extends Node
+    sealed abstract class TypeArg extends Node {
+        def forTypeVar(name: VarName): Option[TypeTypeArg]
+        def forGhost(name: VarName): Option[PathTypeArg]
+    }
     
     case class TypeTypeArg(name: VarName, rel: TcRel, typeRef: TypeRef) extends TypeArg {
         override def toString = "%s %s %s".format(name, rel, typeRef)
+        
+        def forTypeVar(aName: VarName) = if(name == aName) Some(this) else None
+        def forGhost(aName: VarName) = None
     }
     
     case class PathTypeArg(name: VarName, rel: PcRel, path: AstPath) extends TypeArg {
         override def toString = "%s %s %s".format(name, rel, path)
+        
+        def forTypeVar(aName: VarName) = None
+        def forGhost(aName: VarName) = if(name == aName) Some(this) else None
     }
     
     // ___ Paths ____________________________________________________________
@@ -454,21 +466,32 @@ abstract class Ast {
         }        
     }
     
-    abstract class Tmpl(l: String, r: String, val className: Name.Qual) extends Expr {
-        def stmts: List[Stmt]
+    case class IntervalTemplate(
+        async: Boolean, 
+        returnTref: OT, 
+        param: TmplLv, 
+        stmts: List[Stmt], 
+        ty: Ty
+    ) extends Expr {
+        def className = if(async) Name.AsyncIntervalTmplQual else Name.IntervalTmplQual
+
+        private[this] def sep = if(async) ("{{", "}}") else ("{", "}")
         
-        override def toString = "%s...%s".format(l, r)
+        override def toString = {
+            val (l, r) = sep
+            "%s %s %s -> ... %s".format(l, returnTref, param, r)
+        }
         
         override def print(out: PrettyPrinter) {
-            out.indented(l, r) { stmts.foreach(_.printsemiln(out)) }
+            val (l, r) = sep
+            out.indented(l, r) { 
+                returnTref.printsp(out)
+                param.printsp(out)
+                out.writeln(" ->")
+                stmts.foreach(_.printsemiln(out)) 
+            }
         }
     }
-    
-    case class InlineTmpl(stmts: List[Stmt], ty: Ty)
-    extends Tmpl("{", "}", Name.IntervalTmplQual)
-    
-    case class AsyncTmpl(stmts: List[Stmt], ty: Ty)
-    extends Tmpl("{{", "}}", Name.AsyncIntervalTmplQual)
     
     case class Literal(obj: Object, ty: Ty) extends Expr {
         override def toString = obj.toString
@@ -617,6 +640,7 @@ object Ast {
         type PN = RelName
         type OT = OptionalTypeRef
         type NE = Expr
+        type TmplLv = TupleLocal
         type CSym = Unit
         type VSym = Unit
         type MSym = Unit
@@ -634,6 +658,7 @@ object Ast {
         type PN = Ast.AbsName
         type OT = OptionalTypeRef
         type NE = Expr
+        type TmplLv = Local
         type CSym = Unit
         type VSym = Unit
         type MSym = Unit
@@ -652,6 +677,7 @@ object Ast {
         type PN = Ast.AbsName
         type OT = TypeRef
         type NE = LoweredExpr
+        type TmplLv = Param
         type CSym = Symbol.Class
         type VSym = Symbol.Var
         type MSym = Symbol.Method
