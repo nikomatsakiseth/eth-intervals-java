@@ -30,6 +30,10 @@ object Symbol {
         def superClassNames(state: CompilationState): Seq[Name.Qual]
         def methodsNamed(state: CompilationState)(name: Name.Method): List[Symbol.Method]
         def fieldNamed(state: CompilationState)(name: Name.Var): Option[Symbol.Var]
+        
+        override def toString = "%s(%s, %x)".format(
+            getClass.getSimpleName, name, System.identityHashCode(this)
+        )        
     }
     
     class ClassFromErroroneousSource(
@@ -126,6 +130,11 @@ object Symbol {
         rightClass: java.lang.Class[_], 
         resultClass: java.lang.Class[_]
     ) extends MethodKind
+    case class IntrinsicControlFlow(
+        staticMthdName: String,
+        argumentClasses: Array[java.lang.Class[_]],
+        resultClass: java.lang.Class[_]
+    ) extends MethodKind
     case object Inter extends MethodKind
     case object JavaVirtual extends MethodKind
     case object JavaInterface extends MethodKind
@@ -136,7 +145,9 @@ object Symbol {
         val kind: MethodKind,
         val name: Name.Method,
         val msig: MethodSignature[Pattern.Ref]
-    ) extends Ref
+    ) extends Ref {
+        override def toString = "Method(%s, %x)".format(name, System.identityHashCode(this))        
+    }
     
     def errorMethod(name: Name.Method) = {
         val parameterPatterns = name.parts.zipWithIndex.map { case (_, i) => 
@@ -159,7 +170,9 @@ object Symbol {
     class Var(
         val name: Name.Var,
         val ty: Type.Ref
-    ) extends Ref
+    ) extends Ref {
+        override def toString = "Var(%s, %x)".format(name, System.identityHashCode(this))
+    }
     
     def errorVar(name: Name.Var, optExpTy: Option[Type.Ref]) = {
         val ty = optExpTy.getOrElse(Type.Null)

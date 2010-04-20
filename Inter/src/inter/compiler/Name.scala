@@ -63,13 +63,15 @@ object Name {
     
     val MethodVar = Name.Var("method")
     
-    val VoidQual = Qual("java.lang.Void")
+    val VoidQual = Qual(classOf[java.lang.Void])
+    
+    val ObjectQual = Qual(classOf[java.lang.Object])
 
     val ArrayQual = Qual("inter.lang.Array")
     val ArrayElem = Var("E")
 
-    val IntervalTmplQual = Qual("inter.lang.IntervalTmpl")
-    val AsyncIntervalTmplQual = Qual("inter.lang.AsyncIntervalTmpl")
+    val IntervalTmplQual = Qual(classOf[inter.lang.IntervalTemplate[_, _]])
+    val AsyncIntervalTmplQual = Qual(classOf[inter.lang.AsyncIntervalTemplate[_, _]])
     val IntervalTmplParent = Var("Parent")
     val ValueMethod = Method(List("value"))
        

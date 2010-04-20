@@ -1,0 +1,45 @@
+package lower;
+
+class LowerIntrinsicControlFlow {
+    chooseOne(Boolean cond) {
+        a = 3;
+        b = 4;
+        cond if { a } else { b };
+    }
+    
+    conditionallyModifyLocal(Boolean cond) {
+        a = 3;
+        cond if { 
+            a = a + 4;
+        };
+        a
+    }
+    
+    checkForNull(Object value) {
+        a = 3;
+        b = 5;
+        value ifNull {
+            a = a + b;
+        };
+        b
+    }
+    
+    checkForNullElse(Object value) {
+        value ifNull {
+            value toString()
+        } else {
+            0
+        }
+    }
+    
+    Void errors(Boolean c) {
+        // XXX: the first example should really have return type java.lang.Integer
+        (chooseOne(c)) badMethod();                // ERROR no.such.method((java.lang.Object), badMethod())
+        (conditionallyModifyLocal(c)) badMethod(); // ERROR no.such.method((java.lang.Integer), badMethod())
+        (checkForNull(c)) badMethod();             // ERROR no.such.method((java.lang.Integer), badMethod())
+        (checkForNullElse(c)) badMethod();         // ERROR no.such.method((java.lang.Object), badMethod())
+    }
+
+}
+// COMPILE
+// --dump-lowered-trees 

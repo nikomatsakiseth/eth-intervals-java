@@ -282,6 +282,14 @@ abstract class Ast {
         def ty: TyTuple = tupleTy(lvalues.map(_.ty))
         
         def symbols = lvalues.flatMap(_.symbols)
+
+        override def toString = "(%s)".format(lvalues.mkString(", "))
+        
+        override def print(out: PrettyPrinter) {
+            out.write("(")
+            printSep(out, lvalues, ", ")
+            out.write(")")
+        }
     }
     sealed abstract trait VarLvalue extends Node {
         def annotations: List[Annotation]
@@ -291,6 +299,14 @@ abstract class Ast {
         def ty: Ty
         
         def symbols = List(sym)
+        
+        override def toString = "%s %s %s".format(annotations, tref, name)
+        
+        override def print(out: PrettyPrinter) {
+            annotations.foreach(_.printsp(out))
+            tref.printsp(out)
+            name.print(out)
+        }
     }
     
     object TupleLvalue {

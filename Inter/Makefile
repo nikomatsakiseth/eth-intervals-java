@@ -7,7 +7,7 @@ JARFILES=$(wildcard lib/*.jar)
 JARPATH=$(subst .jar ,.jar:,${JARFILES})
 GENERATEDPY=$(wildcard src/inter/compiler/*Gen.py)
 GENERATEDJAVA=$(subst Gen.py,Gen.java,${GENERATEDPY})
-CLASSPATH=$(JARPATH):bin:bin-test
+CLASSPATH=$(JARPATH):bin
 LIBDIR=$(CURDIR)/lib
 HPROFOPTS=-agentlib:hprof=cpu=samples,depth=6
 JPROFILEROPTS=-javaagent:${LIBDIR}/profile.jar -Dprofile.properties=${LIBDIR}/profile.properties
@@ -34,6 +34,7 @@ compile: ${GENERATEDJAVA}
 # to enable profiling add: ${JPROFILEROPTS} or ${HPROFOPTS} to JAVA_OPTS
 # to restrict tests add: -n ch.ethz.intervals.ActivelyDebugging
 test: compile
+	rm -rf bin-test/*
 	python test.py $$(find test -name '*.inter')
 
 #test: compile annotated_java_standard_library.jar

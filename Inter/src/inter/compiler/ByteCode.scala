@@ -323,6 +323,7 @@ case class ByteCode(state: CompilationState) {
             case in.Tuple(exprs) => exprs.foldLeft(summary)(summarizeSymbolsInExpr)
             case tmpl: in.Tmpl => {
                 val summaryTmpl = summarizeSymbolsInStmts(tmpl.stmts)
+                println("summaryTmpl.writeSyms=%s".format(summaryTmpl.writeSyms))
                 summary.copy(
                     readSyms = summary.readSyms ++ summaryTmpl.readSyms,
                     writeSyms = summary.writeSyms ++ summaryTmpl.writeSyms,
@@ -352,9 +353,10 @@ case class ByteCode(state: CompilationState) {
             }
             
             case in.Assign(local, expr) => {
-                summarizeSymbolsInExpr(summary, expr).copy(
-                    declaredSyms = summary.declaredSyms ++ symbolsDeclaredInLocal(local),
-                    writeSyms = summary.writeSyms ++ symbolsReassignedInLocal(local)
+                val summaryExpr = summarizeSymbolsInExpr(summary, expr)
+                summaryExpr.copy(
+                    declaredSyms = summaryExpr.declaredSyms ++ symbolsDeclaredInLocal(local),
+                    writeSyms = summaryExpr.writeSyms ++ symbolsReassignedInLocal(local)
                 )
             }
         }
@@ -538,14 +540,18 @@ case class ByteCode(state: CompilationState) {
                 }
                 
                 case in.MethodCall(receiver, parts, (msym, msig)) => {
-                    def callWithOpcode(op: Int) = {
+                    def callWithDetails(op: Int, ownerAsmType: asm.Type, desc: String) = {
                         pushExprValue(receiver)
                         msig.parameterPatterns.zip(parts).foreach { case (pattern, part) =>
                             pushRvalues(pattern, part.arg)
                         }
+                        mvis.visitMethodInsn(op, ownerAsmType.getInternalName, msym.name.javaName, desc)
+                    }
+                    
+                    def callWithOpcode(op: Int) = {
                         val ownerAsmType = asmType(msig.receiverTy)
                         val desc = methodDesc(msym.msig)
-                        mvis.visitMethodInsn(op, ownerAsmType.getInternalName, msym.name.javaName, desc)
+                        callWithDetails(op, ownerAsmType, desc)
                     }
                     
                     msym.kind match {
@@ -561,6 +567,16 @@ case class ByteCode(state: CompilationState) {
                                     asm.Type.getType(returnClass),
                                     Array(asm.Type.getType(leftClass), asm.Type.getType(rightClass))
                                 )
+                            )
+                        }
+                        
+                        case Symbol.IntrinsicControlFlow(mthdName, argumentClasses, resultClass) => {
+                            callWithDetails(
+                                O.INVOKESTATIC,
+                                asm.Type.getType(classOf[IntrinsicControlFlow]),
+                                getMethodDescriptor(
+                                    asm.Type.getType(resultClass), 
+                                    argumentClasses.map(asm.Type.getType))
                             )
                         }
                         
@@ -702,13 +718,17 @@ case class ByteCode(state: CompilationState) {
             }
             
             summary.accessSyms.foreach { sym => // For every symbol `sym` accessed by `stmts`:
+                println("Accessed Symbol: %s".format(sym))
                 if(!summary.declaredSyms(sym)) {
                     // Not declared in `stmts`, must come from outside:
                     val accessPath = accessMap.syms(sym)
                     val redirectedAccessPath = redirect(Some(sym.name), accessPath)
                     derivedAccessMap.addSym(sym, redirectedAccessPath)
+                    println("  Redirected to: %s".format(redirectedAccessPath))
                 }
             }
+            
+            derivedAccessMap
         }
         
         /** Creates a new class representing the statements
@@ -743,6 +763,8 @@ case class ByteCode(state: CompilationState) {
                 null, // generic signature
                 null  // thrown exceptions
             )
+            
+            addSymbolsDeclaredIn(derivedAccessMap, tmpl.stmts, tmplmvis)
             val stmtVisitor = new StatementVisitor(derivedAccessMap, tmplmvis)
             stmtVisitor.returnResultOfStatements(tmpl.stmts)
             tmplmvis.visitEnd
@@ -812,14 +834,29 @@ case class ByteCode(state: CompilationState) {
     ) = {
         val accessMap = new AccessMap(context)
         (receiverSymbol :: parameterPatterns.flatMap(_.symbols)).foreach(accessMap.addUnboxedSym)
+        addSymbolsDeclaredIn(accessMap, stmts, mvis)
+        accessMap
+    }
+    
+    def addSymbolsDeclaredIn(
+        accessMap: AccessMap, 
+        stmts: List[in.Stmt],
+        mvis: asm.MethodVisitor        
+    ) {
         val boxedArray = new BoxedArray(accessMap)
         val summary = summarizeSymbolsInStmts(stmts)
+        println("------------------")
+        println("stmts:")
+        stmts.foreach(_.println(PrettyPrinter.stdout))
+        println("declared = %s".format(summary.declaredSyms))
+        println("write = %s".format(summary.writeSyms))
+        println("read = %s".format(summary.readSyms))
+        println("shared = %s".format(summary.sharedSyms))
         summary.declaredSyms.foreach { sym =>
             if(summary.boxedSyms(sym)) boxedArray.addBoxedSym(sym)
             else accessMap.addUnboxedSym(sym)
         }
         boxedArray.createArrayIfNeeded(mvis)
-        accessMap
     }
 
     // ___ Classes __________________________________________________________
