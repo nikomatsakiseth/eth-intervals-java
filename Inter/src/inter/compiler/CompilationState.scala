@@ -14,11 +14,11 @@ class CompilationState(
     val toBeBytecoded = new Queue[Symbol.ClassFromInterFile]()
     val inferStack = new HashSet[Symbol.MemberId]()
     val inferReported = new HashSet[Symbol.MemberId]()
-    val intrinsics = new HashMap[(Type.Ref, Name.Method), List[Symbol.Method]]()
+    val intrinsics = new HashMap[(Name.Qual, Name.Method), List[Symbol.Method]]()
     
-    def addIntrinsic(rcvrTy: Type.Ref, msym: Symbol.Method) {
-        val mthdName = msym.name
-        intrinsics((rcvrTy, mthdName)) = msym :: intrinsics.get((rcvrTy, mthdName)).getOrElse(Nil)
+    def addIntrinsic(rcvrClassName: Name.Qual, msym: Symbol.Method) {
+        val key = (rcvrClassName, msym.name)
+        intrinsics(key) = msym :: intrinsics.get(key).getOrElse(Nil)
     }
     
     private[this] def createSymbolsAndResolve(compUnits: List[Ast.Parse.CompUnit]) {
@@ -122,7 +122,11 @@ class CompilationState(
     /** Checks for an intrinsic method --- i.e., one that is built-in to the compiler ---
       * defined on the type `rcvrTy` with the name `name`. */
     def lookupIntrinsic(rcvrTy: Type.Ref, name: Name.Method): List[Symbol.Method] = {
-        intrinsics.get((rcvrTy, name)).getOrElse(List())
+        rcvrTy match { // XXX Need to consider type bounds, really, but not in this method.
+            case Type.Class(className, _) => intrinsics.get((className, name)).getOrElse(List())
+            case _ => List() 
+        }
+        
     }
     
     def compile() {

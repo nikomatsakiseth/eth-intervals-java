@@ -1,0 +1,15 @@
+package lower;
+
+class LowerForEach {
+    
+    sum(Iterable[T: Integer] list) {
+        result = 0;
+        list forEach { value ->
+            result = result + value;
+        };
+        result
+    }
+
+}
+// COMPILE
+// --dump-lowered-trees

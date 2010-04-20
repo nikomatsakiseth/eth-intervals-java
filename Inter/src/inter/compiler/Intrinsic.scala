@@ -56,7 +56,7 @@ object Intrinsic {
                         parameterPatterns = List(Pattern.Var(Name.Var("arg"), rightTy))
                     )
                 )
-                state.addIntrinsic(leftTy, msym)
+                state.addIntrinsic(leftTy.name, msym)
             }
         }
         
@@ -69,16 +69,19 @@ object Intrinsic {
         val booleanClass = classOf[java.lang.Boolean]
         val voidClass = classOf[java.lang.Object]
         val objectClass = classOf[java.lang.Object]
+        val iterableClass = classOf[java.lang.Iterable[_]]
         val templateClass = classOf[inter.lang.IntervalTemplate[_, _]]
-        
-        val booleanTy = Type.Class(booleanClass)
-        val voidTy = Type.Class(voidClass)
-        val objectTy = Type.Class(objectClass)
         
         ensureLoadable(state, booleanClass)
         ensureLoadable(state, voidClass)
         ensureLoadable(state, objectClass)
+        ensureLoadable(state, iterableClass)
         ensureLoadable(state, templateClass)
+        
+        val booleanTy = Type.Class(booleanClass)
+        val voidTy = Type.Class(voidClass)
+        val objectTy = Type.Class(objectClass)
+        val iterableTy = Type.Class(iterableClass)
         
         def templateTy(
             returnTy: Type.Ref,
@@ -95,7 +98,7 @@ object Intrinsic {
         
         // (boolean) if {...}
         state.addIntrinsic(
-            booleanTy,
+            booleanTy.name,
             new Symbol.Method(
                 kind = Symbol.IntrinsicControlFlow(
                     "if_",
@@ -115,7 +118,7 @@ object Intrinsic {
         
         // (Object) ifNull {...}
         state.addIntrinsic(
-            objectTy,
+            objectTy.name,
             new Symbol.Method(
                 kind = Symbol.IntrinsicControlFlow(
                     "ifNull",
@@ -135,7 +138,7 @@ object Intrinsic {
 
         // (boolean) if {...} else {...}
         state.addIntrinsic(
-            booleanTy,
+            booleanTy.name,
             new Symbol.Method(
                 kind = Symbol.IntrinsicControlFlow(
                     "ifElse",
@@ -156,7 +159,7 @@ object Intrinsic {
         
         // (Object) ifNull {...} else {...}
         state.addIntrinsic(
-            objectTy,
+            objectTy.name,
             new Symbol.Method(
                 kind = Symbol.IntrinsicControlFlow(
                     "ifNullElse",
@@ -170,6 +173,30 @@ object Intrinsic {
                     parameterPatterns = List(
                         Pattern.Var(Name.Var("ifTmpl"), templateTy(voidTy, voidTy)),
                         Pattern.Var(Name.Var("elseTmpl"), templateTy(voidTy, voidTy))
+                    )
+                )
+            )
+        )
+
+        // (Iterable<T>) forEach { (T i) -> ... }
+        val typeT = Type.Var(Path.This, Name.Var("T"))
+        state.addIntrinsic(
+            iterableTy.name,
+            new Symbol.Method(
+                kind = Symbol.IntrinsicControlFlow(
+                    "forEach",
+                    Array(iterableClass, templateClass),
+                    voidClass
+                ),
+                name = Name.Method(List("forEach")),
+                Symbol.MethodSignature(
+                    returnTy = voidTy,
+                    receiverTy = iterableTy,
+                    parameterPatterns = List(
+                        Pattern.Var(
+                            Name.Var("eachTmpl"), 
+                            templateTy(voidTy, objectTy) // typeT)
+                        )
                     )
                 )
             )

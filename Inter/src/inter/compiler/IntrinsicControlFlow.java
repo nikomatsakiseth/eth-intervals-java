@@ -46,5 +46,14 @@ class IntrinsicControlFlow {
             return elseTmpl.value(null);
         }
     }
+
+    public static <Void, A> Void forEach(
+        Iterable<A> iterable,
+        IntervalTemplate<Void,A> eachTmpl
+    ) {
+        for(A item : iterable)
+            eachTmpl.value(item);
+        return null;
+    }
     
 }

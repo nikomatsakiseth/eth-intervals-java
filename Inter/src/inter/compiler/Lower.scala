@@ -616,15 +616,18 @@ case class Lower(state: CompilationState) {
         })
         
         def lowerMethodCall(optExpTy: Option[Type.Ref])(mcall: in.MethodCall) = introduceVar(mcall, {
+            println("lowerMethodCall at %s: %s".format(mcall.pos, mcall))
             val rcvr = lowerExpr(None)(mcall.rcvr)
             
             // Find all potential methods:
             val msyms = env.lookupMethods(rcvr.ty, mcall.name)
+            msyms.zipWithIndex.foreach { case (msym, i) =>
+                println("  msym #%d: %s".format(i, msym))
+            }
                 
             // Identify the best method (if any):
             msyms match {
                 case List() => {
-                    println("lowerMethodCall(%s)", mcall)
                     state.reporter.report(mcall.pos, "no.such.method", rcvr.ty.toString, mcall.name.toString)
                     out.Null(optExpTy.getOrElse(Type.Null))
                 }
@@ -686,7 +689,8 @@ case class Lower(state: CompilationState) {
                         case (List(), List()) => {
                             state.reporter.report(
                                 mcall.pos,
-                                "no.applicable.methods"
+                                "no.applicable.methods",
+                                partTys.map(_.toString).mkString(", ")
                             )
                             out.Null(optExpTy.getOrElse(Type.Null))
                         }
@@ -803,11 +807,14 @@ case class Lower(state: CompilationState) {
             
             val outParam = lowerIntervalTemplateArgument(expArgumentTy, tmpl.param)
             
+            val subenv = env ++ outParam.symbols
+            val outStmts = lowerStmts(subenv, tmpl.stmts)
+            
             out.IntervalTemplate(
                 async = tmpl.async,
                 returnTref = outReturnTypeRef,
                 param = outParam,
-                stmts = lowerStmts(env, tmpl.stmts),
+                stmts = outStmts,
                 ty = Type.Class(tmpl.className, List(
                     Type.PathArg(Name.IntervalTmplParent, PcEq, Path.Method),
                     Type.TypeArg(Name.RVar, TcEq, returnTy),
