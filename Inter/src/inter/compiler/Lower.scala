@@ -796,18 +796,31 @@ case class Lower(state: CompilationState) {
         }
         
         def lowerIntervalTemplate(optExpTy: Option[Type.Ref])(tmpl: in.IntervalTemplate) = introduceVar(tmpl, {
-            val expReturnTy = optTypeArg(Name.RVar, optExpTy).getOrElse(Type.Void)
             val expArgumentTy = optTypeArg(Name.AVar, optExpTy).getOrElse(Type.Void)
-            
-            val (outReturnTypeRef, returnTy) = tmpl.returnTref match {
-                case tref: in.TypeRef => (lowerTypeRef(tref), symbolType(tref))
-                case in.InferredTypeRef() => (astType(env)(tmpl.returnTref, expReturnTy), expReturnTy)
-            }
             
             val outParam = lowerIntervalTemplateArgument(expArgumentTy, tmpl.param)
             
             val subenv = env ++ outParam.symbols
             val outStmts = lowerStmts(subenv, tmpl.stmts)
+            
+            // This code extracts the expected return type from `optExpTy`: we decided
+            // instead to extract the expected return type from `outStmts`.  As a side
+            // effect, note that the `this` pointer inside an interval template does
+            // not change, unlike an inner or anonymous class.
+            //
+            // val expReturnTy = optTypeArg(Name.RVar, optExpTy).getOrElse(Type.Void)
+            // val (outReturnTypeRef, returnTy) = tmpl.returnTref match {
+            //     case tref: in.TypeRef => (lowerTypeRef(tref), symbolType(tref))
+            //     case in.InferredTypeRef() => (astType(env)(tmpl.returnTref, expReturnTy), expReturnTy)
+            // }
+            
+            val (outReturnTypeRef, returnTy) = tmpl.returnTref match {
+                case tref: in.TypeRef => (lowerTypeRef(tref), symbolType(tref))
+                case in.InferredTypeRef() => {
+                    val ty = outStmts.last.ty
+                    (astType(env)(tmpl.returnTref, ty), ty)
+                }
+            }
             
             out.IntervalTemplate(
                 async = tmpl.async,
