@@ -57,8 +57,24 @@ case class Env(
     
     // ___ Extending the Environment ________________________________________
     
-    def +(sym: Symbol.Var) = copy(locals = locals + (sym.name -> sym))
-    def ++(syms: Iterable[Symbol.Var]) = syms.foldLeft(this)(_ + _)
+    def plusSym(sym: Symbol.Var) = copy(locals = locals + (sym.name -> sym))
+    
+    def plusSyms(syms: Iterable[Symbol.Var]) = syms.foldLeft(this)(_ plusSym _)
+
+    def plusPathRel(rel: (Path.Ref, PcRel, Path.Ref)) = copy(pathRels = rel :: pathRels)
+
+    def plusPathRels(rels: List[(Path.Ref, PcRel, Path.Ref)]) = rels.foldLeft(this)(_ plusPathRel _)
+
+    def plusTypeRel(rel: (Type.Var, TcRel, Type.Ref)) = copy(typeRels = rel :: typeRels)
+    
+    def plusTypeRels(rels: List[(Type.Var, TcRel, Type.Ref)]) = rels.foldLeft(this)(_ plusTypeRel _)
+    
+    def plusClassDecl(cdecl: Ast.Lower.ClassDecl) = {
+        cdecl.members.foldLeft(this) {
+            case (e, Ast.Lower.RelDecl(_, l, rel, r)) => plusPathRel(l.toPath, rel, r.toPath)
+            case (e, _) => e
+        }
+    }
     
     // ___ Querying the relations ___________________________________________
     
@@ -233,6 +249,7 @@ case class Env(
         }
     }
        
+    def equalType(ty: Type.Ref) = new Bounder(TcEq).compute(ty)
     def upperBoundType(ty: Type.Ref) = new Bounder(TcSub).compute(ty)
     def lowerBoundType(ty: Type.Ref) = new Bounder(TcSup).compute(ty)
     
@@ -243,15 +260,7 @@ case class Env(
     // and (to a limited extent) type variables.
     
     private[this] def symbolsSubclass(csym_sub: Symbol.Class, csym_sup: Symbol.Class) = {
-        val queued = new mutable.Queue[Symbol.Class]()
-        val visited = new mutable.HashSet[Symbol.Class]()
-        queued += csym_sub
-        while(!visited(csym_sup) && !queued.isEmpty) {
-            val csym_next = queued.dequeue()
-            visited += csym_next
-            queued ++= csym_next.superClassNames(state).map(state.symtab.classes).filterNot(visited)
-        }
-        visited(csym_sup)
+        Symbol.superclasses(state, csym_sub).contains(csym_sup)
     }
     
     private[this] def isSuitableArgumentBounded(ty_val: Type.Ref, ty_pat: Type.Ref): Boolean = {
@@ -285,6 +294,122 @@ case class Env(
     def isSuitableArgument(ty_val: Type.Ref, ty_pat: Type.Ref): Boolean = {
         (upperBoundType(ty_val) cross lowerBoundType(ty_pat)).exists {
             case (u, l) => isSuitableArgumentBounded(u, l)
+        }
+    }
+    
+    // ___ Type Equality ____________________________________________________
+    //
+    // Two types can be equal either by being lexicographically equal or
+    // though various equality relations.
+    
+    private[this] def typeArgsAreEquatable(targ1: Type.Arg, targ2: Type.Arg): Boolean = {
+        (targ1 == targ2) || {
+            (targ1, targ2) match {
+                case (Type.TypeArg(name1, rel1, ty1), Type.TypeArg(name2, rel2, ty2)) =>
+                    name1 == name2 && rel1 == rel2 && typesAreEquatable(ty1, ty2)
+                    
+                case (Type.PathArg(name1, rel1, path1), Type.PathArg(name2, rel2, path2)) =>
+                    name1 == name2 && rel1 == rel2 && pathsAreEquatable(path1, path2)
+                
+                case _ => false
+            }
+        }
+    }
+
+    private[this] def typesAreEquatable1(pair: (Type.Ref, Type.Ref)): Boolean = {
+        val (ty1, ty2) = pair
+        (ty1 == ty2) || {
+            (ty1, ty1) match {
+                case (Type.Class(name1, targs1), Type.Class(name2, targs2)) if sameLength(targs1, targs2) => {
+                    name1 == name2 && 
+                    targs1.forall(a => 
+                        targs2.exists(b => 
+                            typeArgsAreEquatable(a, b)))
+                }
+                
+                case (Type.Tuple(tys1), Type.Tuple(tys2)) if sameLength(tys1, tys2) => {
+                    tys1.zip(tys2).forall { case (ty1, ty2) => 
+                        typesAreEquatable(ty1, ty2) 
+                    }                    
+                }
+                
+                case _ => false
+            }
+        }
+    }
+    
+    def typesAreEquatable(ty1: Type.Ref, ty2: Type.Ref): Boolean = {
+        (ty1 == ty2) || (equalType(ty1) cross equalType(ty2)).exists(typesAreEquatable1)
+    }
+    
+    // ___ Method Override Checking _________________________________________
+    //
+    // One method overrides another if the types of its arguments are
+    // the same, after performing whatever substitutions
+    // are necessary.
+    
+    /** Adds mappings to fresh names for each variable defined in `pat` */
+    private[this] def addFresh(
+        subst: Subst,
+        pat: Pattern.Ref
+    ): Subst = {
+        pat match {
+            case Pattern.Tuple(pats) => pats.foldLeft(subst)(addFresh)
+            case Pattern.Var(name, _) => {
+                val freshName = Name.Var("(env-%s)".format(state.freshInteger()))
+                subst + (name.toPath -> freshName.toPath)
+            }
+        }
+    }
+    
+    /** Given a pair of patterns `(sub, sup)` returns a substitution
+      * mapping the variables from the `sup` pattern to corresponding
+      * variables in the `sub` pattern.  If there is no corresponding
+      * variable in the `sub` pattern, maps the variable in `sup` to a
+      * fresh name.
+      *
+      * Examples:
+      * - (a, b) => (a -> b)
+      * - ((a, b), (c, d)) => (a -> c, b -> d)
+      * - ((a, b), c) => (c -> fresh)
+      */
+    private[this] def addOverrideSubst(
+        subst: Subst,
+        pair: (Pattern.Ref, Pattern.Ref)
+    ): Subst = {
+        pair match {
+            case (Pattern.Tuple(List(pat_sub)), pat_sup) =>
+                addOverrideSubst(subst, (pat_sub, pat_sup))
+            
+            case (pat_sub, Pattern.Tuple(List(pat_sup))) =>
+                addOverrideSubst(subst, (pat_sub, pat_sup))
+            
+            case (Pattern.Var(name_sub, _), Pattern.Var(name_sup, _)) =>
+                subst + (name_sub.toPath -> name_sup.toPath)
+                
+            case (Pattern.Tuple(pats_sub), Pattern.Tuple(pats_sup)) if sameLength(pats_sub, pats_sup) =>
+                pats_sub.zip(pats_sup).foldLeft(subst)(addOverrideSubst)
+                
+            case (_, pat_sup) =>
+                addFresh(subst, pat_sup)
+        }
+    }
+    
+    /** Returns true if a method with signature `msig_sub` defined
+      * in the current class overrides a method with signature 
+      * `msig_sup` defined in some supertype of the current class.
+      *
+      * The "current class" means the one whose relations are to
+      * be found in the environment. */
+    def overrides(
+        msig_sub: Symbol.MethodSignature[Pattern.Ref], 
+        msig_sup: Symbol.MethodSignature[Pattern.Ref]
+    ) = {
+        val pps_sub = msig_sub.parameterPatterns
+        val pps_sup = msig_sup.parameterPatterns
+        val subst = pps_sub.zip(pps_sup).foldLeft(Subst.empty)(addOverrideSubst)
+        pps_sub.zip(pps_sup).forall { case (pp_sub, pp_sup) =>
+            typesAreEquatable1(pp_sub.ty, subst.ty(pp_sup.ty))
         }
     }
     

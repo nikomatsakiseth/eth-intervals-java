@@ -11,11 +11,6 @@ object Path {
         override def toString = base.toString + f.toString
     }
     
-    def fromLoweredAst(node: Ast.Lower.AstPath): Path.Ref = node match {
-        case Ast.Lower.Var(name, _) => Path.Base(name.name)
-        case Ast.Lower.PathField(owner, name, _, _) => Path.Field(fromLoweredAst(owner), name.name) 
-    }
-    
     val This = Path.Base(Name.ThisVar)    
     val Method = Path.Base(Name.MethodVar)
     

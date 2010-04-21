@@ -27,18 +27,12 @@ case class ByteCode(state: CompilationState) {
     
     // ___ Generating fresh, unique class names _____________________________
     
-    private[this] var freshCounter = 0
-    
     def freshQualName(context: Name.Qual) = {
-        val counter = freshCounter
-        freshCounter += 1
-        context.withSuffix("$" + counter)
+        context.withSuffix("$" + state.freshInteger())
     }
     
     def freshVarName(base: Option[Name.Var]) = {
-        val counter = freshCounter
-        freshCounter += 1
-        Name.Var("$%s$%s".format(base.getOrElse(""), freshCounter))
+        Name.Var("$%s$%s".format(base.getOrElse(""), state.freshInteger()))
     }
     
     // ___ Types and Asm Types ______________________________________________

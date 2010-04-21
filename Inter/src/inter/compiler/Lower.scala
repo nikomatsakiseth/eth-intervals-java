@@ -173,7 +173,7 @@ case class Lower(state: CompilationState) {
     }
     
     def ThisEnv(csym: Symbol.ClassFromInterFile) = {
-        emptyEnv + new Symbol.Var(Name.ThisVar, Type.Class(csym.name, List()))
+        emptyEnv.plusSym(new Symbol.Var(Name.ThisVar, Type.Class(csym.name, List())))
     }
     
     def ThisScope(csym: Symbol.ClassFromInterFile) = {
@@ -239,7 +239,7 @@ case class Lower(state: CompilationState) {
             val receiverSym = new Symbol.Var(Name.ThisVar, Type.Class(clsName, List()))
             val parameterPatterns = mdecl.params.map(symbolPattern)
             val parameterSyms = parameterPatterns.flatMap(Pattern.createVarSymbols)
-            val env = emptyEnv ++ (receiverSym :: parameterSyms)
+            val env = emptyEnv.plusSyms(receiverSym :: parameterSyms)
             val optBody = mdecl.optBody.map(lowerBody(env, _))
 
             val (returnTref, returnTy) = (mdecl.returnTref, optBody) match {
@@ -357,7 +357,7 @@ case class Lower(state: CompilationState) {
             // Note: very similar code to lowerField() below
             val owner = lowerPath(path.owner)
             val optSym = env.lookupField(owner.ty, path.name.name)
-            val subst = Subst(Path.This -> Path.fromLoweredAst(owner))
+            val subst = Subst(Path.This -> owner.toPath)
             val sym = optSym.getOrElse {
                 state.reporter.report(path.pos, "no.such.field", owner.ty.toString, path.name.toString)
                 Symbol.errorVar(path.name.name, optExpTy)
@@ -432,7 +432,7 @@ case class Lower(state: CompilationState) {
                     val outRvalue = lowerExpr(optExpTy)(rvalue)
                     val outLvalue = lowerLocal(outRvalue.ty, lvalue)
                     stmts += withPosOf(stmt, out.Assign(outLvalue, outRvalue))
-                    env ++ outLvalue.symbols
+                    env.plusSyms(outLvalue.symbols)
                 }
                 
                 case in.Labeled(name, body) => {
@@ -599,7 +599,7 @@ case class Lower(state: CompilationState) {
             // Big difference is that this version generates statements.
             val owner = lowerExprToVar(None)(expr.owner)
             val optSym = env.lookupField(owner.ty, expr.name.name)
-            val subst = Subst(Path.This -> Path.fromLoweredAst(owner))
+            val subst = Subst(Path.This -> owner.toPath)
             val sym = optSym.getOrElse {
                 state.reporter.report(expr.pos, "no.such.field", owner.ty.toString, expr.name.toString)
                 Symbol.errorVar(expr.name.name, optExpTy)
@@ -800,7 +800,7 @@ case class Lower(state: CompilationState) {
             
             val outParam = lowerBlockArgument(expArgumentTy, tmpl.param)
             
-            val subenv = env ++ outParam.symbols
+            val subenv = env.plusSyms(outParam.symbols)
             val outStmts = lowerStmts(subenv, tmpl.stmts)
             
             // This code extracts the expected return type from `optExpTy`: we decided

@@ -14,12 +14,26 @@ class CompilationState(
     val toBeBytecoded = new Queue[Symbol.ClassFromInterFile]()
     val inferStack = new HashSet[Symbol.MemberId]()
     val inferReported = new HashSet[Symbol.MemberId]()
+    
+    // ___ Intrinsics _______________________________________________________
+    
     val intrinsics = new HashMap[(Name.Qual, Name.Method), List[Symbol.Method]]()
     
     def addIntrinsic(rcvrClassName: Name.Qual, msym: Symbol.Method) {
         val key = (rcvrClassName, msym.name)
         intrinsics(key) = msym :: intrinsics.get(key).getOrElse(Nil)
     }
+    
+    /** Checks for an intrinsic method --- i.e., one that is built-in to the compiler ---
+      * defined on the type `rcvrTy` with the name `name`. */
+    def lookupIntrinsic(rcvrTy: Type.Ref, name: Name.Method): List[Symbol.Method] = {
+        rcvrTy match { // XXX Need to consider type bounds, really, but not in this method.
+            case Type.Class(className, _) => intrinsics.get((className, name)).getOrElse(List())
+            case _ => List() 
+        }
+    }
+    
+    // ___ Loading and resolving class symbols ______________________________
     
     private[this] def createSymbolsAndResolve(compUnits: List[Ast.Parse.CompUnit]) {
         // Create symbols for each class:
@@ -119,15 +133,17 @@ class CompilationState(
         }                
     }
     
-    /** Checks for an intrinsic method --- i.e., one that is built-in to the compiler ---
-      * defined on the type `rcvrTy` with the name `name`. */
-    def lookupIntrinsic(rcvrTy: Type.Ref, name: Name.Method): List[Symbol.Method] = {
-        rcvrTy match { // XXX Need to consider type bounds, really, but not in this method.
-            case Type.Class(className, _) => intrinsics.get((className, name)).getOrElse(List())
-            case _ => List() 
-        }
-        
+    // ___ Freshness ________________________________________________________
+    
+    private[this] var freshCounter = 0
+    
+    def freshInteger() = {
+        val result = freshCounter
+        freshCounter += 1
+        result
     }
+
+    // ___ Main compile loop ________________________________________________
     
     def compile() {
         if(reporter.hasErrors) return
@@ -146,6 +162,7 @@ class CompilationState(
         
         while(!toBeBytecoded.isEmpty) {
             val csym = toBeBytecoded.dequeue()
+            GatherOverrides(this).forClass(csym)
             ByteCode(this).writeClassSymbol(csym)
         }
     }

@@ -428,10 +428,12 @@ abstract class Ast {
     
     sealed abstract trait AstPath extends Node {
         def ty: Ty
+        def toPath: Path.Ref
     }
     
     case class PathField(owner: AstPath, name: VarName, sym: VSym, ty: Ty) extends AstPath {
         override def toString = owner + " " + name
+        def toPath = Path.Field(owner.toPath, name.name)
     }
     
     // ___ Statements and Expressions _______________________________________
@@ -535,6 +537,7 @@ abstract class Ast {
     case class Var(name: VarName, sym: VSym) extends AtomicExpr with AstPath {
         override def toString = name.toString
         def ty = symTy(sym)
+        def toPath = Path.Base(name.name)
     }
     
     case class Field(owner: NE, name: VarName, sym: VSym, ty: Ty) extends LowerExpr {

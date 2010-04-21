@@ -1,9 +1,6 @@
 package inter.compiler
 
-import scala.collection.mutable.ListBuffer
-import scala.collection.mutable.HashMap
-import scala.collection.mutable.HashSet
-import scala.collection.mutable.Queue
+import scala.collection.mutable
 
 /** Symbols describe the class interfaces.  Unlike the AST,
   * they are mutable data structures, built-up during the
@@ -105,8 +102,8 @@ object Symbol {
     ) extends Class(name) {
         var resolvedSource: Ast.Resolve.ClassDecl = null
         var loweredSource: Ast.Lower.ClassDecl = null
-        val methodSymbols = new HashMap[Name.Method, List[Method]]()
-        val loweredMethods = new HashMap[MethodId, Ast.Lower.MethodDecl]()
+        val methodSymbols = new mutable.HashMap[Name.Method, List[Method]]()
+        val loweredMethods = new mutable.HashMap[MethodId, Ast.Lower.MethodDecl]()
         
         def constructors(state: CompilationState) = {
             List(Lower(state).patternType(resolvedSource.pattern))
@@ -146,7 +143,9 @@ object Symbol {
         val name: Name.Method,
         val msig: MethodSignature[Pattern.Ref]
     ) extends Ref {
-        override def toString = "Method(%s, %x)".format(name, System.identityHashCode(this))        
+        override def toString = "Method(%s, %x)".format(name, System.identityHashCode(this))
+        
+        val overrides = new mutable.ListBuffer[Symbol.Method]()
     }
     
     def errorMethod(name: Name.Method) = {
@@ -184,5 +183,17 @@ object Symbol {
     abstract class MemberId
     case class MethodId(clsName: Name.Qual, methodName: Name.Method, parameterPatterns: List[Pattern.Ref]) extends MemberId
     case class FieldId(clsName: Name.Qual, methodName: Name.Method) extends MemberId
+    
+    def superclasses(state: CompilationState, csym: Symbol.Class) = {
+        val queued = new mutable.Queue[Symbol.Class]()
+        val visited = new mutable.HashSet[Symbol.Class]()
+        queued += csym
+        while(!queued.isEmpty) {
+            val csym_next = queued.dequeue()
+            visited += csym_next
+            queued ++= csym_next.superClassNames(state).map(state.symtab.classes).filterNot(visited)
+        }
+        visited
+    }
     
 }
