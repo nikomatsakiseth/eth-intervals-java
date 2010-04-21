@@ -17,6 +17,11 @@ class LowerTuple {
         arguments(a, b, c, d);
     }
     
+    withBlock() {
+        sumBlock = { (Integer a, Integer b) -> a + b };
+        sumBlock value(1, 2);
+    }
+    
     Void errors(Object obj) {
         (a, b, c, d) = tuple4();
         a badMethod(); // ERROR no.such.method(java.lang.Integer, badMethod())
@@ -28,3 +33,4 @@ class LowerTuple {
 }
 // COMPILE
 // --dump-lowered-trees
+// --ignore-errors

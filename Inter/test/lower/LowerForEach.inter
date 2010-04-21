@@ -1,7 +1,7 @@
 package lower;
 
 class LowerForEach {
-    
+
     sumObjects(Iterable[T: Object] list) {
         result = 0;
         list forEach { value ->
