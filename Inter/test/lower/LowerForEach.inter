@@ -18,6 +18,14 @@ class LowerForEach {
         result
     }
     
+    sumPairs(Iterable[T: (Integer, Integer)] list) {
+        result = 0;
+        list forEach { (x, y) ->
+            result = result + (x + y);
+        };
+        result
+    }
+    
 }
 // COMPILE
 // --dump-resolved-trees

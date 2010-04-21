@@ -53,25 +53,20 @@ case class ByteCode(state: CompilationState) {
         (classOf[java.lang.Double] -> asm.Type.DOUBLE_TYPE)
     )
     
-    def asmType(ty: Type.Ref) = ty match {
+    def asmType(ty: Type.Ref): asm.Type = ty match {
         case Type.Class(name, List()) => asm.Type.getObjectType(name.internalName)
+        case Type.Tuple(List()) => asmVoidType
+        case Type.Tuple(List(ty)) => asmType(ty)
         case Type.Tuple(_) => asmObjectArrayType
         case _ => asmObjectType
     }
     
     def asmClassType(name: Name.Qual) = asm.Type.getObjectType(name.internalName)
     
-    def methodDesc(returnTy: Type.Ref, parameterTypes: List[Type.Ref]): String = {
+    def methodDescFromSig(msig: Symbol.MethodSignature[Pattern.Anon]): String = {
         getMethodDescriptor(
-            asmType(returnTy),
-            parameterTypes.map(asmType).toArray
-        )
-    }
-    
-    def methodDesc(msig: Symbol.MethodSignature[Pattern.Anon]): String = {
-        methodDesc(
-            msig.returnTy,
-            msig.parameterPatterns.flatMap(_.varTys)
+            asmType(msig.returnTy), 
+            msig.parameterPatterns.flatMap(_.varTys).map(asmType).toArray
         )
     }
     
@@ -99,11 +94,13 @@ case class ByteCode(state: CompilationState) {
         }
         
         def downcastIfNeeded(toAsmTy: asm.Type, fromAsmTy: asm.Type) {
+            println("downcastIfNeeded(%s,%s)".format(toAsmTy, fromAsmTy))
             if(toAsmTy != asmObjectType && toAsmTy != fromAsmTy)
                 downcast(toAsmTy)
         }
 
         def downcastIfNeeded(toTy: Type.Ref, fromTy: Type.Ref) {
+            println("downcastIfNeeded(%s,%s)".format(toTy, fromTy))
             (toTy, fromTy) match {
                 case (Type.Class(toName, _), Type.Class(fromName, _)) => {
                     val toSym = state.classes(toName)
@@ -111,7 +108,7 @@ case class ByteCode(state: CompilationState) {
                     if(!Symbol.isSubclass(state, fromSym, toSym))
                         downcast(toTy)
                 }
-
+                
                 case _ => {
                     downcastIfNeeded(asmType(toTy), asmType(fromTy))
                 }
@@ -555,7 +552,7 @@ case class ByteCode(state: CompilationState) {
                 
                 case in.Cast(subexpr, _, ty) => {
                     pushExprValue(subexpr)
-                    mvis.downcast(ty)
+                    mvis.downcastIfNeeded(ty, subexpr.ty)
                 }
                 
                 case in.Literal(obj: java.lang.String, _) => {
@@ -614,7 +611,7 @@ case class ByteCode(state: CompilationState) {
                     
                     def callWithOpcode(op: Int) = {
                         val ownerAsmType = asmType(msig.receiverTy)
-                        val desc = methodDesc(msym.msig)
+                        val desc = methodDescFromSig(msym.msig)
                         callWithDetails(op, ownerAsmType, desc)
                     }
                     
@@ -797,6 +794,7 @@ case class ByteCode(state: CompilationState) {
             tmpl: in.Block
         ) {
             val name = freshQualName(accessMap.context)
+            val blockTy = Type.Class(name, List())
             val tmplwr = new ClassWriter(name, noSuffix)
 
             tmplwr.cvis.visit(
@@ -812,12 +810,18 @@ case class ByteCode(state: CompilationState) {
             // any local variables which it references:
             mvis.visitTypeInsn(O.NEW, name.internalName)
             val derivedAccessMap = deriveAccessMap(name, tmplwr.cvis, tmpl.stmts)
+            
+            val methodSig = Symbol.MethodSignature(
+                tmpl.returnTy,
+                blockTy,
+                List(in.toPattern(tmpl.param))
+            )
 
             // 
             val tmplmvis = tmplwr.cvis.visitMethod(
                 O.ACC_PUBLIC,
                 Name.ValueMethod.javaName,
-                methodDesc(tmpl.returnTy, in.toPattern(tmpl.param).varTys),
+                methodDescFromSig(methodSig),
                 null, // generic signature
                 null  // thrown exceptions
             )
@@ -825,9 +829,6 @@ case class ByteCode(state: CompilationState) {
             // Add parameters to the access map:
             //    If there are no parameter, there will still be one in the bytecode of type Void,
             //    so just reserve the local variable slot.
-            //    XXX -> This won't really work.  Bytecode always has a single param, we have to
-            //           explode the tuple etc.  In fact, this is a more general problem that needs
-            //           to be addressed.  
             tmpl.param.symbols match {
                 case List() => accessMap.pathToFreshSlot(asmVoidType)
                 case syms => syms.foreach(derivedAccessMap.addUnboxedSym)
@@ -840,6 +841,20 @@ case class ByteCode(state: CompilationState) {
             val stmtVisitor = new StatementVisitor(derivedAccessMap, tmplmvis)
             stmtVisitor.returnResultOfStatements(tmpl.stmts)
             tmplmvis.visitEnd
+            
+            // Emit a forwarding method from the interface version:
+            val interfaceMethodSig = Symbol.MethodSignature(
+                Type.Object,
+                blockTy,
+                List(Pattern.Var(Name.Var("arg"), Type.Object))
+            )
+            writeForwardingMethodIfNeeded(
+                className     = name, 
+                cvis          = tmplwr.cvis,
+                methodName    = Name.ValueMethod,
+                masterSig     = methodSig,
+                overriddenSig = interfaceMethodSig
+            )
 
             tmplwr.end()
         }
@@ -850,6 +865,82 @@ case class ByteCode(state: CompilationState) {
     
     def methodParameterTypes(params: List[in.Param]) = 
         params.flatMap(p => in.toPattern(p).varTys)
+        
+    /** Due to generic types and erasure, we often end up with methods whose 
+      * signature is more specialized in the subtype than in the supertype.
+      * The interface Block, for example, defines a method Object value(Object arg).
+      * Most blocks however will be specialized for a particular type.  Therefore
+      * we emit a forwarding method that simply downcasts (or tuple-expands) arg as
+      * needed to invoke the more specific version.
+      */
+    def writeForwardingMethodIfNeeded(
+        className: Name.Qual,
+        cvis: asm.ClassVisitor, 
+        methodName: Name.Method,
+        masterSig: Symbol.MethodSignature[Pattern.Ref],
+        overriddenSig: Symbol.MethodSignature[Pattern.Ref]
+    ) {
+        val masterDesc = methodDescFromSig(masterSig)
+        val overriddenDesc = methodDescFromSig(overriddenSig)
+        println("writeForwardingMethodIfNeeded:")
+        println("  masterDesc = %s".format(masterDesc))
+        println("  overriddenDesc = %s".format(overriddenDesc))
+        if(masterDesc == overriddenDesc)
+            return; // No need for a forwarding method.
+        
+        val masterPatterns = masterSig.parameterPatterns
+        val overriddenPatterns = overriddenSig.parameterPatterns
+        assert(sameLength(masterPatterns, overriddenPatterns))
+        
+        // Begin visiting method:
+        val mvis = cvis.visitMethod(
+            O.ACC_PUBLIC,
+            methodName.javaName,
+            overriddenDesc,
+            null, // generic signature
+            null  // thrown exceptions
+        )
+        val accessMap = new AccessMap(className)
+        val thisPtr = accessMap.pathToFreshSlot(asmType(Type.Class(className, List()))) // reserve this ptr
+
+        // Construct an expression mirroring the patterns of the overridden method.
+        // So if the overridden method were `foo(A a, B b) bar(C c)`, constructExprFromPattern() would be used to
+        // (a) Create three symbols `a`, `b`, and `c`
+        // (b) Return the expressions `(a, b)` and `c`.
+        def constructExprFromPattern(pattern: Pattern.Ref): in.AtomicExpr = pattern match {
+            case Pattern.Tuple(subpatterns) => 
+                in.Tuple(subpatterns.map(constructExprFromPattern))
+                
+            case Pattern.Var(name, ty) => {
+                val sym = new Symbol.Var(name, ty)
+                val accessPath = accessMap.addUnboxedSym(sym)
+                in.Var(Ast.VarName(name.text), sym)
+            }
+        }
+        val rvalues = masterPatterns.zip(overriddenPatterns).map { case (masterPattern, overriddenPattern) =>
+            // Wrap each expression in a cast to the master type.
+            // Hack: just use in.Null for typeRef param which is not important here.
+            in.Cast(constructExprFromPattern(overriddenPattern), in.NullType(), masterPattern.ty)
+        }
+        
+        // Assign the expressions from overridden patterns to the master patterns.
+        // This will expand tuples etc as needed.
+        thisPtr.push(mvis)
+        val stmtVisitor = new StatementVisitor(accessMap, mvis)
+        masterSig.parameterPatterns.zip(rvalues).foreach { case (lvalue, rvalue) =>
+            stmtVisitor.pushRvalues(lvalue, rvalue)
+        }
+        
+        // Invoke master version of the method and return its result:
+        mvis.visitMethodInsn(
+            O.INVOKEINTERFACE,
+            className.internalName,
+            methodName.javaName,
+            masterDesc
+        )
+        mvis.visitInsn(O.ARETURN)
+        mvis.visitEnd
+    }        
     
     def writeInterMethodInterface(
         csym: Symbol.ClassFromInterFile, 

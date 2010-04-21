@@ -363,7 +363,7 @@ abstract class Ast {
         override def toString = "<infer>"
     }
     
-    abstract class TypeRef extends OptionalTypeRef
+    sealed abstract class TypeRef extends OptionalTypeRef
     
     case class NullType() extends TypeRef {
         override def toString = Type.Null.toString
@@ -630,7 +630,7 @@ object Ast {
     
     // ___ Invariant Parts __________________________________________________
     
-    abstract class Node extends Positional {
+    sealed abstract class Node extends Positional {
         def print(out: PrettyPrinter) {
             out.write(toString)
         }

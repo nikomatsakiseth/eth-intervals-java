@@ -235,7 +235,11 @@ class Parse extends StdTokenParsers with PackratParsers {
     
     // ___ Type References __________________________________________________
     
-    lazy val typeRef: PackratParser[out.TypeRef] = pathType | classType
+    lazy val typeRef: PackratParser[out.TypeRef] = pathType | classType | tupleType
+    
+    lazy val tupleType = positioned(
+        "("~comma(typeRef)~")" ^^ { case _~tys~_ => out.TupleType(tys) }
+    )
     
     lazy val pathType = positioned(
         path~":"~varName ^^ { case b~":"~v => out.VarType(b, v) }

@@ -375,23 +375,25 @@ case class Lower(state: CompilationState) {
             case tref: in.TypeRef => lowerTypeRef(tref)
         }
     
-        def lowerTypeRef(tref: in.TypeRef): out.TypeRef = tref match {
+        def lowerTypeRef(tref: in.TypeRef): out.TypeRef = withPosOf(tref, tref match {
+            case in.NullType() => out.NullType()
+            case in.TupleType(trefs) => out.TupleType(trefs.map(lowerTypeRef))
             case in.VarType(path, tvar) => out.VarType(lowerPath(path), tvar)
             case in.ClassType(cname, targs) => out.ClassType(cname, targs.map(lowerTypeArg))
-        }
+        })
 
         def lowerTypeArg(targ: in.TypeArg): out.TypeArg = targ match {
             case ttarg: in.TypeTypeArg => lowerTypeTypeArg(ttarg)
             case ptarg: in.PathTypeArg => lowerPathTypeArg(ptarg)
         }
     
-        def lowerTypeTypeArg(targ: in.TypeTypeArg): out.TypeTypeArg = out.TypeTypeArg(
+        def lowerTypeTypeArg(targ: in.TypeTypeArg): out.TypeTypeArg = withPosOf(targ, out.TypeTypeArg(
             name = targ.name, rel = targ.rel, typeRef = lowerTypeRef(targ.typeRef)
-        )
+        ))
     
-        def lowerPathTypeArg(targ: in.PathTypeArg): out.PathTypeArg = out.PathTypeArg(
+        def lowerPathTypeArg(targ: in.PathTypeArg): out.PathTypeArg = withPosOf(targ, out.PathTypeArg(
             name = targ.name, rel = targ.rel, path = lowerPath(targ.path)
-        )
+        ))
         
         def lowerAnnotation(ann: in.Annotation) = withPosOf(ann,
             out.Annotation(name = ann.name)
@@ -745,6 +747,7 @@ case class Lower(state: CompilationState) {
         }
         
         def lowerBlockArgument(expArgumentTy: Type.Ref, local: in.Local): out.Param = {
+            println("lowerBlockArgument(%s,%s)".format(expArgumentTy, local))
             withPosOf(local, (expArgumentTy, local) match {
                 // Unpack singleton tuples:
                 //    We keep the TupleParam() wrapper around a singleton entry just for pretty printing.
@@ -757,13 +760,28 @@ case class Lower(state: CompilationState) {
                     out.TupleParam(outParams)
                 }
                 
-                // If tuple sizes don't match, just infer NullType:
+                // If tuple sizes don't match, try to find a bounding type, or just infer Object:
                 case (_, in.TupleLocal(locals)) => {
-                    val outParams = locals.map(lowerBlockArgument(Type.Null, _))
-                    out.TupleParam(outParams)
+                    // Try to find a suitable bounding type:
+                    val optTy = env.upperBoundType(expArgumentTy).firstSome {
+                        case ty @ Type.Tuple(tys) if sameLength(tys, locals) => Some(ty)
+                        case _ => None
+                    }
+                    
+                    optTy match {
+                        case Some(Type.Tuple(tys)) => { // Found one.
+                            val outParams = tys.zip(locals).map { case (t, l) => lowerBlockArgument(t, l) }
+                            out.TupleParam(outParams)                            
+                        }
+                        
+                        case _ => { // No match, just infer Object.
+                            val outParams = locals.map(lowerBlockArgument(Type.Object, _))
+                            out.TupleParam(outParams)
+                        }
+                    }
                 }
                 
-                // Pattern w/o type specified, either reassign pre-existing sym or use type from RHS:
+                // Pattern w/o type specified, use expected type:
                 case (ty, in.VarLocal(anns, inTref @ in.InferredTypeRef(), name, ())) => {
                     out.VarParam(
                         anns.map(lowerAnnotation),
