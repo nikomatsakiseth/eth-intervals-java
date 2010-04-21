@@ -825,6 +825,7 @@ case class Lower(state: CompilationState) {
             out.Block(
                 async = tmpl.async,
                 returnTref = outReturnTypeRef,
+                returnTy = returnTy,
                 param = outParam,
                 stmts = outStmts,
                 ty = Type.Class(tmpl.className, List(

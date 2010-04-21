@@ -223,6 +223,7 @@ object Resolve {
         def resolveBlock(tmpl: in.Block) = withPosOf(tmpl, out.Block(
             async = tmpl.async,
             returnTref = resolveOptionalTypeRef(tmpl.returnTref),
+            returnTy = (),
             param = resolveTupleLocal(tmpl.param),
             stmts = resolveStmts(tmpl.stmts),
             ty = ()

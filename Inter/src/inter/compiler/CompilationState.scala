@@ -158,7 +158,7 @@ class CompilationState(
             }
         }
         
-        if(reporter.hasErrors) return
+        if(!config.ignoreErrors && reporter.hasErrors) return
         
         while(!toBeBytecoded.isEmpty) {
             val csym = toBeBytecoded.dequeue()

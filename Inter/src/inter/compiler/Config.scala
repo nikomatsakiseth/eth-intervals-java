@@ -17,6 +17,7 @@ class Config
     var dumpResolvedTrees = false
     var dumpLoweredTrees = false
     var dumpBytecode = false
+    var ignoreErrors = false
     var useReflection = true
     var localize = false
     
@@ -31,10 +32,13 @@ class Config
         err.printf("  -sourcepath <paths>\n")
         err.printf("  --no-reflection\n")
         err.printf("  --no-localize\n")
+        err.printf("\n")
+        err.printf("Debugging options:\n")
         err.printf("  --dump-parsed-trees\n")
         err.printf("  --dump-resolved-trees\n")
         err.printf("  --dump-lowered-trees\n")
         err.printf("  --dump-bytecode\n")
+        err.printf("  --ignore-errors\n")
     }
     
     private[this] def addDirs(files: ListBuffer[File], paths: String) {
@@ -90,6 +94,9 @@ class Config
                     i += 1
                 } else if(args(i) == "--dump-bytecode") {
                     dumpBytecode = true
+                    i += 1
+                } else if(args(i) == "--ignore-errors") {
+                    ignoreErrors = true
                     i += 1
                 } else if(args(i) == "--no-reflection") {
                     useReflection = false

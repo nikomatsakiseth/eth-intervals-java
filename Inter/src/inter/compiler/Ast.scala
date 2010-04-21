@@ -491,6 +491,7 @@ abstract class Ast {
     case class Block(
         async: Boolean, 
         returnTref: OT, 
+        returnTy: Ty,
         param: TmplLv, 
         stmts: List[Stmt], 
         ty: Ty

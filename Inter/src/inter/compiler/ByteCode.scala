@@ -782,7 +782,7 @@ case class ByteCode(state: CompilationState) {
             val tmplmvis = tmplwr.cvis.visitMethod(
                 O.ACC_PUBLIC,
                 Name.ValueMethod.javaName,
-                getMethodDescriptor(asmObjectType, Array(asmObjectType)),
+                methodDesc(tmpl.returnTy, in.toPattern(tmpl.param).varTys),
                 null, // generic signature
                 null  // thrown exceptions
             )
