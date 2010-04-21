@@ -70,8 +70,8 @@ object Name {
     val ArrayQual = Qual("inter.lang.Array")
     val ArrayElem = Var("E")
 
-    val IntervalTmplQual = Qual(classOf[inter.lang.IntervalTemplate[_, _]])
-    val AsyncIntervalTmplQual = Qual(classOf[inter.lang.AsyncIntervalTemplate[_, _]])
+    val BlockQual = Qual(classOf[inter.lang.Block[_, _]])
+    val AsyncBlockQual = Qual(classOf[inter.lang.AsyncBlock[_, _]])
     val RVar = Name.Var("R")
     val AVar = Name.Var("A")
     val IntervalTmplParent = Var("Parent")

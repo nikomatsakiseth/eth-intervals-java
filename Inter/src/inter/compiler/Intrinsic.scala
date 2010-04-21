@@ -70,7 +70,7 @@ object Intrinsic {
         val voidClass = classOf[java.lang.Void]
         val objectClass = classOf[java.lang.Object]
         val iterableClass = classOf[java.lang.Iterable[_]]
-        val templateClass = classOf[inter.lang.IntervalTemplate[_, _]]
+        val templateClass = classOf[inter.lang.Block[_, _]]
         
         ensureLoadable(state, booleanClass)
         ensureLoadable(state, voidClass)
@@ -202,7 +202,7 @@ object Intrinsic {
             )
         )
 
-        // (IntervalTemplate<Boolean,_>) while { ... }
+        // (Block<Boolean,_>) while { ... }
         state.addIntrinsic(
             Name.Qual(templateClass),
             new Symbol.Method(

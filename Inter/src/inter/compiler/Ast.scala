@@ -486,14 +486,14 @@ abstract class Ast {
         }        
     }
     
-    case class IntervalTemplate(
+    case class Block(
         async: Boolean, 
         returnTref: OT, 
         param: TmplLv, 
         stmts: List[Stmt], 
         ty: Ty
     ) extends LowerExpr {
-        def className = if(async) Name.AsyncIntervalTmplQual else Name.IntervalTmplQual
+        def className = if(async) Name.AsyncBlockQual else Name.BlockQual
 
         private[this] def sep = if(async) ("{{", "}}") else ("{", "}")
         

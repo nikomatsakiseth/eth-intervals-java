@@ -285,11 +285,11 @@ class Parse extends StdTokenParsers with PackratParsers {
     )
     
     lazy val itmpl = positioned(
-        "{"~>tmplBody<~"}"                  ^^ { case (r, p, s) => out.IntervalTemplate(false, r, p, s, ()) }
+        "{"~>tmplBody<~"}"                  ^^ { case (r, p, s) => out.Block(false, r, p, s, ()) }
     )
     
     lazy val atmpl = positioned(
-        "{{"~>tmplBody<~"}}"                ^^ { case (r, p, s) => out.IntervalTemplate(true, r, p, s, ()) }
+        "{{"~>tmplBody<~"}}"                ^^ { case (r, p, s) => out.Block(true, r, p, s, ()) }
     )
     
     lazy val tuple = positioned(

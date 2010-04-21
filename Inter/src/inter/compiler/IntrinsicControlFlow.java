@@ -1,12 +1,12 @@
 package inter.compiler;
 
-import inter.lang.IntervalTemplate;
+import inter.lang.Block;
 
 class IntrinsicControlFlow {
     
     public static Void if_(
         Boolean value,
-        IntervalTemplate<Void, Void> ifTmpl
+        Block<Void, Void> ifTmpl
     ) {
         if(value) 
             ifTmpl.value(null);
@@ -15,7 +15,7 @@ class IntrinsicControlFlow {
     
     public static Void ifNull(
         Object value,
-        IntervalTemplate<Void,Void> ifTmpl
+        Block<Void,Void> ifTmpl
     ) {
         if(value != null) {
             ifTmpl.value(null);
@@ -25,8 +25,8 @@ class IntrinsicControlFlow {
     
     public static <R> R ifElse(
         Boolean value,
-        IntervalTemplate<R,Void> ifTmpl, 
-        IntervalTemplate<R,Void> elseTmpl
+        Block<R,Void> ifTmpl, 
+        Block<R,Void> elseTmpl
     ) {
         if(value) {
             return ifTmpl.value(null);
@@ -37,8 +37,8 @@ class IntrinsicControlFlow {
 
     public static <R> R ifNullElse(
         Object value,
-        IntervalTemplate<R,Void> ifTmpl,
-        IntervalTemplate<R,Void> elseTmpl
+        Block<R,Void> ifTmpl,
+        Block<R,Void> elseTmpl
     ) {
         if(value != null) {
             return ifTmpl.value(null);
@@ -49,7 +49,7 @@ class IntrinsicControlFlow {
 
     public static <Void, A> Void forEach(
         Iterable<A> iterable,
-        IntervalTemplate<Void,A> eachTmpl
+        Block<Void,A> eachTmpl
     ) {
         for(A item : iterable)
             eachTmpl.value(item);
@@ -57,8 +57,8 @@ class IntrinsicControlFlow {
     }
     
     public static Void while_(
-        IntervalTemplate<Boolean, Void> condTmpl,
-        IntervalTemplate<Void, Void> bodyTmpl
+        Block<Boolean, Void> condTmpl,
+        Block<Void, Void> bodyTmpl
     ) {
         while(true) {
             if(!condTmpl.value(null))

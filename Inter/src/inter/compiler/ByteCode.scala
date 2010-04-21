@@ -349,7 +349,7 @@ case class ByteCode(state: CompilationState) {
     def summarizeSymbolsInExpr(summary: SymbolSummary, expr: in.Expr): SymbolSummary = {
         expr match {
             case in.Tuple(exprs) => exprs.foldLeft(summary)(summarizeSymbolsInExpr)
-            case tmpl: in.IntervalTemplate => {
+            case tmpl: in.Block => {
                 val summaryTmpl = summarizeSymbolsInStmts(tmpl.stmts)
                 summary.copy(
                     readSyms = summary.readSyms ++ summaryTmpl.readSyms,
@@ -525,8 +525,8 @@ case class ByteCode(state: CompilationState) {
                     }
                 }
                 
-                case tmpl: in.IntervalTemplate => {
-                    pushAnonymousIntervalTemplate(tmpl)
+                case tmpl: in.Block => {
+                    pushAnonymousBlock(tmpl)
                 }
                 
                 case in.Literal(obj: java.lang.String, _) => {
@@ -764,8 +764,8 @@ case class ByteCode(state: CompilationState) {
           * onto the bytecode stack.  The class will have fields
           * for any captured local variables.  Also emits 
           * instructions to initialize those fields. */
-        def pushAnonymousIntervalTemplate(
-            tmpl: in.IntervalTemplate
+        def pushAnonymousBlock(
+            tmpl: in.Block
         ) {
             val name = freshQualName(accessMap.context)
             val tmplwr = new ClassWriter(name, noSuffix)

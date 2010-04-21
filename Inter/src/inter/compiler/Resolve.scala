@@ -195,7 +195,7 @@ object Resolve {
         
         def resolveExpr(expr: in.Expr): out.Expr = withPosOf(expr, expr match {
             case tuple: in.Tuple => resolveTuple(tuple)
-            case tmpl: in.IntervalTemplate => resolveIntervalTemplate(tmpl)
+            case tmpl: in.Block => resolveBlock(tmpl)
             case e: in.Literal => resolveLiteral(e)
             case in.Var(name, ()) => out.Var(name, ())
             case in.Field(owner, name, (), ()) => out.Field(resolveExpr(owner), name, (), ())
@@ -220,7 +220,7 @@ object Resolve {
             exprs = tuple.exprs.map(resolveExpr)
         ))
         
-        def resolveIntervalTemplate(tmpl: in.IntervalTemplate) = withPosOf(tmpl, out.IntervalTemplate(
+        def resolveBlock(tmpl: in.Block) = withPosOf(tmpl, out.Block(
             async = tmpl.async,
             returnTref = resolveOptionalTypeRef(tmpl.returnTref),
             param = resolveTupleLocal(tmpl.param),

@@ -744,22 +744,22 @@ case class Lower(state: CompilationState) {
             case _ => None
         }
         
-        def lowerIntervalTemplateArgument(expArgumentTy: Type.Ref, local: in.Local): out.Param = {
+        def lowerBlockArgument(expArgumentTy: Type.Ref, local: in.Local): out.Param = {
             withPosOf(local, (expArgumentTy, local) match {
                 // Unpack singleton tuples:
                 //    We keep the TupleParam() wrapper around a singleton entry just for pretty printing.
-                case (ty, in.TupleLocal(List(lv))) => out.TupleParam(List(lowerIntervalTemplateArgument(ty, lv)))
-                case (Type.Tuple(List(ty)), lv) => lowerIntervalTemplateArgument(ty, lv)
+                case (ty, in.TupleLocal(List(lv))) => out.TupleParam(List(lowerBlockArgument(ty, lv)))
+                case (Type.Tuple(List(ty)), lv) => lowerBlockArgument(ty, lv)
                 
                 // Unpack matching tuples:
                 case (Type.Tuple(tys), in.TupleLocal(locals)) if sameLength(tys, locals) => {
-                    val outParams = tys.zip(locals).map { case (t, l) => lowerIntervalTemplateArgument(t, l) }
+                    val outParams = tys.zip(locals).map { case (t, l) => lowerBlockArgument(t, l) }
                     out.TupleParam(outParams)
                 }
                 
                 // If tuple sizes don't match, just infer NullType:
                 case (_, in.TupleLocal(locals)) => {
-                    val outParams = locals.map(lowerIntervalTemplateArgument(Type.Null, _))
+                    val outParams = locals.map(lowerBlockArgument(Type.Null, _))
                     out.TupleParam(outParams)
                 }
                 
@@ -795,10 +795,10 @@ case class Lower(state: CompilationState) {
             })
         }
         
-        def lowerIntervalTemplate(optExpTy: Option[Type.Ref])(tmpl: in.IntervalTemplate) = introduceVar(tmpl, {
+        def lowerBlock(optExpTy: Option[Type.Ref])(tmpl: in.Block) = introduceVar(tmpl, {
             val expArgumentTy = optTypeArg(Name.AVar, optExpTy).getOrElse(Type.Void)
             
-            val outParam = lowerIntervalTemplateArgument(expArgumentTy, tmpl.param)
+            val outParam = lowerBlockArgument(expArgumentTy, tmpl.param)
             
             val subenv = env ++ outParam.symbols
             val outStmts = lowerStmts(subenv, tmpl.stmts)
@@ -822,7 +822,7 @@ case class Lower(state: CompilationState) {
                 }
             }
             
-            out.IntervalTemplate(
+            out.Block(
                 async = tmpl.async,
                 returnTref = outReturnTypeRef,
                 param = outParam,
@@ -842,7 +842,7 @@ case class Lower(state: CompilationState) {
         
         def lowerExpr(optExpTy: Option[Type.Ref])(expr: in.Expr): out.AtomicExpr = expr match {
             case e: in.Tuple => lowerTuple(optExpTy)(e)
-            case e: in.IntervalTemplate => lowerIntervalTemplate(optExpTy)(e)
+            case e: in.Block => lowerBlock(optExpTy)(e)
             case e: in.Literal => lowerLiteralExpr(e)
             case e: in.Var => lowerVar(optExpTy)(e)
             case e: in.Field => lowerField(optExpTy)(e)
