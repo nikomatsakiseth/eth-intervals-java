@@ -114,7 +114,7 @@ case class Env(
     ): Option[Symbol.Var] = {
         rcvrTy match {
             case Type.Class(className, _) => {
-                val csym = state.symtab.classes(className)
+                val csym = state.classes(className)
                 csym.fieldNamed(state)(name)
             }
             
@@ -142,7 +142,7 @@ case class Env(
     ): List[Symbol.Method] = {
         rcvrTy match {
             case Type.Class(className, _) => {
-                val csym = state.symtab.classes(className)
+                val csym = state.classes(className)
                 csym.methodsNamed(state)(name)
             }
             
@@ -259,16 +259,12 @@ case class Env(
     // consider the full subtyping relation but rather only the erased type
     // and (to a limited extent) type variables.
     
-    private[this] def symbolsSubclass(csym_sub: Symbol.Class, csym_sup: Symbol.Class) = {
-        Symbol.superclasses(state, csym_sub).contains(csym_sup)
-    }
-    
     private[this] def isSuitableArgumentBounded(ty_val: Type.Ref, ty_pat: Type.Ref): Boolean = {
         (ty_val, ty_pat) match {
             case (Type.Class(name_val, _), Type.Class(name_pat, _)) => {
-                val sym_val = state.symtab.classes(name_val)
-                val sym_pat = state.symtab.classes(name_pat)
-                symbolsSubclass(sym_val, sym_pat)
+                val sym_val = state.classes(name_val)
+                val sym_pat = state.classes(name_pat)
+                Symbol.isSubclass(state, sym_val, sym_pat)
             }
             
             case (Type.Var(path_val, tvar_val), Type.Var(path_pat, tvar_pat)) if tvar_val == tvar_pat =>

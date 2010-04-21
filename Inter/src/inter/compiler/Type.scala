@@ -35,5 +35,5 @@ object Type {
     }
     
     val Void = Type.Class(Name.VoidQual, List())
-
+    
 }

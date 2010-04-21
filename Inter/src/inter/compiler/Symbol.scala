@@ -191,9 +191,13 @@ object Symbol {
         while(!queued.isEmpty) {
             val csym_next = queued.dequeue()
             visited += csym_next
-            queued ++= csym_next.superClassNames(state).map(state.symtab.classes).filterNot(visited)
+            queued ++= csym_next.superClassNames(state).map(state.classes).filterNot(visited)
         }
         visited
+    }
+    
+    def isSubclass(state: CompilationState, csym_sub: Symbol.Class, csym_sup: Symbol.Class) = {
+        (csym_sub == csym_sup) || Symbol.superclasses(state, csym_sub).contains(csym_sup)
     }
     
 }

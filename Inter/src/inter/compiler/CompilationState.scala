@@ -1,23 +1,21 @@
 package inter.compiler
 
 import java.io.File
-import scala.collection.mutable.Queue
-import scala.collection.mutable.HashSet
-import scala.collection.mutable.HashMap
+import scala.collection.mutable
 
 class CompilationState(
     val config: Config,
     val reporter: Reporter
 ) {
-    val symtab = new SymbolTable()
-    val toBeLowered = new Queue[Symbol.ClassFromInterFile]()
-    val toBeBytecoded = new Queue[Symbol.ClassFromInterFile]()
-    val inferStack = new HashSet[Symbol.MemberId]()
-    val inferReported = new HashSet[Symbol.MemberId]()
+    val classes = new mutable.HashMap[Name.Qual, Symbol.Class]()
+    val toBeLowered = new mutable.Queue[Symbol.ClassFromInterFile]()
+    val toBeBytecoded = new mutable.Queue[Symbol.ClassFromInterFile]()
+    val inferStack = new mutable.HashSet[Symbol.MemberId]()
+    val inferReported = new mutable.HashSet[Symbol.MemberId]()
     
     // ___ Intrinsics _______________________________________________________
     
-    val intrinsics = new HashMap[(Name.Qual, Name.Method), List[Symbol.Method]]()
+    val intrinsics = new mutable.HashMap[(Name.Qual, Name.Method), List[Symbol.Method]]()
     
     def addIntrinsic(rcvrClassName: Name.Qual, msym: Symbol.Method) {
         val key = (rcvrClassName, msym.name)
@@ -40,16 +38,16 @@ class CompilationState(
         //    We have to do this first so as to resolve 
         //    cyclic references between classes.
         compUnits.flatMap(_.definedClasses).foreach { case (qualName, cdecl) =>
-            if(symtab.classes.isDefinedAt(qualName))
+            if(classes.isDefinedAt(qualName))
                 reporter.report(cdecl.pos, "class.already.defined", qualName.toString)
             else
-                symtab.classes(qualName) = new Symbol.ClassFromInterFile(qualName)
+                classes(qualName) = new Symbol.ClassFromInterFile(qualName)
         }
         
         // Resolve the compilation unit and store those into the symbol:
         compUnits.foreach { compUnit =>
             Resolve(this, compUnit).foreach { cdecl =>
-                val sym = symtab.classes(cdecl.name.qualName).asInstanceOf[Symbol.ClassFromInterFile]
+                val sym = classes(cdecl.name.qualName).asInstanceOf[Symbol.ClassFromInterFile]
                 sym.resolvedSource = cdecl
                 toBeLowered += sym
             }
@@ -65,7 +63,7 @@ class CompilationState(
       * loaded or we can find source for it (in which case
       * that source is loaded). */
     def loadedOrLoadable(qualName: Name.Qual) = {
-        symtab.classes.isDefinedAt(qualName) || locateSource(qualName)
+        classes.isDefinedAt(qualName) || locateSource(qualName)
     }
     
     /** Tries to locate a source for `qualName`.  If a source
@@ -80,7 +78,7 @@ class CompilationState(
             Parse(this, file) match {
                 case None => { 
                     // Parse error:
-                    symtab.classes(qualName) = new Symbol.ClassFromErroroneousSource(qualName)
+                    classes(qualName) = new Symbol.ClassFromErroroneousSource(qualName)
                 }
 
                 case Some(compUnit) => {
@@ -92,7 +90,7 @@ class CompilationState(
                                 "expected.to.find.class", 
                                 qualName.toString
                             )
-                            symtab.classes(qualName) = new Symbol.ClassFromErroroneousSource(qualName)                            
+                            classes(qualName) = new Symbol.ClassFromErroroneousSource(qualName)                            
                         }
                         
                         case Some(_) =>
@@ -110,7 +108,7 @@ class CompilationState(
         (sourceFiles, classFiles, reflClasses) match {
             case (List(), List(), None) => false
             case (List(), List(), Some(reflClass)) => {
-                symtab.classes(qualName) = new Symbol.ClassFromReflection(qualName, reflClass)
+                classes(qualName) = new Symbol.ClassFromReflection(qualName, reflClass)
                 true
             }
             case (sourceFile :: _, List(), _) => {
@@ -118,7 +116,7 @@ class CompilationState(
                 true
             }
             case (List(), classFile :: _, _) => {
-                symtab.classes(qualName) = new Symbol.ClassFromClassFile(qualName, classFile)
+                classes(qualName) = new Symbol.ClassFromClassFile(qualName, classFile)
                 true
             }
             case (sourceFile :: _, classFile :: _, _) => {
@@ -126,7 +124,7 @@ class CompilationState(
                     loadSourceFile(sourceFile)
                     true
                 } else {
-                    symtab.classes(qualName) = new Symbol.ClassFromClassFile(qualName, classFile)
+                    classes(qualName) = new Symbol.ClassFromClassFile(qualName, classFile)
                     true
                 }
             }

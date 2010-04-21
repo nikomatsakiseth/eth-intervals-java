@@ -84,11 +84,40 @@ case class ByteCode(state: CompilationState) {
             case _ => mvis.visitLdcInsn(value)
         }
         
-        def downcast(ty: Type.Ref) = ty match {
-            case Type.Class(name, List()) => mvis.visitTypeInsn(O.CHECKCAST, name.internalName)
-            case Type.Tuple(_) => mvis.visitTypeInsn(O.CHECKCAST, asmObjectArrayType.getInternalName)
-            case Type.Var(_, _) | Type.Null => 
+        def downcast(toAsmTy: asm.Type) {
+            toAsmTy.getSort match {
+                case asm.Type.ARRAY =>
+                    mvis.visitTypeInsn(O.CHECKCAST, toAsmTy.getInternalName)
+                    
+                case asm.Type.OBJECT =>
+                    mvis.visitTypeInsn(O.CHECKCAST, toAsmTy.getInternalName)                        
+            }                
         }
+        
+        def downcast(ty: Type.Ref) {
+            downcast(asmType(ty))
+        }
+        
+        def downcastIfNeeded(toAsmTy: asm.Type, fromAsmTy: asm.Type) {
+            if(toAsmTy != asmObjectType && toAsmTy != fromAsmTy)
+                downcast(toAsmTy)
+        }
+
+        def downcastIfNeeded(toTy: Type.Ref, fromTy: Type.Ref) {
+            (toTy, fromTy) match {
+                case (Type.Class(toName, _), Type.Class(fromName, _)) => {
+                    val toSym = state.classes(toName)
+                    val fromSym = state.classes(fromName)
+                    if(!Symbol.isSubclass(state, fromSym, toSym))
+                        downcast(toTy)
+                }
+
+                case _ => {
+                    downcastIfNeeded(asmType(toTy), asmType(fromTy))
+                }
+            }            
+        }
+        
     }
     implicit def extendedVisitor(mvis: asm.MethodVisitor) = ExtendedVisitor(mvis)
     
@@ -435,7 +464,8 @@ case class ByteCode(state: CompilationState) {
                     
                 case _ => {
                     pushExprValue(rvalue)
-                    expand(lvalue)                    
+                    mvis.downcastIfNeeded(lvalue.ty, rvalue.ty)
+                    expand(lvalue)
                 }
             }
         }

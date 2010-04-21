@@ -183,7 +183,7 @@ case class Lower(state: CompilationState) {
     def lowerClassDecl(
         cdecl: Ast.Resolve.ClassDecl
     ): out.ClassDecl = {
-        val csym = state.symtab.classes(cdecl.name.qualName).asInstanceOf[Symbol.ClassFromInterFile]
+        val csym = state.classes(cdecl.name.qualName).asInstanceOf[Symbol.ClassFromInterFile]
         withPosOf(cdecl, out.ClassDecl(
             name = cdecl.name,
             annotations = cdecl.annotations.map(ThisScope(csym).lowerAnnotation),
