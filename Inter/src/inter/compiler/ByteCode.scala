@@ -366,8 +366,6 @@ case class ByteCode(state: CompilationState) {
             }
             case in.NewJava(_, arg, _) => summarizeSymbolsInExpr(summary, arg)
             case in.Null(_) => summary
-            case in.ImpVoid(_) => summary /* XXX: Refine types so that ImpThis no longer appears */
-            case in.ImpThis(_) => summary /* XXX: Refine types so that ImpThis no longer appears */
         }
     }
     
@@ -632,12 +630,8 @@ case class ByteCode(state: CompilationState) {
                     throw new RuntimeException("TODO")                    
                 }
                 
-                case in.ImpVoid(_) | in.Null(_) => {
+                case in.Null(_) => {
                     mvis.visitInsn(O.ACONST_NULL)                    
-                }
-                
-                case in.ImpThis(_) => {
-                    mvis.visitIntInsn(O.ALOAD, 0)
                 }
             }
         }

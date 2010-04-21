@@ -400,7 +400,7 @@ case class Lower(state: CompilationState) {
     
     // ___ Lowering Statements ______________________________________________
     
-    def tmpVarName(fromExpr: Ast#Expr) = {
+    def tmpVarName(fromExpr: Ast#ParseExpr) = {
         //"(%s@%s)".format(fromExpr.toString, fromExpr.pos.toString)
         "(%s@%s)".format(fromExpr.getClass.getSimpleName, fromExpr.pos.toString)
     }
@@ -537,7 +537,7 @@ case class Lower(state: CompilationState) {
             })
         }
         
-        def introduceVar(fromExpr: in.Expr, toExpr: out.Expr): out.Var = {
+        def introduceVar(fromExpr: in.Expr, toExpr: out.LowerExpr): out.Var = {
             val text = tmpVarName(fromExpr)
             val sym = new Symbol.Var(Name.Var(text), toExpr.ty)
             val nameAst = withPosOf(fromExpr, Ast.VarName(text))
@@ -558,7 +558,7 @@ case class Lower(state: CompilationState) {
                 }
         }
         
-        def patSubst(subst: Subst)(pat: Pattern.Ref, expr: Ast#Expr): Subst = {
+        def patSubst(subst: Subst)(pat: Pattern.Ref, expr: Ast#ParseExpr): Subst = {
             (pat, expr) match {
                 case (patTup: Pattern.Tuple, astTup: Ast#Tuple) if sameLength(patTup.patterns, astTup.exprs) =>
                     patTup.patterns.zip(astTup.exprs).foldLeft(subst) { 
@@ -579,14 +579,14 @@ case class Lower(state: CompilationState) {
             }
         }
         
-        def patSubsts(allPatterns: List[Pattern.Ref], allExprs: List[Ast#Expr]): Subst = {
+        def patSubsts(allPatterns: List[Pattern.Ref], allExprs: List[Ast#ParseExpr]): Subst = {
             assert(allPatterns.length == allExprs.length) // Guaranteed syntactically.
             allPatterns.zip(allExprs).foldLeft(Subst.empty) { case (s, (p, e)) =>
                 patSubst(s)(p, e)
             }
         }
         
-        def mthdSubst(msym: Symbol.Method, rcvr: Ast#Expr, parts: List[Ast#CallPart]) = {
+        def mthdSubst(msym: Symbol.Method, rcvr: Ast#ParseExpr, parts: List[Ast#CallPart]) = {
             val msig = msym.msig
             patSubsts(
                 msig.thisPattern    ::  msig.parameterPatterns, 
@@ -840,7 +840,7 @@ case class Lower(state: CompilationState) {
             out.Var(astVarName(expr, Name.ThisVar), sym)
         })
         
-        def lowerExpr(optExpTy: Option[Type.Ref])(expr: in.Expr): out.LoweredExpr = expr match {
+        def lowerExpr(optExpTy: Option[Type.Ref])(expr: in.Expr): out.AtomicExpr = expr match {
             case tuple: in.Tuple => lowerTuple(optExpTy)(tuple)
             case tmpl: in.IntervalTemplate => lowerIntervalTemplate(optExpTy)(tmpl)
             case lit: in.Literal => lowerLiteralExpr(lit)
@@ -849,7 +849,7 @@ case class Lower(state: CompilationState) {
             case e: in.MethodCall => lowerMethodCall(optExpTy)(e)
             case e: in.NewJava => lowerNewJava(e)
             case e: in.Null => lowerNull(optExpTy)(e)
-            case e: in.ImpVoid => introduceVar(expr, out.ImpVoid(Type.Void))
+            case e: in.ImpVoid => introduceVar(expr, out.Null(Type.Void))
             case e: in.ImpThis => lowerImpThis(e)
         }
         
