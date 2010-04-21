@@ -20,4 +20,5 @@ class LowerForEach {
     
 }
 // COMPILE
+// --dump-resolved-trees
 // --dump-lowered-trees

@@ -841,9 +841,9 @@ case class Lower(state: CompilationState) {
         })
         
         def lowerExpr(optExpTy: Option[Type.Ref])(expr: in.Expr): out.AtomicExpr = expr match {
-            case tuple: in.Tuple => lowerTuple(optExpTy)(tuple)
-            case tmpl: in.IntervalTemplate => lowerIntervalTemplate(optExpTy)(tmpl)
-            case lit: in.Literal => lowerLiteralExpr(lit)
+            case e: in.Tuple => lowerTuple(optExpTy)(e)
+            case e: in.IntervalTemplate => lowerIntervalTemplate(optExpTy)(e)
+            case e: in.Literal => lowerLiteralExpr(e)
             case e: in.Var => lowerVar(optExpTy)(e)
             case e: in.Field => lowerField(optExpTy)(e)
             case e: in.MethodCall => lowerMethodCall(optExpTy)(e)
