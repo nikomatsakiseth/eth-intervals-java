@@ -75,7 +75,7 @@ case class ByteCode(state: CompilationState) {
         )
     }
     
-    sealed case class ExtendedVisitor(mvis: asm.MethodVisitor) {
+    sealed case class ExtendedMethodVisitor(mvis: asm.MethodVisitor) {
         def pushIntegerConstant(value: Int) = value match {
             case 0 => mvis.visitInsn(O.ICONST_0)
             case 1 => mvis.visitInsn(O.ICONST_1)
@@ -117,9 +117,8 @@ case class ByteCode(state: CompilationState) {
                 }
             }            
         }
-        
     }
-    implicit def extendedVisitor(mvis: asm.MethodVisitor) = ExtendedVisitor(mvis)
+    implicit def extendedMethodVisitor(mvis: asm.MethodVisitor) = ExtendedMethodVisitor(mvis)
     
     // ___ Writing .class, .s files _________________________________________
     
@@ -380,6 +379,7 @@ case class ByteCode(state: CompilationState) {
                     sharedSyms = summary.sharedSyms ++ summaryTmpl.readSyms ++ summaryTmpl.writeSyms
                 )
             }
+            case in.Cast(subexpr, _, _) => summarizeSymbolsInExpr(summary, subexpr)
             case in.Literal(_, _) => summary
             case in.Var(_, sym) => summary.copy(readSyms = summary.readSyms + sym)
             case in.Field(owner, _, _, _) => summarizeSymbolsInExpr(summary, owner)
@@ -551,6 +551,11 @@ case class ByteCode(state: CompilationState) {
                 
                 case tmpl: in.Block => {
                     pushAnonymousBlock(tmpl)
+                }
+                
+                case in.Cast(subexpr, _, ty) => {
+                    pushExprValue(subexpr)
+                    mvis.downcast(ty)
                 }
                 
                 case in.Literal(obj: java.lang.String, _) => {

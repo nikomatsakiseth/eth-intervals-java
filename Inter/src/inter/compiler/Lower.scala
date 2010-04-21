@@ -841,9 +841,19 @@ case class Lower(state: CompilationState) {
             out.Var(astVarName(expr, Name.ThisVar), sym)
         })
         
+        def lowerCast(expr: in.Cast) = withPosOf(expr, {
+            val ty = symbolType(expr.typeRef)
+            out.Cast(
+                lowerExpr(Some(ty))(expr),
+                lowerTypeRef(expr.typeRef),
+                ty
+            )
+        })
+        
         def lowerExpr(optExpTy: Option[Type.Ref])(expr: in.Expr): out.AtomicExpr = expr match {
             case e: in.Tuple => lowerTuple(optExpTy)(e)
             case e: in.Block => lowerBlock(optExpTy)(e)
+            case e: in.Cast => lowerCast(e)
             case e: in.Literal => lowerLiteralExpr(e)
             case e: in.Var => lowerVar(optExpTy)(e)
             case e: in.Field => lowerField(optExpTy)(e)

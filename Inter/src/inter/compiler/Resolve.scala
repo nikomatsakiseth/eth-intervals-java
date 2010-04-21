@@ -196,6 +196,7 @@ object Resolve {
         def resolveExpr(expr: in.Expr): out.Expr = withPosOf(expr, expr match {
             case tuple: in.Tuple => resolveTuple(tuple)
             case tmpl: in.Block => resolveBlock(tmpl)
+            case in.Cast(v, t, ()) => out.Cast(resolveExpr(v), resolveTypeRef(t), ())
             case e: in.Literal => resolveLiteral(e)
             case in.Var(name, ()) => out.Var(name, ())
             case in.Field(owner, name, (), ()) => out.Field(resolveExpr(owner), name, (), ())

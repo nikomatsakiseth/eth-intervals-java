@@ -516,6 +516,20 @@ abstract class Ast {
         }
     }
     
+    case class Cast(expr: NE, typeRef: TypeRef, ty: Ty) extends AtomicExpr {
+        override def toString = "(%s)(%s)".format(typeRef, expr)
+        
+        override def print(out: PrettyPrinter) {
+            out.write("(")
+            typeRef.print(out)
+            out.write(")")
+            out.write("(")
+            expr.print(out)
+            out.write(")")
+        }
+        
+    }
+    
     case class Literal(obj: Object, ty: Ty) extends LowerExpr {
         override def toString = obj.toString
     }
@@ -724,5 +738,5 @@ object Ast {
             case VarLvalue(_, _, name, sym) => Pattern.Var(name.name, sym.ty)
         }
     }
-    
+
 }
