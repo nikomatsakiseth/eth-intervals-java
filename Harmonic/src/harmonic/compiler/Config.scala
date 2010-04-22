@@ -3,10 +3,10 @@ package harmonic.compiler
 import java.io.File
 import java.io.PrintStream
 import scala.collection.mutable.ListBuffer
+import harmonic.Launch.version
 
 class Config
 {
-    val version = "1.0"
     val sourceExt = ".harm"
     val classExt = ".class"
     val sourcePaths = new ListBuffer[File]()

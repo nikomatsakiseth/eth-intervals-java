@@ -10,6 +10,11 @@ import asm.{Opcodes => O}
 import Ast.{Lower => in}
 import Util._
 
+object ByteCode {
+    val noSuffix = ""
+    val implSuffix = "$"    
+}
+
 /** The final step in compilation: generates appropriate 
   * .class files for each class.
   *
@@ -21,9 +26,8 @@ import Util._
   *   that does not define new members.
   */
 case class ByteCode(state: CompilationState) {
-    
-    val noSuffix = ""
-    val implSuffix = "$"
+    import ByteCode.noSuffix
+    import ByteCode.implSuffix
     
     // ___ Generating fresh, unique class names _____________________________
     
