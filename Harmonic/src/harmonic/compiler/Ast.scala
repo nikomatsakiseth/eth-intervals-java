@@ -55,6 +55,7 @@ abstract class Ast {
     
     def symTy(vsym: VSym): Ty
     def tupleTy(tys: List[Ty]): TyTuple
+    def mthdSym(data: MCallData): MSym
     def returnTy(data: MCallData): Ty
     
     private def printSepFunc(out: PrettyPrinter, asts: List[Node], sepfunc: (() => Unit)) {
@@ -312,7 +313,7 @@ abstract class Ast {
         
         def symbols = List(sym)
         
-        override def toString = "%s %s %s".format(annotations, tref, name)
+        override def toString = "%s %s: %s".format(annotations, tref, name)
         
         override def print(out: PrettyPrinter) {
             annotations.foreach(_.printsp(out))
@@ -556,6 +557,11 @@ abstract class Ast {
         override def toString = name.toString
         def ty = symTy(sym)
         def toPath = Path.Base(name.name)
+        
+        override def print(out: PrettyPrinter) {
+            out.write(name.toString)
+            out.write(" /*%s*/".format(sym))
+        }
     }
     
     case class Field(owner: NE, name: VarName, sym: VSym, ty: Ty) extends LowerExpr {
@@ -564,6 +570,7 @@ abstract class Ast {
         override def print(out: PrettyPrinter) {
             owner.printdot(out)
             name.print(out)
+            out.write(" /*%s;%s*/".format(sym, ty))
         }
     }
     
@@ -573,7 +580,7 @@ abstract class Ast {
         override def print(out: PrettyPrinter) {
             out.write("%s ", ident)
             arg.print(out)
-        }        
+        }
     }
     case class MethodCall(rcvr: NE, parts: List[CallPart], data: MCallData)
     extends LowerExpr {
@@ -585,6 +592,7 @@ abstract class Ast {
         override def print(out: PrettyPrinter) {
             rcvr.printdot(out)
             printSep(out, parts, " ")
+            out.write(" /*%s;%s*/".format(mthdSym(data), returnTy(data)))
         }        
     }
     
@@ -714,6 +722,7 @@ object Ast {
         
         def symTy(unit: Unit) = ()
         def tupleTy(tys: List[Ty]) = ()
+        def mthdSym(unit: Unit) = ()
         def returnTy(unit: Unit) = ()
     }
     
@@ -735,6 +744,7 @@ object Ast {
 
         def symTy(unit: Unit) = ()
         def tupleTy(tys: List[Ty]) = ()
+        def mthdSym(unit: Unit) = ()
         def returnTy(unit: Unit) = ()
     }
 
@@ -757,6 +767,7 @@ object Ast {
 
         def symTy(vsym: Symbol.Var) = vsym.ty
         def tupleTy(tys: List[Type.Ref]) = Type.Tuple(tys)
+        def mthdSym(data: MCallData) = data._1
         def returnTy(data: MCallData) = data._2.returnTy
         
         def toPattern(lvalue: Lvalue): Pattern.Ref = lvalue match {
