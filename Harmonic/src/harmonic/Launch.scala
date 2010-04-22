@@ -38,12 +38,28 @@ object Launch {
                     throw new UsageError("No application class name provided")
                 }
                 
-                // TODO: Better error messages for the various points of failure that can occur
-                val cls = Class.forName(appClassName + implSuffix) 
-                if(!classOf[Application].isAssignableFrom(cls))
-                    throw new UsageError("%s does not extend harmonic.lang.Application".format(appClassName))
+                val cls = {
+                    try {
+                        Class.forName(appClassName + implSuffix) 
+                    } catch {
+                        case _: ClassNotFoundException => 
+                            throw new UsageError("Harmonic class '%s' not found.".format(appClassName))
+                    }
+                }
                 
-                val app = cls.getConstructor().newInstance().asInstanceOf[Application]
+                if(!classOf[Application].isAssignableFrom(cls))
+                    throw new UsageError("'%s' does not extend harmonic.lang.Application".format(appClassName))
+                
+                val ctor = {
+                    try {
+                        cls.getConstructor()
+                    } catch {
+                        case _: NoSuchMethodException =>
+                            throw new UsageError("Application class expects parameters.")
+                    }
+                }
+                
+                val app = ctor.newInstance().asInstanceOf[Application]
                 app.main(appArgs.toArray)
             } catch {
                 case UsageError(msg) => {
