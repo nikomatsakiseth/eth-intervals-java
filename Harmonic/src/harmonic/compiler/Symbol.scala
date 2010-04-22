@@ -1,6 +1,7 @@
 package harmonic.compiler
 
 import scala.collection.mutable
+import scala.util.parsing.input.Position
 
 /** Symbols describe the class interfaces.  Unlike the AST,
   * they are mutable data structures, built-up during the
@@ -27,6 +28,7 @@ object Symbol {
         def superClassNames(state: CompilationState): List[Name.Qual]
         def methodsNamed(state: CompilationState)(name: Name.Method): List[Symbol.Method]
         def fieldNamed(state: CompilationState)(name: Name.Var): Option[Symbol.Var]
+        def pos: Position
         
         override def toString = "%s(%s, %x)".format(
             getClass.getSimpleName, name, System.identityHashCode(this)
@@ -40,6 +42,7 @@ object Symbol {
         def superClassNames(state: CompilationState) = List()
         def methodsNamed(state: CompilationState)(name: Name.Method) = List()
         def fieldNamed(state: CompilationState)(name: Name.Var) = None
+        def pos = InterPosition.unknown
     }
     
     class ClassFromClassFile(
@@ -51,6 +54,7 @@ object Symbol {
         var superClassNames = List[Name.Qual]()
         var methods = List[Symbol.Method]()
         var fields = List[Symbol.Var]()
+        def pos = InterPosition.forFile(file)
         
         def load(state: CompilationState) {
             if(!loaded) {
@@ -87,6 +91,7 @@ object Symbol {
         var optCtors: Option[List[Symbol.Method]] = None
         var optMethods: Option[List[Symbol.Method]] = None
         var optFields: Option[List[Symbol.Var]] = None
+        def pos = InterPosition.forClass(cls)
         
         def constructors(state: CompilationState) = {
             Reflect(state).ctors(this)
@@ -108,6 +113,7 @@ object Symbol {
         var optCtorSymbol: Option[Symbol.Method] = None
         val methodSymbols = new mutable.HashMap[Name.Method, List[Method]]()
         val loweredMethods = new mutable.HashMap[MethodId, Ast.Lower.MethodDecl]()
+        def pos = resolvedSource.pos
         
         def constructors(state: CompilationState) = {
             optCtorSymbol match {
@@ -165,6 +171,12 @@ object Symbol {
     ) extends Ref {
         override def toString = "Method(%s, %x)".format(name, System.identityHashCode(this))
         
+        /** For methods whose source will be emitted, we compute the 
+          * overridden methods.  The ordering is significant,
+          * because when super is invoked it will proceed to the
+          * next implementation in the list.  For methods on
+          * reflected classes or classes loaded from .class files,
+          * this list is simply empty. */
         val overrides = new mutable.ListBuffer[Symbol.Method]()
     }
     

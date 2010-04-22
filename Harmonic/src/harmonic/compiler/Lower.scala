@@ -130,7 +130,6 @@ case class Lower(state: CompilationState) {
                 val memberId = methodId(csym, mdecl)
 
                 if(state.inferStack(memberId)) {
-                    // Cyclic inference: illegal.
                     if(!state.inferReported.contains(memberId)) {
                         state.inferReported += memberId
                         state.reporter.report(
@@ -246,7 +245,7 @@ case class Lower(state: CompilationState) {
             val (returnTref, returnTy) = (mdecl.returnTref, optBody) match {
                 case (in.InferredTypeRef(), None) => {
                     state.reporter.report(
-                        mdecl.returnTref.pos, "explicit.return.type.reqd.if.abstract", mdecl.name.toString
+                        mdecl.returnTref.pos, "explicit.return.type.required.if.abstract", mdecl.name.toString
                     )
                     (astType(env)(mdecl.returnTref, Type.Null), Type.Null)
                 }

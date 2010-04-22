@@ -8,10 +8,22 @@ class CompilationState(
     val config: Config,
     val reporter: Reporter
 ) {
+    /** Maps a class name to its symbol. */
     val classes = new mutable.HashMap[Name.Qual, Symbol.Class]()
+    
+    /** Maps a symbol to its method resolution order. */
+    val mroCache = new mutable.HashMap[Symbol.Class, List[Symbol.Class]]()
+
+    /** Symbols parsed and resolved but not yet lowered. */
     val toBeLowered = new mutable.Queue[Symbol.ClassFromInterFile]()
+    
+    /** Symbols lowered but for which we have not yet emitted byte code. */
     val toBeBytecoded = new mutable.Queue[Symbol.ClassFromInterFile]()
+    
+    /** Members whose type is currently being inferred. */
     val inferStack = new mutable.HashSet[Symbol.MemberId]()
+    
+    /** Members for which we have reported an inference error. */
     val inferReported = new mutable.HashSet[Symbol.MemberId]()
     
     // ___ Intrinsics _______________________________________________________

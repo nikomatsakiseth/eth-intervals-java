@@ -15,6 +15,12 @@ object InterPosition {
         override def lineContents = ""
     }
     
+    val unknown = new Position() {
+        def line = 1
+        def column = 1
+        override def lineContents = "<unknown>"
+    }
+    
     def forClass(cls: java.lang.Class[_]) = new InterPosition() {
         def file = new java.io.File(cls.toString)
         def line = 1
