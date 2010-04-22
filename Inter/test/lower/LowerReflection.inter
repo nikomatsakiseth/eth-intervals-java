@@ -1,6 +1,6 @@
 package lower;
 
-class LowerIntrinsicControlFlow {
+class LowerReflection {
     invokeToString(obj: Object) {
         obj.toString().concat("foo");
     }
