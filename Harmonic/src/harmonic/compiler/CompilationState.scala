@@ -30,8 +30,8 @@ class CompilationState(
     
     val intrinsics = new mutable.HashMap[(Name.Qual, Name.Method), List[Symbol.Method]]()
     
-    def addIntrinsic(rcvrClassName: Name.Qual, msym: Symbol.Method) {
-        val key = (rcvrClassName, msym.name)
+    def addIntrinsic(msym: Symbol.Method) {
+        val key = (msym.clsName, msym.name)
         intrinsics(key) = msym :: intrinsics.get(key).getOrElse(Nil)
     }
     

@@ -58,6 +58,7 @@ case class Reflect(state: CompilationState) {
     def ctorSymbol(clsName: Name.Qual)(mthd: reflect.Constructor[_]) = {
         new Symbol.Method(
             kind = Symbol.JavaVirtual, // XXX 
+            clsName = clsName,
             name = Name.InitMethod,
             Symbol.MethodSignature(
                 returnTy = Type.Void,
@@ -79,6 +80,7 @@ case class Reflect(state: CompilationState) {
     def methodSymbol(clsName: Name.Qual)(mthd: reflect.Method) = {
         new Symbol.Method(
             kind = Symbol.JavaVirtual, // XXX 
+            clsName = clsName,
             name = Name.Method(List(mthd.getName)),
             Symbol.MethodSignature(
                 returnTy = typeRef(mthd.getGenericReturnType),

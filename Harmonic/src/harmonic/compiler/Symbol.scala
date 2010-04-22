@@ -115,13 +115,16 @@ object Symbol {
         val loweredMethods = new mutable.HashMap[MethodId, Ast.Lower.MethodDecl]()
         def pos = resolvedSource.pos
         
+        def allMethodSymbols = methodSymbols.valuesIterator.toList.flatten
+        
         def constructors(state: CompilationState) = {
             optCtorSymbol match {
                 case Some(ctorSymbol) => List(ctorSymbol)
                 case None => {
                     val ctorSymbol = new Symbol.Method(
-                        Symbol.InterCtor,
-                        Name.InitMethod,
+                        kind = Symbol.InterCtor,
+                        clsName = name,
+                        name = Name.InitMethod,
                         Symbol.MethodSignature(
                             returnTy = Type.Void,
                             receiverTy = Type.Class(name, List()),
@@ -165,11 +168,14 @@ object Symbol {
     case object ErrorMethod extends MethodKind
     
     class Method(
-        val kind: MethodKind,
-        val name: Name.Method,
+        val kind: MethodKind,                   /** Intrinsic, harmonic, java, etc. */
+        val clsName: Name.Qual,                 /** Class in which the method is defined. */
+        val name: Name.Method,                  /** Name of the method. */
         val msig: MethodSignature[Pattern.Ref]
     ) extends Ref {
         override def toString = "Method(%s, %x)".format(name, System.identityHashCode(this))
+        
+        def methodId = MethodId(clsName, name, msig.parameterPatterns)
         
         /** For methods whose source will be emitted, we compute the 
           * overridden methods.  The ordering is significant,
@@ -180,11 +186,11 @@ object Symbol {
         val overrides = new mutable.ListBuffer[Symbol.Method]()
     }
     
-    def errorMethod(name: Name.Method) = {
+    def errorMethod(name: Name.Method, clsName: Name.Qual) = {
         val parameterPatterns = name.parts.zipWithIndex.map { case (_, i) => 
             Pattern.Var(Name.Var("arg%d".format(i)), Type.Null)
         }
-        new Method(ErrorMethod, name, MethodSignature(Type.Null, Type.Null, parameterPatterns)) {
+        new Method(ErrorMethod, clsName, name, MethodSignature(Type.Null, Type.Null, parameterPatterns)) {
             override def isError = true
         }
     }

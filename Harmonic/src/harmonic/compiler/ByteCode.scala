@@ -177,13 +177,25 @@ case class ByteCode(state: CompilationState) {
     // variable.  This value may be present on the stack or it may require
     // dereferences through the fields of other objects to be loaded.
     
-    sealed abstract class AccessPath {
+    sealed abstract class ValuePath {
         /** Type of the value at the other end of this path. */
         def asmType: asm.Type
         
         // Stack: ... => ..., value
         def push(mvis: asm.MethodVisitor): Unit
+    }
+    
+    sealed case class IntConstant(
+        value: Int
+    ) extends ValuePath {
+        def asmType = asm.Type.INT_TYPE
         
+        def push(mvis: asm.MethodVisitor) {
+            mvis.pushIntegerConstant(value)
+        }
+    }
+    
+    sealed abstract class AccessPath extends ValuePath {
         // Stack: ... => ..., <lvalue>
         def pushLvalue(mvis: asm.MethodVisitor): Unit
         
@@ -193,7 +205,7 @@ case class ByteCode(state: CompilationState) {
         // Stack: ..., val => ...
         def storeLvalueWithoutPush(mvis: asm.MethodVisitor): Unit
     }
-    
+
     sealed case class AccessVar(
         index: Int, 
         asmType: asm.Type
@@ -304,6 +316,8 @@ case class ByteCode(state: CompilationState) {
             func(stashSlot)
             maxSlot -= 1
         }
+        
+        def pushSym(sym: Symbol.Var, mvis: asm.MethodVisitor) = syms(sym).push(mvis)
     }
     
     class BoxedArray(accessMap: AccessMap)
@@ -416,7 +430,7 @@ case class ByteCode(state: CompilationState) {
     
     // ___ Statements _______________________________________________________
     
-    class StatementVisitor(accessMap: AccessMap, mvis: asm.MethodVisitor) {
+    class StatementVisitor(accessMap: AccessMap, nextMro: ValuePath, mvis: asm.MethodVisitor) {
         
         /** Generates the instructions to store to an lvalue, unpacking
           * tuple values as needed.  
@@ -854,7 +868,7 @@ case class ByteCode(state: CompilationState) {
             addSymbolsDeclaredIn(derivedAccessMap, tmpl.stmts, tmplmvis)
             
             // Visit the statements:
-            val stmtVisitor = new StatementVisitor(derivedAccessMap, tmplmvis)
+            val stmtVisitor = new StatementVisitor(derivedAccessMap, IntConstant(1), tmplmvis)
             stmtVisitor.returnResultOfStatements(tmpl.stmts)
             tmplmvis.visitEnd
             
@@ -942,7 +956,7 @@ case class ByteCode(state: CompilationState) {
         // Assign the expressions from overridden patterns to the master patterns.
         // This will expand tuples etc as needed.
         thisPtr.push(mvis)
-        val stmtVisitor = new StatementVisitor(accessMap, mvis)
+        val stmtVisitor = new StatementVisitor(accessMap, IntConstant(-1), mvis)
         masterSig.parameterPatterns.zip(rvalues).foreach { case (lvalue, rvalue) =>
             stmtVisitor.pushRvalues(lvalue, rvalue)
         }
@@ -965,14 +979,27 @@ case class ByteCode(state: CompilationState) {
     ) {
         val returnAsmTy = asmType(decl.returnTy)
         val paramAsmTys = methodParameterTypes(decl.params).map(asmType)
-        val mvis = cvis.visitMethod(
-            O.ACC_PUBLIC,
+        
+        // Default version:
+        val mvis1 = cvis.visitMethod(
+            O.ACC_ABSTRACT + O.ACC_PUBLIC,
             decl.name.javaName,
             getMethodDescriptor(returnAsmTy, paramAsmTys.toArray),
             null, // generic signature
             null  // thrown exceptions
         )
-        mvis.visitEnd
+        mvis1.visitEnd
+
+        // "Super" version takes an initial integer indicating the version 
+        // of the method to be invoked. 0 == current version, 1 == next in MRO, etc
+        val mvis2 = cvis.visitMethod(
+            O.ACC_ABSTRACT + O.ACC_PUBLIC,
+            decl.name.javaName,
+            getMethodDescriptor(returnAsmTy, (asm.Type.INT_TYPE :: paramAsmTys).toArray),
+            null, // generic signature
+            null  // thrown exceptions
+        )
+        mvis2.visitEnd
     }
     
     def writeInterMethodImpl(
@@ -983,39 +1010,57 @@ case class ByteCode(state: CompilationState) {
         val returnAsmTy = asmType(decl.returnTy)
         val receiverAsmTy = asm.Type.getObjectType(csym.name.internalName)
         val paramAsmTys = methodParameterTypes(decl.params).map(asmType)
+        val methodDesc = getMethodDescriptor(returnAsmTy, (receiverAsmTy :: asm.Type.INT_TYPE :: paramAsmTys).toArray)
         val mvis = cvis.visitMethod(
             O.ACC_PUBLIC,
             decl.name.javaName,
-            getMethodDescriptor(returnAsmTy, (receiverAsmTy :: paramAsmTys).toArray),
+            methodDesc,
             null, // generic signature
             null  // thrown exceptions
         )
-        decl.optBody.foreach { body =>
-            val accessMap = constructAccessMap(
-                csym.name.withSuffix("$" + decl.name),
-                mvis, 
-                decl.receiverSym, 
-                decl.params, 
-                body.stmts
-            )
-            val stmtVisitor = new StatementVisitor(accessMap, mvis)
-            stmtVisitor.returnResultOfStatements(body.stmts)
+        
+        val accessMap = new AccessMap(csym.name)
+        accessMap.addUnboxedSym(decl.receiverSym)
+        val nextMro = accessMap.pathToFreshSlot(asm.Type.INT_TYPE)
+        decl.params.flatMap(_.symbols).foreach(accessMap.addUnboxedSym)
+        
+        decl.optBody match { 
+            case Some(body) => {
+                // Construct access map:
+                addSymbolsDeclaredIn(accessMap, body.stmts, mvis)
+
+                // Emit statements:
+                val stmtVisitor = new StatementVisitor(accessMap, nextMro, mvis)
+                stmtVisitor.returnResultOfStatements(body.stmts)                
+            }
+            
+            case None => {
+                // Abstract: simply invoke next version.
+                // XXX Do we ever need to do adaption, etc?
+                accessMap.pushSym(decl.receiverSym, mvis)
+                nextMro.push(mvis)
+                mvis.pushIntegerConstant(1)
+                mvis.visitInsn(O.IADD)
+                decl.params.flatMap(_.symbols).foreach(accessMap.pushSym(_, mvis))
+                mvis.visitMethodInsn(
+                    O.INVOKEINTERFACE,
+                    csym.name.internalName,
+                    decl.name.javaName,
+                    methodDesc
+                )
+                mvis.visitInsn(O.ARETURN)
+            }
         }
         mvis.visitEnd
     }
     
-    def constructAccessMap(
-        context: Name.Qual,
-        mvis: asm.MethodVisitor,
-        receiverSymbol: Symbol.Var, 
-        parameterPatterns: List[in.Param],
-        stmts: List[in.Stmt]
-    ) = {
-        val accessMap = new AccessMap(context)
-        (receiverSymbol :: parameterPatterns.flatMap(_.symbols)).foreach(accessMap.addUnboxedSym)
-        addSymbolsDeclaredIn(accessMap, stmts, mvis)
-        accessMap
-    }
+    //def writeInterMethodDispatch(
+    //    csym: Symbol.ClassFromInterFile, 
+    //    cvis: asm.ClassVisitor,
+    //    msym: 
+    //) {
+    //    
+    //}
     
     def addSymbolsDeclaredIn(
         accessMap: AccessMap, 

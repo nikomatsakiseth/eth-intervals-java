@@ -46,16 +46,18 @@ object Intrinsic {
             val rightTy = Type.Class(rightClass)
             val returnTy = Type.Class(returnClass)
             for((interName, javaName) <- mathOps) {
-                val msym = new Symbol.Method(
-                    kind = Symbol.IntrinsicMath(javaName, leftClass, rightClass, returnClass),
-                    name = interName, 
-                    Symbol.MethodSignature(
-                        returnTy = returnTy,
-                        receiverTy = leftTy,
-                        parameterPatterns = List(Pattern.Var(Name.Var("arg"), rightTy))
+                state.addIntrinsic(
+                    new Symbol.Method(
+                        kind = Symbol.IntrinsicMath(javaName, leftClass, rightClass, returnClass),
+                        clsName = leftTy.name,
+                        name = interName, 
+                        Symbol.MethodSignature(
+                            returnTy = returnTy,
+                            receiverTy = leftTy,
+                            parameterPatterns = List(Pattern.Var(Name.Var("arg"), rightTy))
+                        )
                     )
                 )
-                state.addIntrinsic(leftTy.name, msym)
             }
         }
         
@@ -97,13 +99,13 @@ object Intrinsic {
         
         // (boolean) if {...}
         state.addIntrinsic(
-            booleanTy.name,
             new Symbol.Method(
                 kind = Symbol.IntrinsicControlFlow(
                     "if_",
                     Array(booleanClass, templateClass),
                     voidClass
                 ),
+                clsName = booleanTy.name,
                 name = Name.Method(List("if")),
                 Symbol.MethodSignature(
                     returnTy = voidTy,
@@ -117,13 +119,13 @@ object Intrinsic {
         
         // (Object) ifNull {...}
         state.addIntrinsic(
-            objectTy.name,
             new Symbol.Method(
                 kind = Symbol.IntrinsicControlFlow(
                     "ifNull",
                     Array(objectClass, templateClass),
                     voidClass
                 ),
+                clsName = objectTy.name,
                 name = Name.Method(List("ifNull")),
                 Symbol.MethodSignature(
                     returnTy = voidTy,
@@ -137,13 +139,13 @@ object Intrinsic {
 
         // (boolean) if {...} else {...}
         state.addIntrinsic(
-            booleanTy.name,
             new Symbol.Method(
                 kind = Symbol.IntrinsicControlFlow(
                     "ifElse",
                     Array(booleanClass, templateClass, templateClass),
                     objectClass
                 ),
+                clsName = booleanTy.name,
                 name = Name.Method(List("if", "else")),
                 Symbol.MethodSignature(
                     returnTy = voidTy, /* ΧΧΧ Generic Method */
@@ -158,13 +160,13 @@ object Intrinsic {
         
         // (Object) ifNull {...} else {...}
         state.addIntrinsic(
-            objectTy.name,
             new Symbol.Method(
                 kind = Symbol.IntrinsicControlFlow(
                     "ifNullElse",
                     Array(objectClass, templateClass, templateClass),
                     objectClass
                 ),
+                clsName = objectTy.name,
                 name = Name.Method(List("ifNull", "else")),
                 Symbol.MethodSignature(
                     returnTy = voidTy, /* ΧΧΧ Generic Method */
@@ -180,13 +182,13 @@ object Intrinsic {
         // (Iterable<T>) forEach { (T i) -> ... }
         val typeT = Type.Var(Path.This, Name.Var("T"))
         state.addIntrinsic(
-            iterableTy.name,
             new Symbol.Method(
                 kind = Symbol.IntrinsicControlFlow(
                     "forEach",
                     Array(iterableClass, templateClass),
                     voidClass
                 ),
+                clsName = iterableTy.name,
                 name = Name.Method(List("forEach")),
                 Symbol.MethodSignature(
                     returnTy = voidTy,
@@ -203,13 +205,13 @@ object Intrinsic {
 
         // (Block<Boolean,_>) while { ... }
         state.addIntrinsic(
-            Name.Qual(templateClass),
             new Symbol.Method(
                 kind = Symbol.IntrinsicControlFlow(
                     "while_",
                     Array(templateClass, templateClass),
                     objectClass
                 ),
+                clsName = Name.Qual(templateClass),
                 name = Name.Method(List("while")),
                 Symbol.MethodSignature(
                     returnTy = voidTy, 

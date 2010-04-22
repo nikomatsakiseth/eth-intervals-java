@@ -138,11 +138,12 @@ case class Lower(state: CompilationState) {
                             mthdName.toString
                         )
                     }
-                    Symbol.errorMethod(mthdName)
+                    Symbol.errorMethod(mthdName, csym.name)
                 } else {
                     val outMdecl = lowerMethodDecl(csym, mdecl)
                     new Symbol.Method(
                         kind = Symbol.Inter,
+                        clsName = csym.name,
                         name = mthdName,
                         Symbol.MethodSignature(
                             returnTy = outMdecl.returnTy,
@@ -156,6 +157,7 @@ case class Lower(state: CompilationState) {
             case in.MethodDecl(_, _, parts, returnTy: in.TypeRef, _, _, _) => {
                 new Symbol.Method(
                     kind = Symbol.Inter,
+                    clsName = csym.name,
                     name = mthdName,
                     Symbol.MethodSignature(
                         returnTy = symbolType(returnTy),

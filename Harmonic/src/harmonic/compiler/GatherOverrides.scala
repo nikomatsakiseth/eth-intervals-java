@@ -21,7 +21,7 @@ case class GatherOverrides(state: CompilationState) {
         // with the same name defined in the superclasses and check
         // whether any of them have the same signature:
         val superSyms = MethodResolutionOrder(state).forSym(csym).tail
-        val msyms = csym.methodSymbols.valuesIterator.toList.flatten
+        val msyms = csym.allMethodSymbols
         for(msym <- msyms; superSym <- superSyms) {
             val superMsyms = superSym.methodsNamed(state)(msym.name)
             msym.overrides ++= superMsyms.filter { superMsym =>
