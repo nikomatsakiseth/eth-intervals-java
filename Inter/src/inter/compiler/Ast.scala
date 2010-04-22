@@ -586,7 +586,7 @@ abstract class Ast {
     }
     
     /** Used to create new instances of classes. */
-    case class NewCtor(tref: TypeRef, arg: Tuple, ty: Ty) extends LowerExpr {
+    case class NewCtor(tref: TypeRef, arg: NE, ty: Ty) extends LowerExpr {
         override def toString = "new %s%s".format(tref, arg)
         
         override def print(out: PrettyPrinter) {
@@ -597,7 +597,7 @@ abstract class Ast {
     }
     
     /** Used to create new instances of classes. */
-    case class NewAnon(tref: TypeRef, arg: Tuple, members: List[MemberDecl], sym: CSym, ty: Ty) 
+    case class NewAnon(tref: TypeRef, arg: NE, members: List[MemberDecl], sym: CSym, ty: Ty) 
     extends LowerExpr {
         override def toString = "new %s%s { ... }".format(tref, arg)
         

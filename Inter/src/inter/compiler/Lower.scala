@@ -619,20 +619,21 @@ case class Lower(state: CompilationState) {
             pos: Position,
             msyms: List[Symbol.Method],
             name: Name.Method,
-            outRcvr: out.Expr,
+            rcvrTy: Type.Ref,
+            inRcvr: in.Expr,
             inArgs: List[in.Expr]
         ) = {
             // Identify the best method (if any):
             msyms match {
                 case List() => {
-                    state.reporter.report(pos, "no.such.method", outRcvr.ty.toString, name.toString)
+                    state.reporter.report(pos, "no.such.method", rcvrTy.toString, name.toString)
                     None
                 }
                 
                 // Exactly one match: We can do more with inferencing
                 // in this case, as we know the expected type.
                 case List(msym) => {
-                    val subst = mthdSubst(msym, outRcvr, inArgs)
+                    val subst = mthdSubst(msym, inRcvr, inArgs)
                     val optExpTys = msym.msig.parameterPatterns.map(p => Some(subst.ty(p.ty)))
                     val outArgs = optExpTys.zip(inArgs).map { case (t,a) => lowerExpr(t)(a) }
                     val msig = subst.methodSignature(msym.msig)
@@ -649,7 +650,7 @@ case class Lower(state: CompilationState) {
                     // Find those symbols that are potentially applicable
                     // to the arguments provided:
                     def potentiallyApplicable(msym: Symbol.Method) = {
-                        val subst = mthdSubst(msym, outRcvr, inArgs)
+                        val subst = mthdSubst(msym, inRcvr, inArgs)
                         val parameterTys = msym.msig.parameterPatterns.map(p => subst.ty(p.ty))
                         // XXX Add suitable temps to the environment for the vars ref'd in subst.
                         argTys.zip(parameterTys).forall { case (p, a) => 
@@ -682,7 +683,7 @@ case class Lower(state: CompilationState) {
                     
                     (bestMsyms, applicableMsyms) match {
                         case (List(msym), _) => {
-                            val subst = mthdSubst(msym, outRcvr, inArgs)
+                            val subst = mthdSubst(msym, inRcvr, inArgs)
                             val msig = subst.methodSignature(msym.msig)
                             Some((outArgs, (msym, msig)))
                         }
@@ -713,11 +714,10 @@ case class Lower(state: CompilationState) {
             // Find all potential methods:
             val rcvr = lowerExpr(None)(mcall.rcvr)
             val msyms = env.lookupMethods(rcvr.ty, mcall.name)
-            val best = identifyBestMethod(mcall.pos, msyms, mcall.name, rcvr, mcall.parts.map(_.arg))
+            val best = identifyBestMethod(
+                mcall.pos, msyms, mcall.name, 
+                rcvr.ty, mcall.rcvr, mcall.parts.map(_.arg))
             best match {
-                case None =>
-                    out.Null(optExpTy.getOrElse(Type.Null))
-                    
                 case Some((args, (msym, msig))) => {
                     def lowerPart(pair: (in.CallPart, out.AtomicExpr)) = withPosOf(pair._1,
                         out.CallPart(pair._1.ident, pair._2)
@@ -728,22 +728,48 @@ case class Lower(state: CompilationState) {
                         data = (msym, msig)
                     )                    
                 }
+                
+                case None =>
+                    out.Null(optExpTy.getOrElse(Type.Null))
             }
         })
         
         def lowerNewCtor(expr: in.NewCtor) = introduceVar(expr, {
-            val ty = symbolType(expr.tref)
-            
-            val outTypeRef = lowerTypeRef(expr.tref)
-            
-            // XXX We could give an expected type for the arguments based on the constructor(s),
-            // XXX just like in a method call.
-            val outArg = lowerTuple(None)(expr.arg)
-            
-            out.NewCtor(outTypeRef, outArg, ty)
+            symbolType(expr.tref) match {
+                case ty @ Type.Class(name, _) => {
+                    val csym = state.classes(name)
+                    val msyms = csym.constructors(state)
+                    val tvar = tmpVarName(expr)
+                    val rcvr = in.Var(Ast.VarName(tvar), ())
+                    val best = identifyBestMethod(
+                        expr.pos, msyms, Name.InitMethod,
+                        ty, rcvr, List(expr.arg))
+                    best match {
+                        case Some((List(arg), (msym, msig))) => {
+                            out.NewCtor(
+                                tref = lowerTypeRef(expr.tref),
+                                arg = arg,
+                                ty = ty
+                            )
+                        }
+                            
+                        
+                        case _ =>
+                            out.Null(ty)
+                    }
+                }
+                
+                case ty => {
+                    state.reporter.report(
+                        expr.pos, 
+                        "can.only.create.classes"
+                    )
+                    out.Null(ty)
+                }
+            }
         })
         
-        def lowerNewCtor(expr: in.NewAnon) = introduceVar(expr, {
+        def lowerNewAnon(expr: in.NewAnon) = introduceVar(expr, {
             throw new RuntimeException("TODO")
         })
         
