@@ -654,7 +654,7 @@ case class ByteCode(state: CompilationState) {
                 }
                 
                 case in.NewCtor(tref, arg, msym, Type.Class(name, _)) => {
-                    mvis.visitInsn(O.NEW)
+                    mvis.visitTypeInsn(O.NEW, name.internalName)
                     mvis.visitInsn(O.DUP)
                     mvis.visitMethodInsn(
                         O.INVOKESPECIAL,
