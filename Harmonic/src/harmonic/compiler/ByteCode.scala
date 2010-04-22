@@ -1012,7 +1012,7 @@ case class ByteCode(state: CompilationState) {
         val paramAsmTys = methodParameterTypes(decl.params).map(asmType)
         val methodDesc = getMethodDescriptor(returnAsmTy, (receiverAsmTy :: asm.Type.INT_TYPE :: paramAsmTys).toArray)
         val mvis = cvis.visitMethod(
-            O.ACC_PUBLIC,
+            O.ACC_PUBLIC + O.ACC_STATIC,
             decl.name.javaName,
             methodDesc,
             null, // generic signature
