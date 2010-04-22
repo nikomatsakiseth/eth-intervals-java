@@ -4,12 +4,12 @@ class LowerIntrinsicControlFlow {
     chooseOne(cond: Boolean) {
         a = 3;
         b = 4;
-        cond if { a } else { b };
+        cond.if { a } else { b };
     }
     
     conditionallyModifyLocal(cond: Boolean) {
         a = 3;
-        cond if { 
+        cond.if { 
             a = a + 4;
         };
         a
@@ -18,15 +18,15 @@ class LowerIntrinsicControlFlow {
     checkForNull(value: Object) {
         a = 3;
         b = 5;
-        value ifNull {
+        value.ifNull {
             a = a + b;
         };
         b
     }
     
     checkForNullElse(value: Object) {
-        value ifNull {
-            value toString()
+        value.ifNull {
+            value.toString()
         } else {
             0
         }
@@ -34,17 +34,17 @@ class LowerIntrinsicControlFlow {
     
     infiniteLoop() {
         result = 0;
-        { true } while { result = result + 1; };
+        { true }.while { result = result + 1; };
         result
     }
     
     errors(c: Boolean): Void {
         // XXX: the first example should really have return type java.lang.Integer
-        (chooseOne(c)) badMethod();                // ERROR no.such.method((java.lang.Void), badMethod())
-        (conditionallyModifyLocal(c)) badMethod(); // ERROR no.such.method((java.lang.Integer), badMethod())
-        (checkForNull(c)) badMethod();             // ERROR no.such.method((java.lang.Integer), badMethod())
-        (checkForNullElse(c)) badMethod();         // ERROR no.such.method((java.lang.Void), badMethod())
-        (infiniteLoop()) badMethod();              // ERROR no.such.method((java.lang.Integer), badMethod())
+        chooseOne(c).badMethod();                // ERROR no.such.method(java.lang.Void, badMethod())
+        conditionallyModifyLocal(c).badMethod(); // ERROR no.such.method(java.lang.Integer, badMethod())
+        checkForNull(c).badMethod();             // ERROR no.such.method(java.lang.Integer, badMethod())
+        checkForNullElse(c).badMethod();         // ERROR no.such.method(java.lang.Void, badMethod())
+        infiniteLoop().badMethod();              // ERROR no.such.method(java.lang.Integer, badMethod())
     }
 
 }

@@ -556,10 +556,10 @@ abstract class Ast {
     }
     
     case class Field(owner: NE, name: VarName, sym: VSym, ty: Ty) extends LowerExpr {
-        override def toString = "%s %s".format(owner, name)
+        override def toString = "%s.%s".format(owner, name)
         
         override def print(out: PrettyPrinter) {
-            owner.printsp(out)
+            owner.printdot(out)
             name.print(out)
         }
     }
@@ -577,10 +577,10 @@ abstract class Ast {
         def name = Name.Method(parts.map(_.ident))
         def args = parts.map(_.arg)
         def ty = returnTy(data)
-        override def toString = "%s %s".format(rcvr, parts.mkString(" "))
+        override def toString = "%s.%s".format(rcvr, parts.mkString(" "))
         
         override def print(out: PrettyPrinter) {
-            rcvr.printsp(out)
+            rcvr.printdot(out)
             printSep(out, parts, " ")
         }        
     }
@@ -638,6 +638,11 @@ object Ast {
         def printsp(out: PrettyPrinter) {
             print(out)
             out.write(" ")
+        }
+        
+        def printdot(out: PrettyPrinter) {
+            print(out)
+            out.write(".")
         }
         
         def printc(out: PrettyPrinter) {

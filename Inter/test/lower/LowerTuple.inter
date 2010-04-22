@@ -19,15 +19,15 @@ class LowerTuple {
     
     withBlock() {
         sumBlock = { (a: Integer, b: Integer) -> a + b };
-        sumBlock value(1, 2);
+        sumBlock.value(1, 2);
     }
     
     errors(): Void {
         (a, b, c, d) = tuple4();
-        a badMethod(); // ERROR no.such.method(java.lang.Integer, badMethod())
-        b badMethod(); // ERROR no.such.method(java.lang.String, badMethod())
-        c badMethod(); // ERROR no.such.method(java.lang.String, badMethod())
-        d badMethod(); // ERROR no.such.method(java.lang.Integer, badMethod())
+        a.badMethod(); // ERROR no.such.method(java.lang.Integer, badMethod())
+        b.badMethod(); // ERROR no.such.method(java.lang.String, badMethod())
+        c.badMethod(); // ERROR no.such.method(java.lang.String, badMethod())
+        d.badMethod(); // ERROR no.such.method(java.lang.Integer, badMethod())
     }
 
 }

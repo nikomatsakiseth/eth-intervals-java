@@ -58,7 +58,7 @@ class Parse extends StdTokenParsers with PackratParsers {
     lexical.reserved += (
         "class", "extends", "import", "package", 
         "interval", "requires", "locks", "new",
-        "type", "ghost", "true", "false"
+        "type", "ghost", "true", "false", "this"
     )
     
     def comma[A](p: PackratParser[A]) = repsep(p, ",")<~opt(",")
@@ -84,7 +84,8 @@ class Parse extends StdTokenParsers with PackratParsers {
     lazy val relName = relDot | relBase
     
     lazy val varName = positioned(
-        ident ^^ Ast.VarName
+        ident   ^^ Ast.VarName
+    |   "this"  ^^ Ast.VarName
     )
     
     // ___ Declarations _____________________________________________________
@@ -303,8 +304,11 @@ class Parse extends StdTokenParsers with PackratParsers {
         ident~arg                           ^^ { case i~a => out.CallPart(i, a) }
     )
     
-    lazy val rcvr: PackratParser[out.Expr] = positioned(
-        arg
+    lazy val expr0: PackratParser[out.Expr] = positioned(
+        expr0~"."~rep1(callPart)            ^^ { case r~"."~cp => out.MethodCall(r, cp, ()) }
+    |   expr0~"."~varName                   ^^ { case r~"."~f => out.Field(r, f, (), ()) }
+    |   impThis~rep1(callPart)              ^^ { case r~cp => out.MethodCall(r, cp, ()) }
+    |   arg
     |   varName                             ^^ { case n => out.Var(n, ()) }
     |   numericLit                          ^^ { l => out.Literal(Integer.valueOf(l), ()) }
     |   stringLit                           ^^ { l => out.Literal(l, ()) }
@@ -314,28 +318,17 @@ class Parse extends StdTokenParsers with PackratParsers {
     |   "new"~typeRef~tuple                 ^^ { case _~t~a => out.NewJava(t, a, ()) }
     )
     
-    lazy val field = positioned(
-        rcvr~varName~rep(varName)           ^^ { case r~f~fs => fs.foldLeft(out.Field(r, f, (), ()))(out.Field(_, _, (), ())) }
-    )
-    
     lazy val impThis = positioned(
         success(()) ^^ { case () => out.ImpThis(()) }
     )
     
-    lazy val mthdCall = positioned(
-        rcvr~rep1(callPart)                 ^^ { case r~cp => out.MethodCall(r, cp, ()) }
-    |   impThis~rep1(callPart)              ^^ { case r~cp => out.MethodCall(r, cp, ()) }
-    )
-    
-    lazy val unary = mthdCall | field | rcvr
-    
     lazy val operPart = positioned(
-        oper~unary ^^ { case o~r => out.CallPart(o, r) }
+        oper~expr0 ^^ { case o~r => out.CallPart(o, r) }
     )
     
     lazy val expr: PackratParser[out.Expr] = positioned(
-        unary~rep1(operPart) ^^ { case l~rs => out.MethodCall(l, rs, ()) }
-    |   unary 
+        expr0~rep1(operPart) ^^ { case l~rs => out.MethodCall(l, rs, ()) }
+    |   expr0 
     )
     
     lazy val stmt: PackratParser[out.Stmt] = positioned(

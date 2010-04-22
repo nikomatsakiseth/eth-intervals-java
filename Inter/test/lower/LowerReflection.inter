@@ -2,16 +2,16 @@ package lower;
 
 class LowerIntrinsicControlFlow {
     invokeToString(obj: Object) {
-        obj toString();
+        obj.toString();
     }
     
     invokeHashCode(obj: Object) {
-        obj hashCode();
+        obj.hashCode();
     }
     
     errors(obj: Object): Void {
-        (invokeToString(obj)) badMethod(); // ERROR no.such.method((java.lang.String), badMethod())
-        (invokeHashCode(obj)) badMethod(); // ERROR no.such.method((java.lang.Integer), badMethod())
+        invokeToString(obj).badMethod(); // ERROR no.such.method(java.lang.String, badMethod())
+        invokeHashCode(obj).badMethod(); // ERROR no.such.method(java.lang.Integer, badMethod())
     }
 
 }

@@ -4,7 +4,7 @@ class LowerForEach {
 
     sumObjects(list: Iterable[T: Object]) {
         result = 0;
-        list forEach { value ->
+        list.forEach { value ->
             result = result + value; // ERROR no.applicable.methods(list:T)
         };
         result
@@ -12,7 +12,7 @@ class LowerForEach {
 
     sumIntegers(list: Iterable[T: Integer]) {
         result = 0;
-        list forEach { value ->
+        list.forEach { value ->
             result = result + value;
         };
         result
@@ -20,7 +20,7 @@ class LowerForEach {
     
     sumPairs(list: Iterable[T: (Integer, Integer)]) {
         result = 0;
-        list forEach { (x, y) ->
+        list.forEach { (x, y) ->
             result = result + (x + y);
         };
         result

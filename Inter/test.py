@@ -482,8 +482,8 @@ def execute(res, args):
     def _execute():
         try:
             obj = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            retcode = obj.wait()
-            return (retcode, obj.stdout.read(), obj.stderr.read())
+            (stdout, stderr) = obj.communicate()
+            return (obj.returncode, stdout, stderr)
         except OSError, e:
             return (-1, "", "Error running command: %s" % e)
     ret = _execute()
