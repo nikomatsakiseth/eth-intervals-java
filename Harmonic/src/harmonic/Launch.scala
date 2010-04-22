@@ -65,7 +65,7 @@ object Launch {
                 case UsageError(msg) => {
                     err.printf("harm: Launch tool for the Harmonic Language, version %s\n", version)
                     err.printf("\n")
-                    err.printf("Usage: harm [options] fully.qualified.application.class.name\n")
+                    err.printf("Usage: harm fully.qualified.application.class.name [args]\n")
                     err.printf("\n")
                     err.printf("Error: %s\n", msg)
                 }
