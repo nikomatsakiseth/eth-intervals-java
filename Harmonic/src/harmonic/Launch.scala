@@ -35,7 +35,7 @@ object Launch {
                 parseArgs(args)
                 
                 val appClassName = optAppClassName.getOrElse {
-                    throw new UsageError("No application class name provided")
+                    throw new UsageError("No application class name provided.")
                 }
                 
                 val cls = {
@@ -48,7 +48,7 @@ object Launch {
                 }
                 
                 if(!classOf[Application].isAssignableFrom(cls))
-                    throw new UsageError("'%s' does not extend harmonic.lang.Application".format(appClassName))
+                    throw new UsageError("'%s' does not extend harmonic.lang.Application.".format(appClassName))
                 
                 val ctor = {
                     try {
