@@ -1,3 +1,0 @@
-#!/bin/bash
-MYDIR=$(dirname $0)
-scala -classpath "$MYDIR/bin:$MYDIR/lib/asm-3.2.jar:$MYDIR/lib/asm-util-3.2.jar" inter.compiler.Main "$@"
