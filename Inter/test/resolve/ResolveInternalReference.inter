@@ -1,15 +1,15 @@
 package resolve;
 
 class Resolve2A() {
-    Resolve2A refA;
-    Resolve2B refB;
-    Resolve2C refC; // ERROR cannot.resolve(Resolve2C)
+    refA: Resolve2A;
+    refB: Resolve2B;
+    refC: Resolve2C; // ERROR cannot.resolve(Resolve2C)
 }
 
 class Resolve2B() {
-    Resolve2A refA;
-    Resolve2B refB;
-    Resolve2C refC; // ERROR cannot.resolve(Resolve2C)
+    refA: Resolve2A;
+    refB: Resolve2B;
+    refC: Resolve2C; // ERROR cannot.resolve(Resolve2C)
 }
 
 // COMPILE

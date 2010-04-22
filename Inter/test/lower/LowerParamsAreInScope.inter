@@ -1,11 +1,11 @@
 package lower;
 
 class LowerParamsAreInScope {
-    Integer add(Integer a, Integer b) {
+    add(a: Integer, b: Integer): Void {
         
     }
     
-    Void method(Integer a, Integer b) {
+    method(a: Integer, b: Integer): Void {
         add(
             a, 
             b

@@ -9,7 +9,7 @@ class LowerTuple {
         (a, b, c, d) = tuple4();
     }
     
-    arguments(Integer a, String b, String c, Integer d) {
+    arguments(a: Integer, b: String, c: String, d: Integer) {
     }
     
     toVar() {
@@ -18,11 +18,11 @@ class LowerTuple {
     }
     
     withBlock() {
-        sumBlock = { (Integer a, Integer b) -> a + b };
+        sumBlock = { (a: Integer, b: Integer) -> a + b };
         sumBlock value(1, 2);
     }
     
-    Void errors(Object obj) {
+    errors(): Void {
         (a, b, c, d) = tuple4();
         a badMethod(); // ERROR no.such.method(java.lang.Integer, badMethod())
         b badMethod(); // ERROR no.such.method(java.lang.String, badMethod())

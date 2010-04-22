@@ -2,15 +2,15 @@ package lower;
 
 class LowerOrderedMethods {
     
-    quadruple(Integer n) {
+    quadruple(n: Integer) {
         double(n) + double(n)
     }
     
-    double(Integer n) {
+    double(n: Integer) {
         n + n
     }
     
-    Void errorGenerator(Integer m) {
+    errorGenerator(m: Integer): Void {
         (quadruple(m)) badMethod() // ERROR no.such.method((java.lang.Integer), badMethod())
     }
     

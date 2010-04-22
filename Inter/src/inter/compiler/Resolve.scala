@@ -153,6 +153,7 @@ object Resolve {
         })
         
         def resolveTypeRef(tref: in.TypeRef): out.TypeRef = withPosOf(tref, tref match {
+            case in.NullType() => out.NullType()
             case in.VarType(path, tvar) => out.VarType(resolvePath(path), tvar)
             case in.ClassType(cn, targs) => out.ClassType(resolveName(cn), targs.map(resolveTypeArg))
             case in.TupleType(trefs) => out.TupleType(trefs.map(resolveTypeRef))

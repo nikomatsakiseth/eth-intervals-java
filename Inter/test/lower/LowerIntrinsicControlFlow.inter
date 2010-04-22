@@ -1,13 +1,13 @@
 package lower;
 
 class LowerIntrinsicControlFlow {
-    chooseOne(Boolean cond) {
+    chooseOne(cond: Boolean) {
         a = 3;
         b = 4;
         cond if { a } else { b };
     }
     
-    conditionallyModifyLocal(Boolean cond) {
+    conditionallyModifyLocal(cond: Boolean) {
         a = 3;
         cond if { 
             a = a + 4;
@@ -15,7 +15,7 @@ class LowerIntrinsicControlFlow {
         a
     }
     
-    checkForNull(Object value) {
+    checkForNull(value: Object) {
         a = 3;
         b = 5;
         value ifNull {
@@ -24,7 +24,7 @@ class LowerIntrinsicControlFlow {
         b
     }
     
-    checkForNullElse(Object value) {
+    checkForNullElse(value: Object) {
         value ifNull {
             value toString()
         } else {
@@ -38,7 +38,7 @@ class LowerIntrinsicControlFlow {
         result
     }
     
-    Void errors(Boolean c) {
+    errors(c: Boolean): Void {
         // XXX: the first example should really have return type java.lang.Integer
         (chooseOne(c)) badMethod();                // ERROR no.such.method((java.lang.Void), badMethod())
         (conditionallyModifyLocal(c)) badMethod(); // ERROR no.such.method((java.lang.Integer), badMethod())

@@ -1,15 +1,15 @@
 package lower;
 
 class LowerIntrinsicControlFlow {
-    invokeToString(Object obj) {
+    invokeToString(obj: Object) {
         obj toString();
     }
     
-    invokeHashCode(Object obj) {
+    invokeHashCode(obj: Object) {
         obj hashCode();
     }
     
-    Void errors(Object obj) {
+    errors(obj: Object): Void {
         (invokeToString(obj)) badMethod(); // ERROR no.such.method((java.lang.String), badMethod())
         (invokeHashCode(obj)) badMethod(); // ERROR no.such.method((java.lang.Integer), badMethod())
     }

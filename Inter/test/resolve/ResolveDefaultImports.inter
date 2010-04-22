@@ -3,21 +3,21 @@ package test.resolve;
 /*
  */
 
-class Resolve1(Interval parent) {
+class Resolve1(parent: Interval) {
     
-    IntervalX bad; // ERROR cannot.resolve(IntervalX)
+    bad: IntervalX; // ERROR cannot.resolve(IntervalX)
     
-    Integer aRes;
+    aRes: Integer;
     interval a(parent) {
         aRes = 22;
     }
     
-    Integer bRes;
+    bRes: Integer;
     interval b(parent) {
         bRes = 22;
     }
     
-    Integer cRes;
+    cRes: Integer;
     interval c(parent) {
         cRes = process(aRes + bRes);
     }

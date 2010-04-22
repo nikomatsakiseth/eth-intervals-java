@@ -2,7 +2,7 @@ package lower;
 
 class LowerForEach {
 
-    sumObjects(Iterable[T: Object] list) {
+    sumObjects(list: Iterable[T: Object]) {
         result = 0;
         list forEach { value ->
             result = result + value; // ERROR no.applicable.methods(list:T)
@@ -10,7 +10,7 @@ class LowerForEach {
         result
     }
 
-    sumIntegers(Iterable[T: Integer] list) {
+    sumIntegers(list: Iterable[T: Integer]) {
         result = 0;
         list forEach { value ->
             result = result + value;
@@ -18,7 +18,7 @@ class LowerForEach {
         result
     }
     
-    sumPairs(Iterable[T: (Integer, Integer)] list) {
+    sumPairs(list: Iterable[T: (Integer, Integer)]) {
         result = 0;
         list forEach { (x, y) ->
             result = result + (x + y);

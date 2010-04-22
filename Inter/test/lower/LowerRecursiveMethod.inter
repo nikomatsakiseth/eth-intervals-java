@@ -4,12 +4,12 @@ class LowerRecursiveMethod {
     
     // Recursive method needs an explicit return type:
     //   (I left off the base case for simplicity :)
-    impFactorial(Integer n) { // ERROR explicit.type.required.due.to.cycle(impFactorial())
+    impFactorial(n: Integer) { // ERROR explicit.type.required.due.to.cycle(impFactorial())
         impFactorial(n - 1) + impFactorial(n - 2)  // ERROR no.such.method(Null, +())
     }
     
     // If we provide an explicit return type, the program compiles:
-    Integer expFactorial(Integer n) {
+    expFactorial(n: Integer): Integer {
         expFactorial(n - 1) + expFactorial(n - 2)
     }
     
