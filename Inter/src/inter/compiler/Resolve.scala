@@ -28,8 +28,7 @@ object Resolve {
         ).reverse
         
         def requireLoadedOrLoadable(node: Ast.Node, qname: Name.Qual) {
-            if(!state.loadedOrLoadable(qname))
-                state.reporter.report(node.pos, "cannot.find.class", qname.toString)            
+            state.requireLoadedOrLoadable(node.pos, qname)
         }
         
         def resolveToQualName(rn: in.RelName): Name.Qual = rn match {

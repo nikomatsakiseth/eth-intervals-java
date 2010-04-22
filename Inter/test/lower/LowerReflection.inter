@@ -2,7 +2,7 @@ package lower;
 
 class LowerIntrinsicControlFlow {
     invokeToString(obj: Object) {
-        obj.toString();
+        obj.toString().concat("foo");
     }
     
     invokeHashCode(obj: Object) {

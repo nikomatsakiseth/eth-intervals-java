@@ -6,7 +6,7 @@ import java.lang.reflect
 
 /** Support code for Symbol.ClassFromReflection: 
   * Creates symbols from reflective objects. */
-object Reflect {
+case class Reflect(state: CompilationState) {
     
     def typeArg(pair: (Name.Var, reflect.Type)): Option[Type.TypeArg] = pair match {
         case (nm, wt: reflect.WildcardType) => { /* XXX: Allow multiple LB, UB? */
@@ -22,7 +22,11 @@ object Reflect {
     }
     
     def typeRef(ty: reflect.Type): Type.Ref = ty match {
-        case cls: Class[_] => Type.Class(Name.Qual(cls), List())
+        case cls: Class[_] => {
+            val name = Name.Qual(cls)
+            state.requireLoadedOrLoadable(InterPosition.forClass(cls), name)
+            Type.Class(name, List())
+        }
         case gat: reflect.GenericArrayType => {
             val targ = typeArg(Name.ArrayElem, gat.getGenericComponentType).get
             Type.Class(Name.ArrayQual, List(targ))
@@ -37,7 +41,7 @@ object Reflect {
         case _ => throw new RuntimeException("Not here")
     }
     
-    def fieldSymbol(state: CompilationState)(fld: reflect.Field) = {
+    def fieldSymbol(fld: reflect.Field) = {
         new Symbol.Var(
             name = Name.Var(fld.getName),
             ty = typeRef(fld.getGenericType)
@@ -51,7 +55,7 @@ object Reflect {
         )
     }    
     
-    def methodSymbol(state: CompilationState, clsName: Name.Qual)(mthd: reflect.Method) = {
+    def methodSymbol(clsName: Name.Qual)(mthd: reflect.Method) = {
         new Symbol.Method(
             kind = Symbol.JavaVirtual, // XXX 
             name = Name.Method(List(mthd.getName)),
@@ -64,18 +68,18 @@ object Reflect {
         )
     }
     
-    def methodsNamed(state: CompilationState, sym: Symbol.ClassFromReflection, name: Name.Method) = {
+    def methodsNamed(sym: Symbol.ClassFromReflection, name: Name.Method) = {
         val methods = sym.optMethods.getOrElse {
-            val syms = sym.cls.getDeclaredMethods.map(Reflect.methodSymbol(state, sym.name)).toList
+            val syms = sym.cls.getDeclaredMethods.map(methodSymbol(sym.name)).toList
             sym.optMethods = Some(syms)
             syms
         }
         methods.filter(_.name == name)        
     }
 
-    def fieldNamed(state: CompilationState, sym: Symbol.ClassFromReflection, name: Name.Var) = {
+    def fieldNamed(sym: Symbol.ClassFromReflection, name: Name.Var) = {
         val fields = sym.optFields.getOrElse {
-            val syms = sym.cls.getDeclaredFields.map(Reflect.fieldSymbol(state)).toList
+            val syms = sym.cls.getDeclaredFields.map(fieldSymbol).toList
             sym.optFields = Some(syms)
             syms
         }

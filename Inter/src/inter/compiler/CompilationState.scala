@@ -1,6 +1,7 @@
 package inter.compiler
 
 import java.io.File
+import scala.util.parsing.input.Position
 import scala.collection.mutable
 
 class CompilationState(
@@ -64,6 +65,15 @@ class CompilationState(
       * that source is loaded). */
     def loadedOrLoadable(qualName: Name.Qual) = {
         classes.isDefinedAt(qualName) || locateSource(qualName)
+    }
+    
+    /** Loads a class named `qualName`.  If it fails, reports an 
+      * error and inserts a dummy into the symbol table. */
+    def requireLoadedOrLoadable(pos: Position, qualName: Name.Qual) = {
+        if(!loadedOrLoadable(qualName)) {
+            reporter.report(pos, "cannot.find.class", qualName.toString)
+            classes(qualName) = new Symbol.ClassFromErroroneousSource(qualName)
+        }
     }
     
     /** Tries to locate a source for `qualName`.  If a source

@@ -90,10 +90,10 @@ object Symbol {
         def constructors(state: CompilationState) = List() // ΧΧΧ TODO
         def superClassNames(state: CompilationState) = List() // XXX TODO
         def methodsNamed(state: CompilationState)(name: Name.Method) = {
-            Reflect.methodsNamed(state, this, name)
+            Reflect(state).methodsNamed(this, name)
         }
         def fieldNamed(state: CompilationState)(name: Name.Var) = {
-            Reflect.fieldNamed(state, this, name)
+            Reflect(state).fieldNamed(this, name)
         }
     }
     

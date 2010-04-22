@@ -3,8 +3,7 @@ package inter.compiler
 object Intrinsic {
     
     def ensureLoadable(state: CompilationState, cls: Class[_]) {
-        if(!state.loadedOrLoadable(Name.Qual(cls)))
-            state.reporter.report(InterPosition.forClass(cls), "cannot.find.class", cls.toString)        
+        state.requireLoadedOrLoadable(InterPosition.forClass(cls), Name.Qual(cls))
     }
     
     // ___ IntrinsicMath ____________________________________________________
