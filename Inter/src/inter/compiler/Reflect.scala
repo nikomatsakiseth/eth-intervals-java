@@ -55,6 +55,27 @@ case class Reflect(state: CompilationState) {
         )
     }    
     
+    def ctorSymbol(clsName: Name.Qual)(mthd: reflect.Constructor[_]) = {
+        new Symbol.Method(
+            kind = Symbol.JavaVirtual, // XXX 
+            name = Name.InitMethod,
+            Symbol.MethodSignature(
+                returnTy = Type.Void,
+                receiverTy = Type.Class(clsName, List()),
+                parameterPatterns = List(Pattern.Tuple(
+                    mthd.getGenericParameterTypes.toList.zipWithIndex.map(paramPattern)))
+            )
+        )
+    }
+    
+    def ctors(sym: Symbol.ClassFromReflection) = {
+        sym.optCtors.getOrElse {
+            val syms = sym.cls.getConstructors.map(ctorSymbol(sym.name)).toList
+            sym.optCtors = Some(syms)
+            syms
+        }
+    }
+    
     def methodSymbol(clsName: Name.Qual)(mthd: reflect.Method) = {
         new Symbol.Method(
             kind = Symbol.JavaVirtual, // XXX 

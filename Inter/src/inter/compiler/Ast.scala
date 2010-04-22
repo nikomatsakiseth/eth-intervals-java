@@ -35,6 +35,9 @@ abstract class Ast {
     /** Type of an expression */
     type Ty
     
+    /** Type of a class */
+    type TyClass <: Ty
+    
     /** Type of a tuple */
     type TyTuple <: Ty
     
@@ -586,7 +589,7 @@ abstract class Ast {
     }
     
     /** Used to create new instances of classes. */
-    case class NewCtor(tref: TypeRef, arg: NE, ty: Ty) extends LowerExpr {
+    case class NewCtor(tref: TypeRef, arg: NE, msym: MSym, ty: TyClass) extends LowerExpr {
         override def toString = "new %s%s".format(tref, arg)
         
         override def print(out: PrettyPrinter) {
@@ -597,7 +600,7 @@ abstract class Ast {
     }
     
     /** Used to create new instances of classes. */
-    case class NewAnon(tref: TypeRef, arg: NE, members: List[MemberDecl], sym: CSym, ty: Ty) 
+    case class NewAnon(tref: TypeRef, arg: NE, members: List[MemberDecl], csym: CSym, msym: MSym, ty: TyClass) 
     extends LowerExpr {
         override def toString = "new %s%s { ... }".format(tref, arg)
         
@@ -706,6 +709,7 @@ object Ast {
         type MSym = Unit
         type MCallData = Unit
         type Ty = Unit
+        type TyClass = Unit
         type TyTuple = Unit
         
         def symTy(unit: Unit) = ()
@@ -726,6 +730,7 @@ object Ast {
         type MSym = Unit
         type MCallData = Unit
         type Ty = Unit
+        type TyClass = Unit
         type TyTuple = Unit
 
         def symTy(unit: Unit) = ()
@@ -747,6 +752,7 @@ object Ast {
         type MSym = Symbol.Method
         type MCallData = (Symbol.Method, Symbol.MethodSignature[Pattern.Anon])
         type Ty = Type.Ref
+        type TyClass = Type.Class
         type TyTuple = Type.Tuple
 
         def symTy(vsym: Symbol.Var) = vsym.ty

@@ -84,10 +84,13 @@ object Symbol {
         name: Name.Qual,
         val cls: java.lang.Class[_]
     ) extends Class(name) {
+        var optCtors: Option[List[Symbol.Method]] = None
         var optMethods: Option[List[Symbol.Method]] = None
         var optFields: Option[List[Symbol.Var]] = None
         
-        def constructors(state: CompilationState) = List() // ΧΧΧ TODO
+        def constructors(state: CompilationState) = {
+            Reflect(state).ctors(this)
+        }
         def superClassNames(state: CompilationState) = List() // XXX TODO
         def methodsNamed(state: CompilationState)(name: Name.Method) = {
             Reflect(state).methodsNamed(this, name)

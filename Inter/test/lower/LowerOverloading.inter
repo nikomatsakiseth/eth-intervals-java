@@ -1,0 +1,14 @@
+package lower;
+
+class LowerOverloading {
+
+    stringBuilderCtor() {
+        sb1 = new StringBuilder();
+        sb2 = new StringBuilder("initial string");
+    }
+    
+}
+// COMPILE
+// --dump-resolved-trees
+// --dump-lowered-trees
+// --ignore-errors

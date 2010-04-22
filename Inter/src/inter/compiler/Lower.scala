@@ -749,6 +749,7 @@ case class Lower(state: CompilationState) {
                             out.NewCtor(
                                 tref = lowerTypeRef(expr.tref),
                                 arg = arg,
+                                msym = msym,
                                 ty = ty
                             )
                         }

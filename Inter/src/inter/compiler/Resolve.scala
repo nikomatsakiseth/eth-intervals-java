@@ -196,7 +196,8 @@ object Resolve {
         def resolveNewCtor(expr: in.NewCtor): out.NewCtor = withPosOf(expr, {
             out.NewCtor(
                 tref = resolveTypeRef(expr.tref),
-                arg = resolveTuple(expr.arg),
+                arg = resolveExpr(expr.arg),
+                msym = (),
                 ty = ()
             )
         })
@@ -204,9 +205,10 @@ object Resolve {
         def resolveNewAnon(expr: in.NewAnon): out.NewAnon = withPosOf(expr, {
             out.NewAnon(
                 tref = resolveTypeRef(expr.tref),
-                arg = resolveTuple(expr.arg),
+                arg = resolveExpr(expr.arg),
                 members = expr.members.map(resolveMember),
-                sym = (),
+                csym = (),
+                msym = (),
                 ty = ()
             )
         })

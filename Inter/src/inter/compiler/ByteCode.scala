@@ -382,8 +382,8 @@ case class ByteCode(state: CompilationState) {
                 val receiverSummary = summarizeSymbolsInExpr(summary, receiver)
                 parts.map(_.arg).foldLeft(receiverSummary)(summarizeSymbolsInExpr)
             }
-            case in.NewCtor(_, arg, _) => summarizeSymbolsInExpr(summary, arg)
-            case in.NewAnon(_, arg, mems, _, _) => summarizeSymbolsInExpr(summary, arg) // XXX mems
+            case in.NewCtor(_, arg, _, _) => summarizeSymbolsInExpr(summary, arg)
+            case in.NewAnon(_, arg, mems, _, _, _) => summarizeSymbolsInExpr(summary, arg) // XXX mems
             case in.Null(_) => summary
         }
     }
@@ -636,7 +636,8 @@ case class ByteCode(state: CompilationState) {
                                 asm.Type.getType(classOf[IntrinsicControlFlow]),
                                 getMethodDescriptor(
                                     asm.Type.getType(resultClass), 
-                                    argumentClasses.map(asm.Type.getType))
+                                    argumentClasses.map(asm.Type.getType)
+                                )
                             )
                         }
                         
@@ -652,11 +653,18 @@ case class ByteCode(state: CompilationState) {
                     }
                 }
                 
-                case in.NewCtor(tref, arg, ty) => {
-                    throw new RuntimeException("TODO")                    
+                case in.NewCtor(tref, arg, msym, Type.Class(name, _)) => {
+                    mvis.visitInsn(O.NEW)
+                    mvis.visitInsn(O.DUP)
+                    mvis.visitMethodInsn(
+                        O.INVOKESPECIAL,
+                        name.internalName,
+                        Name.InitMethod.javaName,
+                        methodDescFromSig(msym.msig)
+                    )
                 }
                 
-                case in.NewAnon(tref, arg, mems, csym, ty) => {
+                case in.NewAnon(tref, arg, mems, csym, msym, ty) => {
                     throw new RuntimeException("TODO")                    
                 }
                 

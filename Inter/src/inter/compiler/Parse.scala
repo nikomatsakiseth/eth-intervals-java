@@ -307,13 +307,13 @@ class Parse extends StdTokenParsers with PackratParsers {
     
     lazy val newAnon = positioned(
         "new"~typeRef~tuple~"{"~rep(member)~"}" ^^ {
-            case "new"~t~a~"{"~m~"}" => out.NewAnon(t, a, m, (), ())
+            case "new"~t~a~"{"~m~"}" => out.NewAnon(t, a, m, (), (), ())
         }
     )
     
     lazy val newCtor = positioned(
         "new"~typeRef~tuple ^^ {
-            case "new"~t~a => out.NewCtor(t, a, ())
+            case "new"~t~a => out.NewCtor(t, a, (), ())
         }
     )
     
