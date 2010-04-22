@@ -585,14 +585,29 @@ abstract class Ast {
         }        
     }
     
-    /** Used to create new instances of Java classes. */
-    case class NewJava(tref: TypeRef, arg: Tuple, ty: Ty) extends LowerExpr {
+    /** Used to create new instances of classes. */
+    case class NewCtor(tref: TypeRef, arg: Tuple, ty: Ty) extends LowerExpr {
         override def toString = "new %s%s".format(tref, arg)
         
         override def print(out: PrettyPrinter) {
             out.write("new ")
             tref.print(out)
             arg.print(out)
+        }        
+    }
+    
+    /** Used to create new instances of classes. */
+    case class NewAnon(tref: TypeRef, arg: Tuple, members: List[MemberDecl], sym: CSym, ty: Ty) 
+    extends LowerExpr {
+        override def toString = "new %s%s { ... }".format(tref, arg)
+        
+        override def print(out: PrettyPrinter) {
+            out.write("new ")
+            tref.print(out)
+            arg.print(out)
+            out.indented("{", "}") {
+                members.foreach(_.println(out))
+            }
         }        
     }
     

@@ -63,6 +63,7 @@ class Parse extends StdTokenParsers with PackratParsers {
     
     def comma[A](p: PackratParser[A]) = repsep(p, ",")<~opt(",")
     def comma1[A](p: PackratParser[A]) = rep1sep(p, ",")<~opt(",")
+    def optl[A](p: PackratParser[List[A]]) = opt(p) ^^ { _.getOrElse(List()) }
     
     lazy val oper = (
         elem("operator", _.isInstanceOf[lexical.Operator]) ^^ (_.chars)
@@ -304,6 +305,20 @@ class Parse extends StdTokenParsers with PackratParsers {
         ident~arg                           ^^ { case i~a => out.CallPart(i, a) }
     )
     
+    lazy val newAnon = positioned(
+        "new"~typeRef~tuple~"{"~rep(member)~"}" ^^ {
+            case "new"~t~a~"{"~m~"}" => out.NewAnon(t, a, m, (), ())
+        }
+    )
+    
+    lazy val newCtor = positioned(
+        "new"~typeRef~tuple ^^ {
+            case "new"~t~a => out.NewCtor(t, a, ())
+        }
+    )
+    
+    lazy val newExpr = newAnon | newCtor
+    
     lazy val expr0: PackratParser[out.Expr] = positioned(
         expr0~"."~rep1(callPart)            ^^ { case r~"."~cp => out.MethodCall(r, cp, ()) }
     |   expr0~"."~varName                   ^^ { case r~"."~f => out.Field(r, f, (), ()) }
@@ -315,7 +330,7 @@ class Parse extends StdTokenParsers with PackratParsers {
     |   "true"                              ^^ { l => out.Literal(java.lang.Boolean.TRUE, ()) }
     |   "false"                             ^^ { l => out.Literal(java.lang.Boolean.FALSE, ()) }
     |   "null"                              ^^ { case _ => out.Null() }
-    |   "new"~typeRef~tuple                 ^^ { case _~t~a => out.NewJava(t, a, ()) }
+    |   newExpr
     )
     
     lazy val impThis = positioned(

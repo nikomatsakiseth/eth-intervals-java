@@ -2,6 +2,7 @@ package inter.compiler
 
 import scala.collection.immutable.Map
 import scala.collection.mutable.ListBuffer
+import scala.util.parsing.input.Position
 
 import Ast.{Resolve => in}
 import Ast.{Lower => out}
@@ -588,11 +589,11 @@ case class Lower(state: CompilationState) {
             }
         }
         
-        def mthdSubst(msym: Symbol.Method, rcvr: Ast#ParseExpr, parts: List[Ast#CallPart]) = {
+        def mthdSubst(msym: Symbol.Method, rcvr: Ast#ParseExpr, args: List[Ast#ParseExpr]) = {
             val msig = msym.msig
             patSubsts(
                 msig.thisPattern    ::  msig.parameterPatterns, 
-                rcvr                ::  parts.map(_.arg)
+                rcvr                ::  args
             )
         }
     
@@ -614,45 +615,44 @@ case class Lower(state: CompilationState) {
             out.Literal(expr.obj, ty)
         })
         
-        def lowerPart(optExpTy: Option[Type.Ref])(part: in.CallPart) = withPosOf(part, {
-            out.CallPart(part.ident, lowerExpr(optExpTy)(part.arg))
-        })
-        
-        def lowerMethodCall(optExpTy: Option[Type.Ref])(mcall: in.MethodCall) = introduceVar(mcall, {
-            val rcvr = lowerExpr(None)(mcall.rcvr)
-            
-            // Find all potential methods:
-            val msyms = env.lookupMethods(rcvr.ty, mcall.name)
-                
+        def identifyBestMethod(
+            pos: Position,
+            msyms: List[Symbol.Method],
+            name: Name.Method,
+            outRcvr: out.Expr,
+            inArgs: List[in.Expr]
+        ) = {
             // Identify the best method (if any):
             msyms match {
                 case List() => {
-                    state.reporter.report(mcall.pos, "no.such.method", rcvr.ty.toString, mcall.name.toString)
-                    out.Null(optExpTy.getOrElse(Type.Null))
+                    state.reporter.report(pos, "no.such.method", outRcvr.ty.toString, name.toString)
+                    None
                 }
                 
                 // Exactly one match: We can do more with inferencing
                 // in this case, as we know the expected type.
                 case List(msym) => {
-                    val subst = mthdSubst(msym, mcall.rcvr, mcall.parts)
+                    val subst = mthdSubst(msym, outRcvr, inArgs)
                     val optExpTys = msym.msig.parameterPatterns.map(p => Some(subst.ty(p.ty)))
-                    val parts = optExpTys.zip(mcall.parts).map { case (e,p) => lowerPart(e)(p) }
+                    val outArgs = optExpTys.zip(inArgs).map { case (t,a) => lowerExpr(t)(a) }
                     val msig = subst.methodSignature(msym.msig)
-                    out.MethodCall(rcvr, parts, (msym, msig))
+                    Some((outArgs, (msym, msig)))
                 }
                 
                 // Multiple matches: have to type the arguments without hints.
+                //   In theory, we could try to be smarter (i.e., if all options agree on the
+                //   type of a particular argument, etc).
                 case _ => {
-                    val parts = mcall.parts.map(lowerPart(None))
-                    val partTys = parts.map(_.arg.ty)
+                    val outArgs = inArgs.map(lowerExpr(None))
+                    val argTys = outArgs.map(_.ty)
                     
                     // Find those symbols that are potentially applicable
                     // to the arguments provided:
                     def potentiallyApplicable(msym: Symbol.Method) = {
-                        val subst = mthdSubst(msym, rcvr, parts)
+                        val subst = mthdSubst(msym, outRcvr, inArgs)
                         val parameterTys = msym.msig.parameterPatterns.map(p => subst.ty(p.ty))
                         // XXX Add suitable temps to the environment for the vars ref'd in subst.
-                        partTys.zip(parameterTys).forall { case (p, a) => 
+                        argTys.zip(parameterTys).forall { case (p, a) => 
                             env.isSuitableArgument(p, a) 
                         }
                     }
@@ -682,37 +682,69 @@ case class Lower(state: CompilationState) {
                     
                     (bestMsyms, applicableMsyms) match {
                         case (List(msym), _) => {
-                            val subst = mthdSubst(msym, rcvr, parts)
+                            val subst = mthdSubst(msym, outRcvr, inArgs)
                             val msig = subst.methodSignature(msym.msig)
-                            out.MethodCall(rcvr, parts, (msym, msig))
+                            Some((outArgs, (msym, msig)))
                         }
                         
                         case (List(), List()) => {
                             state.reporter.report(
-                                mcall.pos,
+                                pos,
                                 "no.applicable.methods",
-                                partTys.map(_.toString).mkString(", ")
+                                argTys.map(_.toString).mkString(", ")
                             )
-                            out.Null(optExpTy.getOrElse(Type.Null))
+                            None
                         }
                         
                         case _ => {
                             state.reporter.report(
-                                mcall.pos,
+                                pos,
                                 "ambiguous.method.call",
                                 bestMsyms.length.toString
                             )
-                            out.Null(optExpTy.getOrElse(Type.Null))
+                            None
                         }
                     }
+                }
+            }            
+        }
+        
+        def lowerMethodCall(optExpTy: Option[Type.Ref])(mcall: in.MethodCall) = introduceVar(mcall, {
+            // Find all potential methods:
+            val rcvr = lowerExpr(None)(mcall.rcvr)
+            val msyms = env.lookupMethods(rcvr.ty, mcall.name)
+            val best = identifyBestMethod(mcall.pos, msyms, mcall.name, rcvr, mcall.parts.map(_.arg))
+            best match {
+                case None =>
+                    out.Null(optExpTy.getOrElse(Type.Null))
+                    
+                case Some((args, (msym, msig))) => {
+                    def lowerPart(pair: (in.CallPart, out.AtomicExpr)) = withPosOf(pair._1,
+                        out.CallPart(pair._1.ident, pair._2)
+                    )
+                    out.MethodCall(
+                        rcvr = rcvr,
+                        parts = mcall.parts.zip(args).map(lowerPart),
+                        data = (msym, msig)
+                    )                    
                 }
             }
         })
         
-        def lowerNewJava(expr: in.NewJava) = introduceVar(expr, {
+        def lowerNewCtor(expr: in.NewCtor) = introduceVar(expr, {
+            val ty = symbolType(expr.tref)
+            
+            val outTypeRef = lowerTypeRef(expr.tref)
+            
             // XXX We could give an expected type for the arguments based on the constructor(s),
             // XXX just like in a method call.
-            out.NewJava(lowerTypeRef(expr.tref), lowerTuple(None)(expr.arg), symbolType(expr.tref))
+            val outArg = lowerTuple(None)(expr.arg)
+            
+            out.NewCtor(outTypeRef, outArg, ty)
+        })
+        
+        def lowerNewCtor(expr: in.NewAnon) = introduceVar(expr, {
+            throw new RuntimeException("TODO")
         })
         
         def lowerNull(optExpTy: Option[Type.Ref])(expr: in.Null) = introduceVar(expr, {
@@ -876,7 +908,8 @@ case class Lower(state: CompilationState) {
             case e: in.Var => lowerVar(optExpTy)(e)
             case e: in.Field => lowerField(optExpTy)(e)
             case e: in.MethodCall => lowerMethodCall(optExpTy)(e)
-            case e: in.NewJava => lowerNewJava(e)
+            case e: in.NewCtor => lowerNewCtor(e)
+            case e: in.NewAnon => lowerNewAnon(e)
             case e: in.Null => lowerNull(optExpTy)(e)
             case e: in.ImpVoid => introduceVar(expr, out.Null(Type.Void))
             case e: in.ImpThis => lowerImpThis(e)

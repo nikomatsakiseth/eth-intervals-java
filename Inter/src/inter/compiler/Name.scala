@@ -76,5 +76,7 @@ object Name {
     val AVar = Name.Var("A")
     val IntervalTmplParent = Var("Parent")
     val ValueMethod = Method(List("value"))
+
+    val InitMethod = Method(List("<init>"))
        
 }

@@ -193,6 +193,24 @@ object Resolve {
             )
         })
         
+        def resolveNewCtor(expr: in.NewCtor): out.NewCtor = withPosOf(expr, {
+            out.NewCtor(
+                tref = resolveTypeRef(expr.tref),
+                arg = resolveTuple(expr.arg),
+                ty = ()
+            )
+        })
+        
+        def resolveNewAnon(expr: in.NewAnon): out.NewAnon = withPosOf(expr, {
+            out.NewAnon(
+                tref = resolveTypeRef(expr.tref),
+                arg = resolveTuple(expr.arg),
+                members = expr.members.map(resolveMember),
+                sym = (),
+                ty = ()
+            )
+        })
+        
         def resolveExpr(expr: in.Expr): out.Expr = withPosOf(expr, expr match {
             case tuple: in.Tuple => resolveTuple(tuple)
             case tmpl: in.Block => resolveBlock(tmpl)
@@ -201,7 +219,8 @@ object Resolve {
             case in.Var(name, ()) => out.Var(name, ())
             case in.Field(owner, name, (), ()) => out.Field(resolveExpr(owner), name, (), ())
             case in.MethodCall(rcvr, parts, ()) => out.MethodCall(resolveExpr(rcvr), parts.map(resolvePart), ())
-            case in.NewJava(tref, arg, ()) => out.NewJava(resolveTypeRef(tref), resolveTuple(arg), ())
+            case e: in.NewCtor => resolveNewCtor(e)
+            case e: in.NewAnon => resolveNewAnon(e)
             case in.Null(()) => out.Null(())
             case in.ImpVoid(()) => out.ImpVoid(())
             case in.ImpThis(()) => out.ImpThis(())

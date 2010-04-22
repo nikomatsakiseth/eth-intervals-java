@@ -94,13 +94,11 @@ case class ByteCode(state: CompilationState) {
         }
         
         def downcastIfNeeded(toAsmTy: asm.Type, fromAsmTy: asm.Type) {
-            println("downcastIfNeeded(%s,%s)".format(toAsmTy, fromAsmTy))
             if(toAsmTy != asmObjectType && toAsmTy != fromAsmTy)
                 downcast(toAsmTy)
         }
 
         def downcastIfNeeded(toTy: Type.Ref, fromTy: Type.Ref) {
-            println("downcastIfNeeded(%s,%s)".format(toTy, fromTy))
             (toTy, fromTy) match {
                 case (Type.Class(toName, _), Type.Class(fromName, _)) => {
                     val toSym = state.classes(toName)
@@ -384,7 +382,8 @@ case class ByteCode(state: CompilationState) {
                 val receiverSummary = summarizeSymbolsInExpr(summary, receiver)
                 parts.map(_.arg).foldLeft(receiverSummary)(summarizeSymbolsInExpr)
             }
-            case in.NewJava(_, arg, _) => summarizeSymbolsInExpr(summary, arg)
+            case in.NewCtor(_, arg, _) => summarizeSymbolsInExpr(summary, arg)
+            case in.NewAnon(_, arg, mems, _, _) => summarizeSymbolsInExpr(summary, arg) // XXX mems
             case in.Null(_) => summary
         }
     }
@@ -642,6 +641,7 @@ case class ByteCode(state: CompilationState) {
                         }
                         
                         case Symbol.Inter => callWithOpcode(O.INVOKEINTERFACE)
+                        case Symbol.InterCtor => callWithOpcode(O.INVOKESPECIAL)
                         case Symbol.JavaVirtual => callWithOpcode(O.INVOKEVIRTUAL)
                         case Symbol.JavaInterface => callWithOpcode(O.INVOKEINTERFACE)
                         case Symbol.JavaStatic => callWithOpcode(O.INVOKESTATIC)
@@ -652,7 +652,11 @@ case class ByteCode(state: CompilationState) {
                     }
                 }
                 
-                case in.NewJava(tref, arg, ty) => {
+                case in.NewCtor(tref, arg, ty) => {
+                    throw new RuntimeException("TODO")                    
+                }
+                
+                case in.NewAnon(tref, arg, mems, csym, ty) => {
                     throw new RuntimeException("TODO")                    
                 }
                 

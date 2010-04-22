@@ -23,8 +23,8 @@ object Symbol {
     abstract class Class(
         val name: Name.Qual
     ) extends Ref {
-        def constructors(state: CompilationState): Seq[Type.Ref]
-        def superClassNames(state: CompilationState): Seq[Name.Qual]
+        def constructors(state: CompilationState): List[Symbol.Method]
+        def superClassNames(state: CompilationState): List[Name.Qual]
         def methodsNamed(state: CompilationState)(name: Name.Method): List[Symbol.Method]
         def fieldNamed(state: CompilationState)(name: Name.Var): Option[Symbol.Var]
         
@@ -47,7 +47,7 @@ object Symbol {
         val file: java.io.File
     ) extends Class(name) {
         var loaded = false
-        var constructors = List[Type.Ref]()
+        var constructors = List[Symbol.Method]()
         var superClassNames = List[Name.Qual]()
         var methods = List[Symbol.Method]()
         var fields = List[Symbol.Var]()
@@ -102,11 +102,27 @@ object Symbol {
     ) extends Class(name) {
         var resolvedSource: Ast.Resolve.ClassDecl = null
         var loweredSource: Ast.Lower.ClassDecl = null
+        var optCtorSymbol: Option[Symbol.Method] = None
         val methodSymbols = new mutable.HashMap[Name.Method, List[Method]]()
         val loweredMethods = new mutable.HashMap[MethodId, Ast.Lower.MethodDecl]()
         
         def constructors(state: CompilationState) = {
-            List(Lower(state).patternType(resolvedSource.pattern))
+            optCtorSymbol match {
+                case Some(ctorSymbol) => List(ctorSymbol)
+                case None => {
+                    val ctorSymbol = new Symbol.Method(
+                        Symbol.InterCtor,
+                        Name.InitMethod,
+                        Symbol.MethodSignature(
+                            returnTy = Type.Void,
+                            receiverTy = Type.Class(name, List()),
+                            parameterPatterns = List(Lower(state).symbolPattern(resolvedSource.pattern))
+                        )
+                    )
+                    optCtorSymbol = Some(ctorSymbol)
+                    List(ctorSymbol)
+                }
+            }
         }
         
         def superClassNames(state: CompilationState) = {
@@ -133,6 +149,7 @@ object Symbol {
         resultClass: java.lang.Class[_]
     ) extends MethodKind
     case object Inter extends MethodKind
+    case object InterCtor extends MethodKind
     case object JavaVirtual extends MethodKind
     case object JavaInterface extends MethodKind
     case object JavaStatic extends MethodKind
