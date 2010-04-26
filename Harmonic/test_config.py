@@ -1,6 +1,6 @@
 import re
 
-COMPILE_CMD = ["./harmc", "--no-localize", "--check-bytecode", "--dump-bytecode", "-d", "bin-test", "-sourcepath", "test", "@compile_opts", "$filenm"]
+COMPILE_CMD = ["./harmc", "--no-localize", "--check-bytecode", "--dump-bytecode", "-d", "bin-test", "@compile_opts", "$filenm"]
 EXECUTE_CMD = ["env", "CLASSPATH=bin-test", "./harm", "$classnm"]
 EXTENSION = ".harm"
 

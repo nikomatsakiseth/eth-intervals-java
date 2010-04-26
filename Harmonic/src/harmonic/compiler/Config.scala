@@ -9,8 +9,8 @@ class Config
 {
     val sourceExt = ".harm"
     val classExt = ".class"
-    val sourcePaths = new ListBuffer[File]()
-    val classPaths = new ListBuffer[File]()
+    var sourcePaths = List(new File("."))
+    var classPaths = List(new File("."))
     val inputFiles = new ListBuffer[File]()
     var outputDir = new File(".")
     var dumpParsedTrees = false
@@ -43,13 +43,13 @@ class Config
         err.printf("  --ignore-errors\n")
     }
     
-    private[this] def addDirs(files: ListBuffer[File], paths: String) {
-        files ++= paths.split(":").map(s => new File(s))
+    private[this] def dirs(paths: String) = {
+        paths.split(":").map(s => new File(s)).toList
     }
     
-    private[this] def relativeFiles(paths: ListBuffer[File], ext: String)(name: Name.Qual) = {
+    private[this] def relativeFiles(paths: List[File], ext: String)(name: Name.Qual) = {
         val baseName = name.asRelPath
-        paths.toList.flatMap { path =>
+        paths.flatMap { path =>
             val file = new File(path, baseName + ext)
             if(file.exists) Some(file)
             else None
@@ -77,10 +77,10 @@ class Config
                 usage(System.err)
             while(i < args.length) {
                 if(args(i) == "-classpath" || args(i) == "-cp") {
-                    addDirs(classPaths, args(i+1))
+                    classPaths = dirs(args(i+1))
                     i += 2
                 } else if(args(i) == "-sourcepath") {
-                    addDirs(sourcePaths, args(i+1))
+                    sourcePaths = dirs(args(i+1))
                     i += 2
                 } else if(args(i) == "-d") {
                     outputDir = new File(args(i+1))
