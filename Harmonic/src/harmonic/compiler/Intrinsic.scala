@@ -85,6 +85,12 @@ object Intrinsic {
         val objectTy = Type.Class(objectClass)
         val iterableTy = Type.Class(iterableClass)
         
+        def controlFlow(
+            mthdName: String,
+            argumentClasses: Array[Class[_]],
+            resultClass: Class[_]
+        ) = Symbol.IntrinsicStatic(classOf[IntrinsicControlFlow], mthdName, argumentClasses, resultClass)
+        
         def templateTy(
             returnTy: Type.Ref,
             argumentTy: Type.Ref
@@ -102,7 +108,7 @@ object Intrinsic {
         state.addIntrinsic(
             new Symbol.Method(
                 modifierSet = Modifier.Set.empty,
-                kind = Symbol.IntrinsicControlFlow(
+                kind = controlFlow(
                     "if_",
                     Array(booleanClass, templateClass),
                     voidClass
@@ -123,7 +129,7 @@ object Intrinsic {
         state.addIntrinsic(
             new Symbol.Method(
                 modifierSet = Modifier.Set.empty,
-                kind = Symbol.IntrinsicControlFlow(
+                kind = controlFlow(
                     "ifNull",
                     Array(objectClass, templateClass),
                     voidClass
@@ -144,7 +150,7 @@ object Intrinsic {
         state.addIntrinsic(
             new Symbol.Method(
                 modifierSet = Modifier.Set.empty,
-                kind = Symbol.IntrinsicControlFlow(
+                kind = controlFlow(
                     "ifElse",
                     Array(booleanClass, templateClass, templateClass),
                     objectClass
@@ -166,7 +172,7 @@ object Intrinsic {
         state.addIntrinsic(
             new Symbol.Method(
                 modifierSet = Modifier.Set.empty,
-                kind = Symbol.IntrinsicControlFlow(
+                kind = controlFlow(
                     "ifNullElse",
                     Array(objectClass, templateClass, templateClass),
                     objectClass
@@ -189,7 +195,7 @@ object Intrinsic {
         state.addIntrinsic(
             new Symbol.Method(
                 modifierSet = Modifier.Set.empty,
-                kind = Symbol.IntrinsicControlFlow(
+                kind = controlFlow(
                     "forEach",
                     Array(iterableClass, templateClass),
                     voidClass
@@ -213,7 +219,7 @@ object Intrinsic {
         state.addIntrinsic(
             new Symbol.Method(
                 modifierSet = Modifier.Set.empty,
-                kind = Symbol.IntrinsicControlFlow(
+                kind = controlFlow(
                     "while_",
                     Array(templateClass, templateClass),
                     objectClass

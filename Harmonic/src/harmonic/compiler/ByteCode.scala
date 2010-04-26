@@ -117,6 +117,7 @@ case class ByteCode(state: CompilationState) {
         }
         
         def storeVar(index: Int, asmTy: asm.Type) = {
+            println("storeVar: %s, %s".format(index, asmTy))
             mvis.visitVarInsn(asmTy.getOpcode(O.ISTORE), index)
         }
         
@@ -125,6 +126,7 @@ case class ByteCode(state: CompilationState) {
             case 1 => mvis.visitInsn(O.ICONST_1)
             case 2 => mvis.visitInsn(O.ICONST_2)
             case 3 => mvis.visitInsn(O.ICONST_3)
+            case _ if value < 128 => mvis.visitIntInsn(O.BIPUSH, value)
             case _ => mvis.visitLdcInsn(value)
         }
         
@@ -168,7 +170,7 @@ case class ByteCode(state: CompilationState) {
                     (new asm.util.TraceClassVisitor(cvis, new java.io.PrintWriter(writer)), Some(writer))
                 } catch {
                     case err: java.io.IOException => {
-                        println("Error writing to %s: %s".format(sFile, err))
+                        System.err.printf("Error writing to %s: %s\n", sFile, err)
                         (cvis, None)
                     }
                 }
@@ -331,12 +333,10 @@ case class ByteCode(state: CompilationState) {
     {
         val syms = new mutable.HashMap[Symbol.Var, AccessPath]()
         private[this] var maxSlot = 0
-        private[this] var highwater = 0
         
         def pathToFreshSlot(asmTy: asm.Type) = {
             val slot = maxSlot
             maxSlot += 1
-            highwater = highwater.max(maxSlot)
             AccessVar(slot, asmTy)
         }
         
@@ -345,15 +345,17 @@ case class ByteCode(state: CompilationState) {
         }
 
         def addUnboxedSym(sym: Symbol.Var) = {
+            println("sym %s assigned to slot %d".format(sym, maxSlot))
             syms(sym) = pathToFreshSlot(asmType(sym.ty))
         }
         
         def withStashSlot(func: (Int => Unit)) {
             val stashSlot = maxSlot
+            println("> Stash Slot %d".format(maxSlot))
             maxSlot += 1
-            highwater = highwater.max(maxSlot)
             func(stashSlot)
             maxSlot -= 1
+            println("< Stash Slot %d".format(maxSlot))
         }
         
         def pushSym(sym: Symbol.Var, mvis: asm.MethodVisitor) = syms(sym).push(mvis)
@@ -504,7 +506,6 @@ case class ByteCode(state: CompilationState) {
           * and `c` would be pushed in that order.
           */
         def pushRvalues(lvalue: Pattern.Anon, rvalue: in.Expr) {
-            println("pushRvalues(%s, %s)".format(lvalue, rvalue))
             (lvalue, rvalue) match {
                 case (Pattern.AnonTuple(List(sublvalue)), _) =>
                     pushRvalues(sublvalue, rvalue)
@@ -698,14 +699,18 @@ case class ByteCode(state: CompilationState) {
                             )
                         }
                         
-                        case Symbol.IntrinsicControlFlow(mthdName, argumentClasses, resultClass) => {
-                            callWithDetails(
+                        case Symbol.IntrinsicStatic(ownerClass, mthdName, argumentClasses, resultClass) => {
+                            val resultAsmTy = asm.Type.getType(resultClass)
+                            val argAsmTys = argumentClasses.map(asm.Type.getType)
+                            pushExprValueDowncastingTo(argAsmTys(0), receiver)
+                            msig.parameterPatterns.zip(parts).foreach { case (pattern, part) =>
+                                pushRvalues(pattern, part.arg)
+                            }
+                            mvis.visitMethodInsn(
                                 O.INVOKESTATIC,
-                                asm.Type.getType(classOf[IntrinsicControlFlow]),
-                                getMethodDescriptor(
-                                    asm.Type.getType(resultClass), 
-                                    argumentClasses.map(asm.Type.getType)
-                                )
+                                asm.Type.getType(ownerClass).getInternalName,
+                                mthdName,
+                                getMethodDescriptor(resultAsmTy, argAsmTys)
                             )
                         }
                         
@@ -886,9 +891,18 @@ case class ByteCode(state: CompilationState) {
                 Array(tmpl.className.internalName)
             )
             
+            writeEmptyCtor(name, Name.ObjectQual, tmplwr.cvis)
+
             // Create the new object and copy over values for
             // any local variables which it references:
             mvis.visitTypeInsn(O.NEW, name.internalName)
+            mvis.visitInsn(O.DUP)
+            mvis.visitMethodInsn(
+                O.INVOKESPECIAL,
+                name.internalName,
+                Name.InitMethod.javaName,
+                "()V"
+            )
             val derivedAccessMap = deriveAccessMap(name, tmplwr.cvis, tmpl.stmts)
             
             val methodSig = Symbol.MethodSignature(
@@ -935,7 +949,8 @@ case class ByteCode(state: CompilationState) {
                 methodName    = Name.ValueMethod,
                 withMroIndex  = false,
                 masterSig     = methodSig,
-                overriddenSig = interfaceMethodSig
+                overriddenSig = interfaceMethodSig,
+                invokeOp      = O.INVOKEVIRTUAL
             )
 
             tmplwr.end()
@@ -1023,14 +1038,12 @@ case class ByteCode(state: CompilationState) {
         methodName: Name.Method,
         withMroIndex: Boolean,
         masterSig: Symbol.MethodSignature[Pattern.Ref],
-        overriddenSig: Symbol.MethodSignature[Pattern.Ref]
+        overriddenSig: Symbol.MethodSignature[Pattern.Ref],
+        invokeOp: Int
     ) {
         val descFunc = if(withMroIndex) mroMethodDescFromSig _ else plainMethodDescFromSig _
         val masterDesc = descFunc(masterSig)
         val overriddenDesc = descFunc(overriddenSig)
-        println("writeForwardingMethodIfNeeded:")
-        println("  masterDesc = %s".format(masterDesc))
-        println("  overriddenDesc = %s".format(overriddenDesc))
         if(masterDesc == overriddenDesc)
             return; // No need for a forwarding method.
         
@@ -1047,6 +1060,7 @@ case class ByteCode(state: CompilationState) {
         // Push this pointer and adapted forms of the parameters:
         val accessMap = new AccessMap(className)
         val thisPtr = accessMap.pathToFreshSlot(asmType(Type.Class(className, List()))) // reserve this ptr
+        thisPtr.push(mvis)
         
         if(withMroIndex) {
             val mroIndex = accessMap.pathToFreshSlot(asm.Type.INT_TYPE)
@@ -1059,7 +1073,7 @@ case class ByteCode(state: CompilationState) {
         
         // Invoke master version of the method and return its result:
         mvis.visitMethodInsn(
-            O.INVOKEINTERFACE,
+            invokeOp,
             className.internalName,
             methodName.javaName,
             masterDesc
@@ -1084,7 +1098,8 @@ case class ByteCode(state: CompilationState) {
                     methodName    = msym.name,
                     withMroIndex  = withMroIndex,
                     masterSig     = msym.msig,
-                    overriddenSig = overriddenMsym.msig
+                    overriddenSig = overriddenMsym.msig,
+                    invokeOp      = O.INVOKEINTERFACE
                 )                
             }
         }
@@ -1099,7 +1114,6 @@ case class ByteCode(state: CompilationState) {
     ) {
         val boxedArray = new BoxedArray(accessMap)
         val summary = summarizeSymbolsInStmts(stmts)
-        stmts.foreach(_.println(PrettyPrinter.stdout))
         summary.declaredSyms.foreach { sym =>
             if(summary.boxedSyms(sym)) boxedArray.addBoxedSym(sym)
             else accessMap.addUnboxedSym(sym)
@@ -1318,17 +1332,16 @@ case class ByteCode(state: CompilationState) {
         mvis.complete
     }
     
-    def writeImplCtor(
-        csym: Symbol.ClassFromInterFile, 
+    def writeEmptyCtor(
+        name: Name.Qual,
+        superName: Name.Qual,
         cvis: asm.ClassVisitor
     ) {
         // XXX We have to figure out our ctor model.
-        val pattern = csym.loweredSource.pattern
-        val asmArgTys = in.toPattern(pattern).varTys.map(asmType).toArray
         val mvis = cvis.visitMethod(
             O.ACC_PUBLIC,
             Name.InitMethod.javaName,
-            getMethodDescriptor(asm.Type.VOID_TYPE, asmArgTys),
+            "()V",
             null, // generic signature
             null  // thrown exceptions
         )
@@ -1336,7 +1349,7 @@ case class ByteCode(state: CompilationState) {
         mvis.visitVarInsn(O.ALOAD, 0)
         mvis.visitMethodInsn(
             O.INVOKESPECIAL,
-            asmObjectType.getInternalName,
+            superName.internalName,
             Name.InitMethod.javaName,
             "()V"
         )
@@ -1376,11 +1389,11 @@ case class ByteCode(state: CompilationState) {
             O.ACC_PUBLIC,
             csym.name.internalName + implSuffix,
             null, // XXX Signature
-            "java/lang/Object",
+            Name.ObjectQual.internalName,
             Array(csym.name.internalName)
         )
         
-        writeImplCtor(csym, cvis)
+        writeEmptyCtor(csym.name, Name.ObjectQual, cvis)
         
         csym.allMethodSymbols.foreach { msym =>
             writePlainToMroDispatch(csym, cvis, msym)

@@ -815,7 +815,6 @@ case class Lower(state: CompilationState) {
         }
         
         def lowerBlockArgument(expArgumentTy: Type.Ref, local: in.Local): out.Param = {
-            println("lowerBlockArgument(%s,%s)".format(expArgumentTy, local))
             withPosOf(local, (expArgumentTy, local) match {
                 // Unpack singleton tuples:
                 //    We keep the TupleParam() wrapper around a singleton entry just for pretty printing.

@@ -1,0 +1,33 @@
+package test.bytecode;
+
+class BytecodeIf extends Application {
+
+    main(): Object {
+        result = 0;
+        
+        true.if { 
+            result = result + 1; 
+        };
+        
+        false.if { 
+            result = result + 10; 
+        };
+        
+        true.if { 
+            result = result + 100; 
+        } else { 
+            result = result + 1000; 
+        };
+        
+        false.if { 
+            result = result + 10000; 
+        } else { 
+            result = result + 100000; 
+        };
+        
+        result
+    }
+    
+}
+// EXECUTE
+// 100101

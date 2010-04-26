@@ -168,7 +168,8 @@ object Symbol {
         rightClass: java.lang.Class[_], 
         resultClass: java.lang.Class[_]
     ) extends MethodKind
-    case class IntrinsicControlFlow(
+    case class IntrinsicStatic(
+        ownerClass: java.lang.Class[_],
         staticMthdName: String,
         argumentClasses: Array[java.lang.Class[_]],
         resultClass: java.lang.Class[_]
