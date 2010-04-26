@@ -177,7 +177,8 @@ case class Lower(state: CompilationState) {
     }
     
     def ThisEnv(csym: Symbol.ClassFromInterFile) = {
-        emptyEnv.plusSym(new Symbol.Var(Modifier.Set.empty, Name.ThisVar, Type.Class(csym.name, List())))
+        val thisTy = Type.Class(csym.name, List())
+        emptyEnv.plusThis(thisTy, new Symbol.Var(Modifier.Set.empty, Name.ThisVar, thisTy))
     }
     
     def ThisScope(csym: Symbol.ClassFromInterFile) = {
@@ -246,10 +247,9 @@ case class Lower(state: CompilationState) {
             assert(!state.inferStack(memberId))
             state.inferStack += memberId
 
-            val receiverSym = new Symbol.Var(Modifier.Set.empty, Name.ThisVar, Type.Class(clsName, List()))
             val parameterPatterns = mdecl.params.map(symbolPattern)
             val parameterSyms = parameterPatterns.flatMap(Pattern.createVarSymbols)
-            val env = emptyEnv.plusSyms(receiverSym :: parameterSyms)
+            val env = ThisEnv(csym).plusSyms(parameterSyms)
             val optBody = mdecl.optBody.map(lowerBody(env, _))
 
             val (returnTref, returnTy) = (mdecl.returnTref, optBody) match {
@@ -273,7 +273,7 @@ case class Lower(state: CompilationState) {
 
             val outMdecl = out.MethodDecl(
                 annotations = mdecl.annotations.map(InScope(env).lowerAnnotation),
-                receiverSym = receiverSym,
+                receiverSym = env.lookupThis,
                 parts = mdecl.parts.map(InScope(env).lowerDeclPart),
                 returnTref = returnTref,
                 returnTy = returnTy,
@@ -412,8 +412,7 @@ case class Lower(state: CompilationState) {
     
     // ___ Lowering Statements ______________________________________________
     
-    def tmpVarName(fromExpr: Ast#ParseExpr) = {
-        //"(%s@%s)".format(fromExpr.toString, fromExpr.pos.toString)
+    def tmpVarName(fromExpr: Ast.Node) = {
         "(%s@%s)".format(fromExpr.getClass.getSimpleName, fromExpr.pos.toString)
     }
     
@@ -549,7 +548,7 @@ case class Lower(state: CompilationState) {
             })
         }
         
-        def introduceVar(fromExpr: in.Expr, toExpr: out.LowerExpr): out.Var = {
+        def introduceVar(fromExpr: in.Expr, toExpr: out.Expr): out.Var = {
             val text = tmpVarName(fromExpr)
             val sym = new Symbol.Var(Modifier.Set.empty, Name.Var(text), toExpr.ty)
             val nameAst = withPosOf(fromExpr, Ast.VarName(text))
@@ -570,7 +569,7 @@ case class Lower(state: CompilationState) {
                 }
         }
         
-        def patSubst(subst: Subst)(pat: Pattern.Ref, expr: Ast#ParseExpr): Subst = {
+        def patSubst(subst: Subst)(pat: Pattern.Ref, expr: Ast#ParseRcvrExpr): Subst = {
             (pat, expr) match {
                 case (patTup: Pattern.Tuple, astTup: Ast#Tuple) if sameLength(patTup.patterns, astTup.exprs) =>
                     patTup.patterns.zip(astTup.exprs).foldLeft(subst) { 
@@ -579,6 +578,9 @@ case class Lower(state: CompilationState) {
                 
                 case (patVar: Pattern.Var, astVar: Ast#Var) =>
                     subst + (patVar.name.toPath -> astVar.name.name.toPath)
+                
+                case (patVar: Pattern.Var, _: Ast#Super) =>
+                    subst + (patVar.name.toPath -> Path.This)
                 
                 case (_, astTup: Ast#Tuple) if astTup.exprs.length == 1 =>
                     patSubst(subst)(pat, astTup.exprs.head)
@@ -591,14 +593,14 @@ case class Lower(state: CompilationState) {
             }
         }
         
-        def patSubsts(allPatterns: List[Pattern.Ref], allExprs: List[Ast#ParseExpr]): Subst = {
+        def patSubsts(allPatterns: List[Pattern.Ref], allExprs: List[Ast#ParseRcvrExpr]): Subst = {
             assert(allPatterns.length == allExprs.length) // Guaranteed syntactically.
             allPatterns.zip(allExprs).foldLeft(Subst.empty) { case (s, (p, e)) =>
                 patSubst(s)(p, e)
             }
         }
         
-        def mthdSubst(msym: Symbol.Method, rcvr: Ast#ParseExpr, args: List[Ast#ParseExpr]) = {
+        def mthdSubst(msym: Symbol.Method, rcvr: Ast#ParseRcvrExpr, args: List[Ast#ParseTlExpr]) = {
             val msig = msym.msig
             patSubsts(
                 msig.thisPattern    ::  msig.parameterPatterns, 
@@ -629,7 +631,7 @@ case class Lower(state: CompilationState) {
             msyms: List[Symbol.Method],
             name: Name.Method,
             rcvrTy: Type.Ref,
-            inRcvr: in.Expr,
+            inRcvr: in.Rcvr,
             inArgs: List[in.Expr]
         ) = {
             // Identify the best method (if any):
@@ -661,7 +663,7 @@ case class Lower(state: CompilationState) {
                     def potentiallyApplicable(msym: Symbol.Method) = {
                         val subst = mthdSubst(msym, inRcvr, inArgs)
                         val parameterTys = msym.msig.parameterPatterns.map(p => subst.ty(p.ty))
-                        // XXX Add suitable temps to the environment for the vars ref'd in subst.
+                        // // FIXME Add suitable temps to the environment for the vars ref'd in subst.
                         argTys.zip(parameterTys).forall { case (p, a) => 
                             env.isSuitableArgument(p, a) 
                         }
@@ -721,8 +723,8 @@ case class Lower(state: CompilationState) {
         
         def lowerMethodCall(optExpTy: Option[Type.Ref])(mcall: in.MethodCall) = introduceVar(mcall, {
             // Find all potential methods:
-            val rcvr = lowerExpr(None)(mcall.rcvr)
-            val msyms = env.lookupMethods(rcvr.ty, mcall.name)
+            val rcvr = lowerRcvr(mcall.rcvr, mcall.name)
+            val msyms = env.lookupMethods(rcvr.ty.deparen, mcall.name)
             val best = identifyBestMethod(
                 mcall.pos, msyms, mcall.name, 
                 rcvr.ty, mcall.rcvr, mcall.parts.map(_.arg))
@@ -933,6 +935,33 @@ case class Lower(state: CompilationState) {
                 lowerTypeRef(expr.typeRef),
                 ty
             )
+        })
+        
+        def lowerRcvr(rcvr: in.Rcvr, mthdName: Name.Method): out.Rcvr = withPosOf(rcvr, rcvr match {
+            case e: in.Expr => lowerExpr(None)(e)
+            case in.Super(()) => {
+                // Find the next supertype in MRO that implements the method
+                // `mthdName` (if any):
+                val mro = MethodResolutionOrder(state).forSym(env.thisCsym)
+                val optTy = mro.firstSome { 
+                    case csym if !csym.methodsNamed(state)(mthdName).isEmpty => 
+                        Some(csym.toType)
+                    
+                    case csym => 
+                        None
+                }
+                optTy match {
+                    case Some(ty) => out.Super(ty)
+                    case None => {
+                        state.reporter.report(
+                            rcvr.pos,
+                            "no.super.class.implements",
+                            mthdName.toString
+                        )
+                        out.Super(Type.Object)
+                    }
+                }
+            }
         })
         
         def lowerExpr(optExpTy: Option[Type.Ref])(expr: in.Expr): out.AtomicExpr = expr match {

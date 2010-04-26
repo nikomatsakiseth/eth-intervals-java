@@ -38,7 +38,7 @@ class CompilationState(
     /** Checks for an intrinsic method --- i.e., one that is built-in to the compiler ---
       * defined on the type `rcvrTy` with the name `name`. */
     def lookupIntrinsic(rcvrTy: Type.Ref, name: Name.Method): List[Symbol.Method] = {
-        rcvrTy match { // XXX Need to consider type bounds, really, but not in this method.
+        rcvrTy match { // // FIXME Need to consider type bounds, really, but not in this method.
             case Type.Class(className, _) => intrinsics.get((className, name)).getOrElse(List())
             case _ => List() 
         }

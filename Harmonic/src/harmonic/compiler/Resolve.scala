@@ -213,6 +213,11 @@ object Resolve {
             )
         })
         
+        def resolveRcvr(rcvr: in.Rcvr): out.Rcvr = withPosOf(rcvr, rcvr match {
+            case in.Super(()) => out.Super(())
+            case e: in.Expr => resolveExpr(e)
+        })
+        
         def resolveExpr(expr: in.Expr): out.Expr = withPosOf(expr, expr match {
             case tuple: in.Tuple => resolveTuple(tuple)
             case tmpl: in.Block => resolveBlock(tmpl)
@@ -220,7 +225,7 @@ object Resolve {
             case e: in.Literal => resolveLiteral(e)
             case in.Var(name, ()) => out.Var(name, ())
             case in.Field(owner, name, (), ()) => out.Field(resolveExpr(owner), name, (), ())
-            case in.MethodCall(rcvr, parts, ()) => out.MethodCall(resolveExpr(rcvr), parts.map(resolvePart), ())
+            case in.MethodCall(rcvr, parts, ()) => out.MethodCall(resolveRcvr(rcvr), parts.map(resolvePart), ())
             case e: in.NewCtor => resolveNewCtor(e)
             case e: in.NewAnon => resolveNewAnon(e)
             case in.Null(()) => out.Null(())

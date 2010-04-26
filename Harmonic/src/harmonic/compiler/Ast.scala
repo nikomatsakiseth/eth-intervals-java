@@ -24,10 +24,13 @@ abstract class Ast {
     type Stmt <: ParseStmt
     
     /** The form of expressions */
-    type Expr <: ParseExpr
+    type Expr <: ParseTlExpr
     
     /** Nested expressions eventually become restricted */
-    type NE <: Expr
+    type NE <: ParseTlExpr
+    
+    /** Receiver expressions eventually become restricted */
+    type Rcvr <: ParseRcvrExpr
     
     /** Type of a template's parameter: becomes a Param */
     type TmplLv <: Lvalue
@@ -465,20 +468,27 @@ abstract class Ast {
     /** Those statements that are still used after lowering. */
     sealed abstract trait LowerStmt extends ParseStmt
 
-    /** All kinds of expressions. */
-    sealed abstract trait ParseExpr extends ParseStmt {
-        def ty: Ty
+    /** Any expression at all. */
+    sealed abstract trait AnyExpr extends Node {
+        def ty: Ty        
     }
     
+    /** Method receivers after parsing. */
+    sealed abstract trait ParseRcvrExpr extends AnyExpr 
+    
+    /** Top-level expressions after parsing. */
+    sealed abstract trait ParseTlExpr extends ParseRcvrExpr with ParseStmt
+    
+    /** Method receivers after lowering. */
+    sealed abstract trait LowerRcvrExpr extends ParseRcvrExpr
+    
     /** Top-level expressions after lowering. */
-    sealed abstract trait LowerExpr extends ParseExpr with LowerStmt {
-        def ty: Ty
-    }
+    sealed abstract trait LowerTlExpr extends ParseTlExpr with LowerStmt
 
     /** Expressions that are always safe to evaluate without the
       * possibility of a race condition. After lowering, only 
       * `AtomicExpr` may be nested within other expressions. */
-    sealed abstract trait AtomicExpr extends LowerExpr
+    sealed abstract trait AtomicExpr extends LowerTlExpr with LowerRcvrExpr
     
     case class Tuple(exprs: List[NE]) extends AtomicExpr {
         override def toString = "(%s)".format(exprs.mkString(", "))
@@ -499,7 +509,7 @@ abstract class Ast {
         param: TmplLv, 
         stmts: List[Stmt], 
         ty: Ty
-    ) extends LowerExpr {
+    ) extends LowerTlExpr {
         def className = if(async) Name.AsyncBlockQual else Name.BlockQual
 
         private[this] def sep = if(async) ("{{", "}}") else ("{", "}")
@@ -534,7 +544,7 @@ abstract class Ast {
         
     }
     
-    case class Literal(obj: Object, ty: Ty) extends LowerExpr {
+    case class Literal(obj: Object, ty: Ty) extends LowerTlExpr {
         override def toString = obj.toString
     }
     
@@ -564,7 +574,7 @@ abstract class Ast {
         }
     }
     
-    case class Field(owner: NE, name: VarName, sym: VSym, ty: Ty) extends LowerExpr {
+    case class Field(owner: NE, name: VarName, sym: VSym, ty: Ty) extends LowerTlExpr {
         override def toString = "%s.%s".format(owner, name)
         
         override def print(out: PrettyPrinter) {
@@ -572,6 +582,10 @@ abstract class Ast {
             name.print(out)
             out.write(" /*%s;%s*/".format(sym, ty))
         }
+    }
+    
+    case class Super(ty: Ty) extends LowerRcvrExpr {
+        override def toString = "super"
     }
     
     case class CallPart(ident: String, arg: NE) extends Node {
@@ -582,8 +596,8 @@ abstract class Ast {
             arg.print(out)
         }
     }
-    case class MethodCall(rcvr: NE, parts: List[CallPart], data: MCallData)
-    extends LowerExpr {
+    case class MethodCall(rcvr: Rcvr, parts: List[CallPart], data: MCallData)
+    extends LowerTlExpr {
         def name = Name.Method(parts.map(_.ident))
         def args = parts.map(_.arg)
         def ty = returnTy(data)
@@ -597,7 +611,7 @@ abstract class Ast {
     }
     
     /** Used to create new instances of classes. */
-    case class NewCtor(tref: TypeRef, arg: NE, msym: MSym, ty: TyClass) extends LowerExpr {
+    case class NewCtor(tref: TypeRef, arg: NE, msym: MSym, ty: TyClass) extends LowerTlExpr {
         override def toString = "new %s%s".format(tref, arg)
         
         override def print(out: PrettyPrinter) {
@@ -609,7 +623,7 @@ abstract class Ast {
     
     /** Used to create new instances of classes. */
     case class NewAnon(tref: TypeRef, arg: NE, members: List[MemberDecl], csym: CSym, msym: MSym, ty: TyClass) 
-    extends LowerExpr {
+    extends LowerTlExpr {
         override def toString = "new %s%s { ... }".format(tref, arg)
         
         override def print(out: PrettyPrinter) {
@@ -623,19 +637,19 @@ abstract class Ast {
     }
     
     case class Null(ty: Ty)
-    extends LowerExpr {
+    extends LowerTlExpr {
         override def toString = "null"
     }
     
     /** ImpVoid is inserted when there is an empty 
       * set of statements like "{ }". */
     case class ImpVoid(ty: Ty)
-    extends ParseExpr {
+    extends ParseTlExpr {
         override def toString = "<(Void)null>"
     }
    
     case class ImpThis(ty: Ty)
-    extends ParseExpr {
+    extends ParseTlExpr {
         override def toString = "<this>"
     }
    
@@ -708,9 +722,10 @@ object Ast {
     object Parse extends Ast {
         type PN = RelName
         type OT = OptionalTypeRef
-        type NE = ParseExpr
+        type NE = ParseTlExpr
         type Stmt = ParseStmt
-        type Expr = ParseExpr
+        type Expr = ParseTlExpr
+        type Rcvr = ParseRcvrExpr
         type TmplLv = TupleLocal
         type CSym = Unit
         type VSym = Unit
@@ -730,9 +745,10 @@ object Ast {
     object Resolve extends Ast {
         type PN = Ast.AbsName
         type OT = OptionalTypeRef
-        type NE = ParseExpr
+        type NE = ParseTlExpr
         type Stmt = ParseStmt
-        type Expr = ParseExpr
+        type Expr = ParseTlExpr
+        type Rcvr = ParseRcvrExpr
         type TmplLv = Local
         type CSym = Unit
         type VSym = Unit
@@ -755,7 +771,8 @@ object Ast {
         type OT = TypeRef
         type NE = AtomicExpr
         type Stmt = LowerStmt
-        type Expr = LowerExpr
+        type Expr = LowerTlExpr
+        type Rcvr = LowerRcvrExpr
         type TmplLv = Param
         type CSym = Symbol.Class
         type VSym = Symbol.Var

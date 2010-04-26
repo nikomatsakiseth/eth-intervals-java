@@ -13,6 +13,8 @@ object Util {
     
     def sameLength(lst1: List[_], lst2: List[_]) = (lst1.length == lst2.length)
     
+    def debug(fmt: String, args: Any*) = println(fmt.format(args: _*))
+    
     // ___ Extensions to Collection Classes _________________________________
     
     class ExtendedIterable[E](iterable: Iterable[E]) {

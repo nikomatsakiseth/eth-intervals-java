@@ -58,7 +58,8 @@ class Parse extends StdTokenParsers with PackratParsers {
     lexical.reserved += (
         "class", "extends", "import", "package", 
         "interval", "requires", "locks", "new",
-        "type", "ghost", "true", "false", "this"
+        "type", "ghost", "true", "false", "this",
+        "super"
     )
     
     def comma[A](p: PackratParser[A]) = repsep(p, ",")<~opt(",")
@@ -67,6 +68,7 @@ class Parse extends StdTokenParsers with PackratParsers {
     
     lazy val oper = (
         elem("operator", _.isInstanceOf[lexical.Operator]) ^^ (_.chars)
+    |   "*" ^^^ "*"
     )
     
     // ___ Names ____________________________________________________________
@@ -319,8 +321,13 @@ class Parse extends StdTokenParsers with PackratParsers {
     
     lazy val newExpr = newAnon | newCtor
     
+    lazy val rcvr: PackratParser[out.Rcvr] = positioned(
+        expr0
+    |   "super"                             ^^ { case _ => out.Super(()) }
+    )
+    
     lazy val expr0: PackratParser[out.Expr] = positioned(
-        expr0~"."~rep1(callPart)            ^^ { case r~"."~cp => out.MethodCall(r, cp, ()) }
+        rcvr~"."~rep1(callPart)             ^^ { case r~"."~cp => out.MethodCall(r, cp, ()) }
     |   expr0~"."~varName                   ^^ { case r~"."~f => out.Field(r, f, (), ()) }
     |   impThis~rep1(callPart)              ^^ { case r~cp => out.MethodCall(r, cp, ()) }
     |   arg

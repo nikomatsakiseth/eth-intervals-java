@@ -421,6 +421,13 @@ case class ByteCode(state: CompilationState) {
         case in.VarLocal(_, in.InferredTypeRef(), _, _) => Nil
         case in.VarLocal(_, _, _, sym) => List(sym)
     }
+
+    def summarizeSymbolsInRcvr(summary: SymbolSummary, rcvr: in.Rcvr): SymbolSummary = {
+        rcvr match {
+            case in.Super(_) => summary
+            case expr: in.AtomicExpr => summarizeSymbolsInExpr(summary, expr)
+        }
+    }
     
     def summarizeSymbolsInExpr(summary: SymbolSummary, expr: in.Expr): SymbolSummary = {
         expr match {
@@ -438,11 +445,11 @@ case class ByteCode(state: CompilationState) {
             case in.Var(_, sym) => summary.copy(readSyms = summary.readSyms + sym)
             case in.Field(owner, _, _, _) => summarizeSymbolsInExpr(summary, owner)
             case in.MethodCall(receiver, parts, _) => {
-                val receiverSummary = summarizeSymbolsInExpr(summary, receiver)
+                val receiverSummary = summarizeSymbolsInRcvr(summary, receiver)
                 parts.map(_.arg).foldLeft(receiverSummary)(summarizeSymbolsInExpr)
             }
             case in.NewCtor(_, arg, _, _) => summarizeSymbolsInExpr(summary, arg)
-            case in.NewAnon(_, arg, mems, _, _, _) => summarizeSymbolsInExpr(summary, arg) // XXX mems
+            case in.NewAnon(_, arg, mems, _, _, _) => summarizeSymbolsInExpr(summary, arg) // // FIXME mems
             case in.Null(_) => summary
         }
     }
@@ -668,8 +675,22 @@ case class ByteCode(state: CompilationState) {
                 case in.Field(owner, name, sym, _) => {
                     pushExprValue(owner)
                 }
+
+                case in.MethodCall(in.Super(_), parts, (msym, msig)) => {
+                    mvis.visitVarInsn(O.ALOAD, 0)   // load this ptr
+                    nextMro.push(mvis)              // load next index in MRO
+                    msig.parameterPatterns.zip(parts).foreach { case (pattern, part) =>
+                        pushRvalues(pattern, part.arg)
+                    }
+                    mvis.visitMethodInsn(
+                        O.INVOKEINTERFACE,
+                        msym.clsName.internalName,
+                        msym.name.javaName,
+                        mroMethodDescFromSig(msig)
+                    )
+                }
                 
-                case in.MethodCall(receiver, parts, (msym, msig)) => {
+                case in.MethodCall(receiver: in.AtomicExpr, parts, (msym, msig)) => {
                     def callWithDetails(op: Int, ownerAsmType: asm.Type, desc: String) = {
                         pushExprValue(receiver)
                         msig.parameterPatterns.zip(parts).foreach { case (pattern, part) =>
@@ -727,13 +748,17 @@ case class ByteCode(state: CompilationState) {
                 }
                 
                 case in.NewCtor(tref, arg, msym, Type.Class(name, _)) => {
-                    mvis.visitTypeInsn(O.NEW, name.internalName)
+                    val internalImplName = state.classes(name).internalImplName
+                    mvis.visitTypeInsn(O.NEW, internalImplName)
                     mvis.visitInsn(O.DUP)
                     mvis.visitMethodInsn(
                         O.INVOKESPECIAL,
-                        name.internalName,
+                        internalImplName,
                         Name.InitMethod.javaName,
-                        plainMethodDescFromSig(msym.msig)
+                        getMethodDescriptor(
+                            asm.Type.VOID_TYPE,
+                            msym.msig.parameterPatterns.flatMap(_.varTys).map(asmType).toArray
+                        )
                     )
                 }
                 
@@ -759,7 +784,7 @@ case class ByteCode(state: CompilationState) {
                 }
 
                 case in.Labeled(name, in.Body(stmts)) => {
-                    stmts.foreach(execStatement) // XXX Not really right.
+                    stmts.foreach(execStatement) // // FIXME Not really right.
                 }
 
                 case in.Assign(lvalue, rvalue) => {
@@ -886,7 +911,7 @@ case class ByteCode(state: CompilationState) {
                 O.V1_5,
                 O.ACC_PUBLIC,
                 name.internalName,
-                null, // XXX Signature
+                null, // // FIXME Signature
                 "java/lang/Object",
                 Array(tmpl.className.internalName)
             )
@@ -1261,8 +1286,8 @@ case class ByteCode(state: CompilationState) {
                 nonabstract match {
                     case List() => None :: computeSupers(masterMsym, tl, remaining)
                     case msyms => {
-                        // XXX Should pick the symbol whose signature best matches
-                        // XXX masterMsym.  For now we just pick the first though :)
+                        // // FIXME Should pick the symbol whose signature best matches
+                        // // FIXME masterMsym.  For now we just pick the first though :)
                         Some(msyms.head) :: computeSupers(masterMsym, tl, remaining)
                     }
                 }
@@ -1337,7 +1362,7 @@ case class ByteCode(state: CompilationState) {
         superName: Name.Qual,
         cvis: asm.ClassVisitor
     ) {
-        // XXX We have to figure out our ctor model.
+        // // FIXME We have to figure out our ctor model.
         val mvis = cvis.visitMethod(
             O.ACC_PUBLIC,
             Name.InitMethod.javaName,
@@ -1368,7 +1393,7 @@ case class ByteCode(state: CompilationState) {
             O.V1_5,
             O.ACC_ABSTRACT + O.ACC_INTERFACE + O.ACC_PUBLIC,
             csym.name.internalName,
-            null, // XXX Signature
+            null, // // FIXME Signature
             "java/lang/Object",
             superClassNames.map(_.internalName).toArray
         )
@@ -1388,7 +1413,7 @@ case class ByteCode(state: CompilationState) {
             O.V1_5,
             O.ACC_PUBLIC,
             csym.name.internalName + implSuffix,
-            null, // XXX Signature
+            null, // // FIXME Signature
             Name.ObjectQual.internalName,
             Array(csym.name.internalName)
         )
@@ -1412,10 +1437,12 @@ case class ByteCode(state: CompilationState) {
             O.V1_5,
             O.ACC_PUBLIC,
             csym.name.internalName + staticSuffix,
-            null, // XXX Signature
+            null, // // FIXME Signature
             "java/lang/Object",
             Array(csym.name.internalName)
         )
+        
+        writeEmptyCtor(csym.name, Name.ObjectQual, cvis)
         
         csym.allMethodSymbols.foreach { msym =>
             val mdecl = csym.loweredMethods(msym.methodId)

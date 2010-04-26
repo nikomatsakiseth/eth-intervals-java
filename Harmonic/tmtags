@@ -326,7 +326,7 @@ callPart	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Parse.sca
 callWithDetails	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^                    def callWithDetails(op: Int, ownerAsmType: asm.Type, desc: String) = {$/;"	methods	line:603
 callWithOpcode	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^                    def callWithOpcode(op: Int) = {$/;"	methods	line:611
 cdecl	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^            val cdecl = csym.resolvedSource$/;"	constants	line:235
-classBounds	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^                val classBounds = List[Type.Ref]() \/\/ XXX$/;"	constants	line:227
+classBounds	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^                val classBounds = List[Type.Ref]() \/\/ // FIXME$/;"	constants	line:227
 classDecl	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Parse.scala	/^    lazy val classDecl = positioned($/;"	constants	line:128
 classExt	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Config.scala	/^    val classExt = ".class"$/;"	constants	line:11
 classFiles	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/CompilationState.scala	/^        val classFiles = config.classFiles(qualName)$/;"	constants	line:116
@@ -1064,7 +1064,7 @@ summary	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.s
 summaryExpr	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^                val summaryExpr = summarizeSymbolsInExpr(summary, expr)$/;"	constants	line:400
 summaryTmpl	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^                val summaryTmpl = summarizeSymbolsInStmts(tmpl.stmts)$/;"	constants	line:370
 superClassNames	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^        val superClassNames = csym.superClassNames(state).toList$/;"	constants	line:1037
-superClassNames	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Symbol.scala	/^        def superClassNames(state: CompilationState) = List() \/\/ XXX TODO$/;"	methods	line:94
+superClassNames	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Symbol.scala	/^        def superClassNames(state: CompilationState) = List() \/\/ // FIXME TODO$/;"	methods	line:94
 superClassNames	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Symbol.scala	/^        def superClassNames(state: CompilationState) = List()$/;"	methods	line:40
 superClassNames	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Symbol.scala	/^        def superClassNames(state: CompilationState) = {$/;"	methods	line:131
 superClassNames	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Symbol.scala	/^        def superClassNames(state: CompilationState) = {$/;"	methods	line:67

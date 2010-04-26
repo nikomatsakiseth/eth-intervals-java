@@ -7,8 +7,9 @@ object Modifier {
     abstract class Mod(val bit: Int, val jBit: Int, val name: Name.Qual)
     case object Abstract extends Mod(1, jModifier.ABSTRACT, Name.Abstract)
     case object Mutable extends Mod(2, 0, Name.Mutable)
+    case object Override extends Mod(4, 0, Name.Override)
     
-    val All = List(Abstract, Mutable)
+    val All = List(Abstract, Mutable, Override)
     
     case class Set(mods: Int) {
         override def toString = "ModSet(%s)".format(toList.mkString(", "))

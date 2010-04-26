@@ -9,6 +9,7 @@ import Util._
 object Env {
     def empty(state: CompilationState) = Env(
         state = state,
+        thisTy = Type.Object,
         locals = Map(),
         pathRels = Nil,
         typeRels = Nil
@@ -20,6 +21,9 @@ object Env {
   * It stores information known by the compiler. */
 case class Env(
     state: CompilationState,
+    
+    /** Type of the this pointer */
+    thisTy: Type.Class,
     
     /** In-scope local variables. */
     locals: Map[Name.Var, Symbol.Var],
@@ -61,6 +65,8 @@ case class Env(
     
     def plusSyms(syms: Iterable[Symbol.Var]) = syms.foldLeft(this)(_ plusSym _)
 
+    def plusThis(thisTy: Type.Class, sym: Symbol.Var) = plusSym(sym).copy(thisTy = thisTy)
+    
     def plusPathRel(rel: (Path.Ref, PcRel, Path.Ref)) = copy(pathRels = rel :: pathRels)
 
     def plusPathRels(rels: List[(Path.Ref, PcRel, Path.Ref)]) = rels.foldLeft(this)(_ plusPathRel _)
@@ -106,7 +112,11 @@ case class Env(
     def lookupLocalOrError(name: Name.Var, optExpTy: Option[Type.Ref]) = 
         locals.get(name).getOrElse(Symbol.errorVar(name, optExpTy))
         
-    def lookupThis = locals(Name.ThisVar)
+    def lookupThis = 
+        locals(Name.ThisVar)
+    
+    def thisCsym = 
+        state.classes(thisTy.name)
     
     def lookupField(
         rcvrTy: Type.Ref, 
@@ -216,6 +226,8 @@ case class Env(
     class Bounder(Rel: TcRel) extends TransitiveCloser[Type.Ref] {
         protected[this] def successors(ty: Type.Ref) = ty match {
             case tyVar: Type.Var => typeVarBounds(tyVar)
+            case Type.Tuple(List()) => List(Type.Void)
+            case Type.Tuple(List(ty)) => List(ty)
             case _ => Nil
         }
 
@@ -224,7 +236,7 @@ case class Env(
             
             def boundsFromClassType(tyClass: Type.Class) = {
                 // Add bounds from class:
-                val classBounds = List[Type.Ref]() // XXX
+                val classBounds = List[Type.Ref]() // // FIXME
                 
                 // Add bounds from type arguments in tyClass:
                 tyClass.typeArgs.foldLeft(classBounds) { 
@@ -242,7 +254,6 @@ case class Env(
                         case _ => Nil
                     }
                 }
-                
                 case Type.Tuple(_) => Nil
                 case Type.Null => Nil
             }
@@ -411,9 +422,9 @@ case class Env(
     
 //    def isSubclass(ty_sub: Type.Ref, ty_sup: Type.Ref): Boolean = {
 //        (ty_sub, ty_sup) match {
-//            case (Type.Var(path_sub, var_sub), Type.Var(path_sup, var_sup)) => false // XXX
+//            case (Type.Var(path_sub, var_sub), Type.Var(path_sup, var_sup)) => false // // FIXME
 //            
-//            case (Type.Class(name_sub, args_sub), Type.Class(name_sup, arg_sup)) => false // XXX
+//            case (Type.Class(name_sub, args_sub), Type.Class(name_sup, arg_sup)) => false // // FIXME
 //                
 //            case (Type.Tuple(tys_sub), Type.Tuple(tys_sup)) => 
 //                tys_sub.zip(tys_sup).forall { case (s, t) => isSubclass(s, t) }

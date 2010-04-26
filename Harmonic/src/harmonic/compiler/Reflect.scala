@@ -9,7 +9,7 @@ import java.lang.reflect
 case class Reflect(state: CompilationState) {
     
     def typeArg(pair: (Name.Var, reflect.Type)): Option[Type.TypeArg] = pair match {
-        case (nm, wt: reflect.WildcardType) => { /* XXX: Allow multiple LB, UB? */
+        case (nm, wt: reflect.WildcardType) => { /* // FIXME: Allow multiple LB, UB? */
             val lbs = wt.getLowerBounds
             val ubs = wt.getUpperBounds
             if(!lbs.isEmpty) {
@@ -59,7 +59,7 @@ case class Reflect(state: CompilationState) {
     def ctorSymbol(clsName: Name.Qual)(mthd: reflect.Constructor[_]) = {
         new Symbol.Method(
             Modifier.forMember(mthd),
-            kind    = Symbol.JavaVirtual, // XXX 
+            kind    = Symbol.JavaVirtual, // // FIXME 
             clsName = clsName,
             name    = Name.InitMethod,
             Symbol.MethodSignature(
@@ -82,7 +82,7 @@ case class Reflect(state: CompilationState) {
     def methodSymbol(clsName: Name.Qual)(mthd: reflect.Method) = {
         new Symbol.Method(
             Modifier.forMember(mthd),
-            kind = Symbol.JavaVirtual, // XXX 
+            kind = Symbol.JavaVirtual, // // FIXME 
             clsName = clsName,
             name = Name.Method(List(mthd.getName)),
             Symbol.MethodSignature(

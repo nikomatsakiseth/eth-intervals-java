@@ -25,11 +25,14 @@ object Symbol {
     abstract class Class(
         val name: Name.Qual
     ) extends Ref {
+        def internalImplName: String
         def constructors(state: CompilationState): List[Symbol.Method]
         def superClassNames(state: CompilationState): List[Name.Qual]
         def methodsNamed(state: CompilationState)(name: Name.Method): List[Symbol.Method]
         def fieldNamed(state: CompilationState)(name: Name.Var): Option[Symbol.Var]
         def pos: Position
+        
+        def toType: Type.Class = Type.Class(name, List())
         
         override def toString = "%s(%s, %x)".format(
             getClass.getSimpleName, name, System.identityHashCode(this)
@@ -39,6 +42,7 @@ object Symbol {
     class ClassFromErroroneousSource(
         name: Name.Qual
     ) extends Class(name) {
+        def internalImplName = name.internalName
         def modifiers(state: CompilationState) = Modifier.Set.empty
         def constructors(state: CompilationState) = List()
         def superClassNames(state: CompilationState) = List()
@@ -51,6 +55,7 @@ object Symbol {
         name: Name.Qual,
         val file: java.io.File
     ) extends Class(name) {
+        def internalImplName = name.internalName
         var modifierSet = Modifier.Set.empty
         var loaded = false
         var constructors = List[Symbol.Method]()
@@ -96,6 +101,7 @@ object Symbol {
         name: Name.Qual,
         val cls: java.lang.Class[_]
     ) extends Class(name) {
+        def internalImplName = name.internalName
         var optCtors: Option[List[Symbol.Method]] = None
         var optMethods: Option[List[Symbol.Method]] = None
         var optFields: Option[List[Symbol.Var]] = None
@@ -106,7 +112,7 @@ object Symbol {
         def constructors(state: CompilationState) = {
             Reflect(state).ctors(this)
         }
-        def superClassNames(state: CompilationState) = List() // XXX TODO
+        def superClassNames(state: CompilationState) = List() // // FIXME TODO
         def methodsNamed(state: CompilationState)(name: Name.Method) = {
             Reflect(state).methodsNamed(this, name)
         }
@@ -118,6 +124,7 @@ object Symbol {
     class ClassFromInterFile(
         name: Name.Qual
     ) extends Class(name) {
+        def internalImplName = name.internalName + ByteCode.implSuffix
         var resolvedSource: Ast.Resolve.ClassDecl = null
         var loweredSource: Ast.Lower.ClassDecl = null
         var optCtorSymbol: Option[Symbol.Method] = None

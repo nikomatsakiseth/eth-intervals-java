@@ -74,6 +74,7 @@ object Name {
     
     val Abstract = Qual(lang + "Abstract")
     val Mutable = Qual(lang + "Mutable")
+    val Override = Qual(classOf[java.lang.Override])
 
     val BlockQual = Qual(classOf[harmonic.lang.Block[_, _]])
     val AsyncBlockQual = Qual(classOf[harmonic.lang.AsyncBlock[_, _]])

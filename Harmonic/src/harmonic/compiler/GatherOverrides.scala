@@ -15,7 +15,7 @@ case class GatherOverrides(state: CompilationState) {
         
         // Construct an environment for `csym`:
         var env = Env.empty(state)
-        env = env.plusClassDecl(csym.loweredSource) // XXX Need to add supertypes, etc
+        env = env.plusClassDecl(csym.loweredSource) // // FIXME Need to add supertypes, etc
         
         // For each method defined in `csym`, go through the methods 
         // with the same name defined in the superclasses and check

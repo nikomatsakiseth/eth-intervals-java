@@ -1,0 +1,46 @@
+package test.bytecode;
+
+@Abstract 
+class BytecodeSuper0 {
+    @Abstract 
+    value(): Integer;
+}
+
+class BytecodeSuper3 extends BytecodeSuper0 {
+    @Override
+    value(): Integer { 3 } // FIXME: Explicit types when overriding
+}
+
+class BytecodeSuper5 extends BytecodeSuper0 {
+    @Override
+    value(): Integer { 5 }
+}
+
+class BytecodeSuperAdd1 extends BytecodeSuper0 {
+    @Override
+    value(): Integer { super.value() + 1 }
+}
+
+class BytecodeSuper4 extends BytecodeSuperAdd1, BytecodeSuper3  {
+    @Override
+    value(): Integer { super.value() } // FIXME Search supertypes for impl
+}
+
+class BytecodeSuper6 extends BytecodeSuperAdd1, BytecodeSuper5  {
+    @Override
+    value(): Integer { super.value() } // FIXME Search supertypes for impl    
+}
+
+class BytecodeSuper extends Application {
+
+    main(): Object {
+        res3 = new BytecodeSuper3().value();
+        res4 = new BytecodeSuper4().value();
+        res5 = new BytecodeSuper5().value();
+        res6 = new BytecodeSuper6().value();
+        (1000 * res3) + ((100 * res4) + ((10 * res5) + res6))
+    }
+    
+}
+// EXECUTE
+// 3456
