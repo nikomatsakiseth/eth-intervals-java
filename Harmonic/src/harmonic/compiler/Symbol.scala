@@ -18,6 +18,7 @@ object Symbol {
     // ___ Types ____________________________________________________________    
     
     abstract class Ref {
+        def modifiers(state: CompilationState): Modifier.Set
         def isError: Boolean = false
     }
     
@@ -38,6 +39,7 @@ object Symbol {
     class ClassFromErroroneousSource(
         name: Name.Qual
     ) extends Class(name) {
+        def modifiers(state: CompilationState) = Modifier.Set.empty
         def constructors(state: CompilationState) = List()
         def superClassNames(state: CompilationState) = List()
         def methodsNamed(state: CompilationState)(name: Name.Method) = List()
@@ -49,6 +51,7 @@ object Symbol {
         name: Name.Qual,
         val file: java.io.File
     ) extends Class(name) {
+        var modifierSet = Modifier.Set.empty
         var loaded = false
         var constructors = List[Symbol.Method]()
         var superClassNames = List[Name.Qual]()
@@ -61,6 +64,11 @@ object Symbol {
                 LoadClassFile(state, this)
                 loaded = true
             }
+        }
+        
+        def modifiers(state: CompilationState) = {
+            load(state)
+            modifierSet
         }
         
         def constructors(state: CompilationState) = {
@@ -93,6 +101,8 @@ object Symbol {
         var optFields: Option[List[Symbol.Var]] = None
         def pos = InterPosition.forClass(cls)
         
+        def modifiers(state: CompilationState) = Modifier.forClass(cls)
+        
         def constructors(state: CompilationState) = {
             Reflect(state).ctors(this)
         }
@@ -117,11 +127,14 @@ object Symbol {
         
         def allMethodSymbols = methodSymbols.valuesIterator.toList.flatten
         
+        def modifiers(state: CompilationState) = Modifier.forResolvedAnnotations(resolvedSource.annotations)
+        
         def constructors(state: CompilationState) = {
             optCtorSymbol match {
                 case Some(ctorSymbol) => List(ctorSymbol)
                 case None => {
                     val ctorSymbol = new Symbol.Method(
+                        modifierSet = modifiers(state),
                         kind = Symbol.InterCtor,
                         clsName = name,
                         name = Name.InitMethod,
@@ -168,6 +181,7 @@ object Symbol {
     case object ErrorMethod extends MethodKind
     
     class Method(
+        val modifierSet: Modifier.Set,
         val kind: MethodKind,                   /** Intrinsic, harmonic, java, etc. */
         val clsName: Name.Qual,                 /** Class in which the method is defined. */
         val name: Name.Method,                  /** Name of the method. */
@@ -176,6 +190,8 @@ object Symbol {
         override def toString = "Method(%s, %x)".format(name, System.identityHashCode(this))
         
         def methodId = MethodId(clsName, name, msig.parameterPatterns)
+        
+        def modifiers(state: CompilationState) = modifierSet
         
         /** For methods whose source will be emitted, we compute the 
           * overridden methods.  The ordering is significant,
@@ -190,7 +206,13 @@ object Symbol {
         val parameterPatterns = name.parts.zipWithIndex.map { case (_, i) => 
             Pattern.Var(Name.Var("arg%d".format(i)), Type.Null)
         }
-        new Method(ErrorMethod, clsName, name, MethodSignature(Type.Null, Type.Null, parameterPatterns)) {
+        new Method(
+            Modifier.Set.empty,
+            ErrorMethod, 
+            clsName, 
+            name, 
+            MethodSignature(Type.Null, Type.Null, parameterPatterns)
+        ) {
             override def isError = true
         }
     }
@@ -205,15 +227,18 @@ object Symbol {
     }
     
     class Var(
+        val modifierSet: Modifier.Set,
         val name: Name.Var,
         val ty: Type.Ref
     ) extends Ref {
         override def toString = "Var(%s, %x)".format(name, System.identityHashCode(this))
+        def modifiers(state: CompilationState) = modifierSet
+        
     }
     
     def errorVar(name: Name.Var, optExpTy: Option[Type.Ref]) = {
         val ty = optExpTy.getOrElse(Type.Null)
-        new Var(name, ty) {
+        new Var(Modifier.Set.empty, name, ty) {
             override def isError = true
         }
     }

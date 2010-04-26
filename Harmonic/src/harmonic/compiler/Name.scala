@@ -59,6 +59,8 @@ object Name {
         override def toString = text
     }
     
+    private[this] val lang = "harmonic.lang."
+    
     val ThisVar = Name.Var("this")
     
     val MethodVar = Name.Var("method")
@@ -67,8 +69,11 @@ object Name {
     
     val ObjectQual = Qual(classOf[java.lang.Object])
 
-    val ArrayQual = Qual("inter.lang.Array")
+    val ArrayQual = Qual(lang + "Array")
     val ArrayElem = Var("E")
+    
+    val Abstract = Qual(lang + "Abstract")
+    val Mutable = Qual(lang + "Mutable")
 
     val BlockQual = Qual(classOf[harmonic.lang.Block[_, _]])
     val AsyncBlockQual = Qual(classOf[harmonic.lang.AsyncBlock[_, _]])

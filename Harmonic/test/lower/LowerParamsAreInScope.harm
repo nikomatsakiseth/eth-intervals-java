@@ -1,4 +1,4 @@
-package lower;
+package test.lower;
 
 class LowerParamsAreInScope {
     add(a: Integer, b: Integer): Void {

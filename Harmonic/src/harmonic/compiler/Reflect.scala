@@ -43,26 +43,28 @@ case class Reflect(state: CompilationState) {
     
     def fieldSymbol(fld: reflect.Field) = {
         new Symbol.Var(
-            name = Name.Var(fld.getName),
-            ty = typeRef(fld.getGenericType)
+            modifierSet = Modifier.forMember(fld),
+            name        = Name.Var(fld.getName),
+            ty          = typeRef(fld.getGenericType)
         )        
     }
     
     def paramPattern(pair: (reflect.Type, Int)) = {
         Pattern.Var(
             name = Name.Var("arg"+pair._2),
-            ty = typeRef(pair._1)
+            ty   = typeRef(pair._1)
         )
     }    
     
     def ctorSymbol(clsName: Name.Qual)(mthd: reflect.Constructor[_]) = {
         new Symbol.Method(
-            kind = Symbol.JavaVirtual, // XXX 
+            Modifier.forMember(mthd),
+            kind    = Symbol.JavaVirtual, // XXX 
             clsName = clsName,
-            name = Name.InitMethod,
+            name    = Name.InitMethod,
             Symbol.MethodSignature(
-                returnTy = Type.Void,
-                receiverTy = Type.Class(clsName, List()),
+                returnTy          = Type.Void,
+                receiverTy        = Type.Class(clsName, List()),
                 parameterPatterns = List(Pattern.Tuple(
                     mthd.getGenericParameterTypes.toList.zipWithIndex.map(paramPattern)))
             )
@@ -79,6 +81,7 @@ case class Reflect(state: CompilationState) {
     
     def methodSymbol(clsName: Name.Qual)(mthd: reflect.Method) = {
         new Symbol.Method(
+            Modifier.forMember(mthd),
             kind = Symbol.JavaVirtual, // XXX 
             clsName = clsName,
             name = Name.Method(List(mthd.getName)),

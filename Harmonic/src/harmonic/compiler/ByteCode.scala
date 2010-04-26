@@ -12,7 +12,8 @@ import Util._
 
 object ByteCode {
     val noSuffix = ""
-    val implSuffix = "$"    
+    val implSuffix = "$Impl"
+    val staticSuffix = "$Static"
 }
 
 /** The final step in compilation: generates appropriate 
@@ -20,14 +21,15 @@ object ByteCode {
   *
   * Given a class Foo, the following class files are generated:
   * - Foo.class: a Java interface defining all members of Foo
-  * - Foo$.class: a Java class defining static members for all 
-  *   of the method definitions in Foo.  It also contains instance
-  *   members making it suitable for use for any new statement
-  *   that does not define new members.
+  * - Foo$Impl.class: a Java class that implements Foo, suitable
+  *   for instantiation.  (Only if Foo is not abstract)
+  * - Foo$Static.class: a Java class defining static members for all 
+  *   of the method definitions in Foo.  
   */
 case class ByteCode(state: CompilationState) {
     import ByteCode.noSuffix
     import ByteCode.implSuffix
+    import ByteCode.staticSuffix
     
     // ___ Generating fresh, unique class names _____________________________
     
@@ -64,17 +66,60 @@ case class ByteCode(state: CompilationState) {
         case Type.Tuple(_) => asmObjectArrayType
         case _ => asmObjectType
     }
+
+    def downcastNeeded(toAsmTy: asm.Type, fromAsmTy: asm.Type): Boolean = {
+        toAsmTy != asmObjectType && toAsmTy != fromAsmTy
+    }
+    
+    def downcastNeeded(toTy: Type.Ref, fromTy: Type.Ref): Boolean = {
+        (toTy, fromTy) match {
+            case (Type.Class(toName, _), Type.Class(fromName, _)) => {
+                val toSym = state.classes(toName)
+                val fromSym = state.classes(fromName)
+                !Symbol.isSubclass(state, fromSym, toSym)
+            }
+            
+            case _ => downcastNeeded(asmType(toTy), asmType(fromTy))
+        }                    
+    }
     
     def asmClassType(name: Name.Qual) = asm.Type.getObjectType(name.internalName)
     
-    def methodDescFromSig(msig: Symbol.MethodSignature[Pattern.Anon]): String = {
+    def plainMethodDescFromSig(msig: Symbol.MethodSignature[Pattern.Anon]): String = {
         getMethodDescriptor(
             asmType(msig.returnTy), 
             msig.parameterPatterns.flatMap(_.varTys).map(asmType).toArray
         )
     }
     
+    def mroMethodDescFromSig(msig: Symbol.MethodSignature[Pattern.Anon]): String = {
+        getMethodDescriptor(
+            asmType(msig.returnTy), 
+            (asm.Type.INT_TYPE :: msig.parameterPatterns.flatMap(_.varTys).map(asmType)).toArray
+        )
+    }
+    
+    def staticMethodDescFromSym(msym: Symbol.Method): String = {
+        val ret = asmType(msym.msig.returnTy)
+        val rcvr = asm.Type.getObjectType(msym.clsName.internalName)
+        val params = msym.msig.parameterPatterns.flatMap(_.varTys).map(asmType)
+        getMethodDescriptor(ret, (rcvr :: asm.Type.INT_TYPE :: params).toArray)
+    }
+    
     sealed case class ExtendedMethodVisitor(mvis: asm.MethodVisitor) {
+        def complete {
+            mvis.visitMaxs(0, 0)
+            mvis.visitEnd
+        }
+        
+        def loadVar(index: Int, asmTy: asm.Type) = {
+            mvis.visitVarInsn(asmTy.getOpcode(O.ILOAD), index)
+        }
+        
+        def storeVar(index: Int, asmTy: asm.Type) = {
+            mvis.visitVarInsn(asmTy.getOpcode(O.ISTORE), index)
+        }
+        
         def pushIntegerConstant(value: Int) = value match {
             case 0 => mvis.visitInsn(O.ICONST_0)
             case 1 => mvis.visitInsn(O.ICONST_1)
@@ -93,28 +138,12 @@ case class ByteCode(state: CompilationState) {
             }                
         }
         
-        def downcast(ty: Type.Ref) {
-            downcast(asmType(ty))
+        def downcast(toTy: Type.Ref) {
+            downcast(asmType(toTy))
         }
         
-        def downcastIfNeeded(toAsmTy: asm.Type, fromAsmTy: asm.Type) {
-            if(toAsmTy != asmObjectType && toAsmTy != fromAsmTy)
-                downcast(toAsmTy)
-        }
-
         def downcastIfNeeded(toTy: Type.Ref, fromTy: Type.Ref) {
-            (toTy, fromTy) match {
-                case (Type.Class(toName, _), Type.Class(fromName, _)) => {
-                    val toSym = state.classes(toName)
-                    val fromSym = state.classes(fromName)
-                    if(!Symbol.isSubclass(state, fromSym, toSym))
-                        downcast(toTy)
-                }
-                
-                case _ => {
-                    downcastIfNeeded(asmType(toTy), asmType(fromTy))
-                }
-            }            
+            if(downcastNeeded(toTy, fromTy)) downcast(toTy)
         }
     }
     implicit def extendedMethodVisitor(mvis: asm.MethodVisitor) = ExtendedMethodVisitor(mvis)
@@ -134,6 +163,7 @@ case class ByteCode(state: CompilationState) {
             } else {
                 val sFile = fileWithExtension(".s")
                 try {
+                    sFile.getParentFile.mkdirs()
                     val writer = new java.io.FileWriter(sFile)
                     (new asm.util.TraceClassVisitor(cvis, new java.io.PrintWriter(writer)), Some(writer))
                 } catch {
@@ -145,8 +175,14 @@ case class ByteCode(state: CompilationState) {
 
             }
         }
+        
+        private[this] def check(cvis: asm.ClassVisitor) = {
+            if(state.config.checkBytecode) new asm.util.CheckClassAdapter(cvis, true)
+            else cvis            
+        }
 
         val writer = new asm.ClassWriter(asm.ClassWriter.COMPUTE_MAXS | asm.ClassWriter.COMPUTE_FRAMES)
+        val checker = check(writer)
         val (cvis, optTraceWriter) = trace(writer)
 
         def end() {
@@ -211,7 +247,7 @@ case class ByteCode(state: CompilationState) {
         asmType: asm.Type
     ) extends AccessPath {
         def push(mvis: asm.MethodVisitor) {
-            mvis.visitIntInsn(O.ALOAD, index)            
+            mvis.loadVar(index, asmType)
         }
         
         def pushLvalue(mvis: asm.MethodVisitor) {
@@ -222,7 +258,7 @@ case class ByteCode(state: CompilationState) {
         }
         
         def storeLvalueWithoutPush(mvis: asm.MethodVisitor) {
-            mvis.visitIntInsn(O.ASTORE, index)            
+            mvis.storeVar(index, asmType)
         } 
     }
     
@@ -295,10 +331,12 @@ case class ByteCode(state: CompilationState) {
     {
         val syms = new mutable.HashMap[Symbol.Var, AccessPath]()
         private[this] var maxSlot = 0
+        private[this] var highwater = 0
         
         def pathToFreshSlot(asmTy: asm.Type) = {
             val slot = maxSlot
             maxSlot += 1
+            highwater = highwater.max(maxSlot)
             AccessVar(slot, asmTy)
         }
         
@@ -313,6 +351,7 @@ case class ByteCode(state: CompilationState) {
         def withStashSlot(func: (Int => Unit)) {
             val stashSlot = maxSlot
             maxSlot += 1
+            highwater = highwater.max(maxSlot)
             func(stashSlot)
             maxSlot -= 1
         }
@@ -447,7 +486,7 @@ case class ByteCode(state: CompilationState) {
                     // Micro-optimize generated code to avoid using stashSlot:
                     val accessPath = accessMap.syms(sym)
                     accessPath.pushLvalue(mvis)
-                    pushExprValue(rvalue)
+                    pushExprValueDowncastingTo(lvalue.ty, rvalue)
                     accessPath.storeLvalue(mvis)
                 }
                 
@@ -465,6 +504,7 @@ case class ByteCode(state: CompilationState) {
           * and `c` would be pushed in that order.
           */
         def pushRvalues(lvalue: Pattern.Anon, rvalue: in.Expr) {
+            println("pushRvalues(%s, %s)".format(lvalue, rvalue))
             (lvalue, rvalue) match {
                 case (Pattern.AnonTuple(List(sublvalue)), _) =>
                     pushRvalues(sublvalue, rvalue)
@@ -477,8 +517,7 @@ case class ByteCode(state: CompilationState) {
                     sublvalues.zip(subexprs).foreach { case (l, e) => pushRvalues(l, e) }
                     
                 case _ => {
-                    pushExprValue(rvalue)
-                    mvis.downcastIfNeeded(lvalue.ty, rvalue.ty)
+                    pushExprValueDowncastingTo(lvalue.ty, rvalue)
                     expand(lvalue)
                 }
             }
@@ -508,9 +547,9 @@ case class ByteCode(state: CompilationState) {
             lvalue match {
                 case Pattern.AnonTuple(sublvalues) => {
                     accessMap.withStashSlot { stashSlot =>
-                        mvis.visitIntInsn(O.ASTORE, stashSlot) // Stack: ...
+                        mvis.visitVarInsn(O.ASTORE, stashSlot) // Stack: ...
                         sublvalues.zipWithIndex.foreach { case (sublvalue, idx) =>
-                            mvis.visitIntInsn(O.ALOAD, stashSlot) // Stack: ..., array
+                            mvis.visitVarInsn(O.ALOAD, stashSlot) // Stack: ..., array
                             mvis.pushIntegerConstant(idx) // Stack: ..., array, index
                             mvis.visitInsn(O.AALOAD) // Stack: ..., array[index]
                             mvis.downcast(sublvalue.ty) // Stack: ..., array[index]
@@ -536,6 +575,18 @@ case class ByteCode(state: CompilationState) {
                     accessPath.storeLvalueWithoutPush(mvis)
                 }
             }
+        }
+        
+        def pushExprValueDowncastingTo(toAsmTy: asm.Type, expr: in.Expr) {
+            pushExprValue(expr)
+            if(downcastNeeded(toAsmTy, asmType(expr.ty)))
+                mvis.downcast(toAsmTy)
+        }
+        
+        def pushExprValueDowncastingTo(toTy: Type.Ref, expr: in.Expr) {
+            pushExprValue(expr)
+            if(downcastNeeded(toTy, expr.ty))
+                mvis.downcast(toTy)
         }
         
         /** Evaluates `expr`, pushing the result onto the stack.
@@ -628,23 +679,22 @@ case class ByteCode(state: CompilationState) {
                     
                     def callWithOpcode(op: Int) = {
                         val ownerAsmType = asmType(msig.receiverTy)
-                        val desc = methodDescFromSig(msym.msig)
+                        val desc = plainMethodDescFromSig(msym.msig)
                         callWithDetails(op, ownerAsmType, desc)
                     }
                     
                     msym.kind match {
                         case Symbol.IntrinsicMath(mthdName, leftClass, rightClass, returnClass) => {
                             assert(parts.length == 1)
-                            pushExprValue(receiver)
-                            pushExprValue(parts.head.arg)
+                            val leftAsmTy = asm.Type.getType(leftClass)
+                            val rightAsmTy = asm.Type.getType(rightClass)
+                            pushExprValueDowncastingTo(leftAsmTy, receiver)
+                            pushExprValueDowncastingTo(rightAsmTy, parts.head.arg)
                             mvis.visitMethodInsn(
                                 O.INVOKESTATIC, 
                                 asm.Type.getType(classOf[IntrinsicMathGen]).getInternalName, 
                                 mthdName,
-                                getMethodDescriptor(
-                                    asm.Type.getType(returnClass),
-                                    Array(asm.Type.getType(leftClass), asm.Type.getType(rightClass))
-                                )
+                                getMethodDescriptor(asm.Type.getType(returnClass), Array(leftAsmTy, rightAsmTy))
                             )
                         }
                         
@@ -678,7 +728,7 @@ case class ByteCode(state: CompilationState) {
                         O.INVOKESPECIAL,
                         name.internalName,
                         Name.InitMethod.javaName,
-                        methodDescFromSig(msym.msig)
+                        plainMethodDescFromSig(msym.msig)
                     )
                 }
                 
@@ -851,10 +901,11 @@ case class ByteCode(state: CompilationState) {
             val tmplmvis = tmplwr.cvis.visitMethod(
                 O.ACC_PUBLIC,
                 Name.ValueMethod.javaName,
-                methodDescFromSig(methodSig),
+                plainMethodDescFromSig(methodSig),
                 null, // generic signature
                 null  // thrown exceptions
             )
+            tmplmvis.visitCode
             
             // Add parameters to the access map:
             //    If there are no parameter, there will still be one in the bytecode of type Void,
@@ -870,7 +921,7 @@ case class ByteCode(state: CompilationState) {
             // Visit the statements:
             val stmtVisitor = new StatementVisitor(derivedAccessMap, IntConstant(1), tmplmvis)
             stmtVisitor.returnResultOfStatements(tmpl.stmts)
-            tmplmvis.visitEnd
+            tmplmvis.complete
             
             // Emit a forwarding method from the interface version:
             val interfaceMethodSig = Symbol.MethodSignature(
@@ -882,6 +933,7 @@ case class ByteCode(state: CompilationState) {
                 className     = name, 
                 cvis          = tmplwr.cvis,
                 methodName    = Name.ValueMethod,
+                withMroIndex  = false,
                 masterSig     = methodSig,
                 overriddenSig = interfaceMethodSig
             )
@@ -921,11 +973,9 @@ case class ByteCode(state: CompilationState) {
     // expression passed to `pushRvalues()` would be `((Integer, Integer)) arg`
     // (mixing Java cast syntax with Harmonic types).
     
-    def addAdaptedParametersAndPush(
+    class ParameterAdapter(
         accessMap: AccessMap,
-        stmtVisitor: StatementVisitor,
-        srcPatterns: List[Pattern.Ref],
-        tarPatterns: List[Pattern.Ref]
+        srcPatterns: List[Pattern.Ref]
     ) {
         // Construct expressions mirroring the patterns of the source method.
         // Also create symbols for each of the src params and add them to `accessMap`.
@@ -938,23 +988,29 @@ case class ByteCode(state: CompilationState) {
                 in.Tuple(subpatterns.map(constructExprFromPattern))
                 
             case Pattern.Var(name, ty) => {
-                val sym = new Symbol.Var(name, ty)
+                val sym = new Symbol.Var(Modifier.Set.empty, name, ty)
                 accessMap.addUnboxedSym(sym)
                 in.Var(Ast.VarName(name.text), sym)
             }
         }
         val rvalues = srcPatterns.map(constructExprFromPattern)
         
-        // Push the values from each of the `rvalues` expressions onto the
-        // stack.  We have to first cast the rvalue to the target type, because
-        // the types of the source parameters may be supertypes of the target types.
-        tarPatterns.zip(rvalues).foreach { case (tarPattern, rvalue) =>
-            // Hack: just use in.Null for typeRef param which is not important here.
-            val casted = in.Cast(rvalue, in.NullType(), masterPattern.ty)
-            stmtVisitor.pushRvalues(tarPattern, rvalue)
+        def adaptTo(tarPatterns: List[Pattern.Ref], stmtVisitor: StatementVisitor) {
+            // Push the values from each of the `rvalues` expressions onto the
+            // stack.  We may have to cast the rvalue to the target type, because
+            // the types of the source parameters may be supertypes of the target types.
+            tarPatterns.zip(rvalues).foreach { case (tarPattern, rvalue) =>
+                // Hack: just use in.Null for typeRef param which is not important here.
+                val casted = 
+                    if(downcastNeeded(tarPattern.ty, rvalue.ty))
+                        in.Cast(rvalue, in.NullType(), tarPattern.ty)
+                    else 
+                        rvalue
+                stmtVisitor.pushRvalues(tarPattern, casted)
+            }
         }
     }
-
+    
     /** Due to generic types and erasure, we often end up with methods whose 
       * signature is more specialized in the subtype than in the supertype.
       * The interface Block, for example, defines a method Object value(Object arg).
@@ -965,11 +1021,13 @@ case class ByteCode(state: CompilationState) {
         className: Name.Qual,
         cvis: asm.ClassVisitor, 
         methodName: Name.Method,
+        withMroIndex: Boolean,
         masterSig: Symbol.MethodSignature[Pattern.Ref],
         overriddenSig: Symbol.MethodSignature[Pattern.Ref]
     ) {
-        val masterDesc = methodDescFromSig(masterSig)
-        val overriddenDesc = methodDescFromSig(overriddenSig)
+        val descFunc = if(withMroIndex) mroMethodDescFromSig _ else plainMethodDescFromSig _
+        val masterDesc = descFunc(masterSig)
+        val overriddenDesc = descFunc(overriddenSig)
         println("writeForwardingMethodIfNeeded:")
         println("  masterDesc = %s".format(masterDesc))
         println("  overriddenDesc = %s".format(overriddenDesc))
@@ -984,14 +1042,20 @@ case class ByteCode(state: CompilationState) {
             null, // generic signature
             null  // thrown exceptions
         )
+        mvis.visitCode
         
         // Push this pointer and adapted forms of the parameters:
         val accessMap = new AccessMap(className)
         val thisPtr = accessMap.pathToFreshSlot(asmType(Type.Class(className, List()))) // reserve this ptr
+        
+        if(withMroIndex) {
+            val mroIndex = accessMap.pathToFreshSlot(asm.Type.INT_TYPE)
+            mroIndex.push(mvis)
+        }
+            
+        val adapter = new ParameterAdapter(accessMap, overriddenSig.parameterPatterns)
         val stmtVisitor = new StatementVisitor(accessMap, IntConstant(0), mvis)
-        addAdaptedParametersAndPush(
-            accessMap, stmtVisitor, 
-            overriddenSig.parameterPatterns, masterSig.parameterPatterns)
+        adapter.adaptTo(masterSig.parameterPatterns, stmtVisitor)
         
         // Invoke master version of the method and return its result:
         mvis.visitMethodInsn(
@@ -1001,138 +1065,32 @@ case class ByteCode(state: CompilationState) {
             masterDesc
         )
         mvis.visitInsn(O.ARETURN)
-        mvis.visitEnd
+        mvis.complete
     }        
     
-    // ___ Methods __________________________________________________________
-    
-    /** Generates a static method which contains the actual implementation. */
-    def writeStaticMethodImpl(
-        csym: Symbol.ClassFromInterFile, 
-        cvis: asm.ClassVisitor, 
-        decl: in.MethodDecl
-    ) {
-        val returnAsmTy = asmType(decl.returnTy)
-        val receiverAsmTy = asm.Type.getObjectType(csym.name.internalName)
-        val paramAsmTys = methodParameterTypes(decl.params).map(asmType)
-        val methodDesc = getMethodDescriptor(returnAsmTy, (receiverAsmTy :: asm.Type.INT_TYPE :: paramAsmTys).toArray)
-        val mvis = cvis.visitMethod(
-            O.ACC_PUBLIC + O.ACC_STATIC,
-            decl.name.javaName,
-            methodDesc,
-            null, // generic signature
-            null  // thrown exceptions
-        )
-        
-        val accessMap = new AccessMap(csym.name)
-        accessMap.addUnboxedSym(decl.receiverSym)
-        val nextMro = accessMap.pathToFreshSlot(asm.Type.INT_TYPE)
-        decl.params.flatMap(_.symbols).foreach(accessMap.addUnboxedSym)
-        
-        decl.optBody match { 
-            case Some(body) => {
-                // Construct access map:
-                addSymbolsDeclaredIn(accessMap, body.stmts, mvis)
-
-                // Emit statements:
-                val stmtVisitor = new StatementVisitor(accessMap, nextMro, mvis)
-                stmtVisitor.returnResultOfStatements(body.stmts)                
-            }
-            
-            case None => {
-                // Abstract: simply invoke next version.
-                // XXX Do we ever need to do adaption, etc?
-                accessMap.pushSym(decl.receiverSym, mvis)
-                nextMro.push(mvis)
-                decl.params.flatMap(_.symbols).foreach(accessMap.pushSym(_, mvis))
-                mvis.visitMethodInsn(
-                    O.INVOKEINTERFACE,
-                    csym.name.internalName,
-                    decl.name.javaName,
-                    methodDesc
-                )
-                mvis.visitInsn(O.ARETURN)
-            }
-        }
-        mvis.visitEnd
-    }
-    
-    /** The default version of a method simply takes all the user-
-      * specified arguments. */
-    def visitPlainMethod(
-        csym: Symbol.ClassFromInterFile, 
-        cvis: asm.ClassVisitor, 
-        msym: Symbol.Method,
-        opts: Int
-    ) = {
-        val returnAsmTy = asmType(msym.msig.returnTy)
-        val paramAsmTys = msym.msig.parameterPatterns.flatMap(_.varTys).map(asmType)
-        cvis.visitMethod(
-            opts + O.ACC_PUBLIC,
-            msym.name.javaName,
-            getMethodDescriptor(returnAsmTy, paramAsmTys.toArray),
-            null, // generic signature
-            null  // thrown exceptions
-        }        
-    }
-    
-    /** We generate an additional version of every method
-      * which has one preliminary argument, `int mro`.  
-      * `mro` is used for super calls: it indicates the
-      * index of the next item in the Method Resolution Order (MRO). */
-    def visitMethodWithMro(
-        csym: Symbol.ClassFromInterFile, 
-        cvis: asm.ClassVisitor, 
-        msym: Symbol.Method,
-        opts: Int
-    ) = {
-        val returnAsmTy = asmType(msym.msig.returnTy)
-        val paramAsmTys = msym.msig.parameterPatterns.flatMap(_.varTys).map(asmType)
-        cvis.visitMethod(
-            opts + O.ACC_PUBLIC,
-            msym.name.javaName,
-            getMethodDescriptor(returnAsmTy, (asm.Type.INT_TYPE :: paramAsmTys).toArray),
-            null, // generic signature
-            null  // thrown exceptions
-        )
-    }
-    
-    /** Generates corresponding entries in the interface for a
-      * given Harmonic class.  For each user-defined method there
-      * are several generated methods.  This includes the "plain"
-      * and "nextMro" methods described above but also various 
-      * forwarding methods that come about through erasure. */
-    def writeMethodInterface(
-        csym: Symbol.ClassFromInterFile, 
-        cvis: asm.ClassVisitor, 
-        msym: Symbol.Method,
-        decl: in.MethodDecl
-    ) {
-        // Default version:
-        val mvisPlain = visitPlainMethod(csym, cvis, decl, O.ACC_ABSTRACT)
-        mvisPlain.visitEnd
-
-        // "Super" version takes an initial integer indicating the version 
-        // of the method to be invoked. 0 == current version, 1 == next in MRO, etc
-        val mvisMro = visitMethodWithNextMro(csym, cvis, decl, O.ACC_ABSTRACT)
-        mvisMro.visitEnd
-    }
-    
-    /** Generates the actual implementation methods on a class.
-      * These methods switch using the "mro" parameter and 
-      * invoke the appropriate static method. */
-    def writeMethodDispatch(
+    /** Emits forwarding methods for each method overridden by `msym` 
+      * whose signature has a different method descriptor.  This includes
+      * both a default and a MRO version. */
+    def writeForwardingMethods(
         csym: Symbol.ClassFromInterFile, 
         cvis: asm.ClassVisitor,
         msym: Symbol.Method
     ) {
-        val mvisPlain = visitPlainMethod(csym, cvis, msym)
-        val thisPtr = accessMap.pathToFreshSlot(asmType(Type.Class(className, List()))) // reserve this ptr
-        thisPtr.push(mvisPlain)     // this ptr
-        mvis.pushIntegerConstant(0) // index for 'mro'
-        val paramAsmTys = msym.msig.parameterPatterns.flatMap(_.varTys).map(asmType)
-        
+        msym.overrides.foreach { overriddenMsym =>
+            List(true, false).foreach { withMroIndex =>
+                writeForwardingMethodIfNeeded(
+                    className     = csym.name,
+                    cvis          = cvis,
+                    methodName    = msym.name,
+                    withMroIndex  = withMroIndex,
+                    masterSig     = msym.msig,
+                    overriddenSig = overriddenMsym.msig
+                )                
+            }
+        }
     }
+    
+    // ___ Methods __________________________________________________________
     
     def addSymbolsDeclaredIn(
         accessMap: AccessMap, 
@@ -1149,6 +1107,243 @@ case class ByteCode(state: CompilationState) {
         boxedArray.createArrayIfNeeded(mvis)
     }
 
+    /** Generates a static method which contains the actual implementation. */
+    def writeStaticMethodImpl(
+        csym: Symbol.ClassFromInterFile, 
+        cvis: asm.ClassVisitor, 
+        msym: Symbol.Method,
+        decl: in.MethodDecl
+    ) {
+        decl.optBody.foreach { body => // Only for non-abstract methods:
+            val mvis = cvis.visitMethod(
+                O.ACC_PUBLIC + O.ACC_STATIC,
+                decl.name.javaName,
+                staticMethodDescFromSym(msym),
+                null, // generic signature
+                null  // thrown exceptions
+            )
+            mvis.visitCode
+
+            val accessMap = new AccessMap(csym.name)
+            accessMap.addUnboxedSym(decl.receiverSym)
+            val nextMro = accessMap.pathToFreshSlot(asm.Type.INT_TYPE)
+            decl.params.flatMap(_.symbols).foreach(accessMap.addUnboxedSym)
+
+            // Construct access map:
+            addSymbolsDeclaredIn(accessMap, body.stmts, mvis)
+
+            // Emit statements:
+            val stmtVisitor = new StatementVisitor(accessMap, nextMro, mvis)
+            stmtVisitor.returnResultOfStatements(body.stmts)                
+            mvis.complete
+        }
+    }
+    
+    /** The default version of a method simply takes all the user-
+      * specified arguments. */
+    def visitPlainMethod(
+        csym: Symbol.ClassFromInterFile, 
+        cvis: asm.ClassVisitor, 
+        msym: Symbol.Method,
+        opts: Int
+    ) = {
+        val mvis = cvis.visitMethod(
+            opts + O.ACC_PUBLIC,
+            msym.name.javaName,
+            plainMethodDescFromSig(msym.msig),
+            null, // generic signature
+            null  // thrown exceptions
+        )
+        mvis.visitCode
+        mvis
+    }
+    
+    /** We generate an additional version of every method
+      * which has one preliminary argument, `int mro`.  
+      * `mro` is used for super calls: it indicates the
+      * index of the next item in the Method Resolution Order (MRO). */
+    def visitMethodWithMro(
+        csym: Symbol.ClassFromInterFile, 
+        cvis: asm.ClassVisitor, 
+        msym: Symbol.Method,
+        opts: Int
+    ) = {
+        val mvis = cvis.visitMethod(
+            opts + O.ACC_PUBLIC,
+            msym.name.javaName,
+            mroMethodDescFromSig(msym.msig),
+            null, // generic signature
+            null  // thrown exceptions
+        )
+        mvis.visitCode
+        mvis
+    }
+    
+    /** Generates corresponding entries in the interface for a
+      * given Harmonic class.  For each user-defined method there
+      * are several generated methods.  This includes the "plain"
+      * and "nextMro" methods described above but also various 
+      * forwarding methods that come about through erasure. */
+    def writeMethodInterface(
+        csym: Symbol.ClassFromInterFile, 
+        cvis: asm.ClassVisitor, 
+        msym: Symbol.Method
+    ) {
+        val mvisPlain = visitPlainMethod(csym, cvis, msym, O.ACC_ABSTRACT)
+        mvisPlain.complete
+        val mvisMro = visitMethodWithMro(csym, cvis, msym, O.ACC_ABSTRACT)
+        mvisMro.complete
+    }
+    
+    /** Generates the actual implementation methods on a class.
+      * These methods switch using the "mro" parameter and 
+      * invoke the appropriate static method. 
+      *
+      * Given a method String add(Integer x, Integer y), this would generate: 
+      *   String add(Integer x, Integer y) { return add(0, x, y); }
+      */
+    def writePlainToMroDispatch(
+        csym: Symbol.ClassFromInterFile, 
+        cvis: asm.ClassVisitor,
+        msym: Symbol.Method
+    ) {
+        val mvis = visitPlainMethod(csym, cvis, msym, 0)
+        val accessMap = new AccessMap(csym.name)
+        val thisPtr = accessMap.pathToFreshSlot(asmType(Type.Class(csym.name, List()))) // reserve this ptr
+        val adapter = new ParameterAdapter(accessMap, msym.msig.parameterPatterns)
+        thisPtr.push(mvis) // push this ptr
+        mvis.pushIntegerConstant(0) // push default index for 'mro'
+        val stmtVisitor = new StatementVisitor(accessMap, IntConstant(0), mvis)
+        adapter.adaptTo(msym.msig.parameterPatterns, stmtVisitor) // push parameters
+        mvis.visitMethodInsn(
+            O.INVOKEINTERFACE,
+            csym.name.internalName,
+            msym.name.javaName,
+            mroMethodDescFromSig(msym.msig)
+        )
+        mvis.visitInsn(O.ARETURN)
+        mvis.complete
+    }
+    
+    /** Computes the symbols that can be invoked from a `super` call
+      * of `masterMsym`.  */
+    def computeSupers(
+        /** The method whose super-versions we are computing. */
+        masterMsym: Symbol.Method,
+        
+        /** List of superclasses, in order. */
+        mro: List[Symbol.Class], 
+        
+        /** Methods overridden by `masterMsym`.  Ordered by the class
+          * in which they are defined in M.R.O. */
+        overrides: List[Symbol.Method]
+    ): List[Option[Symbol.Method]] = {
+        mro match {
+            case List() => List()
+            case csym :: tl => {
+                val matching = overrides.takeWhile(_.clsName == csym.name)
+                val remaining = overrides.drop(matching.length)
+                val nonabstract = matching.filter(_.modifiers(state).isNonAbstract)
+                nonabstract match {
+                    case List() => None :: computeSupers(masterMsym, tl, remaining)
+                    case msyms => {
+                        // XXX Should pick the symbol whose signature best matches
+                        // XXX masterMsym.  For now we just pick the first though :)
+                        Some(msyms.head) :: computeSupers(masterMsym, tl, remaining)
+                    }
+                }
+            }
+        }
+    }
+    
+    /** Writes the "master method" for `msym`, which simply takes the 
+      * current index into the MRO and dispatches to the appropriate
+      * static function.  The static functions are defined in 
+      * `writeStaticMethodImpl`. */
+    def writeMroMethodImpl(
+        csym: Symbol.ClassFromInterFile, 
+        cvis: asm.ClassVisitor,
+        msym: Symbol.Method
+    ) {
+        val mvis = visitMethodWithMro(csym, cvis, msym, 0)
+        val accessMap = new AccessMap(csym.name)
+        val thisPtr = accessMap.pathToFreshSlot(asmType(Type.Class(csym.name, List())))
+        val mroInt = accessMap.pathToFreshSlot(asm.Type.INT_TYPE) 
+        val adapter = new ParameterAdapter(accessMap, msym.msig.parameterPatterns)
+        
+        // compute all versions of 'msym', indexed by mro.
+        val msyms = Some(msym) :: computeSupers(
+            masterMsym = msym, 
+            mro        = MethodResolutionOrder(state).forSym(csym).tail, 
+            overrides  = msym.overrides.toList
+        )
+        
+        // emit table switch
+        val dfltLabel = new asm.Label()
+        val labels = msyms.map(_ => new asm.Label()).toArray
+        mroInt.push(mvis)
+        mvis.visitTableSwitchInsn(0, msyms.length - 1, dfltLabel, labels)
+        
+        // every other version: forward as appropriate
+        msyms.zip(labels).zipWithIndex.foreach { 
+            case ((Some(verMsym), verLabel), verInt) => {
+                // Method defined for this version: 
+                //    invoke static impl
+                mvis.visitLabel(verLabel)
+                thisPtr.push(mvis)                      // push this ptr
+                mvis.pushIntegerConstant(verInt + 1)    // push next MRO
+                val stmtVisitor = new StatementVisitor(accessMap, IntConstant(verInt + 1), mvis)
+                adapter.adaptTo(verMsym.msig.parameterPatterns, stmtVisitor) // push args
+                mvis.visitMethodInsn(
+                    O.INVOKESTATIC,
+                    verMsym.clsName.internalName + staticSuffix,
+                    verMsym.name.javaName,
+                    staticMethodDescFromSym(verMsym)
+                ) // invoke appropriate static implementation
+                mvis.visitInsn(O.ARETURN)                
+            }
+            
+            case ((None, verLabel), verInt) => {
+                // No method defined for this version: 
+                //    fall through to the next one
+                mvis.visitLabel(verLabel) 
+            }
+        }
+        
+        // default: just return NULL
+        mvis.visitLabel(dfltLabel)
+        mvis.visitInsn(O.ACONST_NULL)
+        mvis.visitInsn(O.ARETURN)
+        
+        mvis.complete
+    }
+    
+    def writeImplCtor(
+        csym: Symbol.ClassFromInterFile, 
+        cvis: asm.ClassVisitor
+    ) {
+        // XXX We have to figure out our ctor model.
+        val pattern = csym.loweredSource.pattern
+        val asmArgTys = in.toPattern(pattern).varTys.map(asmType).toArray
+        val mvis = cvis.visitMethod(
+            O.ACC_PUBLIC,
+            Name.InitMethod.javaName,
+            getMethodDescriptor(asm.Type.VOID_TYPE, asmArgTys),
+            null, // generic signature
+            null  // thrown exceptions
+        )
+        mvis.visitCode
+        mvis.visitVarInsn(O.ALOAD, 0)
+        mvis.visitMethodInsn(
+            O.INVOKESPECIAL,
+            asmObjectType.getInternalName,
+            Name.InitMethod.javaName,
+            "()V"
+        )
+        mvis.visitInsn(O.RETURN)
+        mvis.complete
+    }
+    
     // ___ Classes __________________________________________________________
     
     def writeInterClassInterface(csym: Symbol.ClassFromInterFile) {
@@ -1165,15 +1360,14 @@ case class ByteCode(state: CompilationState) {
             superClassNames.map(_.internalName).toArray
         )
         
-        csym.loweredSource.members.foreach {
-            case decl: in.MethodDecl => writeInterMethodInterface(csym, cvis, decl)
-            case _ =>
+        csym.allMethodSymbols.foreach { msym =>
+            writeMethodInterface(csym, cvis, msym)
         }
         
         wr.end()
     }
     
-    def writeInterClassImpl(csym: Symbol.ClassFromInterFile) {
+    def writeImplClass(csym: Symbol.ClassFromInterFile) {
         val wr = new ClassWriter(csym.name, implSuffix)
         import wr.cvis
 
@@ -1186,9 +1380,33 @@ case class ByteCode(state: CompilationState) {
             Array(csym.name.internalName)
         )
         
-        csym.loweredSource.members.foreach {
-            case decl: in.MethodDecl => writeInterMethodImpl(csym, cvis, decl)
-            case _ =>
+        writeImplCtor(csym, cvis)
+        
+        csym.allMethodSymbols.foreach { msym =>
+            writePlainToMroDispatch(csym, cvis, msym)
+            writeMroMethodImpl(csym, cvis, msym)
+            writeForwardingMethods(csym, cvis, msym)
+        }
+        
+        wr.end()
+    }
+    
+    def writeStaticClass(csym: Symbol.ClassFromInterFile) {
+        val wr = new ClassWriter(csym.name, staticSuffix)
+        import wr.cvis
+
+        cvis.visit(
+            O.V1_5,
+            O.ACC_PUBLIC,
+            csym.name.internalName + staticSuffix,
+            null, // XXX Signature
+            "java/lang/Object",
+            Array(csym.name.internalName)
+        )
+        
+        csym.allMethodSymbols.foreach { msym =>
+            val mdecl = csym.loweredMethods(msym.methodId)
+            writeStaticMethodImpl(csym, cvis, msym, mdecl)
         }
         
         wr.end()
@@ -1196,7 +1414,8 @@ case class ByteCode(state: CompilationState) {
     
     def writeClassSymbol(csym: Symbol.ClassFromInterFile) = {
         writeInterClassInterface(csym)
-        writeInterClassImpl(csym)
+        writeImplClass(csym)
+        writeStaticClass(csym)
     }
     
 }

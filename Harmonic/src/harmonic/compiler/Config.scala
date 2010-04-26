@@ -17,6 +17,7 @@ class Config
     var dumpResolvedTrees = false
     var dumpLoweredTrees = false
     var dumpBytecode = false
+    var checkBytecode = false
     var ignoreErrors = false
     var useReflection = true
     var localize = false
@@ -38,6 +39,7 @@ class Config
         err.printf("  --dump-resolved-trees\n")
         err.printf("  --dump-lowered-trees\n")
         err.printf("  --dump-bytecode\n")
+        err.printf("  --check-bytecode\n")
         err.printf("  --ignore-errors\n")
     }
     
@@ -94,6 +96,9 @@ class Config
                     i += 1
                 } else if(args(i) == "--dump-bytecode") {
                     dumpBytecode = true
+                    i += 1
+                } else if(args(i) == "--check-bytecode") {
+                    checkBytecode = true
                     i += 1
                 } else if(args(i) == "--ignore-errors") {
                     ignoreErrors = true

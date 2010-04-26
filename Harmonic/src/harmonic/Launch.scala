@@ -60,7 +60,8 @@ object Launch {
                 }
                 
                 val app = ctor.newInstance().asInstanceOf[Application]
-                app.main(appArgs.toArray)
+                val res = app.main() //appArgs.toArray)
+                if(res != null) out.printf("%s\n", res)
             } catch {
                 case UsageError(msg) => {
                     err.printf("harm: Launch tool for the Harmonic Language, version %s\n", version)

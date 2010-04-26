@@ -774,6 +774,11 @@ object Ast {
             case TupleLvalue(lvalues, _) => Pattern.Tuple(lvalues.map(toPattern))
             case VarLvalue(_, _, name, sym) => Pattern.Var(name.name, sym.ty)
         }
+        
+        def methodId(clsName: Name.Qual, mdecl: MethodDecl) = {
+            Symbol.MethodId(clsName, mdecl.name, mdecl.params.map(toPattern))
+        }
+            
     }
 
 }

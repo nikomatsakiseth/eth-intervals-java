@@ -1,4 +1,4 @@
-package resolve;
+package test.resolve;
 
 import some.cls.that.does.not.exist; // ERROR cannot.find.class(some.cls.that.does.not.exist)
 import another.cls.that.does.not.exist -> another; // ERROR cannot.find.class(another.cls.that.does.not.exist)

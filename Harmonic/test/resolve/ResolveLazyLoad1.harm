@@ -1,4 +1,4 @@
-package resolve;
+package test.resolve;
 
 class ResolveLazyLoad1 {
 }

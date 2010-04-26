@@ -2,6 +2,6 @@ package harmonic.lang;
 
 public interface Application {
     
-    public void main(String[] args);
+    public Object main(); // XXX Add args
   
 }

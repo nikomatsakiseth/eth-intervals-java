@@ -1,4 +1,4 @@
-package resolve;
+package test.resolve;
 
 @Abstract class ResolveInvalidImport {
     @Var a: Integer;

@@ -48,6 +48,7 @@ object Intrinsic {
             for((interName, javaName) <- mathOps) {
                 state.addIntrinsic(
                     new Symbol.Method(
+                        modifierSet = Modifier.Set.empty,
                         kind = Symbol.IntrinsicMath(javaName, leftClass, rightClass, returnClass),
                         clsName = leftTy.name,
                         name = interName, 
@@ -100,6 +101,7 @@ object Intrinsic {
         // (boolean) if {...}
         state.addIntrinsic(
             new Symbol.Method(
+                modifierSet = Modifier.Set.empty,
                 kind = Symbol.IntrinsicControlFlow(
                     "if_",
                     Array(booleanClass, templateClass),
@@ -120,6 +122,7 @@ object Intrinsic {
         // (Object) ifNull {...}
         state.addIntrinsic(
             new Symbol.Method(
+                modifierSet = Modifier.Set.empty,
                 kind = Symbol.IntrinsicControlFlow(
                     "ifNull",
                     Array(objectClass, templateClass),
@@ -140,6 +143,7 @@ object Intrinsic {
         // (boolean) if {...} else {...}
         state.addIntrinsic(
             new Symbol.Method(
+                modifierSet = Modifier.Set.empty,
                 kind = Symbol.IntrinsicControlFlow(
                     "ifElse",
                     Array(booleanClass, templateClass, templateClass),
@@ -161,6 +165,7 @@ object Intrinsic {
         // (Object) ifNull {...} else {...}
         state.addIntrinsic(
             new Symbol.Method(
+                modifierSet = Modifier.Set.empty,
                 kind = Symbol.IntrinsicControlFlow(
                     "ifNullElse",
                     Array(objectClass, templateClass, templateClass),
@@ -183,6 +188,7 @@ object Intrinsic {
         val typeT = Type.Var(Path.This, Name.Var("T"))
         state.addIntrinsic(
             new Symbol.Method(
+                modifierSet = Modifier.Set.empty,
                 kind = Symbol.IntrinsicControlFlow(
                     "forEach",
                     Array(iterableClass, templateClass),
@@ -206,6 +212,7 @@ object Intrinsic {
         // (Block<Boolean,_>) while { ... }
         state.addIntrinsic(
             new Symbol.Method(
+                modifierSet = Modifier.Set.empty,
                 kind = Symbol.IntrinsicControlFlow(
                     "while_",
                     Array(templateClass, templateClass),

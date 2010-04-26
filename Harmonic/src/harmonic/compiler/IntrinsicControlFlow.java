@@ -2,7 +2,7 @@ package harmonic.compiler;
 
 import harmonic.lang.Block;
 
-class IntrinsicControlFlow {
+public class IntrinsicControlFlow {
     
     public static Void if_(
         Boolean value,

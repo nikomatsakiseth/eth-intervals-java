@@ -1,0 +1,11 @@
+package test.bytecode;
+
+class BytecodeSeven extends Application {
+
+    main(): Object {
+        3 + 4
+    }
+    
+}
+// EXECUTE
+// 7

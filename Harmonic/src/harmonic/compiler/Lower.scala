@@ -126,7 +126,7 @@ case class Lower(state: CompilationState) {
         mthdName: Name.Method
     ) = {
         def forMethodDecl(mdecl: in.MethodDecl) = mdecl match {
-            case in.MethodDecl(_, _, _, in.InferredTypeRef(), _, _, _) => {
+            case in.MethodDecl(annotations, _, _, in.InferredTypeRef(), _, _, _) => {
                 val memberId = methodId(csym, mdecl)
 
                 if(state.inferStack(memberId)) {
@@ -142,6 +142,7 @@ case class Lower(state: CompilationState) {
                 } else {
                     val outMdecl = lowerMethodDecl(csym, mdecl)
                     new Symbol.Method(
+                        modifierSet = Modifier.forResolvedAnnotations(annotations),
                         kind = Symbol.Inter,
                         clsName = csym.name,
                         name = mthdName,
@@ -154,8 +155,9 @@ case class Lower(state: CompilationState) {
                 }
             }
             
-            case in.MethodDecl(_, _, parts, returnTy: in.TypeRef, _, _, _) => {
+            case in.MethodDecl(annotations, _, parts, returnTy: in.TypeRef, _, _, _) => {
                 new Symbol.Method(
+                    modifierSet = Modifier.forResolvedAnnotations(annotations),
                     kind = Symbol.Inter,
                     clsName = csym.name,
                     name = mthdName,
@@ -175,7 +177,7 @@ case class Lower(state: CompilationState) {
     }
     
     def ThisEnv(csym: Symbol.ClassFromInterFile) = {
-        emptyEnv.plusSym(new Symbol.Var(Name.ThisVar, Type.Class(csym.name, List())))
+        emptyEnv.plusSym(new Symbol.Var(Modifier.Set.empty, Name.ThisVar, Type.Class(csym.name, List())))
     }
     
     def ThisScope(csym: Symbol.ClassFromInterFile) = {
@@ -186,7 +188,7 @@ case class Lower(state: CompilationState) {
         cdecl: Ast.Resolve.ClassDecl
     ): out.ClassDecl = {
         val csym = state.classes(cdecl.name.qualName).asInstanceOf[Symbol.ClassFromInterFile]
-        withPosOf(cdecl, out.ClassDecl(
+        val result = withPosOf(cdecl, out.ClassDecl(
             name = cdecl.name,
             annotations = cdecl.annotations.map(ThisScope(csym).lowerAnnotation),
             superClasses = cdecl.superClasses,
@@ -194,6 +196,12 @@ case class Lower(state: CompilationState) {
             members = cdecl.members.map(lowerMemberDecl(csym, _)),
             sym = csym
         ))
+        
+        // Make sure that we create all symbols:
+        val methodNames = csym.loweredMethods.valuesIterator.map(_.name)
+        methodNames.foreach(name => csym.methodsNamed(state)(name))
+        
+        result
     }
     
     def lowerMemberDecl(
@@ -238,7 +246,7 @@ case class Lower(state: CompilationState) {
             assert(!state.inferStack(memberId))
             state.inferStack += memberId
 
-            val receiverSym = new Symbol.Var(Name.ThisVar, Type.Class(clsName, List()))
+            val receiverSym = new Symbol.Var(Modifier.Set.empty, Name.ThisVar, Type.Class(clsName, List()))
             val parameterPatterns = mdecl.params.map(symbolPattern)
             val parameterSyms = parameterPatterns.flatMap(Pattern.createVarSymbols)
             val env = emptyEnv.plusSyms(receiverSym :: parameterSyms)
@@ -513,7 +521,7 @@ case class Lower(state: CompilationState) {
                                 anns.map(lowerAnnotation),
                                 astType(env)(inTref, ty),
                                 name,
-                                new Symbol.Var(name.name, ty)
+                                new Symbol.Var(Modifier.Set.empty, name.name, ty)
                             )                            
                         }
                     }
@@ -534,7 +542,7 @@ case class Lower(state: CompilationState) {
                         anns.map(lowerAnnotation),
                         lowerTypeRef(tref),
                         name,
-                        new Symbol.Var(name.name, ty)
+                        new Symbol.Var(Modifier.Set.empty, name.name, ty)
                     )                    
                 }
                     
@@ -543,7 +551,7 @@ case class Lower(state: CompilationState) {
         
         def introduceVar(fromExpr: in.Expr, toExpr: out.LowerExpr): out.Var = {
             val text = tmpVarName(fromExpr)
-            val sym = new Symbol.Var(Name.Var(text), toExpr.ty)
+            val sym = new Symbol.Var(Modifier.Set.empty, Name.Var(text), toExpr.ty)
             val nameAst = withPosOf(fromExpr, Ast.VarName(text))
             val tyAst = astType(env)(fromExpr, sym.ty)
             val lv = withPosOf(fromExpr, out.VarLocal(List(), tyAst, nameAst, sym))
@@ -847,7 +855,7 @@ case class Lower(state: CompilationState) {
                         anns.map(lowerAnnotation),
                         astType(env)(inTref, ty),
                         name,
-                        new Symbol.Var(name.name, ty)
+                        new Symbol.Var(Modifier.Set.empty, name.name, ty)
                     )                            
                 }
                     
@@ -866,7 +874,7 @@ case class Lower(state: CompilationState) {
                         anns.map(lowerAnnotation),
                         lowerTypeRef(tref),
                         name,
-                        new Symbol.Var(name.name, ty)
+                        new Symbol.Var(Modifier.Set.empty, name.name, ty)
                     )                    
                 }
                     
