@@ -1,11 +1,20 @@
 package harmonic.compiler
 
+import scala.collection.mutable
+
+object MethodResolutionOrder {
+    class Data {
+        /** Maps a symbol to its method resolution order. */
+        val mroCache = new mutable.HashMap[Symbol.Class, List[Symbol.Class]]()
+    }
+}
+
 /** Computes the C3 linearization order of the supertypes for each
   * class.  This is the same order used in Python and Dylan.
   *
   * For a nice introduction to C3 see: http://www.python.org/download/releases/2.3/mro/ */
 case class MethodResolutionOrder(state: CompilationState) {
-    
+    private[this] val data: MethodResolutionOrder.Data = state.data(classOf[MethodResolutionOrder.Data])
     private[this] var stack: List[Symbol.Class] = Nil
     
     /** Merges the lists of MROs for each supertype into one MRO. */
@@ -47,9 +56,9 @@ case class MethodResolutionOrder(state: CompilationState) {
         }
     }
     
-    /** Returns C3 order for `csym`. */
+    /** Returns C3 order for `csym`.  This list is never empty.*/
     def forSym(csym: Symbol.Class): List[Symbol.Class] = {
-        state.mroCache.get(csym) match {
+        data.mroCache.get(csym) match {
             case Some(order) => order
             
             case None if stack.contains(csym) => {
@@ -59,8 +68,8 @@ case class MethodResolutionOrder(state: CompilationState) {
                     "circular.inheritance",
                     csym.name.toString, stack.take(idx).reverse.mkString(", ")
                 )
-                state.mroCache(csym) = List()
-                List()
+                data.mroCache(csym) = List(csym)
+                List(csym)
             }
             
             case None => {
@@ -69,11 +78,15 @@ case class MethodResolutionOrder(state: CompilationState) {
                 val superCsyms = superNames.map(state.classes)
                 val superLists = superCsyms.map(forSym)
                 val list = csym :: merge(csym, superLists)
-                state.mroCache(csym) = list
+                data.mroCache(csym) = list
                 stack = stack.tail
                 list
             }
         }
+    }
+    
+    def forClassType(classTy: Type.Class): List[Symbol.Class] = {
+        forSym(state.classes(classTy.name))
     }
     
 }

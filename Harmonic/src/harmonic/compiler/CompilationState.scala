@@ -11,20 +11,30 @@ class CompilationState(
     /** Maps a class name to its symbol. */
     val classes = new mutable.HashMap[Name.Qual, Symbol.Class]()
     
-    /** Maps a symbol to its method resolution order. */
-    val mroCache = new mutable.HashMap[Symbol.Class, List[Symbol.Class]]()
-
     /** Symbols parsed and resolved but not yet lowered. */
-    val toBeLowered = new mutable.Queue[Symbol.ClassFromInterFile]()
+    val toBeLowered = new mutable.Queue[Symbol.ClassFromSource]()
     
     /** Symbols lowered but for which we have not yet emitted byte code. */
-    val toBeBytecoded = new mutable.Queue[Symbol.ClassFromInterFile]()
+    val toBeBytecoded = new mutable.Queue[Symbol.ClassFromSource]()
     
-    /** Members whose type is currently being inferred. */
-    val inferStack = new mutable.HashSet[Symbol.MemberId]()
+    // ___ Private Data For Other Classes ___________________________________
+    //
+    // Various passes and helpers, such as Lower or MethodResolutionOrder,
+    // require state that should persist within a particular compilation.
+    // They store their data in the `CompilationState` using the data() method.
     
-    /** Members for which we have reported an inference error. */
-    val inferReported = new mutable.HashSet[Symbol.MemberId]()
+    private[this] val privateData = new mutable.HashMap[java.lang.Class[_], Any]()
+    
+    def data[C](cls: java.lang.Class[C]): C = {
+        privateData.get(cls) match {
+            case Some(v) => cls.cast(v)
+            case None => {
+                val v = cls.getConstructor().newInstance()
+                privateData(cls) = v
+                v
+            }
+        }
+    }
     
     // ___ Intrinsics _______________________________________________________
     
@@ -37,11 +47,8 @@ class CompilationState(
     
     /** Checks for an intrinsic method --- i.e., one that is built-in to the compiler ---
       * defined on the type `rcvrTy` with the name `name`. */
-    def lookupIntrinsic(rcvrTy: Type.Ref, name: Name.Method): List[Symbol.Method] = {
-        rcvrTy match { // // FIXME Need to consider type bounds, really, but not in this method.
-            case Type.Class(className, _) => intrinsics.get((className, name)).getOrElse(List())
-            case _ => List() 
-        }
+    def lookupIntrinsic(className: Name.Qual, methodName: Name.Method): Option[List[Symbol.Method]] = {
+        intrinsics.get((className, methodName))
     }
     
     // ___ Loading and resolving class symbols ______________________________
@@ -54,13 +61,13 @@ class CompilationState(
             if(classes.isDefinedAt(qualName))
                 reporter.report(cdecl.pos, "class.already.defined", qualName.toString)
             else
-                classes(qualName) = new Symbol.ClassFromInterFile(qualName)
+                classes(qualName) = new Symbol.ClassFromSource(qualName)
         }
         
         // Resolve the compilation unit and store those into the symbol:
         compUnits.foreach { compUnit =>
             Resolve(this, compUnit).foreach { cdecl =>
-                val sym = classes(cdecl.name.qualName).asInstanceOf[Symbol.ClassFromInterFile]
+                val sym = classes(cdecl.name.qualName).asInstanceOf[Symbol.ClassFromSource]
                 sym.resolvedSource = cdecl
                 toBeLowered += sym
             }
@@ -182,7 +189,7 @@ class CompilationState(
         
         while(!toBeBytecoded.isEmpty) {
             val csym = toBeBytecoded.dequeue()
-            GatherOverrides(this).forClass(csym)
+            GatherOverrides(this).forSym(csym)
             ByteCode(this).writeClassSymbol(csym)
         }
     }

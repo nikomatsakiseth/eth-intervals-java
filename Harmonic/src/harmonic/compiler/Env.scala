@@ -75,13 +75,6 @@ case class Env(
     
     def plusTypeRels(rels: List[(Type.Var, TcRel, Type.Ref)]) = rels.foldLeft(this)(_ plusTypeRel _)
     
-    def plusClassDecl(cdecl: Ast.Lower.ClassDecl) = {
-        cdecl.members.foldLeft(this) {
-            case (e, Ast.Lower.RelDecl(_, l, rel, r)) => plusPathRel(l.toPath, rel, r.toPath)
-            case (e, _) => e
-        }
-    }
-    
     // ___ Querying the relations ___________________________________________
     
     private[this] def pathsRelatedBy(Rel: PcRel): List[(Path.Ref, Path.Ref)] = pathRels.flatMap { 
@@ -146,32 +139,34 @@ case class Env(
         }
     }    
     
-    def lookupNonintrinsicMethods(
-        rcvrTy: Type.Ref, 
-        name: Name.Method
+    private[this] def lookupMethodsDefinedOnClass(
+        className: Name.Qual,
+        methodName: Name.Method
     ): List[Symbol.Method] = {
-        rcvrTy match {
-            case Type.Class(className, _) => {
-                val csym = state.classes(className)
-                csym.methodsNamed(state)(name)
-            }
-            
-            case tyVar: Type.Var => {
-                upperBoundType(tyVar).toList.flatMap(lookupNonintrinsicMethods(_, name))
-            }
-            
-            case _ => List()
+        debug("  lookupMethodsDefinedOnClass(%s,%s)", className, methodName)
+        state.lookupIntrinsic(className, methodName).getOrElse {
+            val csym = state.classes(className)
+            csym.methodsNamed(state)(methodName)
         }
     }
-
+    
     def lookupMethods(
         rcvrTy: Type.Ref, 
-        name: Name.Method
+        methodName: Name.Method
     ): List[Symbol.Method] = {
-        state.lookupIntrinsic(rcvrTy, name) match {
-            case List() => lookupNonintrinsicMethods(rcvrTy, name)
-            case intrinsicSyms => intrinsicSyms
-        }
+        debug("lookupMethods(%s, %s)", rcvrTy, methodName)
+        minimalUpperBoundType(rcvrTy).firstSome({ 
+            case classTy: Type.Class => 
+                debug("  bound by %s", classTy)
+                val mro = MethodResolutionOrder(state).forClassType(classTy)
+                mro.firstSome { csym =>
+                    lookupMethodsDefinedOnClass(csym.name, methodName) match {
+                        case List() => None
+                        case msyms => Some(msyms)
+                    }                    
+                }
+            case _ => None
+        }).getOrElse(List())
     }
     
     // ___ Typed Paths ______________________________________________________   
@@ -226,8 +221,8 @@ case class Env(
     class Bounder(Rel: TcRel) extends TransitiveCloser[Type.Ref] {
         protected[this] def successors(ty: Type.Ref) = ty match {
             case tyVar: Type.Var => typeVarBounds(tyVar)
-            case Type.Tuple(List()) => List(Type.Void)
-            case Type.Tuple(List(ty)) => List(ty)
+            case Type.Tuple(List()) => List(Type.Void)   // () equivalent to Void  [Does this make sense?]
+            case Type.Tuple(List(ty)) => List(ty)        // (ty) equivalent to ty
             case _ => Nil
         }
 
@@ -236,7 +231,7 @@ case class Env(
             
             def boundsFromClassType(tyClass: Type.Class) = {
                 // Add bounds from class:
-                val classBounds = List[Type.Ref]() // // FIXME
+                val classBounds = List[Type.Ref]() // FIXME
                 
                 // Add bounds from type arguments in tyClass:
                 tyClass.typeArgs.foldLeft(classBounds) { 
@@ -259,10 +254,39 @@ case class Env(
             }
         }
     }
-       
+    
+    /** Returns a set of types that are exactly equivalent to `ty`. */
     def equalType(ty: Type.Ref) = new Bounder(TcEq).compute(ty)
+
+    /** Returns a set of types that are upper bounds for `ty` 
+      * (i.e., supertypes of `ty`).  This function is intended to expand
+      * type variables.  It does not return supertypes of class types. */
     def upperBoundType(ty: Type.Ref) = new Bounder(TcSub).compute(ty)
+    
+    /** Returns a set of types that are lower bounds for `ty` 
+      * (i.e., subtypes of `ty`). This function is intended to expand
+      * type variables.  It does not return supertypes of class types. */
     def lowerBoundType(ty: Type.Ref) = new Bounder(TcSup).compute(ty)
+    
+    /** Returns a minimal set of upper-bounds for `ty`. "Minimal"
+      * means that we remove redundant class types; i.e., if 
+      * references to classes C and D are both in the list, and
+      * C extends D, then D will be removed. */
+    def minimalUpperBoundType(ty: Type.Ref) = {
+        val bnds = upperBoundType(ty)
+        bnds.foldLeft(bnds) { 
+            case (b, classTy: Type.Class) => {
+                val mro = MethodResolutionOrder(state).forClassType(classTy)
+                val purgeNames = Set(mro.tail.map(_.name): _*)
+                b.filter {
+                    case Type.Class(name, _) => !purgeNames(name)
+                    case _ => true
+                }
+            }
+            
+            case (b, _) => b
+        }
+    }
     
     // ___ Argument Suitability _____________________________________________
     //
@@ -275,7 +299,7 @@ case class Env(
             case (Type.Class(name_val, _), Type.Class(name_pat, _)) => {
                 val sym_val = state.classes(name_val)
                 val sym_pat = state.classes(name_pat)
-                Symbol.isSubclass(state, sym_val, sym_pat)
+                sym_val.isSubclass(state, sym_pat)
             }
             
             case (Type.Var(path_val, tvar_val), Type.Var(path_pat, tvar_pat)) if tvar_val == tvar_pat =>
@@ -422,9 +446,9 @@ case class Env(
     
 //    def isSubclass(ty_sub: Type.Ref, ty_sup: Type.Ref): Boolean = {
 //        (ty_sub, ty_sup) match {
-//            case (Type.Var(path_sub, var_sub), Type.Var(path_sup, var_sup)) => false // // FIXME
+//            case (Type.Var(path_sub, var_sub), Type.Var(path_sup, var_sup)) => false // FIXME
 //            
-//            case (Type.Class(name_sub, args_sub), Type.Class(name_sup, arg_sup)) => false // // FIXME
+//            case (Type.Class(name_sub, args_sub), Type.Class(name_sup, arg_sup)) => false // FIXME
 //                
 //            case (Type.Tuple(tys_sub), Type.Tuple(tys_sup)) => 
 //                tys_sub.zip(tys_sup).forall { case (s, t) => isSubclass(s, t) }

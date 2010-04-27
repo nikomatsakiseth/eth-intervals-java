@@ -7,32 +7,23 @@ object Type {
     
     // ___ Data Types _______________________________________________________
     
-    sealed abstract class Ref {
-        def deparen: Ref
-    }
+    sealed abstract class Ref
     case class Var(path: Path.Ref, typeVar: Name.Var) extends Ref {
         override def toString = "%s:%s".format(path, typeVar)
-        def deparen = this
     }
     case class Class(name: Name.Qual, typeArgs: List[Type.Arg]) extends Ref {
         override def toString = 
             if(typeArgs.isEmpty) name.toString
             else "%s[%s]".format(name, typeArgs.mkString(", "))
-        def deparen = this
     }
     object Class {
         def apply(cls: java.lang.Class[_]): Type.Class = Class(Name.Qual(cls), List())
     }
     case class Tuple(typeRefs: List[Type.Ref]) extends Ref {
         override def toString = "(%s)".format(typeRefs.mkString(", "))
-        def deparen = typeRefs match {
-            case List(ty) => ty
-            case _ => this
-        }
     }
     case object Null extends Ref {
         override def toString = "Null"
-        def deparen = this
     }
     
     sealed abstract class Arg

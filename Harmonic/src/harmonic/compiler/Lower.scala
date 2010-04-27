@@ -1,24 +1,34 @@
 package harmonic.compiler
 
 import scala.collection.immutable.Map
-import scala.collection.mutable.ListBuffer
+import scala.collection.mutable
 import scala.util.parsing.input.Position
 
 import Ast.{Resolve => in}
 import Ast.{Lower => out}
 import Util._
 
+object Lower {
+    class Data {
+        /** Members whose type is currently being inferred. */
+        val inferStack = new mutable.HashSet[Symbol.MemberId]()
+    
+        /** Members for which we have reported an inference error. */
+        val inferReported = new mutable.HashSet[Symbol.MemberId]()
+    }
+}
+
 /** Lowers the IR to what is expected by the type check.  This has two
   * main functions:
   * - Fills in any inferred types.  (Note that we don't perform a full type check!)
   * - Removes nested expressions into intermediate variables. */
 case class Lower(state: CompilationState) {
-    
-    val emptyEnv = Env.empty(state)
+    private[this] val data = state.data(classOf[Lower.Data])
+    private[this] val emptyEnv = Env.empty(state)
     
     // ___ Translate from Ast to Symbol and back again ______________________
     
-    def methodId(csym: Symbol.ClassFromInterFile, mdecl: in.MethodDecl) = {
+    def methodId(csym: Symbol.ClassFromSource, mdecl: in.MethodDecl) = {
         val parameterPatterns = mdecl.params.map(symbolPattern)
         Symbol.MethodId(csym.name, mdecl.name, parameterPatterns)
     }
@@ -112,7 +122,7 @@ case class Lower(state: CompilationState) {
     // ___ Method Symbol Creation ___________________________________________
     
     def symbolsForMethodsNamed(
-        sym: Symbol.ClassFromInterFile, 
+        sym: Symbol.ClassFromSource, 
         mthdName: Name.Method
     ) = {
         sym.methodSymbols.get(mthdName) match {
@@ -122,16 +132,15 @@ case class Lower(state: CompilationState) {
     }
     
     def createSymbolsForMethodsNamed(
-        csym: Symbol.ClassFromInterFile, 
+        csym: Symbol.ClassFromSource, 
         mthdName: Name.Method
     ) = {
         def forMethodDecl(mdecl: in.MethodDecl) = mdecl match {
             case in.MethodDecl(annotations, _, _, in.InferredTypeRef(), _, _, _) => {
                 val memberId = methodId(csym, mdecl)
 
-                if(state.inferStack(memberId)) {
-                    if(!state.inferReported.contains(memberId)) {
-                        state.inferReported += memberId
+                if(data.inferStack(memberId)) {
+                    if(data.inferReported.addEntry(memberId)) {
                         state.reporter.report(
                             mdecl.returnTref.pos,
                             "explicit.type.required.due.to.cycle",
@@ -176,19 +185,19 @@ case class Lower(state: CompilationState) {
         msyms
     }
     
-    def ThisEnv(csym: Symbol.ClassFromInterFile) = {
+    def ThisEnv(csym: Symbol.ClassFromSource) = {
         val thisTy = Type.Class(csym.name, List())
         emptyEnv.plusThis(thisTy, new Symbol.Var(Modifier.Set.empty, Name.ThisVar, thisTy))
     }
     
-    def ThisScope(csym: Symbol.ClassFromInterFile) = {
+    def ThisScope(csym: Symbol.ClassFromSource) = {
         InScope(ThisEnv(csym))
     }
     
     def lowerClassDecl(
         cdecl: Ast.Resolve.ClassDecl
     ): out.ClassDecl = {
-        val csym = state.classes(cdecl.name.qualName).asInstanceOf[Symbol.ClassFromInterFile]
+        val csym = state.classes(cdecl.name.qualName).asInstanceOf[Symbol.ClassFromSource]
         val result = withPosOf(cdecl, out.ClassDecl(
             name = cdecl.name,
             annotations = cdecl.annotations.map(ThisScope(csym).lowerAnnotation),
@@ -206,7 +215,7 @@ case class Lower(state: CompilationState) {
     }
     
     def lowerMemberDecl(
-        csym: Symbol.ClassFromInterFile, 
+        csym: Symbol.ClassFromSource, 
         mem: in.MemberDecl
     ): out.MemberDecl = withPosOf(mem, mem match {
         case decl: in.ClassDecl => lowerClassDecl(decl)
@@ -217,7 +226,7 @@ case class Lower(state: CompilationState) {
     })
     
     def lowerRelDecl(
-        csym: Symbol.ClassFromInterFile, 
+        csym: Symbol.ClassFromSource, 
         decl: in.RelDecl        
     ): out.RelDecl = withPosOf(decl, out.RelDecl(
         annotations = decl.annotations.map(ThisScope(csym).lowerAnnotation),
@@ -227,7 +236,7 @@ case class Lower(state: CompilationState) {
     ))
     
     def lowerIntervalDecl(
-        csym: Symbol.ClassFromInterFile, 
+        csym: Symbol.ClassFromSource, 
         decl: in.IntervalDecl
     ): out.IntervalDecl = withPosOf(decl, out.IntervalDecl(
         annotations = decl.annotations.map(ThisScope(csym).lowerAnnotation),
@@ -237,15 +246,15 @@ case class Lower(state: CompilationState) {
     ))
     
     def lowerMethodDecl(
-        csym: Symbol.ClassFromInterFile, 
+        csym: Symbol.ClassFromSource, 
         mdecl: in.MethodDecl
     ): out.MethodDecl = {
         val memberId = methodId(csym, mdecl)
         csym.loweredMethods.get(memberId).getOrElse {
             val cdecl = csym.resolvedSource
             val clsName = cdecl.name.qualName
-            assert(!state.inferStack(memberId))
-            state.inferStack += memberId
+            assert(!data.inferStack(memberId))
+            data.inferStack += memberId
 
             val parameterPatterns = mdecl.params.map(symbolPattern)
             val parameterSyms = parameterPatterns.flatMap(Pattern.createVarSymbols)
@@ -282,13 +291,13 @@ case class Lower(state: CompilationState) {
             )
             
             csym.loweredMethods(memberId) = outMdecl
-            state.inferStack -= memberId
+            data.inferStack -= memberId
             outMdecl
         }
     }
     
     def lowerFieldDecl(
-        csym: Symbol.ClassFromInterFile, 
+        csym: Symbol.ClassFromSource, 
         decl: in.FieldDecl
     ): out.FieldDecl = withPosOf(decl, {
         val optBody = decl.optBody.map(lowerBody(ThisEnv(csym), _))
@@ -422,7 +431,7 @@ case class Lower(state: CompilationState) {
     
     def lowerStmts(env0: Env, stmts: List[in.Stmt]): List[out.Stmt] = {
         var env = env0
-        val result = new ListBuffer[out.Stmt]()
+        val result = new mutable.ListBuffer[out.Stmt]()
         
         stmts.foreach { stmt =>
             env = InScopeStmt(env, result).appendLoweredStmt(stmt)
@@ -432,10 +441,11 @@ case class Lower(state: CompilationState) {
     }
     
     object InScopeStmt {
-        def apply(env: Env, stmts: ListBuffer[out.Stmt]) = new InScopeStmt(env, stmts)
+        def apply(env: Env, stmts: mutable.ListBuffer[out.Stmt]) = 
+            new InScopeStmt(env, stmts)
     }
     
-    class InScopeStmt(env: Env, stmts: ListBuffer[out.Stmt]) extends InScope(env) {
+    class InScopeStmt(env: Env, stmts: mutable.ListBuffer[out.Stmt]) extends InScope(env) {
         def appendLoweredStmt(stmt: in.Stmt): Env = {
             stmt match {
                 case in.Assign(lvalue, rvalue) => {
@@ -663,7 +673,7 @@ case class Lower(state: CompilationState) {
                     def potentiallyApplicable(msym: Symbol.Method) = {
                         val subst = mthdSubst(msym, inRcvr, inArgs)
                         val parameterTys = msym.msig.parameterPatterns.map(p => subst.ty(p.ty))
-                        // // FIXME Add suitable temps to the environment for the vars ref'd in subst.
+                        // FIXME Add suitable temps to the environment for the vars ref'd in subst.
                         argTys.zip(parameterTys).forall { case (p, a) => 
                             env.isSuitableArgument(p, a) 
                         }
@@ -724,7 +734,7 @@ case class Lower(state: CompilationState) {
         def lowerMethodCall(optExpTy: Option[Type.Ref])(mcall: in.MethodCall) = introduceVar(mcall, {
             // Find all potential methods:
             val rcvr = lowerRcvr(mcall.rcvr, mcall.name)
-            val msyms = env.lookupMethods(rcvr.ty.deparen, mcall.name)
+            val msyms = env.lookupMethods(rcvr.ty, mcall.name)
             val best = identifyBestMethod(
                 mcall.pos, msyms, mcall.name, 
                 rcvr.ty, mcall.rcvr, mcall.parts.map(_.arg))

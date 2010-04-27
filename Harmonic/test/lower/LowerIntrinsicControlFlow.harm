@@ -39,7 +39,7 @@ class LowerIntrinsicControlFlow {
     }
     
     errors(c: Boolean): Void {
-        // // FIXME: the first example should really have return type java.lang.Integer
+        // FIXME: the first example should really have return type java.lang.Integer
         chooseOne(c).badMethod();                // ERROR no.such.method(java.lang.Void, badMethod())
         conditionallyModifyLocal(c).badMethod(); // ERROR no.such.method(java.lang.Integer, badMethod())
         checkForNull(c).badMethod();             // ERROR no.such.method(java.lang.Integer, badMethod())

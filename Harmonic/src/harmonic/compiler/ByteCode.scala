@@ -76,7 +76,7 @@ case class ByteCode(state: CompilationState) {
             case (Type.Class(toName, _), Type.Class(fromName, _)) => {
                 val toSym = state.classes(toName)
                 val fromSym = state.classes(fromName)
-                !Symbol.isSubclass(state, fromSym, toSym)
+                !fromSym.isSubclass(state, toSym)
             }
             
             case _ => downcastNeeded(asmType(toTy), asmType(fromTy))
@@ -449,7 +449,7 @@ case class ByteCode(state: CompilationState) {
                 parts.map(_.arg).foldLeft(receiverSummary)(summarizeSymbolsInExpr)
             }
             case in.NewCtor(_, arg, _, _) => summarizeSymbolsInExpr(summary, arg)
-            case in.NewAnon(_, arg, mems, _, _, _) => summarizeSymbolsInExpr(summary, arg) // // FIXME mems
+            case in.NewAnon(_, arg, mems, _, _, _) => summarizeSymbolsInExpr(summary, arg) // FIXME mems
             case in.Null(_) => summary
         }
     }
@@ -784,7 +784,7 @@ case class ByteCode(state: CompilationState) {
                 }
 
                 case in.Labeled(name, in.Body(stmts)) => {
-                    stmts.foreach(execStatement) // // FIXME Not really right.
+                    stmts.foreach(execStatement) // FIXME Not really right.
                 }
 
                 case in.Assign(lvalue, rvalue) => {
@@ -911,7 +911,7 @@ case class ByteCode(state: CompilationState) {
                 O.V1_5,
                 O.ACC_PUBLIC,
                 name.internalName,
-                null, // // FIXME Signature
+                null, // FIXME Signature
                 "java/lang/Object",
                 Array(tmpl.className.internalName)
             )
@@ -1111,19 +1111,19 @@ case class ByteCode(state: CompilationState) {
       * whose signature has a different method descriptor.  This includes
       * both a default and a MRO version. */
     def writeForwardingMethods(
-        csym: Symbol.ClassFromInterFile, 
+        csym: Symbol.ClassFromSource, 
         cvis: asm.ClassVisitor,
-        msym: Symbol.Method
+        group: Symbol.MethodGroup
     ) {
-        msym.overrides.foreach { overriddenMsym =>
+        group.msyms.foreach { msym =>
             List(true, false).foreach { withMroIndex =>
                 writeForwardingMethodIfNeeded(
                     className     = csym.name,
                     cvis          = cvis,
                     methodName    = msym.name,
                     withMroIndex  = withMroIndex,
-                    masterSig     = msym.msig,
-                    overriddenSig = overriddenMsym.msig,
+                    masterSig     = group.msig,
+                    overriddenSig = msym.msig,
                     invokeOp      = O.INVOKEINTERFACE
                 )                
             }
@@ -1148,7 +1148,7 @@ case class ByteCode(state: CompilationState) {
 
     /** Generates a static method which contains the actual implementation. */
     def writeStaticMethodImpl(
-        csym: Symbol.ClassFromInterFile, 
+        csym: Symbol.ClassFromSource, 
         cvis: asm.ClassVisitor, 
         msym: Symbol.Method,
         decl: in.MethodDecl
@@ -1181,15 +1181,16 @@ case class ByteCode(state: CompilationState) {
     /** The default version of a method simply takes all the user-
       * specified arguments. */
     def visitPlainMethod(
-        csym: Symbol.ClassFromInterFile, 
+        csym: Symbol.ClassFromSource, 
         cvis: asm.ClassVisitor, 
-        msym: Symbol.Method,
+        methodName: Name.Method,
+        msig: Symbol.MethodSignature[Pattern.Ref],
         opts: Int
     ) = {
         val mvis = cvis.visitMethod(
             opts + O.ACC_PUBLIC,
-            msym.name.javaName,
-            plainMethodDescFromSig(msym.msig),
+            methodName.javaName,
+            plainMethodDescFromSig(msig),
             null, // generic signature
             null  // thrown exceptions
         )
@@ -1202,15 +1203,16 @@ case class ByteCode(state: CompilationState) {
       * `mro` is used for super calls: it indicates the
       * index of the next item in the Method Resolution Order (MRO). */
     def visitMethodWithMro(
-        csym: Symbol.ClassFromInterFile, 
+        csym: Symbol.ClassFromSource, 
         cvis: asm.ClassVisitor, 
-        msym: Symbol.Method,
+        methodName: Name.Method,
+        msig: Symbol.MethodSignature[Pattern.Ref],
         opts: Int
     ) = {
         val mvis = cvis.visitMethod(
             opts + O.ACC_PUBLIC,
-            msym.name.javaName,
-            mroMethodDescFromSig(msym.msig),
+            methodName.javaName,
+            mroMethodDescFromSig(msig),
             null, // generic signature
             null  // thrown exceptions
         )
@@ -1224,13 +1226,13 @@ case class ByteCode(state: CompilationState) {
       * and "nextMro" methods described above but also various 
       * forwarding methods that come about through erasure. */
     def writeMethodInterface(
-        csym: Symbol.ClassFromInterFile, 
+        csym: Symbol.ClassFromSource, 
         cvis: asm.ClassVisitor, 
         msym: Symbol.Method
     ) {
-        val mvisPlain = visitPlainMethod(csym, cvis, msym, O.ACC_ABSTRACT)
+        val mvisPlain = visitPlainMethod(csym, cvis, msym.name, msym.msig, O.ACC_ABSTRACT)
         mvisPlain.complete
-        val mvisMro = visitMethodWithMro(csym, cvis, msym, O.ACC_ABSTRACT)
+        val mvisMro = visitMethodWithMro(csym, cvis, msym.name, msym.msig, O.ACC_ABSTRACT)
         mvisMro.complete
     }
     
@@ -1242,53 +1244,50 @@ case class ByteCode(state: CompilationState) {
       *   String add(Integer x, Integer y) { return add(0, x, y); }
       */
     def writePlainToMroDispatch(
-        csym: Symbol.ClassFromInterFile, 
+        csym: Symbol.ClassFromSource, 
         cvis: asm.ClassVisitor,
-        msym: Symbol.Method
+        group: Symbol.MethodGroup
     ) {
-        val mvis = visitPlainMethod(csym, cvis, msym, 0)
+        val mvis = visitPlainMethod(csym, cvis, group.methodName, group.msig, 0)
         val accessMap = new AccessMap(csym.name)
         val thisPtr = accessMap.pathToFreshSlot(asmType(Type.Class(csym.name, List()))) // reserve this ptr
-        val adapter = new ParameterAdapter(accessMap, msym.msig.parameterPatterns)
+        val adapter = new ParameterAdapter(accessMap, group.msig.parameterPatterns)
         thisPtr.push(mvis) // push this ptr
         mvis.pushIntegerConstant(0) // push default index for 'mro'
         val stmtVisitor = new StatementVisitor(accessMap, IntConstant(0), mvis)
-        adapter.adaptTo(msym.msig.parameterPatterns, stmtVisitor) // push parameters
+        adapter.adaptTo(group.msig.parameterPatterns, stmtVisitor) // push parameters
         mvis.visitMethodInsn(
             O.INVOKEINTERFACE,
             csym.name.internalName,
-            msym.name.javaName,
-            mroMethodDescFromSig(msym.msig)
+            group.methodName.javaName,
+            mroMethodDescFromSig(group.msig)
         )
         mvis.visitInsn(O.ARETURN)
         mvis.complete
     }
     
-    /** Computes the symbols that can be invoked from a `super` call
-      * of `masterMsym`.  */
-    def computeSupers(
+    /** Computes the method symbol, if any, to be invoked from each MRO index. */
+    def computeVersions(
         /** The method whose super-versions we are computing. */
-        masterMsym: Symbol.Method,
+        group: Symbol.MethodGroup,
         
         /** List of superclasses, in order. */
         mro: List[Symbol.Class], 
         
-        /** Methods overridden by `masterMsym`.  Ordered by the class
-          * in which they are defined in M.R.O. */
-        overrides: List[Symbol.Method]
+        /** Remaining methods from group.  */
+        msyms: List[Symbol.Method]
     ): List[Option[Symbol.Method]] = {
         mro match {
             case List() => List()
             case csym :: tl => {
-                val matching = overrides.takeWhile(_.clsName == csym.name)
-                val remaining = overrides.drop(matching.length)
+                val matching = msyms.takeWhile(_.isFromClassNamed(csym.name))
+                val remaining = msyms.drop(matching.length)
                 val nonabstract = matching.filter(_.modifiers(state).isNonAbstract)
                 nonabstract match {
-                    case List() => None :: computeSupers(masterMsym, tl, remaining)
+                    case List() => None :: computeVersions(group, tl, remaining)
                     case msyms => {
-                        // // FIXME Should pick the symbol whose signature best matches
-                        // // FIXME masterMsym.  For now we just pick the first though :)
-                        Some(msyms.head) :: computeSupers(masterMsym, tl, remaining)
+                        // FIXME Should pick the symbol whose signature best matches group.msig
+                        Some(msyms.head) :: computeVersions(group, tl, remaining)
                     }
                 }
             }
@@ -1300,22 +1299,18 @@ case class ByteCode(state: CompilationState) {
       * static function.  The static functions are defined in 
       * `writeStaticMethodImpl`. */
     def writeMroMethodImpl(
-        csym: Symbol.ClassFromInterFile, 
+        csym: Symbol.ClassFromSource, 
         cvis: asm.ClassVisitor,
-        msym: Symbol.Method
+        group: Symbol.MethodGroup
     ) {
-        val mvis = visitMethodWithMro(csym, cvis, msym, 0)
+        val mvis = visitMethodWithMro(csym, cvis, group.methodName, group.msig, 0)
         val accessMap = new AccessMap(csym.name)
         val thisPtr = accessMap.pathToFreshSlot(asmType(Type.Class(csym.name, List())))
         val mroInt = accessMap.pathToFreshSlot(asm.Type.INT_TYPE) 
-        val adapter = new ParameterAdapter(accessMap, msym.msig.parameterPatterns)
+        val adapter = new ParameterAdapter(accessMap, group.msig.parameterPatterns)
         
-        // compute all versions of 'msym', indexed by mro.
-        val msyms = Some(msym) :: computeSupers(
-            masterMsym = msym, 
-            mro        = MethodResolutionOrder(state).forSym(csym).tail, 
-            overrides  = msym.overrides.toList
-        )
+        // compute all versions, indexed by mro.
+        val msyms = computeVersions(group, MethodResolutionOrder(state).forSym(csym), group.msyms)
         
         // emit table switch
         val dfltLabel = new asm.Label()
@@ -1362,7 +1357,7 @@ case class ByteCode(state: CompilationState) {
         superName: Name.Qual,
         cvis: asm.ClassVisitor
     ) {
-        // // FIXME We have to figure out our ctor model.
+        // FIXME We have to figure out our ctor model.
         val mvis = cvis.visitMethod(
             O.ACC_PUBLIC,
             Name.InitMethod.javaName,
@@ -1384,7 +1379,7 @@ case class ByteCode(state: CompilationState) {
     
     // ___ Classes __________________________________________________________
     
-    def writeInterClassInterface(csym: Symbol.ClassFromInterFile) {
+    def writeInterClassInterface(csym: Symbol.ClassFromSource) {
         val wr = new ClassWriter(csym.name, noSuffix)
         import wr.cvis
         
@@ -1393,19 +1388,19 @@ case class ByteCode(state: CompilationState) {
             O.V1_5,
             O.ACC_ABSTRACT + O.ACC_INTERFACE + O.ACC_PUBLIC,
             csym.name.internalName,
-            null, // // FIXME Signature
+            null, // FIXME Signature
             "java/lang/Object",
             superClassNames.map(_.internalName).toArray
         )
         
-        csym.allMethodSymbols.foreach { msym =>
+        csym.allMethodSymbols(state).foreach { msym =>
             writeMethodInterface(csym, cvis, msym)
         }
         
         wr.end()
     }
     
-    def writeImplClass(csym: Symbol.ClassFromInterFile) {
+    def writeImplClass(csym: Symbol.ClassFromSource) {
         val wr = new ClassWriter(csym.name, implSuffix)
         import wr.cvis
 
@@ -1413,23 +1408,23 @@ case class ByteCode(state: CompilationState) {
             O.V1_5,
             O.ACC_PUBLIC,
             csym.name.internalName + implSuffix,
-            null, // // FIXME Signature
+            null, // FIXME Signature
             Name.ObjectQual.internalName,
             Array(csym.name.internalName)
         )
         
         writeEmptyCtor(csym.name, Name.ObjectQual, cvis)
-        
-        csym.allMethodSymbols.foreach { msym =>
-            writePlainToMroDispatch(csym, cvis, msym)
-            writeMroMethodImpl(csym, cvis, msym)
-            writeForwardingMethods(csym, cvis, msym)
+
+        csym.methodGroups.foreach { group =>
+            writePlainToMroDispatch(csym, cvis, group)
+            writeMroMethodImpl(csym, cvis, group)
+            writeForwardingMethods(csym, cvis, group)
         }
         
         wr.end()
     }
     
-    def writeStaticClass(csym: Symbol.ClassFromInterFile) {
+    def writeStaticClass(csym: Symbol.ClassFromSource) {
         val wr = new ClassWriter(csym.name, staticSuffix)
         import wr.cvis
 
@@ -1437,14 +1432,14 @@ case class ByteCode(state: CompilationState) {
             O.V1_5,
             O.ACC_PUBLIC,
             csym.name.internalName + staticSuffix,
-            null, // // FIXME Signature
+            null, // FIXME Signature
             "java/lang/Object",
             Array(csym.name.internalName)
         )
         
         writeEmptyCtor(csym.name, Name.ObjectQual, cvis)
         
-        csym.allMethodSymbols.foreach { msym =>
+        csym.allMethodSymbols(state).foreach { msym =>
             val mdecl = csym.loweredMethods(msym.methodId)
             writeStaticMethodImpl(csym, cvis, msym, mdecl)
         }
@@ -1452,9 +1447,10 @@ case class ByteCode(state: CompilationState) {
         wr.end()
     }
     
-    def writeClassSymbol(csym: Symbol.ClassFromInterFile) = {
+    def writeClassSymbol(csym: Symbol.ClassFromSource) = {
         writeInterClassInterface(csym)
-        writeImplClass(csym)
+        if(!csym.modifiers(state).isAbstract)
+            writeImplClass(csym)
         writeStaticClass(csym)
     }
     

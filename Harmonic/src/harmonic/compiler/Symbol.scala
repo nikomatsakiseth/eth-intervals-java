@@ -22,21 +22,56 @@ object Symbol {
         def isError: Boolean = false
     }
     
-    abstract class Class(
+    sealed abstract class Class(
         val name: Name.Qual
     ) extends Ref {
+        
+        /** When a new instance of this class is created, what should we REALLY instantiate? */
         def internalImplName: String
-        def constructors(state: CompilationState): List[Symbol.Method]
-        def superClassNames(state: CompilationState): List[Name.Qual]
-        def methodsNamed(state: CompilationState)(name: Name.Method): List[Symbol.Method]
-        def fieldNamed(state: CompilationState)(name: Name.Var): Option[Symbol.Var]
+        
+        /** A position for reporting errors related to the class as a whole */
         def pos: Position
         
+        /** List of all constructors for this class */
+        def constructors(state: CompilationState): List[Symbol.Method]
+        
+        /** Names of any superclasses */
+        def superClassNames(state: CompilationState): List[Name.Qual]
+        
+        /** Symbols for methods defined on this class (not superclasses) 
+          * with the given name.  May trigger lowering or other processing. */
+        def methodsNamed(state: CompilationState)(name: Name.Method): List[Symbol.Method]
+        
+        /** Symbols for fields defined on this class (not superclasses)
+          * with the given name.  May trigger lowering or other processing. */
+        def fieldNamed(state: CompilationState)(name: Name.Var): Option[Symbol.Var]
+        
+        /** Symbols for all methods defined on this class but not superclasses.
+          * Should only be used after lowering has been completed. */
+        def allMethodSymbols(state: CompilationState): List[Symbol.Method]
+        
+        /** Creates a `Type.Class` for the class defined by this symbol. */
         def toType: Type.Class = Type.Class(name, List())
         
+        /** True if `this` is a subclass of `csym_sup` */
+        def isSubclass(state: CompilationState, superCsym: Symbol.Class) = {
+            (this == superCsym) || {
+                val queued = new mutable.Queue[Symbol.Class]()
+                val visited = new mutable.HashSet[Symbol.Class]()
+                queued += this
+                while(!queued.isEmpty && !visited(superCsym)) {
+                    val nextCsym = queued.dequeue()
+                    visited += nextCsym
+                    queued ++= nextCsym.superClassNames(state).map(state.classes).filterNot(visited)
+                }
+                visited(superCsym)                
+            }
+        }
+
         override def toString = "%s(%s, %x)".format(
             getClass.getSimpleName, name, System.identityHashCode(this)
-        )        
+        )
+              
     }
     
     class ClassFromErroroneousSource(
@@ -48,6 +83,7 @@ object Symbol {
         def superClassNames(state: CompilationState) = List()
         def methodsNamed(state: CompilationState)(name: Name.Method) = List()
         def fieldNamed(state: CompilationState)(name: Name.Var) = None
+        def allMethodSymbols(state: CompilationState) = List()
         def pos = InterPosition.unknown
     }
     
@@ -88,12 +124,17 @@ object Symbol {
         
         def methodsNamed(state: CompilationState)(name: Name.Method) = {
             load(state)
-            methods.filter(_.name == name)
+            methods.filter(_.isNamed(name))
+        }
+        
+        def allMethodSymbols(state: CompilationState) = {
+            load(state)
+            methods
         }
         
         def fieldNamed(state: CompilationState)(name: Name.Var) = {
             load(state)
-            fields.find(_.name == name)
+            fields.find(_.isNamed(name))
         }
     }
     
@@ -112,29 +153,55 @@ object Symbol {
         def constructors(state: CompilationState) = {
             Reflect(state).ctors(this)
         }
-        def superClassNames(state: CompilationState) = List() // // FIXME TODO
+        def superClassNames(state: CompilationState) = List() // FIXME TODO
         def methodsNamed(state: CompilationState)(name: Name.Method) = {
-            Reflect(state).methodsNamed(this, name)
+            Reflect(state).methods(this).filter(_.isNamed(name))
+        }
+        def allMethodSymbols(state: CompilationState) = {
+            Reflect(state).methods(this)
         }
         def fieldNamed(state: CompilationState)(name: Name.Var) = {
-            Reflect(state).fieldNamed(this, name)
+            Reflect(state).fields(this).find(_.isNamed(name))
         }
     }
     
-    class ClassFromInterFile(
+    class ClassFromSource(
         name: Name.Qual
     ) extends Class(name) {
         def internalImplName = name.internalName + ByteCode.implSuffix
-        var resolvedSource: Ast.Resolve.ClassDecl = null
-        var loweredSource: Ast.Lower.ClassDecl = null
-        var optCtorSymbol: Option[Symbol.Method] = None
-        val methodSymbols = new mutable.HashMap[Name.Method, List[Method]]()
-        val loweredMethods = new mutable.HashMap[MethodId, Ast.Lower.MethodDecl]()
+        
+        def isNamed(aName: Name.Qual) = (name == aName)
+        
         def pos = resolvedSource.pos
         
-        def allMethodSymbols = methodSymbols.valuesIterator.toList.flatten
+        /** Class declaration with names fully resolved. */
+        var resolvedSource: Ast.Resolve.ClassDecl = null
         
-        def modifiers(state: CompilationState) = Modifier.forResolvedAnnotations(resolvedSource.annotations)
+        /** Class declaration in lowered form. */
+        var loweredSource: Ast.Lower.ClassDecl = null
+        
+        /** Method symbol for constructor, once defined. */
+        var optCtorSymbol: Option[Symbol.Method] = None
+        
+        /** Method symbols defined in this class, grouped by name. 
+          * These symbols are created on demand but will be fully
+          * instantiated by the end of the lowering phase. 
+          * Generally preferred to use methodsNamed()() rather than
+          * accessing this field directly. */
+        val methodSymbols = new mutable.HashMap[Name.Method, List[Method]]()
+        
+        /** Cache of lowered version of each method. 
+          * The cache is used to avoid lowering a method twice during
+          * the lowering phase. */
+        val loweredMethods = new mutable.HashMap[MethodId, Ast.Lower.MethodDecl]()
+        
+        /** A complete list of all versions of all methods offered by this class,
+          * whether they are defined in this class or in a superclass. Populated 
+          * by GatherOverrides for all classes being compiled and their supertypes. */
+        var methodGroups: List[MethodGroup] = Nil
+        
+        def modifiers(state: CompilationState) = 
+            Modifier.forResolvedAnnotations(resolvedSource.annotations)
         
         def constructors(state: CompilationState) = {
             optCtorSymbol match {
@@ -164,6 +231,11 @@ object Symbol {
         def methodsNamed(state: CompilationState)(memName: Name.Method) = {
             Lower(state).symbolsForMethodsNamed(this, memName)
         }
+        
+        def allMethodSymbols(state: CompilationState) = 
+            // Because this method can only be invoked after lowering,
+            // methodSymbols hash is fully populated:
+            methodSymbols.valuesIterator.toList.flatten
         
         def fieldNamed(state: CompilationState)(name: Name.Var) = None
     }
@@ -196,6 +268,9 @@ object Symbol {
         val msig: MethodSignature[Pattern.Ref]
     ) extends Ref {
         override def toString = "Method(%s, %x)".format(name, System.identityHashCode(this))
+        
+        def isFromClassNamed(aName: Name.Qual) = (clsName == aName)
+        def isNamed(aName: Name.Method) = (name == aName)
         
         def methodId = MethodId(clsName, name, msig.parameterPatterns)
         
@@ -241,7 +316,7 @@ object Symbol {
     ) extends Ref {
         override def toString = "Var(%s, %x)".format(name, System.identityHashCode(this))
         def modifiers(state: CompilationState) = modifierSet
-        
+        def isNamed(aName: Name.Var) = (name == aName)
     }
     
     def errorVar(name: Name.Var, optExpTy: Option[Type.Ref]) = {
@@ -255,20 +330,31 @@ object Symbol {
     case class MethodId(clsName: Name.Qual, methodName: Name.Method, parameterPatterns: List[Pattern.Ref]) extends MemberId
     case class FieldId(clsName: Name.Qual, methodName: Name.Method) extends MemberId
     
-    def superclasses(state: CompilationState, csym: Symbol.Class) = {
-        val queued = new mutable.Queue[Symbol.Class]()
-        val visited = new mutable.HashSet[Symbol.Class]()
-        queued += csym
-        while(!queued.isEmpty) {
-            val csym_next = queued.dequeue()
-            visited += csym_next
-            queued ++= csym_next.superClassNames(state).map(state.classes).filterNot(visited)
-        }
-        visited
-    }
-    
-    def isSubclass(state: CompilationState, csym_sub: Symbol.Class, csym_sup: Symbol.Class) = {
-        (csym_sub == csym_sup) || Symbol.superclasses(state, csym_sub).contains(csym_sup)
+    /** A method group consists of a list of method symbols which override one
+      * another.  Methods override one another when (a) they have the same name
+      * and the same static parameter types and (b) they are both inherited by
+      * a single class. 
+      * 
+      * Note that two methods defined in unrelated classes A and B
+      * can still override one another if a third class C extends both A and B
+      * (though this scenario generally results in a static error unless C redefines
+      * the method so as to clarify which version, A's or B's, it prefers). */
+    class MethodGroup( 
+        /** Method name */
+        val methodName: Name.Method,
+        
+        /** A representative method signature */
+        val msig: MethodSignature[Pattern.Ref]
+    ) {
+        /** List of method symbols implementing this method, in MRO order. 
+          * Note that some classes may define the same method more than once
+          * with various signatures.  In such cases, all of those versions are
+          * included in this list, but the first one contains the implementation
+          * which should actually be invoked (if any). */
+        private[this] val msymsBuffer = new mutable.ListBuffer[Symbol.Method]()
+        
+        def addMsym(msym: Symbol.Method) = msymsBuffer += msym
+        def msyms = msymsBuffer.toList
     }
     
 }

@@ -2,33 +2,25 @@ package test.bytecode;
 
 @Abstract 
 class BytecodeSuper0 {
-    @Abstract 
-    value(): Integer;
+    @Abstract value(): Integer;
 }
 
 class BytecodeSuper3 extends BytecodeSuper0 {
-    @Override
-    value(): Integer { 3 } // FIXME: Explicit types when overriding
+    @Override value(): Integer { 3 } // FIXME: Explicit types still required when overriding
 }
 
 class BytecodeSuper5 extends BytecodeSuper0 {
-    @Override
-    value(): Integer { 5 }
+    @Override value(): Integer { 5 }
 }
 
 class BytecodeSuperAdd1 extends BytecodeSuper0 {
-    @Override
-    value(): Integer { super.value() + 1 }
+    @Override value(): Integer { super.value() + 1 }
 }
 
 class BytecodeSuper4 extends BytecodeSuperAdd1, BytecodeSuper3  {
-    @Override
-    value(): Integer { super.value() } // FIXME Search supertypes for impl
 }
 
 class BytecodeSuper6 extends BytecodeSuperAdd1, BytecodeSuper5  {
-    @Override
-    value(): Integer { super.value() } // FIXME Search supertypes for impl    
 }
 
 class BytecodeSuper extends Application {

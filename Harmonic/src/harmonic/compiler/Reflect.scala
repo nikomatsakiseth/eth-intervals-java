@@ -59,7 +59,7 @@ case class Reflect(state: CompilationState) {
     def ctorSymbol(clsName: Name.Qual)(mthd: reflect.Constructor[_]) = {
         new Symbol.Method(
             Modifier.forMember(mthd),
-            kind    = Symbol.JavaVirtual, // // FIXME 
+            kind    = Symbol.JavaVirtual, // FIXME 
             clsName = clsName,
             name    = Name.InitMethod,
             Symbol.MethodSignature(
@@ -82,7 +82,7 @@ case class Reflect(state: CompilationState) {
     def methodSymbol(clsName: Name.Qual)(mthd: reflect.Method) = {
         new Symbol.Method(
             Modifier.forMember(mthd),
-            kind = Symbol.JavaVirtual, // // FIXME 
+            kind = Symbol.JavaVirtual, // FIXME 
             clsName = clsName,
             name = Name.Method(List(mthd.getName)),
             Symbol.MethodSignature(
@@ -94,22 +94,20 @@ case class Reflect(state: CompilationState) {
         )
     }
     
-    def methodsNamed(sym: Symbol.ClassFromReflection, name: Name.Method) = {
-        val methods = sym.optMethods.getOrElse {
+    def methods(sym: Symbol.ClassFromReflection) = {
+        sym.optMethods.getOrElse {
             val syms = sym.cls.getDeclaredMethods.map(methodSymbol(sym.name)).toList
             sym.optMethods = Some(syms)
             syms
         }
-        methods.filter(_.name == name)        
     }
 
-    def fieldNamed(sym: Symbol.ClassFromReflection, name: Name.Var) = {
-        val fields = sym.optFields.getOrElse {
+    def fields(sym: Symbol.ClassFromReflection) = {
+        sym.optFields.getOrElse {
             val syms = sym.cls.getDeclaredFields.map(fieldSymbol).toList
             sym.optFields = Some(syms)
             syms
         }
-        fields.find(_.name == name)        
     }
         
 }
