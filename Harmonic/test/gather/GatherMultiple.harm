@@ -1,0 +1,23 @@
+package test.gather;
+
+class GatherMultiple1 { // ERROR multiple.overriding.methods.in.same.class(foo(), 2)
+    foo() { }
+    foo() { }
+}
+
+class GatherMultiple2 { // ERROR multiple.overriding.methods.in.same.class(foo(), 2)
+    foo(s: String) { }
+    foo(t: String) { }
+}
+
+class GatherMultiple3 { 
+    foo(s: String) { }
+    foo(t: Integer) { }
+}
+
+class GatherMultiple4 { // ERROR multiple.overriding.methods.in.same.class(foo(), 2)
+    foo(s: (String)) { }
+    foo(t: ((String))) { }
+}
+
+// COMPILE

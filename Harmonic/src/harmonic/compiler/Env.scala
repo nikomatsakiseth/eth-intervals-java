@@ -347,10 +347,10 @@ case class Env(
         }
     }
 
-    private[this] def typesAreEquatable1(pair: (Type.Ref, Type.Ref)): Boolean = {
+    private[this] def typesAreEquatable1(pair: (Type.Ref, Type.Ref)): Boolean = debugIndent("typesAreEquatable1%s", pair){
         val (ty1, ty2) = pair
         (ty1 == ty2) || {
-            (ty1, ty1) match {
+            (ty1, ty2) match {
                 case (Type.Class(name1, targs1), Type.Class(name2, targs2)) if sameLength(targs1, targs2) => {
                     name1 == name2 && 
                     targs1.forall(a => 
@@ -369,7 +369,7 @@ case class Env(
         }
     }
     
-    def typesAreEquatable(ty1: Type.Ref, ty2: Type.Ref): Boolean = {
+    def typesAreEquatable(ty1: Type.Ref, ty2: Type.Ref): Boolean = debugIndent("typesAreEquatable(%s, %s)", ty1, ty2) {
         (ty1 == ty2) || (equalType(ty1) cross equalType(ty2)).exists(typesAreEquatable1)
     }
     
@@ -435,12 +435,12 @@ case class Env(
     def overrides(
         msig_sub: Symbol.MethodSignature[Pattern.Ref], 
         msig_sup: Symbol.MethodSignature[Pattern.Ref]
-    ) = {
+    ) = debugIndent("overrides(%s, %s)", msig_sub, msig_sup) {
         val pps_sub = msig_sub.parameterPatterns
         val pps_sup = msig_sup.parameterPatterns
         val subst = pps_sub.zip(pps_sup).foldLeft(Subst.empty)(addOverrideSubst)
         pps_sub.zip(pps_sup).forall { case (pp_sub, pp_sup) =>
-            typesAreEquatable1(pp_sub.ty, subst.ty(pp_sup.ty))
+            typesAreEquatable(pp_sub.ty, subst.ty(pp_sup.ty))
         }
     }
     
