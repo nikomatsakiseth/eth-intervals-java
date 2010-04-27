@@ -634,7 +634,7 @@ case class Lower(state: CompilationState) {
         })
         
         def lowerLiteralExpr(expr: in.Literal) = introduceVar(expr, {
-            val ty = Type.Class(Name.Qual(expr.obj.getClass), List())
+            val ty = Type.Class(Name.Class(expr.obj.getClass), List())
             out.Literal(expr.obj, ty)
         })
         

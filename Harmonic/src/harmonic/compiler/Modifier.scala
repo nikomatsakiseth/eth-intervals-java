@@ -5,9 +5,9 @@ import java.lang.reflect.{Modifier => jModifier}
 object Modifier {
     
     abstract class Mod(val bit: Int, val jBit: Int, val name: Name.Qual)
-    case object Abstract extends Mod(1, jModifier.ABSTRACT, Name.Abstract)
-    case object Mutable extends Mod(2, 0, Name.Mutable)
-    case object Override extends Mod(4, 0, Name.Override)
+    case object Abstract extends Mod(1, jModifier.ABSTRACT, Name.AbstractQual)
+    case object Mutable extends Mod(2, 0, Name.MutableQual)
+    case object Override extends Mod(4, 0, Name.OverrideQual)
     
     val All = List(Abstract, Mutable, Override)
     

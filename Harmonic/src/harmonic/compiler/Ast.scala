@@ -10,12 +10,12 @@ import Util._
 abstract class Ast {
     
     import Ast.Node    
-    import Ast.PkgName
+    import Ast.QualName
     import Ast.AbsName
     import Ast.VarName
         
     /** Potentially relative names later become Absolute Names */
-    type PN <: PkgName     
+    type QN <: QualName
     
     /** Optional types later become specified */
     type OT <: OptionalTypeRef
@@ -76,18 +76,24 @@ abstract class Ast {
     // ___ Names ____________________________________________________________
     
     // ______ Potentially relative names ____________________________________
-    sealed abstract class RelName extends PkgName {
+    sealed abstract class RelName extends QualName {
         def toAbs(pkg: AbsName) = withPosOf(this, Ast.AbsName(toQual(pkg.qualName)))
-        def toQual(pkg: Name.Qual): Name.Qual
         def /(nm: String) = RelDot(this, nm)   
+        
+        def toClass(pkg: Name.Package): Name.Class
+        def toPackage(pkg: Name.Package): Name.Package
     }
     case class RelBase(nm: String) extends RelName {
-        def toQual(pkg: Name.Qual) = pkg / nm
         override def toString = nm
+        
+        def toClass(pkg: Name.Qual) = Name.Class(pkg, nm)
+        def toPackage(pkg: Name.Qual) = Name.Subpackage(pkg, nm)
     }
     case class RelDot(context: RelName, component: String) extends RelName {
-        def toQual(pkg: Name.Qual) = context.toQual(pkg) / component
         override def toString = "%s.%s".format(context, component)
+        
+        def toClass(pkg: Name.Qual) = Name.Class(context.toPackage(pkg), component)
+        def toPackage(pkg: Name.Package) = Name.Subpackage(context.toPackage(pkg), component)
     }
     
     // ___ Declarations _____________________________________________________
@@ -102,11 +108,6 @@ abstract class Ast {
             out.writeln("package %s;", pkg)
             imports.foreach(_.println(out))
             printSepFunc(out, classes, () => out.writeln(""))
-        }
-        
-        def definedClasses = {
-            val pkgQualName = pkg.qualName
-            classes.map(cdecl => (cdecl.name.toQual(pkgQualName), cdecl))
         }
         
     }
@@ -134,9 +135,9 @@ abstract class Ast {
     }
     
     case class ClassDecl(
-        name: PN,
+        name: QN,
         annotations: List[Annotation],
-        superClasses: List[PN],
+        superClasses: List[QN],
         pattern: TupleParam,
         members: List[MemberDecl],
         sym: CSym
@@ -271,7 +272,7 @@ abstract class Ast {
     }
     
     case class Annotation(
-        name: PN
+        name: QN
     ) extends Node {
         override def toString = "[%s]".format(name)
         
@@ -396,7 +397,7 @@ abstract class Ast {
         }
     }
     
-    case class ClassType(className: PN, typeArgs: List[TypeArg]) extends TypeRef {
+    case class ClassType(className: QN, typeArgs: List[TypeArg]) extends TypeRef {
         override def toString = {
             if(typeArgs.isEmpty) className.toString
             else "%s[%s]".format(className, typeArgs.mkString(", "))
@@ -696,14 +697,14 @@ object Ast {
         }
     }
     
-    sealed abstract class PkgName extends Node {
-        def toQual(pkg: Name.Qual): Name.Qual
-    }
+    sealed abstract class QualName extends Node
 
     // ______ Names known to be absolute ____________________________________
-    sealed case class AbsName(qualName: Name.Qual) extends PkgName {
-        override def toString = qualName.toString
-        def toQual(pkg: Name.Qual) = qualName
+    sealed case class PackageName(pkgName: Name.Package) {
+        override def toString = pkgName.toString
+    }
+    sealed case class ClassName(className: Name.Class) extends QualName {
+        override def toString = className.toString
         def component = qualName.rev_components.head
     }
     
@@ -720,7 +721,7 @@ object Ast {
     /** Parse phase: relative names unresolved and
       * types uninferred. */
     object Parse extends Ast {
-        type PN = RelName
+        type QN = RelName
         type OT = OptionalTypeRef
         type NE = ParseTlExpr
         type Stmt = ParseStmt
@@ -743,7 +744,7 @@ object Ast {
     
     /** After Resolve(): relative names resolved. */
     object Resolve extends Ast {
-        type PN = Ast.AbsName
+        type QN = Ast.AbsName
         type OT = OptionalTypeRef
         type NE = ParseTlExpr
         type Stmt = ParseStmt
@@ -767,7 +768,7 @@ object Ast {
     /** After Lower(): types inferred (but not checked!) and 
       * expressions broken apart into statements. */
     object Lower extends Ast {
-        type PN = Ast.AbsName
+        type QN = Ast.AbsName
         type OT = TypeRef
         type NE = AtomicExpr
         type Stmt = LowerStmt

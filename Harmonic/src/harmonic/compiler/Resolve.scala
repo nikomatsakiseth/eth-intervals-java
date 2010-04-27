@@ -21,8 +21,8 @@ object Resolve {
         
         val allImports = (
             in.ImportAll(Ast.AbsName(Name.QualRoot)) ::
-            in.ImportAll(Ast.AbsName(Name.Qual("java.lang"))) ::
-            in.ImportAll(Ast.AbsName(Name.Qual("harmonic.lang"))) ::
+            in.ImportAll(Ast.AbsName(Name.Package("java.lang"))) ::
+            in.ImportAll(Ast.AbsName(Name.Package("harmonic.lang"))) ::
             in.ImportAll(compUnit.pkg) ::
             compUnit.imports
         ).reverse

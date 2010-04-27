@@ -17,7 +17,7 @@ object Type {
             else "%s[%s]".format(name, typeArgs.mkString(", "))
     }
     object Class {
-        def apply(cls: java.lang.Class[_]): Type.Class = Class(Name.Qual(cls), List())
+        def apply(cls: java.lang.Class[_]): Type.Class = Class(Name.Class(cls), List())
     }
     case class Tuple(typeRefs: List[Type.Ref]) extends Ref {
         override def toString = "(%s)".format(typeRefs.mkString(", "))

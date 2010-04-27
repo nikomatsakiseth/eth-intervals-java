@@ -2,40 +2,80 @@ package harmonic.compiler
 
 object Name {
     
-    /** Qualified names: used for classes and packages. */
-    case class Qual(
-        rev_components: List[String]
-    ) {
-        def components = rev_components.reverse
-        def asRelPath = components.mkString("/")
-        override def toString = components.mkString(".")
-        
-        def internalName = asRelPath
-        
-        def /(nm: String) = Name.Qual(nm :: rev_components)
-        
-        def withSuffix(suffix: String) = rev_components match {
-            case hd :: tl => Name.Qual((hd + suffix) :: tl)
-            case List() => throw new RuntimeException("Non-empty name expected")
-        }
+    sealed abstract Qual {
+        def asRelPath: String = internalName
+        def toInternalPrefix: String
+        def toPrefix: String
     }
     
-    val QualRoot = Qual(List())
+    sealed abstract Package extends Qual
     
-    object Qual {
-        def apply(name: String): Qual = new Qual(name.split('.').reverse.toList)
+    case object Root extends Package {
+        def toInternalPrefix = ""
+        def toPrefix = ""
+        override def toString = "<root>"
+    }
+    
+    case class Subpackage(
+        base: PackageQual,
+        name: String
+    ) extends Package {
+        def toInternalPrefix = base.toInternalPrefix + name + "/"
+        def toPrefix = base.toPrefix + name + "."
+        override def toString = base.toPrefix + name
+    }
+    
+    case class Class(
+        base: Qual,
+        name: String
+    ) extends Qual {
+        def internalName = base.toInternalPrefix + name
+        def toInternalPrefix = internalName + "$"
+        def toPrefix = base.toPrefix + name + "."
+        override def toString = base.toPrefix + name
+        def withSuffix(suffix: String) = ClassQual(base, name + suffix)
+    }
+    
+    object Package {
         
-        def apply(cls: java.lang.Class[_]): Qual = cls match {
-            case _ if cls == classOf[Boolean] => this("java.lang.Boolean")
-            case _ if cls == classOf[Char] => this("java.lang.Character")
-            case _ if cls == classOf[Byte] => this("java.lang.Byte")
-            case _ if cls == classOf[Short] => this("java.lang.Short")
-            case _ if cls == classOf[Int] => this("java.lang.Integer")
-            case _ if cls == classOf[Long] => this("java.lang.Long")
-            case _ if cls == classOf[Float] => this("java.lang.Float")
-            case _ if cls == classOf[Double] => this("java.lang.Double")
-            case _ if cls == classOf[Unit] => this("java.lang.Void")
-            case _ => this(cls.getName)
+        def apply(str: String): Package = {
+            val comp = pkg.getName.split(".")
+            comp.foldLeft(Root) {
+                case (q, n) => SubpackageQual(q, n)
+            }
+        }
+        
+        def apply(pkg: java.lang.Package): Package = {
+            if(pkg == null) Root
+            else apply(pkg.getName)
+        }
+        
+    }
+    
+    object Class {
+        def apply(cls: java.lang.Class[_]): Class = cls match {
+            // Handle the primitives:
+            case _ if cls == classOf[Boolean] => apply(classOf[java.lang.Boolean])
+            case _ if cls == classOf[Char] => apply(classOf[java.lang.Character])
+            case _ if cls == classOf[Byte] => apply(classOf[java.lang.Byte])
+            case _ if cls == classOf[Short] => apply(classOf[java.lang.Short])
+            case _ if cls == classOf[Int] => apply(classOf[java.lang.Integer])
+            case _ if cls == classOf[Long] => apply(classOf[java.lang.Long])
+            case _ if cls == classOf[Float] => apply(classOf[java.lang.Float])
+            case _ if cls == classOf[Double] => apply(classOf[java.lang.Double])
+            case _ if cls == classOf[Unit] => apply(classOf[java.lang.Void])
+            
+            // Handle inner classes:
+            case _ if cls.getDeclaringClass != null => {
+                val outerQual = apply(cls.getDeclaringClass)
+                ClassQual(outerQual, cls.getSimpleName)
+            }
+            
+            // Handle top-level classes:
+            case _ => {
+                val packageQual = PackageQual(cls.getPackage)
+                ClassQual(packageQual, cls.getSimpleName)
+            }
         }
     }
     
@@ -48,39 +88,49 @@ object Name {
         override def toString = parts.mkString("", "()", "()")
     }
     
-    /** Field and variable names. */
-    case class Var(
-        text: String
-    ) {
-        def javaName = text
-        
+    /** Names of variables */
+    sealed abstract class Var {
+        def javaName: String
         def toPath = Path.Base(this)
-        
+    }
+    
+    /** Names of fields, type variables, ghosts */
+    sealed case class MemberVar(
+        className: Name.Qual,
+        text: String
+    ) extends Var {
+        override def toString = "(%s.%s)".format(className, text)
+    }
+    
+    /** Names of parameters, local variables */
+    sealed case class LocalVar(
+        text: String
+    ) extends Var {
         override def toString = text
     }
     
     private[this] val lang = "harmonic.lang."
     
-    val ThisVar = Name.Var("this")
+    val ThisVar = Name.LocalVar("this")
     
-    val MethodVar = Name.Var("method")
+    val MethodVar = Name.LocalVar("method")
     
-    val VoidQual = Qual(classOf[java.lang.Void])
+    val VoidQual = Class(classOf[java.lang.Void])
     
-    val ObjectQual = Qual(classOf[java.lang.Object])
+    val ObjectQual = Class(classOf[java.lang.Object])
 
     val ArrayQual = Qual(lang + "Array")
-    val ArrayElem = Var("E")
+    val ArrayElem = MemberVar(ArrayQual, "E")
     
-    val Abstract = Qual(lang + "Abstract")
-    val Mutable = Qual(lang + "Mutable")
-    val Override = Qual(classOf[java.lang.Override])
+    val AbstractQual = Qual(lang + "Abstract")
+    val MutableQual = Qual(lang + "Mutable")
+    val OverrideQual = Class(classOf[java.lang.Override])
 
-    val BlockQual = Qual(classOf[harmonic.lang.Block[_, _]])
-    val AsyncBlockQual = Qual(classOf[harmonic.lang.AsyncBlock[_, _]])
-    val RVar = Name.Var("R")
-    val AVar = Name.Var("A")
-    val IntervalTmplParent = Var("Parent")
+    val BlockQual = Class(classOf[harmonic.lang.Block[_, _]])
+    val AsyncBlockQual = Class(classOf[harmonic.lang.AsyncBlock[_, _]])
+    val RVar = MemberVar(BlockQual, "R")
+    val AVar = MemberVar(BlockQual, "A")
+    val IntervalTmplParent = MemberVar(BlockQual, "Parent")
     val ValueMethod = Method(List("value"))
 
     val InitMethod = Method(List("<init>"))

@@ -3,7 +3,7 @@ package harmonic.compiler
 case class Intrinsic(state: CompilationState) {
     
     def ensureLoadable(cls: Class[_]) {
-        state.requireLoadedOrLoadable(InterPosition.forClass(cls), Name.Qual(cls))
+        state.requireLoadedOrLoadable(InterPosition.forClass(cls), Name.Class(cls))
     }
     
     // ___ IntrinsicMath ____________________________________________________
@@ -97,7 +97,7 @@ case class Intrinsic(state: CompilationState) {
             argumentTy: Type.Ref
         ) = {
             Type.Class(
-                Name.Qual(templateClass),
+                Name.Class(templateClass),
                 List(
                     Type.TypeArg(Name.RVar, TcEq, returnTy),
                     Type.TypeArg(Name.AVar, TcEq, argumentTy)
@@ -231,7 +231,7 @@ case class Intrinsic(state: CompilationState) {
                     Array(templateClass, templateClass),
                     objectClass
                 ),
-                clsName = Name.Qual(templateClass),
+                clsName = Name.Class(templateClass),
                 name = Name.Method(List("while")),
                 Symbol.MethodSignature(
                     returnTy = voidTy, 
