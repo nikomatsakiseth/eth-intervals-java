@@ -67,6 +67,8 @@ object Symbol {
                 visited(superCsym)                
             }
         }
+        
+        def setMethodGroups(groups: List[Symbol.MethodGroup]): Unit
 
         override def toString = "%s(%s, %x)".format(
             getClass.getSimpleName, name, System.identityHashCode(this)
@@ -84,6 +86,7 @@ object Symbol {
         def methodsNamed(state: CompilationState)(name: Name.Method) = List()
         def fieldNamed(state: CompilationState)(name: Name.Var) = None
         def allMethodSymbols(state: CompilationState) = List()
+        def setMethodGroups(groups: List[Symbol.MethodGroup]) {}
         def pos = InterPosition.unknown
     }
     
@@ -136,6 +139,8 @@ object Symbol {
             load(state)
             fields.find(_.isNamed(name))
         }
+        
+        def setMethodGroups(groups: List[Symbol.MethodGroup]) {}
     }
     
     class ClassFromReflection(
@@ -163,6 +168,7 @@ object Symbol {
         def fieldNamed(state: CompilationState)(name: Name.Var) = {
             Reflect(state).fields(this).find(_.isNamed(name))
         }
+        def setMethodGroups(groups: List[Symbol.MethodGroup]) {}
     }
     
     class ClassFromSource(
@@ -199,6 +205,9 @@ object Symbol {
           * whether they are defined in this class or in a superclass. Populated 
           * by GatherOverrides for all classes being compiled and their supertypes. */
         var methodGroups: List[MethodGroup] = Nil
+        def setMethodGroups(groups: List[Symbol.MethodGroup]) {
+            methodGroups = groups
+        }
         
         def modifiers(state: CompilationState) = 
             Modifier.forResolvedAnnotations(resolvedSource.annotations)

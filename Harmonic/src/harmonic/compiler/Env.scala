@@ -143,7 +143,6 @@ case class Env(
         className: Name.Qual,
         methodName: Name.Method
     ): List[Symbol.Method] = {
-        debug("  lookupMethodsDefinedOnClass(%s,%s)", className, methodName)
         state.lookupIntrinsic(className, methodName).getOrElse {
             val csym = state.classes(className)
             csym.methodsNamed(state)(methodName)
@@ -154,10 +153,8 @@ case class Env(
         rcvrTy: Type.Ref, 
         methodName: Name.Method
     ): List[Symbol.Method] = {
-        debug("lookupMethods(%s, %s)", rcvrTy, methodName)
         minimalUpperBoundType(rcvrTy).firstSome({ 
             case classTy: Type.Class => 
-                debug("  bound by %s", classTy)
                 val mro = MethodResolutionOrder(state).forClassType(classTy)
                 mro.firstSome { csym =>
                     lookupMethodsDefinedOnClass(csym.name, methodName) match {
@@ -347,7 +344,7 @@ case class Env(
         }
     }
 
-    private[this] def typesAreEquatable1(pair: (Type.Ref, Type.Ref)): Boolean = debugIndent("typesAreEquatable1%s", pair){
+    private[this] def typesAreEquatable1(pair: (Type.Ref, Type.Ref)): Boolean = {
         val (ty1, ty2) = pair
         (ty1 == ty2) || {
             (ty1, ty2) match {
@@ -369,7 +366,7 @@ case class Env(
         }
     }
     
-    def typesAreEquatable(ty1: Type.Ref, ty2: Type.Ref): Boolean = debugIndent("typesAreEquatable(%s, %s)", ty1, ty2) {
+    def typesAreEquatable(ty1: Type.Ref, ty2: Type.Ref): Boolean = {
         (ty1 == ty2) || (equalType(ty1) cross equalType(ty2)).exists(typesAreEquatable1)
     }
     
@@ -435,7 +432,7 @@ case class Env(
     def overrides(
         msig_sub: Symbol.MethodSignature[Pattern.Ref], 
         msig_sup: Symbol.MethodSignature[Pattern.Ref]
-    ) = debugIndent("overrides(%s, %s)", msig_sub, msig_sup) {
+    ) = {
         val pps_sub = msig_sub.parameterPatterns
         val pps_sup = msig_sup.parameterPatterns
         val subst = pps_sub.zip(pps_sup).foldLeft(Subst.empty)(addOverrideSubst)

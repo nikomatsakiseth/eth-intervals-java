@@ -1,0 +1,23 @@
+package test.gather;
+
+class GatherTriangleA {
+    foo() { }
+}
+
+class GatherTriangleB {
+    foo() { }
+}
+
+class GatherTriangleAB // ERROR must.override(foo(), test.gather.GatherTriangleA, test.gather.GatherTriangleB)
+extends GatherTriangleA, GatherTriangleB { 
+}
+
+class GatherTriangleBA // ERROR must.override(foo(), test.gather.GatherTriangleB, test.gather.GatherTriangleA)
+extends GatherTriangleB, GatherTriangleA { 
+}
+
+class GatherTriangleOver extends GatherTriangleA, GatherTriangleB {
+    @Override foo() { }
+}
+
+// COMPILE

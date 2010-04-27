@@ -25,14 +25,11 @@ object Util {
         
         def cross[J](js: Iterable[J]) = 
             for(i <- iterable.view; j <- js.view) yield (i,j)
+            
+        def intersects(seq: Seq[E]): Boolean =
+            iterable.exists(seq.contains)
     }
     implicit def extendedIterable[E](iterable: Iterable[E]) = new ExtendedIterable(iterable)
-    
-    class ExtendedSet[E](set: Set[E]) {
-        def intersects(anotherSet: Set[E]) =
-            set.exists(anotherSet.contains)
-    }
-    implicit def extendedSet[E](set: Set[E]) = new ExtendedSet(set)
     
     // ___ Debug ____________________________________________________________
     private[this] var indent: Int = 0

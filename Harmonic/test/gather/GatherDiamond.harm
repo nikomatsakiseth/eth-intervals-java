@@ -1,0 +1,19 @@
+package test.gather;
+
+class GatherDiamondA {
+    foo() { }
+}
+
+class GatherDiamondB extends GatherDiamondA {
+    @Override foo() { }
+}
+
+class GatherDiamondC extends GatherDiamondA {
+    @Override foo() { }
+}
+
+class GatherDiamondD extends GatherDiamondB, GatherDiamondC {
+    @Override foo() { }
+}
+
+// COMPILE

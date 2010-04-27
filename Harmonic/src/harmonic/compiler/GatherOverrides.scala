@@ -7,17 +7,34 @@ import scala.collection.mutable
 import Ast.{Lower => in}
 import Util._
 
+object GatherOverrides {
+    class Data {
+        val gathered = new mutable.HashSet[Symbol.Class]()
+    }
+}
+
 /** Determines which methods override one another. */
 case class GatherOverrides(state: CompilationState) {
     
+    private[this] val data: GatherOverrides.Data = state.data(classOf[GatherOverrides.Data])
+    
     /** Populates `csym.methodGroups` as well as the `overrides` 
       * fields of all method symbols defined in `csym` */
-    def forSym(csym: Symbol.ClassFromSource) = {
-        var env = Env.empty(state) // TODO Enrich environment based on `csym`
-        val methodGroups = gatherMethodGroups(csym, env)
-        computeOverrides(csym, methodGroups)
-        methodGroups.allGroups.foreach(sanityCheckGroup(csym, _))
-        csym.methodGroups = methodGroups.allGroups
+    def forSym(csym: Symbol.Class): Unit = {
+        if(data.gathered.add(csym)) {
+            // First process supertypes:
+            val superNames = csym.superClassNames(state)
+            val superCsyms = superNames.map(state.classes)
+            superCsyms.foreach(forSym)
+            
+            // Now process csym:
+            var env = Env.empty(state) // TODO Enrich environment based on `csym`
+            val methodGroups = gatherMethodGroups(csym, env)
+            computeOverrides(csym, methodGroups)
+            val allGroups = methodGroups.allGroups
+            allGroups.foreach(sanityCheckGroup(csym, _))
+            csym.setMethodGroups(allGroups)
+        }
     }
     
     class MethodGroups(env: Env) {
@@ -109,8 +126,23 @@ case class GatherOverrides(state: CompilationState) {
                 // No version of this method defined in `csym`.
                 // In that case, all impl. of the method must
                 // override a common base method.
-                // TODO Implement check for common base method.
-                ()
+                val tops = group.msyms.foldLeft(group.msyms) {
+                    case (l, msym) => l.filterNot(msym.overrides.contains)
+                }
+                val reported = new mutable.HashSet[(Symbol.Method, Symbol.Method)]()
+                (tops cross tops).foreach { case (msym1, msym2) =>
+                    if(msym1 != msym2 && !msym1.overrides.intersects(msym2.overrides)) {
+                        if(reported.add((msym1, msym2)) && reported.add((msym2, msym1))) {
+                            state.reporter.report(
+                                csym.pos,
+                                "must.override",
+                                group.methodName.toString,
+                                msym1.clsName.toString,
+                                msym2.clsName.toString
+                            )                        
+                        }
+                    }
+                }
             }
 
             case List(msym) => {
