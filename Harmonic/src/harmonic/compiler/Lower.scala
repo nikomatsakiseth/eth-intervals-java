@@ -151,6 +151,7 @@ case class Lower(state: CompilationState) {
                 } else {
                     val outMdecl = lowerMethodDecl(csym, mdecl)
                     new Symbol.Method(
+                        pos = mdecl.pos,
                         modifierSet = Modifier.forResolvedAnnotations(annotations),
                         kind = Symbol.Inter,
                         clsName = csym.name,
@@ -166,6 +167,7 @@ case class Lower(state: CompilationState) {
             
             case in.MethodDecl(annotations, _, parts, returnTy: in.TypeRef, _, _, _) => {
                 new Symbol.Method(
+                    pos = mdecl.pos,
                     modifierSet = Modifier.forResolvedAnnotations(annotations),
                     kind = Symbol.Inter,
                     clsName = csym.name,

@@ -1282,8 +1282,8 @@ case class ByteCode(state: CompilationState) {
             case csym :: tl => {
                 val matching = msyms.takeWhile(_.isFromClassNamed(csym.name))
                 val remaining = msyms.drop(matching.length)
-                val nonabstract = matching.filter(_.modifiers(state).isNonAbstract)
-                nonabstract match {
+                val notAbstract = matching.filter(_.modifiers(state).isNotAbstract)
+                notAbstract match {
                     case List() => None :: computeVersions(group, tl, remaining)
                     case msyms => {
                         // FIXME Should pick the symbol whose signature best matches group.msig

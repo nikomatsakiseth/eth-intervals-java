@@ -18,7 +18,10 @@ object Modifier {
         def toList = All.filter(contains)
         
         def isAbstract = contains(Abstract)
-        def isNonAbstract = !contains(Abstract)
+        def isNotAbstract = !contains(Abstract)
+        
+        def isOverride = contains(Override)
+        def isNotOverride = !contains(Override)
     }
     
     object Set {

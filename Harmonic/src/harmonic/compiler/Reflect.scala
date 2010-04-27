@@ -58,10 +58,11 @@ case class Reflect(state: CompilationState) {
     
     def ctorSymbol(clsName: Name.Qual)(mthd: reflect.Constructor[_]) = {
         new Symbol.Method(
-            Modifier.forMember(mthd),
-            kind    = Symbol.JavaVirtual, // FIXME 
-            clsName = clsName,
-            name    = Name.InitMethod,
+            pos         = InterPosition.forClass(mthd.getDeclaringClass),
+            modifierSet = Modifier.forMember(mthd),
+            kind        = Symbol.JavaVirtual,
+            clsName     = clsName,
+            name        = Name.InitMethod,
             Symbol.MethodSignature(
                 returnTy          = Type.Void,
                 receiverTy        = Type.Class(clsName, List()),
@@ -81,10 +82,11 @@ case class Reflect(state: CompilationState) {
     
     def methodSymbol(clsName: Name.Qual)(mthd: reflect.Method) = {
         new Symbol.Method(
-            Modifier.forMember(mthd),
-            kind = Symbol.JavaVirtual, // FIXME 
-            clsName = clsName,
-            name = Name.Method(List(mthd.getName)),
+            pos         = InterPosition.forClass(mthd.getDeclaringClass),
+            modifierSet = Modifier.forMember(mthd),
+            kind        = Symbol.JavaVirtual, // FIXME 
+            clsName     = clsName,
+            name        = Name.Method(List(mthd.getName)),
             Symbol.MethodSignature(
                 returnTy = typeRef(mthd.getGenericReturnType),
                 receiverTy = Type.Class(clsName, List()),

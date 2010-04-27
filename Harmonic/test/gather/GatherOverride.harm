@@ -1,0 +1,13 @@
+package test.gather;
+
+class GatherOverride extends Application {
+    
+    @Override foo() { // ERROR method.does.not.override()
+    }
+    
+    main(): Object { // ERROR method.must.be.marked.override(main(), harmonic.lang.Application)
+        22
+    }
+    
+}
+// COMPILE

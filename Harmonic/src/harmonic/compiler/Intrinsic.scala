@@ -1,8 +1,8 @@
 package harmonic.compiler
 
-object Intrinsic {
+case class Intrinsic(state: CompilationState) {
     
-    def ensureLoadable(state: CompilationState, cls: Class[_]) {
+    def ensureLoadable(cls: Class[_]) {
         state.requireLoadedOrLoadable(InterPosition.forClass(cls), Name.Qual(cls))
     }
     
@@ -29,9 +29,9 @@ object Intrinsic {
         (Name.Method(List("*")), "times")
     )
     
-    private[this] def addMathTo(state: CompilationState) = {
+    private[this] def addMathTo() = {
         
-        numericTypes.foreach(ensureLoadable(state, _))
+        numericTypes.foreach(ensureLoadable)
         
         for(leftClass <- numericTypes; rightClass <- numericTypes) {
             val returnIndex = Math.max(
@@ -48,6 +48,7 @@ object Intrinsic {
             for((interName, javaName) <- mathOps) {
                 state.addIntrinsic(
                     new Symbol.Method(
+                        pos = InterPosition.forClass(classOf[Intrinsic]),
                         modifierSet = Modifier.Set.empty,
                         kind = Symbol.IntrinsicMath(javaName, leftClass, rightClass, returnClass),
                         clsName = leftTy.name,
@@ -66,7 +67,7 @@ object Intrinsic {
     
     // ___ IntrinsicControlFlow _____________________________________________
     
-    private[this] def addControlFlow(state: CompilationState) = {
+    private[this] def addControlFlow() = {
         
         val booleanClass = classOf[java.lang.Boolean]
         val voidClass = classOf[java.lang.Void]
@@ -74,11 +75,11 @@ object Intrinsic {
         val iterableClass = classOf[java.lang.Iterable[_]]
         val templateClass = classOf[harmonic.lang.Block[_, _]]
         
-        ensureLoadable(state, booleanClass)
-        ensureLoadable(state, voidClass)
-        ensureLoadable(state, objectClass)
-        ensureLoadable(state, iterableClass)
-        ensureLoadable(state, templateClass)
+        ensureLoadable(booleanClass)
+        ensureLoadable(voidClass)
+        ensureLoadable(objectClass)
+        ensureLoadable(iterableClass)
+        ensureLoadable(templateClass)
         
         val booleanTy = Type.Class(booleanClass)
         val voidTy = Type.Class(voidClass)
@@ -107,6 +108,7 @@ object Intrinsic {
         // (boolean) if {...}
         state.addIntrinsic(
             new Symbol.Method(
+                pos = InterPosition.forClass(classOf[Intrinsic]),
                 modifierSet = Modifier.Set.empty,
                 kind = controlFlow(
                     "if_",
@@ -128,6 +130,7 @@ object Intrinsic {
         // (Object) ifNull {...}
         state.addIntrinsic(
             new Symbol.Method(
+                pos = InterPosition.forClass(classOf[Intrinsic]),
                 modifierSet = Modifier.Set.empty,
                 kind = controlFlow(
                     "ifNull",
@@ -149,6 +152,7 @@ object Intrinsic {
         // (boolean) if {...} else {...}
         state.addIntrinsic(
             new Symbol.Method(
+                pos = InterPosition.forClass(classOf[Intrinsic]),
                 modifierSet = Modifier.Set.empty,
                 kind = controlFlow(
                     "ifElse",
@@ -171,6 +175,7 @@ object Intrinsic {
         // (Object) ifNull {...} else {...}
         state.addIntrinsic(
             new Symbol.Method(
+                pos = InterPosition.forClass(classOf[Intrinsic]),
                 modifierSet = Modifier.Set.empty,
                 kind = controlFlow(
                     "ifNullElse",
@@ -194,6 +199,7 @@ object Intrinsic {
         val typeT = Type.Var(Path.This, Name.Var("T"))
         state.addIntrinsic(
             new Symbol.Method(
+                pos = InterPosition.forClass(classOf[Intrinsic]),
                 modifierSet = Modifier.Set.empty,
                 kind = controlFlow(
                     "forEach",
@@ -218,6 +224,7 @@ object Intrinsic {
         // (Block<Boolean,_>) while { ... }
         state.addIntrinsic(
             new Symbol.Method(
+                pos = InterPosition.forClass(classOf[Intrinsic]),
                 modifierSet = Modifier.Set.empty,
                 kind = controlFlow(
                     "while_",
@@ -240,9 +247,9 @@ object Intrinsic {
     
     // ___ General __________________________________________________________
     
-    def addTo(state: CompilationState) = {
-        addMathTo(state)
-        addControlFlow(state)
+    def add() = {
+        addMathTo()
+        addControlFlow()
     }
 
 }

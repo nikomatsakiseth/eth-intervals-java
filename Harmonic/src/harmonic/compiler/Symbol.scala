@@ -208,10 +208,11 @@ object Symbol {
                 case Some(ctorSymbol) => List(ctorSymbol)
                 case None => {
                     val ctorSymbol = new Symbol.Method(
+                        pos         = resolvedSource.pattern.pos,
                         modifierSet = modifiers(state),
-                        kind = Symbol.InterCtor,
-                        clsName = name,
-                        name = Name.InitMethod,
+                        kind        = Symbol.InterCtor,
+                        clsName     = name,
+                        name        = Name.InitMethod,
                         Symbol.MethodSignature(
                             returnTy = Type.Void,
                             receiverTy = Type.Class(name, List()),
@@ -261,6 +262,7 @@ object Symbol {
     case object ErrorMethod extends MethodKind
     
     class Method(
+        val pos: Position,
         val modifierSet: Modifier.Set,
         val kind: MethodKind,                   /** Intrinsic, harmonic, java, etc. */
         val clsName: Name.Qual,                 /** Class in which the method is defined. */
@@ -290,10 +292,11 @@ object Symbol {
             Pattern.Var(Name.Var("arg%d".format(i)), Type.Null)
         }
         new Method(
-            Modifier.Set.empty,
-            ErrorMethod, 
-            clsName, 
-            name, 
+            pos         = InterPosition.forClassNamed(clsName),
+            modifierSet = Modifier.Set.empty,
+            kind        = ErrorMethod, 
+            clsName     = clsName, 
+            name        = name, 
             MethodSignature(Type.Null, Type.Null, parameterPatterns)
         ) {
             override def isError = true

@@ -77,7 +77,22 @@ case class GatherOverrides(state: CompilationState) {
         csym.allMethodSymbols(state).foreach { msym =>
             val group = methodGroups.group(msym)
             msym.overrides ++= group.msyms.dropWhile(_.isFromClassNamed(csym.name))
-        }        
+            
+            if(msym.overrides.isEmpty && msym.modifiers(state).isOverride) {
+                state.reporter.report(
+                    msym.pos,
+                    "method.does.not.override"
+                )
+            } else if (!msym.overrides.isEmpty && !msym.modifiers(state).isOverride) {
+                val classNames = msym.overrides.map(_.clsName)
+                state.reporter.report(
+                    msym.pos,
+                    "method.must.be.marked.override",
+                    msym.name.toString,
+                    classNames.mkString(", ")
+                )
+            }
+        }
     }
     
     /** Checks that the contents of a group meet certain conditions:
