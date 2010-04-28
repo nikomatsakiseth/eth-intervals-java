@@ -11,6 +11,9 @@ class CompilationState(
     /** Maps a class name to its symbol. */
     val classes = new mutable.HashMap[Name.Qual, Symbol.Class]()
     
+    /** Compilation units containing classes whose body has not yet been resolved. */
+    val toBeResolved = new mutable.Queue[Ast.Parse.CompUnit]()
+    
     /** Symbols parsed and resolved but not yet lowered. */
     val toBeLowered = new mutable.Queue[Symbol.ClassFromSource]()
     
@@ -53,52 +56,65 @@ class CompilationState(
     
     // ___ Loading and resolving class symbols ______________________________
     
-    private[this] def createSymbolsAndResolve(compUnits: List[Ast.Parse.CompUnit]) {
+    private[this] def createSymbolsAndResolveHeader(compUnits: List[Ast.Parse.CompUnit]) {
+        val newSyms = mutable.HashMap[
+            Ast.Parse.CompUnit, 
+            List[(Symbol.ClassFromSource, Ast.Parse.ClassDecl)]
+        ]()
+        
         // Create symbols for each class:
         //    We have to do this first so as to resolve 
         //    cyclic references between classes.
-        compUnits.flatMap(_.definedClasses).foreach { case (qualName, cdecl) =>
-            if(classes.isDefinedAt(qualName))
-                reporter.report(cdecl.pos, "class.already.defined", qualName.toString)
-            else
-                classes(qualName) = new Symbol.ClassFromSource(qualName)
+        compUnits.foreach { compUnit =>
+            Ast.Parse.definedClasses(compUnit).foreach { case (className, cdecl) =>
+                if(classes.isDefinedAt(className))
+                    reporter.report(cdecl.pos, "class.already.defined", className.toString)
+                else {
+                    csym = new Symbol.ClassFromSource(className)
+                    newSyms(compUnit) = (csym, cdecl) :: newSyms.getOrElse(compUnit, Nil)
+                    classes(className) = csym
+                }                
+            }
         }
         
-        // Resolve the compilation unit and store those into the symbol:
-        compUnits.foreach { compUnit =>
-            Resolve(this, compUnit).foreach { cdecl =>
-                val sym = classes(cdecl.name.qualName).asInstanceOf[Symbol.ClassFromSource]
-                sym.resolvedSource = cdecl
-                toBeLowered += sym
+        // Resolve header for each class and enqueue
+        // compilation unit for full resolution:
+        newSyms.foreach { case (compUnit, classes) =>
+            val resolve = Resolve(this, compUnit)
+            classes.foreach { case (csym, cdecl) =>
+                resolve.resolveClassHeader(csym, cdecl)
             }
+            toBeResolved += compUnit
         }
     }
     
     def loadInitialSources(files: List[java.io.File]) {
         val compUnits = files.flatMap(Parse(this, _))
-        createSymbolsAndResolve(compUnits)
+        createSymbolsAndResolveHeader(compUnits)
     }
     
-    /** True if a class with the name `qualName` has been
+    /** True if a class with the name `className` has been
       * loaded or we can find source for it (in which case
       * that source is loaded). */
-    def loadedOrLoadable(qualName: Name.Qual) = {
-        classes.isDefinedAt(qualName) || locateSource(qualName)
+    def loadedOrLoadable(className: Name.Class) = {
+        classes.isDefinedAt(className) || locateSource(className)
     }
     
-    /** Loads a class named `qualName`.  If it fails, reports an 
+    /** Loads a class named `className`.  If it fails, reports an 
       * error and inserts a dummy into the symbol table. */
-    def requireLoadedOrLoadable(pos: Position, qualName: Name.Qual) = {
-        if(!loadedOrLoadable(qualName)) {
-            reporter.report(pos, "cannot.find.class", qualName.toString)
-            classes(qualName) = new Symbol.ClassFromErroroneousSource(qualName)
+    def requireLoadedOrLoadable(pos: Position, className: Name.Class) = {
+        val result = loadedOrLoadable(className)
+        if(!result) {
+            reporter.report(pos, "cannot.find.class", className.toString)
+            classes(className) = new Symbol.ClassFromErroroneousSource(className)
         }
+        result
     }
     
-    /** Tries to locate a source for `qualName`.  If a source
+    /** Tries to locate a source for `className`.  If a source
       * is found, instantiates a corresponding symbol and
       * returns true.  Otherwise returns false. */
-    def locateSource(qualName: Name.Qual) = {        
+    def locateSource(className: Name.Class) = {        
         
         /** When we find a reference to a source file, we parse it and load
           * the resulting classes into the symbol table.  For each class,
@@ -107,37 +123,37 @@ class CompilationState(
             Parse(this, file) match {
                 case None => { 
                     // Parse error:
-                    classes(qualName) = new Symbol.ClassFromErroroneousSource(qualName)
+                    classes(className) = new Symbol.ClassFromErroroneousSource(className)
                 }
 
                 case Some(compUnit) => {
                     // Check that we got (at least) the class we expected to find:
-                    compUnit.definedClasses.find(_._1 == qualName) match {
+                    Ast.Parse.definedClasses(compUnit).find(_._1 == className) match {
                         case None => {
                             reporter.report(
                                 InterPosition.forFile(file),
                                 "expected.to.find.class", 
-                                qualName.toString
+                                className.toString
                             )
-                            classes(qualName) = new Symbol.ClassFromErroroneousSource(qualName)                            
+                            classes(className) = new Symbol.ClassFromErroroneousSource(className)                            
                         }
                         
                         case Some(_) =>
                     }
                     
                     // Process the loaded classes.  May trigger recursive calls to locateSource().
-                    createSymbolsAndResolve(List(compUnit)) 
+                    createSymbolsAndResolveHeader(List(compUnit)) 
                 }
             }
         }
 
-        val sourceFiles = config.sourceFiles(qualName)
-        val classFiles = config.classFiles(qualName)
-        val reflClasses = config.reflectiveClasses(qualName)
+        val sourceFiles = config.sourceFiles(className)
+        val classFiles = config.classFiles(className)
+        val reflClasses = config.reflectiveClasses(className)
         (sourceFiles, classFiles, reflClasses) match {
             case (List(), List(), None) => false
             case (List(), List(), Some(reflClass)) => {
-                classes(qualName) = new Symbol.ClassFromReflection(qualName, reflClass)
+                classes(className) = new Symbol.ClassFromReflection(className, reflClass)
                 true
             }
             case (sourceFile :: _, List(), _) => {
@@ -145,7 +161,7 @@ class CompilationState(
                 true
             }
             case (List(), classFile :: _, _) => {
-                classes(qualName) = new Symbol.ClassFromClassFile(qualName, classFile)
+                classes(className) = new Symbol.ClassFromClassFile(className, classFile)
                 true
             }
             case (sourceFile :: _, classFile :: _, _) => {
@@ -153,7 +169,7 @@ class CompilationState(
                     loadSourceFile(sourceFile)
                     true
                 } else {
-                    classes(qualName) = new Symbol.ClassFromClassFile(qualName, classFile)
+                    classes(className) = new Symbol.ClassFromClassFile(className, classFile)
                     true
                 }
             }
@@ -173,6 +189,18 @@ class CompilationState(
     // ___ Main compile loop ________________________________________________
     
     def compile() {
+        if(reporter.hasErrors) return
+        
+        while(!toBeResolved.isEmpty) {
+            val compUnit = toBeResolved.dequeue()
+            val resolve = Resolve(this, compUnit)
+            resolve.resolveAllClassDecls().foreach { case cdecl =>
+                val sym = classes(cdecl.name.className).asInstanceOf[Symbol.ClassFromSource]
+                sym.resolvedSource = outCdecl
+                toBeLowered += sym
+            }
+        }
+        
         if(reporter.hasErrors) return
         
         while(!toBeLowered.isEmpty) {

@@ -99,7 +99,7 @@ abstract class Ast {
     // ___ Declarations _____________________________________________________
     
     case class CompUnit(
-        pkg: AbsName,
+        pkg: PackageName,
         imports: List[ImportDecl],
         classes: List[ClassDecl]
     ) extends Node {
@@ -129,7 +129,7 @@ abstract class Ast {
     }
     
     case class ImportAll(
-        fromName: AbsName
+        fromName: PackageName
     ) extends ImportDecl {
         override def toString = "import %s.*".format(fromName)
     }
@@ -740,6 +740,9 @@ object Ast {
         def tupleTy(tys: List[Ty]) = ()
         def mthdSym(unit: Unit) = ()
         def returnTy(unit: Unit) = ()
+        
+        def definedClasses(cunit: CompUnit) =
+            classes.map(cdecl => (cdecl.name.toClass(cunit.pkg.toPackage), cdecl))
     }
     
     /** After Resolve(): relative names resolved. */

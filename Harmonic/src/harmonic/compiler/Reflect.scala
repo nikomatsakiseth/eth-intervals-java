@@ -54,7 +54,12 @@ case class Reflect(state: CompilationState) {
             name = Name.Var("arg"+pair._2),
             ty   = typeRef(pair._1)
         )
-    }    
+    }
+    
+    def superClassNames(sym: Symbol.ClassFromReflection) = {
+        val cls = sym.cls
+        (cls.getSuperclass :: cls.getInterfaces.toList).flatMap(Option(_)).map(Name.Class)
+    }
     
     def ctorSymbol(clsName: Name.Qual)(mthd: reflect.Constructor[_]) = {
         new Symbol.Method(

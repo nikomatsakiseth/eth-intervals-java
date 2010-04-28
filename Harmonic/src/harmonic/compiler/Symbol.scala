@@ -15,16 +15,28 @@ import scala.util.parsing.input.Position
   * (i.e., if they are implemented on different classes). */
 object Symbol {
     
-    // ___ Types ____________________________________________________________    
+    abstract class Kind
+    case object ClassKind extends Kind
+    case object MethodKind extends Kind
+    abstract class VarKind extends Kind
+    case object FieldKind extends VarKind
+    case object TypeKind extends VarKind
+    case object GhostKind extends VarKind
+    case object LocalKind extends Kind
     
     abstract class Ref {
         def modifiers(state: CompilationState): Modifier.Set
         def isError: Boolean = false
+        def kind: Kind
     }
     
     sealed abstract class Class(
         val name: Name.Qual
     ) extends Ref {
+        
+        def kind = ClassKind
+        
+        // ___ Invokable at any time ____________________________________________
         
         /** When a new instance of this class is created, what should we REALLY instantiate? */
         def internalImplName: String
@@ -32,26 +44,22 @@ object Symbol {
         /** A position for reporting errors related to the class as a whole */
         def pos: Position
         
-        /** List of all constructors for this class */
-        def constructors(state: CompilationState): List[Symbol.Method]
-        
-        /** Names of any superclasses */
-        def superClassNames(state: CompilationState): List[Name.Qual]
-        
-        /** Symbols for methods defined on this class (not superclasses) 
-          * with the given name.  May trigger lowering or other processing. */
-        def methodsNamed(state: CompilationState)(name: Name.Method): List[Symbol.Method]
-        
-        /** Symbols for fields defined on this class (not superclasses)
-          * with the given name.  May trigger lowering or other processing. */
-        def fieldNamed(state: CompilationState)(name: Name.Var): Option[Symbol.Var]
-        
-        /** Symbols for all methods defined on this class but not superclasses.
-          * Should only be used after lowering has been completed. */
-        def allMethodSymbols(state: CompilationState): List[Symbol.Method]
+        /** Records the method groups derived by `GatherOverrides` for use
+          * in byte code generation.  Has no effect for symbols loaded from
+          * .class files or reflection. */
+        def setMethodGroups(groups: List[Symbol.MethodGroup]): Unit
+
+        override def toString = "%s(%s, %x)".format(
+            getClass.getSimpleName, name, System.identityHashCode(this)
+        )
         
         /** Creates a `Type.Class` for the class defined by this symbol. */
         def toType: Type.Class = Type.Class(name, List())
+        
+        // ___ Invokable once header is resolved ________________________________
+        
+        /** Names of any superclasses */
+        def superClassNames(state: CompilationState): List[Name.Qual]
         
         /** True if `this` is a subclass of `csym_sup` */
         def isSubclass(state: CompilationState, superCsym: Symbol.Class) = {
@@ -68,11 +76,32 @@ object Symbol {
             }
         }
         
-        def setMethodGroups(groups: List[Symbol.MethodGroup]): Unit
-
-        override def toString = "%s(%s, %x)".format(
-            getClass.getSimpleName, name, System.identityHashCode(this)
-        )
+        /** List of all "variable" members and what kind they are. 
+          * Variable members include fields, ghosts, etc. The results 
+          * of this method are used to populate the symbol tables
+          * during resolution. */
+        def varMembers(state: CompilationState): Map[Name.MemberVar, VarKind]
+        
+        // ___ Invokable once body is resolved __________________________________
+        //
+        // Invoking these methods may result in lowering or in new classes being
+        // loaded.
+        
+        /** List of all constructors for this class */
+        def constructors(state: CompilationState): List[Symbol.Method]
+        
+        /** Symbols for methods defined on this class (not superclasses) 
+          * with the given name.  May trigger lowering or other processing. */
+        def methodsNamed(state: CompilationState)(name: Name.Method): List[Symbol.Method]
+        
+        /** Symbols for fields defined on this class (not superclasses)
+          * with the given name.  May trigger lowering or other processing. */
+        def fieldNamed(state: CompilationState)(name: Name.MemberVar): Option[Symbol.MemberVar]
+        
+        // ___ Invokable once lowered ___________________________________________
+        
+        /** Symbols for all methods defined on this class but not superclasses. */
+        def allMethodSymbols(state: CompilationState): List[Symbol.Method]
               
     }
     
@@ -100,7 +129,7 @@ object Symbol {
         var constructors = List[Symbol.Method]()
         var superClassNames = List[Name.Qual]()
         var methods = List[Symbol.Method]()
-        var fields = List[Symbol.Var]()
+        var fields = List[Symbol.Field]()
         def pos = InterPosition.forFile(file)
         
         def load(state: CompilationState) {
@@ -140,6 +169,11 @@ object Symbol {
             fields.find(_.isNamed(name))
         }
         
+        def allFieldNames(state: CompilationState): List[Name.MemberVar] = {
+            load(state)
+            fields.map(_.name)
+        }
+        
         def setMethodGroups(groups: List[Symbol.MethodGroup]) {}
     }
     
@@ -150,7 +184,7 @@ object Symbol {
         def internalImplName = name.internalName
         var optCtors: Option[List[Symbol.Method]] = None
         var optMethods: Option[List[Symbol.Method]] = None
-        var optFields: Option[List[Symbol.Var]] = None
+        var optFields: Option[List[Symbol.Field]] = None
         def pos = InterPosition.forClass(cls)
         
         def modifiers(state: CompilationState) = Modifier.forClass(cls)
@@ -158,16 +192,27 @@ object Symbol {
         def constructors(state: CompilationState) = {
             Reflect(state).ctors(this)
         }
-        def superClassNames(state: CompilationState) = List() // FIXME TODO
+        
+        def superClassNames(state: CompilationState) = {
+            Reflect(state).superClassNames(this)
+        }
+        
         def methodsNamed(state: CompilationState)(name: Name.Method) = {
             Reflect(state).methods(this).filter(_.isNamed(name))
         }
+        
         def allMethodSymbols(state: CompilationState) = {
             Reflect(state).methods(this)
         }
+        
         def fieldNamed(state: CompilationState)(name: Name.Var) = {
             Reflect(state).fields(this).find(_.isNamed(name))
         }
+        
+        def allFieldNames(state: CompilationState) = {
+            Reflect(state).fields(this).map(_.name)
+        }
+        
         def setMethodGroups(groups: List[Symbol.MethodGroup]) {}
     }
     
@@ -179,6 +224,18 @@ object Symbol {
         def isNamed(aName: Name.Qual) = (name == aName)
         
         def pos = resolvedSource.pos
+        
+        var superClassNames: List[Name.Class] = Nil
+        
+        var allFieldNames: List[Name.MemberVar] = Nil
+        
+        def setResolvedHeader(
+            aSuperClassNames: List[Name.Class]
+            aAllFieldNames: List[Name.MemberVar]
+        ) = {
+            superClassNames = aSuperClassNames
+            allFieldNames = aAllFieldNames
+        }
         
         /** Class declaration with names fully resolved. */
         var resolvedSource: Ast.Resolve.ClassDecl = null
@@ -209,6 +266,12 @@ object Symbol {
             methodGroups = groups
         }
         
+        def superClassNames(state: CompilationState) = 
+            superClassNames
+            
+        def allFieldNames(state: CompilationState) =
+            allFieldNames
+        
         def modifiers(state: CompilationState) = 
             Modifier.forResolvedAnnotations(resolvedSource.annotations)
         
@@ -234,20 +297,18 @@ object Symbol {
             }
         }
         
-        def superClassNames(state: CompilationState) = {
-            resolvedSource.superClasses.map(_.qualName)            
-        }
-        
         def methodsNamed(state: CompilationState)(memName: Name.Method) = {
             Lower(state).symbolsForMethodsNamed(this, memName)
         }
         
-        def allMethodSymbols(state: CompilationState) = 
+        def allMethodSymbols(state: CompilationState) = {
             // Because this method can only be invoked after lowering,
             // methodSymbols hash is fully populated:
-            methodSymbols.valuesIterator.toList.flatten
+            methodSymbols.valuesIterator.toList.flatten            
+        }
         
-        def fieldNamed(state: CompilationState)(name: Name.Var) = None
+        def fieldNamed(state: CompilationState)(name: Name.Var) =
+            None // TODO: Fields for Harmonic sources.
     }
     
     sealed abstract class MethodKind
@@ -321,19 +382,44 @@ object Symbol {
         def thisPattern: Pattern.Var = Pattern.Var(Name.ThisVar, receiverTy)
     }
     
-    class Var(
-        val modifierSet: Modifier.Set,
-        val name: Name.Var,
-        val ty: Type.Ref
-    ) extends Ref {
-        override def toString = "Var(%s, %x)".format(name, System.identityHashCode(this))
+    sealed abstract class Var {
+        def modifierSet: Modifier.Set
+        def name: Name.Var
+        def ty: Type.Ref
+
+        override def toString = "%s(%s, %x)".format(
+            getClass.getSimpleName,
+            name, 
+            System.identityHashCode(this)
+        )
+        
         def modifiers(state: CompilationState) = modifierSet
+        
         def isNamed(aName: Name.Var) = (name == aName)
     }
     
-    def errorVar(name: Name.Var, optExpTy: Option[Type.Ref]) = {
+    class Field(
+        val modifierSet: Modifier.Set
+        val name: Name.MemberVar
+        val ty: Type.Ref
+    ) extends Var
+    
+    class LocalVar(
+        val modifierSet: Modifier.Set
+        val name: Name.LocalVar
+        val ty: Type.Ref
+    ) extends Var
+    
+    def errorLocalVar(name: Name.LocalVar, optExpTy: Option[Type.Ref]) = {
         val ty = optExpTy.getOrElse(Type.Null)
-        new Var(Modifier.Set.empty, name, ty) {
+        new LocalVar(Modifier.Set.empty, name, ty) {
+            override def isError = true
+        }
+    }
+    
+    def errorField(name: Name.MemberVar, optExpTy: Option[Type.Ref]) = {
+        val ty = optExpTy.getOrElse(Type.Null)
+        new MemberVar(Modifier.Set.empty, name, ty) {
             override def isError = true
         }
     }
