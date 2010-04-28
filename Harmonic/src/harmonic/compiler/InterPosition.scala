@@ -21,7 +21,7 @@ object InterPosition {
         override def lineContents = "<unknown>"
     }
 
-    def forClassNamed(name: Name.Qual) = new InterPosition() {
+    def forClassNamed(name: Name.Class) = new InterPosition() {
         def file = new java.io.File(name.toString)
         def line = 1
         def column = 1

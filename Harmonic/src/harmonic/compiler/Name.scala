@@ -91,6 +91,12 @@ object Name {
     /** Names of variables */
     sealed abstract class Var {
         def javaName: String
+        
+        // The shorthand form the user would use to refer
+        // to this variable.  For example, a field "foo"
+        // in a class "Bar" would return "foo".
+        def text: String
+        
         def toPath = Path.Base(this)
     }
     

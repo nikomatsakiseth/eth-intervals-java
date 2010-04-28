@@ -39,6 +39,41 @@ class CompilationState(
         }
     }
     
+    // ___ Scheduler ________________________________________________________
+    
+    class Pass(
+        val func: (Unit => Unit),
+        var dependencies: List[Pass]
+    ) {
+        def isEligible = 
+            !dependencies.exists(activePasses)
+        
+        def addDependency(after: Pass) = {
+            assert(activePasses(this))
+            dependencies = (after :: dependencies)
+        }
+    }
+    
+    private[this] activePasses = new mutabe.HashSet[Pass]()
+    var currentPass: Pass = null
+    
+    def sched(before: List[Pass] = List(), after: List[Pass] = List())(func: => R): Pass = {
+        val pass = new Pass(() => func, after)
+        before.foreach(_.addDependency(pass))
+        activePasses += pass
+        pass
+    }
+    
+    def drain() = {
+        while(!activePasses.isEmpty) {
+            val pass = activePasses.find(_.isEligible)
+            activePasses -= pass
+            currentPass = pass
+            pass.func()
+            currentPass = null                
+        }
+    }
+    
     // ___ Intrinsics _______________________________________________________
     
     val intrinsics = new mutable.HashMap[(Name.Qual, Name.Method), List[Symbol.Method]]()
@@ -56,41 +91,48 @@ class CompilationState(
     
     // ___ Loading and resolving class symbols ______________________________
     
-    private[this] def createSymbolsAndResolveHeader(compUnits: List[Ast.Parse.CompUnit]) {
-        val newSyms = mutable.HashMap[
-            Ast.Parse.CompUnit, 
-            List[(Symbol.ClassFromSource, Ast.Parse.ClassDecl)]
-        ]()
-        
-        // Create symbols for each class:
-        //    We have to do this first so as to resolve 
-        //    cyclic references between classes.
+    private[this] def createSymbols(compUnits: List[Ast.Parse.CompUnit]) {
         compUnits.foreach { compUnit =>
             Ast.Parse.definedClasses(compUnit).foreach { case (className, cdecl) =>
                 if(classes.isDefinedAt(className))
                     reporter.report(cdecl.pos, "class.already.defined", className.toString)
                 else {
                     csym = new Symbol.ClassFromSource(className)
-                    newSyms(compUnit) = (csym, cdecl) :: newSyms.getOrElse(compUnit, Nil)
                     classes(className) = csym
+                    
+                    csym.resolveHeader = List(sched() {
+                        ResolveHeader(this, compUnit).resolveClassHeader(csym, cdecl)
+                    })
+                    
+                    csym.resolveHeaderClosure = List(sched(after = csym.resolveHeader) {
+                        // Just a placeholder: resolveHeader will add incoming dependencies
+                        // from the supertypes of `csym` that prevent this task from executing
+                        // until the headers of all supertypes have been resolved.
+                    })
+                    
+                    csym.resolveBody = List(sched(after = csym.resolveHeaderClosure) {
+                        ResolveBody(this, compUnit).resolveClassBody(csym, cdecl)
+                    })
+                    
+                    csym.lower = List(sched(after = csym.resolveBody) {
+                        csym.loweredSource = Lower(this).lowerClassDecl(csym.resolvedSource)
+                        if(config.dumpLoweredTrees)
+                            csym.loweredSource.println(PrettyPrinter.stdout)
+                    })
+                    
+                    csym.byteCode = List(sched(after = csym.lower) {
+                        val csym = toBeBytecoded.dequeue()
+                        GatherOverrides(this).forSym(csym)
+                        ByteCode(this).writeClassSymbol(csym)
+                    })
                 }                
             }
-        }
-        
-        // Resolve header for each class and enqueue
-        // compilation unit for full resolution:
-        newSyms.foreach { case (compUnit, classes) =>
-            val resolve = Resolve(this, compUnit)
-            classes.foreach { case (csym, cdecl) =>
-                resolve.resolveClassHeader(csym, cdecl)
-            }
-            toBeResolved += compUnit
         }
     }
     
     def loadInitialSources(files: List[java.io.File]) {
         val compUnits = files.flatMap(Parse(this, _))
-        createSymbolsAndResolveHeader(compUnits)
+        createSymbols(compUnits)
     }
     
     /** True if a class with the name `className` has been
@@ -141,8 +183,8 @@ class CompilationState(
                         case Some(_) =>
                     }
                     
-                    // Process the loaded classes.  May trigger recursive calls to locateSource().
-                    createSymbolsAndResolveHeader(List(compUnit)) 
+                    // Process the loaded classes.
+                    createSymbols(List(compUnit)) 
                 }
             }
         }
@@ -184,42 +226,6 @@ class CompilationState(
         val result = freshCounter
         freshCounter += 1
         result
-    }
-
-    // ___ Main compile loop ________________________________________________
-    
-    def compile() {
-        if(reporter.hasErrors) return
-        
-        while(!toBeResolved.isEmpty) {
-            val compUnit = toBeResolved.dequeue()
-            val resolve = Resolve(this, compUnit)
-            resolve.resolveAllClassDecls().foreach { case cdecl =>
-                val sym = classes(cdecl.name.className).asInstanceOf[Symbol.ClassFromSource]
-                sym.resolvedSource = outCdecl
-                toBeLowered += sym
-            }
-        }
-        
-        if(reporter.hasErrors) return
-        
-        while(!toBeLowered.isEmpty) {
-            val csym = toBeLowered.dequeue()
-            csym.loweredSource = Lower(this).lowerClassDecl(csym.resolvedSource)
-            toBeBytecoded += csym
-            
-            if(config.dumpLoweredTrees) {
-                csym.loweredSource.println(PrettyPrinter.stdout)
-            }
-        }
-        
-        if(!config.ignoreErrors && reporter.hasErrors) return
-        
-        while(!toBeBytecoded.isEmpty) {
-            val csym = toBeBytecoded.dequeue()
-            GatherOverrides(this).forSym(csym)
-            ByteCode(this).writeClassSymbol(csym)
-        }
     }
     
 }

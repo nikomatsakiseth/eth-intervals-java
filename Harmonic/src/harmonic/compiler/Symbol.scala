@@ -15,15 +15,6 @@ import scala.util.parsing.input.Position
   * (i.e., if they are implemented on different classes). */
 object Symbol {
     
-    abstract class Kind
-    case object ClassKind extends Kind
-    case object MethodKind extends Kind
-    abstract class VarKind extends Kind
-    case object FieldKind extends VarKind
-    case object TypeKind extends VarKind
-    case object GhostKind extends VarKind
-    case object LocalKind extends Kind
-    
     abstract class Ref {
         def modifiers(state: CompilationState): Modifier.Set
         def isError: Boolean = false
@@ -31,10 +22,20 @@ object Symbol {
     }
     
     sealed abstract class Class(
-        val name: Name.Qual
+        val name: Name.Class
     ) extends Ref {
         
-        def kind = ClassKind
+        // ___ Passes ___________________________________________________________
+        //
+        // Returns the passes which will be processing this class.  If the class
+        // is loaded via a .class file (or reflection), these may return empty
+        // lists.
+        
+        def resolveHeader: List[Pass]
+        def resolveHeaderClosure: List[Pass]
+        def resolveBody: List[Pass]
+        def lower: List[Pass]
+        def byteCode: List[Pass]
         
         // ___ Invokable at any time ____________________________________________
         
@@ -80,7 +81,7 @@ object Symbol {
           * Variable members include fields, ghosts, etc. The results 
           * of this method are used to populate the symbol tables
           * during resolution. */
-        def varMembers(state: CompilationState): Map[Name.MemberVar, VarKind]
+        def varMembers(state: CompilationState): List[SymTab.Entry]
         
         // ___ Invokable once body is resolved __________________________________
         //
@@ -105,25 +106,33 @@ object Symbol {
               
     }
     
+    // Just provides useful defaults.
+    class PrecompiledClass(name: Name.Class) extends Class(name) {
+        def internalImplName = name.internalName
+        def pos = InterPosition.forClassNamed(name)
+        def resolveHeader = List()
+        def resolveHeaderClosure = List()
+        def resolveBody = List()
+        def lower = List()
+        def byteCode = List()
+        def setMethodGroups(groups: List[Symbol.MethodGroup]) {}
+    }
+    
     class ClassFromErroroneousSource(
         name: Name.Qual
-    ) extends Class(name) {
-        def internalImplName = name.internalName
+    ) extends PrecompiledClass(name) {
         def modifiers(state: CompilationState) = Modifier.Set.empty
         def constructors(state: CompilationState) = List()
         def superClassNames(state: CompilationState) = List()
         def methodsNamed(state: CompilationState)(name: Name.Method) = List()
         def fieldNamed(state: CompilationState)(name: Name.Var) = None
         def allMethodSymbols(state: CompilationState) = List()
-        def setMethodGroups(groups: List[Symbol.MethodGroup]) {}
-        def pos = InterPosition.unknown
     }
     
     class ClassFromClassFile(
-        name: Name.Qual,
+        name: Name.Class,
         val file: java.io.File
-    ) extends Class(name) {
-        def internalImplName = name.internalName
+    ) extends PrecompiledClass(name) {
         var modifierSet = Modifier.Set.empty
         var loaded = false
         var constructors = List[Symbol.Method]()
@@ -181,11 +190,9 @@ object Symbol {
         name: Name.Qual,
         val cls: java.lang.Class[_]
     ) extends Class(name) {
-        def internalImplName = name.internalName
         var optCtors: Option[List[Symbol.Method]] = None
         var optMethods: Option[List[Symbol.Method]] = None
         var optFields: Option[List[Symbol.Field]] = None
-        def pos = InterPosition.forClass(cls)
         
         def modifiers(state: CompilationState) = Modifier.forClass(cls)
         
@@ -212,8 +219,6 @@ object Symbol {
         def allFieldNames(state: CompilationState) = {
             Reflect(state).fields(this).map(_.name)
         }
-        
-        def setMethodGroups(groups: List[Symbol.MethodGroup]) {}
     }
     
     class ClassFromSource(
@@ -221,21 +226,26 @@ object Symbol {
     ) extends Class(name) {
         def internalImplName = name.internalName + ByteCode.implSuffix
         
+        // Passes are created 
+        var resolveHeader: List[Pass] = Nil
+        var resolveHeaderClosure: List[Pass] = Nil
+        var resolveBody: List[Pass] = Nil
+        var lower: List[Pass] = Nil
+        var byteCode: List[Pass] = Nil
+        
         def isNamed(aName: Name.Qual) = (name == aName)
         
         def pos = resolvedSource.pos
         
         var superClassNames: List[Name.Class] = Nil
         
-        var allFieldNames: List[Name.MemberVar] = Nil
+        var varMembers: Map[Name.MemberVar, Symbol.Kind] = Map.empty
         
-        def setResolvedHeader(
-            aSuperClassNames: List[Name.Class]
-            aAllFieldNames: List[Name.MemberVar]
-        ) = {
-            superClassNames = aSuperClassNames
-            allFieldNames = aAllFieldNames
-        }
+        def superClassNames(state: CompilationState) = 
+            superClassNames
+            
+        def allFieldNames(state: CompilationState) =
+            allFieldNames
         
         /** Class declaration with names fully resolved. */
         var resolvedSource: Ast.Resolve.ClassDecl = null
@@ -265,12 +275,6 @@ object Symbol {
         def setMethodGroups(groups: List[Symbol.MethodGroup]) {
             methodGroups = groups
         }
-        
-        def superClassNames(state: CompilationState) = 
-            superClassNames
-            
-        def allFieldNames(state: CompilationState) =
-            allFieldNames
         
         def modifiers(state: CompilationState) = 
             Modifier.forResolvedAnnotations(resolvedSource.annotations)
