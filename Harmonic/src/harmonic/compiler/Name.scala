@@ -6,9 +6,12 @@ object Name {
         def asRelPath: String = internalName
         def toInternalPrefix: String
         def toPrefix: String
+        def isClassName: Boolean
     }
     
-    sealed abstract Package extends Qual
+    sealed abstract Package extends Qual {
+        def isClassName = false
+    }
     
     case object Root extends Package {
         def toInternalPrefix = ""
@@ -34,6 +37,7 @@ object Name {
         def toPrefix = base.toPrefix + name + "."
         override def toString = base.toPrefix + name
         def withSuffix(suffix: String) = ClassQual(base, name + suffix)
+        def isClassName = true
     }
     
     object Package {
@@ -102,7 +106,7 @@ object Name {
     
     /** Names of fields, type variables, ghosts */
     sealed case class MemberVar(
-        className: Name.Qual,
+        className: Name.Class,
         text: String
     ) extends Var {
         override def toString = "(%s.%s)".format(className, text)

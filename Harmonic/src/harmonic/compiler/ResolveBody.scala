@@ -23,7 +23,7 @@ extends Resolve(state, compUnit)
 {
     def resolveClassBody(csym: Symbol.Class, cdecl: in.ClassDecl) = {
         val symTab = constructSymbolTable(csym)
-        val outCdecl = InScope(symTab).resolveClassDecl(cdecl)
+        val outCdecl = InScope(symTab, true).resolveClassDecl(cdecl)
 
         if(state.config.dumpResolvedTrees) {
             resolvedClassDecls.foreach { cdecl =>
@@ -69,7 +69,169 @@ extends Resolve(state, compUnit)
         csym.varMembers(state).foldLeft(superSymTab)(_ + _)
     }
     
-    case class InScope(symTab: SymTab.Map) {
+    class ResolveParams(var scope: InScope, inParams: List[in.Param]) {
+        def addEntry(text: String): InScope
+        
+        def resolveParam(param: in.Param): out.Param = withPosOf(param, param match {
+            case tupleParam: in.TupleParam => resolveTupleParam(tupleParam)
+            case varParam: in.VarParam => resolveVarParam(varParam)
+        })
+
+        def resolveTupleParam(tupleParam: in.TupleParam) = {
+            val outParams = tupleParam.params.map(resolveParam)
+            withPosOf(tupleParam, out.TupleParam(outParams))
+        }
+
+        def resolveVarParam(varParam: in.VarParam) = {
+            val outAnnotations = varParam.annotations.map(scope.resolveAnnotation)
+            val outTypeRef = scope.resolveTypeRef(varParam.tref)
+            scope = addEntry(varParam.name.text)
+            withPosOf(varParam, out.VarParam(
+                annotations = outAnnotations,
+                tref = outTypeRef,
+                name = varParam.name,
+                sym = ()
+            ))            
+        }
+        
+        val outParams = inParams.map(resolveParam)
+    }
+    
+    class ResolveClassParams(className: Name.Class, scope0: InScope, inParam: in.Param)
+    extends ResolveParam(scope0, List(inParams)) {
+        def outParam = outParams.head
+        
+        def addEntry(text: String) = {
+            scope.symTab.get(entry.text) match {
+                case Some(_) => {
+                    // TODO Decide when params on inner classes can shadow
+                    state.reporter.report(
+                        localName.pos,
+                        "shadowed.class.param",
+                        text
+                    )
+                }
+                case _ =>
+            }
+            scope.addEntry(SymTab.InstanceField(Name.MemberVar(className, text)))
+        }
+    }
+    
+    class ResolveMethodParams(scope0: InScope, inParams: List[in.Param])
+    extends ResolveParam(scope0, inParams) {
+        def addEntry(text: String) = {
+            scope.symTab.get(entry.text) match {
+                case Some(SymTab.LocalVar(_)) => {
+                    state.reporter.report(
+                        localName.pos,
+                        "shadowed.method.param",
+                        text
+                    )
+                }
+                case _ =>
+            }
+            scope.addEntry(SymTab.LocalVar(Name.LocalVar(text)))
+        }
+    }
+    
+    class ResolveLvalue(var scope: InScope, inParams: List[in.Param]) {
+        def resolveLvalue(lvalue: in.Lvalue): out.Lvalue = withPosOf(lvalue, lvalue match {
+            case lvalue: in.TupleLvalue => resolveTupleLvalue(lvalue)
+            case in.DeclareVarLvalue(ann, tref, name, ()) => resolveDeclareVar(lvalue, ann, tref, name)
+            case in.ReassignVarLvalue(name, ()) => resolveReassignLvalue(lvalue, name)
+            case in.FieldLvalue(name, ()) => resolveFieldLvalue(lvalue, name)
+        })
+
+        def resolveTupleLvalue(lvalue: in.TupleLvalue) = withPosOf(lvalue, {
+            val outLvalues = lvalue.lvalues.map(resolveLvalue)
+            out.TupleLvalue(outLvalues)
+        })
+
+        def resolveDeclareVarLvalue(
+            lvalue: in.Lvalue,
+            annotations: List[in.Annotation],
+            tref: in.OptionalTypeRef,
+            name: in.SimpleName
+        ) = withPosOf(lvalue, {
+            val outAnnotations = lvalue.annotations.map(scope.resolveAnnotation)
+            val outTypeRef = scope.resolveOptionalTypeRef(lvalue.tref)
+            
+            scope.symTab.get(name.text) match {
+                case Some(SymTab.LocalVar(_)) => {
+                    state.reporter.report(
+                        localName.pos,
+                        "shadowed.local.var",
+                        name.text
+                    )
+                }
+                case _ =>
+            }
+            
+            val localName = Ast.LocalName(Name.LocalVar(name.text))
+            scope = scope.addEntry(SymTab.Local(localName.name))
+            out.DeclareVarLvalue(outAnnotations, outTypeRef, localName, ())
+        })
+        
+        def resolveReassignVarLvalue(
+            lvalue: in.Lvalue,
+            name: in.SimpleName
+        ) = withPosOf(lvalue, {
+            scope.symTab.get(name.text) match {
+                case None => {
+                    // Actually a variable declaration:
+                    val localName = Ast.LocalName(Name.LocalVar(name.text))
+                    resolveDeclareVarLvalue(lvalue, List(), in.OptionalTypeRef(), localName)
+                }
+                
+                case Some(SymTab.Local(name)) => {
+                    out.ReassignVarLvalue(Ast.VarName(name), ())
+                }
+                
+                case Some(SymTab.StaticField(name)) => {
+                    resolveFieldLvalue(lvalue, Ast.MemberName(name))
+                }
+                
+                case Some(SymTab.InstanceField(name)) => {
+                    if(scope.isStatic) {
+                        state.reporter.report(
+                            expr.pos, 
+                            "cannot.reference.in.static.context", 
+                            name.toString
+                        )
+                    }
+                    resolveFieldLvalue(lvalue, Ast.MemberName(name))
+                }
+                
+                case Some(SymTab.Type(name)) => {
+                    state.reporter.report(
+                        localName.pos,
+                        "not.assignable",
+                        name.toString
+                    )
+                }
+            }
+        })
+        
+        def resolveFieldLvalue(
+            lvalue: in.Lvalue,
+            name: Ast.MemberName
+        ) = withPosOf(lvalue, {
+            out.FieldLvalue(name, ())
+        })
+        
+        val outParams = inParams.map(resolveParam)
+    }
+    
+    case class InScope(
+        symTab: SymTab.Map,
+        isStatic: Boolean
+    ) {
+        def addEntry(entry: SymTab.Entry) = {
+            copy(symTab + entry)            
+        }
+        
+        // ___ Declarations _____________________________________________________
+
         def resolveClassDecl(cdecl: in.ClassDecl) = withPosOf(cdecl, out.ClassDecl(
             name = cdecl.name.toAbs(compUnit.pkg),
             annotations = cdecl.annotations.map(resolveAnnotation),
@@ -81,22 +243,6 @@ extends Resolve(state, compUnit)
 
         def resolveAnnotation(ann: in.Annotation) = withPosOf(ann, out.Annotation(
             name = resolveName(ann.name)
-        ))
-
-        def resolveParam(param: in.Param): out.Param = withPosOf(param, param match {
-            case tupleParam: in.TupleParam => resolveTupleParam(tupleParam)
-            case varParam: in.VarParam => resolveVarParam(varParam)
-        })
-
-        def resolveTupleParam(tupleParam: in.TupleParam) = withPosOf(tupleParam, out.TupleParam(
-            params = tupleParam.params.map(resolveParam)
-        ))
-
-        def resolveVarParam(varParam: in.VarParam) = withPosOf(varParam, out.VarParam(
-            annotations = varParam.annotations.map(resolveAnnotation),
-            tref = resolveTypeRef(varParam.tref),
-            name = varParam.name,
-            sym = ()
         ))
 
         def resolveMember(mem: in.MemberDecl): out.MemberDecl = withPosOf(mem, mem match {
@@ -113,21 +259,25 @@ extends Resolve(state, compUnit)
             optParent = decl.optParent.map(resolvePath),
             optBody = decl.optBody.map(resolveBody)
         ))
+        
+        def resolveMethodDecl(decl: in.MethodDecl) = {
+            val resolveParam = new ResolveMethodParams(this, decl.params)
+            val mthdScope = resolveParam.scope
+            withPosOf(decl, out.MethodDecl(
+                annotations = decl.annotations.map(mthdScope.resolveAnnotation),
+                receiverSym = (),
+                parts = decl.parts.zip(resolveParam.outParams).map(mthdScope.resolveDeclPart),
+                returnTref = mthdScope.resolveOptionalTypeRef(decl.returnTref),
+                returnTy = (),
+                requirements = decl.requirements.map(mthdScope.resolveRequirement),
+                optBody = decl.optBody.map(mthdScope.resolveBody)
+            ))
+        }
 
-        def resolveMethodDecl(decl: in.MethodDecl) = withPosOf(decl, out.MethodDecl(
-            annotations = decl.annotations.map(resolveAnnotation),
-            receiverSym = (),
-            parts = decl.parts.map(resolveDeclPart),
-            returnTref = resolveOptionalTypeRef(decl.returnTref),
-            returnTy = (),
-            requirements = decl.requirements.map(resolveRequirement),
-            optBody = decl.optBody.map(resolveBody)
-        ))
-
-        def resolveDeclPart(decl: in.DeclPart) = withPosOf(decl, out.DeclPart(
-            ident = decl.ident,
-            param = resolveTupleParam(decl.param)
-        ))
+        def resolveDeclPart(pair: (in.DeclPart, out.Param)) = {
+            val (decl, outParam) = pair
+            withPosOf(decl, out.DeclPart(decl.ident, outParam))
+        }
 
         def resolveRequirement(requirement: in.PathRequirement) = withPosOf(requirement, out.PathRequirement(
             left = resolvePath(requirement.left),
@@ -150,21 +300,142 @@ extends Resolve(state, compUnit)
             right = resolvePath(decl.right)
         ))
 
-        def resolvePath(path: in.AstPath): out.AstPath = withPosOf(path, path match {
-            case in.Var(name, ()) => out.Var(name, ())
-            case in.PathField(p, f, (), ()) => out.PathField(resolvePath(p), f, (), ())
-        })
+        // ___ Paths ____________________________________________________________
+        //
+        // 
+        
+        type EitherClassNameOr[T] = Either[List[String], T]
+        
+        def resolvePathToEither(path: in.AstPath): EitherClassNameOr[out.AstPath] = withPosOfR(path, {
+            path match {
+                case in.PathBase(in.SimpleName(text), ()) => {
+                    symTab.get(text) match {
+                        case None => {
+                            Left(List(text))
+                        }
 
+                        case Some(SymTab.Local(name)) => {
+                            Right(out.PathBase(Ast.LocalName(name), ()))
+                        }
+
+                        case Some(SymTab.Type(_)) => {
+                            state.reporter.report(expr.pos, "cannot.use.type.var.here", expr)
+                            Right(out.PathErr(()))
+                        }
+
+                        case Some(SymTab.InstanceField(name)) if isStatic => {
+                            state.reporter.report(expr.pos, "cannot.reference.in.static.context", name.toString)
+                            Right(out.PathErr(()))
+                        }
+                            
+                        case Some(SymTab.InstanceField(name)) => {
+                            Right(out.PathField(
+                                out.Var(Ast.LocalName(Name.ThisVar), ()),
+                                Ast.MemberName(name),
+                                (), ()
+                            ))
+                        }
+
+                        case Some(SymTab.StaticField(name)) => {
+                            Right(out.PathBase(out.MemberName(name), ()))
+                        }
+                    }
+                }
+                
+                case in.PathBase(memberName: in.MemberName, ()) => {
+                    // TODO Find out whether member is static or not.
+                    Right(out.PathBase(out.MemberName(name), ()))
+                }
+                
+                case in.PathDot(base, simpleName @ in.SimpleName(text), (), ()) => {
+                    resolvePathToEither(base) match {
+                        case Left(names) => text :: names
+                        case Right(outBase) => out.PathDot(outBase, simpleName, (), ())
+                    }
+                }
+                
+                case in.PathDot(base, memberName: in.MemberName, (), ()) => {
+                    resolvePathToEither(base) match {
+                        case Left(names) => {
+                            state.reporter.report(path.pos, "no.such.var", names.last)
+                            out.PathErr()                            
+                        }
+                        case Right(outBase) => out.PathDot(outBase, memberName, (), ())
+                    }
+                }
+            }
+        })
+        
+        def resolvePathToPath(path: in.AstPath) = withPosOf(path, {
+            resolvePathToEither(path) match {
+                case Left(names) => {
+                    state.reporter.report(path.pos, "no.such.var", names.last)
+                    out.PathErr()
+                }
+                
+                case Right(path) => path
+            }
+        })
+        
+        def resolvePathToClassName(path: in.AstPath) = withPosOf(path, {
+            resolvePathToEither(path) match {
+                case Left(names) =>
+                    resolveToClass(tref.pos, names).getOrElse(Name.ObjectQual)
+                        
+                case Right(path) => {
+                    state.reporter.report(
+                        tref.pos,
+                        "expected.type.here",
+                        path.toString
+                    )              
+                    Name.ObjectQual      
+                }
+            }
+        })
+        
+        // ___ Types ____________________________________________________________
+        
         def resolveOptionalTypeRef(otref: in.OptionalTypeRef): out.OptionalTypeRef = withPosOf(otref, otref match {
-            case in.InferredTypeRef() => withPosOf(otref, out.InferredTypeRef())
-            case tref: in.TypeRef => resolveTypeRef(tref)
+            case in.InferredTypeRef() => out.InferredTypeRef()
+            case tref: in.ParseTypeRef => resolveTypeRef(tref)
         })
-
-        def resolveTypeRef(tref: in.TypeRef): out.TypeRef = withPosOf(tref, tref match {
+        
+        def resolveTypeRef(tref: in.ParseTypeRef): out.ResolveTypeRef = withPosOf(tref, tref match {
             case in.NullType() => out.NullType()
-            case in.VarType(path, tvar) => out.VarType(resolvePath(path), tvar)
-            case in.ClassType(cn, targs) => out.ClassType(resolveName(cn), targs.map(resolveTypeArg))
+            
             case in.TupleType(trefs) => out.TupleType(trefs.map(resolveTypeRef))
+            
+            // `a.b.c` could be path or class type:
+            case in.PathType(in.PathDot(base, in.SimpleName(name), (), ())) => {
+                resolvePathToEither(base) match {
+                    case Left(names) => {
+                        val className = resolveToClass(tref.pos, name :: names).getOrElse(Name.ObjectQual)
+                        out.ClassType(Ast.ClassName(className), List())
+                    }
+                    
+                    case Right(outBase) =>
+                        out.TypeVar(outBase, name)                        
+                }
+            }
+            
+            // `a.b.(foo.Bar.T)` must be path type:
+            case in.PathType(in.PathDot(base, memberName: in.MemberName, (), ())) => {
+                val outBase = resolvePathToPath(base)
+                out.TypeVar(outBase, memberName)                        
+            }                
+            
+            // `a` must be class type:
+            case in.PathType(path: in.PathBase) => {
+                val className = resolvePathToClassName(path)
+                out.ClassType(Ast.ClassName(className), List())            
+            }
+            
+            // `a.b.c[...]` must be class type:
+            case in.ConstrainedType(path, typeArgs) => {
+                val className = resolvePathToClassName(path)
+                val outTypeArgs = typeArgs.map(resolveTypeArg)
+                out.ClassType(className, outTypeArgs)
+            }
         })
 
         def resolveTypeArg(targ: in.TypeArg): out.TypeArg = withPosOf(targ, targ match {
@@ -179,13 +450,27 @@ extends Resolve(state, compUnit)
         def resolvePathTypeArg(targ: in.PathTypeArg): out.PathTypeArg = withPosOf(targ, out.PathTypeArg(
             name = targ.name, rel = targ.rel, path = resolvePath(targ.path)
         ))
-
-        def resolveStmts(stmts: List[in.Stmt]) = stmts.map(resolveStmt)
+        
+        // ___ Statements and Expressions _______________________________________
+        
+        def resolveStmts(stmts: List[in.Stmt]) = stmts match {
+            case (expr: in.Expr) :: stmts => 
+                resolveExpr(expr) :: resolveStmts(stmts)
+                
+            case stmt @ in.Assign(lv, rv) :: stmts => {
+                val outRv = resolveExpr(rv)
+                val resolveLocal = new ResolveLocal(this, lv)
+                val outAssign = withPosOf(stmt, out.Assign(resolveLocal.outLocal, rv))
+                val outStmts = resolveLocal.scope.resolveStmts(stmts)
+                outAssign :: outStmts
+            }
+            case stmt @ in.Labeled(name, body) :: stmts => {
+                val outStmt = withPos(stmt, out.Labeled(name, resolveBody(body)))
+                outStmt :: resolveStmts(stmts)
+            }
+        }
 
         def resolveStmt(stmt: in.Stmt): out.Stmt = withPosOf(stmt, stmt match {
-            case expr: in.Expr => resolveExpr(expr)
-            case in.Assign(lv, rv) => out.Assign(resolveLocal(lv), resolveExpr(rv))
-            case in.Labeled(name, body) => out.Labeled(name, resolveBody(body))
         })
 
         def resolveTupleLocal(tupLocal: in.TupleLocal): out.TupleLocal = withPosOf(tupLocal, {
@@ -222,19 +507,116 @@ extends Resolve(state, compUnit)
             )
         })
 
-        def resolveRcvr(rcvr: in.Rcvr): out.Rcvr = withPosOf(rcvr, rcvr match {
-            case in.Super(()) => out.Super(())
-            case e: in.Expr => resolveExpr(e)
+        def resolveVar(expr: Ast.Node, text: String): out.Expr = withPosOf(expr, {
+            symTab.get(text) match {
+                case None => {
+                    state.reporter.report(expr.pos, "no.such.var", text)
+                    out.Null(())
+                }
+                
+                case Some(SymTab.Local(name)) => {
+                    out.Var(Ast.LocalName(name), ())
+                }
+                
+                case Some(SymTab.Type(_)) => {
+                    state.reporter.report(expr.pos, "cannot.use.type.var.here", expr)
+                    out.Null(())
+                }
+                
+                case Some(SymTab.InstanceField(name)) if !isStatic => {
+                    out.Field(
+                        out.Var(Ast.LocalName(Name.ThisVar), ()), 
+                        Ast.MemberName(name),
+                        (), ()
+                    )
+                }
+                
+                case Some(SymTab.InstanceField(name)) if isStatic => {
+                    state.reporter.report(expr.pos, "cannot.reference.in.static.context", name.toString)
+                    out.Null(())
+                }
+                
+                case Some(SymTab.StaticField(name)) => {
+                    out.StaticField(name, (), ())
+                }
+            }
         })
+        
+        def resolveOwnerToTypeNameOrExpr(owner: in.Expr): Either[List[String], out.Expr] = {
+            owner match {
+                case varExpr @ in.Var(Ast.SimpleName(text), ()) => {
+                    symTab.get(text) match {
+                        // Reference to an undefined variable:
+                        // Treat as a potential class/package name.
+                        case None => Left(List(text))
+                        case Some(_) => Right(resolveVarExpr(varExpr))
+                    }
+                }
+                
+                case in.Field(owner, name, (), ()) => {
+                    resolveOwner(owner) match {
+                        case Left(names) => Left(name.text :: names)
+                        
+                        case Right(expr) => Right(
+                            withPosOf(owner, out.Field(expr, name, (), ()))
+                        )
+                    }
+                }
+                
+                case _ => Right(resolveExpr(owner))
+            }
+        }
+        
+        def resolveOwner(owner: in.Owner): out.Owner = withPosOf(owner, {
+            owner match {
+                case in.Static(name) => {
+                    state.requireLoadedOrLoadable(name)
+                    out.Static(name)
+                }
+                
+                case expr: in.Expr => {
+                    resolveOwnerToTypeNameOrExpr(expr) match {
+                        case Left(names) => {
+                            // Could not resolve the owner `a.b` as an expression.
+                            // `a.b` must be a type name and `c` a static field
+                            // for this to be valid.
+                            resolveToClass(names) match {
+                                case None => out.Null(()) // Error in resolving `a.b`.
+                                case Some(className) => out.Static(className)
+                            }
+                        }
+                        
+                        case Right(outOwner) => outOwner
+                    }
+                }
+            }
+        })
+        
+        // Only invoked for the final field in a path.
+        // i.e., Given `a.b.c`, would only be invoked on `.c`.
+        def resolveField(expr: in.Field) = withPosOf(expr, {
+            out.Field(resolveOwner(expr.owner), expr.name, (), ())
+        })
+        
+        def resolveRcvr(rcvr: in.Rcvr): out.Rcvr = withPosOf(rcvr, {
+            rcvr match {
+                case in.Super(()) => out.Super(())
+                case owner: in.Owner => resolveOwner(owner) 
+            }
+        })
+        
+        def resolveMethodCall(expr: in.MethodCall) = {
+            out.MethodCall(resolveRcvr(rcvr), parts.map(resolvePart), ())
+        }
 
         def resolveExpr(expr: in.Expr): out.Expr = withPosOf(expr, expr match {
             case tuple: in.Tuple => resolveTuple(tuple)
             case tmpl: in.Block => resolveBlock(tmpl)
             case in.Cast(v, t, ()) => out.Cast(resolveExpr(v), resolveTypeRef(t), ())
             case e: in.Literal => resolveLiteral(e)
-            case in.Var(name, ()) => out.Var(name, ())
-            case in.Field(owner, name, (), ()) => out.Field(resolveExpr(owner), name, (), ())
-            case in.MethodCall(rcvr, parts, ()) => out.MethodCall(resolveRcvr(rcvr), parts.map(resolvePart), ())
+            case e: in.Var => resolveVarExpr(e)
+            case e: in.Field => resolveField(e)
+            case e: in.MethodCall => resolveMethodCall(e)
             case e: in.NewCtor => resolveNewCtor(e)
             case e: in.NewAnon => resolveNewAnon(e)
             case in.Null(()) => out.Null(())

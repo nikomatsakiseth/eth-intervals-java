@@ -4,7 +4,8 @@ object SymTab {
     sealed abstract class Entry {
         def name: Name.Var
     }
-    sealed case class Field(name: Name.MemberVar) extends Entry
+    sealed case class InstanceField(name: Name.MemberVar) extends Entry
+    sealed case class StaticField(name: Name.MemberVar) extends Entry
     sealed case class Type(name: Name.MemberVar) extends Entry
     sealed case class Local(name: Name.LocalVar) extends Entry
     

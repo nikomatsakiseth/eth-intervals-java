@@ -87,8 +87,8 @@ class Parse extends StdTokenParsers with PackratParsers {
     lazy val relName = relDot | relBase
     
     lazy val varName = positioned(
-        ident   ^^ Ast.VarName
-    |   "this"  ^^ Ast.VarName
+        ident   ^^ Ast.SimpleName
+    |   "this"  ^^ Ast.SimpleName
     )
     
     // ___ Declarations _____________________________________________________
@@ -198,7 +198,7 @@ class Parse extends StdTokenParsers with PackratParsers {
     ))
     
     lazy val fieldDecl = positioned(
-        annotations~varName~optTypeRef~optFieldValue~";" ^^ {
+        annotations~simpleName~optTypeRef~optFieldValue~";" ^^ {
             case a~n~t~v~";" => out.FieldDecl(a, n, t, (), v) }
     )
     
@@ -212,19 +212,25 @@ class Parse extends StdTokenParsers with PackratParsers {
         "("~>comma(param)<~")" ^^ { case ps => out.TupleParam(ps) }
     )
     lazy val varParam = positioned(
-        annotations~varName~reqTypeRef ^^ {
+        annotations~simpleName~reqTypeRef ^^ {
             case a~n~t => out.VarParam(a, t, n, ()) }
     )
     lazy val param: PackratParser[out.Param] = tupleParam | varParam
     
-    lazy val tupleLocal = positioned(
-        "("~>comma(local)<~")" ^^ { case ls => out.TupleLocal(ls) }
+    lazy val tupleLvalue = positioned(
+        "("~>comma(lvalue)<~")" ^^ { case ls => out.TupleLocal(ls) }
     )
-    lazy val varLocal = positioned(
-        annotations~varName~optTypeRef ^^ {
-            case a~n~t => out.VarLocal(a, t, n, ()) }
+    lazy val reassignLvalue = positioned(
+        simpleName ^^ { case n => out.ReassignVarLvalue(n, ()) }
     )
-    lazy val local: PackratParser[out.Local] = tupleLocal | varLocal
+    lazy val fieldLvalue = positioned(
+        memberName ^^ { case n => out.FieldLvalue(n, ()) }
+    )
+    lazy val declLvalue = positioned(
+        annotations~simpleName~reqTypeRef ^^ { 
+            case a~n~t => out.DeclareVarLvalue(a, t, n, ()) }
+    )
+    lazy val lvalue: PackratParser[out.Lvalue] = tupleLvalue | declLvalue | fieldLvalue | reassignLvalue
     
     // ___ Type References __________________________________________________
     
@@ -264,8 +270,9 @@ class Parse extends StdTokenParsers with PackratParsers {
     // ___ Paths ____________________________________________________________
     
     lazy val path = positioned(
-        varName~rep(varName) ^^ {
-            case v~fs => fs.foldLeft[out.AstPath](out.Var(v, ()))(out.PathField(_, _, (), ())) }
+        simpleName~rep("."~>simpleName) ^^ {
+            case v~fs => fs.foldLeft[out.AstPath](out.Var(v, ()))(out.PathField(_, _, (), ()))
+        }
     )
     
     // ___ Expressions ______________________________________________________
