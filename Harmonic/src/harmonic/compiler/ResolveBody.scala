@@ -470,9 +470,6 @@ extends Resolve(state, compUnit)
             }
         }
 
-        def resolveStmt(stmt: in.Stmt): out.Stmt = withPosOf(stmt, stmt match {
-        })
-
         def resolveTupleLocal(tupLocal: in.TupleLocal): out.TupleLocal = withPosOf(tupLocal, {
             out.TupleLocal(tupLocal.locals.map(resolveLocal))
         })

@@ -403,14 +403,14 @@ object Symbol {
     }
     
     class Field(
-        val modifierSet: Modifier.Set
-        val name: Name.MemberVar
+        val modifierSet: Modifier.Set,
+        val name: Name.MemberVar,
         val ty: Type.Ref
     ) extends Var
     
     class LocalVar(
-        val modifierSet: Modifier.Set
-        val name: Name.LocalVar
+        val modifierSet: Modifier.Set,
+        val name: Name.LocalVar,
         val ty: Type.Ref
     ) extends Var
     

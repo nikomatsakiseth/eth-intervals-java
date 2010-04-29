@@ -54,7 +54,7 @@ class CompilationState(
         }
     }
     
-    private[this] activePasses = new mutabe.HashSet[Pass]()
+    private[this] val activePasses = new mutabe.HashSet[Pass]()
     var currentPass: Pass = null
     
     def sched(before: List[Pass] = List(), after: List[Pass] = List())(func: => R): Pass = {

@@ -2,14 +2,14 @@ package harmonic.compiler
 
 object Name {
     
-    sealed abstract Qual {
+    sealed abstract class Qual {
         def asRelPath: String = internalName
         def toInternalPrefix: String
         def toPrefix: String
         def isClassName: Boolean
     }
     
-    sealed abstract Package extends Qual {
+    sealed abstract class Package extends Qual {
         def isClassName = false
     }
     
@@ -20,7 +20,7 @@ object Name {
     }
     
     case class Subpackage(
-        base: PackageQual,
+        base: Package,
         name: String
     ) extends Package {
         def toInternalPrefix = base.toInternalPrefix + name + "/"

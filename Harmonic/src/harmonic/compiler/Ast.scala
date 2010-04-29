@@ -11,14 +11,17 @@ abstract class Ast {
     
     import Ast.Node    
     import Ast.QualName
-    import Ast.AbsName
+    import Ast.ClassName
+    import Ast.PackageName
+    import Ast.SimpleName
+    import Ast.MemberName
     import Ast.VarName
         
     /** Names which get changed during resolve */
     type QN <: QualName     // Name of a class
-    type LN <: Name         // Name of a local variable
-    type FN <: Name         // Name of a field
-    type VN <: Name         // Either local or member name
+    type LN <: Ast.Name     // Name of a local variable
+    type FN <: Ast.Name     // Name of a field
+    type VN <: Ast.Name     // Either local or member name
     
     /** References to types */
     type OTR <: Node
@@ -87,7 +90,6 @@ abstract class Ast {
     // be converted to a ClassName.
     
     sealed abstract class RelName extends QualName {
-        def toAbs(pkg: AbsName) = withPosOf(this, Ast.AbsName(toQual(pkg.qualName)))
         def /(nm: String) = RelDot(this, nm)   
         
         def toClass(pkg: Name.Package): Name.Class
@@ -97,14 +99,14 @@ abstract class Ast {
     case class RelBase(nm: String) extends RelName {
         override def toString = nm
         
-        def toClass(pkg: Name.Qual) = Name.Class(pkg, nm)
-        def toPackage(pkg: Name.Qual) = Name.Subpackage(pkg, nm)
+        def toClass(pkg: Name.Package) = Name.Class(pkg, nm)
+        def toPackage(pkg: Name.Package) = Name.Subpackage(pkg, nm)
     }
     
     case class RelDot(context: RelName, component: String) extends RelName {
         override def toString = "%s.%s".format(context, component)
         
-        def toClass(pkg: Name.Qual) = Name.Class(context.toPackage(pkg), component)
+        def toClass(pkg: Name.Package) = Name.Class(context.toPackage(pkg), component)
         def toPackage(pkg: Name.Package) = Name.Subpackage(context.toPackage(pkg), component)
     }
     
@@ -134,14 +136,14 @@ abstract class Ast {
     sealed abstract class ImportDecl extends Node
     
     case class ImportOne(
-        fromName: AbsName,
+        fromName: RelName,
         toName: RelBase
     ) extends ImportDecl {
         override def toString = "import %s(%s)".format(fromName, toName)
     }
     
     case class ImportAll(
-        fromName: PackageName
+        fromName: RelName
     ) extends ImportDecl {
         override def toString = "import %s.*".format(fromName)
     }
@@ -341,7 +343,7 @@ abstract class Ast {
     case class VarParam(
         annotations: List[Annotation], 
         tref: TypeRef,
-        name: SimpleName,
+        name: LN,
         sym: VSym
     ) extends Param with VarAstPattern {
         override def toString = "%s %s: %s".format(annotations.mkString(" "), tref, name)

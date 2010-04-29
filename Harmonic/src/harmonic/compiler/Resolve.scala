@@ -16,16 +16,6 @@ import SymTab.extendedMap
   * including the package. */
 abstract class Resolve(state: CompilationState, compUnit: in.CompUnit) {
     
-    // Imports are considered in reverse order.  Certain
-    // default imports are added to the head of the list.
-    val allImports = (
-        in.ImportAll(Ast.AbsName(Name.QualRoot)) ::
-        in.ImportAll(Ast.AbsName(Name.Package("java.lang"))) ::
-        in.ImportAll(Ast.AbsName(Name.Package("harmonic.lang"))) ::
-        in.ImportAll(compUnit.pkg) ::
-        compUnit.imports
-    ).reverse
-    
     private[this] def resolveAgainst(ctxName: Name.Qual, nm: String) = {
         val className = Name.Class(ctxName, nm)
         if(loadedOrLoadable(className)) {
@@ -40,18 +30,48 @@ abstract class Resolve(state: CompilationState, compUnit: in.CompUnit) {
         }            
     }
     
+    // Internal representation of imports:
+    sealed abstract class Import
+    case class ImportAll(qualName: Name.Qual)
+    case class ImportOne(qualName: Name.Qual, as: String)
+    
+    def resolveAbsToQual(relName: in.RelName) = relName match {
+        case in.RelBase(name) => 
+            resolveAgainst(Name.Root, name)
+        case in.RelDot(context, name) => 
+            resolveImport(context).map(resolveAgainst(_, name))        
+    }
+    
+    def resolveImport(imp: in.Import) = imp match {
+        case in.ImportAll(pkg) => {
+            resolveAbsToQual(pkg).map(ImportAll(_))
+        }
+        
+        case in.ImportOne(from, in.RelBase(name)) => resolveAbsToQual(from).map(ImportOne(_, name))
+    }
+    
+    // Imports are considered in reverse order.  Certain
+    // default imports are added to the head of the list.
+    val allImports = (
+        ImportAll(Name.Root) ::
+        ImportAll(Name.Package("java.lang")) ::
+        ImportAll(Name.Package("harmonic.lang")) ::
+        ImportAll(compUnit.pkg)) ::
+        compUnit.imports.flatMap(resolveImport)
+    ).reverse
+
     /** Given a relative name (represented in list form, like 
       * `List(String, lang, java)`), match it against the
       * imports to come up with a list of possible qualified names. 
       * Symbols for any ClassNames found in the resulting list exist. */
     private[this] def resolveRelList(relList: List[String]): List[Name.Qual] = relList match {
-        case Nil => List(Name.Root) // not a valid input, really.
+        case Nil => List(Name.Root)
         
         case List(Name) => {
             allImports.flatMap { 
-                case in.ImportOne(from, in.RelBase(Name)) => Some(from)
-                case in.ImportOne(_, _) => None
-                case in.ImportAll(Ast.PackageName(pkg)) => resolveAgainst(pkg, Name)
+                case ImportOne(from, Name) => Some(from)
+                case ImportOne(_, _) => None
+                case ImportAll(pkg) => resolveAgainst(pkg, Name)
             }
         }
         
