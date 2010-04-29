@@ -2,6 +2,9 @@ package harmonic.compiler
 
 import java.io.File
 
+import scala.util.parsing.input.Positional
+import scala.util.parsing.input.Position
+
 import scala.collection.mutable.ListBuffer
 import scala.collection.immutable.Map
 
@@ -56,7 +59,7 @@ abstract class Resolve(state: CompilationState, compUnit: in.CompUnit) {
         ImportAll(Name.Root) ::
         ImportAll(Name.Package("java.lang")) ::
         ImportAll(Name.Package("harmonic.lang")) ::
-        ImportAll(compUnit.pkg)) ::
+        ImportAll(compUnit.pkg) ::
         compUnit.imports.flatMap(resolveImport)
     ).reverse
 
@@ -97,7 +100,7 @@ abstract class Resolve(state: CompilationState, compUnit: in.CompUnit) {
     }
     
     def resolveName(relName: in.RelName) = {
-        val className = resolveToClass(relNameToRelList(relName)).getOrElse(Name.ObjectQual)
+        val className = resolveToClass(relName.pos, relNameToRelList(relName)).getOrElse(Name.ObjectQual)
         withPosOf(relName, Ast.ClassName(className))
     }
 

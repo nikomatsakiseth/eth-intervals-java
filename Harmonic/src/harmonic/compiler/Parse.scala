@@ -73,10 +73,6 @@ class Parse extends StdTokenParsers with PackratParsers {
     
     // ___ Names ____________________________________________________________
     
-    lazy val absName = positioned(
-        ident~rep("."~>ident) ^^ { case b~fs => Ast.AbsName(Name.Qual((b :: fs).reverse)) }
-    )
-    
     lazy val relBase = positioned(ident ^^ out.RelBase)
     
     lazy val relDot = positioned(
@@ -91,6 +87,12 @@ class Parse extends StdTokenParsers with PackratParsers {
     |   "this"  ^^ Ast.SimpleName
     )
     
+    lazy val packageName = positioned(
+        rep1(ident) ^^ { idents => 
+            Ast.PackageName(idents.foldLeft[Name.Package](Name.Root)(Name.Subpackage(_, _)))
+        }
+    )
+    
     // ___ Declarations _____________________________________________________
     
     lazy val compUnit = positioned(
@@ -100,13 +102,16 @@ class Parse extends StdTokenParsers with PackratParsers {
     )
     
     lazy val packageDecl = positioned(
-        opt("package"~>absName<~";") ^^ { case Some(a) => a; case None => Ast.AbsName(Name.QualRoot) }
+        opt("package"~>packageName<~";") ^^ { 
+            case Some(a) => a
+            case None => Ast.PackageName(Name.Root) 
+        }
     )
     
     lazy val importDecl = positioned(
-        "import"~>absName~("->"~>relBase)<~";"  ^^ { case q~n => out.ImportOne(q, n) }
-    |   "import"~>absName<~";"                  ^^ { case q => out.ImportOne(q, out.RelBase(q.component)) }
-    |   "import"~>absName<~"."<~"*"<~";"        ^^ out.ImportAll
+        "import"~>relName~("->"~>relBase)<~";"  ^^ { case q~n => out.ImportOne(q, n) }
+    |   "import"~>relName<~";"                  ^^ { case q => out.ImportOne(q, out.RelBase(q.component)) }
+    |   "import"~>relName<~"."<~"*"<~";"        ^^ out.ImportAll
     )
     
     lazy val superClasses = opt("extends"~>comma1(relName)) ^^ {

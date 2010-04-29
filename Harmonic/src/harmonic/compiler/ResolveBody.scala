@@ -6,6 +6,7 @@ import scala.collection.mutable.ListBuffer
 import scala.collection.immutable.Map
 
 import Ast.{Parse => in}
+import Ast.{Resolve => out}
 import Util._
 
 /** After the headers have been resolved, we can resolve the names that
@@ -26,9 +27,7 @@ extends Resolve(state, compUnit)
         val outCdecl = InScope(symTab, true).resolveClassDecl(cdecl)
 
         if(state.config.dumpResolvedTrees) {
-            resolvedClassDecls.foreach { cdecl =>
-                cdecl.println(PrettyPrinter.stdout)
-            }
+            outCdecl.println(PrettyPrinter.stdout)
         }
     }
     
@@ -98,7 +97,7 @@ extends Resolve(state, compUnit)
     }
     
     class ResolveClassParams(className: Name.Class, scope0: InScope, inParam: in.Param)
-    extends ResolveParam(scope0, List(inParams)) {
+    extends ResolveParams(scope0, List(inParams)) {
         def outParam = outParams.head
         
         def addEntry(text: String) = {
@@ -232,14 +231,19 @@ extends Resolve(state, compUnit)
         
         // ___ Declarations _____________________________________________________
 
-        def resolveClassDecl(cdecl: in.ClassDecl) = withPosOf(cdecl, out.ClassDecl(
-            name = cdecl.name.toAbs(compUnit.pkg),
-            annotations = cdecl.annotations.map(resolveAnnotation),
-            superClasses = cdecl.superClasses.map(resolveName),
-            pattern = resolveTupleParam(cdecl.pattern),
-            members = cdecl.members.map(resolveMember),
-            sym = cdecl.sym
-        ))
+        def resolveClassDecl(cdecl: in.ClassDecl) = withPosOf(cdecl, {
+            val className = cdecl.name.toClass(compUnit.pkg.name)
+            val resolve = new ResolveClassParams(className, this, cdecl.pattern)
+            
+            out.ClassDecl(
+                name = Ast.ClassName(className),
+                annotations = cdecl.annotations.map(resolveAnnotation),
+                superClasses = cdecl.superClasses.map(resolveName),
+                pattern = resolve.outParam,
+                members = cdecl.members.map(resolve.scope.resolveMember),
+                sym = ()
+            )            
+        })
 
         def resolveAnnotation(ann: in.Annotation) = withPosOf(ann, out.Annotation(
             name = resolveName(ann.name)

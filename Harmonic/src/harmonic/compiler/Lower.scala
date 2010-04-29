@@ -44,7 +44,7 @@ case class Lower(state: CompilationState) {
     }
     
     def symbolType(tref: in.TypeRef): Type.Ref = tref match {
-        case in.VarType(path, tvar) => Type.Var(namePath(path), tvar.name)
+        case in.TypeVar(path, tvar) => Type.Var(namePath(path), tvar.name)
         case in.ClassType(name, targs) => Type.Class(name.qualName, targs.map(symbolTypeArg))
         case in.TupleType(types) => Type.Tuple(types.map(symbolType))
         case in.NullType() => Type.Null

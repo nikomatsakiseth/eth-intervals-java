@@ -56,7 +56,7 @@ case class Intrinsic(state: CompilationState) {
                         Symbol.MethodSignature(
                             returnTy = returnTy,
                             receiverTy = leftTy,
-                            parameterPatterns = List(Pattern.Var(Name.Var("arg"), rightTy))
+                            parameterPatterns = List(Pattern.Var(Name.LocalVar("arg"), rightTy))
                         )
                     )
                 )
@@ -121,7 +121,7 @@ case class Intrinsic(state: CompilationState) {
                     returnTy = voidTy,
                     receiverTy = booleanTy,
                     parameterPatterns = List(
-                        Pattern.Var(Name.Var("ifTmpl"), templateTy(voidTy, voidTy))
+                        Pattern.Var(Name.LocalVar("ifTmpl"), templateTy(voidTy, voidTy))
                     )
                 )
             )
@@ -143,7 +143,7 @@ case class Intrinsic(state: CompilationState) {
                     returnTy = voidTy,
                     receiverTy = objectTy,
                     parameterPatterns = List(
-                        Pattern.Var(Name.Var("ifTmpl"), templateTy(voidTy, voidTy))
+                        Pattern.Var(Name.LocalVar("ifTmpl"), templateTy(voidTy, voidTy))
                     )
                 )
             )
@@ -165,8 +165,8 @@ case class Intrinsic(state: CompilationState) {
                     returnTy = voidTy, /* ΧΧΧ Generic Method */
                     receiverTy = booleanTy,
                     parameterPatterns = List(
-                        Pattern.Var(Name.Var("ifTmpl"), templateTy(voidTy, voidTy)),
-                        Pattern.Var(Name.Var("elseTmpl"), templateTy(voidTy, voidTy))
+                        Pattern.Var(Name.LocalVar("ifTmpl"), templateTy(voidTy, voidTy)),
+                        Pattern.Var(Name.LocalVar("elseTmpl"), templateTy(voidTy, voidTy))
                     )
                 )
             )
@@ -188,15 +188,15 @@ case class Intrinsic(state: CompilationState) {
                     returnTy = voidTy, /* ΧΧΧ Generic Method */
                     receiverTy = objectTy,
                     parameterPatterns = List(
-                        Pattern.Var(Name.Var("ifTmpl"), templateTy(voidTy, voidTy)),
-                        Pattern.Var(Name.Var("elseTmpl"), templateTy(voidTy, voidTy))
+                        Pattern.Var(Name.LocalVar("ifTmpl"), templateTy(voidTy, voidTy)),
+                        Pattern.Var(Name.LocalVar("elseTmpl"), templateTy(voidTy, voidTy))
                     )
                 )
             )
         )
         
         // (Iterable<T>) forEach { (T i) -> ... }
-        val typeT = Type.Var(Path.This, Name.Var("T"))
+        val typeT = Type.Var(Path.This, Name.MemberVar(iterableTy.name, "T"))
         state.addIntrinsic(
             new Symbol.Method(
                 pos = InterPosition.forClass(classOf[Intrinsic]),
@@ -213,7 +213,7 @@ case class Intrinsic(state: CompilationState) {
                     receiverTy = iterableTy,
                     parameterPatterns = List(
                         Pattern.Var(
-                            Name.Var("eachTmpl"), 
+                            Name.LocalVar("eachTmpl"), 
                             templateTy(voidTy, typeT)
                         )
                     )
@@ -237,7 +237,7 @@ case class Intrinsic(state: CompilationState) {
                     returnTy = voidTy, 
                     receiverTy = templateTy(booleanTy, voidTy),
                     parameterPatterns = List(
-                        Pattern.Var(Name.Var("bodyTmpl"), templateTy(voidTy, voidTy))
+                        Pattern.Var(Name.LocalVar("bodyTmpl"), templateTy(voidTy, voidTy))
                     )
                 )
             )

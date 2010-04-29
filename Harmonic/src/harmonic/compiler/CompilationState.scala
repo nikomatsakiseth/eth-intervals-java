@@ -41,24 +41,12 @@ class CompilationState(
     
     // ___ Scheduler ________________________________________________________
     
-    class Pass(
-        val func: (Unit => Unit),
-        var dependencies: List[Pass]
-    ) {
-        def isEligible = 
-            !dependencies.exists(activePasses)
-        
-        def addDependency(after: Pass) = {
-            assert(activePasses(this))
-            dependencies = (after :: dependencies)
-        }
-    }
-    
-    private[this] val activePasses = new mutabe.HashSet[Pass]()
+    private[this] val activePasses = new mutable.HashSet[Pass]()
     var currentPass: Pass = null
     
-    def sched(before: List[Pass] = List(), after: List[Pass] = List())(func: => R): Pass = {
+    def sched(before: List[Pass] = List(), after: List[Pass] = List())(func: => Unit): Pass = {
         val pass = new Pass(() => func, after)
+        assert(before.forall(activePasses))
         before.foreach(_.addDependency(pass))
         activePasses += pass
         pass
@@ -66,11 +54,16 @@ class CompilationState(
     
     def drain() = {
         while(!activePasses.isEmpty) {
-            val pass = activePasses.find(_.isEligible)
-            activePasses -= pass
-            currentPass = pass
-            pass.func()
-            currentPass = null                
+            activePasses.find(_.isEligible(activePasses)) match {
+                case Some(pass) => {
+                    activePasses -= pass
+                    currentPass = pass
+                    pass.func()
+                    currentPass = null                                    
+                }
+                
+                case None => throw new RuntimeException("Deadlock!")
+            }
         }
     }
     
@@ -97,7 +90,7 @@ class CompilationState(
                 if(classes.isDefinedAt(className))
                     reporter.report(cdecl.pos, "class.already.defined", className.toString)
                 else {
-                    csym = new Symbol.ClassFromSource(className)
+                    val csym = new Symbol.ClassFromSource(className)
                     classes(className) = csym
                     
                     csym.resolveHeader = List(sched() {

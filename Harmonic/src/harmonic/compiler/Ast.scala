@@ -15,6 +15,7 @@ abstract class Ast {
     import Ast.PackageName
     import Ast.SimpleName
     import Ast.MemberName
+    import Ast.SimpleOrMemberName
     import Ast.VarName
         
     /** Names which get changed during resolve */
@@ -92,12 +93,15 @@ abstract class Ast {
     sealed abstract class RelName extends QualName {
         def /(nm: String) = RelDot(this, nm)   
         
+        def component: String
+        
         def toClass(pkg: Name.Package): Name.Class
         def toPackage(pkg: Name.Package): Name.Package
     }
     
     case class RelBase(nm: String) extends RelName {
         override def toString = nm
+        def component = nm
         
         def toClass(pkg: Name.Package) = Name.Class(pkg, nm)
         def toPackage(pkg: Name.Package) = Name.Subpackage(pkg, nm)
@@ -152,7 +156,7 @@ abstract class Ast {
         name: QN,
         annotations: List[Annotation],
         superClasses: List[QN],
-        pattern: TupleParam,
+        pattern: Param,
         members: List[MemberDecl],
         sym: CSym
     ) extends MemberDecl {
@@ -209,7 +213,6 @@ abstract class Ast {
         receiverSym: VSym,
         parts: List[DeclPart],
         returnTref: OTR,
-        returnTy: Ty,
         requirements: List[PathRequirement],
         optBody: Option[Body]
     ) extends MemberDecl {
@@ -247,7 +250,6 @@ abstract class Ast {
         annotations: List[Annotation],
         name: VarName,
         tref: OTR,
-        ty: Ty,
         optBody: Option[Body]
     ) extends MemberDecl {
         override def asFieldNamed(fldName: Name.Var) = {
@@ -360,8 +362,8 @@ abstract class Ast {
     
     case class TupleLvalue(
         lvalues: List[Lvalue]
-    ) extends Local with TupleAstPattern {
-        def subpatterns = locals
+    ) extends Lvalue with TupleAstPattern {
+        def subpatterns = lvalues
     }
     
     // After parsing, we have only DeclareVarLvalues.
@@ -371,7 +373,7 @@ abstract class Ast {
         tref: OTR,
         name: LN,
         sym: VSym
-    ) extends Local with VarAstPattern {
+    ) extends Lvalue with VarAstPattern {
         override def toString = "%s %s: %s".format(annotations.mkString(" "), tref, name)
         
         override def print(out: PrettyPrinter) {
@@ -385,7 +387,7 @@ abstract class Ast {
     case class ReassignVarLvalue(
         name: VarName,
         sym: VSym
-    ) extends Local with VarAstPattern {
+    ) extends Lvalue with VarAstPattern {
         override def toString = name.toString
         
         override def print(out: PrettyPrinter) {
@@ -396,7 +398,7 @@ abstract class Ast {
     case class FieldLvalue(
         name: MemberName,
         sym: VSym
-    ) extends Local with VarAstPattern {
+    ) extends Lvalue with VarAstPattern {
         override def toString = name.toString
         
         override def print(out: PrettyPrinter) {
@@ -433,19 +435,19 @@ abstract class Ast {
     
     // ______ Types after parse _____________________________________________
     
-    sealed abstract class ParseTypeRef extends OptionalParseTypeRef
+    sealed abstract trait ParseTypeRef extends OptionalParseTypeRef
     
     case class PathType(path: AstPath) extends ParseTypeRef {
         override def toString = path.toString        
     }
     
     case class ConstrainedType(path: AstPath, typeArgs: List[TypeArg]) extends ParseTypeRef {
-        override def toString = "%s[%s]".format(base, typeArgs.mkString(", "))        
+        override def toString = "%s[%s]".format(path, typeArgs.mkString(", "))        
     }
     
     // ______ Types after resolve ___________________________________________
     
-    sealed abstract class ResolveTypeRef extends OptionalResolveTypeRef
+    sealed abstract trait ResolveTypeRef extends OptionalResolveTypeRef
     
     case class TypeVar(path: AstPath, typeVar: SimpleOrMemberName) extends ResolveTypeRef {
         override def toString = "%s.%s".format(path, typeVar)
@@ -500,7 +502,7 @@ abstract class Ast {
     }
     
     case class PathErr(ty: Ty) extends AstPath {
-        override def toString = name.toString
+        override def toString = "<err:%s>".format(ty)
     }
     
     case class PathBase(name: VN, sym: VSym) extends AstPath {
@@ -510,7 +512,6 @@ abstract class Ast {
     
     case class PathDot(owner: AstPath, name: FN, sym: VSym, ty: Ty) extends AstPath {
         override def toString = owner + "." + name
-        def toPath = Path.Field(owner.toPath, name.name)
     }
     
     // ___ Statements and Expressions _______________________________________
@@ -581,7 +582,6 @@ abstract class Ast {
     case class Block(
         async: Boolean, 
         returnTref: OTR, 
-        returnTy: Ty,
         param: TmplLv, 
         stmts: List[Stmt], 
         ty: Ty
@@ -606,7 +606,7 @@ abstract class Ast {
         }
     }
     
-    case class Cast(expr: NE, typeRef: TR, ty: Ty) extends AtomicExpr {
+    case class Cast(expr: NE, typeRef: TR) extends AtomicExpr {
         override def toString = "(%s)(%s)".format(typeRef, expr)
         
         override def print(out: PrettyPrinter) {
@@ -642,7 +642,6 @@ abstract class Ast {
     case class Var(name: LN, sym: VSym) extends AtomicExpr with AstPath {
         override def toString = name.toString
         def ty = symTy(sym)
-        def toPath = Path.Base(name.name)
         
         override def print(out: PrettyPrinter) {
             out.write(name.toString)
@@ -727,7 +726,8 @@ abstract class Ast {
     extends ParseTlExpr {
         override def toString = "<(Void)null>"
     }
-   
+    
+    /** Inserted as the default receiver for methods etc */
     case class ImpThis(ty: Ty)
     extends ParseTlExpr {
         override def toString = "<this>"
@@ -792,24 +792,23 @@ object Ast {
     sealed abstract class QualName extends Name
 
     sealed case class PackageName(name: Name.Package) extends Name {
-        override def toString = pkgName.toString
+        override def toString = name.toString
     }
     
     sealed case class ClassName(name: Name.Class) extends QualName {
-        override def toString = className.toString
-        def component = qualName.rev_components.head
+        override def toString = name.toString
     }
     
     sealed abstract class VarName extends Name {
         def name: Name.Var
     }
     
-    sealed case class MemberName(name: Name.Member) extends VarName with SimpleOrMemberName {
-        override def toString = className.toString
+    sealed case class MemberName(name: Name.MemberVar) extends VarName with SimpleOrMemberName {
+        override def toString = name.toString
     }
     
-    sealed case class LocalName(name: Name.Local) extends VarName {
-        override def toString = className.toString
+    sealed case class LocalName(name: Name.LocalVar) extends VarName {
+        override def toString = name.toString
     }
     
     // ___ Phases ___________________________________________________________
@@ -827,7 +826,7 @@ object Ast {
         type Expr = ParseTlExpr
         type Rcvr = ParseRcvr
         type Owner = ParseOwner
-        type TmplLv = TupleLocal
+        type TmplLv = TupleLvalue
         type CSym = Unit
         type VSym = Unit
         type MSym = Unit
@@ -842,12 +841,12 @@ object Ast {
         def returnTy(unit: Unit) = ()
         
         def definedClasses(cunit: CompUnit) =
-            classes.map(cdecl => (cdecl.name.toClass(cunit.pkg.toPackage), cdecl))
+            cunit.classes.map(cdecl => (cdecl.name.toClass(cunit.pkg.name), cdecl))
     }
     
     /** After Resolve(): relative names resolved. */
     object Resolve extends Ast {
-        type QN = Ast.AbsName
+        type QN = ClassName
         type LN = LocalName
         type FN = SimpleOrMemberName 
         type OTR = OptionalResolveTypeRef
@@ -857,7 +856,7 @@ object Ast {
         type Expr = ParseTlExpr
         type Rcvr = ParseRcvr
         type Owner = ParseOwner
-        type TmplLv = Local
+        type TmplLv = Lvalue
         type CSym = Unit
         type VSym = Unit
         type MSym = Unit
@@ -875,7 +874,7 @@ object Ast {
     /** After Lower(): types inferred (but not checked!) and 
       * expressions broken apart into statements. */
     object Lower extends Ast {
-        type QN = Ast.AbsName
+        type QN = ClassName
         type LN = LocalName
         type FN = MemberName 
         type OT = TypeRef
@@ -899,9 +898,9 @@ object Ast {
         def mthdSym(data: MCallData) = data._1
         def returnTy(data: MCallData) = data._2.returnTy
         
-        def toPattern(lvalue: Lvalue): Pattern.Ref = lvalue match {
-            case TupleLvalue(lvalues, _) => Pattern.Tuple(lvalues.map(toPattern))
-            case VarLvalue(_, _, name, sym) => Pattern.Var(name.name, sym.ty)
+        def toPattern(pat: Param): Pattern.Ref = pat match {
+            case TupleParam(params) => Pattern.Tuple(params.map(toPattern))
+            case VarParam(_, _, _, sym) => Pattern.Var(sym.name, sym.ty)
         }
         
         def methodId(clsName: Name.Qual, mdecl: MethodDecl) = {
