@@ -183,7 +183,7 @@ extends Resolve(state, compUnit)
                 }
                 
                 case Some(SymTab.Local(name)) => {
-                    out.ReassignVarLvalue(Ast.VarName(name), ())
+                    out.ReassignVarLvalue(Ast.LocalName(name), ())
                 }
                 
                 case Some(SymTab.StaticField(name)) => {

@@ -96,7 +96,7 @@ case class Env(
 
     // ___ Finding member names _____________________________________________
     
-    def findEntry(csym: Symbol.Class, uName: Name.UnloweredMemberVar): CanFail[SymTab.MemberEntry] = {
+    def lookupEntry(csym: Symbol.Class, uName: Name.UnloweredMemberVar): CanFail[SymTab.MemberEntry] = {
         val mro = MethodResolutionOrder(state).forSym(csym)
         
         // Find all entries that could match `uName`:
@@ -116,7 +116,7 @@ case class Env(
                 if(remEntries.isEmpty) {
                     Right(entry)
                 } else {
-                    Left(Error.AmbiguousMember(csym.name, entry :: remEntries))                    
+                    Left(Error.AmbiguousMember(entry :: remEntries))                    
                 }
             }
         }
@@ -140,36 +140,57 @@ case class Env(
     
     def thisCsym = 
         state.classes(thisTy.name)
-    
-    def lookupField(
-        rcvrTy: Type.Ref, 
-        uName: Name.UnloweredMemberVar
-    ): CanFail[Symbol.Field] = {
-        def findSym(memberVar: Name.MemberVar) = {
-            val memberCsym = state.classes(memberVar.className)
-            memberCsym.fieldNamed(state)(memberVar).orErr(Error.NoSuchMember(rcvrTy, uName))
-        }
         
-        minimalUpperBoundType(rcvrTy).firstRight[Error, Symbol.Field](Error.NoSuchMember(rcvrTy, uName)) {
+    private[this] def lookupMember[R](
+        ownerTy: Type.Ref, 
+        uName: Name.UnloweredMemberVar
+    )(
+        func: (SymTab.MemberEntry => CanFail[R])
+    ): CanFail[R] = {
+        minimalUpperBoundType(ownerTy).firstRight[Error, R](Error.NoSuchMember(ownerTy, uName)) {
             case (_, Type.Class(className, _)) => {
                 val csym = state.classes(className)
-                findEntry(csym, uName) match {
+                lookupEntry(csym, uName) match {
                     case Left(err) => Left(err)
-                    case Right(SymTab.InstanceField(memberVar)) => findSym(memberVar)
-                    case Right(SymTab.StaticField(memberVar)) => findSym(memberVar)
-                    case Right(entry) => Left(Error.NotField(className, entry))
+                    case Right(entry) => func(entry)
                 }
             }
             case (err, _) => Left(err)
         }
     }
     
+    def lookupTypeVar(
+        ownerTy: Type.Ref, 
+        uName: Name.UnloweredMemberVar
+    ): CanFail[Name.MemberVar] = {
+        lookupMember(ownerTy, uName) {
+            case SymTab.Type(memberVar) => Right(memberVar)
+            case entry => Left(Error.NotTypeVar(entry))
+        }
+    }
+
+    def lookupField(
+        ownerTy: Type.Ref, 
+        uName: Name.UnloweredMemberVar
+    ): CanFail[Symbol.Field] = {
+        def findSym(memberVar: Name.MemberVar) = {
+            val memberCsym = state.classes(memberVar.className)
+            memberCsym.fieldNamed(state)(memberVar).orErr(Error.NoSuchMember(ownerTy, uName))
+        }
+        
+        lookupMember(ownerTy, uName) {
+            case SymTab.InstanceField(memberVar) => findSym(memberVar)
+            case SymTab.StaticField(memberVar) => findSym(memberVar)
+            case entry => Left(Error.NotField(entry))
+        }
+    }
+    
     def lookupFieldOrError(
-        rcvrTy: Type.Ref,  
+        ownerTy: Type.Ref,  
         name: Name.UnloweredMemberVar,
         optExpTy: Option[Type.Ref]
     ) = {
-        lookupField(rcvrTy, name) match {
+        lookupField(ownerTy, name) match {
             case Left(_) => Symbol.errorField(name.inDefaultClass(Name.ObjectQual), optExpTy)
             case Right(sym) => sym
         }
@@ -223,8 +244,7 @@ case class Env(
         case Path.Field(base, name) => {
             val typedBase = typedPath(base)
             val sym = lookupFieldOrError(typedBase.ty, name, None)
-            val subst = Subst(Path.This -> base)
-            Path.TypedField(typedBase, sym, subst.ty(sym.ty))
+            Path.TypedField(typedBase, sym)
         }
     }
     

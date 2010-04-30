@@ -18,15 +18,30 @@ object Error {
         }
     }
     
-    case class AmbiguousMember(className: Name.Class, options: List[SymTab.Entry]) extends Error {
+    case class AmbiguousMember(options: List[SymTab.MemberEntry]) extends Error {
         def report(state: CompilationState, pos: Position) {
-            state.reporter.report(pos, "ambiguous.member", className.toString, options.mkString(", "))
+            state.reporter.report(
+                pos, "ambiguous.member",
+                options.map(_.name).mkString(", ")
+            )
         }
     }
     
-    case class NotField(className: Name.Class, entry: SymTab.Entry) extends Error {
+    case class NotField(entry: SymTab.MemberEntry) extends Error {
         def report(state: CompilationState, pos: Position) {
-            state.reporter.report(pos, "not.a.field", className.toString, entry.toString)
+            state.reporter.report(
+                pos, "not.a.field", 
+                entry.name.toString
+            )
+        }
+    }
+    
+    case class NotTypeVar(entry: SymTab.MemberEntry) extends Error {
+        def report(state: CompilationState, pos: Position) {
+            state.reporter.report(
+                pos, "not.a.type.var", 
+                entry.name.toString
+            )
         }
     }
     

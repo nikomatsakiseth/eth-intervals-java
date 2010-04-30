@@ -15,6 +15,7 @@ abstract class Ast {
     import Ast.PackageName
     import Ast.SimpleName
     import Ast.MemberName
+    import Ast.LocalName
     import Ast.SimpleOrMemberName
     import Ast.VarName
         
@@ -344,7 +345,7 @@ abstract class Ast {
     case class VarParam(
         annotations: List[Annotation], 
         tref: TR,
-        name: LN,
+        name: LocalName,
         sym: VSym
     ) extends Param with VarAstPattern {
         override def toString = "%s %s: %s".format(annotations.mkString(" "), tref, name)
@@ -384,7 +385,7 @@ abstract class Ast {
     }
     
     case class ReassignVarLvalue(
-        name: VarName,
+        name: LocalName,
         sym: VSym
     ) extends Lvalue with VarAstPattern {
         override def toString = name.toString
@@ -448,7 +449,7 @@ abstract class Ast {
     
     sealed abstract trait ResolveTypeRef extends OptionalResolveTypeRef
     
-    case class TypeVar(path: AstPath, typeVar: SimpleOrMemberName) extends ResolveTypeRef {
+    case class TypeVar(path: AstPath, typeVar: FN) extends ResolveTypeRef {
         override def toString = "%s.%s".format(path, typeVar)
     }
     
@@ -477,14 +478,14 @@ abstract class Ast {
         def forGhost(name: VarName): Option[PathTypeArg]
     }
     
-    case class TypeTypeArg(name: SimpleOrMemberName, rel: TcRel, typeRef: TR) extends TypeArg {
+    case class TypeTypeArg(name: FN, rel: TcRel, typeRef: TR) extends TypeArg {
         override def toString = "%s %s %s".format(name, rel, typeRef)
         
         def forTypeVar(aName: VarName) = if(name == aName) Some(this) else None
         def forGhost(aName: VarName) = None
     }
     
-    case class PathTypeArg(name: SimpleOrMemberName, rel: PcRel, path: AstPath) extends TypeArg {
+    case class PathTypeArg(name: FN, rel: PcRel, path: AstPath) extends TypeArg {
         override def toString = "%s %s %s".format(name, rel, path)
         
         def forTypeVar(aName: VarName) = None
@@ -564,7 +565,7 @@ abstract class Ast {
     sealed abstract trait LowerOwner extends LowerRcvr with ParseOwner
     
     /** Top-level expressions after lowering. */
-    sealed abstract trait LowerTlExpr extends ParseTlExpr with LowerStmt
+    sealed abstract trait LowerTlExpr extends ResolveTlExpr with LowerStmt
 
     /** Expressions that are always safe to evaluate without the
       * possibility of a race condition. After lowering, only 
@@ -821,6 +822,10 @@ object Ast {
         override def toString = name.toString
     }
     
+    sealed case class UnloweredMemberName(name: Name.UnloweredMemberVar) extends Name {
+        override def toString = name.toString
+    }
+    
     sealed case class LocalName(name: Name.LocalVar) extends VarName {
         override def toString = name.toString
     }
@@ -864,7 +869,7 @@ object Ast {
     object Resolve extends Ast {
         type QN = ClassName
         type LN = LocalName
-        type FN = SimpleOrMemberName 
+        type FN = UnloweredMemberName 
         type OTR = OptionalResolveTypeRef
         type TR = ResolveTypeRef
         type NE = ParseTlExpr

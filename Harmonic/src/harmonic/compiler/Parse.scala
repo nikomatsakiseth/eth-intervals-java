@@ -82,10 +82,9 @@ class Parse extends StdTokenParsers with PackratParsers {
     
     lazy val relName = relDot | relBase
     
-    lazy val varName = positioned(
-        ident   ^^ Ast.SimpleName
-    |   "this"  ^^ Ast.SimpleName
-    )
+    lazy val varIdent = ident | "this"
+    lazy val localName = positioned(varIdent ^^ Ast.LocalName)    
+    lazy val simpleName = positioned(varIdent ^^ Ast.SimpleName)
     
     lazy val packageName = positioned(
         rep1(ident) ^^ { idents => 
@@ -217,7 +216,7 @@ class Parse extends StdTokenParsers with PackratParsers {
         "("~>comma(param)<~")" ^^ { case ps => out.TupleParam(ps) }
     )
     lazy val varParam = positioned(
-        annotations~simpleName~reqTypeRef ^^ {
+        annotations~localName~reqTypeRef ^^ {
             case a~n~t => out.VarParam(a, t, n, ()) }
     )
     lazy val param: PackratParser[out.Param] = tupleParam | varParam

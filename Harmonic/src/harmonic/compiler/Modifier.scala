@@ -8,6 +8,7 @@ object Modifier {
     case object Abstract extends Mod(1, jModifier.ABSTRACT, Name.AbstractQual)
     case object Mutable extends Mod(2, 0, Name.MutableQual)
     case object Override extends Mod(4, 0, Name.OverrideQual)
+    case object Static extends Mod(4, jModifier.Static, Name.ObjectQual)
     
     val All = List(Abstract, Mutable, Override)
     
@@ -22,6 +23,9 @@ object Modifier {
         
         def isOverride = contains(Override)
         def isNotOverride = !contains(Override)
+        
+        def isStatic = contains(Override)
+        def isNotStatic = !contains(Override)
     }
     
     object Set {
