@@ -34,6 +34,9 @@ abstract class Ast {
     /** The form of expressions */
     type Expr <: ParseTlExpr
     
+    /** The form of expressions */
+    type AstPath <: Node
+    
     /** Nested expressions eventually become restricted */
     type NE <: ParseTlExpr
     
@@ -67,6 +70,7 @@ abstract class Ast {
     /** Data attached to method calls */
     type MCallData
     
+    def errTy: Ty
     def symTy(vsym: VSym): Ty
     def tupleTy(tys: List[Ty]): TyTuple
     def mthdSym(data: MCallData): MSym
@@ -159,7 +163,7 @@ abstract class Ast {
         pattern: Param,
         members: List[MemberDecl],
         sym: CSym
-    ) extends MemberDecl {
+    ) extends Node { // TODO Inner classes
         override def toString = "[class %s%s]".format(
             name, pattern
         )
@@ -201,23 +205,15 @@ abstract class Ast {
         }
     }
     
-    case class DeclPart(ident: String, param: TupleParam) extends Node {
-        override def toString = "%s%s".format(ident, param)
-        override def print(out: PrettyPrinter) {
-            out.write("%s", ident)
-            param.print(out)
-        }
-    }
     case class MethodDecl(
         annotations: List[Annotation],
+        name: Name.Method,
         receiverSym: VSym,
-        parts: List[DeclPart],
+        params: List[Param],
         returnTref: OTR,
         requirements: List[PathRequirement],
         optBody: Option[Body]
     ) extends MemberDecl {
-        def name = Name.Method(parts.map(_.ident))
-        def params = parts.map(_.param)
         override def toString = "[method %s]".format(name)
         override def asMethodNamed(mthdName: Name.Method) = {
             if(mthdName == name) Some(this)
@@ -227,7 +223,10 @@ abstract class Ast {
         override def print(out: PrettyPrinter) {
             annotations.foreach(_.println(out))
             returnTref.printsp(out)
-            printSep(out, parts, " ")
+            name.parts.zip(params).foreach { case (part, param) =>
+                out.write(part)
+                param.printsp(out)
+            }
             out.writeln("")
             requirements.foreach(_.println(out))
             printOptBody(out, optBody)
@@ -344,7 +343,7 @@ abstract class Ast {
     
     case class VarParam(
         annotations: List[Annotation], 
-        tref: TypeRef,
+        tref: TR,
         name: LN,
         sym: VSym
     ) extends Param with VarAstPattern {
@@ -478,14 +477,14 @@ abstract class Ast {
         def forGhost(name: VarName): Option[PathTypeArg]
     }
     
-    case class TypeTypeArg(name: VarName, rel: TcRel, typeRef: TR) extends TypeArg {
+    case class TypeTypeArg(name: SimpleOrMemberName, rel: TcRel, typeRef: TR) extends TypeArg {
         override def toString = "%s %s %s".format(name, rel, typeRef)
         
         def forTypeVar(aName: VarName) = if(name == aName) Some(this) else None
         def forGhost(aName: VarName) = None
     }
     
-    case class PathTypeArg(name: VarName, rel: PcRel, path: AstPath) extends TypeArg {
+    case class PathTypeArg(name: SimpleOrMemberName, rel: PcRel, path: AstPath) extends TypeArg {
         override def toString = "%s %s %s".format(name, rel, path)
         
         def forTypeVar(aName: VarName) = None
@@ -496,23 +495,25 @@ abstract class Ast {
     // 
     // Paths are like mini-expressions that always have the form `a.b.c`
     
-    sealed abstract trait AstPath extends Node {
+    sealed abstract trait ParsePath extends Node {
         def ty: Ty
-        def toPath: Path.Ref
     }
     
-    case class PathErr(ty: Ty) extends AstPath {
-        override def toString = "<err:%s>".format(ty)
+    case class PathErr(name: String) extends ParsePath {
+        def ty = errTy
+        override def toString = "<err:%s>".format(name)
     }
     
-    case class PathBase(name: VN, sym: VSym) extends AstPath {
+    case class PathBase(name: VN, sym: VSym) extends ParsePath {
         override def toString = name.toString
         def ty = symTy(sym)
     }
     
-    case class PathDot(owner: AstPath, name: FN, sym: VSym, ty: Ty) extends AstPath {
+    case class PathDot(owner: AstPath, name: FN, sym: VSym, ty: Ty) extends ParsePath {
         override def toString = owner + "." + name
     }
+    
+    case class TypedPath(path: Path.Typed) extends Node
     
     // ___ Statements and Expressions _______________________________________
     
@@ -552,6 +553,9 @@ abstract class Ast {
     
     /** Top-level expressions after parsing. */
     sealed abstract trait ParseTlExpr extends ParseRcvr with ParseOwner with ParseStmt
+    
+    /** Top-level expressions after resolve. */
+    sealed abstract trait ResolveTlExpr extends ParseTlExpr
     
     /** Method receivers after lowering. */
     sealed abstract trait LowerRcvr extends ParseRcvr
@@ -636,10 +640,21 @@ abstract class Ast {
         }        
     }
     
+    // After parsing, paths like `a.b.c` are represented
+    // using one of these nodes rather than Var and Field
+    // nodes.  This helps to reduce duplicate code during
+    // the reduction phase.
+    case class PathExpr(path: AstPath) extends ParseTlExpr {
+        override def toString = path.toString
+        override def print(out: PrettyPrinter) {
+            path.print(out)
+        }
+    }
+    
     // n.b.: A Var could refer to any sort of variable, not only a 
     // local variable.  For example, a field of the current class or
     // one of its enclosing classes.
-    case class Var(name: LN, sym: VSym) extends AtomicExpr with AstPath {
+    case class Var(name: LN, sym: VSym) extends AtomicExpr {
         override def toString = name.toString
         def ty = symTy(sym)
         
@@ -720,10 +735,9 @@ abstract class Ast {
         override def toString = "null"
     }
     
-    /** ImpVoid is inserted when there is an empty 
-      * set of statements like "{ }". */
+    /** ImpVoid is inserted when there is an empty set of statements like "{ }". */
     case class ImpVoid(ty: Ty)
-    extends ParseTlExpr {
+    extends ResolveTlExpr {
         override def toString = "<(Void)null>"
     }
     
@@ -750,7 +764,7 @@ object Ast {
     
     // ___ Invariant Parts __________________________________________________
     
-    sealed abstract class Node extends Positional {
+    sealed abstract class Node extends Positional with Product {
         def print(out: PrettyPrinter) {
             out.write(toString)
         }
@@ -824,6 +838,7 @@ object Ast {
         type NE = ParseTlExpr
         type Stmt = ParseStmt
         type Expr = ParseTlExpr
+        type AstPath = ParsePath
         type Rcvr = ParseRcvr
         type Owner = ParseOwner
         type TmplLv = TupleLvalue
@@ -835,6 +850,7 @@ object Ast {
         type TyClass = Unit
         type TyTuple = Unit
         
+        def errTy = ()
         def symTy(unit: Unit) = ()
         def tupleTy(tys: List[Ty]) = ()
         def mthdSym(unit: Unit) = ()
@@ -853,7 +869,8 @@ object Ast {
         type TR = ResolveTypeRef
         type NE = ParseTlExpr
         type Stmt = ParseStmt
-        type Expr = ParseTlExpr
+        type Expr = ResolveTlExpr
+        type AstPath = ParsePath
         type Rcvr = ParseRcvr
         type Owner = ParseOwner
         type TmplLv = Lvalue
@@ -865,6 +882,7 @@ object Ast {
         type TyClass = Unit
         type TyTuple = Unit
 
+        def errTy = ()
         def symTy(unit: Unit) = ()
         def tupleTy(tys: List[Ty]) = ()
         def mthdSym(unit: Unit) = ()
@@ -877,11 +895,12 @@ object Ast {
         type QN = ClassName
         type LN = LocalName
         type FN = MemberName 
-        type OT = TypeRef
+        type OTR = TypeRef
         type TR = TypeRef
         type NE = AtomicExpr
         type Stmt = LowerStmt
         type Expr = LowerTlExpr
+        type AstPath = TypedPath
         type Rcvr = LowerRcvr
         type Owner = LowerOwner
         type TmplLv = Param
@@ -893,18 +912,19 @@ object Ast {
         type TyClass = Type.Class
         type TyTuple = Type.Tuple
 
+        def errTy = Type.Object
         def symTy(vsym: Symbol.Var) = vsym.ty
         def tupleTy(tys: List[Type.Ref]) = Type.Tuple(tys)
         def mthdSym(data: MCallData) = data._1
         def returnTy(data: MCallData) = data._2.returnTy
         
-        def toPattern(pat: Param): Pattern.Ref = pat match {
-            case TupleParam(params) => Pattern.Tuple(params.map(toPattern))
+        def toPatternRef(pat: Param): Pattern.Ref = pat match {
+            case TupleParam(params) => Pattern.Tuple(params.map(toPatternRef))
             case VarParam(_, _, _, sym) => Pattern.Var(sym.name, sym.ty)
         }
         
         def methodId(clsName: Name.Qual, mdecl: MethodDecl) = {
-            Symbol.MethodId(clsName, mdecl.name, mdecl.params.map(toPattern))
+            Symbol.MethodId(clsName, mdecl.name, mdecl.params.map(toPatternRef))
         }
             
     }

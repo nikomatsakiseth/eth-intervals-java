@@ -141,8 +141,7 @@ class Parse extends StdTokenParsers with PackratParsers {
     )
     
     lazy val member: PackratParser[out.MemberDecl] = (
-        classDecl
-    |   methodDecl
+        methodDecl
     |   fieldDecl
     |   intervalDecl
     |   relDecl
@@ -150,13 +149,14 @@ class Parse extends StdTokenParsers with PackratParsers {
     
     lazy val methodDecl = positioned(
         annotations~rep1(declPart)~optTypeRef~rep(requirement)~optBody ^^ {
-            case ann~parts~ret~reqs~optBody => out.MethodDecl(ann, (), parts, ret, (), reqs, optBody)
+            case ann~parts~ret~reqs~optBody => 
+                val name = Name.Method(parts.map(_._1))
+                val params = parts.map(_._2)
+                out.MethodDecl(ann, name, (), params, ret, reqs, optBody)
         }
     )
     
-    lazy val declPart = positioned(
-        ident~tupleParam ^^ { case i~p => out.DeclPart(i, p) }
-    )
+    lazy val declPart = ident~tupleParam ^^ { case i~p => (i, p) }
     
     lazy val requirement = positioned(
         "requires"~>path~pcRel~path ^^ { case l~p~r => out.PathRequirement(l, p, r) }
@@ -273,9 +273,15 @@ class Parse extends StdTokenParsers with PackratParsers {
     )
     
     // ___ Paths ____________________________________________________________
+    //
+    // A sequence like `a.b.c`.  We use a guard to prevent `a.b.c()` from
+    // being parsed as the path `a.b.c` followed by `()`.  Instead it would
+    // be parsed as `a.b` and then `.c()`.
+    
+    lazy val notArg = ("(" | "{" | "{{").guard.not
     
     lazy val path = positioned(
-        simpleName~rep("."~>simpleName) ^^ {
+        simpleName~rep("."~>simpleName<~notArg) ^^ {
             case v~fs => fs.foldLeft[out.AstPath](out.Var(v, ()))(out.PathField(_, _, (), ()))
         }
     )
@@ -340,6 +346,7 @@ class Parse extends StdTokenParsers with PackratParsers {
     
     lazy val expr0: PackratParser[out.Expr] = positioned(
         rcvr~"."~rep1(callPart)             ^^ { case r~"."~cp => out.MethodCall(r, cp, ()) }
+    |   path                                ^^ { case p => out.PathExpr(p) }
     |   expr0~"."~varName                   ^^ { case r~"."~f => out.Field(r, f, (), ()) }
     |   impThis~rep1(callPart)              ^^ { case r~cp => out.MethodCall(r, cp, ()) }
     |   arg

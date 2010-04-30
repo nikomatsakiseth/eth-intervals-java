@@ -46,11 +46,11 @@ object Modifier {
     }
     
     def forResolvedAnnotations(annotations: List[Ast.Resolve.Annotation]) = {
-        forAnnotationsNamed(annotations.map(_.name.qualName))
+        forAnnotationsNamed(annotations.map(_.name.name))
     }
 
     def forLoweredAnnotations(annotations: List[Ast.Lower.Annotation]) = {
-        forAnnotationsNamed(annotations.map(_.name.qualName))
+        forAnnotationsNamed(annotations.map(_.name.name))
     }
 
 }

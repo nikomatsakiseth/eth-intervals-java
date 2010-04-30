@@ -2,6 +2,7 @@ package harmonic.compiler
 
 import scala.collection.mutable
 import scala.util.parsing.input.Position
+import Error.CanFail
 
 /** Symbols describe the class interfaces.  Unlike the AST,
   * they are mutable data structures, built-up during the
@@ -18,7 +19,6 @@ object Symbol {
     abstract class Ref {
         def modifiers(state: CompilationState): Modifier.Set
         def isError: Boolean = false
-        def kind: Kind
     }
     
     sealed abstract class Class(
@@ -97,7 +97,7 @@ object Symbol {
         
         /** Symbols for fields defined on this class (not superclasses)
           * with the given name.  May trigger lowering or other processing. */
-        def fieldNamed(state: CompilationState)(name: Name.MemberVar): Option[Symbol.MemberVar]
+        def fieldNamed(state: CompilationState)(name: Name.MemberVar): Option[Symbol.Field]
         
         // ___ Invokable once lowered ___________________________________________
         
@@ -226,7 +226,6 @@ object Symbol {
     ) extends Class(name) {
         def internalImplName = name.internalName + ByteCode.implSuffix
         
-        // Passes are created 
         var resolveHeader: List[Pass] = Nil
         var resolveHeaderClosure: List[Pass] = Nil
         var resolveBody: List[Pass] = Nil
@@ -276,29 +275,16 @@ object Symbol {
             methodGroups = groups
         }
         
-        def modifiers(state: CompilationState) = 
-            Modifier.forResolvedAnnotations(resolvedSource.annotations)
+        def modifiers(state: CompilationState) = {
+            Modifier.forResolvedAnnotations(resolvedSource.annotations)            
+        }
+            
+        def constructor(state: CompilationState) = {
+            Lower(state).symbolForConstructor(this)
+        }
         
         def constructors(state: CompilationState) = {
-            optCtorSymbol match {
-                case Some(ctorSymbol) => List(ctorSymbol)
-                case None => {
-                    val ctorSymbol = new Symbol.Method(
-                        pos         = resolvedSource.pattern.pos,
-                        modifierSet = modifiers(state),
-                        kind        = Symbol.InterCtor,
-                        clsName     = name,
-                        name        = Name.InitMethod,
-                        Symbol.MethodSignature(
-                            returnTy = Type.Void,
-                            receiverTy = Type.Class(name, List()),
-                            parameterPatterns = List(Lower(state).symbolPattern(resolvedSource.pattern))
-                        )
-                    )
-                    optCtorSymbol = Some(ctorSymbol)
-                    List(ctorSymbol)
-                }
-            }
+            List(constructor(state))
         }
         
         def methodsNamed(state: CompilationState)(memName: Name.Method) = {
@@ -361,9 +347,9 @@ object Symbol {
         val overrides = new mutable.ListBuffer[Symbol.Method]()
     }
     
-    def errorMethod(name: Name.Method, clsName: Name.Qual) = {
+    def errorMethod(name: Name.Method, clsName: Name.Class) = {
         val parameterPatterns = name.parts.zipWithIndex.map { case (_, i) => 
-            Pattern.Var(Name.Var("arg%d".format(i)), Type.Null)
+            Pattern.Var(Name.LocalVar("arg%d".format(i)), Type.Null)
         }
         new Method(
             pos         = InterPosition.forClassNamed(clsName),
@@ -416,14 +402,14 @@ object Symbol {
     
     def errorLocalVar(name: Name.LocalVar, optExpTy: Option[Type.Ref]) = {
         val ty = optExpTy.getOrElse(Type.Null)
-        new LocalVar(Modifier.Set.empty, name, ty) {
+        new Symbol.LocalVar(Modifier.Set.empty, name, ty) {
             override def isError = true
         }
     }
     
     def errorField(name: Name.MemberVar, optExpTy: Option[Type.Ref]) = {
         val ty = optExpTy.getOrElse(Type.Null)
-        new MemberVar(Modifier.Set.empty, name, ty) {
+        new Symbol.Field(Modifier.Set.empty, name, ty) {
             override def isError = true
         }
     }

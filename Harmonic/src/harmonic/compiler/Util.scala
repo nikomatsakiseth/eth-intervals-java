@@ -5,6 +5,8 @@ import scala.util.parsing.input.Position
 
 import scala.collection.Set
 
+import Error.CanFail
+
 object Util {
     def javaReaderFromPath(path: String) = javaReaderFromFile(new java.io.File(path))
     def javaReaderFromFile(file: java.io.File) = new java.io.FileReader(file)
@@ -31,15 +33,23 @@ object Util {
         }
     }
     
-    
     def sameLength(lst1: List[_], lst2: List[_]) = (lst1.length == lst2.length)
     
     // ___ Extensions to Collection Classes _________________________________
     
     class ExtendedIterable[E](iterable: Iterable[E]) {
-        def firstSome[F](func: (E => Option[F])) = iterable.foldLeft[Option[F]](None) {
-            case (None, elem) => func(elem)
-            case (result, _) => result
+        def firstSome[F](func: (E => Option[F])) = {
+            iterable.foldLeft[Option[F]](None) {
+                case (None, elem) => func(elem)
+                case (result, _) => result
+            }
+        }
+
+        def firstRight[L,R](left0: L)(func: ((L, E) => Either[L,R])) = {
+            iterable.foldLeft[Either[L,R]](Left(left0)) {
+                case (Left(left), elem) => func(left, elem)
+                case (result, _) => result
+            }
         }
         
         def cross[J](js: Iterable[J]) = 
@@ -63,6 +73,14 @@ object Util {
         }
     }
     implicit def extendedList[E](list: List[E]) = new ExtendedList(list)
+    
+    class ExtendedOption[E](option: Option[E]) {
+        def orErr(err: => Error): CanFail[E] = option match {
+            case Some(value) => Right(value)
+            case None => Left(err)
+        }
+    }
+    implicit def extendedOption[E](option: Option[E]) = new ExtendedOption(option)
     
     // ___ Debug ____________________________________________________________
     private[this] var indent: Int = 0

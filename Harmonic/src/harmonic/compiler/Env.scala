@@ -5,6 +5,7 @@ import scala.collection.immutable.Queue
 import scala.collection.mutable
 
 import Util._
+import Error.CanFail
 
 object Env {
     def empty(state: CompilationState) = Env(
@@ -26,7 +27,7 @@ case class Env(
     thisTy: Type.Class,
     
     /** In-scope local variables. */
-    locals: Map[Name.Var, Symbol.Var],
+    locals: Map[Name.LocalVar, Symbol.LocalVar],
     
     /** Tuples describing relations between paths. */
     pathRels: List[(Path.Ref, PcRel, Path.Ref)],
@@ -34,6 +35,7 @@ case class Env(
     /** Tuples describing relations between type variables and other types. */
     typeRels: List[(Type.Var, TcRel, Type.Ref)]
 ) {
+    // ___ Transitive Closure Utility _______________________________________
     
     /** Base class that captures the basic pattern of computing
       * the transitive closure. */
@@ -61,11 +63,11 @@ case class Env(
     
     // ___ Extending the Environment ________________________________________
     
-    def plusSym(sym: Symbol.Var) = copy(locals = locals + (sym.name -> sym))
+    def plusLocalVar(sym: Symbol.LocalVar) = copy(locals = locals + (sym.name -> sym))
     
-    def plusSyms(syms: Iterable[Symbol.Var]) = syms.foldLeft(this)(_ plusSym _)
+    def plusLocalVars(syms: Iterable[Symbol.LocalVar]) = syms.foldLeft(this)(_ plusLocalVar _)
 
-    def plusThis(thisTy: Type.Class, sym: Symbol.Var) = plusSym(sym).copy(thisTy = thisTy)
+    def plusThis(thisTy: Type.Class, sym: Symbol.LocalVar) = plusLocalVar(sym).copy(thisTy = thisTy)
     
     def plusPathRel(rel: (Path.Ref, PcRel, Path.Ref)) = copy(pathRels = rel :: pathRels)
 
@@ -91,51 +93,85 @@ case class Env(
         case (P1, Rel, p2) => Some(p2)
         case _ => None
     }
+
+    // ___ Finding member names _____________________________________________
+    
+    def findEntry(csym: Symbol.Class, uName: Name.UnloweredMemberVar): CanFail[SymTab.MemberEntry] = {
+        val mro = MethodResolutionOrder(state).forSym(csym)
+        
+        // Find all entries that could match `uName`:
+        val allEntries = mro.flatMap { mrosym => 
+            mrosym.varMembers(state).flatMap(_.asMemberEntryMatching(uName)) 
+        }
+        
+        // Try to find if there is one that shadows all others:
+        allEntries match {
+            case List() => Left(Error.NoSuchMember(csym.toType, uName))
+            case List(entry) => Right(entry)
+            case entry :: otherEntries => {
+                val csym = state.classes(entry.name.className)
+                val remEntries = otherEntries.filterNot { entry =>
+                    state.classes(entry.name.className).isSubclass(state, csym)
+                }
+                if(remEntries.isEmpty) {
+                    Right(entry)
+                } else {
+                    Left(Error.AmbiguousMember(csym.name, entry :: remEntries))                    
+                }
+            }
+        }
+    }
     
     // ___ Looking up fields and methods ____________________________________
     //
     // Note: this can trigger lowering to occur!  
     
-    def localIsDefined(name: Name.Var) = 
+    def localIsDefined(name: Name.LocalVar) = 
         locals.isDefinedAt(name)
     
-    def lookupLocal(name: Name.Var) = 
+    def lookupLocal(name: Name.LocalVar) = 
         locals.get(name)
     
-    def lookupLocalOrError(name: Name.Var, optExpTy: Option[Type.Ref]) = 
-        locals.get(name).getOrElse(Symbol.errorVar(name, optExpTy))
+    def lookupLocalOrError(name: Name.LocalVar, optExpTy: Option[Type.Ref]) = 
+        locals.get(name).getOrElse(Symbol.errorLocalVar(name, optExpTy))
         
     def lookupThis = 
-        locals(Name.ThisVar)
+        locals(Name.ThisLocal)
     
     def thisCsym = 
         state.classes(thisTy.name)
     
     def lookupField(
         rcvrTy: Type.Ref, 
-        name: Name.Var
-    ): Option[Symbol.Var] = {
-        rcvrTy match {
-            case Type.Class(className, _) => {
+        uName: Name.UnloweredMemberVar
+    ): CanFail[Symbol.Field] = {
+        def findSym(memberVar: Name.MemberVar) = {
+            val memberCsym = state.classes(memberVar.className)
+            memberCsym.fieldNamed(state)(memberVar).orErr(Error.NoSuchMember(rcvrTy, uName))
+        }
+        
+        minimalUpperBoundType(rcvrTy).firstRight[Error, Symbol.Field](Error.NoSuchMember(rcvrTy, uName)) {
+            case (_, Type.Class(className, _)) => {
                 val csym = state.classes(className)
-                csym.fieldNamed(state)(name)
+                findEntry(csym, uName) match {
+                    case Left(err) => Left(err)
+                    case Right(SymTab.InstanceField(memberVar)) => findSym(memberVar)
+                    case Right(SymTab.StaticField(memberVar)) => findSym(memberVar)
+                    case Right(entry) => Left(Error.NotField(className, entry))
+                }
             }
-            
-            case tyVar: Type.Var => {
-                upperBoundType(tyVar).firstSome(lookupField(_, name))
-            }
-            
-            case _ => None
+            case (err, _) => Left(err)
         }
     }
     
     def lookupFieldOrError(
         rcvrTy: Type.Ref,  
-        name: Name.Var,
+        name: Name.UnloweredMemberVar,
         optExpTy: Option[Type.Ref]
     ) = {
-        lookupField(rcvrTy, name).getOrElse {
-            Symbol.errorVar(name, optExpTy)
+        lookupField(rcvrTy, name) match {
+            case Left(_) => Symbol.errorField(name.inDefaultClass(Name.ObjectQual), optExpTy)
+            case Right(sym) => sym
         }
     }    
     
@@ -173,9 +209,15 @@ case class Env(
     // variables found within are not defined.
     
     def typedPath(path: Path.Ref): Path.Typed = path match {
-        case Path.Base(name) => {
-            val sym = locals.get(name).getOrElse(Symbol.errorVar(name, None))
-            Path.TypedBase(name, sym, sym.ty)
+        case Path.Base(name: Name.LocalVar) => {
+            val lvsym = locals.get(name).getOrElse(Symbol.errorLocalVar(name, None))
+            Path.TypedBase(lvsym)
+        }
+        
+        case Path.Base(name: Name.MemberVar) => {
+            val csym = state.classes(name.className)
+            val fsym = lookupFieldOrError(csym.toType, name, None)
+            Path.TypedBase(fsym)
         }
         
         case Path.Field(base, name) => {
@@ -384,7 +426,7 @@ case class Env(
         pat match {
             case Pattern.Tuple(pats) => pats.foldLeft(subst)(addFresh)
             case Pattern.Var(name, _) => {
-                val freshName = Name.Var("(env-%s)".format(state.freshInteger()))
+                val freshName = Name.LocalVar("(env-%s)".format(state.freshInteger()))
                 subst + (name.toPath -> freshName.toPath)
             }
         }

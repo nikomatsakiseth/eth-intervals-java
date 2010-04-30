@@ -108,8 +108,15 @@ object Name {
     sealed case class MemberVar(
         className: Name.Class,
         text: String
-    ) extends Var {
+    ) extends Var with UnloweredMemberVar {
         override def toString = "(%s.%s)".format(className, text)
+        
+        def matches(unlowerName: UnloweredMemberVar) = unlowerName match {
+            case u: ClasslessMemberVar => (text == u.text)
+            case u: MemberVar => (this == u)
+        }
+        
+        def inDefaultClass(className: Name.Class) = this
     }
     
     /** Names of parameters, local variables */
@@ -119,11 +126,22 @@ object Name {
         override def toString = text
     }
     
+    /** A `MemberVar` before lowering, at which point we may not yet
+      * know the `className`. */
+    sealed abstract trait UnloweredMemberVar {
+        def text: String
+        
+        def inDefaultClass(className: Name.Class): MemberVar
+    }
+    case class ClasslessMemberVar(text: String) extends UnloweredMemberVar {
+        def inDefaultClass(className: Name.Class) = MemberVar(className, text)        
+    }
+    
     private[this] val lang = "harmonic.lang."
     
-    val ThisVar = Name.LocalVar("this")
+    val ThisLocal = Name.LocalVar("this")
     
-    val MethodVar = Name.LocalVar("method")
+    val MethodLocal = Name.LocalVar("method")
     
     val VoidQual = Class(classOf[java.lang.Void])
     

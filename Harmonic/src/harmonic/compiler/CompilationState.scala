@@ -108,7 +108,7 @@ class CompilationState(
                     })
                     
                     csym.lower = List(sched(after = csym.resolveBody) {
-                        csym.loweredSource = Lower(this).lowerClassDecl(csym.resolvedSource)
+                        csym.loweredSource = Lower(this).lowerClass(csym)
                         if(config.dumpLoweredTrees)
                             csym.loweredSource.println(PrettyPrinter.stdout)
                     })

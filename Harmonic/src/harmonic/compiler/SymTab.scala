@@ -3,11 +3,30 @@ package harmonic.compiler
 object SymTab {
     sealed abstract class Entry {
         def name: Name.Var
+        def asMemberEntryMatching(uName: Name.UnloweredMemberVar): Option[MemberEntry]
     }
-    sealed case class InstanceField(name: Name.MemberVar) extends Entry
-    sealed case class StaticField(name: Name.MemberVar) extends Entry
-    sealed case class Type(name: Name.MemberVar) extends Entry
-    sealed case class Local(name: Name.LocalVar) extends Entry
+    sealed abstract class MemberEntry extends Entry {
+        def name: Name.MemberVar
+        def asMemberEntryMatching(uName: Name.UnloweredMemberVar) = {
+            if(name.matches(uName)) Some(this)
+            else None
+        }
+        def isConstrainableInPathArg: Boolean = false
+        def isConstrainableInTypeArg: Boolean = false
+    }
+    sealed case class InstanceField(name: Name.MemberVar) extends MemberEntry {
+        def isConstrainableInPathArg = true
+    }
+    sealed case class StaticField(name: Name.MemberVar) extends MemberEntry
+    sealed case class Type(name: Name.MemberVar) extends MemberEntry {
+        def isConstrainableInTypeArg = true
+    }
+    sealed case class Ghost(name: Name.MemberVar) extends MemberEntry {
+        def isConstrainableInPathArg = true        
+    }
+    sealed case class Local(name: Name.LocalVar) extends Entry {
+        def asMemberEntryMatching(uName: UnloweredMemberVar) = None        
+    }
     
     type Map = scala.collection.immutable.Map[String, Entry]
     

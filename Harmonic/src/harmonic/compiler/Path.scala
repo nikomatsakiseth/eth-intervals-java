@@ -7,22 +7,27 @@ object Path {
     case class Base(v: Name.Var) extends Ref {
         override def toString = v.toString
     }
-    case class Field(base: Path.Ref, f: Name.Var) extends Ref {
+    case class Field(base: Path.Ref, f: Name.MemberVar) extends Ref {
         override def toString = base.toString + f.toString
     }
     
-    val This = Path.Base(Name.ThisVar)    
-    val Method = Path.Base(Name.MethodVar)
+    val This = Path.Base(Name.ThisLocal)    
+    val Method = Path.Base(Name.MethodLocal)
     
     sealed abstract class Typed {
         def sym: Symbol.Var
         def ty: Type.Ref
         def toPath: Path.Ref
     }
-    case class TypedBase(v: Name.Var, sym: Symbol.Var, ty: Type.Ref) extends Typed {
-        def toPath = Path.Base(v)
+    case class TypedBase(sym: Symbol.Var) extends Typed {
+        def toPath = Path.Base(sym.name)
+        def ty = sym.ty
     }
-    case class TypedField(base: Path.Typed, sym: Symbol.Var, ty: Type.Ref) extends Typed {
+    case class TypedField(base: Path.Typed, sym: Symbol.Field) extends Typed {
         def toPath = Path.Field(base.toPath, sym.name)
+        lazy val ty = {
+            val subst = Subst(Path.This -> base.toPath)
+            subst.ty(sym.ty)
+        }
     }
 }

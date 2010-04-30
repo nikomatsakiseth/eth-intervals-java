@@ -508,65 +508,16 @@ extends Resolve(state, compUnit)
             )
         })
 
-        def resolveVar(expr: Ast.Node, text: String): out.Expr = withPosOf(expr, {
-            symTab.get(text) match {
-                case None => {
-                    state.reporter.report(expr.pos, "no.such.var", text)
-                    out.Null(())
-                }
-                
-                case Some(SymTab.Local(name)) => {
-                    out.Var(Ast.LocalName(name), ())
-                }
-                
-                case Some(SymTab.Type(_)) => {
-                    state.reporter.report(expr.pos, "cannot.use.type.var.here", expr)
-                    out.Null(())
-                }
-                
-                case Some(SymTab.InstanceField(name)) if !isStatic => {
-                    out.Field(
-                        out.Var(Ast.LocalName(Name.ThisVar), ()), 
-                        Ast.MemberName(name),
-                        (), ()
-                    )
-                }
-                
-                case Some(SymTab.InstanceField(name)) if isStatic => {
-                    state.reporter.report(expr.pos, "cannot.reference.in.static.context", name.toString)
-                    out.Null(())
-                }
-                
-                case Some(SymTab.StaticField(name)) => {
-                    out.StaticField(name, (), ())
-                }
-            }
+        def pathToExpr(path: out.Path): out.Expr = withPosOf(path, {
+            case out.PathErr(()) => out.Null(())
+            case out.PathBase(name, ()) => out.Var(name, ())
+            case out.PathDot(base, name, (), ()) => out.Field(pathToExpr(base), name, (), ())
         })
         
-        def resolveOwnerToTypeNameOrExpr(owner: in.Expr): Either[List[String], out.Expr] = {
-            owner match {
-                case varExpr @ in.Var(Ast.SimpleName(text), ()) => {
-                    symTab.get(text) match {
-                        // Reference to an undefined variable:
-                        // Treat as a potential class/package name.
-                        case None => Left(List(text))
-                        case Some(_) => Right(resolveVarExpr(varExpr))
-                    }
-                }
-                
-                case in.Field(owner, name, (), ()) => {
-                    resolveOwner(owner) match {
-                        case Left(names) => Left(name.text :: names)
-                        
-                        case Right(expr) => Right(
-                            withPosOf(owner, out.Field(expr, name, (), ()))
-                        )
-                    }
-                }
-                
-                case _ => Right(resolveExpr(owner))
-            }
-        }
+        def resolveVar(expr: Ast.Node, text: String): out.Expr = withPosOf(expr, {
+            val inPath = withPosOf(expr, in.PathBase(expr.name, ()))
+            pathToExpr(resolvePathToPath(inPath))
+        })
         
         def resolveOwner(owner: in.Owner): out.Owner = withPosOf(owner, {
             owner match {
@@ -575,8 +526,8 @@ extends Resolve(state, compUnit)
                     out.Static(name)
                 }
                 
-                case expr: in.Expr => {
-                    resolveOwnerToTypeNameOrExpr(expr) match {
+                case in.PathExpr(path) => {
+                    resolvePathToEither(path) match {
                         case Left(names) => {
                             // Could not resolve the owner `a.b` as an expression.
                             // `a.b` must be a type name and `c` a static field
@@ -587,8 +538,12 @@ extends Resolve(state, compUnit)
                             }
                         }
                         
-                        case Right(outOwner) => outOwner
+                        case Right(outPath) => pathToExpr(outPath)
                     }
+                }
+                
+                case expr: in.Expr => {
+                    resolveExpr(expr)
                 }
             }
         })
@@ -609,12 +564,17 @@ extends Resolve(state, compUnit)
         def resolveMethodCall(expr: in.MethodCall) = {
             out.MethodCall(resolveRcvr(rcvr), parts.map(resolvePart), ())
         }
+        
+        def resolvePathExpr(expr: in.PathExpr) = {
+            pathToExpr(resolvePathToPath(expr.path))
+        }
 
         def resolveExpr(expr: in.Expr): out.Expr = withPosOf(expr, expr match {
             case tuple: in.Tuple => resolveTuple(tuple)
             case tmpl: in.Block => resolveBlock(tmpl)
             case in.Cast(v, t, ()) => out.Cast(resolveExpr(v), resolveTypeRef(t), ())
             case e: in.Literal => resolveLiteral(e)
+            case e: in.PathExpr => resolvePathExpr(e)
             case e: in.Var => resolveVarExpr(e)
             case e: in.Field => resolveField(e)
             case e: in.MethodCall => resolveMethodCall(e)
@@ -622,7 +582,7 @@ extends Resolve(state, compUnit)
             case e: in.NewAnon => resolveNewAnon(e)
             case in.Null(()) => out.Null(())
             case in.ImpVoid(()) => out.ImpVoid(())
-            case in.ImpThis(()) => out.ImpThis(())
+            case in.ImpThis(()) => out.Var(Ast.LocalName(Name.ThisVar), ())
         })
 
         def resolveLiteral(expr: in.Literal) = {
