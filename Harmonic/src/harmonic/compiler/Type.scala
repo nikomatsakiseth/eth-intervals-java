@@ -33,7 +33,7 @@ object Type {
         def apply(cls: java.lang.Class[_]): Type.Class = Class(Name.Class(cls), List())
     }
     
-    val Object = Type.Class(Name.ObjectQual, List())
+    val Object = Type.Class(Name.ObjectClass, List())
     val Void = Type.Class(Name.VoidQual, List())
     
 }

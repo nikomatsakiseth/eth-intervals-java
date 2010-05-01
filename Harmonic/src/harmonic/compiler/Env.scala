@@ -191,22 +191,22 @@ case class Env(
         optExpTy: Option[Type.Ref]
     ) = {
         lookupField(ownerTy, name) match {
-            case Left(_) => Symbol.errorField(name.inDefaultClass(Name.ObjectQual), optExpTy)
+            case Left(_) => Symbol.errorField(name.inDefaultClass(Name.ObjectClass), optExpTy)
             case Right(sym) => sym
         }
     }    
     
-    private[this] def lookupMethodsDefinedOnClass(
+    private[this] def lookupInstanceMethodsDefinedOnClass(
         className: Name.Qual,
         methodName: Name.Method
     ): List[Symbol.Method] = {
         state.lookupIntrinsic(className, methodName).getOrElse {
             val csym = state.classes(className)
-            csym.methodsNamed(state)(methodName)
+            csym.methodsNamed(state)(methodName).filterNot(_.modifierSet.isStatic)
         }
     }
     
-    def lookupMethods(
+    def lookupInstanceMethods(
         rcvrTy: Type.Ref, 
         methodName: Name.Method
     ): List[Symbol.Method] = {
@@ -214,7 +214,7 @@ case class Env(
             case classTy: Type.Class => 
                 val mro = MethodResolutionOrder(state).forClassType(classTy)
                 mro.firstSome { csym =>
-                    lookupMethodsDefinedOnClass(csym.name, methodName) match {
+                    lookupInstanceMethodsDefinedOnClass(csym.name, methodName) match {
                         case List() => None
                         case msyms => Some(msyms)
                     }                    

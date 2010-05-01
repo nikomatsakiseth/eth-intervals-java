@@ -384,7 +384,7 @@ extends Resolve(state, compUnit)
         def resolvePathToClassName(path: in.AstPath) = withPosOf(path, {
             resolvePathToEither(path) match {
                 case Left(names) =>
-                    resolveToClass(tref.pos, names).getOrElse(Name.ObjectQual)
+                    resolveToClass(tref.pos, names).getOrElse(Name.ObjectClass)
                         
                 case Right(path) => {
                     state.reporter.report(
@@ -392,7 +392,7 @@ extends Resolve(state, compUnit)
                         "expected.type.here",
                         path.toString
                     )              
-                    Name.ObjectQual      
+                    Name.ObjectClass      
                 }
             }
         })
@@ -413,7 +413,7 @@ extends Resolve(state, compUnit)
             case in.PathType(in.PathDot(base, in.SimpleName(name), (), ())) => {
                 resolvePathToEither(base) match {
                     case Left(names) => {
-                        val className = resolveToClass(tref.pos, name :: names).getOrElse(Name.ObjectQual)
+                        val className = resolveToClass(tref.pos, name :: names).getOrElse(Name.ObjectClass)
                         out.ClassType(Ast.ClassName(className), List())
                     }
                     
@@ -562,7 +562,12 @@ extends Resolve(state, compUnit)
         })
         
         def resolveMethodCall(expr: in.MethodCall) = {
-            out.MethodCall(resolveRcvr(rcvr), parts.map(resolvePart), ())
+            out.MethodCall(
+                rcvr = resolveRcvr(rcvr), 
+                name = expr.name, 
+                args = expr.args.map(resolveExpr),
+                data = ()
+            )
         }
         
         def resolvePathExpr(expr: in.PathExpr) = {
@@ -589,11 +594,6 @@ extends Resolve(state, compUnit)
             state.requireLoadedOrLoadable(expr.pos, Name.Qual(expr.obj.getClass))
             out.Literal(expr.obj, ())            
         }
-
-        def resolvePart(part: in.CallPart) = withPosOf(part, out.CallPart(
-            ident = part.ident,
-            arg = resolveExpr(part.arg)
-        ))
 
         def resolveTuple(tuple: in.Tuple) = withPosOf(tuple, out.Tuple(
             exprs = tuple.exprs.map(resolveExpr)

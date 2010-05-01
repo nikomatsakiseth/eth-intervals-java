@@ -37,7 +37,7 @@ case class Lower(state: CompilationState) {
             val thisSym = new Symbol.LocalVar(Modifier.Set.empty, Name.ThisLocal, thisTy)
             val env0 = emptyEnv.plusThis(thisTy, thisSym)
             val cdecl = csym.resolvedSource
-            val (List(outParam), env) = lowerParams(env0, List(cdecl.pattern))
+            val (List(outParam), env) = lowerMethodParams(env0, List(cdecl.pattern))
             data.classParamAndEnvs(csym) = (outParam, env)
             (outParam, env)
         }
@@ -194,7 +194,7 @@ case class Lower(state: CompilationState) {
             assert(!data.inferStack(memberId))
             data.inferStack += memberId
 
-            val (outParams, env) = lowerParams(ThisEnv(csym), mdecl.params)
+            val (outParams, env) = lowerMethodParams(ThisEnv(csym), mdecl.params)
             val optBody = mdecl.optBody.map(lowerBody(env, _))
 
             val returnTy = (mdecl.returnTref, optBody) match {
@@ -263,22 +263,68 @@ case class Lower(state: CompilationState) {
     
     // ___ Parameters _______________________________________________________
     
-    def lowerParams(env0: Env, inParams: List[in.Param]): (List[out.Param], Env) = {
+    // Method parameters always have a specified type.  
+    def lowerMethodParams(env: Env, inParams: List[in.Param]) = {
+        lowerAnyParams(env, inParams.map(p => (Type.Object, p)))
+    }
+    
+    // The type of block parameters can be inferred from context.
+    def lowerBlockParam(env: Env, expTy: Type.Ref, inParam: in.Param) = {
+        val (List(outParam), env1) = lowerAnyParams(env, List((expTy, inParam)))
+        (outParam, env1)
+    }
+    
+    def lowerAnyParams(env0: Env, inputs: List[(Type.Ref, in.Param)]): (List[out.Param], Env) = {
         var env = env0
         
-        def lowerParam(param: in.Param): out.Param = withPosOf(param, param match {
-            case in.TupleParam(params) => out.TupleParam(params.map(lowerParam))
-            case in.VarParam(annotations, tref, name, ()) => {
-                val outAnnotations = annotations.map(InScope(env).lowerAnnotation)
-                val outTypeRef = InScope(env).lowerTypeRef(tref)
-                val modifierSet = Modifier.forLoweredAnnotations(outAnnotations)
-                val sym = new Symbol.LocalVar(modifierSet, name.name, outTypeRef.ty)
-                env = env.plusLocalVar(sym)
-                out.VarParam(outAnnotations, outTypeRef, name, sym)
+        def lowerParam(expTy: Type.Ref, param: in.Param): out.Param = withPosOf(param, {
+            (expTy, param) match {
+                // Unpack singleton tuples:
+                case (ty, in.TupleParam(List(p))) => out.TupleParam(List(lowerParam(ty, p)))
+                case (Type.Tuple(List(ty)), p) => lowerParam(ty, p)
+                
+                // Unpack matching tuples:
+                case (Type.Tuple(tys), in.TupleParam(params)) if sameLength(tys, params) => {
+                    val outParams = tys.zip(params).map { case (t, l) => lowerParam(t, l) }
+                    out.TupleParam(outParams)
+                }
+                
+                // If not matching, try to find a bounding type, or just infer Object:
+                case (_, in.TupleParam(params)) => {
+                    val optTy = env.upperBoundType(expTy).firstSome {
+                        case ty @ Type.Tuple(tys) if sameLength(tys, params) => Some(ty)
+                        case _ => None
+                    }
+                    
+                    optTy match {
+                        case Some(Type.Tuple(tys)) => { // Found one.
+                            val outParams = tys.zip(params).map { case (t, l) => lowerParam(t, l) }
+                            out.TupleParam(outParams)                            
+                        }
+                        
+                        case _ => { // No match, just infer Object.
+                            val outParams = params.map(lowerParam(Type.Object, _))
+                            out.TupleParam(outParams)
+                        }
+                    }
+                }
+                
+                // Otherwise, create a new symbol, using `expTy` as its type if neccessary:
+                case (_, in.VarParam(annotations, tref, name, ())) => {
+                    val outAnnotations = annotations.map(InScope(env).lowerAnnotation)
+                    val ty = tref match {
+                        case in.InferredTypeRef() => expTy
+                        case tref: in.ResolveTypeRef => InScope(env).toTypeRef(tref)
+                    }
+                    val modifierSet = Modifier.forLoweredAnnotations(outAnnotations)
+                    val sym = new Symbol.LocalVar(modifierSet, name.name, ty)
+                    env = env.plusLocalVar(sym)
+                    out.VarParam(outAnnotations, out.TypeRef(ty), name, sym)
+                }
             }
         })
         
-        (inParams.map(lowerParam), env)
+        (inputs.map { case (e, p) => lowerParam(e, p) }, env)
     }
     
     def extractMethodSignature(
@@ -286,7 +332,7 @@ case class Lower(state: CompilationState) {
         inParams: List[in.Param],
         inTypeRef: in.ResolveTypeRef
     ): Symbol.MethodSignature[Pattern.Ref] = {
-        val (outParams, env) = lowerParams(ThisEnv(csym), inParams)
+        val (outParams, env) = lowerMethodParams(ThisEnv(csym), inParams)
         Symbol.MethodSignature(
             returnTy          = InScope(env).toTypeRef(inTypeRef),
             receiverTy        = csym.toType,
@@ -328,10 +374,7 @@ case class Lower(state: CompilationState) {
                         }
 
                         case Some(fsym) if !fsym.modifierSet.isStatic => {
-                            state.reporter.report(
-                                path.pos, "expected.static", 
-                                memberVar.className.toString, memberVar.text
-                            )
+                            Error.ExpStatic(memberVar).report(state, path.pos)
                             errorPath(path.toString)               
                         }
 
@@ -643,26 +686,70 @@ case class Lower(state: CompilationState) {
         
         def mthdSubst(msym: Symbol.Method, rcvr: in.ParseRcvr, args: List[in.ParseTlExpr]) = {
             val msig = msym.msig
-            if(msym.modifierSet.isStatic) {
-                patSubsts(msig.parameterPatterns, args)
-            } else {
-                patSubsts(msig.thisPattern :: msig.parameterPatterns, rcvr :: args)
+            rcvr match {
+                case in.Static(_) | in.Super(_) => 
+                    patSubsts(msig.parameterPatterns, args)
+                case rcvr: in.ParseTlExpr =>
+                    patSubsts(msig.thisPattern :: msig.parameterPatterns, rcvr :: args)
             }
         }
     
+        def lowerOwner(owner: in.Owner): out.Owner = withPosOf(owner, owner match {
+            case in.Static(className) => out.Static(className)
+            case expr: in.Expr => lowerExprToVar(None)(expr)
+        })
+        
         def lowerField(optExpTy: Option[Type.Ref])(expr: in.Field) = introduceVar(expr, { 
-            val owner = lowerExprToVar(None)(expr.owner)
-            val optSym = env.lookupField(owner.ty, expr.name.name)
-            val fsym = optSym.getOrElse {
-                state.reporter.report(expr.pos, "no.such.field", owner.ty.toString, expr.name.toString)
-                Symbol.errorVar(expr.name.name, optExpTy)
-            }
-            if(fsym.modifierSet.isStatic) {
-                state.reporter.report(path.pos, "qualified.static", sym.name.toString)
-                out.Field(out.Static(fsym.name.className), fsym.name, fsym, fsym.ty)
-            } else {
-                val subst = Subst(Path.This -> owner.toPath)
-                out.Field(owner, fsym.name, fsym, subst.ty(fsym.ty))                
+            lowerOwner(expr.owner) match {
+                // Static field ref. like System.out:
+                case owner @ out.Static(className) => {
+                    val memberVar = expr.name.name match {
+                        case Name.ClasslessMemberVar(text) => 
+                            Name.MemberVar(className, text)
+                            
+                        case Name.MemberVar(className1, text) => {
+                            if(className != className1) {
+                                Error.DiffStaticClasses(className, className1).report(state, expr.name.pos)
+                            }
+                            Name.MemberVar(className, text)
+                        }
+                    }
+                    val csym = state.classes(className)
+                    val fsym = csym.fieldNamed(state)(memberVar) match {
+                        case Some(fsym) if fsym.modifierSet.isStatic => {
+                            fsym                            
+                        }
+                        case Some(fsym) if !fsym.modifierSet.isStatic => {
+                            Error.ExpStatic(memberVar).report(state, expr.name.pos)
+                            Symbol.errorField(memberVar, optExpTy)
+                            (sym, sym.ty)
+                        }
+                        case None => {
+                            Error.NoSuchMember(csym.toType, name.name).report(state, name.pos)
+                            Symbol.errorField(memberVar, optExpTy)
+                        }
+                    }
+                    out.Field(owner, fsym.name, fsym, fsym.ty)
+                }
+
+                // Instance field ref like foo.bar:
+                case owner @ out.Var(_, sym) => {
+                    val fsym = env.lowerField(sym.ty, expr.name.name) match {
+                        case Some(fsym) if !fsym.modifierSet.isStatic => {
+                            fsym
+                        }
+                        case Some(fsym) if fsym.modifierSet.isStatic => {
+                            Error.QualStatic(fsym.name).report(state, name.pos)
+                            fsym
+                        }
+                        case None => {
+                            Error.NoSuchMember(csym.toType, name.name).report(state, name.pos)
+                            Symbol.errorField(memberVar, optExpTy)
+                        }
+                    }
+                }
+                val subst = Subst(Path.This -> sym.name.toPath)
+                out.Field(owner, fsym.name, fsym, subst.ty(fsym.ty))
             }
         })
         
@@ -682,7 +769,7 @@ case class Lower(state: CompilationState) {
             // Identify the best method (if any):
             msyms match {
                 case List() => {
-                    state.reporter.report(pos, "no.such.method", rcvrTy.toString, name.toString)
+                    Error.NoSuchMethod(rcvrTy, name).report(state, pos)
                     None
                 }
                 
@@ -768,35 +855,39 @@ case class Lower(state: CompilationState) {
         
         def lowerMethodCall(optExpTy: Option[Type.Ref])(mcall: in.MethodCall) = introduceVar(mcall, {
             // Find all potential methods:
-            val rcvr = lowerRcvr(mcall.rcvr, mcall.name)
-            val msyms = env.lookupMethods(rcvr.ty, mcall.name)
-            val best = identifyBestMethod(
-                mcall.pos, msyms, mcall.name, 
-                rcvr.ty, mcall.rcvr, mcall.parts.map(_.arg))
-            best match {
-                case Some((args, (msym, msig))) => {
-                    def lowerPart(pair: (in.CallPart, out.AtomicExpr)) = withPosOf(pair._1,
-                        out.CallPart(pair._1.ident, pair._2)
-                    )
-                    out.MethodCall(
-                        rcvr = rcvr,
-                        parts = mcall.parts.zip(args).map(lowerPart),
-                        data = (msym, msig)
-                    )                    
+            val (rcvr, rcvrTy, msyms) = lowerRcvr(mcall.rcvr, mcall.name) match {
+                case rcvr @ out.Static(className) => {
+                    val csym = state.classes(className)
+                    val msyms = csym.methodsNamed(state)(mcall.name).filter(_.modifierSet.isStatic)
+                    (rcvr, csym.toType, msyms)
                 }
                 
+                case rcvr @ out.Super(ty) => {
+                    (rcvr, ty, env.lookupInstanceMethods(ty, mcall.name))
+                }
+                
+                case rcvr @ out.Var(_, sym) => {
+                    (rcvr, rcvr.ty, env.lookupInstanceMethods(sym.ty, mcall.name))                    
+                }
+            }
+            val best = identifyBestMethod(
+                mcall.pos, msyms, mcall.name, 
+                rcvrTy, mcall.rcvr, mcall.args)
+            best match {
+                case Some((args, (msym, msig))) =>
+                    out.MethodCall(rcvr, mcall.name, args, (msym, msig))
                 case None =>
                     out.Null(optExpTy.getOrElse(Type.Null))
             }
         })
         
         def lowerNewCtor(expr: in.NewCtor) = introduceVar(expr, {
-            symbolType(expr.tref) match {
+            toTypeRef(expr.tref) match {
                 case ty @ Type.Class(name, _) => {
                     val csym = state.classes(name)
                     val msyms = csym.constructors(state)
-                    val tvar = tmpVarName(expr)
-                    val rcvr = in.Var(Ast.VarName(tvar), ())
+                    val tvar = Name.LocalVar(tmpVarName(expr))
+                    val rcvr = in.Var(Ast.LocalName(tvar), ())
                     val best = identifyBestMethod(
                         expr.pos, msyms, Name.InitMethod,
                         ty, rcvr, List(expr.arg))
@@ -860,84 +951,16 @@ case class Lower(state: CompilationState) {
             }
             case _ => None
         }
-        
-        def lowerBlockArgument(expArgumentTy: Type.Ref, local: in.Local): out.Param = {
-            withPosOf(local, (expArgumentTy, local) match {
-                // Unpack singleton tuples:
-                //    We keep the TupleParam() wrapper around a singleton entry just for pretty printing.
-                case (ty, in.TupleLocal(List(lv))) => out.TupleParam(List(lowerBlockArgument(ty, lv)))
-                case (Type.Tuple(List(ty)), lv) => lowerBlockArgument(ty, lv)
                 
-                // Unpack matching tuples:
-                case (Type.Tuple(tys), in.TupleLocal(locals)) if sameLength(tys, locals) => {
-                    val outParams = tys.zip(locals).map { case (t, l) => lowerBlockArgument(t, l) }
-                    out.TupleParam(outParams)
-                }
-                
-                // If tuple sizes don't match, try to find a bounding type, or just infer Object:
-                case (_, in.TupleLocal(locals)) => {
-                    // Try to find a suitable bounding type:
-                    val optTy = env.upperBoundType(expArgumentTy).firstSome {
-                        case ty @ Type.Tuple(tys) if sameLength(tys, locals) => Some(ty)
-                        case _ => None
-                    }
-                    
-                    optTy match {
-                        case Some(Type.Tuple(tys)) => { // Found one.
-                            val outParams = tys.zip(locals).map { case (t, l) => lowerBlockArgument(t, l) }
-                            out.TupleParam(outParams)                            
-                        }
-                        
-                        case _ => { // No match, just infer Object.
-                            val outParams = locals.map(lowerBlockArgument(Type.Object, _))
-                            out.TupleParam(outParams)
-                        }
-                    }
-                }
-                
-                // Pattern w/o type specified, use expected type:
-                case (ty, in.VarLocal(anns, inTref @ in.InferredTypeRef(), name, ())) => {
-                    out.VarParam(
-                        anns.map(lowerAnnotation),
-                        astType(env)(inTref, ty),
-                        name,
-                        new Symbol.Var(Modifier.Set.empty, name.name, ty)
-                    )                            
-                }
-                    
-                // Pattern w/ type specified, use type given:
-                case (_, in.VarLocal(anns, tref: in.TypeRef, name, sym)) => {
-                    if(env.localIsDefined(name.name)) {
-                        state.reporter.report(
-                            local.pos,
-                            "shadowed.local.variable",
-                            name.toString
-                        )
-                    }                        
-                    
-                    val ty = symbolType(tref)
-                    out.VarParam(
-                        anns.map(lowerAnnotation),
-                        lowerTypeRef(tref),
-                        name,
-                        new Symbol.Var(Modifier.Set.empty, name.name, ty)
-                    )                    
-                }
-                    
-            })
-        }
-        
         def lowerBlock(optExpTy: Option[Type.Ref])(tmpl: in.Block) = introduceVar(tmpl, {
             val expArgumentTy = optTypeArg(Name.AVar, optExpTy).getOrElse(Type.Void)
             
-            val outParam = lowerBlockArgument(expArgumentTy, tmpl.param)
-            
-            val subenv = env.plusSyms(outParam.symbols)
+            val (outParam, subenv) = lowerBlockParam(env, expArgumentTy, tmpl.param)
             val outStmts = lowerStmts(subenv, tmpl.stmts)
             
-            // This code extracts the expected return type from `optExpTy`: we decided
+            // This commented code extracts the expected return type from `optExpTy`: we decided
             // instead to extract the expected return type from `outStmts`.  As a side
-            // effect, note that the `this` pointer inside an interval template does
+            // comment, note that the `this` pointer inside an interval template does
             // not change, unlike an inner or anonymous class.
             //
             // val expReturnTy = optTypeArg(Name.RVar, optExpTy).getOrElse(Type.Void)
@@ -970,20 +993,19 @@ case class Lower(state: CompilationState) {
         
         def lowerImpThis(expr: in.Expr) = withPosOf(expr, {
             val sym = env.lookupThis
-            out.Var(astVarName(expr, Name.ThisVar), sym)
+            out.Var(Ast.LocalVar(Name.ThisLocal), sym)
         })
         
         def lowerCast(expr: in.Cast) = withPosOf(expr, {
-            val ty = symbolType(expr.typeRef)
+            val ty = toTypeRef(expr.typeRef)
             out.Cast(
                 lowerExpr(Some(ty))(expr),
-                lowerTypeRef(expr.typeRef),
-                ty
+                out.TypeRef(ty)
             )
         })
-        
+    
         def lowerRcvr(rcvr: in.Rcvr, mthdName: Name.Method): out.Rcvr = withPosOf(rcvr, rcvr match {
-            case e: in.Expr => lowerExpr(None)(e)
+            case rcvr: in.Owner => lowerOwner(rcvr)
             case in.Super(()) => {
                 // Find the next supertype in MRO that implements the method
                 // `mthdName` (if any):

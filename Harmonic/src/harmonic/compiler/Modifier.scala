@@ -4,11 +4,11 @@ import java.lang.reflect.{Modifier => jModifier}
 
 object Modifier {
     
-    abstract class Mod(val bit: Int, val jBit: Int, val name: Name.Qual)
-    case object Abstract extends Mod(1, jModifier.ABSTRACT, Name.AbstractQual)
-    case object Mutable extends Mod(2, 0, Name.MutableQual)
-    case object Override extends Mod(4, 0, Name.OverrideQual)
-    case object Static extends Mod(4, jModifier.Static, Name.ObjectQual)
+    abstract class Mod(val bit: Int, val jBit: Int, val name: Name.Class)
+    case object Abstract extends Mod(1, jModifier.ABSTRACT, Name.AbstractClass)
+    case object Mutable extends Mod(2, 0, Name.MutableClass)
+    case object Override extends Mod(4, 0, Name.OverrideClass)
+    case object Static extends Mod(4, jModifier.Static, Name.VoidClass)
     
     val All = List(Abstract, Mutable, Override)
     
@@ -45,7 +45,7 @@ object Modifier {
         forJavaModifiers(mem.getModifiers)
     }
 
-    def forAnnotationsNamed(annotationNames: List[Name.Qual]) = {
+    def forAnnotationsNamed(annotationNames: List[Name.Class]) = {
         Set(All.filter(ann => annotationNames.contains(ann.name)))
     }
     

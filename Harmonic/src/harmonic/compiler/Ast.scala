@@ -62,8 +62,14 @@ abstract class Ast {
     /** Data attached to class declarations */
     type CSym
     
-    /** Data attached to field declarations, access */
+    /** Any variable */
     type VSym
+    
+    /** Local variable symbol */
+    type LVSym <: VSym
+    
+    /** Field symbol */
+    type FSym <: VSym
     
     /** Data attached to method declarations, calls */
     type MSym
@@ -72,7 +78,8 @@ abstract class Ast {
     type MCallData
     
     def errTy: Ty
-    def symTy(vsym: VSym): Ty
+    def vsymTy(vsym: VSym): Ty
+    def trefTy(tref: TR): Ty
     def tupleTy(tys: List[Ty]): TyTuple
     def mthdSym(data: MCallData): MSym
     def returnTy(data: MCallData): Ty
@@ -209,7 +216,7 @@ abstract class Ast {
     case class MethodDecl(
         annotations: List[Annotation],
         name: Name.Method,
-        receiverSym: VSym,
+        receiverSym: LVSym,
         params: List[Param],
         returnTref: OTR,
         requirements: List[PathRequirement],
@@ -329,7 +336,7 @@ abstract class Ast {
     }
     sealed abstract trait VarAstPattern extends AstPattern {
         def sym: VSym
-        def ty = symTy(sym)
+        def ty = vsymTy(sym)
         
         def symbols = List(sym)
     }
@@ -344,9 +351,9 @@ abstract class Ast {
     
     case class VarParam(
         annotations: List[Annotation], 
-        tref: TR,
+        tref: OTR,
         name: LocalName,
-        sym: VSym
+        sym: LVSym
     ) extends Param with VarAstPattern {
         override def toString = "%s %s: %s".format(annotations.mkString(" "), tref, name)
         
@@ -372,7 +379,7 @@ abstract class Ast {
         annotations: List[Annotation], 
         tref: OTR,
         name: LN,
-        sym: VSym
+        sym: LVSym
     ) extends Lvalue with VarAstPattern {
         override def toString = "%s %s: %s".format(annotations.mkString(" "), tref, name)
         
@@ -386,7 +393,7 @@ abstract class Ast {
     
     case class ReassignVarLvalue(
         name: LocalName,
-        sym: VSym
+        sym: LVSym
     ) extends Lvalue with VarAstPattern {
         override def toString = name.toString
         
@@ -397,7 +404,7 @@ abstract class Ast {
     
     case class FieldLvalue(
         name: MemberName,
-        sym: VSym
+        sym: FSym
     ) extends Lvalue with VarAstPattern {
         override def toString = name.toString
         
@@ -507,10 +514,10 @@ abstract class Ast {
     
     case class PathBase(name: VN, sym: VSym) extends ParsePath {
         override def toString = name.toString
-        def ty = symTy(sym)
+        def ty = vsymTy(sym)
     }
     
-    case class PathDot(owner: AstPath, name: FN, sym: VSym, ty: Ty) extends ParsePath {
+    case class PathDot(owner: AstPath, name: FN, sym: FSym, ty: Ty) extends ParsePath {
         override def toString = owner + "." + name
     }
     
@@ -570,7 +577,7 @@ abstract class Ast {
     /** Expressions that are always safe to evaluate without the
       * possibility of a race condition. After lowering, only 
       * `AtomicExpr` may be nested within other expressions. */
-    sealed abstract trait AtomicExpr extends LowerTlExpr with LowerOwner
+    sealed abstract trait AtomicExpr extends LowerTlExpr
     
     case class Tuple(exprs: List[NE]) extends AtomicExpr {
         override def toString = "(%s)".format(exprs.mkString(", "))
@@ -591,7 +598,7 @@ abstract class Ast {
         stmts: List[Stmt], 
         ty: Ty
     ) extends LowerTlExpr {
-        def className = if(async) Name.AsyncBlockQual else Name.BlockQual
+        def className = if(async) Name.AsyncBlockClass else Name.BlockClass
 
         private[this] def sep = if(async) ("{{", "}}") else ("{", "}")
         
@@ -612,6 +619,8 @@ abstract class Ast {
     }
     
     case class Cast(expr: NE, typeRef: TR) extends AtomicExpr {
+        def ty = trefTy(typeRef)
+        
         override def toString = "(%s)(%s)".format(typeRef, expr)
         
         override def print(out: PrettyPrinter) {
@@ -652,12 +661,9 @@ abstract class Ast {
         }
     }
     
-    // n.b.: A Var could refer to any sort of variable, not only a 
-    // local variable.  For example, a field of the current class or
-    // one of its enclosing classes.
-    case class Var(name: LN, sym: VSym) extends AtomicExpr {
+    case class Var(name: LN, sym: LVSym) extends AtomicExpr with LowerOwner {
         override def toString = name.toString
-        def ty = symTy(sym)
+        def ty = vsymTy(sym)
         
         override def print(out: PrettyPrinter) {
             out.write(name.toString)
@@ -665,7 +671,7 @@ abstract class Ast {
         }
     }
     
-    case class Field(owner: NE, name: FN, sym: VSym, ty: Ty) extends LowerTlExpr {
+    case class Field(owner: Owner, name: FN, sym: FSym, ty: Ty) extends LowerTlExpr {
         override def toString = "%s.%s".format(owner, name)
         
         override def print(out: PrettyPrinter) {
@@ -683,25 +689,27 @@ abstract class Ast {
         override def toString = name.toString
     }
     
-    case class CallPart(ident: String, arg: NE) extends Node {
-        override def toString = "%s %s".format(ident, arg)
-        
-        override def print(out: PrettyPrinter) {
-            out.write("%s ", ident)
-            arg.print(out)
-        }
-    }
-    case class MethodCall(rcvr: Rcvr, parts: List[CallPart], data: MCallData)
+    case class MethodCall(rcvr: Rcvr, name: Name.Method, args: List[NE], data: MCallData)
     extends LowerTlExpr {
-        def name = Name.Method(parts.map(_.ident))
-        def args = parts.map(_.arg)
         def ty = returnTy(data)
-        override def toString = "%s.%s".format(rcvr, parts.mkString(" "))
+        override def toString = {
+            val strs = name.parts.zip(args).map { case (p, a) =>
+                "%s(%s)".format(p, a)
+            }
+            "%s.%s".format(rcvr, strs.mkString(" "))
+        }
         
         override def print(out: PrettyPrinter) {
+            var first = true
             rcvr.printdot(out)
-            printSep(out, parts, " ")
-            out.write(" /*%s;%s*/".format(mthdSym(data), returnTy(data)))
+            name.parts.zip(args).foreach { case (p, a) =>
+                if(!first) out.write(" ")
+                first = false
+                
+                out.write(p)
+                out.write(" ")
+                a.print(out)
+            }
         }        
     }
     
@@ -849,6 +857,8 @@ object Ast {
         type TmplLv = TupleLvalue
         type CSym = Unit
         type VSym = Unit
+        type LVSym = Unit
+        type FSym = Unit
         type MSym = Unit
         type MCallData = Unit
         type Ty = Unit
@@ -856,7 +866,8 @@ object Ast {
         type TyTuple = Unit
         
         def errTy = ()
-        def symTy(unit: Unit) = ()
+        def trefTy(tref: Unit) = ()
+        def vsymTy(unit: Unit) = ()
         def tupleTy(tys: List[Ty]) = ()
         def mthdSym(unit: Unit) = ()
         def returnTy(unit: Unit) = ()
@@ -872,7 +883,7 @@ object Ast {
         type FN = UnloweredMemberName 
         type OTR = OptionalResolveTypeRef
         type TR = ResolveTypeRef
-        type NE = ParseTlExpr
+        type NE = ResolveTlExpr
         type Stmt = ParseStmt
         type Expr = ResolveTlExpr
         type AstPath = ParsePath
@@ -881,6 +892,8 @@ object Ast {
         type TmplLv = Lvalue
         type CSym = Unit
         type VSym = Unit
+        type LVSym = Unit
+        type FSym = Unit
         type MSym = Unit
         type MCallData = Unit
         type Ty = Unit
@@ -888,7 +901,8 @@ object Ast {
         type TyTuple = Unit
 
         def errTy = ()
-        def symTy(unit: Unit) = ()
+        def trefTy(tref: Unit) = ()
+        def vsymTy(unit: Unit) = ()
         def tupleTy(tys: List[Ty]) = ()
         def mthdSym(unit: Unit) = ()
         def returnTy(unit: Unit) = ()
@@ -911,6 +925,8 @@ object Ast {
         type TmplLv = Param
         type CSym = Symbol.Class
         type VSym = Symbol.Var
+        type LVSym = Symbol.LocalVar
+        type FSym = Symbol.Field
         type MSym = Symbol.Method
         type MCallData = (Symbol.Method, Symbol.MethodSignature[Pattern.Anon])
         type Ty = Type.Ref
@@ -918,7 +934,8 @@ object Ast {
         type TyTuple = Type.Tuple
 
         def errTy = Type.Object
-        def symTy(vsym: Symbol.Var) = vsym.ty
+        def trefTy(tref: TypeRef) = tref.ty
+        def vsymTy(vsym: Symbol.Var) = vsym.ty
         def tupleTy(tys: List[Type.Ref]) = Type.Tuple(tys)
         def mthdSym(data: MCallData) = data._1
         def returnTy(data: MCallData) = data._2.returnTy
@@ -926,6 +943,11 @@ object Ast {
         def toPatternRef(pat: Param): Pattern.Ref = pat match {
             case TupleParam(params) => Pattern.Tuple(params.map(toPatternRef))
             case VarParam(_, _, _, sym) => Pattern.Var(sym.name, sym.ty)
+        }
+        
+        def toPatternAnon(pat: AstPattern): Pattern.Anon = pat match {
+            case pat: TupleAstPattern => Pattern.SubstdTuple(pat.subpatterns.map(toPatternAnon))
+            case pat: VarAstPattern => Pattern.SubstdVar(pat.sym.ty)
         }
         
         def methodId(clsName: Name.Qual, mdecl: MethodDecl) = {

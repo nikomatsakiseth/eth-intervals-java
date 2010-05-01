@@ -100,7 +100,7 @@ abstract class Resolve(state: CompilationState, compUnit: in.CompUnit) {
     }
     
     def resolveName(relName: in.RelName) = {
-        val className = resolveToClass(relName.pos, relNameToRelList(relName)).getOrElse(Name.ObjectQual)
+        val className = resolveToClass(relName.pos, relNameToRelList(relName)).getOrElse(Name.ObjectClass)
         withPosOf(relName, Ast.ClassName(className))
     }
 

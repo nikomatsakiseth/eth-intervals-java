@@ -22,15 +22,15 @@ AnonVar	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Pattern.sc
 Application	/Users/niko/git/intervals-java/Harmonic/src/harmonic/lang/Application.java	/^public interface Application {$/;"	interface	line:3
 Arg	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Type.scala	/^    sealed abstract class Arg$/;"	classes	line:29
 ArrayElem	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Name.scala	/^    val ArrayElem = Var("E")$/;"	constants	line:71
-ArrayQual	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Name.scala	/^    val ArrayQual = Qual("inter.lang.Array")$/;"	constants	line:70
+ArrayClass	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Name.scala	/^    val ArrayClass = Qual("inter.lang.Array")$/;"	constants	line:70
 Assign	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^    case class Assign(lvalue: Local, rvalue: Expr) $/;"	classes	line:540
 Ast	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^abstract class Ast {$/;"	classes	line:10
 AstPath	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^    sealed abstract trait AstPath extends Node {$/;"	traits	line:432
-AsyncBlockQual	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Name.scala	/^    val AsyncBlockQual = Qual(classOf[inter.lang.AsyncBlock[_, _]])$/;"	constants	line:74
+AsyncBlockClass	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Name.scala	/^    val AsyncBlockClass = Qual(classOf[inter.lang.AsyncBlock[_, _]])$/;"	constants	line:74
 AtomicExpr	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^    sealed abstract trait AtomicExpr extends LowerExpr$/;"	traits	line:480
 Base	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Path.scala	/^    case class Base(v: Name.Var) extends Ref {$/;"	classes	line:7
 Block	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^    case class Block($/;"	classes	line:494
-BlockQual	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Name.scala	/^    val BlockQual = Qual(classOf[inter.lang.Block[_, _]])$/;"	constants	line:73
+BlockClass	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Name.scala	/^    val BlockClass = Qual(classOf[inter.lang.Block[_, _]])$/;"	constants	line:73
 Body	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^    case class Body(stmts: List[Stmt]) extends Node {$/;"	classes	line:444
 Bounder	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    class Bounder(Rel: TcRel) extends TransitiveCloser[Type.Ref] {$/;"	classes	line:216
 BoxedArray	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^    class BoxedArray(accessMap: AccessMap)$/;"	classes	line:305
@@ -138,8 +138,8 @@ NullType	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala
 OT	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^        type OT = OptionalTypeRef$/;"	types	line:702
 OT	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^        type OT = OptionalTypeRef$/;"	types	line:723
 OT	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^        type OT = TypeRef$/;"	types	line:745
-Object	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Type.scala	/^    val Object = Type.Class(Name.ObjectQual, List())$/;"	constants	line:37
-ObjectQual	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Name.scala	/^    val ObjectQual = Qual(classOf[java.lang.Object])$/;"	constants	line:68
+Object	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Type.scala	/^    val Object = Type.Class(Name.ObjectClass, List())$/;"	constants	line:37
+ObjectClass	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Name.scala	/^    val ObjectClass = Qual(classOf[java.lang.Object])$/;"	constants	line:68
 Operator	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Parse.scala	/^        case class Operator(chars: String) extends Token {$/;"	classes	line:23
 OptionalTypeRef	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^    sealed abstract class OptionalTypeRef extends Node$/;"	classes	line:363
 PN	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^        type PN = Ast.AbsName$/;"	types	line:722
@@ -331,7 +331,7 @@ classDecl	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Parse.sc
 classExt	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Config.scala	/^    val classExt = ".class"$/;"	constants	line:11
 classFiles	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/CompilationState.scala	/^        val classFiles = config.classFiles(qualName)$/;"	constants	line:116
 classFiles	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Config.scala	/^    def classFiles(name: Name.Qual) = relativeFiles(classPaths, classExt)(name)$/;"	methods	line:58
-className	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^        def className = if(async) Name.AsyncBlockQual else Name.BlockQual$/;"	methods	line:502
+className	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^        def className = if(async) Name.AsyncBlockClass else Name.BlockClass$/;"	methods	line:502
 classPaths	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Config.scala	/^    val classPaths = new ListBuffer[File]()$/;"	constants	line:13
 classType	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^                    val classType = asm.Type.getType(objClass)$/;"	constants	line:583
 classType	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Parse.scala	/^    lazy val classType = positioned($/;"	constants	line:247

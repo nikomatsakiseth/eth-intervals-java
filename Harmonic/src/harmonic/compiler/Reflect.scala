@@ -29,7 +29,7 @@ case class Reflect(state: CompilationState) {
         }
         case gat: reflect.GenericArrayType => {
             val targ = typeArg(Name.ArrayElem, gat.getGenericComponentType).get
-            Type.Class(Name.ArrayQual, List(targ))
+            Type.Class(Name.ArrayClass, List(targ))
         }
         case tv: reflect.TypeVariable[_] => Type.Var(Path.This, Name.Var(tv.getName))
         case pt: reflect.ParameterizedType => {

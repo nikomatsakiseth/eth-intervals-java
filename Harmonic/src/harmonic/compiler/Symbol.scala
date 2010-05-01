@@ -325,7 +325,7 @@ object Symbol {
         val pos: Position,
         val modifierSet: Modifier.Set,
         val kind: MethodKind,                   /** Intrinsic, harmonic, java, etc. */
-        val clsName: Name.Qual,                 /** Class in which the method is defined. */
+        val clsName: Name.Class,                /** Class in which the method is defined. */
         val name: Name.Method,                  /** Name of the method. */
         val msig: MethodSignature[Pattern.Ref]
     ) extends Ref {

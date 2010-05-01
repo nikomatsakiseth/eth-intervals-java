@@ -36,7 +36,7 @@ object Name {
         def toInternalPrefix = internalName + "$"
         def toPrefix = base.toPrefix + name + "."
         override def toString = base.toPrefix + name
-        def withSuffix(suffix: String) = ClassQual(base, name + suffix)
+        def withSuffix(suffix: String) = Class(base, name + suffix)
         def isClassName = true
     }
     
@@ -111,6 +111,8 @@ object Name {
     ) extends Var with UnloweredMemberVar {
         override def toString = "(%s.%s)".format(className, text)
         
+        def javaName = text
+        
         def matches(unlowerName: UnloweredMemberVar) = unlowerName match {
             case u: ClasslessMemberVar => (text == u.text)
             case u: MemberVar => (this == u)
@@ -123,6 +125,7 @@ object Name {
     sealed case class LocalVar(
         text: String
     ) extends Var {
+        def javaName = text
         override def toString = text
     }
     
@@ -137,28 +140,26 @@ object Name {
         def inDefaultClass(className: Name.Class) = MemberVar(className, text)        
     }
     
-    private[this] val lang = "harmonic.lang."
-    
     val ThisLocal = Name.LocalVar("this")
     
     val MethodLocal = Name.LocalVar("method")
     
-    val VoidQual = Class(classOf[java.lang.Void])
+    val VoidClass = Class(classOf[java.lang.Void])
     
-    val ObjectQual = Class(classOf[java.lang.Object])
+    val ObjectClass = Class(classOf[java.lang.Object])
 
-    val ArrayQual = Qual(lang + "Array")
-    val ArrayElem = MemberVar(ArrayQual, "E")
+    val ArrayClass = Class(classOf[harmonic.lang.Array])
+    val ArrayElem = MemberVar(ArrayClass, "E")
     
-    val AbstractQual = Qual(lang + "Abstract")
-    val MutableQual = Qual(lang + "Mutable")
-    val OverrideQual = Class(classOf[java.lang.Override])
+    val AbstractClass = Class(classOf[harmonic.lang.Abstract])
+    val MutableClass = Class(classOf[harmonic.lang.Mutable])
+    val OverrideClass = Class(classOf[java.lang.Override])
 
-    val BlockQual = Class(classOf[harmonic.lang.Block[_, _]])
-    val AsyncBlockQual = Class(classOf[harmonic.lang.AsyncBlock[_, _]])
-    val RVar = MemberVar(BlockQual, "R")
-    val AVar = MemberVar(BlockQual, "A")
-    val IntervalTmplParent = MemberVar(BlockQual, "Parent")
+    val BlockClass = Class(classOf[harmonic.lang.Block[_, _]])
+    val AsyncBlockClass = Class(classOf[harmonic.lang.AsyncBlock[_, _]])
+    val RVar = MemberVar(Qual, "R")
+    val AVar = MemberVar(Qual, "A")
+    val IntervalTmplParent = MemberVar(Qual, "Parent")
     val ValueMethod = Method(List("value"))
 
     val InitMethod = Method(List("<init>"))

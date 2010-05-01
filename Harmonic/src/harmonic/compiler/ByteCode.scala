@@ -33,12 +33,12 @@ case class ByteCode(state: CompilationState) {
     
     // ___ Generating fresh, unique class names _____________________________
     
-    def freshQualName(context: Name.Qual) = {
+    def freshClassName(context: Name.Class) = {
         context.withSuffix("$" + state.freshInteger())
     }
     
     def freshVarName(base: Option[Name.Var]) = {
-        Name.Var("$%s$%s".format(base.getOrElse(""), state.freshInteger()))
+        Name.LocalVar("$%s$%s".format(base.getOrElse(""), state.freshInteger()))
     }
     
     // ___ Types and Asm Types ______________________________________________
@@ -83,7 +83,7 @@ case class ByteCode(state: CompilationState) {
         }                    
     }
     
-    def asmClassType(name: Name.Qual) = asm.Type.getObjectType(name.internalName)
+    def asmClassType(name: Name.Class) = asm.Type.getObjectType(name.internalName)
     
     def plainMethodDescFromSig(msig: Symbol.MethodSignature[Pattern.Anon]): String = {
         getMethodDescriptor(
@@ -121,6 +121,19 @@ case class ByteCode(state: CompilationState) {
             mvis.visitVarInsn(asmTy.getOpcode(O.ISTORE), index)
         }
         
+        def getField(fsym: Symbol.Field) = {
+            val op = {
+                if(fsym.modifierSet.isStatic) O.GETSTATIC
+                else O.GETFIELD                
+            }
+            mvis.visitFieldInsn(
+                op, 
+                fsym.name.className.internalName,
+                fsym.name.javaName,
+                asmType(fsym.ty).getDescriptor
+            )
+        }
+        
         def pushIntegerConstant(value: Int) = value match {
             case 0 => mvis.visitInsn(O.ICONST_0)
             case 1 => mvis.visitInsn(O.ICONST_1)
@@ -152,10 +165,10 @@ case class ByteCode(state: CompilationState) {
     
     // ___ Writing .class, .s files _________________________________________
     
-    class ClassWriter(qualName: Name.Qual, suffix: String) 
+    class ClassWriter(className: Name.Class, suffix: String) 
     {
         private[this] def fileWithExtension(ext: String) = {
-            val relPath = qualName.components.mkString("/") + suffix + ext
+            val relPath = className.asRelPath + suffix + ext
             new java.io.File(state.config.outputDir, relPath)
         }
 
@@ -329,7 +342,7 @@ case class ByteCode(state: CompilationState) {
         } 
     }
     
-    class AccessMap(val context: Name.Qual)
+    class AccessMap(val context: Name.Class)
     {
         val syms = new mutable.HashMap[Symbol.Var, AccessPath]()
         private[this] var maxSlot = 0
@@ -410,21 +423,29 @@ case class ByteCode(state: CompilationState) {
         val empty = SymbolSummary(Set(), Set(), Set(), Set())
     }
 
-    def symbolsReassignedInLocal(local: in.Local): List[Symbol.Var] = local match {
-        case in.TupleLocal(locals) => locals.flatMap(symbolsReassignedInLocal)
-        case in.VarLocal(_, in.InferredTypeRef(), _, sym) => List(sym)
-        case in.VarLocal(_, _, _, _) => Nil
+    def symbolsReassignedInLvalue(local: in.Lvalue): List[Symbol.Var] = local match {
+        case in.TupleLvalue(locals) => locals.flatMap(symbolsReassignedInLvalue)
+        case in.ReassignVarLvalue(_, sym) => List(sym)
+        case _ => Nil
     }
     
-    def symbolsDeclaredInLocal(local: in.Local): List[Symbol.Var] = local match {
-        case in.TupleLocal(locals) => locals.flatMap(symbolsDeclaredInLocal)
-        case in.VarLocal(_, in.InferredTypeRef(), _, _) => Nil
-        case in.VarLocal(_, _, _, sym) => List(sym)
+    def symbolsDeclaredInLvalue(local: in.Lvalue): List[Symbol.Var] = local match {
+        case in.TupleLvalue(locals) => locals.flatMap(symbolsDeclaredInLvalue)
+        case in.DeclareVarLvalue(_, _, _, sym) => List(sym)
+        case _ => Nil
     }
 
     def summarizeSymbolsInRcvr(summary: SymbolSummary, rcvr: in.Rcvr): SymbolSummary = {
         rcvr match {
+            case in.Static(_) => summary
             case in.Super(_) => summary
+            case expr: in.AtomicExpr => summarizeSymbolsInExpr(summary, expr)
+        }
+    }
+    
+    def summarizeSymbolsInOwner(summary: SymbolSummary, owner: in.Owner): SymbolSummary = {
+        owner match {
+            case in.Static(_) => summary
             case expr: in.AtomicExpr => summarizeSymbolsInExpr(summary, expr)
         }
     }
@@ -440,13 +461,13 @@ case class ByteCode(state: CompilationState) {
                     sharedSyms = summary.sharedSyms ++ summaryTmpl.readSyms ++ summaryTmpl.writeSyms
                 )
             }
-            case in.Cast(subexpr, _, _) => summarizeSymbolsInExpr(summary, subexpr)
+            case in.Cast(subexpr, _) => summarizeSymbolsInExpr(summary, subexpr)
             case in.Literal(_, _) => summary
             case in.Var(_, sym) => summary.copy(readSyms = summary.readSyms + sym)
-            case in.Field(owner, _, _, _) => summarizeSymbolsInExpr(summary, owner)
-            case in.MethodCall(receiver, parts, _) => {
+            case in.Field(owner, _, _, _) => summarizeSymbolsInOwner(summary, owner)
+            case in.MethodCall(receiver, _, args, _) => {
                 val receiverSummary = summarizeSymbolsInRcvr(summary, receiver)
-                parts.map(_.arg).foldLeft(receiverSummary)(summarizeSymbolsInExpr)
+                args.foldLeft(receiverSummary)(summarizeSymbolsInExpr)
             }
             case in.NewCtor(_, arg, _, _) => summarizeSymbolsInExpr(summary, arg)
             case in.NewAnon(_, arg, mems, _, _, _) => summarizeSymbolsInExpr(summary, arg) // FIXME mems
@@ -465,8 +486,8 @@ case class ByteCode(state: CompilationState) {
             case in.Assign(local, expr) => {
                 val summaryExpr = summarizeSymbolsInExpr(summary, expr)
                 summaryExpr.copy(
-                    declaredSyms = summaryExpr.declaredSyms ++ symbolsDeclaredInLocal(local),
-                    writeSyms = summaryExpr.writeSyms ++ symbolsReassignedInLocal(local)
+                    declaredSyms = summaryExpr.declaredSyms ++ symbolsDeclaredInLvalue(local),
+                    writeSyms = summaryExpr.writeSyms ++ symbolsReassignedInLvalue(local)
                 )
             }
         }
@@ -483,16 +504,17 @@ case class ByteCode(state: CompilationState) {
         /** Generates the instructions to store to an lvalue, unpacking
           * tuple values as needed.  
           *
-          * Stack: ..., value => ...
+          * Stack: ... => ...
           */
         def store(lvalue: in.Lvalue, rvalue: in.Expr) {
             lvalue match {
-                case in.TupleLvalue(List(sublvalue), _) => {
+                case in.TupleLvalue(List(sublvalue)) => {
                     store(sublvalue, rvalue)
                 }
                 
-                case in.VarLvalue(_, _, _, sym) => {
+                case varPat: in.VarAstPattern => {
                     // Micro-optimize generated code to avoid using stashSlot:
+                    val sym = varPat.sym
                     val accessPath = accessMap.syms(sym)
                     accessPath.pushLvalue(mvis)
                     pushExprValueDowncastingTo(lvalue.ty, rvalue)
@@ -500,7 +522,7 @@ case class ByteCode(state: CompilationState) {
                 }
                 
                 case _ => {
-                    pushRvalues(in.toPattern(lvalue), rvalue)
+                    pushRvalues(in.toPatternAnon(lvalue), rvalue)
                     popRvalues(lvalue, rvalue)
                 }
             }
@@ -514,15 +536,14 @@ case class ByteCode(state: CompilationState) {
           */
         def pushRvalues(lvalue: Pattern.Anon, rvalue: in.Expr) {
             (lvalue, rvalue) match {
-                case (Pattern.AnonTuple(List(sublvalue)), _) =>
-                    pushRvalues(sublvalue, rvalue)
+                case (Pattern.AnonTuple(List(l)), _) =>
+                    pushRvalues(l, rvalue)
                     
-                case (_, in.Tuple(List(subexpr))) =>
-                    pushRvalues(lvalue, subexpr)
+                case (_, in.Tuple(List(r))) =>
+                    pushRvalues(lvalue, r)
                     
-                case (Pattern.AnonTuple(sublvalues), in.Tuple(subexprs)) 
-                if sameLength(sublvalues, subexprs) =>
-                    sublvalues.zip(subexprs).foreach { case (l, e) => pushRvalues(l, e) }
+                case (Pattern.AnonTuple(ls), in.Tuple(rs)) if sameLength(ls, rs) =>
+                    ls.zip(rs).foreach { case (l, r) => pushRvalues(l, r) }
                     
                 case _ => {
                     pushExprValueDowncastingTo(lvalue.ty, rvalue)
@@ -535,15 +556,14 @@ case class ByteCode(state: CompilationState) {
           * storing them into `lvalue`. */
         def popRvalues(lvalue: in.Lvalue, rvalue: in.Expr) {
             (lvalue, rvalue) match {
-                case (in.TupleLvalue(List(sublvalue), _), _) =>
-                    popRvalues(sublvalue, rvalue)
+                case (in.TupleLvalue(List(l)), _) =>
+                    popRvalues(l, rvalue)
                     
-                case (_, in.Tuple(List(subexpr))) =>
-                    popRvalues(lvalue, subexpr)
+                case (_, in.Tuple(List(r))) =>
+                    popRvalues(lvalue, r)
                     
-                case (in.TupleLvalue(sublvalues, _), in.Tuple(subexprs)) 
-                if sameLength(sublvalues, subexprs) =>
-                    sublvalues.zip(subexprs).reverse.foreach { case (l, e) => popRvalues(l, e) }
+                case (in.TupleLvalue(ls), in.Tuple(rs)) if sameLength(ls, rs) =>
+                    ls.zip(rs).reverse.foreach { case (l, r) => popRvalues(l, r) }
                     
                 case _ => {
                     contract(lvalue)                    
@@ -573,15 +593,11 @@ case class ByteCode(state: CompilationState) {
         
         def contract(lvalue: in.Lvalue) {
             lvalue match {
-                case in.TupleLvalue(sublvalues, _) => {
+                case in.TupleLvalue(sublvalues) =>
                     sublvalues.reverse.foreach(contract)
-                }
-
-                case in.VarLvalue(_, _, _, sym) => {
-                    // Stack: ..., value
-                    val accessPath = accessMap.syms(sym)
-                    accessPath.storeLvalueWithoutPush(mvis)
-                }
+                
+                case varPat: in.VarAstPattern =>
+                    accessMap.syms(varPat.sym).storeLvalueWithoutPush(mvis)
             }
         }
         
@@ -595,6 +611,15 @@ case class ByteCode(state: CompilationState) {
             pushExprValue(expr)
             if(downcastNeeded(toTy, expr.ty))
                 mvis.downcast(toTy)
+        }
+        
+        def pushMethodArgs(
+            msig: Symbol.MethodSignature[Pattern.Anon],
+            args: List[in.Expr]
+        ) {
+            msig.parameterPatterns.zip(args).foreach { case (pattern, arg) =>
+                pushRvalues(pattern, arg)
+            }
         }
         
         /** Evaluates `expr`, pushing the result onto the stack.
@@ -626,9 +651,9 @@ case class ByteCode(state: CompilationState) {
                     pushAnonymousBlock(tmpl)
                 }
                 
-                case in.Cast(subexpr, _, ty) => {
+                case in.Cast(subexpr, tref) => {
                     pushExprValue(subexpr)
-                    mvis.downcastIfNeeded(ty, subexpr.ty)
+                    mvis.downcastIfNeeded(tref.ty, subexpr.ty)
                 }
                 
                 case in.Literal(obj: java.lang.String, _) => {
@@ -672,16 +697,29 @@ case class ByteCode(state: CompilationState) {
                     accessMap.syms(sym).push(mvis)
                 }
                 
-                case in.Field(owner, name, sym, _) => {
+                case in.Field(in.Static(_), _, fsym, _) => {
+                    mvis.getField(fsym)
+                }
+                
+                case in.Field(owner: in.Var, _, fsym, _) => {
                     pushExprValue(owner)
+                    mvis.getField(fsym)
                 }
 
-                case in.MethodCall(in.Super(_), parts, (msym, msig)) => {
+                case in.MethodCall(in.Static(_), name, args, (msym, msig)) => {
+                    pushMethodArgs(msig, args)
+                    mvis.visitMethodInsn(
+                        O.INVOKESTATIC,
+                        msym.clsName.internalName,
+                        msym.name.javaName,
+                        mroMethodDescFromSig(msig)
+                    )
+                }
+                
+                case in.MethodCall(in.Super(_), name, args, (msym, msig)) => {
                     mvis.visitVarInsn(O.ALOAD, 0)   // load this ptr
                     nextMro.push(mvis)              // load next index in MRO
-                    msig.parameterPatterns.zip(parts).foreach { case (pattern, part) =>
-                        pushRvalues(pattern, part.arg)
-                    }
+                    pushMethodArgs(msig, args)
                     mvis.visitMethodInsn(
                         O.INVOKEINTERFACE,
                         msym.clsName.internalName,
@@ -690,12 +728,10 @@ case class ByteCode(state: CompilationState) {
                     )
                 }
                 
-                case in.MethodCall(receiver: in.AtomicExpr, parts, (msym, msig)) => {
+                case in.MethodCall(receiver: in.AtomicExpr, name, args, (msym, msig)) => {
                     def callWithDetails(op: Int, ownerAsmType: asm.Type, desc: String) = {
                         pushExprValue(receiver)
-                        msig.parameterPatterns.zip(parts).foreach { case (pattern, part) =>
-                            pushRvalues(pattern, part.arg)
-                        }
+                        pushMethodArgs(msig, args)
                         mvis.visitMethodInsn(op, ownerAsmType.getInternalName, msym.name.javaName, desc)
                     }
                     
@@ -707,11 +743,11 @@ case class ByteCode(state: CompilationState) {
                     
                     msym.kind match {
                         case Symbol.IntrinsicMath(mthdName, leftClass, rightClass, returnClass) => {
-                            assert(parts.length == 1)
+                            assert(args.length == 1)
                             val leftAsmTy = asm.Type.getType(leftClass)
                             val rightAsmTy = asm.Type.getType(rightClass)
                             pushExprValueDowncastingTo(leftAsmTy, receiver)
-                            pushExprValueDowncastingTo(rightAsmTy, parts.head.arg)
+                            pushExprValueDowncastingTo(rightAsmTy, args.head)
                             mvis.visitMethodInsn(
                                 O.INVOKESTATIC, 
                                 asm.Type.getType(classOf[IntrinsicMathGen]).getInternalName, 
@@ -724,9 +760,7 @@ case class ByteCode(state: CompilationState) {
                             val resultAsmTy = asm.Type.getType(resultClass)
                             val argAsmTys = argumentClasses.map(asm.Type.getType)
                             pushExprValueDowncastingTo(argAsmTys(0), receiver)
-                            msig.parameterPatterns.zip(parts).foreach { case (pattern, part) =>
-                                pushRvalues(pattern, part.arg)
-                            }
+                            pushMethodArgs(msig, args)
                             mvis.visitMethodInsn(
                                 O.INVOKESTATIC,
                                 asm.Type.getType(ownerClass).getInternalName,
@@ -833,7 +867,7 @@ case class ByteCode(state: CompilationState) {
           * Stack: ..., instance => ..., instance
           */
         def deriveAccessMap(
-            cname: Name.Qual,
+            cname: Name.Class,
             cvis: asm.ClassVisitor,
             stmts: List[in.Stmt]
         ) = {
@@ -903,7 +937,7 @@ case class ByteCode(state: CompilationState) {
         def pushAnonymousBlock(
             tmpl: in.Block
         ) {
-            val name = freshQualName(accessMap.context)
+            val name = freshClassName(accessMap.context)
             val blockTy = Type.Class(name, List())
             val tmplwr = new ClassWriter(name, noSuffix)
 
@@ -916,7 +950,7 @@ case class ByteCode(state: CompilationState) {
                 Array(tmpl.className.internalName)
             )
             
-            writeEmptyCtor(name, Name.ObjectQual, tmplwr.cvis)
+            writeEmptyCtor(name, Name.ObjectClass, tmplwr.cvis)
 
             // Create the new object and copy over values for
             // any local variables which it references:
@@ -931,9 +965,9 @@ case class ByteCode(state: CompilationState) {
             val derivedAccessMap = deriveAccessMap(name, tmplwr.cvis, tmpl.stmts)
             
             val methodSig = Symbol.MethodSignature(
-                tmpl.returnTy,
+                tmpl.returnTref.ty,
                 blockTy,
-                List(in.toPattern(tmpl.param))
+                List(in.toPatternRef(tmpl.param))
             )
 
             // 
@@ -1058,7 +1092,7 @@ case class ByteCode(state: CompilationState) {
       * we emit a forwarding method that simply downcasts (or tuple-expands) arg as
       * needed to invoke the more specific version. */
     def writeForwardingMethodIfNeeded(
-        className: Name.Qual,
+        className: Name.Class,
         cvis: asm.ClassVisitor, 
         methodName: Name.Method,
         withMroIndex: Boolean,
@@ -1353,8 +1387,8 @@ case class ByteCode(state: CompilationState) {
     }
     
     def writeEmptyCtor(
-        name: Name.Qual,
-        superName: Name.Qual,
+        name: Name.Class,
+        superName: Name.Class,
         cvis: asm.ClassVisitor
     ) {
         // FIXME We have to figure out our ctor model.
@@ -1409,11 +1443,11 @@ case class ByteCode(state: CompilationState) {
             O.ACC_PUBLIC,
             csym.name.internalName + implSuffix,
             null, // FIXME Signature
-            Name.ObjectQual.internalName,
+            Name.ObjectClass.internalName,
             Array(csym.name.internalName)
         )
         
-        writeEmptyCtor(csym.name, Name.ObjectQual, cvis)
+        writeEmptyCtor(csym.name, Name.ObjectClass, cvis)
 
         csym.methodGroups.foreach { group =>
             writePlainToMroDispatch(csym, cvis, group)
@@ -1437,7 +1471,7 @@ case class ByteCode(state: CompilationState) {
             Array(csym.name.internalName)
         )
         
-        writeEmptyCtor(csym.name, Name.ObjectQual, cvis)
+        writeEmptyCtor(csym.name, Name.ObjectClass, cvis)
         
         csym.allMethodSymbols(state).foreach { msym =>
             val mdecl = csym.loweredMethods(msym.methodId)

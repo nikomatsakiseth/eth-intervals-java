@@ -124,15 +124,15 @@ class Parse extends StdTokenParsers with PackratParsers {
     
     lazy val annotations = rep(annotation) 
     
-    lazy val optTupleParam = positioned(
-        opt(tupleParam) ^^ { 
+    lazy val optClassTupleParam = positioned(
+        opt(tupleMthdParam) ^^ { 
             case Some(tp) => tp
             case None => out.TupleParam(List())
         }
     )
     
     lazy val classDecl = positioned(
-        annotations~"class"~relBase~optTupleParam~superClasses~"{"~
+        annotations~"class"~relBase~optClassTupleParam~superClasses~"{"~
             rep(member)~
         "}" ^^ {
             case a~_~n~p~sups~"{"~mems~"}" => out.ClassDecl(n, a, sups, p, mems, ())
@@ -155,7 +155,7 @@ class Parse extends StdTokenParsers with PackratParsers {
         }
     )
     
-    lazy val declPart = ident~tupleParam ^^ { case i~p => (i, p) }
+    lazy val declPart = ident~tupleMthdParam ^^ { case i~p => (i, p) }
     
     lazy val requirement = positioned(
         "requires"~>path~pcRel~path ^^ { case l~p~r => out.PathRequirement(l, p, r) }
@@ -212,14 +212,23 @@ class Parse extends StdTokenParsers with PackratParsers {
     
     // ___ Lvalues: Parameters and Locals ___________________________________
     
-    lazy val tupleParam = positioned(
-        "("~>comma(param)<~")" ^^ { case ps => out.TupleParam(ps) }
+    lazy val tupleMthdParam = positioned(
+        "("~>comma(mthdParam)<~")" ^^ { case ps => out.TupleParam(ps) }
     )
-    lazy val varParam = positioned(
+    lazy val varMthdParam = positioned(
         annotations~localName~reqTypeRef ^^ {
             case a~n~t => out.VarParam(a, t, n, ()) }
     )
-    lazy val param: PackratParser[out.Param] = tupleParam | varParam
+    lazy val mthdParam: PackratParser[out.Param] = tupleMthdParam | varMthdParam
+    
+    lazy val tupleBlkParam = positioned(
+        "("~>comma(mthdParam)<~")" ^^ { case ps => out.TupleParam(ps) }
+    )
+    lazy val varBlkParam = positioned(
+        annotations~localName~optTypeRef ^^ {
+            case a~n~t => out.VarParam(a, t, n, ()) }
+    )
+    lazy val blkParam: PackratParser[out.Param] = tupleBlkParam | varBlkParam
     
     lazy val tupleLvalue = positioned(
         "("~>comma(lvalue)<~")" ^^ { case ls => out.TupleLocal(ls) }
@@ -291,19 +300,14 @@ class Parse extends StdTokenParsers with PackratParsers {
         "{"~>stmts<~"}"                 ^^ out.Body
     )
     
-    lazy val noTmplParam = positioned(
-        success(()) ^^ { case () => out.TupleLocal(List()) }
+    lazy val noBlkParam = positioned(
+        success(())                             ^^ { case () => out.TupleParam(List()) }
     )
     
-    lazy val oneTmplParam = positioned(
-        varLocal                            ^^ { case l => out.TupleLocal(List(l)) }
-    |   tupleLocal
-    )
-    
-    lazy val tmplBody: PackratParser[(out.OptionalTypeRef, out.TupleLocal, List[out.Stmt])] = (
-        tupleLocal~optTypeRef~"->"~stmts        ^^ { case (p~r~"->"~s) => (r, p, s) }
-    |   oneTmplParam~infTypeRef~"->"~stmts      ^^ { case (p~r~"->"~s) => (r, p, s) }
-    |   noTmplParam~infTypeRef~stmts            ^^ { case (p~r~s) => (r, p, s) }
+    lazy val blkBody: PackratParser[(out.OptionalTypeRef, out.TupleLocal, List[out.Stmt])] = (
+        tupleBlkParam~reqTypeRef~"->"~stmts     ^^ { case (p~r~"->"~s) => (r, p, s) }
+    |   blkParam~infTypeRef~"->"~stmts          ^^ { case (p~r~"->"~s) => (r, p, s) }
+    |   noBlkParam~infTypeRef~stmts             ^^ { case (p~r~s) => (r, p, s) }
     )
     
     lazy val itmpl = positioned(
@@ -320,9 +324,12 @@ class Parse extends StdTokenParsers with PackratParsers {
     
     lazy val arg: PackratParser[out.Expr] = tuple | itmpl | atmpl
     
-    lazy val callPart = positioned(
-        ident~arg                           ^^ { case i~a => out.CallPart(i, a) }
-    )
+    lazy val callPart = ident~arg                           ^^ { case i~a => (i, a) }
+    
+    def outMethodCall(r: out.Rcvr, cps: List[(String, out.Expr)]) = {
+        out.MethodCall(r, Name.Method(cps.map(_._1)), cps.map(_._2), ())
+    }
+    def args(cps: List[(String, out.Expr)]) = cps.map(_._2)
     
     lazy val newAnon = positioned(
         "new"~typeRef~tuple~"{"~rep(member)~"}" ^^ {
@@ -344,10 +351,10 @@ class Parse extends StdTokenParsers with PackratParsers {
     )
     
     lazy val expr0: PackratParser[out.Expr] = positioned(
-        rcvr~"."~rep1(callPart)             ^^ { case r~"."~cp => out.MethodCall(r, cp, ()) }
+        rcvr~"."~rep1(callPart)             ^^ { case r~"."~cps => outMethodCall(r, cps) }
     |   path                                ^^ { case p => out.PathExpr(p) }
     |   expr0~"."~varName                   ^^ { case r~"."~f => out.Field(r, f, (), ()) }
-    |   impThis~rep1(callPart)              ^^ { case r~cp => out.MethodCall(r, cp, ()) }
+    |   impThis~rep1(callPart)              ^^ { case r~cps => outMethodCall(r, cps) }
     |   arg
     |   varName                             ^^ { case n => out.Var(n, ()) }
     |   numericLit                          ^^ { l => out.Literal(Integer.valueOf(l), ()) }
@@ -363,11 +370,11 @@ class Parse extends StdTokenParsers with PackratParsers {
     )
     
     lazy val operPart = positioned(
-        oper~expr0 ^^ { case o~r => out.CallPart(o, r) }
+        oper~expr0 ^^ { case o~r => (o, r) }
     )
     
     lazy val expr: PackratParser[out.Expr] = positioned(
-        expr0~rep1(operPart) ^^ { case l~rs => out.MethodCall(l, rs, ()) }
+        expr0~rep1(operPart) ^^ { case l~cps => outMethodCall(l, cps) }
     |   expr0 
     )
     

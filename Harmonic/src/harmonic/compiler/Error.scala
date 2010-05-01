@@ -12,10 +12,40 @@ abstract class Error {
 }
 
 object Error {
+    case class DiffStaticClasses(className1: Name.Class, className2: Name.Class) extends Error {
+        def report(state: CompilationState, pos: Position) {
+            state.reporter.report(pos, "different.static.classes", className1.toString, className2.toString)
+        }
+    }
+    
     case class NoSuchMember(ty: Type.Ref, uName: Name.UnloweredMemberVar) extends Error {
         def report(state: CompilationState, pos: Position) {
             state.reporter.report(pos, "no.such.member", ty.toString, uName.toString)
         }
+    }
+    
+    case class NoSuchMethod(ty: Type.Ref, name: Name.Method) extends Error {
+        def report(state: CompilationState, pos: Position) {
+            state.reporter.report(pos, "no.such.method", ty.toString, name.toString)
+        }
+    }
+    
+    case class QualStatic(memberVar: Name.MemberVar) extends Error {
+        def report(state: CompilationState, pos: Position) {
+            state.reporter.report(
+                pos, "qualified.static",
+                memberVar.toString
+            )
+        }        
+    }
+    
+    case class ExpStatic(memberVar: Name.MemberVar) extends Error {
+        def report(state: CompilationState, pos: Position) {
+            state.reporter.report(
+                pos, "expected.static",
+                memberVar.toString
+            )
+        }        
     }
     
     case class AmbiguousMember(options: List[SymTab.MemberEntry]) extends Error {
