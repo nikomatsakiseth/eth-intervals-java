@@ -27,7 +27,7 @@ object SymTab {
         def isConstrainableInPathArg = true        
     }
     sealed case class LocalVar(name: Name.LocalVar) extends Entry {
-        def asMemberEntryMatching(uName: UnloweredMemberVar) = None        
+        def asMemberEntryMatching(uName: Name.UnloweredMember) = None        
     }
     
     type Map = scala.collection.immutable.Map[String, Entry]

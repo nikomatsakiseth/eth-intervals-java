@@ -29,7 +29,7 @@ object Util {
     def withPosOfR[P <: Positional, Q, R <: Product with Positional](from: P, to: Either[Q, R]): Either[Q, R] = {
         to match {
             case Left(q) => Left(q)
-            case Right(r) => Right(withPosOf(p, r))
+            case Right(r) => Right(withPosOf(from, r))
         }
     }
     
@@ -66,7 +66,7 @@ object Util {
                 case List() => (context, List())
                 case hd :: tl => {
                     val (context1, hd1) = func(hd)
-                    val (context2, tl1) = tl.mapContext(context)(func)
+                    val (context2, tl1) = tl.mapContext(context, func)
                     (context2, hd1 :: tl1)
                 }
             }
