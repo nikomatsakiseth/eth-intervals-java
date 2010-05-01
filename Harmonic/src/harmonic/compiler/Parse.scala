@@ -244,9 +244,10 @@ class Parse extends StdTokenParsers with PackratParsers {
     )
     lazy val declLvalue = positioned(
         annotations~localName~reqTypeRef ^^ { 
-            case a~n~t => out.DeclareVarLvalue(a, t, n, ()) }
+            case a~n~t => out.DeclareVarLvalue(a, t, n, ())
+        }
     )
-    lazy val lvalue: PackratParser[out.Lvalue] = tupleLvalue | declLvalue | fieldLvalue | reassignLvalue
+    lazy val lvalue: PackratParser[out.Lvalue] = tupleLvalue | declLvalue | reassignLvalue | fieldLvalue
     
     // ___ Type References __________________________________________________
     

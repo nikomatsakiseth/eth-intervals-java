@@ -12,6 +12,30 @@ abstract class Error {
 }
 
 object Error {
+    case class ShadowedClassParam(name: String) extends Error {
+        def report(state: CompilationState, pos: Position) {
+            state.reporter.report(pos, "shadowed.class.param", name)
+        }        
+    }
+    
+    case class ShadowedMethodParam(name: String) extends Error {
+        def report(state: CompilationState, pos: Position) {
+            state.reporter.report(pos, "shadowed.method.param", name)
+        }        
+    }
+    
+    case class ShadowedLocalVar(name: String) extends Error {
+        def report(state: CompilationState, pos: Position) {
+            state.reporter.report(pos, "shadowed.local.var", name)
+        }        
+    }
+    
+    case class CannotResolve(name: String) extends Error {
+        def report(state: CompilationState, pos: Position) {
+            state.reporter.report(pos, "cannot.resolve", name)
+        }
+    }
+    
     case class DiffStaticClasses(className1: Name.Class, className2: Name.Class) extends Error {
         def report(state: CompilationState, pos: Position) {
             state.reporter.report(pos, "different.static.classes", className1.toString, className2.toString)
@@ -49,6 +73,15 @@ object Error {
         def report(state: CompilationState, pos: Position) {
             state.reporter.report(
                 pos, "expected.static",
+                memberVar.toString
+            )
+        }        
+    }
+    
+    case class NotInStaticScope(memberVar: Name.Member) extends Error {
+        def report(state: CompilationState, pos: Position) {
+            state.reporter.report(
+                pos, "not.in.static.context",
                 memberVar.toString
             )
         }        

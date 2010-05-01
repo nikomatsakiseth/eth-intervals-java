@@ -152,7 +152,7 @@ abstract class Ast {
         fromName: RelName,
         toName: RelBase
     ) extends ImportDecl {
-        override def toString = "import %s(%s)".format(fromName, toName)
+        override def toString = "import %s -> %s".format(fromName, toName)
     }
     
     case class ImportAll(
@@ -400,7 +400,7 @@ abstract class Ast {
     }
     
     case class FieldLvalue(
-        name: MemberName,
+        name: MN,
         sym: FSym
     ) extends Lvalue with VarAstPattern {
         override def toString = name.toString

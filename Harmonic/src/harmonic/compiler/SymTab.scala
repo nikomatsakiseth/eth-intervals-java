@@ -24,7 +24,7 @@ object SymTab {
     sealed case class Ghost(name: Name.Member) extends MemberEntry {
         def isConstrainableInPathArg = true        
     }
-    sealed case class Local(name: Name.LocalVar) extends Entry {
+    sealed case class LocalVar(name: Name.LocalVar) extends Entry {
         def asMemberEntryMatching(uName: UnloweredMemberVar) = None        
     }
     

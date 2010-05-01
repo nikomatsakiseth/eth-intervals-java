@@ -5,11 +5,11 @@ object Name {
     sealed abstract class Qual {
         def toInternalPrefix: String
         def toPrefix: String
-        def isClassName: Boolean
+        def asClassName: Option[Class]
     }
     
     sealed abstract class Package extends Qual {
-        def isClassName = false
+        def asClassName = None
     }
     
     case object Root extends Package {
@@ -37,7 +37,7 @@ object Name {
         def toPrefix = base.toPrefix + name + "."
         override def toString = base.toPrefix + name
         def withSuffix(suffix: String) = Class(base, name + suffix)
-        def isClassName = true
+        def asClassName = Some(this)
     }
     
     object Package {
@@ -54,7 +54,7 @@ object Name {
         
     }
     
-    object Class {
+    object Class extends (java.lang.Class[_] => Class) {
         def apply(cls: java.lang.Class[_]): Class = cls match {
             // Handle the primitives:
             case _ if cls == classOf[Boolean] => apply(classOf[java.lang.Boolean])

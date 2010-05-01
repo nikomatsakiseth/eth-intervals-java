@@ -32,7 +32,10 @@ case class Reflect(state: CompilationState) {
             Type.Class(Name.ArrayClass, List(targ))
         }
         case tv: reflect.TypeVariable[_] => {
-            Type.Var(Path.This, Name.Member(tv.getName))
+            // TODO Method type variables... how can we do it?
+            val cls = tv.getGenericDeclaration.asInstanceOf[java.lang.Class[_]]
+            val name = Name.Class(cls)
+            Type.Var(Path.This, Name.Member(name, tv.getName))
         }
         case pt: reflect.ParameterizedType => {
             val cls = pt.getRawType.asInstanceOf[Class[_]]
@@ -45,26 +48,27 @@ case class Reflect(state: CompilationState) {
     }
     
     def fieldSymbol(fld: reflect.Field) = {
-        new Symbol.Var(
+        val className = Name.Class(fld.getDeclaringClass)
+        new Symbol.Field(
             modifierSet = Modifier.forMember(fld),
-            name        = Name.Var(fld.getName),
+            name        = Name.Member(className, fld.getName),
             ty          = typeRef(fld.getGenericType)
         )        
     }
     
     def paramPattern(pair: (reflect.Type, Int)) = {
         Pattern.Var(
-            name = Name.Var("arg"+pair._2),
+            name = Name.LocalVar("arg"+pair._2),
             ty   = typeRef(pair._1)
         )
     }
     
     def superClassNames(sym: Symbol.ClassFromReflection) = {
         val cls = sym.cls
-        (cls.getSuperclass :: cls.getInterfaces.toList).flatMap(Option(_)).map(Name.Class)
+        (cls.getSuperclass :: cls.getInterfaces.toList).filter(_ != null).map(Name.Class)
     }
     
-    def ctorSymbol(clsName: Name.Qual)(mthd: reflect.Constructor[_]) = {
+    def ctorSymbol(clsName: Name.Class)(mthd: reflect.Constructor[_]) = {
         new Symbol.Method(
             pos         = InterPosition.forClass(mthd.getDeclaringClass),
             modifierSet = Modifier.forMember(mthd),
@@ -88,7 +92,7 @@ case class Reflect(state: CompilationState) {
         }
     }
     
-    def methodSymbol(clsName: Name.Qual)(mthd: reflect.Method) = {
+    def methodSymbol(clsName: Name.Class)(mthd: reflect.Method) = {
         new Symbol.Method(
             pos         = InterPosition.forClass(mthd.getDeclaringClass),
             modifierSet = Modifier.forMember(mthd),

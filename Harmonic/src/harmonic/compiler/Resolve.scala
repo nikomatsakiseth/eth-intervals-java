@@ -20,8 +20,8 @@ import SymTab.extendedMap
 abstract class Resolve(state: CompilationState, compUnit: in.CompUnit) {
     
     protected[this] def resolveAgainstPackage(pkgName: Name.Package, nm: String): Name.Qual = {
-        val className = Name.Class(ctxName, nm)
-        if(loadedOrLoadable(className)) {
+        val className = Name.Class(pkgName, nm)
+        if(state.loadedOrLoadable(className)) {
             className
         } else {
             Name.Subpackage(pkgName, nm)
@@ -29,8 +29,8 @@ abstract class Resolve(state: CompilationState, compUnit: in.CompUnit) {
     }
     
     protected[this] def resolveAgainstClass(clsName: Name.Class, nm: String): Option[Name.Class] = {
-        val className = Name.Class(ctxName, nm)
-        if(loadedOrLoadable(className)) {
+        val className = Name.Class(clsName, nm)
+        if(state.loadedOrLoadable(className)) {
             Some(className)
         } else {
             None
@@ -49,19 +49,26 @@ abstract class Resolve(state: CompilationState, compUnit: in.CompUnit) {
     case class ImportAll(qualName: Name.Qual)
     case class ImportOne(qualName: Name.Qual, as: String)
     
-    def resolveAbsToQual(relName: in.RelName) = relName match {
-        case in.RelBase(name) => 
-            resolveAgainst(Name.Root, name)
-        case in.RelDot(context, name) => 
-            resolveImport(context).map(resolveAgainst(_, name))        
+    def resolveAbsToQual(relName: in.RelName): Option[Name.Qual] = {
+        relName match {
+            case in.RelBase(name) => 
+                resolveAgainst(Name.Root, name)
+            case in.RelDot(context, name) => 
+                resolveAbsToQual(context) match {
+                    case Some(q) => resolveAgainst(q, name)
+                    case None => None
+                }
+        }        
     }
     
-    def resolveImport(imp: in.Import) = imp match {
-        case in.ImportAll(pkg) => {
-            resolveAbsToQual(pkg).map(ImportAll(_))
+    def resolveImport(imp: in.ImportDecl) = {        
+        imp match {
+            case in.ImportAll(pkg) =>
+                resolveAbsToQual(pkg).map(ImportAll(_))
+
+            case in.ImportOne(from, in.RelBase(name)) =>
+                resolveAbsToQual(from).map(ImportOne(_, name))
         }
-        
-        case in.ImportOne(from, in.RelBase(name)) => resolveAbsToQual(from).map(ImportOne(_, name))
     }
     
     // Imports are considered in reverse order.  Certain
@@ -70,7 +77,7 @@ abstract class Resolve(state: CompilationState, compUnit: in.CompUnit) {
         ImportAll(Name.Root) ::
         ImportAll(Name.Package("java.lang")) ::
         ImportAll(Name.Package("harmonic.lang")) ::
-        ImportAll(compUnit.pkg) ::
+        ImportAll(compUnit.pkg.name) ::
         compUnit.imports.flatMap(resolveImport)
     ).reverse
 
@@ -81,11 +88,11 @@ abstract class Resolve(state: CompilationState, compUnit: in.CompUnit) {
     private[this] def resolveRelList(relList: List[String]): List[Name.Qual] = relList match {
         case Nil => List(Name.Root)
         
-        case List(Name) => {
+        case List(name) => {
             allImports.flatMap { 
-                case ImportOne(from, Name) => Some(from)
+                case ImportOne(from, to) if (to == name) => Some(from)
                 case ImportOne(_, _) => None
-                case ImportAll(pkg) => resolveAgainst(pkg, Name)
+                case ImportAll(pkg) => resolveAgainst(pkg, name)
             }
         }
         
@@ -97,9 +104,9 @@ abstract class Resolve(state: CompilationState, compUnit: in.CompUnit) {
     
     def resolveToClass(pos: Position, relList: List[String]): Option[Name.Class] = {
         val expansions = resolveRelList(relList)
-        val result = expansions.find(_.isClassName)
+        val result = expansions.firstSome(_.asClassName)
         if(!result.isDefined) {
-            state.reporter.report(relName.pos, "cannot.resolve", relName.toString)
+            Error.CannotResolve(relList.reverse.mkString(".")).report(state, pos)
         }
         result
     }
@@ -110,9 +117,9 @@ abstract class Resolve(state: CompilationState, compUnit: in.CompUnit) {
         case in.RelDot(context, name) => name :: relNameToRelList(context)
     }
     
-    def resolveName(relName: in.RelName) = {
+    def resolveName(relName: in.RelName) = withPosOf(relName, {
         val className = resolveToClass(relName.pos, relNameToRelList(relName)).getOrElse(Name.ObjectClass)
-        withPosOf(relName, Ast.ClassName(className))
-    }
+        Ast.ClassName(className)
+    })
 
 }
