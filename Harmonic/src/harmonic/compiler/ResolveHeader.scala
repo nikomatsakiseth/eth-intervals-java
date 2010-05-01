@@ -27,13 +27,13 @@ extends Resolve(state, compUnit)
         val superHeaderPasses = superCsyms.flatMap(_.resolveHeader)
         csym.resolveHeaderClosure.foreach(_.addDependency(superHeaderPasses))
         
-        csym.varMembers = cdecl.members.foldLeft(Map[Name.MemberVar, VarKind]()) {
+        csym.varMembers = cdecl.members.foldLeft(Map[Name.Member, VarKind]()) {
             case (m, decl: in.IntervalDecl) => {
-                m + (Name.MemberVar(csym.name, decl.name) -> Symbol.FieldKind)                
+                m + (Name.Member(csym.name, decl.name.nm) -> Symbol.FieldKind)                
             }
             
             case (m, decl: in.FieldDecl) => {
-                m + (Name.MemberVar(csym.name, decl.name) -> Symbol.FieldKind)
+                m + (Name.Member(csym.name, decl.name.nm) -> Symbol.FieldKind)
             }
             
             case (m, _) => m

@@ -3,7 +3,6 @@ package harmonic.compiler
 object Name {
     
     sealed abstract class Qual {
-        def asRelPath: String = internalName
         def toInternalPrefix: String
         def toPrefix: String
         def isClassName: Boolean
@@ -32,6 +31,7 @@ object Name {
         base: Qual,
         name: String
     ) extends Qual {
+        def relPath: String = internalName
         def internalName = base.toInternalPrefix + name
         def toInternalPrefix = internalName + "$"
         def toPrefix = base.toPrefix + name + "."
@@ -43,10 +43,8 @@ object Name {
     object Package {
         
         def apply(str: String): Package = {
-            val comp = pkg.getName.split(".")
-            comp.foldLeft(Root) {
-                case (q, n) => SubpackageQual(q, n)
-            }
+            val comp = str.split(".")
+            comp.foldLeft[Package](Root) { case (q, n) => Subpackage(q, n) }
         }
         
         def apply(pkg: java.lang.Package): Package = {
@@ -71,14 +69,12 @@ object Name {
             
             // Handle inner classes:
             case _ if cls.getDeclaringClass != null => {
-                val outerQual = apply(cls.getDeclaringClass)
-                ClassQual(outerQual, cls.getSimpleName)
+                Class(apply(cls.getDeclaringClass), cls.getSimpleName)
             }
             
             // Handle top-level classes:
             case _ => {
-                val packageQual = PackageQual(cls.getPackage)
-                ClassQual(packageQual, cls.getSimpleName)
+                Class(Package(cls.getPackage), cls.getSimpleName)
             }
         }
     }
@@ -104,18 +100,18 @@ object Name {
         def toPath = Path.Base(this)
     }
     
-    /** Names of fields, type variables, ghosts */
-    sealed case class MemberVar(
+    /** Fully specified names of members (except for methods) */
+    sealed case class Member(
         className: Name.Class,
         text: String
-    ) extends Var with UnloweredMemberVar {
+    ) extends Var with UnloweredMember {
         override def toString = "(%s.%s)".format(className, text)
         
         def javaName = text
         
-        def matches(unlowerName: UnloweredMemberVar) = unlowerName match {
-            case u: ClasslessMemberVar => (text == u.text)
-            case u: MemberVar => (this == u)
+        def matches(unlowerName: UnloweredMember) = unlowerName match {
+            case u: ClasslessMember => (text == u.text)
+            case u: Member => (this == u)
         }
         
         def inDefaultClass(className: Name.Class) = this
@@ -129,15 +125,15 @@ object Name {
         override def toString = text
     }
     
-    /** A `MemberVar` before lowering, at which point we may not yet
+    /** A `Member` before lowering, at which point we may not yet
       * know the `className`. */
-    sealed abstract trait UnloweredMemberVar {
+    sealed abstract trait UnloweredMember {
         def text: String
         
-        def inDefaultClass(className: Name.Class): MemberVar
+        def inDefaultClass(className: Name.Class): Member
     }
-    case class ClasslessMemberVar(text: String) extends UnloweredMemberVar {
-        def inDefaultClass(className: Name.Class) = MemberVar(className, text)        
+    case class ClasslessMember(text: String) extends UnloweredMember {
+        def inDefaultClass(className: Name.Class) = Member(className, text)        
     }
     
     val ThisLocal = Name.LocalVar("this")
@@ -148,8 +144,8 @@ object Name {
     
     val ObjectClass = Class(classOf[java.lang.Object])
 
-    val ArrayClass = Class(classOf[harmonic.lang.Array])
-    val ArrayElem = MemberVar(ArrayClass, "E")
+    val ArrayClass = Class(classOf[harmonic.lang.Array[_]])
+    val ArrayElem = Member(ArrayClass, "E")
     
     val AbstractClass = Class(classOf[harmonic.lang.Abstract])
     val MutableClass = Class(classOf[harmonic.lang.Mutable])
@@ -157,9 +153,9 @@ object Name {
 
     val BlockClass = Class(classOf[harmonic.lang.Block[_, _]])
     val AsyncBlockClass = Class(classOf[harmonic.lang.AsyncBlock[_, _]])
-    val RVar = MemberVar(Qual, "R")
-    val AVar = MemberVar(Qual, "A")
-    val IntervalTmplParent = MemberVar(Qual, "Parent")
+    val BlockR = Member(BlockClass, "R")
+    val BlockA = Member(BlockClass, "A")
+    val BlockParent = Member(BlockClass, "Parent")
     val ValueMethod = Method(List("value"))
 
     val InitMethod = Method(List("<init>"))

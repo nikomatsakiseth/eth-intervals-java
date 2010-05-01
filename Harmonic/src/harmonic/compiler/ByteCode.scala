@@ -168,7 +168,7 @@ case class ByteCode(state: CompilationState) {
     class ClassWriter(className: Name.Class, suffix: String) 
     {
         private[this] def fileWithExtension(ext: String) = {
-            val relPath = className.asRelPath + suffix + ext
+            val relPath = className.relPath + suffix + ext
             new java.io.File(state.config.outputDir, relPath)
         }
 
@@ -1000,7 +1000,7 @@ case class ByteCode(state: CompilationState) {
             val interfaceMethodSig = Symbol.MethodSignature(
                 Type.Object,
                 blockTy,
-                List(Pattern.Var(Name.Var("arg"), Type.Object))
+                List(Pattern.Var(Name.LocalVar("arg"), Type.Object))
             )
             writeForwardingMethodIfNeeded(
                 className     = name, 
@@ -1062,9 +1062,9 @@ case class ByteCode(state: CompilationState) {
                 in.Tuple(subpatterns.map(constructExprFromPattern))
                 
             case Pattern.Var(name, ty) => {
-                val sym = new Symbol.Var(Modifier.Set.empty, name, ty)
+                val sym = new Symbol.LocalVar(Modifier.Set.empty, name, ty)
                 accessMap.addUnboxedSym(sym)
-                in.Var(Ast.VarName(name.text), sym)
+                in.Var(Ast.LocalName(name), sym)
             }
         }
         val rvalues = srcPatterns.map(constructExprFromPattern)
@@ -1074,10 +1074,9 @@ case class ByteCode(state: CompilationState) {
             // stack.  We may have to cast the rvalue to the target type, because
             // the types of the source parameters may be supertypes of the target types.
             tarPatterns.zip(rvalues).foreach { case (tarPattern, rvalue) =>
-                // Hack: just use in.Null for typeRef param which is not important here.
                 val casted = 
                     if(downcastNeeded(tarPattern.ty, rvalue.ty))
-                        in.Cast(rvalue, in.NullType(), tarPattern.ty)
+                        in.Cast(rvalue, in.TypeRef(tarPattern.ty))
                     else 
                         rvalue
                 stmtVisitor.pushRvalues(tarPattern, casted)

@@ -8,7 +8,7 @@ import java.lang.reflect
   * Creates symbols from reflective objects. */
 case class Reflect(state: CompilationState) {
     
-    def typeArg(pair: (Name.Var, reflect.Type)): Option[Type.TypeArg] = pair match {
+    def typeArg(pair: (Name.Member, reflect.Type)): Option[Type.TypeArg] = pair match {
         case (nm, wt: reflect.WildcardType) => { /* // FIXME: Allow multiple LB, UB? */
             val lbs = wt.getLowerBounds
             val ubs = wt.getUpperBounds
@@ -23,7 +23,7 @@ case class Reflect(state: CompilationState) {
     
     def typeRef(ty: reflect.Type): Type.Ref = ty match {
         case cls: Class[_] => {
-            val name = Name.Qual(cls)
+            val name = Name.Class(cls)
             state.requireLoadedOrLoadable(InterPosition.forClass(cls), name)
             Type.Class(name, List())
         }
@@ -31,12 +31,15 @@ case class Reflect(state: CompilationState) {
             val targ = typeArg(Name.ArrayElem, gat.getGenericComponentType).get
             Type.Class(Name.ArrayClass, List(targ))
         }
-        case tv: reflect.TypeVariable[_] => Type.Var(Path.This, Name.Var(tv.getName))
+        case tv: reflect.TypeVariable[_] => {
+            Type.Var(Path.This, Name.Member(tv.getName))
+        }
         case pt: reflect.ParameterizedType => {
             val cls = pt.getRawType.asInstanceOf[Class[_]]
-            val tparams = cls.getTypeParameters.toList.map(tv => Name.Var(tv.getName))
+            val className = Name.Class(cls)
+            val tparams = cls.getTypeParameters.toList.map(tv => Name.Member(className, tv.getName))
             val targs = tparams.zip(pt.getActualTypeArguments).flatMap(typeArg)
-            Type.Class(Name.Qual(cls), targs)
+            Type.Class(className, targs)
         }
         case _ => throw new RuntimeException("Not here")
     }

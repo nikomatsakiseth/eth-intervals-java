@@ -97,7 +97,7 @@ object Symbol {
         
         /** Symbols for fields defined on this class (not superclasses)
           * with the given name.  May trigger lowering or other processing. */
-        def fieldNamed(state: CompilationState)(name: Name.MemberVar): Option[Symbol.Field]
+        def fieldNamed(state: CompilationState)(name: Name.Member): Option[Symbol.Field]
         
         // ___ Invokable once lowered ___________________________________________
         
@@ -178,7 +178,7 @@ object Symbol {
             fields.find(_.isNamed(name))
         }
         
-        def allFieldNames(state: CompilationState): List[Name.MemberVar] = {
+        def allFieldNames(state: CompilationState): List[Name.Member] = {
             load(state)
             fields.map(_.name)
         }
@@ -238,7 +238,7 @@ object Symbol {
         
         var superClassNames: List[Name.Class] = Nil
         
-        var varMembers: Map[Name.MemberVar, Symbol.Kind] = Map.empty
+        var varMembers: Map[Name.Member, Symbol.Kind] = Map.empty
         
         def superClassNames(state: CompilationState) = 
             superClassNames
@@ -390,7 +390,7 @@ object Symbol {
     
     class Field(
         val modifierSet: Modifier.Set,
-        val name: Name.MemberVar,
+        val name: Name.Member,
         val ty: Type.Ref
     ) extends Var
     
@@ -407,7 +407,7 @@ object Symbol {
         }
     }
     
-    def errorField(name: Name.MemberVar, optExpTy: Option[Type.Ref]) = {
+    def errorField(name: Name.Member, optExpTy: Option[Type.Ref]) = {
         val ty = optExpTy.getOrElse(Type.Null)
         new Symbol.Field(Modifier.Set.empty, name, ty) {
             override def isError = true

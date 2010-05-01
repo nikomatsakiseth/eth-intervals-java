@@ -47,8 +47,8 @@ class Config
         paths.split(":").map(s => new File(s)).toList
     }
     
-    private[this] def relativeFiles(paths: List[File], ext: String)(name: Name.Qual) = {
-        val baseName = name.asRelPath
+    private[this] def relativeFiles(paths: List[File], ext: String)(name: Name.Class) = {
+        val baseName = name.relPath
         paths.flatMap { path =>
             val file = new File(path, baseName + ext)
             if(file.exists) Some(file)
@@ -56,8 +56,8 @@ class Config
         }
     }
     
-    def sourceFiles(name: Name.Qual) = relativeFiles(sourcePaths, sourceExt)(name)
-    def classFiles(name: Name.Qual) = relativeFiles(classPaths, classExt)(name)
+    def sourceFiles(name: Name.Class) = relativeFiles(sourcePaths, sourceExt)(name)
+    def classFiles(name: Name.Class) = relativeFiles(classPaths, classExt)(name)
     
     def reflectiveClasses(name: Name.Qual) = {
         if(!useReflection) None

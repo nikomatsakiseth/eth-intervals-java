@@ -19,18 +19,29 @@ import SymTab.extendedMap
   * including the package. */
 abstract class Resolve(state: CompilationState, compUnit: in.CompUnit) {
     
-    private[this] def resolveAgainst(ctxName: Name.Qual, nm: String) = {
+    protected[this] def resolveAgainstPackage(pkgName: Name.Package, nm: String): Name.Qual = {
+        val className = Name.Class(ctxName, nm)
+        if(loadedOrLoadable(className)) {
+            className
+        } else {
+            Name.Subpackage(pkgName, nm)
+        }
+    }
+    
+    protected[this] def resolveAgainstClass(clsName: Name.Class, nm: String): Option[Name.Class] = {
         val className = Name.Class(ctxName, nm)
         if(loadedOrLoadable(className)) {
             Some(className)
         } else {
-            ctxName match {
-                case pkgName: Name.Package => 
-                    Some(Name.Subpackage(pkgName, nm))
-                case _ => 
-                    None
-            }                    
-        }            
+            None
+        }
+    }
+    
+    protected[this] def resolveAgainst(ctxName: Name.Qual, nm: String) = {
+        ctxName match {
+            case ctxName: Name.Class => resolveAgainstClass(ctxName, nm)
+            case ctxName: Name.Package => Some(resolveAgainstPackage(ctxName, nm))
+        }
     }
     
     // Internal representation of imports:

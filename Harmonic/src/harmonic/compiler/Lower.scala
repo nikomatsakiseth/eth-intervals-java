@@ -704,14 +704,14 @@ case class Lower(state: CompilationState) {
                 // Static field ref. like System.out:
                 case owner @ out.Static(className) => {
                     val memberVar = expr.name.name match {
-                        case Name.ClasslessMemberVar(text) => 
-                            Name.MemberVar(className, text)
+                        case Name.ClasslessMember(text) => 
+                            Name.Member(className, text)
                             
-                        case Name.MemberVar(className1, text) => {
+                        case Name.Member(className1, text) => {
                             if(className != className1) {
                                 Error.DiffStaticClasses(className, className1).report(state, expr.name.pos)
                             }
-                            Name.MemberVar(className, text)
+                            Name.Member(className, text)
                         }
                     }
                     val csym = state.classes(className)
@@ -722,34 +722,34 @@ case class Lower(state: CompilationState) {
                         case Some(fsym) if !fsym.modifierSet.isStatic => {
                             Error.ExpStatic(memberVar).report(state, expr.name.pos)
                             Symbol.errorField(memberVar, optExpTy)
-                            (sym, sym.ty)
                         }
                         case None => {
-                            Error.NoSuchMember(csym.toType, name.name).report(state, name.pos)
+                            Error.NoSuchMember(csym.toType, expr.name.name).report(state, expr.name.pos)
                             Symbol.errorField(memberVar, optExpTy)
                         }
                     }
-                    out.Field(owner, fsym.name, fsym, fsym.ty)
+                    out.Field(owner, Ast.MemberName(fsym.name), fsym, fsym.ty)
                 }
 
                 // Instance field ref like foo.bar:
                 case owner @ out.Var(_, sym) => {
-                    val fsym = env.lowerField(sym.ty, expr.name.name) match {
-                        case Some(fsym) if !fsym.modifierSet.isStatic => {
+                    val fsym = env.lookupField(sym.ty, expr.name.name) match {
+                        case Right(fsym) if !fsym.modifierSet.isStatic => {
                             fsym
                         }
-                        case Some(fsym) if fsym.modifierSet.isStatic => {
-                            Error.QualStatic(fsym.name).report(state, name.pos)
+                        case Right(fsym) if fsym.modifierSet.isStatic => {
+                            Error.QualStatic(fsym.name).report(state, expr.name.pos)
                             fsym
                         }
-                        case None => {
-                            Error.NoSuchMember(csym.toType, name.name).report(state, name.pos)
+                        case Left(err) => {
+                            err.report(state, expr.name.pos)
+                            val memberVar = expr.name.name.inDefaultClass(Name.ObjectClass)
                             Symbol.errorField(memberVar, optExpTy)
                         }
                     }
+                    val subst = Subst(Path.This -> sym.name.toPath)
+                    out.Field(owner, Ast.MemberName(fsym.name), fsym, subst.ty(fsym.ty))
                 }
-                val subst = Subst(Path.This -> sym.name.toPath)
-                out.Field(owner, fsym.name, fsym, subst.ty(fsym.ty))
             }
         })
         
@@ -953,7 +953,7 @@ case class Lower(state: CompilationState) {
         }
                 
         def lowerBlock(optExpTy: Option[Type.Ref])(tmpl: in.Block) = introduceVar(tmpl, {
-            val expArgumentTy = optTypeArg(Name.AVar, optExpTy).getOrElse(Type.Void)
+            val expArgumentTy = optTypeArg(Name.BlockA, optExpTy).getOrElse(Type.Void)
             
             val (outParam, subenv) = lowerBlockParam(env, expArgumentTy, tmpl.param)
             val outStmts = lowerStmts(subenv, tmpl.stmts)
@@ -963,37 +963,33 @@ case class Lower(state: CompilationState) {
             // comment, note that the `this` pointer inside an interval template does
             // not change, unlike an inner or anonymous class.
             //
-            // val expReturnTy = optTypeArg(Name.RVar, optExpTy).getOrElse(Type.Void)
+            // val expReturnTy = optTypeArg(Name.BlockR, optExpTy).getOrElse(Type.Void)
             // val (outReturnTypeRef, returnTy) = tmpl.returnTref match {
             //     case tref: in.TypeRef => (lowerTypeRef(tref), symbolType(tref))
             //     case in.InferredTypeRef() => (astType(env)(tmpl.returnTref, expReturnTy), expReturnTy)
             // }
             
-            val (outReturnTypeRef, returnTy) = tmpl.returnTref match {
-                case tref: in.TypeRef => (lowerTypeRef(tref), symbolType(tref))
-                case in.InferredTypeRef() => {
-                    val ty = outStmts.last.ty
-                    (astType(env)(tmpl.returnTref, ty), ty)
-                }
+            val returnTy = tmpl.returnTref match {
+                case in.InferredTypeRef() => outStmts.last.ty
+                case tref: in.ResolveTypeRef => toTypeRef(tref)
             }
             
             out.Block(
                 async = tmpl.async,
-                returnTref = outReturnTypeRef,
-                returnTy = returnTy,
+                returnTref = out.TypeRef(returnTy),
                 param = outParam,
                 stmts = outStmts,
                 ty = Type.Class(tmpl.className, List(
-                    Type.PathArg(Name.IntervalTmplParent, PcEq, Path.Method),
-                    Type.TypeArg(Name.RVar, TcEq, returnTy),
-                    Type.TypeArg(Name.AVar, TcEq, outParam.ty)
+                    Type.PathArg(Name.BlockParent, PcEq, Path.Method),
+                    Type.TypeArg(Name.BlockR, TcEq, returnTy),
+                    Type.TypeArg(Name.BlockA, TcEq, outParam.ty)
                 ))
             )
         })
         
         def lowerImpThis(expr: in.Expr) = withPosOf(expr, {
             val sym = env.lookupThis
-            out.Var(Ast.LocalVar(Name.ThisLocal), sym)
+            out.Var(Ast.LocalName(Name.ThisLocal), sym)
         })
         
         def lowerCast(expr: in.Cast) = withPosOf(expr, {

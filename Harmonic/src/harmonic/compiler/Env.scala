@@ -96,7 +96,7 @@ case class Env(
 
     // ___ Finding member names _____________________________________________
     
-    def lookupEntry(csym: Symbol.Class, uName: Name.UnloweredMemberVar): CanFail[SymTab.MemberEntry] = {
+    def lookupEntry(csym: Symbol.Class, uName: Name.UnloweredMember): CanFail[SymTab.MemberEntry] = {
         val mro = MethodResolutionOrder(state).forSym(csym)
         
         // Find all entries that could match `uName`:
@@ -143,7 +143,7 @@ case class Env(
         
     private[this] def lookupMember[R](
         ownerTy: Type.Ref, 
-        uName: Name.UnloweredMemberVar
+        uName: Name.UnloweredMember
     )(
         func: (SymTab.MemberEntry => CanFail[R])
     ): CanFail[R] = {
@@ -161,8 +161,8 @@ case class Env(
     
     def lookupTypeVar(
         ownerTy: Type.Ref, 
-        uName: Name.UnloweredMemberVar
-    ): CanFail[Name.MemberVar] = {
+        uName: Name.UnloweredMember
+    ): CanFail[Name.Member] = {
         lookupMember(ownerTy, uName) {
             case SymTab.Type(memberVar) => Right(memberVar)
             case entry => Left(Error.NotTypeVar(entry))
@@ -171,9 +171,9 @@ case class Env(
 
     def lookupField(
         ownerTy: Type.Ref, 
-        uName: Name.UnloweredMemberVar
+        uName: Name.UnloweredMember
     ): CanFail[Symbol.Field] = {
-        def findSym(memberVar: Name.MemberVar) = {
+        def findSym(memberVar: Name.Member) = {
             val memberCsym = state.classes(memberVar.className)
             memberCsym.fieldNamed(state)(memberVar).orErr(Error.NoSuchMember(ownerTy, uName))
         }
@@ -187,7 +187,7 @@ case class Env(
     
     def lookupFieldOrError(
         ownerTy: Type.Ref,  
-        name: Name.UnloweredMemberVar,
+        name: Name.UnloweredMember,
         optExpTy: Option[Type.Ref]
     ) = {
         lookupField(ownerTy, name) match {
@@ -235,7 +235,7 @@ case class Env(
             Path.TypedBase(lvsym)
         }
         
-        case Path.Base(name: Name.MemberVar) => {
+        case Path.Base(name: Name.Member) => {
             val csym = state.classes(name.className)
             val fsym = lookupFieldOrError(csym.toType, name, None)
             Path.TypedBase(fsym)

@@ -13,17 +13,17 @@ abstract class Ast {
     import Ast.QualName
     import Ast.ClassName
     import Ast.PackageName
-    import Ast.SimpleName
     import Ast.MemberName
     import Ast.LocalName
-    import Ast.SimpleOrMemberName
     import Ast.VarName
         
     /** Names which get changed during resolve */
-    type QN <: QualName     // Name of a class
-    type LN <: Ast.Name     // Name of a local variable
-    type FN <: Ast.Name     // Name of a field
-    type VN <: Ast.Name     // Either local or member name
+    type CN <: QualName     // Eventually ClassName
+    type LN <: Ast.Name     // Eventually LocalName
+    type MN <: Ast.Name     // Eventually MemberName
+    type VN <: Ast.Name     // Eventually VarName
+    type CDN <: Ast.Name    // Name of class in declaration
+    type MDN <: Ast.Name    // Name of member in declaration
     
     /** References to types */
     type OTR <: Node
@@ -46,9 +46,6 @@ abstract class Ast {
     
     /** Field owner expressions eventually become restricted */
     type Owner <: ParseOwner
-    
-    /** Type of a template's parameter: becomes a Param */
-    type TmplLv <: AstPattern
     
     /** Type of an expression */
     type Ty
@@ -165,9 +162,9 @@ abstract class Ast {
     }
     
     case class ClassDecl(
-        name: QN,
+        name: CDN,
         annotations: List[Annotation],
-        superClasses: List[QN],
+        superClasses: List[CN],
         pattern: Param,
         members: List[MemberDecl],
         sym: CSym
@@ -197,7 +194,7 @@ abstract class Ast {
     
     case class IntervalDecl(
         annotations: List[Annotation],
-        name: VarName,
+        name: MDN,
         optParent: Option[AstPath],
         optBody: Option[Body]
     ) extends MemberDecl {
@@ -255,7 +252,7 @@ abstract class Ast {
     
     case class FieldDecl(
         annotations: List[Annotation],
-        name: VarName,
+        name: MDN,
         tref: OTR,
         optBody: Option[Body]
     ) extends MemberDecl {
@@ -295,7 +292,7 @@ abstract class Ast {
     }
     
     case class Annotation(
-        name: QN
+        name: CN
     ) extends Node {
         override def toString = "[%s]".format(name)
         
@@ -456,7 +453,7 @@ abstract class Ast {
     
     sealed abstract trait ResolveTypeRef extends OptionalResolveTypeRef
     
-    case class TypeVar(path: AstPath, typeVar: FN) extends ResolveTypeRef {
+    case class TypeVar(path: AstPath, typeVar: MN) extends ResolveTypeRef {
         override def toString = "%s.%s".format(path, typeVar)
     }
     
@@ -485,14 +482,14 @@ abstract class Ast {
         def forGhost(name: VarName): Option[PathTypeArg]
     }
     
-    case class TypeTypeArg(name: FN, rel: TcRel, typeRef: TR) extends TypeArg {
+    case class TypeTypeArg(name: MN, rel: TcRel, typeRef: TR) extends TypeArg {
         override def toString = "%s %s %s".format(name, rel, typeRef)
         
         def forTypeVar(aName: VarName) = if(name == aName) Some(this) else None
         def forGhost(aName: VarName) = None
     }
     
-    case class PathTypeArg(name: FN, rel: PcRel, path: AstPath) extends TypeArg {
+    case class PathTypeArg(name: MN, rel: PcRel, path: AstPath) extends TypeArg {
         override def toString = "%s %s %s".format(name, rel, path)
         
         def forTypeVar(aName: VarName) = None
@@ -517,7 +514,7 @@ abstract class Ast {
         def ty = vsymTy(sym)
     }
     
-    case class PathDot(owner: AstPath, name: FN, sym: FSym, ty: Ty) extends ParsePath {
+    case class PathDot(owner: AstPath, name: MN, sym: FSym, ty: Ty) extends ParsePath {
         override def toString = owner + "." + name
     }
     
@@ -594,7 +591,7 @@ abstract class Ast {
     case class Block(
         async: Boolean, 
         returnTref: OTR, 
-        param: TmplLv, 
+        param: Param, 
         stmts: List[Stmt], 
         ty: Ty
     ) extends LowerTlExpr {
@@ -671,7 +668,7 @@ abstract class Ast {
         }
     }
     
-    case class Field(owner: Owner, name: FN, sym: FSym, ty: Ty) extends LowerTlExpr {
+    case class Field(owner: Owner, name: MN, sym: FSym, ty: Ty) extends LowerTlExpr {
         override def toString = "%s.%s".format(owner, name)
         
         override def print(out: PrettyPrinter) {
@@ -756,7 +753,7 @@ abstract class Ast {
         override def toString = "<this>"
     }
    
-    case class Labeled(name: VarName, body: Body)
+    case class Labeled(name: LN, body: Body)
     extends LowerStmt {
         def ty = body.stmts.last.ty
         override def toString = "%s: %s".format(name, body)
@@ -803,15 +800,6 @@ object Ast {
     
     sealed abstract class Name extends Node
     
-    // Field names immediately after parsing (and after resolve)
-    sealed abstract trait SimpleOrMemberName extends Name
-
-    // An unqualified name which will eventually be converted to
-    // a LocalName or MemberName.
-    case class SimpleName(text: String) extends SimpleOrMemberName {
-        override def toString = text
-    }
-    
     sealed abstract class QualName extends Name
 
     sealed case class PackageName(name: Name.Package) extends Name {
@@ -822,15 +810,20 @@ object Ast {
         override def toString = name.toString
     }
     
-    sealed abstract class VarName extends Name {
+    sealed abstract trait VarName extends Name {
         def name: Name.Var
     }
     
-    sealed case class MemberName(name: Name.MemberVar) extends VarName with SimpleOrMemberName {
+    sealed abstract trait UnloweredMemberName extends Name {
+        def name: Name.UnloweredMember
         override def toString = name.toString
     }
     
-    sealed case class UnloweredMemberName(name: Name.UnloweredMemberVar) extends Name {
+    sealed case class MemberName(name: Name.Member) extends VarName with UnloweredMemberName {
+        override def toString = name.toString
+    }
+    
+    sealed case class ClasslessMemberName(name: Name.ClasslessMember) extends UnloweredMemberName {
         override def toString = name.toString
     }
     
@@ -843,9 +836,12 @@ object Ast {
     /** Parse phase: relative names unresolved and
       * types uninferred. */
     object Parse extends Ast {
-        type QN = RelName
-        type LN = SimpleName
-        type FN = SimpleOrMemberName 
+        type CN = RelName
+        type CDN = RelBase
+        type LN = LocalName
+        type MN = RelName 
+        type MDN = RelBase
+        type VN = RelName
         type OTR = OptionalParseTypeRef
         type TR = ParseTypeRef
         type NE = ParseTlExpr
@@ -854,7 +850,6 @@ object Ast {
         type AstPath = ParsePath
         type Rcvr = ParseRcvr
         type Owner = ParseOwner
-        type TmplLv = TupleLvalue
         type CSym = Unit
         type VSym = Unit
         type LVSym = Unit
@@ -878,9 +873,12 @@ object Ast {
     
     /** After Resolve(): relative names resolved. */
     object Resolve extends Ast {
-        type QN = ClassName
+        type CN = ClassName
+        type CDN = ClassName
         type LN = LocalName
-        type FN = UnloweredMemberName 
+        type MN = UnloweredMemberName 
+        type MDN = MemberName
+        type VN = VarName
         type OTR = OptionalResolveTypeRef
         type TR = ResolveTypeRef
         type NE = ResolveTlExpr
@@ -889,7 +887,6 @@ object Ast {
         type AstPath = ParsePath
         type Rcvr = ParseRcvr
         type Owner = ParseOwner
-        type TmplLv = Lvalue
         type CSym = Unit
         type VSym = Unit
         type LVSym = Unit
@@ -911,9 +908,12 @@ object Ast {
     /** After Lower(): types inferred (but not checked!) and 
       * expressions broken apart into statements. */
     object Lower extends Ast {
-        type QN = ClassName
+        type CN = ClassName
+        type CDN = ClassName
         type LN = LocalName
-        type FN = MemberName 
+        type MN = MemberName 
+        type VN = VarName
+        type MDN = MemberName
         type OTR = TypeRef
         type TR = TypeRef
         type NE = AtomicExpr
@@ -922,7 +922,6 @@ object Ast {
         type AstPath = TypedPath
         type Rcvr = LowerRcvr
         type Owner = LowerOwner
-        type TmplLv = Param
         type CSym = Symbol.Class
         type VSym = Symbol.Var
         type LVSym = Symbol.LocalVar

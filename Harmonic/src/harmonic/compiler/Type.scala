@@ -6,7 +6,7 @@ import scala.collection.mutable.Queue
 object Type {
     
     sealed abstract class Ref
-    case class Var(path: Path.Ref, typeVar: Name.MemberVar) extends Ref {
+    case class Var(path: Path.Ref, typeVar: Name.Member) extends Ref {
         override def toString = "%s.%s".format(path, typeVar)
     }
     case class Class(name: Name.Class, typeArgs: List[Type.Arg]) extends Ref {
@@ -22,10 +22,10 @@ object Type {
     }
     
     sealed abstract class Arg
-    case class PathArg(name: Name.MemberVar, rel: PcRel, path: Path.Ref) extends Arg {
+    case class PathArg(name: Name.Member, rel: PcRel, path: Path.Ref) extends Arg {
         override def toString = "%s %s %s".format(name, rel, path)
     }
-    case class TypeArg(name: Name.MemberVar, rel: TcRel, ty: Type.Ref) extends Arg {
+    case class TypeArg(name: Name.Member, rel: TcRel, ty: Type.Ref) extends Arg {
         override def toString = "%s %s %s".format(name, rel, ty)
     }
     
@@ -34,6 +34,6 @@ object Type {
     }
     
     val Object = Type.Class(Name.ObjectClass, List())
-    val Void = Type.Class(Name.VoidQual, List())
+    val Void = Type.Class(Name.VoidClass, List())
     
 }

@@ -18,7 +18,7 @@ object Error {
         }
     }
     
-    case class NoSuchMember(ty: Type.Ref, uName: Name.UnloweredMemberVar) extends Error {
+    case class NoSuchMember(ty: Type.Ref, uName: Name.UnloweredMember) extends Error {
         def report(state: CompilationState, pos: Position) {
             state.reporter.report(pos, "no.such.member", ty.toString, uName.toString)
         }
@@ -30,7 +30,7 @@ object Error {
         }
     }
     
-    case class QualStatic(memberVar: Name.MemberVar) extends Error {
+    case class QualStatic(memberVar: Name.Member) extends Error {
         def report(state: CompilationState, pos: Position) {
             state.reporter.report(
                 pos, "qualified.static",
@@ -39,7 +39,13 @@ object Error {
         }        
     }
     
-    case class ExpStatic(memberVar: Name.MemberVar) extends Error {
+    case class ExpPath(name: Name.Qual) extends Error {
+        def report(state: CompilationState, pos: Position) {
+            state.reporter.report(pos, "exp.path.but.found.class", name.toString)
+        }
+    }
+    
+    case class ExpStatic(memberVar: Name.Member) extends Error {
         def report(state: CompilationState, pos: Position) {
             state.reporter.report(
                 pos, "expected.static",

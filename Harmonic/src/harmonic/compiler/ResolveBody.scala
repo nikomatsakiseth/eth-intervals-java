@@ -112,7 +112,7 @@ extends Resolve(state, compUnit)
                 }
                 case _ =>
             }
-            scope.addEntry(SymTab.InstanceField(Name.MemberVar(className, text)))
+            scope.addEntry(SymTab.InstanceField(Name.Member(className, text)))
         }
     }
     
@@ -240,7 +240,7 @@ extends Resolve(state, compUnit)
                 annotations = cdecl.annotations.map(resolveAnnotation),
                 superClasses = cdecl.superClasses.map(resolveName),
                 pattern = resolve.outParam,
-                members = cdecl.members.map(resolve.scope.resolveMember),
+                members = cdecl.members.map(resolve.scope.resolveMember(className, _)),
                 sym = ()
             )            
         })
@@ -249,20 +249,24 @@ extends Resolve(state, compUnit)
             name = resolveName(ann.name)
         ))
 
-        def resolveMember(mem: in.MemberDecl): out.MemberDecl = withPosOf(mem, mem match {
-            case decl: in.ClassDecl => resolveClassDecl(decl)
-            case decl: in.IntervalDecl => resolveIntervalDecl(decl)
-            case decl: in.MethodDecl => resolveMethodDecl(decl)
-            case decl: in.FieldDecl => resolveFieldDecl(decl)
-            case decl: in.RelDecl => resolveRelDecl(decl)
-        })
+        def resolveMember(className: Name.Class, mem: in.MemberDecl): out.MemberDecl = {
+            withPosOf(mem, mem match {
+                case decl: in.ClassDecl => resolveClassDecl(decl)
+                case decl: in.IntervalDecl => resolveIntervalDecl(className, decl)
+                case decl: in.MethodDecl => resolveMethodDecl(className, decl)
+                case decl: in.FieldDecl => resolveFieldDecl(className, decl)
+                case decl: in.RelDecl => resolveRelDecl(decl)
+            })            
+        }
 
-        def resolveIntervalDecl(decl: in.IntervalDecl) = withPosOf(decl, out.IntervalDecl(
-            annotations = decl.annotations.map(resolveAnnotation),
-            name = decl.name,
-            optParent = decl.optParent.map(resolvePath),
-            optBody = decl.optBody.map(resolveBody)
-        ))
+        def resolveIntervalDecl(className: Name.Class, decl: in.IntervalDecl) = {
+            withPosOf(decl, out.IntervalDecl(
+                annotations = decl.annotations.map(resolveAnnotation),
+                name = out.MemberName(className, decl.name.nm),
+                optParent = decl.optParent.map(resolvePath),
+                optBody = decl.optBody.map(resolveBody)
+            ))            
+        }
         
         def resolveMethodDecl(decl: in.MethodDecl) = {
             val resolveParam = new ResolveMethodParams(this, decl.params)
@@ -283,39 +287,43 @@ extends Resolve(state, compUnit)
             withPosOf(decl, out.DeclPart(decl.ident, outParam))
         }
 
-        def resolveRequirement(requirement: in.PathRequirement) = withPosOf(requirement, out.PathRequirement(
-            left = resolvePath(requirement.left),
-            rel = requirement.rel,
-            right = resolvePath(requirement.right)
-        ))
+        def resolveRequirement(requirement: in.PathRequirement) = {
+            withPosOf(requirement, out.PathRequirement(
+                left = resolvePath(requirement.left),
+                rel = requirement.rel,
+                right = resolvePath(requirement.right)
+            ))
+        }
 
-        def resolveFieldDecl(decl: in.FieldDecl) = withPosOf(decl, out.FieldDecl(
-            annotations = decl.annotations.map(resolveAnnotation),
-            name = decl.name,
-            tref = resolveOptionalTypeRef(decl.tref),
-            ty = (),
-            optBody = decl.optBody.map(resolveBody)
-        ))
+        def resolveFieldDecl(className: Name.Class, decl: in.FieldDecl) = {
+            withPosOf(decl, out.FieldDecl(
+                annotations = decl.annotations.map(resolveAnnotation),
+                name = out.MemberName(className, decl.name),
+                tref = resolveOptionalTypeRef(decl.tref),
+                ty = (),
+                optBody = decl.optBody.map(resolveBody)
+            ))            
+        }
 
-        def resolveRelDecl(decl: in.RelDecl) = withPosOf(decl, out.RelDecl(
-            annotations = decl.annotations.map(resolveAnnotation),
-            left = resolvePath(decl.left),
-            kind = decl.kind,
-            right = resolvePath(decl.right)
-        ))
+        def resolveRelDecl(decl: in.RelDecl) = {
+            withPosOf(decl, out.RelDecl(
+                annotations = decl.annotations.map(resolveAnnotation),
+                left = resolvePath(decl.left),
+                kind = decl.kind,
+                right = resolvePath(decl.right)
+            ))
+        }
 
         // ___ Paths ____________________________________________________________
-        //
-        // 
         
-        type EitherClassNameOr[T] = Either[List[String], T]
+        type EitherQualOr[T] = Either[Name.Qual, T]
         
-        def resolvePathToEither(path: in.AstPath): EitherClassNameOr[out.AstPath] = withPosOfR(path, {
+        def resolvePathToEither(path: in.AstPath): EitherQualOr[out.AstPath] = withPosOfR(path, {
             path match {
                 case in.PathBase(in.SimpleName(text), ()) => {
                     symTab.get(text) match {
                         case None => {
-                            Left(List(text))
+                            Left(resolveAgainstPackage(Name.Root, text))
                         }
 
                         case Some(SymTab.Local(name)) => {
@@ -351,20 +359,36 @@ extends Resolve(state, compUnit)
                     Right(out.PathBase(out.MemberName(name), ()))
                 }
                 
-                case in.PathDot(base, simpleName @ in.SimpleName(text), (), ()) => {
+                case in.PathDot(base, relBase @ in.RelBase(text), (), ()) => {
                     resolvePathToEither(base) match {
-                        case Left(names) => text :: names
-                        case Right(outBase) => out.PathDot(outBase, simpleName, (), ())
+                        case Left(pkgName: Name.Package) =>
+                            Left(resolveAgainstPackage(pkgQual, text))
+                        case Left(className: Name.Class) =>
+                            resolveAgainstClass(clsQual, text) match {
+                                case Some(innerClassName) => Left(innerClassName)
+                                case None => {
+                                    val memberName = Name.Member(className, text)
+                                    Right(out.PathBase(Ast.MemberName(memberName)))
+                                }
+                            }
+                        case Right(outBase) => {
+                            val classlessName = Name.ClasslessMember(text)
+                            Right(out.PathDot(outBase, Ast.ClasslessMemberName(classlessName), (), ()))
+                        }
                     }
                 }
                 
-                case in.PathDot(base, memberName: in.MemberName, (), ()) => {
+                case in.PathDot(base, in.RelDot(relClsName, text), (), ()) => {
                     resolvePathToEither(base) match {
-                        case Left(names) => {
-                            state.reporter.report(path.pos, "no.such.var", names.last)
-                            out.PathErr()                            
+                        case Left(name) => {
+                            Error.ExpPath(name).report(state, path.pos)
+                            Right(out.PathErr(()))
                         }
-                        case Right(outBase) => out.PathDot(outBase, memberName, (), ())
+                        case Right(outBase) => {
+                            val className = resolveName(relClsName).name
+                            val memberName = Name.Member(className, text)
+                            Right(out.PathDot(outBase, Ast.MemberName(memberName), (), ()))
+                        }
                     }
                 }
             }
@@ -374,7 +398,7 @@ extends Resolve(state, compUnit)
             resolvePathToEither(path) match {
                 case Left(names) => {
                     state.reporter.report(path.pos, "no.such.var", names.last)
-                    out.PathErr()
+                    out.PathErr(())
                 }
                 
                 case Right(path) => path

@@ -36,16 +36,11 @@ object Pattern {
     case class SubstdTuple(patterns: List[Pattern.Anon]) extends AnonTuple
     
     case class Var(
-        name: Name.Var,
+        name: Name.LocalVar,
         ty: Type.Ref
     ) extends AnonVar with Ref
     
     case class Tuple(patterns: List[Pattern.Ref]) extends AnonTuple with Ref
-    
-    def createVarSymbols(p: Pattern.Ref): List[Symbol.Var] = p match {
-        case Pattern.Var(name, ty) => List(new Symbol.Var(Modifier.Set.empty, name, ty))
-        case Pattern.Tuple(patterns) => patterns.flatMap(createVarSymbols)
-    }
     
     private case object NoMatch extends Exception
     

@@ -99,8 +99,8 @@ case class Intrinsic(state: CompilationState) {
             Type.Class(
                 Name.Class(templateClass),
                 List(
-                    Type.TypeArg(Name.RVar, TcEq, returnTy),
-                    Type.TypeArg(Name.AVar, TcEq, argumentTy)
+                    Type.TypeArg(Name.BlockR, TcEq, returnTy),
+                    Type.TypeArg(Name.BlockA, TcEq, argumentTy)
                 )
             )
         }
@@ -196,7 +196,7 @@ case class Intrinsic(state: CompilationState) {
         )
         
         // (Iterable<T>) forEach { (T i) -> ... }
-        val typeT = Type.Var(Path.This, Name.MemberVar(iterableTy.name, "T"))
+        val typeT = Type.Var(Path.This, Name.Member(iterableTy.name, "T"))
         state.addIntrinsic(
             new Symbol.Method(
                 pos = InterPosition.forClass(classOf[Intrinsic]),

@@ -7,7 +7,7 @@ object Path {
     case class Base(v: Name.Var) extends Ref {
         override def toString = v.toString
     }
-    case class Field(base: Path.Ref, f: Name.MemberVar) extends Ref {
+    case class Field(base: Path.Ref, f: Name.Member) extends Ref {
         override def toString = base.toString + f.toString
     }
     
