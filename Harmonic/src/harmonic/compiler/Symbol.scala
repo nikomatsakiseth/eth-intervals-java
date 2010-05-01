@@ -119,7 +119,7 @@ object Symbol {
     }
     
     class ClassFromErroroneousSource(
-        name: Name.Qual
+        name: Name.Class
     ) extends PrecompiledClass(name) {
         def modifiers(state: CompilationState) = Modifier.Set.empty
         def constructors(state: CompilationState) = List()
@@ -178,16 +178,11 @@ object Symbol {
             fields.find(_.isNamed(name))
         }
         
-        def allFieldNames(state: CompilationState): List[Name.Member] = {
-            load(state)
-            fields.map(_.name)
-        }
-        
         def setMethodGroups(groups: List[Symbol.MethodGroup]) {}
     }
     
     class ClassFromReflection(
-        name: Name.Qual,
+        name: Name.Class,
         val cls: java.lang.Class[_]
     ) extends Class(name) {
         var optCtors: Option[List[Symbol.Method]] = None
@@ -215,14 +210,10 @@ object Symbol {
         def fieldNamed(state: CompilationState)(name: Name.Var) = {
             Reflect(state).fields(this).find(_.isNamed(name))
         }
-        
-        def allFieldNames(state: CompilationState) = {
-            Reflect(state).fields(this).map(_.name)
-        }
     }
     
     class ClassFromSource(
-        name: Name.Qual
+        name: Name.Class
     ) extends Class(name) {
         def internalImplName = name.internalName + ByteCode.implSuffix
         
@@ -235,17 +226,13 @@ object Symbol {
         def isNamed(aName: Name.Qual) = (name == aName)
         
         def pos = resolvedSource.pos
-        
+
+        // Computed by `ResolveHeader`:
         var superClassNames: List[Name.Class] = Nil
-        
-        var varMembers: Map[Name.Member, Symbol.Kind] = Map.empty
-        
-        def superClassNames(state: CompilationState) = 
-            superClassNames
+        var varMembers: List[SymTab.Entry] = Nil
+        def superClassNames(state: CompilationState) = superClassNames
+        def varMembers(state: CompilationState) = varMembers
             
-        def allFieldNames(state: CompilationState) =
-            allFieldNames
-        
         /** Class declaration with names fully resolved. */
         var resolvedSource: Ast.Resolve.ClassDecl = null
         

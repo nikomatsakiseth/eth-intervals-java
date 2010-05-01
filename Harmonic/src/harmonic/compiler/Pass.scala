@@ -12,5 +12,9 @@ class Pass(
     def addDependency(after: Pass) = {
         dependencies = (after :: dependencies)
     }
+    
+    def addDependencies(afters: List[Pass]) = {
+        dependencies = (afters ::: dependencies)
+    }
 }
 

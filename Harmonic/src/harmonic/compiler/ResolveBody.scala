@@ -126,6 +126,11 @@ extends Resolve(state, compUnit)
         }
     }
     
+    class ResolveBlockParam(scope0: InScope, inParam: in.Param)
+    extends ResolveMethodParams(scope0, List(inParam)) {
+        def outParam = outParams.head
+    }
+    
     class ResolveLvalue(var scope: InScope, inLvalue: in.Lvalue) {
         def resolveLvalue(lvalue: in.Lvalue): out.Lvalue = withPosOf(lvalue, lvalue match {
             case in.TupleLvalue(lvalues) => {
@@ -432,11 +437,8 @@ extends Resolve(state, compUnit)
                 resolvePathToEither(base) match {
                     case Left(qualName) => {
                         val className = Name.Class(qualName, name)
-                        if(!state.loadedOrLoadable(className)) {
-                            Error.CannotResolve(className.toString).report(state, tref.pos)
-                            out.ClassType(Ast.ClassName(Name.ObjectClass), List())
-                        } else
-                            out.ClassType(Ast.ClassName(className), List())
+                        state.requireLoadedOrLoadable(tref.pos, className)
+                        out.ClassType(Ast.ClassName(className), List())
                     }
                     
                     case Right(outBase) =>
@@ -499,7 +501,7 @@ extends Resolve(state, compUnit)
                 outAssign :: outStmts
             }
             case (stmt @ in.Labeled(name, body)) :: stmts => {
-                val outStmt = withPos(stmt, out.Labeled(name, resolveBody(body)))
+                val outStmt = withPosOf(stmt, out.Labeled(name, resolveBody(body)))
                 outStmt :: resolveStmts(stmts)
             }
         }
@@ -514,17 +516,18 @@ extends Resolve(state, compUnit)
         })
 
         def resolveNewAnon(expr: in.NewAnon): out.NewAnon = withPosOf(expr, {
-            out.NewAnon(
-                tref = resolveTypeRef(expr.tref),
-                arg = resolveExpr(expr.arg),
-                members = expr.members.map(resolveMember),
-                csym = (),
-                msym = (),
-                ty = ()
-            )
+            throw new RuntimeException("TODO: Anonymous inner classes")
+            //out.NewAnon(
+            //    tref = resolveTypeRef(expr.tref),
+            //    arg = resolveExpr(expr.arg),
+            //    members = expr.members.map(resolveMember(XXX)),
+            //    csym = (),
+            //    msym = (),
+            //    ty = ()
+            //)
         })
 
-        def pathToExpr(path: out.AstPath): out.Expr = withPosOf(path, {
+        def pathToExpr(path: out.AstPath): out.Expr = withPosOf(path, path match {
             case out.PathErr(_) => 
                 out.Null(())
             case out.PathBase(name: Ast.LocalName, ()) => 
@@ -535,28 +538,26 @@ extends Resolve(state, compUnit)
                 out.Field(pathToExpr(base), name, (), ())
         })
         
-        def resolveVar(expr: Ast.Node, text: String): out.Expr = withPosOf(expr, {
-            val inPath = withPosOf(expr, in.PathBase(expr.name, ()))
+        def resolveVarExpr(expr: in.Var): out.Expr = withPosOf(expr, {
+            val relName = in.RelBase(expr.name.name.text)
+            val inPath = withPosOf(expr, in.PathBase(relName, ()))
             pathToExpr(resolvePathToPath(inPath))
         })
         
         def resolveOwner(owner: in.Owner): out.Owner = withPosOf(owner, {
             owner match {
                 case in.Static(name) => {
-                    state.requireLoadedOrLoadable(name)
+                    state.requireLoadedOrLoadable(owner.pos, name)
                     out.Static(name)
                 }
                 
                 case in.PathExpr(path) => {
                     resolvePathToEither(path) match {
-                        case Left(names) => {
-                            // Could not resolve the owner `a.b` as an expression.
-                            // `a.b` must be a type name and `c` a static field
-                            // for this to be valid.
-                            resolveToClass(names) match {
-                                case None => out.Null(()) // Error in resolving `a.b`.
-                                case Some(className) => out.Static(className)
-                            }
+                        case Left(className: Name.Class) => out.Static(className)
+                        
+                        case Left(pkgName: Name.Package) => {
+                            Error.ExpPath(pkgName).report(state, path.pos)
+                            out.Null(())
                         }
                         
                         case Right(outPath) => pathToExpr(outPath)
@@ -569,10 +570,11 @@ extends Resolve(state, compUnit)
             }
         })
         
-        // Only invoked for the final field in a path.
-        // i.e., Given `a.b.c`, would only be invoked on `.c`.
+        // Only invoked when the owner of the field is
+        // not a path, such as in `a.b().c`
         def resolveField(expr: in.Field) = withPosOf(expr, {
-            out.Field(resolveOwner(expr.owner), expr.name, (), ())
+            val memberName = resolveMemberName(expr.name)
+            out.Field(resolveOwner(expr.owner), memberName, (), ())
         })
         
         def resolveRcvr(rcvr: in.Rcvr): out.Rcvr = withPosOf(rcvr, {
@@ -584,7 +586,7 @@ extends Resolve(state, compUnit)
         
         def resolveMethodCall(expr: in.MethodCall) = {
             out.MethodCall(
-                rcvr = resolveRcvr(rcvr), 
+                rcvr = resolveRcvr(expr.rcvr), 
                 name = expr.name, 
                 args = expr.args.map(resolveExpr),
                 data = ()
@@ -598,7 +600,7 @@ extends Resolve(state, compUnit)
         def resolveExpr(expr: in.Expr): out.Expr = withPosOf(expr, expr match {
             case tuple: in.Tuple => resolveTuple(tuple)
             case tmpl: in.Block => resolveBlock(tmpl)
-            case in.Cast(v, t, ()) => out.Cast(resolveExpr(v), resolveTypeRef(t), ())
+            case in.Cast(v, t) => out.Cast(resolveExpr(v), resolveTypeRef(t))
             case e: in.Literal => resolveLiteral(e)
             case e: in.PathExpr => resolvePathExpr(e)
             case e: in.Var => resolveVarExpr(e)
@@ -608,11 +610,11 @@ extends Resolve(state, compUnit)
             case e: in.NewAnon => resolveNewAnon(e)
             case in.Null(()) => out.Null(())
             case in.ImpVoid(()) => out.ImpVoid(())
-            case in.ImpThis(()) => out.Var(Ast.LocalName(Name.ThisVar), ())
+            case in.ImpThis(()) => out.Var(Ast.LocalName(Name.ThisLocal), ())
         })
 
         def resolveLiteral(expr: in.Literal) = {
-            state.requireLoadedOrLoadable(expr.pos, Name.Qual(expr.obj.getClass))
+            state.requireLoadedOrLoadable(expr.pos, Name.Class(expr.obj.getClass))
             out.Literal(expr.obj, ())            
         }
 
@@ -620,16 +622,16 @@ extends Resolve(state, compUnit)
             out.Tuple(tuple.exprs.map(resolveExpr))
         )
 
-        def resolveBlock(tmpl: in.Block) = withPosOf(tmpl, 
+        def resolveBlock(tmpl: in.Block) = withPosOf(tmpl, {
+            val param = new ResolveBlockParam(this, tmpl.param)
             out.Block(
                 async = tmpl.async,
-                returnTref = resolveOptionalTypeRef(tmpl.returnTref),
-                returnTy = (),
-                param = resolveTupleLocal(tmpl.param),
-                stmts = resolveStmts(tmpl.stmts),
+                returnTref = param.scope.resolveOptionalTypeRef(tmpl.returnTref),
+                param = param.outParam,
+                stmts = param.scope.resolveStmts(tmpl.stmts),
                 ty = ()
             )
-        )
+        })
 
         def resolveBody(body: in.Body) = withPosOf(body, 
             out.Body(resolveStmts(body.stmts))

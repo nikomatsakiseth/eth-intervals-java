@@ -22,21 +22,18 @@ extends Resolve(state, compUnit)
         csym: Symbol.ClassFromSource,
         cdecl: in.ClassDecl
     ) {
-        csym.superClassNames = cdecl.superClasses.map(resolveName).map(_.className)
-        val superCsyms = superClassNames.map(state.classes)
+        csym.superClassNames = cdecl.superClasses.map(resolveName).map(_.name)
+        val superCsyms = csym.superClassNames.map(state.classes)
         val superHeaderPasses = superCsyms.flatMap(_.resolveHeader)
-        csym.resolveHeaderClosure.foreach(_.addDependency(superHeaderPasses))
+        csym.resolveHeaderClosure.foreach(_.addDependencies(superHeaderPasses))
         
-        csym.varMembers = cdecl.members.foldLeft(Map[Name.Member, VarKind]()) {
-            case (m, decl: in.IntervalDecl) => {
-                m + (Name.Member(csym.name, decl.name.nm) -> Symbol.FieldKind)                
-            }
-            
-            case (m, decl: in.FieldDecl) => {
-                m + (Name.Member(csym.name, decl.name.nm) -> Symbol.FieldKind)
-            }
-            
-            case (m, _) => m
+        csym.varMembers = cdecl.members.flatMap {
+            case decl: in.IntervalDecl =>
+                Some(SymTab.InstanceField(Name.Member(csym.name, decl.name.nm)))
+            case decl: in.FieldDecl =>
+                Some(SymTab.InstanceField(Name.Member(csym.name, decl.name.nm)))
+            case _ =>
+                None
         }
     }
     
