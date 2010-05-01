@@ -245,7 +245,7 @@ extends Resolve(state, compUnit)
         def resolveMember(className: Name.Class, mem: in.MemberDecl): out.MemberDecl = withPosOf(mem, {
             mem match {
                 case decl: in.IntervalDecl => resolveIntervalDecl(className, decl)
-                case decl: in.MethodDecl => resolveMethodDecl(className, decl)
+                case decl: in.MethodDecl => resolveMethodDecl(decl)
                 case decl: in.FieldDecl => resolveFieldDecl(className, decl)
                 case decl: in.RelDecl => resolveRelDecl(decl)
             }
@@ -255,7 +255,7 @@ extends Resolve(state, compUnit)
             out.IntervalDecl(
                 annotations = decl.annotations.map(resolveAnnotation),
                 name = Ast.MemberName(Name.Member(className, decl.name.nm)),
-                optParent = decl.optParent.map(resolvePath),
+                optParent = decl.optParent.map(resolvePathToPath),
                 optBody = decl.optBody.map(resolveBody)
             )
         })
@@ -274,23 +274,18 @@ extends Resolve(state, compUnit)
             )
         })
 
-        def resolveDeclPart(pair: (in.DeclPart, out.Param)) = withPosOf(decl, {
-            val (decl, outParam) = pair
-            out.DeclPart(decl.ident, outParam)
-        })
-
         def resolveRequirement(requirement: in.PathRequirement) = withPosOf(requirement, {
             out.PathRequirement(
-                left = resolvePath(requirement.left),
+                left = resolvePathToPath(requirement.left),
                 rel = requirement.rel,
-                right = resolvePath(requirement.right)
+                right = resolvePathToPath(requirement.right)
             )
         })
 
         def resolveFieldDecl(className: Name.Class, decl: in.FieldDecl) = withPosOf(decl, {
             out.FieldDecl(
                 annotations = decl.annotations.map(resolveAnnotation),
-                name = out.MemberName(className, decl.name),
+                name = Ast.MemberName(Name.Member(className, decl.name.nm)),
                 tref = resolveOptionalTypeRef(decl.tref),
                 optBody = decl.optBody.map(resolveBody)
             )
@@ -311,7 +306,7 @@ extends Resolve(state, compUnit)
         
         def resolvePathToEither(path: in.AstPath): EitherQualOr[out.AstPath] = withPosOfR(path, {
             path match {
-                case in.PathBase(in.SimpleName(text), ()) => {
+                case in.PathBase(in.RelBase(text), ()) => {
                     symTab.get(text) match {
                         case None => {
                             Left(resolveAgainstPackage(Name.Root, text))
@@ -321,33 +316,33 @@ extends Resolve(state, compUnit)
                             Right(out.PathBase(Ast.LocalName(name), ()))
                         }
 
-                        case Some(SymTab.Type(_)) => {
-                            state.reporter.report(expr.pos, "cannot.use.type.var.here", expr)
-                            Right(out.PathErr(()))
+                        case Some(SymTab.Type(mname)) => {
+                            Error.NotField(mname).report(state, path.pos)
+                            Right(out.PathErr(path.toString))
                         }
 
-                        case Some(SymTab.InstanceField(name)) if isStatic => {
-                            state.reporter.report(expr.pos, "cannot.reference.in.static.context", name.toString)
-                            Right(out.PathErr(()))
+                        case Some(SymTab.InstanceField(mname)) if isStatic => {
+                            Error.NotInStaticScope(mname).report(state, path.pos)
+                            Right(out.PathErr(path.toString))
                         }
                             
-                        case Some(SymTab.InstanceField(name)) => {
-                            Right(out.PathField(
-                                out.Var(Ast.LocalName(Name.ThisVar), ()),
+                        case Some(SymTab.InstanceField(mname)) => {
+                            Right(out.PathDot(
+                                out.Var(Ast.LocalName(mname.ThisVar), ()),
                                 Ast.MemberName(name),
                                 (), ()
                             ))
                         }
 
                         case Some(SymTab.StaticField(name)) => {
-                            Right(out.PathBase(out.MemberName(name), ()))
+                            Right(out.PathBase(Ast.MemberName(name), ()))
                         }
                     }
                 }
                 
-                case in.PathBase(memberName: in.MemberName, ()) => {
-                    // TODO Find out whether member is static or not.
-                    Right(out.PathBase(out.MemberName(name), ()))
+                case in.PathBase(relName, ()) => {
+                    // TODO we assume `relName` is static, but it could refer to a field of `this`
+                    Right(out.PathBase(resolveMemberName(relName), ()))
                 }
                 
                 case in.PathDot(base, relBase @ in.RelBase(text), (), ()) => {
@@ -385,9 +380,9 @@ extends Resolve(state, compUnit)
         
         def resolvePathToPath(path: in.AstPath) = withPosOf(path, {
             resolvePathToEither(path) match {
-                case Left(names) => {
-                    state.reporter.report(path.pos, "no.such.var", names.last)
-                    out.PathErr(())
+                case Left(name) => {
+                    Error.ExpPath(name).report(state, path.pos)
+                    out.PathErr(path.toString)
                 }
                 
                 case Right(path) => path
@@ -398,14 +393,10 @@ extends Resolve(state, compUnit)
             resolvePathToEither(path) match {
                 case Left(names) =>
                     resolveToClass(tref.pos, names).getOrElse(Name.ObjectClass)
-                        
+
                 case Right(path) => {
-                    state.reporter.report(
-                        tref.pos,
-                        "expected.type.here",
-                        path.toString
-                    )              
-                    Name.ObjectClass      
+                    Error.ExpType(path).report(state, path.pos)
+                    Name.ObjectClass
                 }
             }
         })

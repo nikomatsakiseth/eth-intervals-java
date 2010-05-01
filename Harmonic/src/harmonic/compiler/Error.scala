@@ -69,6 +69,12 @@ object Error {
         }
     }
     
+    case class ExpType(path: Ast#AstPath) extends Error {
+        def report(state: CompilationState, pos: Position) {
+            state.reporter.report(pos, "exp.class.but.found.path", path.toString)
+        }
+    }
+    
     case class ExpStatic(memberVar: Name.Member) extends Error {
         def report(state: CompilationState, pos: Position) {
             state.reporter.report(
@@ -96,11 +102,11 @@ object Error {
         }
     }
     
-    case class NotField(entry: SymTab.MemberEntry) extends Error {
+    case class NotField(name: Name.Member) extends Error {
         def report(state: CompilationState, pos: Position) {
             state.reporter.report(
                 pos, "not.a.field", 
-                entry.name.toString
+                name.toString
             )
         }
     }

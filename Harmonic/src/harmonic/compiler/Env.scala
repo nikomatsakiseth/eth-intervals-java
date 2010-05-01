@@ -181,7 +181,7 @@ case class Env(
         lookupMember(ownerTy, uName) {
             case SymTab.InstanceField(memberVar) => findSym(memberVar)
             case SymTab.StaticField(memberVar) => findSym(memberVar)
-            case entry => Left(Error.NotField(entry))
+            case entry => Left(Error.NotField(entry.name))
         }
     }
     
