@@ -126,7 +126,7 @@ extends Resolve(state, compUnit)
         }
     }
     
-    class ResolveLvalue(var scope: InScope, inLvalue: List[in.Lvalue]) {
+    class ResolveLvalue(var scope: InScope, inLvalue: in.Lvalue) {
         def resolveLvalue(lvalue: in.Lvalue): out.Lvalue = withPosOf(lvalue, lvalue match {
             case in.TupleLvalue(lvalues) => {
                 val outLvalues = lvalues.map(resolveLvalue)
@@ -238,74 +238,72 @@ extends Resolve(state, compUnit)
             )            
         })
 
-        def resolveAnnotation(ann: in.Annotation) = withPosOf(ann, out.Annotation(
-            name = resolveName(ann.name)
-        ))
+        def resolveAnnotation(ann: in.Annotation) = withPosOf(ann, 
+            out.Annotation(resolveName(ann.name))
+        )
 
-        def resolveMember(className: Name.Class, mem: in.MemberDecl): out.MemberDecl = {
-            withPosOf(mem, mem match {
-                case decl: in.ClassDecl => resolveClassDecl(decl)
+        def resolveMember(className: Name.Class, mem: in.MemberDecl): out.MemberDecl = withPosOf(mem, {
+            mem match {
                 case decl: in.IntervalDecl => resolveIntervalDecl(className, decl)
                 case decl: in.MethodDecl => resolveMethodDecl(className, decl)
                 case decl: in.FieldDecl => resolveFieldDecl(className, decl)
                 case decl: in.RelDecl => resolveRelDecl(decl)
-            })            
-        }
+            }
+        })
 
-        def resolveIntervalDecl(className: Name.Class, decl: in.IntervalDecl) = {
-            withPosOf(decl, out.IntervalDecl(
+        def resolveIntervalDecl(className: Name.Class, decl: in.IntervalDecl) = withPosOf(decl, {
+            out.IntervalDecl(
                 annotations = decl.annotations.map(resolveAnnotation),
-                name = out.MemberName(className, decl.name.nm),
+                name = Ast.MemberName(Name.Member(className, decl.name.nm)),
                 optParent = decl.optParent.map(resolvePath),
                 optBody = decl.optBody.map(resolveBody)
-            ))            
-        }
+            )
+        })
         
-        def resolveMethodDecl(decl: in.MethodDecl) = {
+        def resolveMethodDecl(decl: in.MethodDecl) = withPosOf(decl, {
             val resolveParam = new ResolveMethodParams(this, decl.params)
             val mthdScope = resolveParam.scope
-            withPosOf(decl, out.MethodDecl(
+            out.MethodDecl(
                 annotations = decl.annotations.map(mthdScope.resolveAnnotation),
                 receiverSym = (),
-                parts = decl.parts.zip(resolveParam.outParams).map(mthdScope.resolveDeclPart),
+                name = decl.name,
+                params = resolveParam.outParams,
                 returnTref = mthdScope.resolveOptionalTypeRef(decl.returnTref),
-                returnTy = (),
                 requirements = decl.requirements.map(mthdScope.resolveRequirement),
                 optBody = decl.optBody.map(mthdScope.resolveBody)
-            ))
-        }
+            )
+        })
 
-        def resolveDeclPart(pair: (in.DeclPart, out.Param)) = {
+        def resolveDeclPart(pair: (in.DeclPart, out.Param)) = withPosOf(decl, {
             val (decl, outParam) = pair
-            withPosOf(decl, out.DeclPart(decl.ident, outParam))
-        }
+            out.DeclPart(decl.ident, outParam)
+        })
 
-        def resolveRequirement(requirement: in.PathRequirement) = {
-            withPosOf(requirement, out.PathRequirement(
+        def resolveRequirement(requirement: in.PathRequirement) = withPosOf(requirement, {
+            out.PathRequirement(
                 left = resolvePath(requirement.left),
                 rel = requirement.rel,
                 right = resolvePath(requirement.right)
-            ))
-        }
+            )
+        })
 
-        def resolveFieldDecl(className: Name.Class, decl: in.FieldDecl) = {
-            withPosOf(decl, out.FieldDecl(
+        def resolveFieldDecl(className: Name.Class, decl: in.FieldDecl) = withPosOf(decl, {
+            out.FieldDecl(
                 annotations = decl.annotations.map(resolveAnnotation),
                 name = out.MemberName(className, decl.name),
                 tref = resolveOptionalTypeRef(decl.tref),
-                ty = (),
                 optBody = decl.optBody.map(resolveBody)
-            ))            
-        }
+            )
+        })
 
-        def resolveRelDecl(decl: in.RelDecl) = {
-            withPosOf(decl, out.RelDecl(
+        def resolveRelDecl(decl: in.RelDecl) = withPosOf(decl, {
+            out.RelDecl(
                 annotations = decl.annotations.map(resolveAnnotation),
-                left = resolvePath(decl.left),
+                left = resolvePathToPath(decl.left),
                 kind = decl.kind,
-                right = resolvePath(decl.right)
-            ))
-        }
+                right = resolvePathToPath(decl.right)
+            )
+        })
 
         // ___ Paths ____________________________________________________________
         
@@ -480,7 +478,7 @@ extends Resolve(state, compUnit)
         
         // ___ Statements and Expressions _______________________________________
         
-        def resolveStmts(stmts: List[in.Stmt]): out.Stmt = stmts match {
+        def resolveStmts(stmts: List[in.Stmt]): List[out.Stmt] = stmts match {
             case (expr: in.Expr) :: stmts => 
                 resolveExpr(expr) :: resolveStmts(stmts)
                 
@@ -604,21 +602,23 @@ extends Resolve(state, compUnit)
             out.Literal(expr.obj, ())            
         }
 
-        def resolveTuple(tuple: in.Tuple) = withPosOf(tuple, out.Tuple(
-            exprs = tuple.exprs.map(resolveExpr)
-        ))
+        def resolveTuple(tuple: in.Tuple) = withPosOf(tuple, 
+            out.Tuple(tuple.exprs.map(resolveExpr))
+        )
 
-        def resolveBlock(tmpl: in.Block) = withPosOf(tmpl, out.Block(
-            async = tmpl.async,
-            returnTref = resolveOptionalTypeRef(tmpl.returnTref),
-            returnTy = (),
-            param = resolveTupleLocal(tmpl.param),
-            stmts = resolveStmts(tmpl.stmts),
-            ty = ()
-        ))
+        def resolveBlock(tmpl: in.Block) = withPosOf(tmpl, 
+            out.Block(
+                async = tmpl.async,
+                returnTref = resolveOptionalTypeRef(tmpl.returnTref),
+                returnTy = (),
+                param = resolveTupleLocal(tmpl.param),
+                stmts = resolveStmts(tmpl.stmts),
+                ty = ()
+            )
+        )
 
-        def resolveBody(body: in.Body) = withPosOf(body, out.Body(
-            stmts = resolveStmts(body.stmts)
-        ))
+        def resolveBody(body: in.Body) = withPosOf(body, 
+            out.Body(resolveStmts(body.stmts))
+        )
     }
 }
