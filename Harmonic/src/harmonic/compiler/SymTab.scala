@@ -4,6 +4,7 @@ object SymTab {
     sealed abstract class Entry {
         def name: Name.Var
         def asMemberEntryMatching(uName: Name.UnloweredMember): Option[MemberEntry]
+        def isInstanceFieldNamed(aName: Name.Member): Boolean = false
     }
     sealed abstract class MemberEntry extends Entry {
         def name: Name.Member
@@ -15,6 +16,7 @@ object SymTab {
         def isConstrainableInTypeArg: Boolean = false
     }
     sealed case class InstanceField(name: Name.Member) extends MemberEntry {
+        def isInstanceFieldNamed(aName: Name.Member): Boolean = (name == aName)
         def isConstrainableInPathArg = true
     }
     sealed case class StaticField(name: Name.Member) extends MemberEntry

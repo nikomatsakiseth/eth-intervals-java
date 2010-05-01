@@ -69,9 +69,9 @@ object Error {
         }
     }
     
-    case class ExpType(path: Ast#AstPath) extends Error {
+    case class ExpClassName(path: String) extends Error {
         def report(state: CompilationState, pos: Position) {
-            state.reporter.report(pos, "exp.class.but.found.path", path.toString)
+            state.reporter.report(pos, "exp.class", path)
         }
     }
     

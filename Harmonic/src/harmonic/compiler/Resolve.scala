@@ -117,7 +117,7 @@ abstract class Resolve(state: CompilationState, compUnit: in.CompUnit) {
         case in.RelDot(context, name) => name :: relNameToRelList(context)
     }
     
-    def resolveName(relName: in.RelName) = withPosOf(relName, {
+    def resolveName(relName: in.RelName): Ast.ClassName = withPosOf(relName, {
         val className = resolveToClass(relName.pos, relNameToRelList(relName)).getOrElse(Name.ObjectClass)
         Ast.ClassName(className)
     })
