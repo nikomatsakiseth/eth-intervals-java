@@ -949,7 +949,7 @@ object Ast {
             case pat: VarAstPattern => Pattern.SubstdVar(pat.sym.ty)
         }
         
-        def methodId(clsName: Name.Qual, mdecl: MethodDecl) = {
+        def methodId(clsName: Name.Class, mdecl: MethodDecl) = {
             Symbol.MethodId(clsName, mdecl.name, mdecl.params.map(toPatternRef))
         }
             

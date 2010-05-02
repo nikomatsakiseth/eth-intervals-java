@@ -67,6 +67,8 @@ class CompilationState(
         }
     }
     
+    def compile() = drain()
+    
     // ___ Intrinsics _______________________________________________________
     
     val intrinsics = new mutable.HashMap[(Name.Qual, Name.Method), List[Symbol.Method]]()

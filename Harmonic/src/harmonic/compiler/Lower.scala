@@ -327,6 +327,15 @@ case class Lower(state: CompilationState) {
         (inputs.map { case (e, p) => lowerParam(e, p) }, env)
     }
     
+    def methodId(
+        csym: Symbol.ClassFromSource,
+        mdecl: in.MethodDecl
+    ) = {
+        val (outParams, _) = lowerMethodParams(ThisEnv(csym), mdecl.params)
+        val patterns = outParams.map(out.toPatternRef)
+        Symbol.MethodId(csym.name, mdecl.name, patterns)
+    }
+    
     def extractMethodSignature(
         csym: Symbol.ClassFromSource, 
         inParams: List[in.Param],

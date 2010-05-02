@@ -402,8 +402,8 @@ object Symbol {
     }
     
     abstract class MemberId
-    case class MethodId(clsName: Name.Qual, methodName: Name.Method, parameterPatterns: List[Pattern.Ref]) extends MemberId
-    case class FieldId(clsName: Name.Qual, methodName: Name.Method) extends MemberId
+    case class MethodId(clsName: Name.Class, methodName: Name.Method, parameterPatterns: List[Pattern.Ref]) extends MemberId
+    case class FieldId(clsName: Name.Class, methodName: Name.Method) extends MemberId
     
     /** A method group consists of a list of method symbols which override one
       * another.  Methods override one another when (a) they have the same name
