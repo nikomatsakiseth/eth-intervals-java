@@ -729,7 +729,7 @@ case class ByteCode(state: CompilationState) {
                     )
                 }
                 
-                case in.MethodCall(receiver: in.AtomicExpr, name, args, (msym, msig)) => {
+                case in.MethodCall(receiver: in.Var, name, args, (msym, msig)) => {
                     def callWithDetails(op: Int, ownerAsmType: asm.Type, desc: String) = {
                         pushExprValue(receiver)
                         pushMethodArgs(msig, args)
