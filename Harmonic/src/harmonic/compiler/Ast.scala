@@ -36,7 +36,7 @@ abstract class Ast {
     type Expr <: ParseTlExpr
     
     /** The form of expressions */
-    type AstPath <: Node
+    type AstPath <: TypedNode
     
     /** Nested expressions eventually become restricted */
     type NE <: ParseTlExpr
@@ -75,6 +75,7 @@ abstract class Ast {
     type MCallData
     
     def errTy: Ty
+    def toTy(ty: Type.Ref): Ty
     def vsymTy(vsym: VSym): Ty
     def trefTy(tref: TR): Ty
     def tupleTy(tys: List[Ty]): TyTuple
@@ -91,6 +92,10 @@ abstract class Ast {
     
     private def printSep(out: PrettyPrinter, asts: List[Node], sep: String) {
         printSepFunc(out, asts, () => out.write(sep))
+    }
+    
+    sealed abstract trait TypedNode extends Node {
+        def ty: Ty
     }
     
     // ___ Pre-resolve Type Names ___________________________________________
@@ -500,7 +505,7 @@ abstract class Ast {
     // 
     // Paths are like mini-expressions that always have the form `a.b.c`
     
-    sealed abstract trait ParsePath extends Node {
+    sealed abstract trait ParsePath extends TypedNode {
         def ty: Ty
     }
     
@@ -518,7 +523,9 @@ abstract class Ast {
         override def toString = owner + "." + name
     }
     
-    case class TypedPath(path: Path.Typed) extends Node
+    case class TypedPath(path: Path.Typed) extends TypedNode {
+        def ty = toTy(path.ty)
+    }
     
     // ___ Statements and Expressions _______________________________________
     
@@ -542,8 +549,11 @@ abstract class Ast {
         }
     }
     
+    /** Those statements that are still used after resolve. */
+    sealed abstract trait ResolveStmt extends ParseStmt
+    
     /** Those statements that are still used after lowering. */
-    sealed abstract trait LowerStmt extends ParseStmt
+    sealed abstract trait LowerStmt extends ResolveStmt
 
     /** Any expression at all. */
     sealed abstract trait AnyExpr extends Node {
@@ -560,7 +570,7 @@ abstract class Ast {
     sealed abstract trait ParseTlExpr extends ParseRcvr with ParseOwner with ParseStmt
     
     /** Top-level expressions after resolve. */
-    sealed abstract trait ResolveTlExpr extends ParseTlExpr
+    sealed abstract trait ResolveTlExpr extends ParseTlExpr with ResolveStmt
     
     /** Method receivers after lowering. */
     sealed abstract trait LowerRcvr extends ParseRcvr
@@ -652,6 +662,7 @@ abstract class Ast {
     // nodes.  This helps to reduce duplicate code during
     // the reduction phase.
     case class PathExpr(path: AstPath) extends ParseTlExpr {
+        def ty = path.ty
         override def toString = path.toString
         override def print(out: PrettyPrinter) {
             path.print(out)
@@ -861,11 +872,12 @@ object Ast {
         type TyTuple = Unit
         
         def errTy = ()
-        def trefTy(tref: Unit) = ()
-        def vsymTy(unit: Unit) = ()
+        def toTy(ty: Type.Ref) = ()
+        def trefTy(tref: TR) = ()
+        def vsymTy(unit: VSym) = ()
         def tupleTy(tys: List[Ty]) = ()
-        def mthdSym(unit: Unit) = ()
-        def returnTy(unit: Unit) = ()
+        def mthdSym(unit: MSym) = ()
+        def returnTy(unit: MCallData) = ()
         
         def definedClasses(cunit: CompUnit) =
             cunit.classes.map(cdecl => (cdecl.name.toClass(cunit.pkg.name), cdecl))
@@ -882,7 +894,7 @@ object Ast {
         type OTR = OptionalResolveTypeRef
         type TR = ResolveTypeRef
         type NE = ResolveTlExpr
-        type Stmt = ParseStmt
+        type Stmt = ResolveStmt
         type Expr = ResolveTlExpr
         type AstPath = ParsePath
         type Rcvr = ParseRcvr
@@ -898,11 +910,12 @@ object Ast {
         type TyTuple = Unit
 
         def errTy = ()
-        def trefTy(tref: Unit) = ()
-        def vsymTy(unit: Unit) = ()
+        def toTy(ty: Type.Ref) = ()
+        def trefTy(tref: TR) = ()
+        def vsymTy(unit: VSym) = ()
         def tupleTy(tys: List[Ty]) = ()
-        def mthdSym(unit: Unit) = ()
-        def returnTy(unit: Unit) = ()
+        def mthdSym(unit: MSym) = ()
+        def returnTy(unit: MCallData) = ()
     }
 
     /** After Lower(): types inferred (but not checked!) and 
@@ -933,9 +946,10 @@ object Ast {
         type TyTuple = Type.Tuple
 
         def errTy = Type.Object
-        def trefTy(tref: TypeRef) = tref.ty
-        def vsymTy(vsym: Symbol.Var) = vsym.ty
-        def tupleTy(tys: List[Type.Ref]) = Type.Tuple(tys)
+        def toTy(ty: Type.Ref) = ty
+        def trefTy(tref: TR) = tref.ty
+        def vsymTy(vsym: VSym) = vsym.ty
+        def tupleTy(tys: List[Ty]) = Type.Tuple(tys)
         def mthdSym(data: MCallData) = data._1
         def returnTy(data: MCallData) = data._2.returnTy
         

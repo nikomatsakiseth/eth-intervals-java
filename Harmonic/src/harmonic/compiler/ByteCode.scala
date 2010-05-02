@@ -439,14 +439,14 @@ case class ByteCode(state: CompilationState) {
         rcvr match {
             case in.Static(_) => summary
             case in.Super(_) => summary
-            case expr: in.AtomicExpr => summarizeSymbolsInExpr(summary, expr)
+            case expr: in.Var => summarizeSymbolsInExpr(summary, expr)
         }
     }
     
     def summarizeSymbolsInOwner(summary: SymbolSummary, owner: in.Owner): SymbolSummary = {
         owner match {
             case in.Static(_) => summary
-            case expr: in.AtomicExpr => summarizeSymbolsInExpr(summary, expr)
+            case expr: in.Var => summarizeSymbolsInExpr(summary, expr)
         }
     }
     
@@ -592,12 +592,13 @@ case class ByteCode(state: CompilationState) {
         }
         
         def contract(lvalue: in.Lvalue) {
+            def storeSym(sym: Symbol.Var) =
+                accessMap.syms(sym).storeLvalueWithoutPush(mvis)
             lvalue match {
-                case in.TupleLvalue(sublvalues) =>
-                    sublvalues.reverse.foreach(contract)
-                
-                case varPat: in.VarAstPattern =>
-                    accessMap.syms(varPat.sym).storeLvalueWithoutPush(mvis)
+                case in.TupleLvalue(sublvalues) => sublvalues.reverse.foreach(contract)
+                case in.DeclareVarLvalue(_, _, _, sym) => storeSym(sym)
+                case in.ReassignVarLvalue(_, sym) => storeSym(sym)
+                case in.FieldLvalue(_, sym) => storeSym(sym)
             }
         }
         
@@ -693,7 +694,7 @@ case class ByteCode(state: CompilationState) {
                     )
                 }
                 
-                case in.Var(name, sym) => {
+                case in.Var(_, sym) => {
                     accessMap.syms(sym).push(mvis)
                 }
                 

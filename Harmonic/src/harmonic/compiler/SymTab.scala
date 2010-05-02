@@ -16,18 +16,18 @@ object SymTab {
         def isConstrainableInTypeArg: Boolean = false
     }
     sealed case class InstanceField(name: Name.Member) extends MemberEntry {
-        def isInstanceFieldNamed(aName: Name.Member): Boolean = (name == aName)
-        def isConstrainableInPathArg = true
+        override def isInstanceFieldNamed(aName: Name.Member): Boolean = (name == aName)
+        override def isConstrainableInPathArg = true
     }
     sealed case class StaticField(name: Name.Member) extends MemberEntry
     sealed case class Type(name: Name.Member) extends MemberEntry {
-        def isConstrainableInTypeArg = true
+        override def isConstrainableInTypeArg = true
     }
     sealed case class Ghost(name: Name.Member) extends MemberEntry {
-        def isConstrainableInPathArg = true        
+        override def isConstrainableInPathArg = true        
     }
     sealed case class LocalVar(name: Name.LocalVar) extends Entry {
-        def asMemberEntryMatching(uName: Name.UnloweredMember) = None        
+        override def asMemberEntryMatching(uName: Name.UnloweredMember) = None        
     }
     
     type Map = scala.collection.immutable.Map[String, Entry]

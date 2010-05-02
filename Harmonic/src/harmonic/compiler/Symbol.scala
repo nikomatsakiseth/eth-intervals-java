@@ -107,7 +107,7 @@ object Symbol {
     }
     
     // Just provides useful defaults.
-    class PrecompiledClass(name: Name.Class) extends Class(name) {
+    abstract class PrecompiledClass(name: Name.Class) extends Class(name) {
         def internalImplName = name.internalName
         def pos = InterPosition.forClassNamed(name)
         def resolveHeader = List()
@@ -122,11 +122,12 @@ object Symbol {
         name: Name.Class
     ) extends PrecompiledClass(name) {
         def modifiers(state: CompilationState) = Modifier.Set.empty
-        def constructors(state: CompilationState) = List()
-        def superClassNames(state: CompilationState) = List()
-        def methodsNamed(state: CompilationState)(name: Name.Method) = List()
-        def fieldNamed(state: CompilationState)(name: Name.Var) = None
-        def allMethodSymbols(state: CompilationState) = List()
+        def constructors(state: CompilationState) = Nil
+        def superClassNames(state: CompilationState) = Nil
+        def methodsNamed(state: CompilationState)(name: Name.Method) = Nil
+        def fieldNamed(state: CompilationState)(name: Name.Member) = None
+        def allMethodSymbols(state: CompilationState) = Nil
+        def varMembers(state: CompilationState) = Nil
     }
     
     class ClassFromClassFile(
@@ -139,7 +140,8 @@ object Symbol {
         var superClassNames = List[Name.Qual]()
         var methods = List[Symbol.Method]()
         var fields = List[Symbol.Field]()
-        def pos = InterPosition.forFile(file)
+        var varMembers = List[SymTab.Entry]()
+        override def pos = InterPosition.forFile(file)
         
         def load(state: CompilationState) {
             if(!loaded) {
@@ -163,6 +165,11 @@ object Symbol {
             superClassNames
         }
         
+        def varMembers(state: CompilationState) = {
+            load(state)
+            varMembers
+        }
+        
         def methodsNamed(state: CompilationState)(name: Name.Method) = {
             load(state)
             methods.filter(_.isNamed(name))
@@ -173,26 +180,29 @@ object Symbol {
             methods
         }
         
-        def fieldNamed(state: CompilationState)(name: Name.Var) = {
+        def fieldNamed(state: CompilationState)(name: Name.Member) = {
             load(state)
             fields.find(_.isNamed(name))
         }
-        
-        def setMethodGroups(groups: List[Symbol.MethodGroup]) {}
     }
     
     class ClassFromReflection(
         name: Name.Class,
         val cls: java.lang.Class[_]
-    ) extends Class(name) {
+    ) extends PrecompiledClass(name) {
         var optCtors: Option[List[Symbol.Method]] = None
         var optMethods: Option[List[Symbol.Method]] = None
         var optFields: Option[List[Symbol.Field]] = None
+        var optVarMembers: Option[List[SymTab.Entry]] = None
         
         def modifiers(state: CompilationState) = Modifier.forClass(cls)
         
         def constructors(state: CompilationState) = {
             Reflect(state).ctors(this)
+        }
+        
+        def varMembers(state: CompilationState) = {
+            Reflect(state).varMembers(this)
         }
         
         def superClassNames(state: CompilationState) = {
@@ -207,7 +217,7 @@ object Symbol {
             Reflect(state).methods(this)
         }
         
-        def fieldNamed(state: CompilationState)(name: Name.Var) = {
+        def fieldNamed(state: CompilationState)(name: Name.Member) = {
             Reflect(state).fields(this).find(_.isNamed(name))
         }
     }
@@ -284,7 +294,7 @@ object Symbol {
             methodSymbols.valuesIterator.toList.flatten            
         }
         
-        def fieldNamed(state: CompilationState)(name: Name.Var) =
+        def fieldNamed(state: CompilationState)(name: Name.Member) =
             None // TODO: Fields for Harmonic sources.
     }
     
@@ -359,7 +369,7 @@ object Symbol {
         def thisPattern: Pattern.Var = Pattern.Var(Name.ThisLocal, receiverTy)
     }
     
-    sealed abstract class Var {
+    sealed abstract class Var extends Ref {
         def modifierSet: Modifier.Set
         def name: Name.Var
         def ty: Type.Ref

@@ -14,7 +14,7 @@ object Util {
     def withPosOf[P <: Positional, Q <: Product with Positional](from: P, to: Q): Q = {
         to.setPos(from.pos)
         if(to.pos == from.pos) { // we may have changed it, update sub-items
-            to.productElements.foreach { 
+            to.productIterator.foreach { 
                 case to0: (Product with Positional) => withPosOf(from, to0)
                 case _ => ()
             }

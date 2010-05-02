@@ -69,7 +69,7 @@ extends Resolve(state, compUnit)
         csym.varMembers(state).foldLeft(superSymTab)(_ + _)
     }
     
-    class ResolveParams(var scope: InScope, inParams: List[in.Param]) {
+    abstract class ResolveParams(var scope: InScope, inParams: List[in.Param]) {
         def addEntry(pos: Position, text: String): InScope
         
         def resolveParam(param: in.Param): out.Param = withPosOf(param, param match {
@@ -354,7 +354,7 @@ extends Resolve(state, compUnit)
                 
                 case in.PathBase(relDot: in.RelDot, ()) => {
                     val memberName = resolveDottedMemberName(relDot)
-                    if(symTab.values.exists(_.isInstanceFieldNamed(memberName.name)))
+                    if(symTab.valuesIterator.exists(_.isInstanceFieldNamed(memberName.name)))
                         Right(thisField(memberName.name))
                     else 
                         Right(out.PathBase(memberName, ()))
