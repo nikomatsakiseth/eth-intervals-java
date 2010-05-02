@@ -493,12 +493,12 @@ abstract class Ast {
     // ___ Paths ____________________________________________________________
     // 
     // Paths are like mini-expressions that always have the form `a.b.c`
+
+    sealed abstract trait ResolvePath extends TypedNode
     
-    sealed abstract trait ParsePath extends TypedNode {
-        def ty: Ty
-    }
+    sealed abstract trait ParsePath extends ResolvePath
     
-    case class PathErr(name: String) extends ParsePath {
+    case class PathErr(name: String) extends ResolvePath {
         def ty = errTy
         override def toString = "<err:%s>".format(name)
     }
@@ -527,52 +527,32 @@ abstract class Ast {
         }
     }
     
-    /** All kinds of statements which users can directly enter.
-      * Includes some syntactic sugar. */
-    sealed abstract trait ParseStmt extends Node {
-        def ty: Ty
-        
+    sealed abstract trait ParseStmt extends TypedNode {
         def printsemiln(out: PrettyPrinter) {
             print(out)
             out.writeln(";")
         }
     }
     
-    /** Those statements that are still used after resolve. */
     sealed abstract trait ResolveStmt extends ParseStmt
     
-    /** Those statements that are still used after lowering. */
     sealed abstract trait LowerStmt extends ResolveStmt
 
-    /** Any expression at all. */
-    sealed abstract trait AnyExpr extends Node {
-        def ty: Ty        
-    }
-    
-    /** Method receivers after parsing. */
     sealed abstract trait ParseRcvr extends Node
-    
-    /** Field owners after parsing. */
     sealed abstract trait ParseOwner extends ParseRcvr
-    
-    /** Top-level expressions after parsing. */
     sealed abstract trait ParseTlExpr extends ParseRcvr with ParseOwner with ParseStmt
     
-    /** Top-level expressions after resolve. */
-    sealed abstract trait ResolveTlExpr extends ParseTlExpr with ResolveStmt
+    sealed abstract trait ResolveRcvr extends ParseRcvr
+    sealed abstract trait ResolveOwner extends ParseOwner with ResolveRcvr
+    sealed abstract trait ResolveTlExpr extends ParseTlExpr with ResolveOwner with ResolveStmt
     
-    /** Method receivers after lowering. */
-    sealed abstract trait LowerRcvr extends ParseRcvr
-    
-    /** Field owners after lowering. */
-    sealed abstract trait LowerOwner extends LowerRcvr with ParseOwner
-    
-    /** Top-level expressions after lowering. */
+    sealed abstract trait LowerRcvr extends ResolveRcvr
+    sealed abstract trait LowerOwner extends LowerRcvr with ResolveOwner
     sealed abstract trait LowerTlExpr extends ResolveTlExpr with LowerStmt
 
-    /** Expressions that are always safe to evaluate without the
-      * possibility of a race condition. After lowering, only 
-      * `AtomicExpr` may be nested within other expressions. */
+    /** Atomic expressions are variables and tuples of variables.
+      * After lowering, only AtomicExpr may be nested within 
+      * other expressions. */
     sealed abstract trait AtomicExpr extends LowerTlExpr
     
     case class Tuple(exprs: List[NE]) extends AtomicExpr {
@@ -885,9 +865,9 @@ object Ast {
         type NE = ResolveTlExpr
         type Stmt = ResolveStmt
         type Expr = ResolveTlExpr
-        type AstPath = ParsePath
-        type Rcvr = ParseRcvr
-        type Owner = ParseOwner
+        type AstPath = ResolvePath
+        type Rcvr = ResolveRcvr
+        type Owner = ResolveOwner
         type CSym = Unit
         type VSym = Unit
         type LVSym = Unit

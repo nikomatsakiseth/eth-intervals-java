@@ -730,7 +730,7 @@ case class Lower(state: CompilationState) {
                         case Some(fsym) if fsym.modifierSet.isStatic => {
                             fsym                            
                         }
-                        case Some(fsym) if !fsym.modifierSet.isStatic => {
+                        case Some(fsym) /* !Static */ => {
                             Error.ExpStatic(memberVar).report(state, expr.name.pos)
                             Symbol.errorField(memberVar, optExpTy)
                         }
@@ -748,7 +748,7 @@ case class Lower(state: CompilationState) {
                         case Right(fsym) if !fsym.modifierSet.isStatic => {
                             fsym
                         }
-                        case Right(fsym) if fsym.modifierSet.isStatic => {
+                        case Right(fsym) /* Static */ => {
                             Error.QualStatic(fsym.name).report(state, expr.name.pos)
                             fsym
                         }

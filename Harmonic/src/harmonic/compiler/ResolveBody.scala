@@ -190,6 +190,12 @@ extends Resolve(state, compUnit)
                     out.FieldLvalue(Ast.MemberName(mname), ())
                 }
                 
+                case Some(SymTab.Ghost(mname)) => {
+                    // An error will be reported in Lower:
+                    // Error.NotField(name).report(state, name.pos)
+                    out.FieldLvalue(Ast.MemberName(mname), ())
+                }
+                
                 case Some(SymTab.Type(mname)) => {
                     // An error will be reported in Lower:
                     // Error.NotField(name).report(state, name.pos)
@@ -342,7 +348,16 @@ extends Resolve(state, compUnit)
                             Right(out.PathErr(path.toString))
                         }
                             
+                        case Some(SymTab.Ghost(mname)) if isStatic => {
+                            Error.NotInStaticScope(mname).report(state, path.pos)
+                            Right(out.PathErr(path.toString))
+                        }
+
                         case Some(SymTab.InstanceField(mname)) => {
+                            Right(thisField(mname))
+                        }
+
+                        case Some(SymTab.Ghost(mname)) => {
                             Right(thisField(mname))
                         }
 
@@ -461,7 +476,7 @@ extends Resolve(state, compUnit)
                 val className = resolvePathToClassName(path)
                 out.ClassType(Ast.ClassName(className), List())            
             }
-            
+
             // `a.b.c[...]` must be class type:
             case in.ConstrainedType(path, typeArgs) => {
                 val className = resolvePathToClassName(path)
