@@ -200,9 +200,9 @@ extends Resolve(state, compUnit)
         
         def resolveFieldLvalue(
             lvalue: in.Lvalue,
-            name: in.MN
+            name: in.MNC
         ) = withPosOf(lvalue, {
-            out.FieldLvalue(resolveMemberName(name), ())
+            out.FieldLvalue(resolveDottedMemberName(name), ())
         })
         
         val outLvalue = resolveLvalue(inLvalue)

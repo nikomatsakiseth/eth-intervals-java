@@ -17,61 +17,50 @@ abstract class Ast {
     import Ast.LocalName
     import Ast.VarName
         
-    /** Names which get changed during resolve */
+    // ___ Type variables ___________________________________________________
+    //
+    // The shape of the final AST that is used in byte-code
+    // generation is quite different from the version that is produced by
+    // the parser: all names are fully qualified, for example, and all 
+    // expressions are typed.  
+    //
+    // These type variables specify those changes.  Each of them represents
+    // one kind of reference which changes type between phases.  In some cases,
+    // such as symbols, the relevant types are simply Unit until lowering, at
+    // which point they become actual symbols.  In others, such as names, the
+    // types go through a number of small changes in each phase.
+    //
+    // The overall goal is to specify the tree as precisely as possible so
+    // that match expressions need never consider impossible cases.
+    
     type CN <: QualName     // Eventually ClassName
-    type LN <: Ast.Name     // Eventually LocalName
-    type MN <: Ast.Name     // Eventually MemberName
+    type CND <: Ast.Name    // Name of class in declaration (starts out unqual, becomes qual)
+    type MN <: Ast.Name     // The potentially classless name of a member (e.g. "bar" in "foo.bar")
+    type MNC <: MN          // Member name with class (e.g., "foo.(String.bar)")
+    type MND <: Ast.Name    // Name of member in declaration
     type VN <: Ast.Name     // Eventually VarName
-    type CDN <: Ast.Name    // Name of class in declaration
-    type MDN <: Ast.Name    // Name of member in declaration
     
-    /** References to types */
-    type OTR <: Node
-    type TR <: Node
+    type OTR <: Node        // Optional type reference (i.e., inferrable)
+    type TR <: Node         // Mandatory type reference
     
-    /** The form of statements */
-    type Stmt <: ParseStmt
-    
-    /** The form of expressions */
+    type Stmt <: ParseStmt  
     type Expr <: ParseTlExpr
-    
-    /** The form of expressions */
     type AstPath <: TypedNode
     
-    /** Nested expressions eventually become restricted */
     type NE <: ParseTlExpr
-    
-    /** Method receiver expressions eventually become restricted */
     type Rcvr <: ParseRcvr
-    
-    /** Field owner expressions eventually become restricted */
     type Owner <: ParseOwner
     
-    /** Type of an expression */
     type Ty
-    
-    /** Type of a class */
     type TyClass <: Ty
-    
-    /** Type of a tuple */
     type TyTuple <: Ty
     
-    /** Data attached to class declarations */
     type CSym
-    
-    /** Any variable */
     type VSym
-    
-    /** Local variable symbol */
     type LVSym <: VSym
-    
-    /** Field symbol */
     type FSym <: VSym
-    
-    /** Data attached to method declarations, calls */
     type MSym
     
-    /** Data attached to method calls */
     type MCallData
     
     def errTy: Ty
@@ -167,7 +156,7 @@ abstract class Ast {
     }
     
     case class ClassDecl(
-        name: CDN,
+        name: CND,
         annotations: List[Annotation],
         superClasses: List[CN],
         pattern: Param,
@@ -199,7 +188,7 @@ abstract class Ast {
     
     case class IntervalDecl(
         annotations: List[Annotation],
-        name: MDN,
+        name: MND,
         optParent: Option[AstPath],
         optBody: Option[Body]
     ) extends MemberDecl {
@@ -257,7 +246,7 @@ abstract class Ast {
     
     case class FieldDecl(
         annotations: List[Annotation],
-        name: MDN,
+        name: MND,
         tref: OTR,
         optBody: Option[Body]
     ) extends MemberDecl {
@@ -380,7 +369,7 @@ abstract class Ast {
     case class DeclareVarLvalue(
         annotations: List[Annotation], 
         tref: OTR,
-        name: LN,
+        name: LocalName,
         sym: LVSym
     ) extends Lvalue with VarAstPattern {
         override def toString = "%s %s: %s".format(annotations.mkString(" "), tref, name)
@@ -405,7 +394,7 @@ abstract class Ast {
     }
     
     case class FieldLvalue(
-        name: MN,
+        name: MNC,
         sym: FSym
     ) extends Lvalue with VarAstPattern {
         override def toString = name.toString
@@ -669,7 +658,7 @@ abstract class Ast {
         }
     }
     
-    case class Var(name: LN, sym: LVSym) extends AtomicExpr with LowerOwner {
+    case class Var(name: LocalName, sym: LVSym) extends AtomicExpr with LowerOwner {
         override def toString = name.toString
         def ty = vsymTy(sym)
         
@@ -764,7 +753,7 @@ abstract class Ast {
         override def toString = "<this>"
     }
    
-    case class Labeled(name: LN, body: Body)
+    case class Labeled(name: LocalName, body: Body)
     extends LowerStmt {
         def ty = body.stmts.last.ty
         override def toString = "%s: %s".format(name, body)
@@ -848,10 +837,10 @@ object Ast {
       * types uninferred. */
     object Parse extends Ast {
         type CN = RelName
-        type CDN = RelBase
-        type LN = LocalName
+        type CND = RelBase
         type MN = RelName 
-        type MDN = RelBase
+        type MNC = RelDot
+        type MND = RelBase
         type VN = RelName
         type OTR = OptionalParseTypeRef
         type TR = ParseTypeRef
@@ -886,10 +875,10 @@ object Ast {
     /** After Resolve(): relative names resolved. */
     object Resolve extends Ast {
         type CN = ClassName
-        type CDN = ClassName
-        type LN = LocalName
+        type CND = ClassName
         type MN = UnloweredMemberName 
-        type MDN = MemberName
+        type MNC = MemberName
+        type MND = MemberName
         type VN = VarName
         type OTR = OptionalResolveTypeRef
         type TR = ResolveTypeRef
@@ -922,11 +911,11 @@ object Ast {
       * expressions broken apart into statements. */
     object Lower extends Ast {
         type CN = ClassName
-        type CDN = ClassName
-        type LN = LocalName
+        type CND = ClassName
         type MN = MemberName 
+        type MNC = MemberName
+        type MND = MemberName
         type VN = VarName
-        type MDN = MemberName
         type OTR = TypeRef
         type TR = TypeRef
         type NE = AtomicExpr

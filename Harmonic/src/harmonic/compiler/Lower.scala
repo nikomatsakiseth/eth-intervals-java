@@ -139,14 +139,16 @@ case class Lower(state: CompilationState) {
     ): out.ClassDecl = {
         val cdecl = csym.resolvedSource
         val (outParam, env) = classParamAndEnv(csym)
-        val result = withPosOf(cdecl, out.ClassDecl(
-            name         = cdecl.name,
-            annotations  = cdecl.annotations.map(InScope(emptyEnv).lowerAnnotation),
-            superClasses = cdecl.superClasses,
-            pattern      = outParam,
-            members      = cdecl.members.map(lowerMemberDecl(csym, _)),
-            sym          = csym
-        ))
+        val result = withPosOf(cdecl, 
+            out.ClassDecl(
+                name         = cdecl.name,
+                annotations  = cdecl.annotations.map(InScope(emptyEnv).lowerAnnotation),
+                superClasses = cdecl.superClasses,
+                pattern      = outParam,
+                members      = cdecl.members.map(lowerMemberDecl(csym, _)),
+                sym          = csym
+            )
+        )
         
         // Make sure that we create all symbols:
         val methodNames = csym.loweredMethods.valuesIterator.map(_.name)

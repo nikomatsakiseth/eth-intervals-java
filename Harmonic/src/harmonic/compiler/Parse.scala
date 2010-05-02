@@ -76,8 +76,8 @@ class Parse extends StdTokenParsers with PackratParsers {
     lazy val relBase = positioned(ident ^^ out.RelBase)
     
     lazy val relDot = positioned(
-        relBase~rep1("."~>ident) ^^ {
-            case b~fs => fs.foldLeft[out.RelName](b) { _ / _ } }
+        relBase~"."~ident~rep1("."~>ident) ^^ {
+            case b~"."~f~fs => fs.foldLeft(b / f) { _ / _ } }
     )
     
     lazy val relName = relDot | relBase
@@ -240,7 +240,7 @@ class Parse extends StdTokenParsers with PackratParsers {
         localName ^^ { case n => out.ReassignVarLvalue(n, ()) }
     )
     lazy val fieldLvalue = positioned(
-        relName ^^ { case n => out.FieldLvalue(n, ()) }
+        relDot ^^ { case n => out.FieldLvalue(n, ()) }
     )
     lazy val declLvalue = positioned(
         annotations~localName~reqTypeRef ^^ { 
