@@ -505,6 +505,8 @@ extends Resolve(state, compUnit)
         // ___ Statements and Expressions _______________________________________
         
         def resolveStmts(stmts: List[in.Stmt]): List[out.Stmt] = stmts match {
+            case Nil => Nil
+            
             case (expr: in.Expr) :: stmts => 
                 resolveExpr(expr) :: resolveStmts(stmts)
                 
@@ -515,6 +517,7 @@ extends Resolve(state, compUnit)
                 val outStmts = resolveLocal.scope.resolveStmts(stmts)
                 outAssign :: outStmts
             }
+            
             case (stmt @ in.Labeled(name, body)) :: stmts => {
                 val outStmt = withPosOf(stmt, out.Labeled(name, resolveBody(body)))
                 outStmt :: resolveStmts(stmts)

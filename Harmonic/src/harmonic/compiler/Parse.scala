@@ -89,7 +89,7 @@ class Parse extends StdTokenParsers with PackratParsers {
     lazy val memberName = varName
     
     lazy val packageName = positioned(
-        rep1(ident) ^^ { idents => 
+        rep1sep(ident, ".") ^^ { idents => 
             Ast.PackageName(idents.foldLeft[Name.Package](Name.Root)(Name.Subpackage(_, _)))
         }
     )

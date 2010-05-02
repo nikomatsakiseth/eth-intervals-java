@@ -1,5 +1,7 @@
 package harmonic.compiler
 
+import Util._
+
 object Name {
     
     sealed abstract class Qual {
@@ -43,7 +45,7 @@ object Name {
     object Package {
         
         def apply(str: String): Package = {
-            val comp = str.split(".")
+            val comp = str.split('.')
             comp.foldLeft[Package](Root) { case (q, n) => Subpackage(q, n) }
         }
         
