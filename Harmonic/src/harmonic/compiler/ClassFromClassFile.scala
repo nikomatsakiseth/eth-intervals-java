@@ -52,7 +52,7 @@ class ClassFromClassFile(
     
     // ___ Class File Loading _______________________________________________
     
-    def load(state: CompilationState) = synchronized {
+    def load(state: State) = synchronized {
         if(!loaded) {
             throw new RuntimeException("TODO-- Implement .class file loading!")
             loaded = true

@@ -6,7 +6,7 @@ import java.lang.reflect
 
 /** Support code for Symbol.ClassFromReflection: 
   * Creates symbols from reflective objects. */
-case class Reflect(state: CompilationState) {
+case class Reflect(state: State) {
     
     def typeArg(pair: (Name.Member, reflect.Type)): Option[Type.TypeArg] = pair match {
         case (nm, wt: reflect.WildcardType) => { /* // FIXME: Allow multiple LB, UB? */

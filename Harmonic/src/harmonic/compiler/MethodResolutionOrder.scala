@@ -13,7 +13,7 @@ object MethodResolutionOrder {
   * class.  This is the same order used in Python and Dylan.
   *
   * For a nice introduction to C3 see: http://www.python.org/download/releases/2.3/mro/ */
-case class MethodResolutionOrder(state: CompilationState) {
+case class MethodResolutionOrder(state: State) {
     private[this] val data: MethodResolutionOrder.Data = state.data(classOf[MethodResolutionOrder.Data])
     private[this] var stack: List[Symbol.Class] = Nil
     

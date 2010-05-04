@@ -32,7 +32,7 @@ class Global(
     //
     // Various passes and helpers, such as Lower or MethodResolutionOrder,
     // require state that should persist within a particular compilation.
-    // They store their data in the `CompilationState` using the data() method.
+    // They store their data in the `State` using the data() method.
     
     private[this] val privateData = new mutable.HashMap[java.lang.Class[_], Any]()
     

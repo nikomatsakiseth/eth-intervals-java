@@ -14,7 +14,7 @@ object GatherOverrides {
 }
 
 /** Determines which methods override one another. */
-case class GatherOverrides(state: CompilationState) {
+case class GatherOverrides(state: State) {
     
     private[this] val data: GatherOverrides.Data = state.data(classOf[GatherOverrides.Data])
     

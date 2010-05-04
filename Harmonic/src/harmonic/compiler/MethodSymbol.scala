@@ -58,7 +58,7 @@ class MethodSymbol(
     
     def methodId = Id.Method(clsName, name, msig.parameterPatterns)
     
-    def modifiers(state: CompilationState) = modifiers
+    def modifiers(state: State) = modifiers
     
     /** For methods whose source will be emitted, we compute the 
       * overridden methods.  The ordering is significant,

@@ -8,12 +8,12 @@ import scala.util.parsing.input.Position
 // which is just a shallow wrapper around Either[Error, T].
 
 abstract class Error {
-    def report(state: CompilationState, pos: Position): Unit
+    def report(state: State, pos: Position): Unit
 }
 
 object Error {
     case class NotOverride() extends Error {
-        def report(state: CompilationState, pos: Position) {
+        def report(state: State, pos: Position) {
             state.report(pos, 
                 "method.does.not.override"
             )
@@ -23,7 +23,7 @@ object Error {
     case class ParseError(
         msg: String
     ) {
-        def report(state: CompilationState, pos: Position) {
+        def report(state: State, pos: Position) {
         }                
     }
     
@@ -31,7 +31,7 @@ object Error {
         className: Name.Class,
         stack: List[Name.Class]
     ) {
-        def report(state: CompilationState, pos: Position) {
+        def report(state: State, pos: Position) {
             addError(
                 csym.pos,
                 "circular.inheritance",
@@ -45,7 +45,7 @@ object Error {
         className: Name.Class,
         superClasses: List[Name.Class]
     ) extends Error {
-        def report(state: CompilationState, pos: Position) {
+        def report(state: State, pos: Position) {
             state.report(pos, 
                 "ambiguous.inheritance",
                 className, 
@@ -60,7 +60,7 @@ object Error {
         ambig1: Name.Class,
         ambig2: Name.Class
     ) extends Error {
-        def report(state: CompilationState, pos: Position) {
+        def report(state: State, pos: Position) {
             state.report(pos, 
                 "must.resolve.ambiguity",
                 className.toString,
@@ -76,7 +76,7 @@ object Error {
         methodName: Name.Method,
         number: Int
     ) extends Error {
-        def report(state: CompilationState, pos: Position) {
+        def report(state: State, pos: Position) {
             state.report(pos, 
                 "multiple.overriding.methods.in.same.class",
                 className.toString,
@@ -90,7 +90,7 @@ object Error {
         methodName: Name.Method, 
         classNames: List[Name.Class]
     ) extends Error {
-        def report(state: CompilationState, pos: Position) {
+        def report(state: State, pos: Position) {
             state.report(pos, 
                 "method.must.be.marked.override",
                 methodName.toString,
@@ -101,7 +101,7 @@ object Error {
     }
     
     case class IOError(err: java.io.IOError) extends Error {
-        def report(state: CompilationState, pos: Position) {
+        def report(state: State, pos: Position) {
             state.report(pos, 
                 "io.error",
                 err.toString
@@ -110,7 +110,7 @@ object Error {
     }
     
     case class ShadowedClassParam(name: String) extends Error {
-        def report(state: CompilationState, pos: Position) {
+        def report(state: State, pos: Position) {
             state.report(pos, 
                 "shadowed.class.param", 
                 name
@@ -119,7 +119,7 @@ object Error {
     }
     
     case class ShadowedMethodParam(name: String) extends Error {
-        def report(state: CompilationState, pos: Position) {
+        def report(state: State, pos: Position) {
             state.report(pos, 
                 "shadowed.method.param", 
                 name
@@ -128,7 +128,7 @@ object Error {
     }
     
     case class ShadowedLocalVar(name: String) extends Error {
-        def report(state: CompilationState, pos: Position) {
+        def report(state: State, pos: Position) {
             state.report(pos, 
                 "shadowed.local.var", 
                 name
@@ -137,7 +137,7 @@ object Error {
     }
     
     case class CannotResolve(name: String) extends Error {
-        def report(state: CompilationState, pos: Position) {
+        def report(state: State, pos: Position) {
             state.report(pos, 
                 "cannot.resolve", 
                 name
@@ -146,7 +146,7 @@ object Error {
     }
     
     case class DiffStaticClasses(className1: Name.Class, className2: Name.Class) extends Error {
-        def report(state: CompilationState, pos: Position) {
+        def report(state: State, pos: Position) {
             state.report(pos, 
                 "different.static.classes", 
                 className1.toString, className2.toString
@@ -155,7 +155,7 @@ object Error {
     }
     
     case class NoSuchMember(ty: Type.Ref, uName: Name.UnloweredMember) extends Error {
-        def report(state: CompilationState, pos: Position) {
+        def report(state: State, pos: Position) {
             state.report(pos, 
                 "no.such.member", 
                 ty.toString, uName.toString
@@ -164,7 +164,7 @@ object Error {
     }
     
     case class NoSuchMethod(ty: Type.Ref, name: Name.Method) extends Error {
-        def report(state: CompilationState, pos: Position) {
+        def report(state: State, pos: Position) {
             state.report(pos, 
                 "no.such.method", 
                 ty.toString, name.toString
@@ -173,7 +173,7 @@ object Error {
     }
     
     case class QualStatic(memberVar: Name.Member) extends Error {
-        def report(state: CompilationState, pos: Position) {
+        def report(state: State, pos: Position) {
             addError(state, 
                 pos, "qualified.static",
                 memberVar.toString
@@ -182,25 +182,25 @@ object Error {
     }
     
     case class ExpPath(name: Name.Qual) extends Error {
-        def report(state: CompilationState, pos: Position) {
+        def report(state: State, pos: Position) {
             state.report(pos, "exp.path.but.found.class", name.toString)
         }
     }
     
     case class ExpClassName(path: String) extends Error {
-        def report(state: CompilationState, pos: Position) {
+        def report(state: State, pos: Position) {
             state.report(pos, "exp.class", path)
         }
     }
     
     case class ExpStatic(memberVar: Name.Member) extends Error {
-        def report(state: CompilationState, pos: Position) {
+        def report(state: State, pos: Position) {
             state.report(pos, "expected.static", memberVar.toString)
         }        
     }
     
     case class NotInStaticScope(memberVar: Name.Member) extends Error {
-        def report(state: CompilationState, pos: Position) {
+        def report(state: State, pos: Position) {
             state.report(pos, 
                 "not.in.static.context", 
                 memberVar.toString)
@@ -208,7 +208,7 @@ object Error {
     }
     
     case class AmbiguousMember(options: List[SymTab.MemberEntry]) extends Error {
-        def report(state: CompilationState, pos: Position) {
+        def report(state: State, pos: Position) {
             state.report(pos, 
                 "ambiguous.member",
                 options.map(_.name).mkString(", ")
@@ -217,7 +217,7 @@ object Error {
     }
     
     case class NotField(name: Name.Member) extends Error {
-        def report(state: CompilationState, pos: Position) {
+        def report(state: State, pos: Position) {
             state.report(pos, 
                 "not.a.field", 
                 name.toString
@@ -226,7 +226,7 @@ object Error {
     }
     
     case class NotTypeVar(entry: SymTab.MemberEntry) extends Error {
-        def report(state: CompilationState, pos: Position) {
+        def report(state: State, pos: Position) {
             state.report(pos, 
                 "not.a.type.var", 
                 entry.name.toString

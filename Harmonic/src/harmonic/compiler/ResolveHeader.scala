@@ -14,7 +14,7 @@ import SymTab.extendedMap
   * rest of the body.  Before we can resolve a class body, we must first 
   * ensure that its headers and those of its superclasses (transitively) have 
   * been resolved. */
-case class ResolveHeader(state: CompilationState, compUnit: in.CompUnit) 
+case class ResolveHeader(state: State, compUnit: in.CompUnit) 
 extends Resolve(state, compUnit) 
 {
     

@@ -12,7 +12,7 @@ import Util._
   * main functions:
   * - Fills in any inferred types.  (Note that we don't perform a full type check!)
   * - Removes nested expressions into intermediate variables. */
-case class Lower(state: CompilationState) {
+case class Lower(state: State) {
     private[this] val data = state.data(classOf[Lower.Data])
     private[this] val emptyEnv = Env.empty(state)
     val csym = state.curCsym

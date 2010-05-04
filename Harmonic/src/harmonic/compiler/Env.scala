@@ -8,7 +8,7 @@ import Util._
 import Error.CanFail
 
 object Env {
-    def empty(state: CompilationState) = Env(
+    def empty(state: State) = Env(
         state = state,
         thisTy = Type.Object,
         locals = Map(),
@@ -21,7 +21,7 @@ object Env {
 /** The environment is used during a type check but also in other phases
   * It stores information known by the compiler. */
 case class Env(
-    state: CompilationState,
+    state: State,
     
     /** Type of the this pointer */
     thisTy: Type.Class,

@@ -1,6 +1,6 @@
 package harmonic.compiler
 
-case class Intrinsic(state: CompilationState) {
+case class Intrinsic(state: State) {
     
     def ensureLoadable(cls: Class[_]) {
         state.requireLoadedOrLoadable(InterPosition.forClass(cls), Name.Class(cls))

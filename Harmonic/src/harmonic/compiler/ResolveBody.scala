@@ -21,7 +21,7 @@ import Util._
   * 
   * The symbol tables are initially constructed using the member names
   * extracted during header resolution (see `ResolveHeader`). */
-case class ResolveBody(state: CompilationState, compUnit: in.CompUnit) 
+case class ResolveBody(state: State, compUnit: in.CompUnit) 
 extends Resolve(state, compUnit) 
 {
     def resolveClassBody(csym: Symbol.Class, cdecl: in.ClassDecl) = {

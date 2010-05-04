@@ -17,7 +17,7 @@ import SymTab.extendedMap
   * Contains methods to resolve the shortened name of a class
   * (which may omit the package) to the full, absolute name 
   * including the package. */
-abstract class Resolve(state: CompilationState, compUnit: in.CompUnit) {
+abstract class Resolve(state: State, compUnit: in.CompUnit) {
     
     protected[this] def resolveAgainstPackage(pkgName: Name.Package, nm: String): Name.Qual = {
         val className = Name.Class(pkgName, nm)

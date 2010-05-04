@@ -26,7 +26,7 @@ object ByteCode {
   * - Foo$Static.class: a Java class defining static members for all 
   *   of the method definitions in Foo.  
   */
-case class ByteCode(state: CompilationState) {
+case class ByteCode(state: State) {
     import ByteCode.noSuffix
     import ByteCode.implSuffix
     import ByteCode.staticSuffix
