@@ -904,12 +904,12 @@ object Ast {
         type AstPath = TypedPath
         type Rcvr = LowerRcvr
         type Owner = LowerOwner
-        type CSym = Symbol.Class
-        type VSym = Symbol.Var
-        type LVSym = Symbol.LocalVar
-        type FSym = Symbol.Field
-        type MSym = Symbol.Method
-        type MCallData = (Symbol.Method, Symbol.MethodSignature[Pattern.Anon])
+        type CSym = ClassSymbol
+        type VSym = VarSymbol.Any
+        type LVSym = VarSymbol.Local
+        type FSym = VarSymbol.Field
+        type MSym = MethodSymbol
+        type MCallData = (MethodSymbol, MethodSignature[Pattern.Anon])
         type Ty = Type.Ref
         type TyClass = Type.Class
         type TyTuple = Type.Tuple
@@ -932,10 +932,6 @@ object Ast {
             case pat: VarAstPattern => Pattern.SubstdVar(pat.sym.ty)
         }
         
-        def methodId(clsName: Name.Class, mdecl: MethodDecl) = {
-            Symbol.MethodId(clsName, mdecl.name, mdecl.params.map(toPatternRef))
-        }
-            
     }
 
 }

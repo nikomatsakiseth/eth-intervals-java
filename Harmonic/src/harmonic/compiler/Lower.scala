@@ -8,19 +8,6 @@ import Ast.{Resolve => in}
 import Ast.{Lower => out}
 import Util._
 
-object Lower {
-    class Data {
-        /** Members whose type is currently being inferred. */
-        val inferStack = new mutable.HashSet[Symbol.MemberId]()
-    
-        /** Members for which we have reported an inference error. */
-        val inferReported = new mutable.HashSet[Symbol.MemberId]()
-        
-        /** Class parameter and environment */
-        val classParamAndEnvs = new mutable.HashMap[Symbol.ClassFromSource, (out.Param, Env)]()
-    }
-}
-
 /** Lowers the IR to what is expected by the type check.  This has two
   * main functions:
   * - Fills in any inferred types.  (Note that we don't perform a full type check!)
@@ -28,133 +15,33 @@ object Lower {
 case class Lower(state: CompilationState) {
     private[this] val data = state.data(classOf[Lower.Data])
     private[this] val emptyEnv = Env.empty(state)
+    val csym = state.curCsym
     
-    // ___ Method Symbol Creation ___________________________________________
-    
-    def classParamAndEnv(csym: Symbol.ClassFromSource): (out.Param, Env) = {
-        data.classParamAndEnvs.get(csym).getOrElse {
-            val thisTy = Type.Class(csym.name, List())
-            val thisSym = new Symbol.LocalVar(Modifier.Set.empty, Name.ThisLocal, thisTy)
-            val env0 = emptyEnv.plusThis(thisTy, thisSym)
-            val cdecl = csym.resolvedSource
-            val (List(outParam), env) = lowerMethodParams(env0, List(cdecl.pattern))
-            data.classParamAndEnvs(csym) = (outParam, env)
-            (outParam, env)
-        }
+    def classParamAndEnv: (out.Param, Env) = {
+        val thisTy = Type.Class(csym.name, List())
+        val thisSym = new VarSymbol.Local(Modifier.Set.empty, Name.ThisLocal, thisTy)
+        val env0 = emptyEnv.plusThis(thisTy, thisSym)
+        val cdecl = csym.resolvedSource
+        val (List(outParam), env) = lowerMethodParams(env0, List(cdecl.pattern))
+        data.classParamAndEnvs(csym) = (outParam, env)
+        (outParam, env)
     }
     
-    def symbolForConstructor(csym: Symbol.ClassFromSource) = {
-        csym.optCtorSymbol.getOrElse {
-            val cdecl = csym.resolvedSource
-            val (outParam, env) = classParamAndEnv(csym)
-            val ctorSymbol = new Symbol.Method(
-                pos         = cdecl.pattern.pos,
-                modifierSet = Modifier.Set.empty,
-                kind        = Symbol.InterCtor,
-                clsName     = csym.name,
-                name        = Name.InitMethod,
-                Symbol.MethodSignature(
-                    returnTy = Type.Void,
-                    receiverTy = csym.toType,
-                    parameterPatterns = List(out.toPatternRef(outParam))
-                )
-            )
-            csym.optCtorSymbol = Some(ctorSymbol)
-            ctorSymbol
-        }
-    }
-    
-    def ThisEnv(csym: Symbol.ClassFromSource) = {
-        classParamAndEnv(csym)._2
-    }
-    
-    def ThisScope(csym: Symbol.ClassFromSource) = {
-        InScope(ThisEnv(csym))
-    }
-    
-    def symbolsForMethodsNamed(
-        sym: Symbol.ClassFromSource, 
-        mthdName: Name.Method
-    ) = {
-        sym.methodSymbols.get(mthdName) match {
-            case None => createSymbolsForMethodsNamed(sym, mthdName)
-            case Some(res) => res
-        }
-    }
-    
-    def createSymbolsForMethodsNamed(
-        csym: Symbol.ClassFromSource, 
-        mthdName: Name.Method
-    ) = {
-        def forMethodDecl(mdecl: in.MethodDecl) = mdecl match {
-            case in.MethodDecl(annotations, _, _, _, in.InferredTypeRef(), _, _) => {
-                val memberId = methodId(csym, mdecl)
-
-                if(data.inferStack(memberId)) {
-                    if(data.inferReported.addEntry(memberId)) {
-                        state.reporter.report(
-                            mdecl.returnTref.pos,
-                            "explicit.type.required.due.to.cycle",
-                            mthdName.toString
-                        )
-                    }
-                    Symbol.errorMethod(mthdName, csym.name)
-                } else {
-                    val outMdecl = lowerMethodDecl(csym, mdecl)
-                    new Symbol.Method(
-                        pos         = mdecl.pos,
-                        modifierSet = Modifier.forResolvedAnnotations(annotations),
-                        kind        = Symbol.Inter,
-                        clsName     = csym.name,
-                        name        = mthdName,
-                        Symbol.MethodSignature(
-                            returnTy          = outMdecl.returnTref.ty,
-                            receiverTy        = csym.toType,
-                            parameterPatterns = outMdecl.params.map(out.toPatternRef)
-                        )                        
-                    )
-                }
-            }
-            
-            case in.MethodDecl(annotations, _, _, params, returnTref: in.ResolveTypeRef, _, _) => {
-                new Symbol.Method(
-                    pos         = mdecl.pos,
-                    modifierSet = Modifier.forResolvedAnnotations(annotations),
-                    kind        = Symbol.Inter,
-                    clsName     = csym.name,
-                    name        = mthdName,
-                    msig        = extractMethodSignature(csym, params, returnTref)
-                )
-            }
-        }
-        
-        val mdecls = csym.resolvedSource.members.flatMap(_.asMethodNamed(mthdName))
-        val msyms = mdecls.map(forMethodDecl)
-        csym.methodSymbols(mthdName) = msyms
-        msyms
-    }
-    
-    def lowerClass(
-        csym: Symbol.ClassFromSource
-    ): out.ClassDecl = {
+    def createSymbolForConstructor() = {
         val cdecl = csym.resolvedSource
         val (outParam, env) = classParamAndEnv(csym)
-        val result = withPosOf(cdecl, 
-            out.ClassDecl(
-                name         = cdecl.name,
-                annotations  = cdecl.annotations.map(InScope(emptyEnv).lowerAnnotation),
-                superClasses = cdecl.superClasses,
-                pattern      = outParam,
-                members      = cdecl.members.map(lowerMemberDecl(csym, _)),
-                sym          = csym
+        new MethodSymbol(
+            pos         = cdecl.pattern.pos,
+            modifiers = Modifier.Set.empty,
+            kind        = Symbol.InterCtor,
+            clsName     = csym.name,
+            name        = Name.InitMethod,
+            MethodSignature(
+                returnTy = Type.Void,
+                receiverTy = csym.toType,
+                parameterPatterns = List(out.toPatternRef(outParam))
             )
         )
-        
-        // Make sure that we create all symbols:
-        val methodNames = csym.loweredMethods.valuesIterator.map(_.name)
-        methodNames.foreach(name => csym.methodsNamed(state)(name))
-        
-        result
     }
     
     def lowerMemberDecl(
@@ -191,47 +78,37 @@ case class Lower(state: CompilationState) {
         csym: Symbol.ClassFromSource, 
         mdecl: in.MethodDecl
     ): out.MethodDecl = {
-        val memberId = methodId(csym, mdecl)
-        csym.loweredMethods.get(memberId).getOrElse {
-            assert(!data.inferStack(memberId))
-            data.inferStack += memberId
+        val (outParams, env) = lowerMethodParams(ThisEnv(csym), mdecl.params)
+        val optBody = mdecl.optBody.map(lowerBody(env, _))
 
-            val (outParams, env) = lowerMethodParams(ThisEnv(csym), mdecl.params)
-            val optBody = mdecl.optBody.map(lowerBody(env, _))
-
-            val returnTy = (mdecl.returnTref, optBody) match {
-                case (in.InferredTypeRef(), None) => {
-                    state.reporter.report(
-                        mdecl.returnTref.pos, 
-                        "explicit.return.type.required.if.abstract", 
-                        mdecl.name.toString
-                    )
-                    Type.Void
-                }
-
-                case (in.InferredTypeRef(), Some(out.Body(stmts))) => {
-                    stmts.last.ty // TODO Have to eliminate type vars and things that go out of scope
-                }
-
-                case (tref: in.ResolveTypeRef, _) => {
-                    InScope(env).toTypeRef(tref)
-                }
+        val returnTy = (mdecl.returnTref, optBody) match {
+            case (in.InferredTypeRef(), None) => {
+                state.report(
+                    mdecl.returnTref.pos, 
+                    "explicit.return.type.required.if.abstract", 
+                    mdecl.name.toString
+                )
+                Type.Void
             }
 
-            val outMdecl = out.MethodDecl(
-                annotations  = mdecl.annotations.map(InScope(env).lowerAnnotation),
-                name         = mdecl.name,
-                receiverSym  = env.lookupThis,
-                params       = outParams,
-                returnTref   = out.TypeRef(returnTy),
-                requirements = mdecl.requirements.map(InScope(env).lowerRequirement),
-                optBody      = optBody
-            )
-            
-            csym.loweredMethods(memberId) = outMdecl
-            data.inferStack -= memberId
-            outMdecl
+            case (in.InferredTypeRef(), Some(out.Body(stmts))) => {
+                stmts.last.ty // TODO Have to eliminate type vars and things that go out of scope
+            }
+
+            case (tref: in.ResolveTypeRef, _) => {
+                InEnv(env).toTypeRef(tref)
+            }
         }
+
+        out.MethodDecl(
+            annotations  = mdecl.annotations.map(InEnv(env).lowerAnnotation),
+            name         = mdecl.name,
+            receiverSym  = env.lookupThis,
+            params       = outParams,
+            returnTref   = out.TypeRef(returnTy),
+            requirements = mdecl.requirements.map(InEnv(env).lowerRequirement),
+            optBody      = optBody
+        )
     }
     
     def lowerFieldDecl(
@@ -242,21 +119,21 @@ case class Lower(state: CompilationState) {
         val env = ThisEnv(csym)
         val ty = (decl.tref, optBody) match {
             case (tref: in.ResolveTypeRef, _) => // Explicit type.
-                InScope(env).toTypeRef(tref)
+                InEnv(env).toTypeRef(tref)
                 
             case (in.InferredTypeRef(), Some(out.Body(stmts))) => { // Implicit type.
                 stmts.last.ty
             }
             
             case (in.InferredTypeRef(), None) => {
-                state.reporter.report(
+                state.report(
                     decl.tref.pos, "explicit.type.reqd.if.abstract", decl.name.toString
                 )
                 Type.Object
             }
         }
         out.FieldDecl(
-            annotations = decl.annotations.map(InScope(env).lowerAnnotation),
+            annotations = decl.annotations.map(InEnv(env).lowerAnnotation),
             name = decl.name,
             tref = out.TypeRef(ty),
             optBody = optBody
@@ -266,8 +143,8 @@ case class Lower(state: CompilationState) {
     // ___ Parameters _______________________________________________________
     
     // Method parameters always have a specified type.  
-    def lowerMethodParams(env: Env, inParams: List[in.Param]) = {
-        lowerAnyParams(env, inParams.map(p => (Type.Object, p)))
+    def lowerMethodParams(classEnv: Env, inParams: List[in.Param]) = {
+        lowerAnyParams(classEnv, inParams.map(p => (Type.Object, p)))
     }
     
     // The type of block parameters can be inferred from context.
@@ -313,13 +190,13 @@ case class Lower(state: CompilationState) {
                 
                 // Otherwise, create a new symbol, using `expTy` as its type if neccessary:
                 case (_, in.VarParam(annotations, tref, name, ())) => {
-                    val outAnnotations = annotations.map(InScope(env).lowerAnnotation)
+                    val outAnnotations = annotations.map(InEnv(env).lowerAnnotation)
                     val ty = tref match {
                         case in.InferredTypeRef() => expTy
-                        case tref: in.ResolveTypeRef => InScope(env).toTypeRef(tref)
+                        case tref: in.ResolveTypeRef => InEnv(env).toTypeRef(tref)
                     }
-                    val modifierSet = Modifier.forLoweredAnnotations(outAnnotations)
-                    val sym = new Symbol.LocalVar(modifierSet, name.name, ty)
+                    val modifiers = Modifier.forLoweredAnnotations(outAnnotations)
+                    val sym = new VarSymbol.Local(modifiers, name.name, ty)
                     env = env.plusLocalVar(sym)
                     out.VarParam(outAnnotations, out.TypeRef(ty), name, sym)
                 }
@@ -329,35 +206,13 @@ case class Lower(state: CompilationState) {
         (inputs.map { case (e, p) => lowerParam(e, p) }, env)
     }
     
-    def methodId(
-        csym: Symbol.ClassFromSource,
-        mdecl: in.MethodDecl
-    ) = {
-        val (outParams, _) = lowerMethodParams(ThisEnv(csym), mdecl.params)
-        val patterns = outParams.map(out.toPatternRef)
-        Symbol.MethodId(csym.name, mdecl.name, patterns)
-    }
-    
-    def extractMethodSignature(
-        csym: Symbol.ClassFromSource, 
-        inParams: List[in.Param],
-        inTypeRef: in.ResolveTypeRef
-    ): Symbol.MethodSignature[Pattern.Ref] = {
-        val (outParams, env) = lowerMethodParams(ThisEnv(csym), inParams)
-        Symbol.MethodSignature(
-            returnTy          = InScope(env).toTypeRef(inTypeRef),
-            receiverTy        = csym.toType,
-            parameterPatterns = outParams.map(out.toPatternRef)
-        )
-    }
-    
     // ___ Paths, Types _____________________________________________________
     
-    object InScope {
-        def apply(env: Env) = new InScope(env)
+    object InEnv {
+        def apply(env: Env) = new InEnv(env)
     }
     
-    class InScope(env: Env) {
+    class InEnv(env: Env) {
         
         // ___ Paths ____________________________________________________________
         
@@ -384,7 +239,7 @@ case class Lower(state: CompilationState) {
                             errorPath(path.toString)
                         }
 
-                        case Some(fsym) if !fsym.modifierSet.isStatic => {
+                        case Some(fsym) if !fsym.modifiers.isStatic => {
                             Error.ExpStatic(memberVar).report(state, path.pos)
                             errorPath(path.toString)               
                         }
@@ -403,8 +258,8 @@ case class Lower(state: CompilationState) {
                             errorPath(path.toString)
                         }
                         
-                        case Right(fsym) if fsym.modifierSet.isStatic => {
-                            state.reporter.report(path.pos, "qualified.static", fsym.name.toString)
+                        case Right(fsym) if fsym.modifiers.isStatic => {
+                            state.report(path.pos, "qualified.static", fsym.name.toString)
                             Path.TypedBase(fsym)
                         }
                         
@@ -458,7 +313,7 @@ case class Lower(state: CompilationState) {
                             Some(Type.PathArg(entry.name, rel, toPath(inPath)))                                
                             
                         case Right(entry) => {
-                            state.reporter.report(name.pos, "not.in.path.arg", entry.name.toString)
+                            state.report(name.pos, "not.in.path.arg", entry.name.toString)
                             None                                
                         }
                             
@@ -475,7 +330,7 @@ case class Lower(state: CompilationState) {
                             Some(Type.TypeArg(entry.name, rel, toTypeRef(inTypeRef)))
                             
                         case Right(entry) => {
-                            state.reporter.report(name.pos, "not.in.type.arg", entry.name.toString)
+                            state.report(name.pos, "not.in.type.arg", entry.name.toString)
                             None                                
                         }
 
@@ -520,7 +375,7 @@ case class Lower(state: CompilationState) {
         val result = new mutable.ListBuffer[out.Stmt]()
         
         stmts.foreach { stmt =>
-            env = InScopeStmt(env, result).appendLoweredStmt(stmt)
+            env = InEnvStmt(env, result).appendLoweredStmt(stmt)
         }
         
         result.toList
@@ -550,13 +405,13 @@ case class Lower(state: CompilationState) {
                 
                 // New variable declaration, use type from rhs if none provided:
                 case (rhsTy, in.DeclareVarLvalue(anns, tref, name, ())) => {
-                    val outAnnotations = anns.map(InScope(env).lowerAnnotation)
+                    val outAnnotations = anns.map(InEnv(env).lowerAnnotation)
                     val mod = Modifier.forLoweredAnnotations(outAnnotations)
                     val ty = tref match {
                         case in.InferredTypeRef() => rhsTy
-                        case inTref: in.ResolveTypeRef => InScope(env).toTypeRef(inTref)
+                        case inTref: in.ResolveTypeRef => InEnv(env).toTypeRef(inTref)
                     }
-                    val sym = new Symbol.LocalVar(mod, name.name, ty)
+                    val sym = new VarSymbol.Local(mod, name.name, ty)
                     env = env.plusLocalVar(sym)
                     out.DeclareVarLvalue(outAnnotations, out.TypeRef(ty), name, sym)
                 }
@@ -582,12 +437,12 @@ case class Lower(state: CompilationState) {
         })
     }
     
-    object InScopeStmt {
+    object InEnvStmt {
         def apply(env: Env, stmts: mutable.ListBuffer[out.Stmt]) = 
-            new InScopeStmt(env, stmts)
+            new InEnvStmt(env, stmts)
     }
     
-    class InScopeStmt(env: Env, stmts: mutable.ListBuffer[out.Stmt]) extends InScope(env) {
+    class InEnvStmt(env: Env, stmts: mutable.ListBuffer[out.Stmt]) extends InEnv(env) {
         def appendLoweredStmt(stmt: in.Stmt): Env = {
             stmt match {
                 case in.Assign(lvalue, rvalue) => {
@@ -645,7 +500,7 @@ case class Lower(state: CompilationState) {
         
         def introduceVar(fromExpr: in.Expr, toExpr: out.Expr): out.Var = {
             val name = Name.LocalVar(tmpVarName(fromExpr))
-            val sym = new Symbol.LocalVar(Modifier.Set.empty, name, toExpr.ty)
+            val sym = new VarSymbol.Local(Modifier.Set.empty, name, toExpr.ty)
             val assign = out.Assign(
                 out.DeclareVarLvalue(List(), out.TypeRef(toExpr.ty), Ast.LocalName(name), sym), 
                 toExpr
@@ -695,7 +550,7 @@ case class Lower(state: CompilationState) {
             }
         }
         
-        def mthdSubst(msym: Symbol.Method, rcvr: in.ParseRcvr, args: List[in.ParseTlExpr]) = {
+        def mthdSubst(msym: MethodSymbol, rcvr: in.ParseRcvr, args: List[in.ParseTlExpr]) = {
             val msig = msym.msig
             rcvr match {
                 case in.Static(_) | in.Super(_) => 
@@ -727,7 +582,7 @@ case class Lower(state: CompilationState) {
                     }
                     val csym = state.classes(className)
                     val fsym = csym.fieldNamed(state)(memberVar) match {
-                        case Some(fsym) if fsym.modifierSet.isStatic => {
+                        case Some(fsym) if fsym.modifiers.isStatic => {
                             fsym                            
                         }
                         case Some(fsym) /* !Static */ => {
@@ -745,7 +600,7 @@ case class Lower(state: CompilationState) {
                 // Instance field ref like foo.bar:
                 case owner @ out.Var(_, sym) => {
                     val fsym = env.lookupField(sym.ty, expr.name.name) match {
-                        case Right(fsym) if !fsym.modifierSet.isStatic => {
+                        case Right(fsym) if !fsym.modifiers.isStatic => {
                             fsym
                         }
                         case Right(fsym) /* Static */ => {
@@ -771,7 +626,7 @@ case class Lower(state: CompilationState) {
         
         def identifyBestMethod(
             pos: Position,
-            msyms: List[Symbol.Method],
+            msyms: List[MethodSymbol],
             name: Name.Method,
             rcvrTy: Type.Ref,
             inRcvr: in.Rcvr,
@@ -803,7 +658,7 @@ case class Lower(state: CompilationState) {
                     
                     // Find those symbols that are potentially applicable
                     // to the arguments provided:
-                    def potentiallyApplicable(msym: Symbol.Method) = {
+                    def potentiallyApplicable(msym: MethodSymbol) = {
                         val subst = mthdSubst(msym, inRcvr, inArgs)
                         val parameterTys = msym.msig.parameterPatterns.map(p => subst.ty(p.ty))
                         // FIXME Add suitable temps to the environment for the vars ref'd in subst.
@@ -814,7 +669,7 @@ case class Lower(state: CompilationState) {
                     val applicableMsyms = msyms.filter(potentiallyApplicable)
                     
                     // Try to find an unambiguously "best" choice:
-                    def isBetterChoiceThan(msym_better: Symbol.Method, msym_worse: Symbol.Method) = {
+                    def isBetterChoiceThan(msym_better: MethodSymbol, msym_worse: MethodSymbol) = {
                         Pattern.optSubst(
                             msym_better.msig.parameterPatterns,
                             msym_worse.msig.parameterPatterns
@@ -828,7 +683,7 @@ case class Lower(state: CompilationState) {
                             }
                         }
                     }
-                    def isBestChoice(msym: Symbol.Method) = {
+                    def isBestChoice(msym: MethodSymbol) = {
                         applicableMsyms.forall { msym_other =>
                             msym == msym_other || isBetterChoiceThan(msym, msym_other)
                         }
@@ -843,7 +698,7 @@ case class Lower(state: CompilationState) {
                         }
                         
                         case (List(), List()) => {
-                            state.reporter.report(
+                            state.report(
                                 pos,
                                 "no.applicable.methods",
                                 argTys.map(_.toString).mkString(", ")
@@ -852,7 +707,7 @@ case class Lower(state: CompilationState) {
                         }
                         
                         case _ => {
-                            state.reporter.report(
+                            state.report(
                                 pos,
                                 "ambiguous.method.call",
                                 bestMsyms.length.toString
@@ -869,7 +724,7 @@ case class Lower(state: CompilationState) {
             val (rcvr, rcvrTy, msyms) = lowerRcvr(mcall.rcvr, mcall.name) match {
                 case rcvr @ out.Static(className) => {
                     val csym = state.classes(className)
-                    val msyms = csym.methodsNamed(state)(mcall.name).filter(_.modifierSet.isStatic)
+                    val msyms = csym.methodsNamed(state)(mcall.name).filter(_.modifiers.isStatic)
                     (rcvr, csym.toType, msyms)
                 }
                 
@@ -919,7 +774,7 @@ case class Lower(state: CompilationState) {
                 }
                 
                 case ty => {
-                    state.reporter.report(
+                    state.report(
                         expr.pos, 
                         "can.only.create.classes"
                     )
@@ -1027,7 +882,7 @@ case class Lower(state: CompilationState) {
                 optTy match {
                     case Some(ty) => out.Super(ty)
                     case None => {
-                        state.reporter.report(
+                        state.report(
                             rcvr.pos,
                             "no.super.class.implements",
                             mthdName.toString

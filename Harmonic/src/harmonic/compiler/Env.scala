@@ -27,7 +27,7 @@ case class Env(
     thisTy: Type.Class,
     
     /** In-scope local variables. */
-    locals: Map[Name.LocalVar, Symbol.LocalVar],
+    locals: Map[Name.LocalVar, VarSymbol.Local],
     
     /** Tuples describing relations between paths. */
     pathRels: List[(Path.Ref, PcRel, Path.Ref)],
@@ -63,11 +63,11 @@ case class Env(
     
     // ___ Extending the Environment ________________________________________
     
-    def plusLocalVar(sym: Symbol.LocalVar) = copy(locals = locals + (sym.name -> sym))
+    def plusLocalVar(sym: VarSymbol.Local) = copy(locals = locals + (sym.name -> sym))
     
-    def plusLocalVars(syms: Iterable[Symbol.LocalVar]) = syms.foldLeft(this)(_ plusLocalVar _)
+    def plusLocalVars(syms: Iterable[VarSymbol.Local]) = syms.foldLeft(this)(_ plusLocalVar _)
 
-    def plusThis(thisTy: Type.Class, sym: Symbol.LocalVar) = plusLocalVar(sym).copy(thisTy = thisTy)
+    def plusThis(thisTy: Type.Class, sym: VarSymbol.Local) = plusLocalVar(sym).copy(thisTy = thisTy)
     
     def plusPathRel(rel: (Path.Ref, PcRel, Path.Ref)) = copy(pathRels = rel :: pathRels)
 
@@ -172,7 +172,7 @@ case class Env(
     def lookupField(
         ownerTy: Type.Ref, 
         uName: Name.UnloweredMember
-    ): CanFail[Symbol.Field] = {
+    ): CanFail[VarSymbol.Field] = {
         def findSym(memberVar: Name.Member) = {
             val memberCsym = state.classes(memberVar.className)
             memberCsym.fieldNamed(state)(memberVar).orErr(Error.NoSuchMember(ownerTy, uName))
@@ -199,17 +199,17 @@ case class Env(
     private[this] def lookupInstanceMethodsDefinedOnClass(
         className: Name.Qual,
         methodName: Name.Method
-    ): List[Symbol.Method] = {
+    ): List[MethodSymbol] = {
         state.lookupIntrinsic(className, methodName).getOrElse {
             val csym = state.classes(className)
-            csym.methodsNamed(state)(methodName).filterNot(_.modifierSet.isStatic)
+            csym.methodsNamed(state)(methodName).filterNot(_.modifiers.isStatic)
         }
     }
     
     def lookupInstanceMethods(
         rcvrTy: Type.Ref, 
         methodName: Name.Method
-    ): List[Symbol.Method] = {
+    ): List[MethodSymbol] = {
         minimalUpperBoundType(rcvrTy).firstSome({ 
             case classTy: Type.Class => 
                 val mro = MethodResolutionOrder(state).forClassType(classTy)
@@ -492,8 +492,8 @@ case class Env(
       * The "current class" means the one whose relations are to
       * be found in the environment. */
     def overrides(
-        msig_sub: Symbol.MethodSignature[Pattern.Ref], 
-        msig_sup: Symbol.MethodSignature[Pattern.Ref]
+        msig_sub: MethodSignature[Pattern.Ref], 
+        msig_sup: MethodSignature[Pattern.Ref]
     ) = {
         val pps_sub = msig_sub.parameterPatterns
         val pps_sup = msig_sup.parameterPatterns

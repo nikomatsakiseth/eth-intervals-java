@@ -15,15 +15,15 @@ object Path {
     val Method = Path.Base(Name.MethodLocal)
     
     sealed abstract class Typed {
-        def sym: Symbol.Var
+        def sym: VarSymbol.Any
         def ty: Type.Ref
         def toPath: Path.Ref
     }
-    case class TypedBase(sym: Symbol.Var) extends Typed {
+    case class TypedBase(sym: VarSymbol.Any) extends Typed {
         def toPath = Path.Base(sym.name)
         def ty = sym.ty
     }
-    case class TypedField(base: Path.Typed, sym: Symbol.Field) extends Typed {
+    case class TypedField(base: Path.Typed, sym: VarSymbol.Field) extends Typed {
         def toPath = Path.Field(base.toPath, sym.name)
         lazy val ty = {
             val subst = Subst(Path.This -> base.toPath)

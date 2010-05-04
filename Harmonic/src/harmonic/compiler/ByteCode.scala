@@ -85,21 +85,21 @@ case class ByteCode(state: CompilationState) {
     
     def asmClassType(name: Name.Class) = asm.Type.getObjectType(name.internalName)
     
-    def plainMethodDescFromSig(msig: Symbol.MethodSignature[Pattern.Anon]): String = {
+    def plainMethodDescFromSig(msig: MethodSignature[Pattern.Anon]): String = {
         getMethodDescriptor(
             asmType(msig.returnTy), 
             msig.parameterPatterns.flatMap(_.varTys).map(asmType).toArray
         )
     }
     
-    def mroMethodDescFromSig(msig: Symbol.MethodSignature[Pattern.Anon]): String = {
+    def mroMethodDescFromSig(msig: MethodSignature[Pattern.Anon]): String = {
         getMethodDescriptor(
             asmType(msig.returnTy), 
             (asm.Type.INT_TYPE :: msig.parameterPatterns.flatMap(_.varTys).map(asmType)).toArray
         )
     }
     
-    def staticMethodDescFromSym(msym: Symbol.Method): String = {
+    def staticMethodDescFromSym(msym: MethodSymbol): String = {
         val ret = asmType(msym.msig.returnTy)
         val rcvr = asm.Type.getObjectType(msym.clsName.internalName)
         val params = msym.msig.parameterPatterns.flatMap(_.varTys).map(asmType)
@@ -121,9 +121,9 @@ case class ByteCode(state: CompilationState) {
             mvis.visitVarInsn(asmTy.getOpcode(O.ISTORE), index)
         }
         
-        def getField(fsym: Symbol.Field) = {
+        def getField(fsym: VarSymbol.Field) = {
             val op = {
-                if(fsym.modifierSet.isStatic) O.GETSTATIC
+                if(fsym.modifiers.isStatic) O.GETSTATIC
                 else O.GETFIELD                
             }
             mvis.visitFieldInsn(
@@ -212,11 +212,7 @@ case class ByteCode(state: CompilationState) {
                 out.close()
             } catch {
                 case err: java.io.IOError => {
-                    state.reporter.report(
-                        InterPosition.forFile(clsFile),
-                        "io.error",
-                        err.toString
-                    )
+                    Error.IOError(err).report(state, InterPosition.forFile(clsFile))
                 }
             }
         }
@@ -344,7 +340,7 @@ case class ByteCode(state: CompilationState) {
     
     class AccessMap(val context: Name.Class)
     {
-        val syms = new mutable.HashMap[Symbol.Var, AccessPath]()
+        val syms = new mutable.HashMap[VarSymbol.Any, AccessPath]()
         private[this] var maxSlot = 0
         
         def pathToFreshSlot(asmTy: asm.Type) = {
@@ -353,11 +349,11 @@ case class ByteCode(state: CompilationState) {
             AccessVar(slot, asmTy)
         }
         
-        def addSym(sym: Symbol.Var, accessPath: AccessPath) {
+        def addSym(sym: VarSymbol.Any, accessPath: AccessPath) {
             syms(sym) = accessPath
         }
 
-        def addUnboxedSym(sym: Symbol.Var) = {
+        def addUnboxedSym(sym: VarSymbol.Any) = {
             println("sym %s assigned to slot %d".format(sym, maxSlot))
             syms(sym) = pathToFreshSlot(asmType(sym.ty))
         }
@@ -371,7 +367,7 @@ case class ByteCode(state: CompilationState) {
             println("< Stash Slot %d".format(maxSlot))
         }
         
-        def pushSym(sym: Symbol.Var, mvis: asm.MethodVisitor) = syms(sym).push(mvis)
+        def pushSym(sym: VarSymbol.Any, mvis: asm.MethodVisitor) = syms(sym).push(mvis)
     }
     
     class BoxedArray(accessMap: AccessMap)
@@ -379,7 +375,7 @@ case class ByteCode(state: CompilationState) {
         private[this] val boxedArrayPath = accessMap.pathToFreshSlot(asmObjectArrayType)
         private[this] var maxIndex = 0
         
-        def addBoxedSym(sym: Symbol.Var) = {
+        def addBoxedSym(sym: VarSymbol.Any) = {
             accessMap.syms(sym) = AccessIndex(boxedArrayPath, maxIndex, asmType(sym.ty))
             maxIndex += 1
         }
@@ -401,35 +397,35 @@ case class ByteCode(state: CompilationState) {
     
     case class SymbolSummary(
         // Symbols that are declared:
-        declaredSyms: Set[Symbol.Var],
+        declaredSyms: Set[VarSymbol.Any],
         
         // Symbols that are read:
         //    (Not necessarily a subset of declaredSyms.)
-        readSyms: Set[Symbol.Var],
+        readSyms: Set[VarSymbol.Any],
         
         // Symbols that are re-assigned:
         //    (Not necessarily a subset of declaredSyms.)
-        writeSyms: Set[Symbol.Var],
+        writeSyms: Set[VarSymbol.Any],
         
         // Symbols which are accessed from an inner class of some kind: 
         //    (A subset of readSyms and writeSyms)
-        sharedSyms: Set[Symbol.Var]
+        sharedSyms: Set[VarSymbol.Any]
     ) {
         def accessSyms = readSyms ++ writeSyms
-        def boxedSyms(sym: Symbol.Var) = writeSyms(sym) && sharedSyms(sym)
+        def boxedSyms(sym: VarSymbol.Any) = writeSyms(sym) && sharedSyms(sym)
     }
     
     object SymbolSummary {
         val empty = SymbolSummary(Set(), Set(), Set(), Set())
     }
 
-    def symbolsReassignedInLvalue(local: in.Lvalue): List[Symbol.Var] = local match {
+    def symbolsReassignedInLvalue(local: in.Lvalue): List[VarSymbol.Any] = local match {
         case in.TupleLvalue(locals) => locals.flatMap(symbolsReassignedInLvalue)
         case in.ReassignVarLvalue(_, sym) => List(sym)
         case _ => Nil
     }
     
-    def symbolsDeclaredInLvalue(local: in.Lvalue): List[Symbol.Var] = local match {
+    def symbolsDeclaredInLvalue(local: in.Lvalue): List[VarSymbol.Any] = local match {
         case in.TupleLvalue(locals) => locals.flatMap(symbolsDeclaredInLvalue)
         case in.DeclareVarLvalue(_, _, _, sym) => List(sym)
         case _ => Nil
@@ -592,7 +588,7 @@ case class ByteCode(state: CompilationState) {
         }
         
         def contract(lvalue: in.Lvalue) {
-            def storeSym(sym: Symbol.Var) =
+            def storeSym(sym: VarSymbol.Any) =
                 accessMap.syms(sym).storeLvalueWithoutPush(mvis)
             lvalue match {
                 case in.TupleLvalue(sublvalues) => sublvalues.reverse.foreach(contract)
@@ -615,7 +611,7 @@ case class ByteCode(state: CompilationState) {
         }
         
         def pushMethodArgs(
-            msig: Symbol.MethodSignature[Pattern.Anon],
+            msig: MethodSignature[Pattern.Anon],
             args: List[in.Expr]
         ) {
             msig.parameterPatterns.zip(args).foreach { case (pattern, arg) =>
@@ -965,7 +961,7 @@ case class ByteCode(state: CompilationState) {
             )
             val derivedAccessMap = deriveAccessMap(name, tmplwr.cvis, tmpl.stmts)
             
-            val methodSig = Symbol.MethodSignature(
+            val methodSig = MethodSignature(
                 tmpl.returnTref.ty,
                 blockTy,
                 List(in.toPatternRef(tmpl.param))
@@ -998,7 +994,7 @@ case class ByteCode(state: CompilationState) {
             tmplmvis.complete
             
             // Emit a forwarding method from the interface version:
-            val interfaceMethodSig = Symbol.MethodSignature(
+            val interfaceMethodSig = MethodSignature(
                 Type.Object,
                 blockTy,
                 List(Pattern.Var(Name.LocalVar("arg"), Type.Object))
@@ -1063,7 +1059,7 @@ case class ByteCode(state: CompilationState) {
                 in.Tuple(subpatterns.map(constructExprFromPattern))
                 
             case Pattern.Var(name, ty) => {
-                val sym = new Symbol.LocalVar(Modifier.Set.empty, name, ty)
+                val sym = new VarSymbol.Local(Modifier.Set.empty, name, ty)
                 accessMap.addUnboxedSym(sym)
                 in.Var(Ast.LocalName(name), sym)
             }
@@ -1096,8 +1092,8 @@ case class ByteCode(state: CompilationState) {
         cvis: asm.ClassVisitor, 
         methodName: Name.Method,
         withMroIndex: Boolean,
-        masterSig: Symbol.MethodSignature[Pattern.Ref],
-        overriddenSig: Symbol.MethodSignature[Pattern.Ref],
+        masterSig: MethodSignature[Pattern.Ref],
+        overriddenSig: MethodSignature[Pattern.Ref],
         invokeOp: Int
     ) {
         val descFunc = if(withMroIndex) mroMethodDescFromSig _ else plainMethodDescFromSig _
@@ -1147,7 +1143,7 @@ case class ByteCode(state: CompilationState) {
     def writeForwardingMethods(
         csym: Symbol.ClassFromSource, 
         cvis: asm.ClassVisitor,
-        group: Symbol.MethodGroup
+        group: MethodGroup
     ) {
         group.msyms.foreach { msym =>
             List(true, false).foreach { withMroIndex =>
@@ -1184,7 +1180,7 @@ case class ByteCode(state: CompilationState) {
     def writeStaticMethodImpl(
         csym: Symbol.ClassFromSource, 
         cvis: asm.ClassVisitor, 
-        msym: Symbol.Method,
+        msym: MethodSymbol,
         decl: in.MethodDecl
     ) {
         decl.optBody.foreach { body => // Only for non-abstract methods:
@@ -1218,7 +1214,7 @@ case class ByteCode(state: CompilationState) {
         csym: Symbol.ClassFromSource, 
         cvis: asm.ClassVisitor, 
         methodName: Name.Method,
-        msig: Symbol.MethodSignature[Pattern.Ref],
+        msig: MethodSignature[Pattern.Ref],
         opts: Int
     ) = {
         val mvis = cvis.visitMethod(
@@ -1240,7 +1236,7 @@ case class ByteCode(state: CompilationState) {
         csym: Symbol.ClassFromSource, 
         cvis: asm.ClassVisitor, 
         methodName: Name.Method,
-        msig: Symbol.MethodSignature[Pattern.Ref],
+        msig: MethodSignature[Pattern.Ref],
         opts: Int
     ) = {
         val mvis = cvis.visitMethod(
@@ -1262,7 +1258,7 @@ case class ByteCode(state: CompilationState) {
     def writeMethodInterface(
         csym: Symbol.ClassFromSource, 
         cvis: asm.ClassVisitor, 
-        msym: Symbol.Method
+        msym: MethodSymbol
     ) {
         val mvisPlain = visitPlainMethod(csym, cvis, msym.name, msym.msig, O.ACC_ABSTRACT)
         mvisPlain.complete
@@ -1280,7 +1276,7 @@ case class ByteCode(state: CompilationState) {
     def writePlainToMroDispatch(
         csym: Symbol.ClassFromSource, 
         cvis: asm.ClassVisitor,
-        group: Symbol.MethodGroup
+        group: MethodGroup
     ) {
         val mvis = visitPlainMethod(csym, cvis, group.methodName, group.msig, 0)
         val accessMap = new AccessMap(csym.name)
@@ -1303,14 +1299,14 @@ case class ByteCode(state: CompilationState) {
     /** Computes the method symbol, if any, to be invoked from each MRO index. */
     def computeVersions(
         /** The method whose super-versions we are computing. */
-        group: Symbol.MethodGroup,
+        group: MethodGroup,
         
         /** List of superclasses, in order. */
         mro: List[Symbol.Class], 
         
         /** Remaining methods from group.  */
-        msyms: List[Symbol.Method]
-    ): List[Option[Symbol.Method]] = {
+        msyms: List[MethodSymbol]
+    ): List[Option[MethodSymbol]] = {
         mro match {
             case List() => List()
             case csym :: tl => {
@@ -1335,7 +1331,7 @@ case class ByteCode(state: CompilationState) {
     def writeMroMethodImpl(
         csym: Symbol.ClassFromSource, 
         cvis: asm.ClassVisitor,
-        group: Symbol.MethodGroup
+        group: MethodGroup
     ) {
         val mvis = visitMethodWithMro(csym, cvis, group.methodName, group.msig, 0)
         val accessMap = new AccessMap(csym.name)

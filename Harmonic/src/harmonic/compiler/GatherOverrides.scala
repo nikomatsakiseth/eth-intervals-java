@@ -38,23 +38,23 @@ case class GatherOverrides(state: CompilationState) {
     }
     
     class MethodGroups(env: Env) {
-        private[this] val groups = new mutable.HashMap[Name.Method, List[Symbol.MethodGroup]]()
+        private[this] val groups = new mutable.HashMap[Name.Method, List[MethodGroup]]()
         
-        private[this] def newGroup(msym: Symbol.Method) = {
-            val group = new Symbol.MethodGroup(msym.name, msym.msig)
+        private[this] def newGroup(msym: MethodSymbol) = {
+            val group = new MethodGroup(msym.name, msym.msig)
             group.addMsym(msym)
             group
         }
         
         private[this] def isCompatibleWith(
-            msig: Symbol.MethodSignature[Pattern.Ref]
+            msig: MethodSignature[Pattern.Ref]
         )(
-            group: Symbol.MethodGroup
+            group: MethodGroup
         ) =
             env.overrides(msig, group.msig)
             
         /** Add `msym` to an appropriate group, creating a new one if needed */
-        def addMsym(msym: Symbol.Method) = {
+        def addMsym(msym: MethodSymbol) = {
             val prevGroups = groups.get(msym.name).getOrElse(Nil)
             prevGroups.find(isCompatibleWith(msym.msig)) match {
                 case Some(group) => group.addMsym(msym)
@@ -66,7 +66,7 @@ case class GatherOverrides(state: CompilationState) {
         def allGroups = groups.valuesIterator.toList.flatten
         
         /** Returns the group containing `msym` (such a group must exist) */
-        def group(msym: Symbol.Method) =
+        def group(msym: MethodSymbol) =
             groups(msym.name).find(isCompatibleWith(msym.msig)).get
     }
 
@@ -96,18 +96,10 @@ case class GatherOverrides(state: CompilationState) {
             msym.overrides ++= group.msyms.dropWhile(_.isFromClassNamed(csym.name))
             
             if(msym.overrides.isEmpty && msym.modifiers(state).isOverride) {
-                state.reporter.report(
-                    msym.pos,
-                    "method.does.not.override"
-                )
+                Error.NotOverride().report(state, msym.pos)
             } else if (!msym.overrides.isEmpty && !msym.modifiers(state).isOverride) {
                 val classNames = msym.overrides.map(_.clsName)
-                state.reporter.report(
-                    msym.pos,
-                    "method.must.be.marked.override",
-                    msym.name.toString,
-                    classNames.mkString(", ")
-                )
+                Error.NotMarkedOverride(msym.name, classNames).report(state, msym.pos)
             }
         }
     }
@@ -116,7 +108,7 @@ case class GatherOverrides(state: CompilationState) {
       * - All */
     private[this] def sanityCheckGroup(
         csym: Symbol.Class,
-        group: Symbol.MethodGroup
+        group: MethodGroup
     ): Unit = {
         
         // Consider the methods in this group defined in `csym` itself:
@@ -129,17 +121,14 @@ case class GatherOverrides(state: CompilationState) {
                 val tops = group.msyms.foldLeft(group.msyms) {
                     case (l, msym) => l.filterNot(msym.overrides.contains)
                 }
-                val reported = new mutable.HashSet[(Symbol.Method, Symbol.Method)]()
+                val reported = new mutable.HashSet[(MethodSymbol, MethodSymbol)]()
                 (tops cross tops).foreach { case (msym1, msym2) =>
                     if(msym1 != msym2 && !msym1.overrides.intersects(msym2.overrides)) {
                         if(reported.add((msym1, msym2)) && reported.add((msym2, msym1))) {
-                            state.reporter.report(
-                                csym.pos,
-                                "must.override",
-                                group.methodName.toString,
-                                msym1.clsName.toString,
-                                msym2.clsName.toString
-                            )                        
+                            Error.MustResolveAmbiguousInheritance(
+                                csym.name, group.methodName, 
+                                msym1.clsName, msym2.className
+                            ).report(state, csym.pos)
                         }
                     }
                 }
@@ -150,12 +139,9 @@ case class GatherOverrides(state: CompilationState) {
             }
             
             case msyms => {
-                state.reporter.report(
-                    csym.pos,
-                    "multiple.overriding.methods.in.same.class",
-                    group.methodName.toString,
-                    msyms.length.toString
-                )                    
+                Error.MultipleOverridesInSameClass(
+                    csym.name, group.methodName, msyms.length
+                ).report(state, csym.pos)
             }
             
         }

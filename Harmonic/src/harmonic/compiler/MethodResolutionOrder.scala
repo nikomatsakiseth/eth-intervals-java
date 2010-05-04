@@ -36,11 +36,9 @@ case class MethodResolutionOrder(state: CompilationState) {
         superLists.findIndexOf(isGoodHead) match {
             case -1 => {
                 if(!superLists.isEmpty) {
-                    state.reporter.report(
-                        csym.pos,
-                        "ambiguous.inheritance",
-                        csym.name.toString, superLists.map(_.head).mkString(", ")
-                    )
+                    Error.AmbiguousInheritance(
+                        csym.name, superLists.map(_.head)
+                    ).report(state, csym.pos)
                 }
                 List()
             }
@@ -63,11 +61,9 @@ case class MethodResolutionOrder(state: CompilationState) {
             
             case None if stack.contains(csym) => {
                 val idx = stack.indexOf(csym)
-                state.reporter.report(
-                    csym.pos,
-                    "circular.inheritance",
-                    csym.name.toString, stack.take(idx).reverse.mkString(", ")
-                )
+                Error.CircularInheritance(
+                    csym.name, stack.take(idx).reverse
+                ).report(state, csym.pos)
                 data.mroCache(csym) = List(csym)
                 List(csym)
             }

@@ -48,8 +48,8 @@ case class Reflect(state: CompilationState) {
     }
     
     def fieldSymbol(csym: Symbol.ClassFromReflection)(fld: reflect.Field) = {
-        new Symbol.Field(
-            modifierSet = Modifier.forMember(fld),
+        new VarSymbol.Field(
+            modifiers = Modifier.forMember(fld),
             name        = Name.Member(csym.name, fld.getName),
             ty          = typeRef(fld.getGenericType)
         )        
@@ -69,8 +69,8 @@ case class Reflect(state: CompilationState) {
     
     def fieldSymTabEntry(csym: Symbol.ClassFromReflection)(fld: reflect.Field) = {
         val memberName = Name.Member(csym.name, fld.getName)
-        val modifierSet = Modifier.forMember(fld)
-        if(modifierSet.isStatic) SymTab.StaticField(memberName)
+        val modifiers = Modifier.forMember(fld)
+        if(modifiers.isStatic) SymTab.StaticField(memberName)
         else SymTab.InstanceField(memberName)
     }
     
@@ -83,13 +83,13 @@ case class Reflect(state: CompilationState) {
     }
     
     def ctorSymbol(clsName: Name.Class)(mthd: reflect.Constructor[_]) = {
-        new Symbol.Method(
+        new MethodSymbol(
             pos         = InterPosition.forClass(mthd.getDeclaringClass),
-            modifierSet = Modifier.forMember(mthd),
+            modifiers = Modifier.forMember(mthd),
             kind        = Symbol.JavaVirtual,
             clsName     = clsName,
             name        = Name.InitMethod,
-            Symbol.MethodSignature(
+            MethodSignature(
                 returnTy          = Type.Void,
                 receiverTy        = Type.Class(clsName, List()),
                 parameterPatterns = List(Pattern.Tuple(
@@ -107,13 +107,13 @@ case class Reflect(state: CompilationState) {
     }
     
     def methodSymbol(clsName: Name.Class)(mthd: reflect.Method) = {
-        new Symbol.Method(
+        new MethodSymbol(
             pos         = InterPosition.forClass(mthd.getDeclaringClass),
-            modifierSet = Modifier.forMember(mthd),
+            modifiers = Modifier.forMember(mthd),
             kind        = Symbol.JavaVirtual, // FIXME 
             clsName     = clsName,
             name        = Name.Method(List(mthd.getName)),
-            Symbol.MethodSignature(
+            MethodSignature(
                 returnTy = typeRef(mthd.getGenericReturnType),
                 receiverTy = Type.Class(clsName, List()),
                 parameterPatterns = List(Pattern.Tuple(

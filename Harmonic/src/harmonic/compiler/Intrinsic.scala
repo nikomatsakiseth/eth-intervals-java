@@ -47,13 +47,13 @@ case class Intrinsic(state: CompilationState) {
             val returnTy = Type.Class(returnClass)
             for((interName, javaName) <- mathOps) {
                 state.addIntrinsic(
-                    new Symbol.Method(
+                    new MethodSymbol(
                         pos = InterPosition.forClass(classOf[Intrinsic]),
-                        modifierSet = Modifier.Set.empty,
+                        modifiers = Modifier.Set.empty,
                         kind = Symbol.IntrinsicMath(javaName, leftClass, rightClass, returnClass),
                         clsName = leftTy.name,
                         name = interName, 
-                        Symbol.MethodSignature(
+                        MethodSignature(
                             returnTy = returnTy,
                             receiverTy = leftTy,
                             parameterPatterns = List(Pattern.Var(Name.LocalVar("arg"), rightTy))
@@ -107,9 +107,9 @@ case class Intrinsic(state: CompilationState) {
         
         // (boolean) if {...}
         state.addIntrinsic(
-            new Symbol.Method(
+            new MethodSymbol(
                 pos = InterPosition.forClass(classOf[Intrinsic]),
-                modifierSet = Modifier.Set.empty,
+                modifiers = Modifier.Set.empty,
                 kind = controlFlow(
                     "if_",
                     Array(booleanClass, templateClass),
@@ -117,7 +117,7 @@ case class Intrinsic(state: CompilationState) {
                 ),
                 clsName = booleanTy.name,
                 name = Name.Method(List("if")),
-                Symbol.MethodSignature(
+                MethodSignature(
                     returnTy = voidTy,
                     receiverTy = booleanTy,
                     parameterPatterns = List(
@@ -129,9 +129,9 @@ case class Intrinsic(state: CompilationState) {
         
         // (Object) ifNull {...}
         state.addIntrinsic(
-            new Symbol.Method(
+            new MethodSymbol(
                 pos = InterPosition.forClass(classOf[Intrinsic]),
-                modifierSet = Modifier.Set.empty,
+                modifiers = Modifier.Set.empty,
                 kind = controlFlow(
                     "ifNull",
                     Array(objectClass, templateClass),
@@ -139,7 +139,7 @@ case class Intrinsic(state: CompilationState) {
                 ),
                 clsName = objectTy.name,
                 name = Name.Method(List("ifNull")),
-                Symbol.MethodSignature(
+                MethodSignature(
                     returnTy = voidTy,
                     receiverTy = objectTy,
                     parameterPatterns = List(
@@ -151,9 +151,9 @@ case class Intrinsic(state: CompilationState) {
 
         // (boolean) if {...} else {...}
         state.addIntrinsic(
-            new Symbol.Method(
+            new MethodSymbol(
                 pos = InterPosition.forClass(classOf[Intrinsic]),
-                modifierSet = Modifier.Set.empty,
+                modifiers = Modifier.Set.empty,
                 kind = controlFlow(
                     "ifElse",
                     Array(booleanClass, templateClass, templateClass),
@@ -161,7 +161,7 @@ case class Intrinsic(state: CompilationState) {
                 ),
                 clsName = booleanTy.name,
                 name = Name.Method(List("if", "else")),
-                Symbol.MethodSignature(
+                MethodSignature(
                     returnTy = voidTy, /* ΧΧΧ Generic Method */
                     receiverTy = booleanTy,
                     parameterPatterns = List(
@@ -174,9 +174,9 @@ case class Intrinsic(state: CompilationState) {
         
         // (Object) ifNull {...} else {...}
         state.addIntrinsic(
-            new Symbol.Method(
+            new MethodSymbol(
                 pos = InterPosition.forClass(classOf[Intrinsic]),
-                modifierSet = Modifier.Set.empty,
+                modifiers = Modifier.Set.empty,
                 kind = controlFlow(
                     "ifNullElse",
                     Array(objectClass, templateClass, templateClass),
@@ -184,7 +184,7 @@ case class Intrinsic(state: CompilationState) {
                 ),
                 clsName = objectTy.name,
                 name = Name.Method(List("ifNull", "else")),
-                Symbol.MethodSignature(
+                MethodSignature(
                     returnTy = voidTy, /* ΧΧΧ Generic Method */
                     receiverTy = objectTy,
                     parameterPatterns = List(
@@ -198,9 +198,9 @@ case class Intrinsic(state: CompilationState) {
         // (Iterable<T>) forEach { (T i) -> ... }
         val typeT = Type.Var(Path.This, Name.Member(iterableTy.name, "T"))
         state.addIntrinsic(
-            new Symbol.Method(
+            new MethodSymbol(
                 pos = InterPosition.forClass(classOf[Intrinsic]),
-                modifierSet = Modifier.Set.empty,
+                modifiers = Modifier.Set.empty,
                 kind = controlFlow(
                     "forEach",
                     Array(iterableClass, templateClass),
@@ -208,7 +208,7 @@ case class Intrinsic(state: CompilationState) {
                 ),
                 clsName = iterableTy.name,
                 name = Name.Method(List("forEach")),
-                Symbol.MethodSignature(
+                MethodSignature(
                     returnTy = voidTy,
                     receiverTy = iterableTy,
                     parameterPatterns = List(
@@ -223,9 +223,9 @@ case class Intrinsic(state: CompilationState) {
 
         // (Block<Boolean,_>) while { ... }
         state.addIntrinsic(
-            new Symbol.Method(
+            new MethodSymbol(
                 pos = InterPosition.forClass(classOf[Intrinsic]),
-                modifierSet = Modifier.Set.empty,
+                modifiers = Modifier.Set.empty,
                 kind = controlFlow(
                     "while_",
                     Array(templateClass, templateClass),
@@ -233,7 +233,7 @@ case class Intrinsic(state: CompilationState) {
                 ),
                 clsName = Name.Class(templateClass),
                 name = Name.Method(List("while")),
-                Symbol.MethodSignature(
+                MethodSignature(
                     returnTy = voidTy, 
                     receiverTy = templateTy(booleanTy, voidTy),
                     parameterPatterns = List(

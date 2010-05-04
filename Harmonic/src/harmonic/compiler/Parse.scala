@@ -412,7 +412,7 @@ object Parse {
         
     }
 
-    def apply(state: CompilationState, interFile: File) = {
+    def apply(global: Global, interFile: File) = {
         val javaReader = Util.javaReaderFromFile(interFile)
         val parser = new Parse()
         
@@ -420,7 +420,7 @@ object Parse {
         val tokens = new parser.lexical.Scanner(reader)
         parser.phrase(parser.compUnit)(tokens) match {
             case n: parser.NoSuccess => {
-                state.reporter.report(n.next.pos, "parse.error", n.msg)
+                global.reporter.report(n.next.pos, "parse.error", List(n.msg))
                 None
             }
             case parser.Success(compUnit, _) => {

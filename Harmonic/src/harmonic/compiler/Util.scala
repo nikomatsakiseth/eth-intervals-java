@@ -3,6 +3,8 @@ package harmonic.compiler
 import scala.util.parsing.input.Positional
 import scala.util.parsing.input.Position
 
+import ch.ethz.intervals._
+
 import scala.collection.Set
 
 import Error.CanFail
@@ -102,6 +104,46 @@ object Util {
         } finally {
             indent -= 2
         }
+    }
+    
+    // ___ Intervals ________________________________________________________
+    
+    case class ExtendedInterval(inter: Interval) {
+        def subinterval[R](
+            during: List[Interval] = Nil,
+            before: List[Point] = Nil,
+            after: List[Point] = Nil,
+            name: String = null
+        )(
+            func: (Interval => R)
+        ): Future[R] = {
+            val result = new Future(inter, name) {
+                override def compute() = func(this)
+            }
+            after.foreach(Intervals.addHb(_, result.start))
+            before.foreach(Intervals.addHb(result.end, _))
+            during.foreach(Intervals.addHb(_.start, result.start))
+            during.foreach(Intervals.addHb(result.end, _.end))
+            result.schedule()
+            
+            result
+        }
+        
+        def join() = {
+            Intervals.inline(new InlineTask[T]() {
+               override def init(inlineInterval: Interval) = Intervals.addHb(end, inlineInterval.start)
+               override def run(inlineInterval: Interval) = ()
+            })       
+        }
+    }
+    implicit def extendedInterval(inter: Interval) = ExtendedInterval(inter)
+    
+    def inlineInterval[R](func: (Interval => R)):R = {
+        Intervals.inline(new InlineTask[R] {
+            def run(subinterval: Interval) = {
+                func(subinterval)
+            }
+        })
     }
     
 }

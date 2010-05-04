@@ -30,8 +30,8 @@ class Subst(private val map: Map[Path.Ref, Path.Ref]) {
         case Type.TypeArg(n, r, t) => Type.TypeArg(n, r, ty(t))
     }
     
-    def methodSignature(msig: Symbol.MethodSignature[Pattern.Anon]) = {
-        Symbol.MethodSignature(
+    def methodSignature(msig: MethodSignature[Pattern.Anon]) = {
+        MethodSignature(
             returnTy = ty(msig.returnTy),
             receiverTy = ty(msig.receiverTy),
             parameterPatterns = msig.parameterPatterns.map(pattern)

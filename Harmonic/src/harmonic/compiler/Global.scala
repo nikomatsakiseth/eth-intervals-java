@@ -3,22 +3,30 @@ package harmonic.compiler
 import java.io.File
 import scala.util.parsing.input.Position
 import scala.collection.mutable
+import ch.ethz.intervals.Interval
 
-class CompilationState(
+class Global(
     val config: Config,
     val reporter: Reporter
 ) {
+    // ___ Class Symbols ____________________________________________________
+    
     /** Maps a class name to its symbol. */
-    val classes = new mutable.HashMap[Name.Qual, Symbol.Class]()
+    private[this] val classMap = 
+        new mutable.HashMap[Name.Class, ClassSymbol]()
+        
+    def optCsym(name: Name.Class) = synchronized {
+        classMap.get(name)
+    }
+        
+    def csym(name: Name.Class) = synchronized {
+        classMap(name)
+    }
     
-    /** Compilation units containing classes whose body has not yet been resolved. */
-    val toBeResolved = new mutable.Queue[Ast.Parse.CompUnit]()
-    
-    /** Symbols parsed and resolved but not yet lowered. */
-    val toBeLowered = new mutable.Queue[Symbol.ClassFromSource]()
-    
-    /** Symbols lowered but for which we have not yet emitted byte code. */
-    val toBeBytecoded = new mutable.Queue[Symbol.ClassFromSource]()
+    def addCsym[C <: ClassSymbol](cls: C): C = synchronized {
+        classMap(cls.name) = cls
+        cls
+    }
     
     // ___ Private Data For Other Classes ___________________________________
     //
@@ -28,7 +36,7 @@ class CompilationState(
     
     private[this] val privateData = new mutable.HashMap[java.lang.Class[_], Any]()
     
-    def data[C](cls: java.lang.Class[C]): C = {
+    def data[C](cls: java.lang.Class[C]): C = synchronized {
         privateData.get(cls) match {
             case Some(v) => cls.cast(v)
             case None => {
@@ -41,94 +49,40 @@ class CompilationState(
     
     // ___ Scheduler ________________________________________________________
     
-    private[this] val activePasses = new mutable.HashSet[Pass]()
-    var currentPass: Pass = null
-    
-    def sched(before: List[Pass] = List(), after: List[Pass] = List())(func: => Unit): Pass = {
-        val pass = new Pass(() => func, after)
-        assert(before.forall(activePasses))
-        before.foreach(_.addDependency(pass))
-        activePasses += pass
-        pass
-    }
-    
-    def drain() = {
-        while(!activePasses.isEmpty) {
-            activePasses.find(_.isEligible(activePasses)) match {
-                case Some(pass) => {
-                    activePasses -= pass
-                    currentPass = pass
-                    pass.func()
-                    currentPass = null                                    
-                }
-                
-                case None => throw new RuntimeException("Deadlock!")
+    def compile() = {
+        
+        inlineInterval { master =>
+            
+            // Start by parsing the input files.  This will create
+            // various subintervals of master, which will begin to
+            // execute once all parsing and loading is complete.
+            // It is necessary for those subintervals to wait till all
+            // the initial files have been loaded because they may
+            // reference symbols created in one another.
+            config.inputFiles.foreach { inputFile =>
+                val state = State(this, master, master, None)
+                Parse(state, inputFile).foreach(createSymbols)
             }
+            
         }
     }
     
-    def compile() = drain()
-    
     // ___ Intrinsics _______________________________________________________
     
-    val intrinsics = new mutable.HashMap[(Name.Qual, Name.Method), List[Symbol.Method]]()
+    val intrinsics = new mutable.HashMap[(Name.Qual, Name.Method), List[MethodSymbol]]()
     
-    def addIntrinsic(msym: Symbol.Method) {
+    def addIntrinsic(msym: MethodSymbol) {
         val key = (msym.clsName, msym.name)
         intrinsics(key) = msym :: intrinsics.get(key).getOrElse(Nil)
     }
     
     /** Checks for an intrinsic method --- i.e., one that is built-in to the compiler ---
       * defined on the type `rcvrTy` with the name `name`. */
-    def lookupIntrinsic(className: Name.Qual, methodName: Name.Method): Option[List[Symbol.Method]] = {
+    def lookupIntrinsic(className: Name.Qual, methodName: Name.Method): Option[List[MethodSymbol]] = {
         intrinsics.get((className, methodName))
     }
     
     // ___ Loading and resolving class symbols ______________________________
-    
-    private[this] def createSymbols(compUnits: List[Ast.Parse.CompUnit]) {
-        compUnits.foreach { compUnit =>
-            Ast.Parse.definedClasses(compUnit).foreach { case (className, cdecl) =>
-                if(classes.isDefinedAt(className))
-                    reporter.report(cdecl.pos, "class.already.defined", className.toString)
-                else {
-                    val csym = new Symbol.ClassFromSource(className)
-                    classes(className) = csym
-                    
-                    csym.resolveHeader = List(sched() {
-                        ResolveHeader(this, compUnit).resolveClassHeader(csym, cdecl)
-                    })
-                    
-                    csym.resolveHeaderClosure = List(sched(after = csym.resolveHeader) {
-                        // Just a placeholder: resolveHeader will add incoming dependencies
-                        // from the supertypes of `csym` that prevent this task from executing
-                        // until the headers of all supertypes have been resolved.
-                    })
-                    
-                    csym.resolveBody = List(sched(after = csym.resolveHeaderClosure) {
-                        ResolveBody(this, compUnit).resolveClassBody(csym, cdecl)
-                    })
-                    
-                    csym.lower = List(sched(after = csym.resolveBody) {
-                        csym.loweredSource = Lower(this).lowerClass(csym)
-                        if(config.dumpLoweredTrees)
-                            csym.loweredSource.println(PrettyPrinter.stdout)
-                    })
-                    
-                    csym.byteCode = List(sched(after = csym.lower) {
-                        val csym = toBeBytecoded.dequeue()
-                        GatherOverrides(this).forSym(csym)
-                        ByteCode(this).writeClassSymbol(csym)
-                    })
-                }                
-            }
-        }
-    }
-    
-    def loadInitialSources(files: List[java.io.File]) {
-        val compUnits = files.flatMap(Parse(this, _))
-        createSymbols(compUnits)
-    }
     
     /** True if a class with the name `className` has been
       * loaded or we can find source for it (in which case
