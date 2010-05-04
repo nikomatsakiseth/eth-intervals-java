@@ -37,7 +37,7 @@ extends Resolve(global, compUnit)
       * supertypes of `csym`.  A key is only included if all
       * supertypes agree on its value. */
     def mergeSuperSymbolTables(csym: ClassSymbol): SymTab.Map = {
-        val superCsyms = csym.superClassNames.map(globalclasses)
+        val superCsyms = csym.superClassNames.map(global.csym)
         val superSymtabs = superCsyms.map(constructSymbolTable)
         superSymtabs match {
             // Micro-optimize the case of zero or one supertypes:

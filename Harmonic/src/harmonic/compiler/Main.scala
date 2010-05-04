@@ -9,10 +9,9 @@ object Main {
         val config = new Config()
         val err = 
             if(config.loadFrom(args)) {
-                val state = new State(config, new Reporter(config))
+                val global = new Global(config, new Reporter(config))
                 Intrinsic(global).add()
-                globalloadInitialSources(config.inputFiles.toList)
-                globalcompile()
+                global.compile()
                 if (global.reporter.hasErrors) {
                     global.reporter.print(System.err)                
                     1

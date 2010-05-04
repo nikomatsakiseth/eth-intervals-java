@@ -21,7 +21,7 @@ abstract class Resolve(global: Global, compUnit: in.CompUnit) {
     
     protected[this] def resolveAgainstPackage(pkgName: Name.Package, nm: String): Name.Qual = {
         val className = Name.Class(pkgName, nm)
-        if(globalloadedOrLoadable(className)) {
+        if(global.loadedOrLoadable(className)) {
             className
         } else {
             Name.Subpackage(pkgName, nm)
@@ -30,7 +30,7 @@ abstract class Resolve(global: Global, compUnit: in.CompUnit) {
     
     protected[this] def resolveAgainstClass(clsName: Name.Class, nm: String): Option[Name.Class] = {
         val className = Name.Class(clsName, nm)
-        if(globalloadedOrLoadable(className)) {
+        if(global.loadedOrLoadable(className)) {
             Some(className)
         } else {
             None

@@ -23,7 +23,7 @@ extends Resolve(global, compUnit)
         cdecl: in.ClassDecl
     ) {
         csym.superClassNames = cdecl.superClasses.map(resolveName).map(_.name)
-        val superCsyms = csym.superClassNames.map(globalclasses)
+        val superCsyms = csym.superClassNames.map(global.csym)
         val superHeaderPasses = superCsyms.flatMap(_.resolveHeader)
         csym.resolveHeaderClosure.foreach(_.addDependencies(superHeaderPasses))
         
