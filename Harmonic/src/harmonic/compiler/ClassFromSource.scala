@@ -2,6 +2,7 @@ package harmonic.compiler
 
 import scala.collection.mutable
 import ch.ethz.intervals.Interval
+import Util._
 
 class ClassFromSource(
     name: Name.Class,

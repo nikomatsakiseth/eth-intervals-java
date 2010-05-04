@@ -14,7 +14,7 @@ abstract class Error {
 object Error {
     case class NotOverride() extends Error {
         def report(global: Global, pos: Position) {
-            globalreporter.report(pos, 
+            global.reporter.report(pos, 
                 "method.does.not.override"
             )
         }                
@@ -46,7 +46,7 @@ object Error {
         superClasses: List[Name.Class]
     ) extends Error {
         def report(global: Global, pos: Position) {
-            globalreporter.report(pos, 
+            global.reporter.report(pos, 
                 "ambiguous.inheritance",
                 className, 
                 superClasses.mkString(", ")
@@ -61,7 +61,7 @@ object Error {
         ambig2: Name.Class
     ) extends Error {
         def report(global: Global, pos: Position) {
-            globalreporter.report(pos, 
+            global.reporter.report(pos, 
                 "must.resolve.ambiguity",
                 className.toString,
                 group.methodName.toString,
@@ -77,7 +77,7 @@ object Error {
         number: Int
     ) extends Error {
         def report(global: Global, pos: Position) {
-            globalreporter.report(pos, 
+            global.reporter.report(pos, 
                 "multiple.overriding.methods.in.same.class",
                 className.toString,
                 group.methodName.toString,
@@ -91,7 +91,7 @@ object Error {
         classNames: List[Name.Class]
     ) extends Error {
         def report(global: Global, pos: Position) {
-            globalreporter.report(pos, 
+            global.reporter.report(pos, 
                 "method.must.be.marked.override",
                 methodName.toString,
                 classNames.mkString(", ")
@@ -102,7 +102,7 @@ object Error {
     
     case class IOError(err: java.io.IOError) extends Error {
         def report(global: Global, pos: Position) {
-            globalreporter.report(pos, 
+            global.reporter.report(pos, 
                 "io.error",
                 err.toString
             )
@@ -111,7 +111,7 @@ object Error {
     
     case class ShadowedClassParam(name: String) extends Error {
         def report(global: Global, pos: Position) {
-            globalreporter.report(pos, 
+            global.reporter.report(pos, 
                 "shadowed.class.param", 
                 name
             )
@@ -120,7 +120,7 @@ object Error {
     
     case class ShadowedMethodParam(name: String) extends Error {
         def report(global: Global, pos: Position) {
-            globalreporter.report(pos, 
+            global.reporter.report(pos, 
                 "shadowed.method.param", 
                 name
             )
@@ -129,7 +129,7 @@ object Error {
     
     case class ShadowedLocalVar(name: String) extends Error {
         def report(global: Global, pos: Position) {
-            globalreporter.report(pos, 
+            global.reporter.report(pos, 
                 "shadowed.local.var", 
                 name
             )
@@ -138,7 +138,7 @@ object Error {
     
     case class CannotResolve(name: String) extends Error {
         def report(global: Global, pos: Position) {
-            globalreporter.report(pos, 
+            global.reporter.report(pos, 
                 "cannot.resolve", 
                 name
             )
@@ -147,7 +147,7 @@ object Error {
     
     case class DiffStaticClasses(className1: Name.Class, className2: Name.Class) extends Error {
         def report(global: Global, pos: Position) {
-            globalreporter.report(pos, 
+            global.reporter.report(pos, 
                 "different.static.classes", 
                 className1.toString, className2.toString
             )
@@ -156,7 +156,7 @@ object Error {
     
     case class NoSuchMember(ty: Type.Ref, uName: Name.UnloweredMember) extends Error {
         def report(global: Global, pos: Position) {
-            globalreporter.report(pos, 
+            global.reporter.report(pos, 
                 "no.such.member", 
                 ty.toString, uName.toString
             )
@@ -165,7 +165,7 @@ object Error {
     
     case class NoSuchMethod(ty: Type.Ref, name: Name.Method) extends Error {
         def report(global: Global, pos: Position) {
-            globalreporter.report(pos, 
+            global.reporter.report(pos, 
                 "no.such.method", 
                 ty.toString, name.toString
             )
@@ -183,25 +183,25 @@ object Error {
     
     case class ExpPath(name: Name.Qual) extends Error {
         def report(global: Global, pos: Position) {
-            globalreporter.report(pos, "exp.path.but.found.class", name.toString)
+            global.reporter.report(pos, "exp.path.but.found.class", name.toString)
         }
     }
     
     case class ExpClassName(path: String) extends Error {
         def report(global: Global, pos: Position) {
-            globalreporter.report(pos, "exp.class", path)
+            global.reporter.report(pos, "exp.class", path)
         }
     }
     
     case class ExpStatic(memberVar: Name.Member) extends Error {
         def report(global: Global, pos: Position) {
-            globalreporter.report(pos, "expected.static", memberVar.toString)
+            global.reporter.report(pos, "expected.static", memberVar.toString)
         }        
     }
     
     case class NotInStaticScope(memberVar: Name.Member) extends Error {
         def report(global: Global, pos: Position) {
-            globalreporter.report(pos, 
+            global.reporter.report(pos, 
                 "not.in.static.context", 
                 memberVar.toString)
         }        
@@ -209,7 +209,7 @@ object Error {
     
     case class AmbiguousMember(options: List[SymTab.MemberEntry]) extends Error {
         def report(global: Global, pos: Position) {
-            globalreporter.report(pos, 
+            global.reporter.report(pos, 
                 "ambiguous.member",
                 options.map(_.name).mkString(", ")
             )
@@ -218,7 +218,7 @@ object Error {
     
     case class NotField(name: Name.Member) extends Error {
         def report(global: Global, pos: Position) {
-            globalreporter.report(pos, 
+            global.reporter.report(pos, 
                 "not.a.field", 
                 name.toString
             )
@@ -227,7 +227,7 @@ object Error {
     
     case class NotTypeVar(entry: SymTab.MemberEntry) extends Error {
         def report(global: Global, pos: Position) {
-            globalreporter.report(pos, 
+            global.reporter.report(pos, 
                 "not.a.type.var", 
                 entry.name.toString
             )

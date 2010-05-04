@@ -115,10 +115,10 @@ object Util {
             after: List[Point] = Nil,
             name: String = null
         )(
-            func: (Interval => R)
-        ): Future[R] = {
-            val result = new Future(inter, name) {
-                override def compute() = func(this)
+            func: (Interval => Unit)
+        ): Interval = {
+            val result = new Interval(inter, name) {
+                override def run() = func(this)
             }
             after.foreach(Intervals.addHb(_, result.start))
             before.foreach(Intervals.addHb(result.end, _))
@@ -130,9 +130,11 @@ object Util {
         }
         
         def join() = {
-            Intervals.inline(new InlineTask[T]() {
-               override def init(inlineInterval: Interval) = Intervals.addHb(end, inlineInterval.start)
-               override def run(inlineInterval: Interval) = ()
+            Intervals.inline(new InlineTask[Unit]() {
+                override def init(inlineInterval: Interval) = 
+                    Intervals.addHb(inter.end, inlineInterval.start)
+                override def run(inlineInterval: Interval) = 
+                    ()
             })       
         }
     }

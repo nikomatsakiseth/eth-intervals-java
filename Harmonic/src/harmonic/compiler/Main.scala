@@ -13,8 +13,8 @@ object Main {
                 Intrinsic(global).add()
                 globalloadInitialSources(config.inputFiles.toList)
                 globalcompile()
-                if (globalreporter.hasErrors) {
-                    globalreporter.print(System.err)                
+                if (global.reporter.hasErrors) {
+                    global.reporter.print(System.err)                
                     1
                 } else 0
             } else 1

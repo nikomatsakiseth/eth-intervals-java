@@ -13,7 +13,7 @@ object ClassSymbol {
     val Create = "Create"
     val Members = "Members"
     val Merge = "Merge"
-    val Bytecode = "Bytecode"    
+    val ByteCode = "ByteCode"    
 }
 
 abstract class ClassSymbol(

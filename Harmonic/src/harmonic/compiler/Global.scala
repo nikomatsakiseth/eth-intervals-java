@@ -4,6 +4,7 @@ import java.io.File
 import scala.util.parsing.input.Position
 import scala.collection.mutable
 import ch.ethz.intervals.Interval
+import Util._
 
 class Global(
     val config: Config,
@@ -28,25 +29,6 @@ class Global(
                 Parse(global, inputFile).foreach(createSymbols)
             }
         }
-    }
-    
-    // ___ Class Symbols ____________________________________________________
-    
-    /** Maps a class name to its symbol. */
-    private[this] val classMap = 
-        new mutable.HashMap[Name.Class, ClassSymbol]()
-        
-    def optCsym(name: Name.Class) = synchronized {
-        classMap.get(name)
-    }
-        
-    def csym(name: Name.Class) = synchronized {
-        classMap(name)
-    }
-    
-    def addCsym[C <: ClassSymbol](cls: C): C = synchronized {
-        classMap(cls.name) = cls
-        cls
     }
     
     // ___ Private Data For Other Classes ___________________________________
@@ -83,22 +65,35 @@ class Global(
         intrinsics.get((className, methodName))
     }
     
-    // ___ Loading and resolving class symbols ______________________________
+    // ___ Class Symbols ____________________________________________________
+    
+    /** Maps a class name to its symbol.  Only accessed under lock. */
+    private[this] val classMap = 
+        new mutable.HashMap[Name.Class, ClassSymbol]()
+        
+    def csym(name: Name.Class) = synchronized {
+        classMap(name)
+    }
+    
+    private[this] def addCsym[C <: ClassSymbol](cls: C): C = synchronized {
+        classMap(cls.name) = cls
+        cls
+    }
     
     /** True if a class with the name `className` has been
       * loaded or we can find source for it (in which case
       * that source is loaded). */
-    def loadedOrLoadable(className: Name.Class) = {
-        classes.isDefinedAt(className) || locateSource(className)
+    def loadedOrLoadable(className: Name.Class) = synchronized {
+        classMap.isDefinedAt(className) || locateSource(className)
     }
     
     /** Loads a class named `className`.  If it fails, reports an 
       * error and inserts a dummy into the symbol table. */
-    def requireLoadedOrLoadable(pos: Position, className: Name.Class) = {
+    def requireLoadedOrLoadable(pos: Position, className: Name.Class) = synchronized {
         val result = loadedOrLoadable(className)
         if(!result) {
             reporter.report(pos, "cannot.find.class", className.toString)
-            classes(className) = new ClassFromErroroneousSource(className)
+            addCsym(new ClassFromErroroneousSource(className, this))
         }
         result
     }
@@ -106,9 +101,9 @@ class Global(
     /** Creates source symbols from all class defn. in `compUnit`.
       * Also creates the header, body, lower, create, and byte-code
       * intervals for them. */
-    private[this] def createSymbols(compUnit: Ast.Parse.CompUnit) = {
+    private[this] def createSymbols(compUnit: Ast.Parse.CompUnit) = synchronized {
         Ast.Parse.definedClasses(compUnit).foreach { case (className, cdecl) =>
-            optCsym(className) match {
+            classMap.get(className) match {
                 case Some(_) => {
                     reporter.report(cdecl.pos, "class.already.defined", className.toString)
                 }
@@ -135,32 +130,32 @@ class Global(
 
                     val header = csym.addInterval(ClassSymbol.Header) {
                         master.subinterval() { header =>
-                            ResolveHeader(global, compUnit).resolveClassHeader(csym, cdecl)                        
+                            ResolveHeader(this, compUnit).resolveClassHeader(csym, cdecl)                        
                         }
                     }
                     
                     val body = csym.addInterval(ClassSymbol.Body) {
-                        master.subinterval(after = List(header)) { body =>
-                            ResolveBody(global, compUnit).resolveClassBody(csym, cdecl)
+                        master.subinterval(after = List(header.end)) { body =>
+                            ResolveBody(this, compUnit).resolveClassBody(csym, cdecl)
                         }
                     }
 
                     val lower = csym.addInterval(ClassSymbol.Lower) {
-                        master.subinterval(after = List(body)) { lower => 
+                        master.subinterval(after = List(body.end)) { lower => 
                             () // Lower is really just a placeholder.
                         }
                     }
                     
                     val create = csym.addInterval(ClassSymbol.Create) {
                         master.subinterval(during = List(lower)) { create => 
-                            Create(global).createMemberIntervals(csym)
+                            Create(this).createMemberIntervals(csym)
                         }
                     }
 
                     csym.addInterval(ClassSymbol.ByteCode) {
-                        master.subinterval(after = List(lower)) { byteCode => 
-                            GatherOverrides(global).forSym(csym)
-                            ByteCode(global).writeClassSymbol(csym)
+                        master.subinterval(after = List(lower.end)) { byteCode => 
+                            GatherOverrides(this).forSym(csym)
+                            ByteCode(this).writeClassSymbol(csym)
                         }
                     }
                 }
@@ -171,7 +166,7 @@ class Global(
     /** Tries to locate a source for `className`.  If a source
       * is found, instantiates a corresponding symbol and
       * returns true.  Otherwise returns false. */
-    def locateSource(className: Name.Class) = {        
+    private[this] def locateSource(className: Name.Class) = synchronized {        
         
         /** When we find a reference to a source file, we parse it and load
           * the resulting classes into the symbol table.  For each class,
@@ -180,7 +175,7 @@ class Global(
             Parse(this, file) match {
                 case None => { 
                     // Parse error:
-                    addCsym(new ClassFromErroroneousSource(className, global))
+                    addCsym(new ClassFromErroroneousSource(className, this))
                 }
 
                 case Some(compUnit) => {
@@ -192,14 +187,14 @@ class Global(
                                 "expected.to.find.class", 
                                 className.toString
                             )
-                            addCsym(new ClassFromErroroneousSource(className, global))
+                            addCsym(new ClassFromErroroneousSource(className, this))
                         }
                         
                         case Some(_) =>
                     }
                     
                     // Process the loaded classes.
-                    createSymbols(List(compUnit)) 
+                    createSymbols(compUnit) 
                 }
             }
         }
@@ -210,7 +205,7 @@ class Global(
         (sourceFiles, classFiles, reflClasses) match {
             case (List(), List(), None) => false
             case (List(), List(), Some(reflClass)) => {
-                addCsym(new ClassFromReflection(className, global, reflClass))
+                addCsym(new ClassFromReflection(className, this, reflClass))
                 true
             }
             case (sourceFile :: _, List(), _) => {
@@ -218,7 +213,7 @@ class Global(
                 true
             }
             case (List(), classFile :: _, _) => {
-                addCsym(new ClassFromClassFile(className, global, classFile))
+                addCsym(new ClassFromClassFile(className, this, classFile))
                 true
             }
             case (sourceFile :: _, classFile :: _, _) => {
@@ -226,7 +221,7 @@ class Global(
                     loadSourceFile(sourceFile)
                     true
                 } else {
-                    addCsym(new ClassFromClassFile(className, global, classFile))
+                    addCsym(new ClassFromClassFile(className, this, classFile))
                     true
                 }
             }
