@@ -30,11 +30,11 @@ case class Lower(global: Global) {
         val cdecl = csym.resolvedSource
         val (outParam, env) = classParamAndEnv(csym)
         new MethodSymbol(
-            pos         = cdecl.pattern.pos,
+            pos       = cdecl.pattern.pos,
             modifiers = Modifier.Set.empty,
-            kind        = Symbol.InterCtor,
-            clsName     = csym.name,
-            name        = Name.InitMethod,
+            kind      = MethodKind.InterCtor,
+            clsName   = csym.name,
+            name      = Name.InitMethod,
             MethodSignature(
                 returnTy = Type.Void,
                 receiverTy = csym.toType,

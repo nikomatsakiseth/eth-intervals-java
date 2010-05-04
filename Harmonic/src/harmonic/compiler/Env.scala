@@ -189,7 +189,7 @@ case class Env(
         ownerTy: Type.Ref,  
         name: Name.UnloweredMember,
         optExpTy: Option[Type.Ref]
-    ) = {
+    ): VarSymbol.Field = {
         lookupField(ownerTy, name) match {
             case Left(_) => VarSymbol.error(name.inDefaultClass(Name.ObjectClass), optExpTy)
             case Right(sym) => sym
@@ -197,7 +197,7 @@ case class Env(
     }    
     
     private[this] def lookupInstanceMethodsDefinedOnClass(
-        className: Name.Qual,
+        className: Name.Class,
         methodName: Name.Method
     ): List[MethodSymbol] = {
         global.lookupIntrinsic(className, methodName).getOrElse {

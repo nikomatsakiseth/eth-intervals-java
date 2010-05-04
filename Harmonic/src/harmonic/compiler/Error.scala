@@ -32,7 +32,7 @@ object Error {
         stack: List[Name.Class]
     ) {
         def report(global: Global, pos: Position) {
-            globa.reporter.report(csym.pos,
+            global.reporter.report(csym.pos,
                 "circular.inheritance",
                 className.toString, 
                 stack.mkString(", ")
@@ -80,7 +80,7 @@ object Error {
                 "multiple.overriding.methods.in.same.class",
                 className.toString,
                 methodName.toString,
-                msyms.length.toString
+                number.toString
             )
         }                
     }

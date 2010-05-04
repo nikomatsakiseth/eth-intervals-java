@@ -98,7 +98,7 @@ case class GatherOverrides(global: Global) {
             if(msym.overrides.isEmpty && msym.modifiers.isOverride) {
                 Error.NotOverride().report(global, msym.pos)
             } else if (!msym.overrides.isEmpty && !msym.modifiers.isOverride) {
-                val classNames = msym.overrides.map(_.clsName)
+                val classNames = msym.overrides.map(_.clsName).toList
                 Error.NotMarkedOverride(msym.name, classNames).report(global, msym.pos)
             }
         }

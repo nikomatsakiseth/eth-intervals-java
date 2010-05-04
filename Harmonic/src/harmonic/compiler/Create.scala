@@ -23,14 +23,14 @@ class Create(global: Global) {
         val (classParam, classEnv) = Lower(global).classParamAndEnv(csym)
         csym.classParam = classParam
         csym.classEnv = classEnv
-        csym.ctorSymbol = Lower(global).createSymbolForConstructor(csym)
+        csym.constructor = Lower(global).createSymbolForConstructor(csym)
         
         // Create futures for lowering each member declaration:
         csym.lowerMembers = cdecl.members.map(new LowerMember(global, csym, members, _))
 
         // Create merge pass that runs after all members have been lowered:
         csym.addInterval(ClassSymbol.Merge) {
-            global.master.subinterval(during = lower, after = List(members)) { merge =>
+            global.master.subinterval(during = lower, after = List(members.end)) { merge =>
                 csym.loweredSource = withPosOf(cdecl, 
                     out.ClassDecl(
                         name         = cdecl.name,
