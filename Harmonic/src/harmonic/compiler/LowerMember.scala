@@ -5,17 +5,15 @@ import Ast.{Resolve => in}
 import Ast.{Lower => out}
 
 class LowerMember(
-    createState: State,
+    global: Global,
+    csym: ClassFromSource,
     members: Interval,
     val inMemberDecl: in.MemberDecl
 ) {
-    import createState.csym
-    
     // ___ AST ______________________________________________________________
     
     private[this] var outMemberDecl: out.MemberDecl = null
     private[this] val inter = inState.master.subinterval(during = members) { inter =>
-        val state = createState.copy(current = inter)
         outMemberDecl = Lower(global).lowerMemberDecl(inMemberDecl)
     }
     
@@ -51,9 +49,9 @@ class LowerMember(
                     case Some(msym) => msym
                     
                     case None => {
-                        val (mdecl, outParams, outReturnTref) = func
+                        val (decl, outParams, outReturnTref) = func
                         val msym = new MethodSymbol(
-                            pos       = mdecl.pos,
+                            pos       = decl.pos,
                             modifiers = Modifier.forResolvedAnnotations(decl.annotations),
                             kind      = Symbol.Inter,
                             clsName   = csym.name,
@@ -75,15 +73,15 @@ class LowerMember(
             case inDecl @ in.MethodDecl(_, MthdName, _, param, inReturnTref: in.ResolveTypeRef, _, _) => {
                 // Fully explicit, can construct the symbol.
                 createSymbolOnce {
-                    val (outParams, env) = Lower(createState).lowerMethodParams(csym.classEnv, params)
-                    val outReturnTref = Lower(createState).InScope(env).lowerTypeRef(inReturnTref)
+                    val (outParams, env) = Lower(global).lowerMethodParams(csym.classEnv, params)
+                    val outReturnTref = Lower(global).InScope(env).lowerTypeRef(inReturnTref)
                     (inDecl, outParams, outReturnTref)                    
                 }
             }
 
             case in.MethodDecl(_, MthdName, _, _, inReturnTref: in.InferredTypeRef, _, None) => {
                 // Cannot infer the type of an abstract method.
-                createState.report(inReturnTref.pos, 
+                global.reporter.report(inReturnTref.pos, 
                     "explicit.type.required.if.abstract", 
                     MthdName.toString
                 )
@@ -100,7 +98,7 @@ class LowerMember(
                     }
                 } catch {
                     case _: CycleException => {
-                        globalreport(inDecl.returnTref.pos, 
+                        global.reporter.report(inDecl.returnTref.pos, 
                             "explicit.type.required.due.to.cycle",
                             MthdName.toString
                         )
@@ -148,14 +146,14 @@ class LowerMember(
             case inDecl @ in.FieldDecl(_, MemName, inTref: in.ResolveTypeRef, _) => {
                 // Fully explicit.  Construct the symbol.
                 createSymbolOnce {
-                    val outTref = Lower(createState).InScope(csym.classEnv).lowerTypeRef(inTref)
+                    val outTref = Lower(global).InScope(csym.classEnv).lowerTypeRef(inTref)
                     (inDecl, outTref)
                 }
             }
             
             case in.FieldDecl(_, MemName, inTref: in.InferredTypeRef, None) => {
                 // Cannot infer the type of an abstract field.
-                createState.report(inTref.pos, 
+                global.reporter.report(inTref.pos, 
                     "explicit.type.required.if.abstract", 
                     MemName.toString
                 )
@@ -172,7 +170,7 @@ class LowerMember(
                     }
                 } catch {
                     case _: CycleException => {
-                        globalreport(inDecl.tref.pos, 
+                        global.reporter.report(inDecl.tref.pos, 
                             "explicit.type.required.due.to.cycle",
                             MemName.toString
                         )

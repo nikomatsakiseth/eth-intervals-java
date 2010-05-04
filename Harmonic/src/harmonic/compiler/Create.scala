@@ -23,7 +23,7 @@ class Create(global: Global) {
         csym.ctorSymbol = Lower(global).createSymbolForConstructor()
         
         // Create futures for lowering each member declaration:
-        csym.lowerMembers = cdecl.members.map(new LowerMember(global, members, _))
+        csym.lowerMembers = cdecl.members.map(new LowerMember(global, csym, members, _))
 
         // Create merge pass that runs after all members have been lowered:
         csym.addInterval(ClassSymbol.Merge) {
