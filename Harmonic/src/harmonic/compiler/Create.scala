@@ -2,6 +2,7 @@ package harmonic.compiler
 
 import Ast.{Resolve => in}
 import Ast.{Lower => out}
+import Util._
 
 object Create {
     def apply(global: Global) = new Create(global)
@@ -15,19 +16,21 @@ class Create(global: Global) {
         
         // Create a super interval for the lowering of all members:
         val members = csym.addInterval(ClassSymbol.Members) {
-            master.subinterval(during = lower) { _ => () }
+            global.master.subinterval(during = lower) { _ => () }
         }
         
         // Just lower the constructor now.
-        csym.classParamAndEnv = Lower(global).classParamAndEnv
-        csym.ctorSymbol = Lower(global).createSymbolForConstructor()
+        val (classParam, classEnv) = Lower(global).classParamAndEnv(csym)
+        csym.classParam = classParam
+        csym.classEnv = classEnv
+        csym.ctorSymbol = Lower(global).createSymbolForConstructor(csym)
         
         // Create futures for lowering each member declaration:
         csym.lowerMembers = cdecl.members.map(new LowerMember(global, csym, members, _))
 
         // Create merge pass that runs after all members have been lowered:
         csym.addInterval(ClassSymbol.Merge) {
-            master.subinterval(during = lower, after = List(members)) { merge =>
+            global.master.subinterval(during = lower, after = List(members)) { merge =>
                 csym.loweredSource = withPosOf(cdecl, 
                     out.ClassDecl(
                         name         = cdecl.name,

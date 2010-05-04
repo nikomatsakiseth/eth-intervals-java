@@ -46,7 +46,7 @@ case class Intrinsic(global: Global) {
             val rightTy = Type.Class(rightClass)
             val returnTy = Type.Class(returnClass)
             for((interName, javaName) <- mathOps) {
-                globaladdIntrinsic(
+                global.addIntrinsic(
                     new MethodSymbol(
                         pos = InterPosition.forClass(classOf[Intrinsic]),
                         modifiers = Modifier.Set.empty,
@@ -106,7 +106,7 @@ case class Intrinsic(global: Global) {
         }
         
         // (boolean) if {...}
-        globaladdIntrinsic(
+        global.addIntrinsic(
             new MethodSymbol(
                 pos = InterPosition.forClass(classOf[Intrinsic]),
                 modifiers = Modifier.Set.empty,
@@ -128,7 +128,7 @@ case class Intrinsic(global: Global) {
         )
         
         // (Object) ifNull {...}
-        globaladdIntrinsic(
+        global.addIntrinsic(
             new MethodSymbol(
                 pos = InterPosition.forClass(classOf[Intrinsic]),
                 modifiers = Modifier.Set.empty,
@@ -150,7 +150,7 @@ case class Intrinsic(global: Global) {
         )
 
         // (boolean) if {...} else {...}
-        globaladdIntrinsic(
+        global.addIntrinsic(
             new MethodSymbol(
                 pos = InterPosition.forClass(classOf[Intrinsic]),
                 modifiers = Modifier.Set.empty,
@@ -173,7 +173,7 @@ case class Intrinsic(global: Global) {
         )
         
         // (Object) ifNull {...} else {...}
-        globaladdIntrinsic(
+        global.addIntrinsic(
             new MethodSymbol(
                 pos = InterPosition.forClass(classOf[Intrinsic]),
                 modifiers = Modifier.Set.empty,
@@ -197,7 +197,7 @@ case class Intrinsic(global: Global) {
         
         // (Iterable<T>) forEach { (T i) -> ... }
         val typeT = Type.Var(Path.This, Name.Member(iterableTy.name, "T"))
-        globaladdIntrinsic(
+        global.addIntrinsic(
             new MethodSymbol(
                 pos = InterPosition.forClass(classOf[Intrinsic]),
                 modifiers = Modifier.Set.empty,
@@ -222,7 +222,7 @@ case class Intrinsic(global: Global) {
         )
 
         // (Block<Boolean,_>) while { ... }
-        globaladdIntrinsic(
+        global.addIntrinsic(
             new MethodSymbol(
                 pos = InterPosition.forClass(classOf[Intrinsic]),
                 modifiers = Modifier.Set.empty,

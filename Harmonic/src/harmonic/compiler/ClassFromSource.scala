@@ -72,7 +72,7 @@ class ClassFromSource(
     
     def fieldNamed(name: Name.Member) = {
         interval(ClassSymbol.Create).foreach(_.join())
-        lowerMembers.flatMap(_.toOptFieldSymbol(name))        
+        lowerMembers.firstSome(_.toOptFieldSymbol(name))        
     }
     
     // ___ Computed by Merge Interval _______________________________________

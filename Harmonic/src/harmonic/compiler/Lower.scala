@@ -57,32 +57,32 @@ case class Lower(global: Global) {
         csym: ClassFromSource, 
         decl: in.RelDecl        
     ): out.RelDecl = withPosOf(decl, out.RelDecl(
-        annotations = decl.annotations.map(ThisScope(csym).lowerAnnotation),
-        left = ThisScope(csym).lowerPath(decl.left),
+        annotations = decl.annotations.map(InEnv(csym.classEnv).lowerAnnotation),
+        left = InEnv(csym.classEnv).lowerPath(decl.left),
         kind = decl.kind,
-        right = ThisScope(csym).lowerPath(decl.right)
+        right = InEnv(csym.classEnv).lowerPath(decl.right)
     ))
     
     def lowerIntervalDecl(
         csym: ClassFromSource, 
         decl: in.IntervalDecl
     ): out.IntervalDecl = withPosOf(decl, out.IntervalDecl(
-        annotations = decl.annotations.map(ThisScope(csym).lowerAnnotation),
+        annotations = decl.annotations.map(InEnv(csym.classEnv).lowerAnnotation),
         name = decl.name,
-        optParent = decl.optParent.map(ThisScope(csym).lowerPath),
-        optBody = decl.optBody.map(lowerBody(ThisEnv(csym), _))
+        optParent = decl.optParent.map(InEnv(csym.classEnv).lowerPath),
+        optBody = decl.optBody.map(lowerBody(csym.classEnv, _))
     ))
     
     def lowerMethodDecl(
         csym: ClassFromSource, 
         mdecl: in.MethodDecl
     ): out.MethodDecl = {
-        val (outParams, env) = lowerMethodParams(ThisEnv(csym), mdecl.params)
+        val (outParams, env) = lowerMethodParams(csym.classEnv, mdecl.params)
         val optBody = mdecl.optBody.map(lowerBody(env, _))
 
         val returnTy = (mdecl.returnTref, optBody) match {
             case (in.InferredTypeRef(), None) => {
-                globalreport(
+                global.reporter.report(
                     mdecl.returnTref.pos, 
                     "explicit.return.type.required.if.abstract", 
                     mdecl.name.toString
@@ -114,8 +114,8 @@ case class Lower(global: Global) {
         csym: ClassFromSource, 
         decl: in.FieldDecl
     ): out.FieldDecl = withPosOf(decl, {
-        val optBody = decl.optBody.map(lowerBody(ThisEnv(csym), _))
-        val env = ThisEnv(csym)
+        val env = csym.classEnv
+        val optBody = decl.optBody.map(lowerBody(env, _))
         val ty = (decl.tref, optBody) match {
             case (tref: in.ResolveTypeRef, _) => // Explicit type.
                 InEnv(env).toTypeRef(tref)
@@ -125,7 +125,7 @@ case class Lower(global: Global) {
             }
             
             case (in.InferredTypeRef(), None) => {
-                globalreport(
+                global.reporter.report(
                     decl.tref.pos, "explicit.type.reqd.if.abstract", decl.name.toString
                 )
                 Type.Object
@@ -258,7 +258,7 @@ case class Lower(global: Global) {
                         }
                         
                         case Right(fsym) if fsym.modifiers.isStatic => {
-                            globalreport(path.pos, "qualified.static", fsym.name.toString)
+                            global.reporter.report(path.pos, "qualified.static", fsym.name.toString)
                             Path.TypedBase(fsym)
                         }
                         
@@ -312,7 +312,7 @@ case class Lower(global: Global) {
                             Some(Type.PathArg(entry.name, rel, toPath(inPath)))                                
                             
                         case Right(entry) => {
-                            globalreport(name.pos, "not.in.path.arg", entry.name.toString)
+                            global.reporter.report(name.pos, "not.in.path.arg", entry.name.toString)
                             None                                
                         }
                             
@@ -329,7 +329,7 @@ case class Lower(global: Global) {
                             Some(Type.TypeArg(entry.name, rel, toTypeRef(inTypeRef)))
                             
                         case Right(entry) => {
-                            globalreport(name.pos, "not.in.type.arg", entry.name.toString)
+                            global.reporter.report(name.pos, "not.in.type.arg", entry.name.toString)
                             None                                
                         }
 
@@ -697,7 +697,7 @@ case class Lower(global: Global) {
                         }
                         
                         case (List(), List()) => {
-                            globalreport(
+                            global.reporter.report(
                                 pos,
                                 "no.applicable.methods",
                                 argTys.map(_.toString).mkString(", ")
@@ -706,7 +706,7 @@ case class Lower(global: Global) {
                         }
                         
                         case _ => {
-                            globalreport(
+                            global.reporter.report(
                                 pos,
                                 "ambiguous.method.call",
                                 bestMsyms.length.toString
@@ -773,7 +773,7 @@ case class Lower(global: Global) {
                 }
                 
                 case ty => {
-                    globalreport(
+                    global.reporter.report(
                         expr.pos, 
                         "can.only.create.classes"
                     )
@@ -881,7 +881,7 @@ case class Lower(global: Global) {
                 optTy match {
                     case Some(ty) => out.Super(ty)
                     case None => {
-                        globalreport(
+                        global.reporter.report(
                             rcvr.pos,
                             "no.super.class.implements",
                             mthdName.toString

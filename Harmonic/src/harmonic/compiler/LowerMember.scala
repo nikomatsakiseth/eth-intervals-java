@@ -13,14 +13,14 @@ class LowerMember(
     // ___ AST ______________________________________________________________
     
     private[this] var outMemberDecl: out.MemberDecl = null
-    private[this] val inter = inState.master.subinterval(during = members) { inter =>
+    private[this] val inter = global.master.subinterval(during = members) { inter =>
         outMemberDecl = Lower(global).lowerMemberDecl(inMemberDecl)
     }
     
     /** Read lowered member decl without blocking */
     def memberDecl = {
         assert(Intervals.checkReadable(inter))
-        result
+        outMemberDecl
     }
     
     // ___ Symbol Creation __________________________________________________
@@ -41,7 +41,7 @@ class LowerMember(
     // Only accessible under lock!
     private[this] var optMthdSymbol: Option[MethodSymbol] = None
 
-    def toOptMethodSymbol(MthdName: Name.Method) = {
+    def toOptMethodSymbol(MthdName: Name.Method): Option[MethodSymbol] = {
         
         def createSymbolOnce(func: => (in.MethodDecl, List[out.Param], out.TypeRef)) = {
             synchronized {
@@ -53,7 +53,7 @@ class LowerMember(
                         val msym = new MethodSymbol(
                             pos       = decl.pos,
                             modifiers = Modifier.forResolvedAnnotations(decl.annotations),
-                            kind      = Symbol.Inter,
+                            kind      = MethodKind.Inter,
                             clsName   = csym.name,
                             name      = MthdName,
                             MethodSignature(
@@ -70,11 +70,11 @@ class LowerMember(
         }
         
         inMemberDecl match {
-            case inDecl @ in.MethodDecl(_, MthdName, _, param, inReturnTref: in.ResolveTypeRef, _, _) => {
+            case inDecl @ in.MethodDecl(_, MthdName, _, params, inReturnTref: in.ResolveTypeRef, _, _) => {
                 // Fully explicit, can construct the symbol.
                 createSymbolOnce {
                     val (outParams, env) = Lower(global).lowerMethodParams(csym.classEnv, params)
-                    val outReturnTref = Lower(global).InScope(env).lowerTypeRef(inReturnTref)
+                    val outReturnTref = Lower(global).InEnv(env).lowerTypeRef(inReturnTref)
                     (inDecl, outParams, outReturnTref)                    
                 }
             }
@@ -121,7 +121,7 @@ class LowerMember(
     
     private[this] var optFieldSymbol: Option[VarSymbol.Field] = None
 
-    def toOptFieldSymbol(MemName: Name.Member) = {
+    def toOptFieldSymbol(MemName: Name.Member): Option[VarSymbol.Field] = {
         
         def createSymbolOnce(func: => (in.FieldDecl, out.TypeRef)) = {
             synchronized {
@@ -132,7 +132,7 @@ class LowerMember(
                         val (decl, outTref) = func
                         val fsym = new VarSymbol.Field(
                             modifiers = Modifier.forResolvedAnnotations(decl.annotations),
-                            name      = decl.name,
+                            name      = decl.name.name,
                             ty        = outTref.ty
                         )
                         optFieldSymbol = Some(fsym)
@@ -146,7 +146,7 @@ class LowerMember(
             case inDecl @ in.FieldDecl(_, MemName, inTref: in.ResolveTypeRef, _) => {
                 // Fully explicit.  Construct the symbol.
                 createSymbolOnce {
-                    val outTref = Lower(global).InScope(csym.classEnv).lowerTypeRef(inTref)
+                    val outTref = Lower(global).InEnv(csym.classEnv).lowerTypeRef(inTref)
                     (inDecl, outTref)
                 }
             }

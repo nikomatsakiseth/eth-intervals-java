@@ -32,8 +32,7 @@ object Error {
         stack: List[Name.Class]
     ) {
         def report(global: Global, pos: Position) {
-            addError(
-                csym.pos,
+            globa.reporter.report(csym.pos,
                 "circular.inheritance",
                 className.toString, 
                 stack.mkString(", ")
@@ -48,7 +47,7 @@ object Error {
         def report(global: Global, pos: Position) {
             global.reporter.report(pos, 
                 "ambiguous.inheritance",
-                className, 
+                className.toString, 
                 superClasses.mkString(", ")
             )
         }                
@@ -64,7 +63,7 @@ object Error {
             global.reporter.report(pos, 
                 "must.resolve.ambiguity",
                 className.toString,
-                group.methodName.toString,
+                methodName.toString,
                 ambig1.toString,
                 ambig2.toString
             )
@@ -80,7 +79,7 @@ object Error {
             global.reporter.report(pos, 
                 "multiple.overriding.methods.in.same.class",
                 className.toString,
-                group.methodName.toString,
+                methodName.toString,
                 msyms.length.toString
             )
         }                
@@ -174,8 +173,8 @@ object Error {
     
     case class QualStatic(memberVar: Name.Member) extends Error {
         def report(global: Global, pos: Position) {
-            addError(global, 
-                pos, "qualified.static",
+            global.reporter.report(pos,
+                "qualified.static",
                 memberVar.toString
             )
         }        

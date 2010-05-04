@@ -25,8 +25,7 @@ class Global(
             // the initial files have been loaded because they may
             // reference symbols created in one another.
             config.inputFiles.foreach { inputFile =>
-                val state = State(this, master, master, None)
-                Parse(global, inputFile).foreach(createSymbols)
+                Parse(this, inputFile).foreach(createSymbols)
             }
         }
     }

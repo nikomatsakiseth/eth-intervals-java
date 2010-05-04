@@ -16,15 +16,15 @@ object GatherOverrides {
 /** Determines which methods override one another. */
 case class GatherOverrides(global: Global) {
     
-    private[this] val data: GatherOverrides.Data = globaldata(classOf[GatherOverrides.Data])
+    private[this] val data: GatherOverrides.Data = global.data(classOf[GatherOverrides.Data])
     
     /** Populates `csym.methodGroups` as well as the `overrides` 
       * fields of all method symbols defined in `csym` */
-    def forSym(csym: ClassSymbol): Unit = {
+    def forSym(csym: ClassSymbol): Unit = data.synchronized {
         if(data.gathered.add(csym)) {
             // First process supertypes:
             val superNames = csym.superClassNames
-            val superCsyms = superNames.map(globalclasses)
+            val superCsyms = superNames.map(global.csym)
             superCsyms.foreach(forSym)
             
             // Now process csym:
@@ -127,7 +127,7 @@ case class GatherOverrides(global: Global) {
                         if(reported.add((msym1, msym2)) && reported.add((msym2, msym1))) {
                             Error.MustResolveAmbiguousInheritance(
                                 csym.name, group.methodName, 
-                                msym1.clsName, msym2.className
+                                msym1.clsName, msym2.clsName
                             ).report(global, csym.pos)
                         }
                     }

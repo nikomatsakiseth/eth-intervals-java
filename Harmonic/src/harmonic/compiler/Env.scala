@@ -9,9 +9,9 @@ import Error.CanFail
 
 object Env {
     def empty(global: Global) = Env(
-        state = state,
-        thisTy = Type.Object,
-        locals = Map(),
+        global   = global,
+        thisTy   = Type.Object,
+        locals   = Map(),
         pathRels = Nil,
         typeRels = Nil
     )
@@ -111,7 +111,7 @@ case class Env(
             case entry :: otherEntries => {
                 val csym = global.csym(entry.name.className)
                 val remEntries = otherEntries.filterNot { entry =>
-                    global.csym(entry.name.className).isSubclass(global, csym)
+                    global.csym(entry.name.className).isSubclass(csym)
                 }
                 if(remEntries.isEmpty) {
                     Right(entry)
@@ -133,7 +133,7 @@ case class Env(
         locals.get(name)
     
     def lookupLocalOrError(name: Name.LocalVar, optExpTy: Option[Type.Ref]) = 
-        locals.get(name).getOrElse(Symbol.errorLocalVar(name, optExpTy))
+        locals.get(name).getOrElse(VarSymbol.error(name, optExpTy))
         
     def lookupThis = 
         locals(Name.ThisLocal)
@@ -191,7 +191,7 @@ case class Env(
         optExpTy: Option[Type.Ref]
     ) = {
         lookupField(ownerTy, name) match {
-            case Left(_) => Symbol.errorField(name.inDefaultClass(Name.ObjectClass), optExpTy)
+            case Left(_) => VarSymbol.error(name.inDefaultClass(Name.ObjectClass), optExpTy)
             case Right(sym) => sym
         }
     }    
@@ -200,7 +200,7 @@ case class Env(
         className: Name.Qual,
         methodName: Name.Method
     ): List[MethodSymbol] = {
-        globallookupIntrinsic(className, methodName).getOrElse {
+        global.lookupIntrinsic(className, methodName).getOrElse {
             val csym = global.csym(className)
             csym.methodsNamed(methodName).filterNot(_.modifiers.isStatic)
         }
@@ -231,7 +231,7 @@ case class Env(
     
     def typedPath(path: Path.Ref): Path.Typed = path match {
         case Path.Base(name: Name.LocalVar) => {
-            val lvsym = locals.get(name).getOrElse(Symbol.errorLocalVar(name, None))
+            val lvsym = locals.get(name).getOrElse(VarSymbol.error(name, None))
             Path.TypedBase(lvsym)
         }
         
@@ -358,7 +358,7 @@ case class Env(
             case (Type.Class(name_val, _), Type.Class(name_pat, _)) => {
                 val sym_val = global.csym(name_val)
                 val sym_pat = global.csym(name_pat)
-                sym_val.isSubclass(global, sym_pat)
+                sym_val.isSubclass(sym_pat)
             }
             
             case (Type.Var(path_val, tvar_val), Type.Var(path_pat, tvar_pat)) if tvar_val == tvar_pat =>
@@ -446,7 +446,7 @@ case class Env(
         pat match {
             case Pattern.Tuple(pats) => pats.foldLeft(subst)(addFresh)
             case Pattern.Var(name, _) => {
-                val freshName = Name.LocalVar("(env-%s)".format(globalfreshInteger()))
+                val freshName = Name.LocalVar("(env-%s)".format(global.freshInteger()))
                 subst + (name.toPath -> freshName.toPath)
             }
         }

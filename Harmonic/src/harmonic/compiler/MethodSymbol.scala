@@ -1,6 +1,7 @@
 package harmonic.compiler
 
 import scala.util.parsing.input.Position
+import scala.collection.mutable
 
 object MethodSymbol {
     
