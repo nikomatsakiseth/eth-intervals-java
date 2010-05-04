@@ -9,7 +9,7 @@ import Util._
 
 object GatherOverrides {
     class Data {
-        val gathered = new mutable.HashSet[Symbol.Class]()
+        val gathered = new mutable.HashSet[ClassSymbol]()
     }
 }
 
@@ -20,10 +20,10 @@ case class GatherOverrides(state: State) {
     
     /** Populates `csym.methodGroups` as well as the `overrides` 
       * fields of all method symbols defined in `csym` */
-    def forSym(csym: Symbol.Class): Unit = {
+    def forSym(csym: ClassSymbol): Unit = {
         if(data.gathered.add(csym)) {
             // First process supertypes:
-            val superNames = csym.superClassNames(state)
+            val superNames = csym.superClassNames
             val superCsyms = superNames.map(state.classes)
             superCsyms.foreach(forSym)
             
@@ -73,13 +73,13 @@ case class GatherOverrides(state: State) {
     /** Groups all methods defined in `csym` or a supertype 
       * based on common type signature (i.e., overrides) */
     private[this] def gatherMethodGroups(
-        csym: Symbol.Class,
+        csym: ClassSymbol,
         env: Env
     ): MethodGroups = {
         val methodGroups = new MethodGroups(env)
         val mro = MethodResolutionOrder(state).forSym(csym)
         mro.foreach { mroCsym =>
-            val msyms = mroCsym.allMethodSymbols(state)
+            val msyms = mroCsym.allMethodSymbols
             msyms.foreach(methodGroups.addMsym)
         }        
         methodGroups
@@ -88,16 +88,16 @@ case class GatherOverrides(state: State) {
     /** For each method defined in `csym`, computes the
       * (possibly empty) set of methods that it overrides */
     private[this] def computeOverrides(
-        csym: Symbol.Class,
+        csym: ClassSymbol,
         methodGroups: MethodGroups
     ): Unit = {
-        csym.allMethodSymbols(state).foreach { msym =>
+        csym.allMethodSymbols.foreach { msym =>
             val group = methodGroups.group(msym)
             msym.overrides ++= group.msyms.dropWhile(_.isFromClassNamed(csym.name))
             
-            if(msym.overrides.isEmpty && msym.modifiers(state).isOverride) {
+            if(msym.overrides.isEmpty && msym.modifiers.isOverride) {
                 Error.NotOverride().report(state, msym.pos)
-            } else if (!msym.overrides.isEmpty && !msym.modifiers(state).isOverride) {
+            } else if (!msym.overrides.isEmpty && !msym.modifiers.isOverride) {
                 val classNames = msym.overrides.map(_.clsName)
                 Error.NotMarkedOverride(msym.name, classNames).report(state, msym.pos)
             }
@@ -107,7 +107,7 @@ case class GatherOverrides(state: State) {
     /** Checks that the contents of a group meet certain conditions:
       * - All */
     private[this] def sanityCheckGroup(
-        csym: Symbol.Class,
+        csym: ClassSymbol,
         group: MethodGroup
     ): Unit = {
         

@@ -1,5 +1,7 @@
 package harmonic.compiler
 
+import scala.collection.mutable
+
 /** A method group consists of a list of method symbols which override one
   * another.  Methods override one another when (a) they have the same name
   * and the same static parameter types and (b) they are both inherited by

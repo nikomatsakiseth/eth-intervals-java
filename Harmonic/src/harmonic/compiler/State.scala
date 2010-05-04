@@ -15,7 +15,7 @@ object State {
                 }
                 
                 case None => {
-                    val csym = addCsym(new Symbol.ClassFromSource(className, this))
+                    val csym = addCsym(new ClassFromSource(className, this))
                     
                     // For a class being loaded from source, this is the structure:
                     //
@@ -86,10 +86,12 @@ case class State(
     current: Interval,
     
     /** The class symbol being currently processed, if any. */
-    curCsym: Symbol.ClassFromSource
+    curCsym: ClassFromSource
 ) {
+    def config = global.config
+    
     def withCurrent(inter: Interval): AnyState
-    def withCurCsym(csym: Symbol.ClassFromSource) = new State(global, master, current, csym)
+    def withCurCsym(csym: ClassFromSource) = new State(global, master, current, csym)
     
     def csym(name: Name.Class) = global.csym(name)
     

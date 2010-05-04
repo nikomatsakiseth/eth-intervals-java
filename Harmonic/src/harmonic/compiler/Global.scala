@@ -97,7 +97,7 @@ class Global(
         val result = loadedOrLoadable(className)
         if(!result) {
             reporter.report(pos, "cannot.find.class", className.toString)
-            classes(className) = new Symbol.ClassFromErroroneousSource(className)
+            classes(className) = new ClassFromErroroneousSource(className)
         }
         result
     }
@@ -114,7 +114,7 @@ class Global(
             Parse(this, file) match {
                 case None => { 
                     // Parse error:
-                    classes(className) = new Symbol.ClassFromErroroneousSource(className)
+                    classes(className) = new ClassFromErroroneousSource(className)
                 }
 
                 case Some(compUnit) => {
@@ -126,7 +126,7 @@ class Global(
                                 "expected.to.find.class", 
                                 className.toString
                             )
-                            classes(className) = new Symbol.ClassFromErroroneousSource(className)                            
+                            classes(className) = new ClassFromErroroneousSource(className)                            
                         }
                         
                         case Some(_) =>
@@ -144,7 +144,7 @@ class Global(
         (sourceFiles, classFiles, reflClasses) match {
             case (List(), List(), None) => false
             case (List(), List(), Some(reflClass)) => {
-                classes(className) = new Symbol.ClassFromReflection(className, reflClass)
+                classes(className) = new ClassFromReflection(className, reflClass)
                 true
             }
             case (sourceFile :: _, List(), _) => {
@@ -152,7 +152,7 @@ class Global(
                 true
             }
             case (List(), classFile :: _, _) => {
-                classes(className) = new Symbol.ClassFromClassFile(className, classFile)
+                classes(className) = new ClassFromClassFile(className, classFile)
                 true
             }
             case (sourceFile :: _, classFile :: _, _) => {
@@ -160,7 +160,7 @@ class Global(
                     loadSourceFile(sourceFile)
                     true
                 } else {
-                    classes(className) = new Symbol.ClassFromClassFile(className, classFile)
+                    classes(className) = new ClassFromClassFile(className, classFile)
                     true
                 }
             }

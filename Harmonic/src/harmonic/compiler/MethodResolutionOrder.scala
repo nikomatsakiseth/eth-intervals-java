@@ -5,7 +5,7 @@ import scala.collection.mutable
 object MethodResolutionOrder {
     class Data {
         /** Maps a symbol to its method resolution order. */
-        val mroCache = new mutable.HashMap[Symbol.Class, List[Symbol.Class]]()
+        val mroCache = new mutable.HashMap[ClassSymbol, List[ClassSymbol]]()
     }
 }
 
@@ -15,10 +15,10 @@ object MethodResolutionOrder {
   * For a nice introduction to C3 see: http://www.python.org/download/releases/2.3/mro/ */
 case class MethodResolutionOrder(state: State) {
     private[this] val data: MethodResolutionOrder.Data = state.data(classOf[MethodResolutionOrder.Data])
-    private[this] var stack: List[Symbol.Class] = Nil
+    private[this] var stack: List[ClassSymbol] = Nil
     
     /** Merges the lists of MROs for each supertype into one MRO. */
-    private[this] def merge(csym: Symbol.Class, superLists: List[List[Symbol.Class]]): List[Symbol.Class] = {
+    private[this] def merge(csym: ClassSymbol, superLists: List[List[ClassSymbol]]): List[ClassSymbol] = {
         // From the text above:
         // "Take the head of the first list, i.e L[B1][0]; if this head is not in the tail 
         // of any of the other lists, then add it to the linearization of C and remove it 
@@ -28,7 +28,7 @@ case class MethodResolutionOrder(state: State) {
         // to construct the merge, Python 2.3 will refuse to create the class C and 
         // will raise an exception."
         
-        def isGoodHead(superList: List[Symbol.Class]) = {
+        def isGoodHead(superList: List[ClassSymbol]) = {
             val head = superList.head
             superLists.forall { otherList => !otherList.tail.contains(head) }
         }
@@ -55,7 +55,7 @@ case class MethodResolutionOrder(state: State) {
     }
     
     /** Returns C3 order for `csym`.  This list is never empty.*/
-    def forSym(csym: Symbol.Class): List[Symbol.Class] = {
+    def forSym(csym: ClassSymbol): List[ClassSymbol] = {
         data.mroCache.get(csym) match {
             case Some(order) => order
             
@@ -70,7 +70,7 @@ case class MethodResolutionOrder(state: State) {
             
             case None => {
                 stack = csym :: stack
-                val superNames = csym.superClassNames(state)
+                val superNames = csym.superClassNames
                 val superCsyms = superNames.map(state.classes)
                 val superLists = superCsyms.map(forSym)
                 val list = csym :: merge(csym, superLists)
@@ -81,8 +81,8 @@ case class MethodResolutionOrder(state: State) {
         }
     }
     
-    def forClassType(classTy: Type.Class): List[Symbol.Class] = {
-        forSym(state.classes(classTy.name))
+    def forClassType(classTy: Type.Class): List[ClassSymbol] = {
+        forSym(state.csym(classTy.name))
     }
     
 }

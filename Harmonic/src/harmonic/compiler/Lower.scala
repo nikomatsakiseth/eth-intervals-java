@@ -45,7 +45,7 @@ case class Lower(state: State) {
     }
     
     def lowerMemberDecl(
-        csym: Symbol.ClassFromSource, 
+        csym: ClassFromSource, 
         mem: in.MemberDecl
     ): out.MemberDecl = withPosOf(mem, mem match {
         case decl: in.IntervalDecl => lowerIntervalDecl(csym, decl)
@@ -55,7 +55,7 @@ case class Lower(state: State) {
     })
     
     def lowerRelDecl(
-        csym: Symbol.ClassFromSource, 
+        csym: ClassFromSource, 
         decl: in.RelDecl        
     ): out.RelDecl = withPosOf(decl, out.RelDecl(
         annotations = decl.annotations.map(ThisScope(csym).lowerAnnotation),
@@ -65,7 +65,7 @@ case class Lower(state: State) {
     ))
     
     def lowerIntervalDecl(
-        csym: Symbol.ClassFromSource, 
+        csym: ClassFromSource, 
         decl: in.IntervalDecl
     ): out.IntervalDecl = withPosOf(decl, out.IntervalDecl(
         annotations = decl.annotations.map(ThisScope(csym).lowerAnnotation),
@@ -75,7 +75,7 @@ case class Lower(state: State) {
     ))
     
     def lowerMethodDecl(
-        csym: Symbol.ClassFromSource, 
+        csym: ClassFromSource, 
         mdecl: in.MethodDecl
     ): out.MethodDecl = {
         val (outParams, env) = lowerMethodParams(ThisEnv(csym), mdecl.params)
@@ -112,7 +112,7 @@ case class Lower(state: State) {
     }
     
     def lowerFieldDecl(
-        csym: Symbol.ClassFromSource, 
+        csym: ClassFromSource, 
         decl: in.FieldDecl
     ): out.FieldDecl = withPosOf(decl, {
         val optBody = decl.optBody.map(lowerBody(ThisEnv(csym), _))
@@ -232,8 +232,8 @@ case class Lower(state: State) {
                 }
 
                 case in.PathBase(name @ Ast.MemberName(memberVar), ()) => {
-                    val csym = state.classes(memberVar.className)
-                    csym.fieldNamed(state)(memberVar) match {
+                    val csym = state.csym(memberVar.className)
+                    csym.fieldNamed(memberVar) match {
                         case None => {
                             Error.NoSuchMember(csym.toType, memberVar).report(state, name.pos)
                             errorPath(path.toString)
@@ -298,14 +298,14 @@ case class Lower(state: State) {
                     }
                 }
                 case in.ClassType(Ast.ClassName(className), inTypeArgs) => {
-                    val csym = state.classes(className)
+                    val csym = state.csym(className)
                     val typeArgs = inTypeArgs.flatMap(toOptTypeArgOf(csym))
                     Type.Class(className, typeArgs)
                 }                
             }
         }
         
-        def toOptTypeArgOf(csym: Symbol.Class)(targ: in.TypeArg) = {
+        def toOptTypeArgOf(csym: ClassSymbol)(targ: in.TypeArg) = {
             targ match {
                 case in.PathTypeArg(name, rel, inPath) => {
                     env.lookupEntry(csym, name.name) match {
@@ -423,8 +423,8 @@ case class Lower(state: State) {
                 
                 // Reassign field:
                 case (_, in.FieldLvalue(memberName @ Ast.MemberName(name), ())) => {
-                    val csym = state.classes(name.className)
-                    val fsym = csym.fieldNamed(state)(name) match {
+                    val csym = state.csym(name.className)
+                    val fsym = csym.fieldNamed(name) match {
                         case Some(fsym) => fsym
                         case None => {
                             Error.NoSuchMember(csym.toType, name).report(state, memberName.pos)
@@ -483,8 +483,8 @@ case class Lower(state: State) {
                 case in.ReassignVarLvalue(Ast.LocalName(localName), ()) =>
                     env.locals(localName).ty
                 case in.FieldLvalue(Ast.MemberName(memberName), ()) => {
-                    val csym = state.classes(memberName.className)
-                    csym.fieldNamed(state)(memberName) match {
+                    val csym = state.csym(memberName.className)
+                    csym.fieldNamed(memberName) match {
                         case Some(fsym) => fsym.ty
                         case None => throw FailedException()
                     }
@@ -580,8 +580,8 @@ case class Lower(state: State) {
                             Name.Member(className, text)
                         }
                     }
-                    val csym = state.classes(className)
-                    val fsym = csym.fieldNamed(state)(memberVar) match {
+                    val csym = state.csym(className)
+                    val fsym = csym.fieldNamed(memberVar) match {
                         case Some(fsym) if fsym.modifiers.isStatic => {
                             fsym                            
                         }
@@ -723,8 +723,8 @@ case class Lower(state: State) {
             // Find all potential methods:
             val (rcvr, rcvrTy, msyms) = lowerRcvr(mcall.rcvr, mcall.name) match {
                 case rcvr @ out.Static(className) => {
-                    val csym = state.classes(className)
-                    val msyms = csym.methodsNamed(state)(mcall.name).filter(_.modifiers.isStatic)
+                    val csym = state.csym(className)
+                    val msyms = csym.methodsNamed(mcall.name).filter(_.modifiers.isStatic)
                     (rcvr, csym.toType, msyms)
                 }
                 
@@ -750,8 +750,8 @@ case class Lower(state: State) {
         def lowerNewCtor(expr: in.NewCtor) = introduceVar(expr, {
             toTypeRef(expr.tref) match {
                 case ty @ Type.Class(name, _) => {
-                    val csym = state.classes(name)
-                    val msyms = csym.constructors(state)
+                    val csym = state.csym(name)
+                    val msyms = csym.constructors
                     val tvar = Name.LocalVar(tmpVarName(expr))
                     val rcvr = in.Var(Ast.LocalName(tvar), ())
                     val best = identifyBestMethod(
@@ -873,7 +873,7 @@ case class Lower(state: State) {
                 // `mthdName` (if any):
                 val mro = MethodResolutionOrder(state).forSym(env.thisCsym)
                 val optTy = mro.firstSome { 
-                    case csym if !csym.methodsNamed(state)(mthdName).isEmpty => 
+                    case csym if !csym.methodsNamed(mthdName).isEmpty => 
                         Some(csym.toType)
                     
                     case csym => 

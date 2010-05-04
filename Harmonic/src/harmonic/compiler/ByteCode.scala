@@ -34,11 +34,11 @@ case class ByteCode(state: State) {
     // ___ Generating fresh, unique class names _____________________________
     
     def freshClassName(context: Name.Class) = {
-        context.withSuffix("$" + state.freshInteger())
+        context.withSuffix("$" + state.global.freshInteger())
     }
     
     def freshVarName(base: Option[Name.Var]) = {
-        Name.LocalVar("$%s$%s".format(base.getOrElse(""), state.freshInteger()))
+        Name.LocalVar("$%s$%s".format(base.getOrElse(""), state.global.freshInteger()))
     }
     
     // ___ Types and Asm Types ______________________________________________
@@ -74,9 +74,9 @@ case class ByteCode(state: State) {
     def downcastNeeded(toTy: Type.Ref, fromTy: Type.Ref): Boolean = {
         (toTy, fromTy) match {
             case (Type.Class(toName, _), Type.Class(fromName, _)) => {
-                val toSym = state.classes(toName)
-                val fromSym = state.classes(fromName)
-                !fromSym.isSubclass(state, toSym)
+                val toSym = state.csym(toName)
+                val fromSym = state.csym(fromName)
+                !fromSym.isSubclass(toSym)
             }
             
             case _ => downcastNeeded(asmType(toTy), asmType(fromTy))
@@ -739,7 +739,7 @@ case class ByteCode(state: State) {
                     }
                     
                     msym.kind match {
-                        case Symbol.IntrinsicMath(mthdName, leftClass, rightClass, returnClass) => {
+                        case MethodKind.IntrinsicMath(mthdName, leftClass, rightClass, returnClass) => {
                             assert(args.length == 1)
                             val leftAsmTy = asm.Type.getType(leftClass)
                             val rightAsmTy = asm.Type.getType(rightClass)
@@ -753,7 +753,7 @@ case class ByteCode(state: State) {
                             )
                         }
                         
-                        case Symbol.IntrinsicStatic(ownerClass, mthdName, argumentClasses, resultClass) => {
+                        case MethodKind.IntrinsicStatic(ownerClass, mthdName, argumentClasses, resultClass) => {
                             val resultAsmTy = asm.Type.getType(resultClass)
                             val argAsmTys = argumentClasses.map(asm.Type.getType)
                             pushExprValueDowncastingTo(argAsmTys(0), receiver)
@@ -766,20 +766,20 @@ case class ByteCode(state: State) {
                             )
                         }
                         
-                        case Symbol.Inter => callWithOpcode(O.INVOKEINTERFACE)
-                        case Symbol.InterCtor => callWithOpcode(O.INVOKESPECIAL)
-                        case Symbol.JavaVirtual => callWithOpcode(O.INVOKEVIRTUAL)
-                        case Symbol.JavaInterface => callWithOpcode(O.INVOKEINTERFACE)
-                        case Symbol.JavaStatic => callWithOpcode(O.INVOKESTATIC)
+                        case MethodKind.Inter => callWithOpcode(O.INVOKEINTERFACE)
+                        case MethodKind.InterCtor => callWithOpcode(O.INVOKESPECIAL)
+                        case MethodKind.JavaVirtual => callWithOpcode(O.INVOKEVIRTUAL)
+                        case MethodKind.JavaInterface => callWithOpcode(O.INVOKEINTERFACE)
+                        case MethodKind.JavaStatic => callWithOpcode(O.INVOKESTATIC)
                         
-                        case Symbol.ErrorMethod => {
+                        case MethodKind.ErrorMethod => {
                             throw new RuntimeException("TODO")
                         }
                     }
                 }
                 
                 case in.NewCtor(tref, arg, msym, Type.Class(name, _)) => {
-                    val internalImplName = state.classes(name).internalImplName
+                    val internalImplName = state.csym(name).internalImplName
                     mvis.visitTypeInsn(O.NEW, internalImplName)
                     mvis.visitInsn(O.DUP)
                     mvis.visitMethodInsn(
@@ -1141,7 +1141,7 @@ case class ByteCode(state: State) {
       * whose signature has a different method descriptor.  This includes
       * both a default and a MRO version. */
     def writeForwardingMethods(
-        csym: Symbol.ClassFromSource, 
+        csym: ClassFromSource, 
         cvis: asm.ClassVisitor,
         group: MethodGroup
     ) {
@@ -1178,7 +1178,7 @@ case class ByteCode(state: State) {
 
     /** Generates a static method which contains the actual implementation. */
     def writeStaticMethodImpl(
-        csym: Symbol.ClassFromSource, 
+        csym: ClassFromSource, 
         cvis: asm.ClassVisitor, 
         msym: MethodSymbol,
         decl: in.MethodDecl
@@ -1211,7 +1211,7 @@ case class ByteCode(state: State) {
     /** The default version of a method simply takes all the user-
       * specified arguments. */
     def visitPlainMethod(
-        csym: Symbol.ClassFromSource, 
+        csym: ClassFromSource, 
         cvis: asm.ClassVisitor, 
         methodName: Name.Method,
         msig: MethodSignature[Pattern.Ref],
@@ -1233,7 +1233,7 @@ case class ByteCode(state: State) {
       * `mro` is used for super calls: it indicates the
       * index of the next item in the Method Resolution Order (MRO). */
     def visitMethodWithMro(
-        csym: Symbol.ClassFromSource, 
+        csym: ClassFromSource, 
         cvis: asm.ClassVisitor, 
         methodName: Name.Method,
         msig: MethodSignature[Pattern.Ref],
@@ -1256,7 +1256,7 @@ case class ByteCode(state: State) {
       * and "nextMro" methods described above but also various 
       * forwarding methods that come about through erasure. */
     def writeMethodInterface(
-        csym: Symbol.ClassFromSource, 
+        csym: ClassFromSource, 
         cvis: asm.ClassVisitor, 
         msym: MethodSymbol
     ) {
@@ -1274,7 +1274,7 @@ case class ByteCode(state: State) {
       *   String add(Integer x, Integer y) { return add(0, x, y); }
       */
     def writePlainToMroDispatch(
-        csym: Symbol.ClassFromSource, 
+        csym: ClassFromSource, 
         cvis: asm.ClassVisitor,
         group: MethodGroup
     ) {
@@ -1302,7 +1302,7 @@ case class ByteCode(state: State) {
         group: MethodGroup,
         
         /** List of superclasses, in order. */
-        mro: List[Symbol.Class], 
+        mro: List[ClassSymbol], 
         
         /** Remaining methods from group.  */
         msyms: List[MethodSymbol]
@@ -1312,7 +1312,7 @@ case class ByteCode(state: State) {
             case csym :: tl => {
                 val matching = msyms.takeWhile(_.isFromClassNamed(csym.name))
                 val remaining = msyms.drop(matching.length)
-                val notAbstract = matching.filter(_.modifiers(state).isNotAbstract)
+                val notAbstract = matching.filter(_.modifiers.isNotAbstract)
                 notAbstract match {
                     case List() => None :: computeVersions(group, tl, remaining)
                     case msyms => {
@@ -1329,7 +1329,7 @@ case class ByteCode(state: State) {
       * static function.  The static functions are defined in 
       * `writeStaticMethodImpl`. */
     def writeMroMethodImpl(
-        csym: Symbol.ClassFromSource, 
+        csym: ClassFromSource, 
         cvis: asm.ClassVisitor,
         group: MethodGroup
     ) {
@@ -1409,11 +1409,11 @@ case class ByteCode(state: State) {
     
     // ___ Classes __________________________________________________________
     
-    def writeInterClassInterface(csym: Symbol.ClassFromSource) {
+    def writeInterClassInterface(csym: ClassFromSource) {
         val wr = new ClassWriter(csym.name, noSuffix)
         import wr.cvis
         
-        val superClassNames = csym.superClassNames(state).toList
+        val superClassNames = csym.superClassNames
         cvis.visit(
             O.V1_5,
             O.ACC_ABSTRACT + O.ACC_INTERFACE + O.ACC_PUBLIC,
@@ -1423,14 +1423,14 @@ case class ByteCode(state: State) {
             superClassNames.map(_.internalName).toArray
         )
         
-        csym.allMethodSymbols(state).foreach { msym =>
+        csym.allMethodSymbols.foreach { msym =>
             writeMethodInterface(csym, cvis, msym)
         }
         
         wr.end()
     }
     
-    def writeImplClass(csym: Symbol.ClassFromSource) {
+    def writeImplClass(csym: ClassFromSource) {
         val wr = new ClassWriter(csym.name, implSuffix)
         import wr.cvis
 
@@ -1454,7 +1454,7 @@ case class ByteCode(state: State) {
         wr.end()
     }
     
-    def writeStaticClass(csym: Symbol.ClassFromSource) {
+    def writeStaticClass(csym: ClassFromSource) {
         val wr = new ClassWriter(csym.name, staticSuffix)
         import wr.cvis
 
@@ -1469,7 +1469,7 @@ case class ByteCode(state: State) {
         
         writeEmptyCtor(csym.name, Name.ObjectClass, cvis)
         
-        csym.allMethodSymbols(state).foreach { msym =>
+        csym.allMethodSymbols.foreach { msym =>
             val mdecl = csym.loweredMethods(msym.methodId)
             writeStaticMethodImpl(csym, cvis, msym, mdecl)
         }
@@ -1477,9 +1477,9 @@ case class ByteCode(state: State) {
         wr.end()
     }
     
-    def writeClassSymbol(csym: Symbol.ClassFromSource) = {
+    def writeClassSymbol(csym: ClassFromSource) = {
         writeInterClassInterface(csym)
-        if(!csym.modifiers(state).isAbstract)
+        if(!csym.modifiers.isAbstract)
             writeImplClass(csym)
         writeStaticClass(csym)
     }

@@ -19,7 +19,7 @@ extends Resolve(state, compUnit)
 {
     
     def resolveClassHeader(
-        csym: Symbol.ClassFromSource,
+        csym: ClassFromSource,
         cdecl: in.ClassDecl
     ) {
         csym.superClassNames = cdecl.superClasses.map(resolveName).map(_.name)

@@ -1,6 +1,6 @@
 package harmonic.compiler
 
-abstract class PrecompiledClass(
+abstract class ClassFromCompiledSource(
     name: Name.Class,
     global: Global
 ) extends ClassSymbol(name, global) 

@@ -16,43 +16,43 @@ class ClassFromClassFile(
     override def pos = InterPosition.forFile(file)
     
     def modifiers = {
-        load(state)
+        load()
         vModifiers
     }
     
     def constructors = {
-        load(state)
+        load()
         vConstructors
     }
     
     def superClassNames = {
-        load(state)
+        load()
         vSuperClassNames
     }
     
     def varMembers = {
-        load(state)
+        load()
         vVarMembers
     }
     
     def methodsNamed(name: Name.Method) = {
-        load(state)
+        load()
         vMethods.filter(_.isNamed(name))
     }
     
     def allMethodSymbols = {
-        load(state)
+        load()
         vMethods
     }
     
     def fieldNamed(name: Name.Member) = {
-        load(state)
+        load()
         vFields.find(_.isNamed(name))
     }
     
     // ___ Class File Loading _______________________________________________
     
-    def load(state: State) = synchronized {
+    def load() = synchronized {
         if(!loaded) {
             throw new RuntimeException("TODO-- Implement .class file loading!")
             loaded = true

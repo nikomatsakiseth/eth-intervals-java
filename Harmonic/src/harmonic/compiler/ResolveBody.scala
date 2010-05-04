@@ -24,7 +24,7 @@ import Util._
 case class ResolveBody(state: State, compUnit: in.CompUnit) 
 extends Resolve(state, compUnit) 
 {
-    def resolveClassBody(csym: Symbol.Class, cdecl: in.ClassDecl) = {
+    def resolveClassBody(csym: ClassSymbol, cdecl: in.ClassDecl) = {
         val symTab = constructSymbolTable(csym)
         val outCdecl = InScope(symTab, true).resolveClassDecl(cdecl)
 
@@ -36,8 +36,8 @@ extends Resolve(state, compUnit)
     /** Creates a symbol table containing entries defined by
       * supertypes of `csym`.  A key is only included if all
       * supertypes agree on its value. */
-    def mergeSuperSymbolTables(csym: Symbol.Class): SymTab.Map = {
-        val superCsyms = csym.superClassNames(state).map(state.classes)
+    def mergeSuperSymbolTables(csym: ClassSymbol): SymTab.Map = {
+        val superCsyms = csym.superClassNames.map(state.classes)
         val superSymtabs = superCsyms.map(constructSymbolTable)
         superSymtabs match {
             // Micro-optimize the case of zero or one supertypes:
@@ -64,9 +64,9 @@ extends Resolve(state, compUnit)
     }
 
     /** Creates a symbol table containing the members of `csym` */
-    def constructSymbolTable(csym: Symbol.Class): SymTab.Map = {
+    def constructSymbolTable(csym: ClassSymbol): SymTab.Map = {
         var superSymTab = mergeSuperSymbolTables(csym)
-        csym.varMembers(state).foldLeft(superSymTab)(_ + _)
+        csym.varMembers.foldLeft(superSymTab)(_ + _)
     }
     
     abstract class ResolveParams(var scope: InScope, inParams: List[in.Param]) {

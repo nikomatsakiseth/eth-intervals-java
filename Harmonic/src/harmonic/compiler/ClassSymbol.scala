@@ -1,5 +1,8 @@
 package harmonic.compiler
 
+import scala.collection.mutable
+import scala.util.parsing.input.Position
+
 object ClassSymbol {
     // Pre-defined interval names
     // (Plug-ins may define additional intervals)
@@ -13,7 +16,7 @@ object ClassSymbol {
 }
 
 abstract class ClassSymbol(
-    name: Name.Class,
+    val name: Name.Class,
     global: Global
 ) extends Symbol {
     
@@ -42,18 +45,18 @@ abstract class ClassSymbol(
     // ___ Invokable once header is resolved ________________________________
     
     /** Names of any superclasses */
-    def superClassNames: List[Name.Qual]
+    def superClassNames: List[Name.Class]
     
     /** True if `this` is a subclass of `csym_sup` */
-    def isSubclass(superCsym: Symbol.Class) = {
+    def isSubclass(superCsym: ClassSymbol) = {
         (this == superCsym) || {
-            val queued = new mutable.Queue[Symbol.Class]()
-            val visited = new mutable.HashSet[Symbol.Class]()
+            val queued = new mutable.Queue[ClassSymbol]()
+            val visited = new mutable.HashSet[ClassSymbol]()
             queued += this
             while(!queued.isEmpty && !visited(superCsym)) {
                 val nextCsym = queued.dequeue()
                 visited += nextCsym
-                queued ++= nextCsym.superClassNames(state).map(state.classes).filterNot(visited)
+                queued ++= nextCsym.superClassNames.map(global.csym).filterNot(visited)
             }
             visited(superCsym)                
         }

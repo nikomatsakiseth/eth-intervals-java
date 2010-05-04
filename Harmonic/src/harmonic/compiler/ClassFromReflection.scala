@@ -25,7 +25,7 @@ class ClassFromReflection(
         cls.getDeclaredFields.map(fieldSymbol).toList
     }        
     
-    lazy val superClassNames(sym: Symbol.ClassFromReflection) = {
+    lazy val superClassNames(sym: ClassFromReflection) = {
         (cls.getSuperclass :: cls.getInterfaces.toList).filter(_ != null).map(Name.Class)        
     }
     
@@ -37,7 +37,7 @@ class ClassFromReflection(
         fields.find(_.isNamed(name))        
     }
     
-    private[this] def fieldSymTabEntry(csym: Symbol.ClassFromReflection)(fld: reflect.Field) = {
+    private[this] def fieldSymTabEntry(csym: ClassFromReflection)(fld: reflect.Field) = {
         val memberName = Name.Member(csym.name, fld.getName)
         val modifiers = Modifier.forMember(fld)
         if(modifiers.isStatic) SymTab.StaticField(memberName)

@@ -4,7 +4,7 @@ import Ast.{Resolve => out}
 
 import java.lang.reflect
 
-/** Support code for Symbol.ClassFromReflection: 
+/** Support code for ClassFromReflection: 
   * Creates symbols from reflective objects. */
 case class Reflect(state: State) {
     
@@ -47,7 +47,7 @@ case class Reflect(state: State) {
         case _ => throw new RuntimeException("Not here")
     }
     
-    def fieldSymbol(csym: Symbol.ClassFromReflection)(fld: reflect.Field) = {
+    def fieldSymbol(csym: ClassFromReflection)(fld: reflect.Field) = {
         new VarSymbol.Field(
             modifiers = Modifier.forMember(fld),
             name        = Name.Member(csym.name, fld.getName),
@@ -62,19 +62,19 @@ case class Reflect(state: State) {
         )
     }
     
-    def superClassNames(sym: Symbol.ClassFromReflection) = {
+    def superClassNames(sym: ClassFromReflection) = {
         val cls = sym.cls
         (cls.getSuperclass :: cls.getInterfaces.toList).filter(_ != null).map(Name.Class)
     }
     
-    def fieldSymTabEntry(csym: Symbol.ClassFromReflection)(fld: reflect.Field) = {
+    def fieldSymTabEntry(csym: ClassFromReflection)(fld: reflect.Field) = {
         val memberName = Name.Member(csym.name, fld.getName)
         val modifiers = Modifier.forMember(fld)
         if(modifiers.isStatic) SymTab.StaticField(memberName)
         else SymTab.InstanceField(memberName)
     }
     
-    def varMembers(csym: Symbol.ClassFromReflection) = {
+    def varMembers(csym: ClassFromReflection) = {
         csym.optVarMembers.getOrElse {
             val varMembers = csym.cls.getDeclaredFields.map(fieldSymTabEntry(csym)).toList
             csym.optVarMembers = Some(varMembers)
@@ -98,7 +98,7 @@ case class Reflect(state: State) {
         )
     }
     
-    def ctors(sym: Symbol.ClassFromReflection) = {
+    def ctors(sym: ClassFromReflection) = {
         sym.optCtors.getOrElse {
             val syms = sym.cls.getConstructors.map(ctorSymbol(sym.name)).toList
             sym.optCtors = Some(syms)
@@ -122,7 +122,7 @@ case class Reflect(state: State) {
         )
     }
     
-    def methods(csym: Symbol.ClassFromReflection) = {
+    def methods(csym: ClassFromReflection) = {
         csym.optMethods.getOrElse {
             val msyms = csym.cls.getDeclaredMethods.map(methodSymbol(csym.name)).toList
             csym.optMethods = Some(msyms)
@@ -130,7 +130,7 @@ case class Reflect(state: State) {
         }
     }
 
-    def fields(csym: Symbol.ClassFromReflection) = {
+    def fields(csym: ClassFromReflection) = {
         csym.optFields.getOrElse {
             val fsyms = csym.cls.getDeclaredFields.map(fieldSymbol(csym)).toList
             csym.optFields = Some(fsyms)
