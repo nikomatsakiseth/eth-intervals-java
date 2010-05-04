@@ -15,8 +15,8 @@ class Reporter(config: Config) {
     
     def hasErrors = !errors.isEmpty
     
-    def report(pos: Position, msgKey: String, msgArgs: List[String]) = synchronized {
-        errors += Error(pos, msgKey, msgArgs)
+    def report(pos: Position, msgKey: String, msgArgs: String*) = synchronized {
+        errors += Error(pos, msgKey, msgArgs.toList)
     }
     
     def posString(pos: Position) = {

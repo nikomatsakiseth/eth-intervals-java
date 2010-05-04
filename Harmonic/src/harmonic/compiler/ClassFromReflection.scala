@@ -1,16 +1,19 @@
 package harmonic.compiler
 
+import java.lang.reflect
+
 class ClassFromReflection(
     name: Name.Class,
+    global: Global,
     val cls: java.lang.Class[_]
-) extends ClassFromCompiledSource(name) {
+) extends ClassFromCompiledSource(name, global) {
     
     lazy val modifiers = {
         Modifier.forClass(cls)
     }
     
     lazy val constructors = {
-        cls.getConstructors.map(ctorSymbol(sym.name)).toList
+        cls.getConstructors.map(ctorSymbol).toList
     }
         
     lazy val varMembers = {
@@ -25,7 +28,7 @@ class ClassFromReflection(
         cls.getDeclaredFields.map(fieldSymbol).toList
     }        
     
-    lazy val superClassNames(sym: ClassFromReflection) = {
+    lazy val superClassNames = {
         (cls.getSuperclass :: cls.getInterfaces.toList).filter(_ != null).map(Name.Class)        
     }
     
@@ -37,8 +40,8 @@ class ClassFromReflection(
         fields.find(_.isNamed(name))        
     }
     
-    private[this] def fieldSymTabEntry(csym: ClassFromReflection)(fld: reflect.Field) = {
-        val memberName = Name.Member(csym.name, fld.getName)
+    private[this] def fieldSymTabEntry(fld: reflect.Field) = {
+        val memberName = Name.Member(name, fld.getName)
         val modifiers = Modifier.forMember(fld)
         if(modifiers.isStatic) SymTab.StaticField(memberName)
         else SymTab.InstanceField(memberName)
@@ -60,7 +63,7 @@ class ClassFromReflection(
     private[this] def typeRef(ty: reflect.Type): Type.Ref = ty match {
         case ty: Class[_] => {
             val name = Name.Class(ty)
-            state.requireLoadedOrLoadable(InterPosition.forClass(ty), name)
+            global.requireLoadedOrLoadable(InterPosition.forClass(ty), name)
             Type.Class(name, List())
         }
         case ty: reflect.GenericArrayType => {
@@ -102,12 +105,12 @@ class ClassFromReflection(
         new MethodSymbol(
             pos       = InterPosition.forClass(mthd.getDeclaringClass),
             modifiers = Modifier.forMember(mthd),
-            kind      = Symbol.JavaVirtual,
+            kind      = MethodKind.JavaVirtual,
             clsName   = name,
             name      = Name.InitMethod,
             MethodSignature(
                 returnTy          = Type.Void,
-                receiverTy        = Type.Class(clsName, List()),
+                receiverTy        = toType,
                 parameterPatterns = List(Pattern.Tuple(
                     mthd.getGenericParameterTypes.toList.zipWithIndex.map(paramPattern)))
             )
@@ -118,12 +121,12 @@ class ClassFromReflection(
         new MethodSymbol(
             pos       = InterPosition.forClass(mthd.getDeclaringClass),
             modifiers = Modifier.forMember(mthd),
-            kind      = MethodSymbol.JavaVirtual, // FIXME 
+            kind      = MethodKind.JavaVirtual, // FIXME 
             clsName   = name,
             name      = Name.Method(List(mthd.getName)),
             MethodSignature(
                 returnTy          = typeRef(mthd.getGenericReturnType),
-                receiverTy        = Type.Class(clsName, List()),
+                receiverTy        = toType,
                 parameterPatterns = List(Pattern.Tuple(
                     mthd.getGenericParameterTypes.toList.zipWithIndex.map(paramPattern)))
             )

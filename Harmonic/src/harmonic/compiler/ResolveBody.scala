@@ -21,14 +21,14 @@ import Util._
   * 
   * The symbol tables are initially constructed using the member names
   * extracted during header resolution (see `ResolveHeader`). */
-case class ResolveBody(state: State, compUnit: in.CompUnit) 
-extends Resolve(state, compUnit) 
+case class ResolveBody(global: Global, compUnit: in.CompUnit) 
+extends Resolve(global, compUnit) 
 {
     def resolveClassBody(csym: ClassSymbol, cdecl: in.ClassDecl) = {
         val symTab = constructSymbolTable(csym)
         val outCdecl = InScope(symTab, true).resolveClassDecl(cdecl)
 
-        if(state.config.dumpResolvedTrees) {
+        if(global.config.dumpResolvedTrees) {
             outCdecl.println(PrettyPrinter.stdout)
         }
     }
@@ -37,7 +37,7 @@ extends Resolve(state, compUnit)
       * supertypes of `csym`.  A key is only included if all
       * supertypes agree on its value. */
     def mergeSuperSymbolTables(csym: ClassSymbol): SymTab.Map = {
-        val superCsyms = csym.superClassNames.map(state.classes)
+        val superCsyms = csym.superClassNames.map(globalclasses)
         val superSymtabs = superCsyms.map(constructSymbolTable)
         superSymtabs match {
             // Micro-optimize the case of zero or one supertypes:
@@ -105,7 +105,7 @@ extends Resolve(state, compUnit)
             scope.symTab.get(text) match {
                 case Some(_) => {
                     // TODO Decide when params on inner classes can shadow
-                    Error.ShadowedClassParam(text).report(state, pos)
+                    Error.ShadowedClassParam(text).report(global, pos)
                 }
                 case _ =>
             }
@@ -118,7 +118,7 @@ extends Resolve(state, compUnit)
         def addEntry(pos: Position, text: String) = {
             scope.symTab.get(text) match {
                 case Some(SymTab.LocalVar(_)) => {
-                    Error.ShadowedMethodParam(text).report(state, pos)
+                    Error.ShadowedMethodParam(text).report(global, pos)
                 }
                 case _ =>
             }
@@ -156,7 +156,7 @@ extends Resolve(state, compUnit)
             
             scope.symTab.get(name.name.text) match {
                 case Some(SymTab.LocalVar(_)) =>
-                    Error.ShadowedLocalVar(name.name.text).report(state, name.pos)
+                    Error.ShadowedLocalVar(name.name.text).report(global, name.pos)
                 case _ =>
             }
             
@@ -185,20 +185,20 @@ extends Resolve(state, compUnit)
                 
                 case Some(SymTab.InstanceField(mname)) => {
                     if(scope.isStatic) {
-                        Error.NotInStaticScope(mname).report(state, name.pos)
+                        Error.NotInStaticScope(mname).report(global, name.pos)
                     }
                     out.FieldLvalue(Ast.MemberName(mname), ())
                 }
                 
                 case Some(SymTab.Ghost(mname)) => {
                     // An error will be reported in Lower:
-                    // Error.NotField(name).report(state, name.pos)
+                    // Error.NotField(name).report(global, name.pos)
                     out.FieldLvalue(Ast.MemberName(mname), ())
                 }
                 
                 case Some(SymTab.Type(mname)) => {
                     // An error will be reported in Lower:
-                    // Error.NotField(name).report(state, name.pos)
+                    // Error.NotField(name).report(global, name.pos)
                     out.FieldLvalue(Ast.MemberName(mname), ())
                 }
             }
@@ -339,17 +339,17 @@ extends Resolve(state, compUnit)
                         }
 
                         case Some(SymTab.Type(mname)) => {
-                            Error.NotField(mname).report(state, path.pos)
+                            Error.NotField(mname).report(global, path.pos)
                             Right(out.PathErr(path.toString))
                         }
 
                         case Some(SymTab.InstanceField(mname)) if isStatic => {
-                            Error.NotInStaticScope(mname).report(state, path.pos)
+                            Error.NotInStaticScope(mname).report(global, path.pos)
                             Right(out.PathErr(path.toString))
                         }
                             
                         case Some(SymTab.Ghost(mname)) if isStatic => {
-                            Error.NotInStaticScope(mname).report(state, path.pos)
+                            Error.NotInStaticScope(mname).report(global, path.pos)
                             Right(out.PathErr(path.toString))
                         }
 
@@ -397,7 +397,7 @@ extends Resolve(state, compUnit)
                 case in.PathDot(base, memberName: in.RelDot, (), ()) => {
                     resolvePathToEither(base) match {
                         case Left(name) => {
-                            Error.ExpPath(name).report(state, path.pos)
+                            Error.ExpPath(name).report(global, path.pos)
                             Right(out.PathErr(path.toString))
                         }
                         case Right(outBase) => {
@@ -411,7 +411,7 @@ extends Resolve(state, compUnit)
         def resolvePathToPath(path: in.AstPath): out.AstPath = withPosOf(path, {
             resolvePathToEither(path) match {
                 case Left(name) => {
-                    Error.ExpPath(name).report(state, path.pos)
+                    Error.ExpPath(name).report(global, path.pos)
                     out.PathErr(path.toString)
                 }
                 
@@ -425,7 +425,7 @@ extends Resolve(state, compUnit)
                     className
                     
                 case _ => {
-                    Error.ExpClassName(path.toString).report(state, path.pos)
+                    Error.ExpClassName(path.toString).report(global, path.pos)
                     Name.ObjectClass                    
                 }
             }
@@ -452,7 +452,7 @@ extends Resolve(state, compUnit)
                 resolvePathToEither(base) match {
                     case Left(qualName) => {
                         val className = Name.Class(qualName, name)
-                        state.requireLoadedOrLoadable(tref.pos, className)
+                        global.requireLoadedOrLoadable(tref.pos, className)
                         out.ClassType(Ast.ClassName(className), List())
                     }
                     
@@ -565,7 +565,7 @@ extends Resolve(state, compUnit)
         def resolveOwner(owner: in.Owner): out.Owner = withPosOf(owner, {
             owner match {
                 case in.Static(name) => {
-                    state.requireLoadedOrLoadable(owner.pos, name)
+                    global.requireLoadedOrLoadable(owner.pos, name)
                     out.Static(name)
                 }
                 
@@ -574,7 +574,7 @@ extends Resolve(state, compUnit)
                         case Left(className: Name.Class) => out.Static(className)
                         
                         case Left(pkgName: Name.Package) => {
-                            Error.ExpPath(pkgName).report(state, path.pos)
+                            Error.ExpPath(pkgName).report(global, path.pos)
                             out.Null(())
                         }
                         
@@ -632,7 +632,7 @@ extends Resolve(state, compUnit)
         })
 
         def resolveLiteral(expr: in.Literal) = {
-            state.requireLoadedOrLoadable(expr.pos, Name.Class(expr.obj.getClass))
+            global.requireLoadedOrLoadable(expr.pos, Name.Class(expr.obj.getClass))
             out.Literal(expr.obj, ())            
         }
 

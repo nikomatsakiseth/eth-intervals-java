@@ -6,7 +6,7 @@ import java.lang.reflect
 
 /** Support code for ClassFromReflection: 
   * Creates symbols from reflective objects. */
-case class Reflect(state: State) {
+case class Reflect(global: Global) {
     
     def typeArg(pair: (Name.Member, reflect.Type)): Option[Type.TypeArg] = pair match {
         case (nm, wt: reflect.WildcardType) => { /* // FIXME: Allow multiple LB, UB? */
@@ -24,7 +24,7 @@ case class Reflect(state: State) {
     def typeRef(ty: reflect.Type): Type.Ref = ty match {
         case cls: Class[_] => {
             val name = Name.Class(cls)
-            state.requireLoadedOrLoadable(InterPosition.forClass(cls), name)
+            global.requireLoadedOrLoadable(InterPosition.forClass(cls), name)
             Type.Class(name, List())
         }
         case gat: reflect.GenericArrayType => {

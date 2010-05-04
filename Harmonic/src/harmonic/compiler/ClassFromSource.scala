@@ -1,10 +1,13 @@
 package harmonic.compiler
 
+import scala.collection.mutable
+import ch.ethz.intervals.Interval
+
 class ClassFromSource(
-    name: Class.Name,
+    name: Name.Class,
     global: Global
-) extends ClassSymbol(name, global) 
-{
+) extends ClassSymbol(name, global) {
+
     def internalImplName = name.internalName + ByteCode.implSuffix
     
     private[this] var errorReports = 0
@@ -63,17 +66,19 @@ class ClassFromSource(
 
     def methodsNamed(mthdName: Name.Method) = {
         interval(ClassSymbol.Create).foreach(_.join())
-        lowerMembers.flatMap(toOptMethodSymbol(mthdName))
+        lowerMembers.flatMap(_.toOptMethodSymbol(mthdName))
     }
     
     def fieldNamed(name: Name.Member) = {
         interval(ClassSymbol.Create).foreach(_.join())
-        lowerMembers.flatMap(toOptFieldSymbol(name))        
+        lowerMembers.flatMap(_.toOptFieldSymbol(name))        
     }
     
     // ___ Computed by Merge Interval _______________________________________
+
+    var loweredMethods: List[(MethodSymbol, Ast.Lower.MethodDecl)] = Nil
     
-    var allMethodSymbols: List[MethodSymbol] = Nil
+    def allMethodSymbols: List[MethodSymbol] = loweredMethods.map(_._1)
     
     var loweredSource: Ast.Lower.ClassDecl = null
     

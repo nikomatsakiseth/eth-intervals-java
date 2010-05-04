@@ -8,7 +8,7 @@ class ClassFromClassFile(
     private[this] var loaded = false
     private[this] var vModifiers = Modifier.Set.empty
     private[this] var vConstructors = List[MethodSymbol]()
-    private[this] var vSuperClassNames = List[Name.Qual]()
+    private[this] var vSuperClassNames = List[Name.Class]()
     private[this] var vMethods = List[MethodSymbol]()
     private[this] var vFields = List[VarSymbol.Field]()
     private[this] var vVarMembers = List[SymTab.Entry]()

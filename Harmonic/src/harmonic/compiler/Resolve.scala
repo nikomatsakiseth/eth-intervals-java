@@ -17,11 +17,11 @@ import SymTab.extendedMap
   * Contains methods to resolve the shortened name of a class
   * (which may omit the package) to the full, absolute name 
   * including the package. */
-abstract class Resolve(state: State, compUnit: in.CompUnit) {
+abstract class Resolve(global: Global, compUnit: in.CompUnit) {
     
     protected[this] def resolveAgainstPackage(pkgName: Name.Package, nm: String): Name.Qual = {
         val className = Name.Class(pkgName, nm)
-        if(state.loadedOrLoadable(className)) {
+        if(globalloadedOrLoadable(className)) {
             className
         } else {
             Name.Subpackage(pkgName, nm)
@@ -30,7 +30,7 @@ abstract class Resolve(state: State, compUnit: in.CompUnit) {
     
     protected[this] def resolveAgainstClass(clsName: Name.Class, nm: String): Option[Name.Class] = {
         val className = Name.Class(clsName, nm)
-        if(state.loadedOrLoadable(className)) {
+        if(globalloadedOrLoadable(className)) {
             Some(className)
         } else {
             None
@@ -106,7 +106,7 @@ abstract class Resolve(state: State, compUnit: in.CompUnit) {
         val expansions = resolveRelList(relList)
         val result = expansions.firstSome(_.asClassName)
         if(!result.isDefined) {
-            Error.CannotResolve(relList.reverse.mkString(".")).report(state, pos)
+            Error.CannotResolve(relList.reverse.mkString(".")).report(global, pos)
         }
         result
     }

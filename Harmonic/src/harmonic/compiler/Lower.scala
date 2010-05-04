@@ -12,12 +12,11 @@ import Util._
   * main functions:
   * - Fills in any inferred types.  (Note that we don't perform a full type check!)
   * - Removes nested expressions into intermediate variables. */
-case class Lower(state: State) {
-    private[this] val data = state.data(classOf[Lower.Data])
-    private[this] val emptyEnv = Env.empty(state)
-    val csym = state.curCsym
+case class Lower(global: Global) {
+    private[this] val data = globaldata(classOf[Lower.Data])
+    private[this] val emptyEnv = Env.empty(global)
     
-    def classParamAndEnv: (out.Param, Env) = {
+    def classParamAndEnv(csym: ClassFromSource): (out.Param, Env) = {
         val thisTy = Type.Class(csym.name, List())
         val thisSym = new VarSymbol.Local(Modifier.Set.empty, Name.ThisLocal, thisTy)
         val env0 = emptyEnv.plusThis(thisTy, thisSym)
@@ -27,7 +26,7 @@ case class Lower(state: State) {
         (outParam, env)
     }
     
-    def createSymbolForConstructor() = {
+    def createSymbolForConstructor(csym: ClassFromSource) = {
         val cdecl = csym.resolvedSource
         val (outParam, env) = classParamAndEnv(csym)
         new MethodSymbol(
@@ -83,7 +82,7 @@ case class Lower(state: State) {
 
         val returnTy = (mdecl.returnTref, optBody) match {
             case (in.InferredTypeRef(), None) => {
-                state.report(
+                globalreport(
                     mdecl.returnTref.pos, 
                     "explicit.return.type.required.if.abstract", 
                     mdecl.name.toString
@@ -126,7 +125,7 @@ case class Lower(state: State) {
             }
             
             case (in.InferredTypeRef(), None) => {
-                state.report(
+                globalreport(
                     decl.tref.pos, "explicit.type.reqd.if.abstract", decl.name.toString
                 )
                 Type.Object
@@ -232,15 +231,15 @@ case class Lower(state: State) {
                 }
 
                 case in.PathBase(name @ Ast.MemberName(memberVar), ()) => {
-                    val csym = state.csym(memberVar.className)
+                    val csym = global.csym(memberVar.className)
                     csym.fieldNamed(memberVar) match {
                         case None => {
-                            Error.NoSuchMember(csym.toType, memberVar).report(state, name.pos)
+                            Error.NoSuchMember(csym.toType, memberVar).report(global, name.pos)
                             errorPath(path.toString)
                         }
 
                         case Some(fsym) if !fsym.modifiers.isStatic => {
-                            Error.ExpStatic(memberVar).report(state, path.pos)
+                            Error.ExpStatic(memberVar).report(global, path.pos)
                             errorPath(path.toString)               
                         }
 
@@ -254,12 +253,12 @@ case class Lower(state: State) {
                     val ownerTypedPath = toTypedPath(owner)
                     env.lookupField(ownerTypedPath.ty, name.name) match {
                         case Left(err) => {
-                            err.report(state, name.pos)
+                            err.report(global, name.pos)
                             errorPath(path.toString)
                         }
                         
                         case Right(fsym) if fsym.modifiers.isStatic => {
-                            state.report(path.pos, "qualified.static", fsym.name.toString)
+                            globalreport(path.pos, "qualified.static", fsym.name.toString)
                             Path.TypedBase(fsym)
                         }
                         
@@ -289,7 +288,7 @@ case class Lower(state: State) {
                     val typedPath = toTypedPath(path)
                     env.lookupTypeVar(typedPath.ty, typeVar.name) match {
                         case Left(err) => {
-                            err.report(state, typeVar.pos)
+                            err.report(global, typeVar.pos)
                             Type.Null
                         }
                         case Right(memberVar) => {
@@ -298,7 +297,7 @@ case class Lower(state: State) {
                     }
                 }
                 case in.ClassType(Ast.ClassName(className), inTypeArgs) => {
-                    val csym = state.csym(className)
+                    val csym = global.csym(className)
                     val typeArgs = inTypeArgs.flatMap(toOptTypeArgOf(csym))
                     Type.Class(className, typeArgs)
                 }                
@@ -313,12 +312,12 @@ case class Lower(state: State) {
                             Some(Type.PathArg(entry.name, rel, toPath(inPath)))                                
                             
                         case Right(entry) => {
-                            state.report(name.pos, "not.in.path.arg", entry.name.toString)
+                            globalreport(name.pos, "not.in.path.arg", entry.name.toString)
                             None                                
                         }
                             
                         case Left(err) => {
-                            err.report(state, name.pos)
+                            err.report(global, name.pos)
                             None
                         }
                     }
@@ -330,12 +329,12 @@ case class Lower(state: State) {
                             Some(Type.TypeArg(entry.name, rel, toTypeRef(inTypeRef)))
                             
                         case Right(entry) => {
-                            state.report(name.pos, "not.in.type.arg", entry.name.toString)
+                            globalreport(name.pos, "not.in.type.arg", entry.name.toString)
                             None                                
                         }
 
                         case Left(err) => {
-                            err.report(state, name.pos)
+                            err.report(global, name.pos)
                             None
                         }
                     }
@@ -423,11 +422,11 @@ case class Lower(state: State) {
                 
                 // Reassign field:
                 case (_, in.FieldLvalue(memberName @ Ast.MemberName(name), ())) => {
-                    val csym = state.csym(name.className)
+                    val csym = global.csym(name.className)
                     val fsym = csym.fieldNamed(name) match {
                         case Some(fsym) => fsym
                         case None => {
-                            Error.NoSuchMember(csym.toType, name).report(state, memberName.pos)
+                            Error.NoSuchMember(csym.toType, name).report(global, memberName.pos)
                             Symbol.errorField(name, None)
                         }
                     }
@@ -483,7 +482,7 @@ case class Lower(state: State) {
                 case in.ReassignVarLvalue(Ast.LocalName(localName), ()) =>
                     env.locals(localName).ty
                 case in.FieldLvalue(Ast.MemberName(memberName), ()) => {
-                    val csym = state.csym(memberName.className)
+                    val csym = global.csym(memberName.className)
                     csym.fieldNamed(memberName) match {
                         case Some(fsym) => fsym.ty
                         case None => throw FailedException()
@@ -575,22 +574,22 @@ case class Lower(state: State) {
                             
                         case Name.Member(className1, text) => {
                             if(className != className1) {
-                                Error.DiffStaticClasses(className, className1).report(state, expr.name.pos)
+                                Error.DiffStaticClasses(className, className1).report(global, expr.name.pos)
                             }
                             Name.Member(className, text)
                         }
                     }
-                    val csym = state.csym(className)
+                    val csym = global.csym(className)
                     val fsym = csym.fieldNamed(memberVar) match {
                         case Some(fsym) if fsym.modifiers.isStatic => {
                             fsym                            
                         }
                         case Some(fsym) /* !Static */ => {
-                            Error.ExpStatic(memberVar).report(state, expr.name.pos)
+                            Error.ExpStatic(memberVar).report(global, expr.name.pos)
                             Symbol.errorField(memberVar, optExpTy)
                         }
                         case None => {
-                            Error.NoSuchMember(csym.toType, expr.name.name).report(state, expr.name.pos)
+                            Error.NoSuchMember(csym.toType, expr.name.name).report(global, expr.name.pos)
                             Symbol.errorField(memberVar, optExpTy)
                         }
                     }
@@ -604,11 +603,11 @@ case class Lower(state: State) {
                             fsym
                         }
                         case Right(fsym) /* Static */ => {
-                            Error.QualStatic(fsym.name).report(state, expr.name.pos)
+                            Error.QualStatic(fsym.name).report(global, expr.name.pos)
                             fsym
                         }
                         case Left(err) => {
-                            err.report(state, expr.name.pos)
+                            err.report(global, expr.name.pos)
                             val memberVar = expr.name.name.inDefaultClass(Name.ObjectClass)
                             Symbol.errorField(memberVar, optExpTy)
                         }
@@ -635,7 +634,7 @@ case class Lower(state: State) {
             // Identify the best method (if any):
             msyms match {
                 case List() => {
-                    Error.NoSuchMethod(rcvrTy, name).report(state, pos)
+                    Error.NoSuchMethod(rcvrTy, name).report(global, pos)
                     None
                 }
                 
@@ -698,7 +697,7 @@ case class Lower(state: State) {
                         }
                         
                         case (List(), List()) => {
-                            state.report(
+                            globalreport(
                                 pos,
                                 "no.applicable.methods",
                                 argTys.map(_.toString).mkString(", ")
@@ -707,7 +706,7 @@ case class Lower(state: State) {
                         }
                         
                         case _ => {
-                            state.report(
+                            globalreport(
                                 pos,
                                 "ambiguous.method.call",
                                 bestMsyms.length.toString
@@ -723,7 +722,7 @@ case class Lower(state: State) {
             // Find all potential methods:
             val (rcvr, rcvrTy, msyms) = lowerRcvr(mcall.rcvr, mcall.name) match {
                 case rcvr @ out.Static(className) => {
-                    val csym = state.csym(className)
+                    val csym = global.csym(className)
                     val msyms = csym.methodsNamed(mcall.name).filter(_.modifiers.isStatic)
                     (rcvr, csym.toType, msyms)
                 }
@@ -750,7 +749,7 @@ case class Lower(state: State) {
         def lowerNewCtor(expr: in.NewCtor) = introduceVar(expr, {
             toTypeRef(expr.tref) match {
                 case ty @ Type.Class(name, _) => {
-                    val csym = state.csym(name)
+                    val csym = global.csym(name)
                     val msyms = csym.constructors
                     val tvar = Name.LocalVar(tmpVarName(expr))
                     val rcvr = in.Var(Ast.LocalName(tvar), ())
@@ -774,7 +773,7 @@ case class Lower(state: State) {
                 }
                 
                 case ty => {
-                    state.report(
+                    globalreport(
                         expr.pos, 
                         "can.only.create.classes"
                     )
@@ -871,7 +870,7 @@ case class Lower(state: State) {
             case in.Super(()) => {
                 // Find the next supertype in MRO that implements the method
                 // `mthdName` (if any):
-                val mro = MethodResolutionOrder(state).forSym(env.thisCsym)
+                val mro = MethodResolutionOrder(global).forSym(env.thisCsym)
                 val optTy = mro.firstSome { 
                     case csym if !csym.methodsNamed(mthdName).isEmpty => 
                         Some(csym.toType)
@@ -882,7 +881,7 @@ case class Lower(state: State) {
                 optTy match {
                     case Some(ty) => out.Super(ty)
                     case None => {
-                        state.report(
+                        globalreport(
                             rcvr.pos,
                             "no.super.class.implements",
                             mthdName.toString

@@ -13,8 +13,8 @@ object MethodResolutionOrder {
   * class.  This is the same order used in Python and Dylan.
   *
   * For a nice introduction to C3 see: http://www.python.org/download/releases/2.3/mro/ */
-case class MethodResolutionOrder(state: State) {
-    private[this] val data: MethodResolutionOrder.Data = state.data(classOf[MethodResolutionOrder.Data])
+case class MethodResolutionOrder(global: Global) {
+    private[this] val data: MethodResolutionOrder.Data = globaldata(classOf[MethodResolutionOrder.Data])
     private[this] var stack: List[ClassSymbol] = Nil
     
     /** Merges the lists of MROs for each supertype into one MRO. */
@@ -38,7 +38,7 @@ case class MethodResolutionOrder(state: State) {
                 if(!superLists.isEmpty) {
                     Error.AmbiguousInheritance(
                         csym.name, superLists.map(_.head)
-                    ).report(state, csym.pos)
+                    ).report(global, csym.pos)
                 }
                 List()
             }
@@ -63,7 +63,7 @@ case class MethodResolutionOrder(state: State) {
                 val idx = stack.indexOf(csym)
                 Error.CircularInheritance(
                     csym.name, stack.take(idx).reverse
-                ).report(state, csym.pos)
+                ).report(global, csym.pos)
                 data.mroCache(csym) = List(csym)
                 List(csym)
             }
@@ -71,7 +71,7 @@ case class MethodResolutionOrder(state: State) {
             case None => {
                 stack = csym :: stack
                 val superNames = csym.superClassNames
-                val superCsyms = superNames.map(state.classes)
+                val superCsyms = superNames.map(globalclasses)
                 val superLists = superCsyms.map(forSym)
                 val list = csym :: merge(csym, superLists)
                 data.mroCache(csym) = list
@@ -82,7 +82,7 @@ case class MethodResolutionOrder(state: State) {
     }
     
     def forClassType(classTy: Type.Class): List[ClassSymbol] = {
-        forSym(state.csym(classTy.name))
+        forSym(global.csym(classTy.name))
     }
     
 }

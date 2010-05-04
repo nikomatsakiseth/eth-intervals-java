@@ -16,7 +16,7 @@ class LowerMember(
     private[this] var outMemberDecl: out.MemberDecl = null
     private[this] val inter = inState.master.subinterval(during = members) { inter =>
         val state = createState.copy(current = inter)
-        outMemberDecl = Lower(state).lowerMemberDecl(inMemberDecl)
+        outMemberDecl = Lower(global).lowerMemberDecl(inMemberDecl)
     }
     
     /** Read lowered member decl without blocking */
@@ -100,7 +100,7 @@ class LowerMember(
                     }
                 } catch {
                     case _: CycleException => {
-                        state.report(inDecl.returnTref.pos, 
+                        globalreport(inDecl.returnTref.pos, 
                             "explicit.type.required.due.to.cycle",
                             MthdName.toString
                         )
@@ -172,7 +172,7 @@ class LowerMember(
                     }
                 } catch {
                     case _: CycleException => {
-                        state.report(inDecl.tref.pos, 
+                        globalreport(inDecl.tref.pos, 
                             "explicit.type.required.due.to.cycle",
                             MemName.toString
                         )

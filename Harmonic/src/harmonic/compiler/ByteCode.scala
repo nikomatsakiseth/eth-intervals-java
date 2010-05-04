@@ -26,7 +26,7 @@ object ByteCode {
   * - Foo$Static.class: a Java class defining static members for all 
   *   of the method definitions in Foo.  
   */
-case class ByteCode(state: State) {
+case class ByteCode(global: Global) {
     import ByteCode.noSuffix
     import ByteCode.implSuffix
     import ByteCode.staticSuffix
@@ -34,11 +34,11 @@ case class ByteCode(state: State) {
     // ___ Generating fresh, unique class names _____________________________
     
     def freshClassName(context: Name.Class) = {
-        context.withSuffix("$" + state.global.freshInteger())
+        context.withSuffix("$" + global.freshInteger())
     }
     
     def freshVarName(base: Option[Name.Var]) = {
-        Name.LocalVar("$%s$%s".format(base.getOrElse(""), state.global.freshInteger()))
+        Name.LocalVar("$%s$%s".format(base.getOrElse(""), global.freshInteger()))
     }
     
     // ___ Types and Asm Types ______________________________________________
@@ -74,8 +74,8 @@ case class ByteCode(state: State) {
     def downcastNeeded(toTy: Type.Ref, fromTy: Type.Ref): Boolean = {
         (toTy, fromTy) match {
             case (Type.Class(toName, _), Type.Class(fromName, _)) => {
-                val toSym = state.csym(toName)
-                val fromSym = state.csym(fromName)
+                val toSym = global.csym(toName)
+                val fromSym = global.csym(fromName)
                 !fromSym.isSubclass(toSym)
             }
             
@@ -169,11 +169,11 @@ case class ByteCode(state: State) {
     {
         private[this] def fileWithExtension(ext: String) = {
             val relPath = className.relPath + suffix + ext
-            new java.io.File(state.config.outputDir, relPath)
+            new java.io.File(global.config.outputDir, relPath)
         }
 
         private[this] def trace(cvis: asm.ClassVisitor) = {
-            if(!state.config.dumpBytecode) {
+            if(!global.config.dumpBytecode) {
                 (cvis, None)
             } else {
                 val sFile = fileWithExtension(".s")
@@ -192,7 +192,7 @@ case class ByteCode(state: State) {
         }
         
         private[this] def check(cvis: asm.ClassVisitor) = {
-            if(state.config.checkBytecode) new asm.util.CheckClassAdapter(cvis, true)
+            if(global.config.checkBytecode) new asm.util.CheckClassAdapter(cvis, true)
             else cvis            
         }
 
@@ -212,7 +212,7 @@ case class ByteCode(state: State) {
                 out.close()
             } catch {
                 case err: java.io.IOError => {
-                    Error.IOError(err).report(state, InterPosition.forFile(clsFile))
+                    Error.IOError(err).report(global, InterPosition.forFile(clsFile))
                 }
             }
         }
@@ -779,7 +779,7 @@ case class ByteCode(state: State) {
                 }
                 
                 case in.NewCtor(tref, arg, msym, Type.Class(name, _)) => {
-                    val internalImplName = state.csym(name).internalImplName
+                    val internalImplName = global.csym(name).internalImplName
                     mvis.visitTypeInsn(O.NEW, internalImplName)
                     mvis.visitInsn(O.DUP)
                     mvis.visitMethodInsn(
@@ -1340,7 +1340,7 @@ case class ByteCode(state: State) {
         val adapter = new ParameterAdapter(accessMap, group.msig.parameterPatterns)
         
         // compute all versions, indexed by mro.
-        val msyms = computeVersions(group, MethodResolutionOrder(state).forSym(csym), group.msyms)
+        val msyms = computeVersions(group, MethodResolutionOrder(global).forSym(csym), group.msyms)
         
         // emit table switch
         val dfltLabel = new asm.Label()
@@ -1469,8 +1469,7 @@ case class ByteCode(state: State) {
         
         writeEmptyCtor(csym.name, Name.ObjectClass, cvis)
         
-        csym.allMethodSymbols.foreach { msym =>
-            val mdecl = csym.loweredMethods(msym.methodId)
+        csym.loweredMethods.foreach { case (msym, mdecl) =>
             writeStaticMethodImpl(csym, cvis, msym, mdecl)
         }
         

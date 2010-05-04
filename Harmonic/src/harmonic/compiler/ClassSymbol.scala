@@ -2,6 +2,7 @@ package harmonic.compiler
 
 import scala.collection.mutable
 import scala.util.parsing.input.Position
+import ch.ethz.intervals.Interval
 
 object ClassSymbol {
     // Pre-defined interval names

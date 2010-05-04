@@ -8,7 +8,7 @@ import Util._
 import Error.CanFail
 
 object Env {
-    def empty(state: State) = Env(
+    def empty(global: Global) = Env(
         state = state,
         thisTy = Type.Object,
         locals = Map(),
@@ -21,7 +21,7 @@ object Env {
 /** The environment is used during a type check but also in other phases
   * It stores information known by the compiler. */
 case class Env(
-    state: State,
+    global: Global,
     
     /** Type of the this pointer */
     thisTy: Type.Class,
@@ -97,7 +97,7 @@ case class Env(
     // ___ Finding member names _____________________________________________
     
     def lookupEntry(csym: ClassSymbol, uName: Name.UnloweredMember): CanFail[SymTab.MemberEntry] = {
-        val mro = MethodResolutionOrder(state).forSym(csym)
+        val mro = MethodResolutionOrder(global).forSym(csym)
         
         // Find all entries that could match `uName`:
         val allEntries = mro.flatMap { mrosym => 
@@ -109,9 +109,9 @@ case class Env(
             case List() => Left(Error.NoSuchMember(csym.toType, uName))
             case List(entry) => Right(entry)
             case entry :: otherEntries => {
-                val csym = state.csym(entry.name.className)
+                val csym = global.csym(entry.name.className)
                 val remEntries = otherEntries.filterNot { entry =>
-                    state.csym(entry.name.className).isSubclass(state, csym)
+                    global.csym(entry.name.className).isSubclass(global, csym)
                 }
                 if(remEntries.isEmpty) {
                     Right(entry)
@@ -139,7 +139,7 @@ case class Env(
         locals(Name.ThisLocal)
     
     def thisCsym = 
-        state.csym(thisTy.name)
+        global.csym(thisTy.name)
         
     private[this] def lookupMember[R](
         ownerTy: Type.Ref, 
@@ -149,7 +149,7 @@ case class Env(
     ): CanFail[R] = {
         minimalUpperBoundType(ownerTy).firstRight[Error, R](Error.NoSuchMember(ownerTy, uName)) {
             case (_, Type.Class(className, _)) => {
-                val csym = state.csym(className)
+                val csym = global.csym(className)
                 lookupEntry(csym, uName) match {
                     case Left(err) => Left(err)
                     case Right(entry) => func(entry)
@@ -174,7 +174,7 @@ case class Env(
         uName: Name.UnloweredMember
     ): CanFail[VarSymbol.Field] = {
         def findSym(memberVar: Name.Member) = {
-            val memberCsym = state.csym(memberVar.className)
+            val memberCsym = global.csym(memberVar.className)
             memberCsym.fieldNamed(memberVar).orErr(Error.NoSuchMember(ownerTy, uName))
         }
         
@@ -200,8 +200,8 @@ case class Env(
         className: Name.Qual,
         methodName: Name.Method
     ): List[MethodSymbol] = {
-        state.lookupIntrinsic(className, methodName).getOrElse {
-            val csym = state.csym(className)
+        globallookupIntrinsic(className, methodName).getOrElse {
+            val csym = global.csym(className)
             csym.methodsNamed(methodName).filterNot(_.modifiers.isStatic)
         }
     }
@@ -212,7 +212,7 @@ case class Env(
     ): List[MethodSymbol] = {
         minimalUpperBoundType(rcvrTy).firstSome({ 
             case classTy: Type.Class => 
-                val mro = MethodResolutionOrder(state).forClassType(classTy)
+                val mro = MethodResolutionOrder(global).forClassType(classTy)
                 mro.firstSome { csym =>
                     lookupInstanceMethodsDefinedOnClass(csym.name, methodName) match {
                         case List() => None
@@ -236,7 +236,7 @@ case class Env(
         }
         
         case Path.Base(name: Name.Member) => {
-            val csym = state.csym(name.className)
+            val csym = global.csym(name.className)
             val fsym = lookupFieldOrError(csym.toType, name, None)
             Path.TypedBase(fsym)
         }
@@ -335,7 +335,7 @@ case class Env(
         val bnds = upperBoundType(ty)
         bnds.foldLeft(bnds) { 
             case (b, classTy: Type.Class) => {
-                val mro = MethodResolutionOrder(state).forClassType(classTy)
+                val mro = MethodResolutionOrder(global).forClassType(classTy)
                 val purgeNames = Set(mro.tail.map(_.name): _*)
                 b.filter {
                     case Type.Class(name, _) => !purgeNames(name)
@@ -356,9 +356,9 @@ case class Env(
     private[this] def isSuitableArgumentBounded(ty_val: Type.Ref, ty_pat: Type.Ref): Boolean = {
         (ty_val, ty_pat) match {
             case (Type.Class(name_val, _), Type.Class(name_pat, _)) => {
-                val sym_val = state.csym(name_val)
-                val sym_pat = state.csym(name_pat)
-                sym_val.isSubclass(state, sym_pat)
+                val sym_val = global.csym(name_val)
+                val sym_pat = global.csym(name_pat)
+                sym_val.isSubclass(global, sym_pat)
             }
             
             case (Type.Var(path_val, tvar_val), Type.Var(path_pat, tvar_pat)) if tvar_val == tvar_pat =>
@@ -446,7 +446,7 @@ case class Env(
         pat match {
             case Pattern.Tuple(pats) => pats.foldLeft(subst)(addFresh)
             case Pattern.Var(name, _) => {
-                val freshName = Name.LocalVar("(env-%s)".format(state.freshInteger()))
+                val freshName = Name.LocalVar("(env-%s)".format(globalfreshInteger()))
                 subst + (name.toPath -> freshName.toPath)
             }
         }

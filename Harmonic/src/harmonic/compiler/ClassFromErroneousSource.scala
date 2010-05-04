@@ -1,8 +1,9 @@
 package harmonic.compiler
 
 class ClassFromErroroneousSource(
-    name: Name.Class
-) extends ClassFromCompiledSource(name) {
+    name: Name.Class,
+    global: Global
+) extends ClassFromCompiledSource(name, global) {
     def modifiers = Modifier.Set.empty
     def constructors = Nil
     def superClassNames = Nil

@@ -1,9 +1,9 @@
 package harmonic.compiler
 
-case class Intrinsic(state: State) {
+case class Intrinsic(global: Global) {
     
     def ensureLoadable(cls: Class[_]) {
-        state.requireLoadedOrLoadable(InterPosition.forClass(cls), Name.Class(cls))
+        global.requireLoadedOrLoadable(InterPosition.forClass(cls), Name.Class(cls))
     }
     
     // ___ IntrinsicMath ____________________________________________________
@@ -46,7 +46,7 @@ case class Intrinsic(state: State) {
             val rightTy = Type.Class(rightClass)
             val returnTy = Type.Class(returnClass)
             for((interName, javaName) <- mathOps) {
-                state.addIntrinsic(
+                globaladdIntrinsic(
                     new MethodSymbol(
                         pos = InterPosition.forClass(classOf[Intrinsic]),
                         modifiers = Modifier.Set.empty,
@@ -106,7 +106,7 @@ case class Intrinsic(state: State) {
         }
         
         // (boolean) if {...}
-        state.addIntrinsic(
+        globaladdIntrinsic(
             new MethodSymbol(
                 pos = InterPosition.forClass(classOf[Intrinsic]),
                 modifiers = Modifier.Set.empty,
@@ -128,7 +128,7 @@ case class Intrinsic(state: State) {
         )
         
         // (Object) ifNull {...}
-        state.addIntrinsic(
+        globaladdIntrinsic(
             new MethodSymbol(
                 pos = InterPosition.forClass(classOf[Intrinsic]),
                 modifiers = Modifier.Set.empty,
@@ -150,7 +150,7 @@ case class Intrinsic(state: State) {
         )
 
         // (boolean) if {...} else {...}
-        state.addIntrinsic(
+        globaladdIntrinsic(
             new MethodSymbol(
                 pos = InterPosition.forClass(classOf[Intrinsic]),
                 modifiers = Modifier.Set.empty,
@@ -173,7 +173,7 @@ case class Intrinsic(state: State) {
         )
         
         // (Object) ifNull {...} else {...}
-        state.addIntrinsic(
+        globaladdIntrinsic(
             new MethodSymbol(
                 pos = InterPosition.forClass(classOf[Intrinsic]),
                 modifiers = Modifier.Set.empty,
@@ -197,7 +197,7 @@ case class Intrinsic(state: State) {
         
         // (Iterable<T>) forEach { (T i) -> ... }
         val typeT = Type.Var(Path.This, Name.Member(iterableTy.name, "T"))
-        state.addIntrinsic(
+        globaladdIntrinsic(
             new MethodSymbol(
                 pos = InterPosition.forClass(classOf[Intrinsic]),
                 modifiers = Modifier.Set.empty,
@@ -222,7 +222,7 @@ case class Intrinsic(state: State) {
         )
 
         // (Block<Boolean,_>) while { ... }
-        state.addIntrinsic(
+        globaladdIntrinsic(
             new MethodSymbol(
                 pos = InterPosition.forClass(classOf[Intrinsic]),
                 modifiers = Modifier.Set.empty,

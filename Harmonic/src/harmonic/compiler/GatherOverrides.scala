@@ -14,9 +14,9 @@ object GatherOverrides {
 }
 
 /** Determines which methods override one another. */
-case class GatherOverrides(state: State) {
+case class GatherOverrides(global: Global) {
     
-    private[this] val data: GatherOverrides.Data = state.data(classOf[GatherOverrides.Data])
+    private[this] val data: GatherOverrides.Data = globaldata(classOf[GatherOverrides.Data])
     
     /** Populates `csym.methodGroups` as well as the `overrides` 
       * fields of all method symbols defined in `csym` */
@@ -24,11 +24,11 @@ case class GatherOverrides(state: State) {
         if(data.gathered.add(csym)) {
             // First process supertypes:
             val superNames = csym.superClassNames
-            val superCsyms = superNames.map(state.classes)
+            val superCsyms = superNames.map(globalclasses)
             superCsyms.foreach(forSym)
             
             // Now process csym:
-            var env = Env.empty(state) // TODO Enrich environment based on `csym`
+            var env = Env.empty(global) // TODO Enrich environment based on `csym`
             val methodGroups = gatherMethodGroups(csym, env)
             computeOverrides(csym, methodGroups)
             val allGroups = methodGroups.allGroups
@@ -77,7 +77,7 @@ case class GatherOverrides(state: State) {
         env: Env
     ): MethodGroups = {
         val methodGroups = new MethodGroups(env)
-        val mro = MethodResolutionOrder(state).forSym(csym)
+        val mro = MethodResolutionOrder(global).forSym(csym)
         mro.foreach { mroCsym =>
             val msyms = mroCsym.allMethodSymbols
             msyms.foreach(methodGroups.addMsym)
@@ -96,10 +96,10 @@ case class GatherOverrides(state: State) {
             msym.overrides ++= group.msyms.dropWhile(_.isFromClassNamed(csym.name))
             
             if(msym.overrides.isEmpty && msym.modifiers.isOverride) {
-                Error.NotOverride().report(state, msym.pos)
+                Error.NotOverride().report(global, msym.pos)
             } else if (!msym.overrides.isEmpty && !msym.modifiers.isOverride) {
                 val classNames = msym.overrides.map(_.clsName)
-                Error.NotMarkedOverride(msym.name, classNames).report(state, msym.pos)
+                Error.NotMarkedOverride(msym.name, classNames).report(global, msym.pos)
             }
         }
     }
@@ -128,7 +128,7 @@ case class GatherOverrides(state: State) {
                             Error.MustResolveAmbiguousInheritance(
                                 csym.name, group.methodName, 
                                 msym1.clsName, msym2.className
-                            ).report(state, csym.pos)
+                            ).report(global, csym.pos)
                         }
                     }
                 }
@@ -141,7 +141,7 @@ case class GatherOverrides(state: State) {
             case msyms => {
                 Error.MultipleOverridesInSameClass(
                     csym.name, group.methodName, msyms.length
-                ).report(state, csym.pos)
+                ).report(global, csym.pos)
             }
             
         }

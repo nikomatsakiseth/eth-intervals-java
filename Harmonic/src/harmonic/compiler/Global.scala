@@ -9,6 +9,27 @@ class Global(
     val config: Config,
     val reporter: Reporter
 ) {
+    // ___ Main Routine _____________________________________________________
+    
+    var master: Interval = null
+    
+    def compile() = {
+        inlineInterval { inter =>
+            master = inter
+            
+            // Start by parsing the input files.  This will create
+            // various subintervals of master, which will begin to
+            // execute once all parsing and loading is complete.
+            // It is necessary for those subintervals to wait till all
+            // the initial files have been loaded because they may
+            // reference symbols created in one another.
+            config.inputFiles.foreach { inputFile =>
+                val state = State(this, master, master, None)
+                Parse(global, inputFile).foreach(createSymbols)
+            }
+        }
+    }
+    
     // ___ Class Symbols ____________________________________________________
     
     /** Maps a class name to its symbol. */
@@ -47,26 +68,6 @@ class Global(
         }
     }
     
-    // ___ Scheduler ________________________________________________________
-    
-    def compile() = {
-        
-        inlineInterval { master =>
-            
-            // Start by parsing the input files.  This will create
-            // various subintervals of master, which will begin to
-            // execute once all parsing and loading is complete.
-            // It is necessary for those subintervals to wait till all
-            // the initial files have been loaded because they may
-            // reference symbols created in one another.
-            config.inputFiles.foreach { inputFile =>
-                val state = State(this, master, master, None)
-                Parse(state, inputFile).foreach(createSymbols)
-            }
-            
-        }
-    }
-    
     // ___ Intrinsics _______________________________________________________
     
     val intrinsics = new mutable.HashMap[(Name.Qual, Name.Method), List[MethodSymbol]]()
@@ -102,6 +103,71 @@ class Global(
         result
     }
     
+    /** Creates source symbols from all class defn. in `compUnit`.
+      * Also creates the header, body, lower, create, and byte-code
+      * intervals for them. */
+    private[this] def createSymbols(compUnit: Ast.Parse.CompUnit) = {
+        Ast.Parse.definedClasses(compUnit).foreach { case (className, cdecl) =>
+            optCsym(className) match {
+                case Some(_) => {
+                    reporter.report(cdecl.pos, "class.already.defined", className.toString)
+                }
+                
+                case None => {
+                    val csym = addCsym(new ClassFromSource(className, this))
+                    
+                    // For a class being loaded from source, this is the structure:
+                    //
+                    // header -> body -> | lower --------------------- | -> byteCode
+                    //                    \                           /
+                    //                     create -> members -> merge 
+                    //
+                    // header: determines the list of members, names of superclasses.
+                    //
+                    // body: resolves members in the body to absolute class names, etc.
+                    //
+                    // lower: summary interval for the job of reducing IR to the simpler form
+                    // - create: creates intervals for each member and the merge interval
+                    // - members: summary interval for the intervals that lower each indiv. member
+                    // - merge: merges all the lowered members into a lowered class declaration
+                    // 
+                    // byteCode: emits the byte code from the lowered form
+
+                    val header = csym.addInterval(ClassSymbol.Header) {
+                        master.subinterval() { header =>
+                            ResolveHeader(global, compUnit).resolveClassHeader(csym, cdecl)                        
+                        }
+                    }
+                    
+                    val body = csym.addInterval(ClassSymbol.Body) {
+                        master.subinterval(after = List(header)) { body =>
+                            ResolveBody(global, compUnit).resolveClassBody(csym, cdecl)
+                        }
+                    }
+
+                    val lower = csym.addInterval(ClassSymbol.Lower) {
+                        master.subinterval(after = List(body)) { lower => 
+                            () // Lower is really just a placeholder.
+                        }
+                    }
+                    
+                    val create = csym.addInterval(ClassSymbol.Create) {
+                        master.subinterval(during = List(lower)) { create => 
+                            Create(global).createMemberIntervals(csym)
+                        }
+                    }
+
+                    csym.addInterval(ClassSymbol.ByteCode) {
+                        master.subinterval(after = List(lower)) { byteCode => 
+                            GatherOverrides(global).forSym(csym)
+                            ByteCode(global).writeClassSymbol(csym)
+                        }
+                    }
+                }
+            }
+        }        
+    }
+    
     /** Tries to locate a source for `className`.  If a source
       * is found, instantiates a corresponding symbol and
       * returns true.  Otherwise returns false. */
@@ -114,7 +180,7 @@ class Global(
             Parse(this, file) match {
                 case None => { 
                     // Parse error:
-                    classes(className) = new ClassFromErroroneousSource(className)
+                    addCsym(new ClassFromErroroneousSource(className, global))
                 }
 
                 case Some(compUnit) => {
@@ -126,7 +192,7 @@ class Global(
                                 "expected.to.find.class", 
                                 className.toString
                             )
-                            classes(className) = new ClassFromErroroneousSource(className)                            
+                            addCsym(new ClassFromErroroneousSource(className, global))
                         }
                         
                         case Some(_) =>
@@ -144,7 +210,7 @@ class Global(
         (sourceFiles, classFiles, reflClasses) match {
             case (List(), List(), None) => false
             case (List(), List(), Some(reflClass)) => {
-                classes(className) = new ClassFromReflection(className, reflClass)
+                addCsym(new ClassFromReflection(className, global, reflClass))
                 true
             }
             case (sourceFile :: _, List(), _) => {
@@ -152,7 +218,7 @@ class Global(
                 true
             }
             case (List(), classFile :: _, _) => {
-                classes(className) = new ClassFromClassFile(className, classFile)
+                addCsym(new ClassFromClassFile(className, global, classFile))
                 true
             }
             case (sourceFile :: _, classFile :: _, _) => {
@@ -160,7 +226,7 @@ class Global(
                     loadSourceFile(sourceFile)
                     true
                 } else {
-                    classes(className) = new ClassFromClassFile(className, classFile)
+                    addCsym(new ClassFromClassFile(className, global, classFile))
                     true
                 }
             }

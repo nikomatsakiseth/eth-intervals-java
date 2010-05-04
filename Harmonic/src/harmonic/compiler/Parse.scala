@@ -420,11 +420,11 @@ object Parse {
         val tokens = new parser.lexical.Scanner(reader)
         parser.phrase(parser.compUnit)(tokens) match {
             case n: parser.NoSuccess => {
-                global.reporter.report(n.next.pos, "parse.error", List(n.msg))
+                globalreporter.report(n.next.pos, "parse.error", n.msg)
                 None
             }
             case parser.Success(compUnit, _) => {
-                if(state.config.dumpParsedTrees) {
+                if(global.config.dumpParsedTrees) {
                     compUnit.println(PrettyPrinter.stdout)
                 }
                 

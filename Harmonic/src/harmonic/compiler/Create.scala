@@ -4,13 +4,12 @@ import Ast.{Resolve => in}
 import Ast.{Lower => out}
 
 object Create {
-    def apply(state: State) = new Create(state)
+    def apply(global: Global) = new Create(global)
 }
 
-class Create(state: State) {
+class Create(global: Global) {
 
-    def createMemberIntervals() {
-        val csym = state.curCsym
+    def createMemberIntervals(csym: ClassFromSource) {
         val lower = csym.interval(ClassSymbol.Lower).toList
         val cdecl = csym.resolvedSource
         
@@ -20,11 +19,11 @@ class Create(state: State) {
         }
         
         // Just lower the constructor now.
-        csym.classParamAndEnv = Lower(state).classParamAndEnv
-        csym.ctorSymbol = Lower(state).createSymbolForConstructor()
+        csym.classParamAndEnv = Lower(global).classParamAndEnv
+        csym.ctorSymbol = Lower(global).createSymbolForConstructor()
         
         // Create futures for lowering each member declaration:
-        csym.lowerMembers = cdecl.members.map(new LowerMember(state, members, _))
+        csym.lowerMembers = cdecl.members.map(new LowerMember(global, members, _))
 
         // Create merge pass that runs after all members have been lowered:
         csym.addInterval(ClassSymbol.Merge) {
