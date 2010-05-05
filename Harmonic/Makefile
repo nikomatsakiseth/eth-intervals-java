@@ -18,22 +18,21 @@ all: test
 
 # ___ Clean ____________________________________________________________
 clean:
-	rm -rf bin bin-test .scala_dependencies 
+	rm -rf harmonic.jar bin bin-test .scala_dependencies 
 	find test -name '*.test' -exec rm '{}' ';'
 
 # ___ Building the code ________________________________________________
 %Gen.java: %Gen.py
 	python $< > $@
-
+	
 compile: ${GENERATEDJAVA}
 	mkdir -p bin bin-test
 	${JAVAC} -cp ${CLASSPATH} -d bin -sourcepath src $$(find src -name '*.java')
 	${SCALAC} -cp ${CLASSPATH} -deprecation -d bin -sourcepath src $$(find src -name '*.scala')
+	jar cf harmonic.jar -C bin harmonic
 	
 # ___ Running tests ____________________________________________________
 # To keep .test files, add "--preserve" to test.py invocation
 test: compile
 	rm -rf bin-test/*
 	python test.py --preserve $$(find test -name '*.harm')
-
-		

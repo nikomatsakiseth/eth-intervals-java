@@ -2,6 +2,8 @@ package harmonic.compiler
 
 import scala.collection.mutable
 
+import Util._
+
 object MethodResolutionOrder {
     class Data {
         /** Maps a symbol to its method resolution order. */
@@ -58,7 +60,7 @@ case class MethodResolutionOrder(global: Global) {
     def forSym(csym: ClassSymbol): List[ClassSymbol] = data.synchronized {
         data.mroCache.get(csym) match {
             case Some(order) => order
-            
+
             // Circular inheritance ought to be detected
             // in ResolveHeaders now.  I left this code
             // in anyhow in case we want it in the future.
@@ -70,7 +72,7 @@ case class MethodResolutionOrder(global: Global) {
             //    data.mroCache(csym) = List(csym)
             //    List(csym)
             //}
-            
+
             case None => {
                 stack = csym :: stack
                 val superNames = csym.superClassNames
@@ -81,7 +83,7 @@ case class MethodResolutionOrder(global: Global) {
                 stack = stack.tail
                 list
             }
-        }
+        }            
     }
     
     def forClassType(classTy: Type.Class): List[ClassSymbol] = {

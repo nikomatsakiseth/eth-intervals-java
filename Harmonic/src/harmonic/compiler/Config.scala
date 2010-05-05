@@ -3,7 +3,7 @@ package harmonic.compiler
 import java.io.File
 import java.io.PrintStream
 import scala.collection.mutable.ListBuffer
-import harmonic.Launch.version
+import harmonic.Harmonize.version
 import Util._
 
 class Config
@@ -24,9 +24,9 @@ class Config
     var localize = false
     
     private[this] def usage(err: PrintStream) {
-        err.printf("harmc: Compiler for the Harmonic language, version %s\n", version)
+        err.printf("The Harmonic Language, version %s\n", version)
         err.printf("\n")
-        err.printf("Usage: harmc [options] sourcefiles\n")
+        err.printf("Usage: harmonize compile [options] sourcefiles\n")
         err.printf("\n")
         err.printf("Options:\n")
         err.printf("  -d <dir>\n")

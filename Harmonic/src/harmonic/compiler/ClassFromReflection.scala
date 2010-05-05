@@ -29,7 +29,9 @@ class ClassFromReflection(
     }        
     
     lazy val superClassNames = {
-        (cls.getSuperclass :: cls.getInterfaces.toList).filter(_ != null).map(Name.Class)        
+        val allNames = (cls.getSuperclass :: cls.getInterfaces.toList).filter(_ != null).map(Name.Class)
+        allNames.foreach(global.requireLoadedOrLoadable(pos, _))
+        allNames
     }
     
     def methodsNamed(name: Name.Method) = {

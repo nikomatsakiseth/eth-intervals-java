@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry excluding="harmonic/lang/" kind="src" path="src"/>
+	<classpathentry kind="lib" path="lib/asm-debug-all-3.2.jar"/>
+	<classpathentry kind="lib" path="lib/Intervals.jar"/>
+	<classpathentry kind="lib" path="lib/pcollections-1.0.0.jar"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>

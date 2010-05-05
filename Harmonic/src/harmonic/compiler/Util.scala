@@ -124,7 +124,6 @@ object Util {
             before.foreach(pnt => Intervals.addHb(result.end, pnt))
             during.foreach(inter => Intervals.addHb(inter.start, result.start))
             during.foreach(inter => Intervals.addHb(result.end, inter.end))
-            result.schedule()
             
             result
         }

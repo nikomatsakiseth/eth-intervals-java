@@ -180,9 +180,9 @@ object Error {
         }        
     }
     
-    case class ExpPath(name: Name.Qual) extends Error {
+    case class ExpPath(path: String) extends Error {
         def report(global: Global, pos: Position) {
-            global.reporter.report(pos, "exp.path.but.found.class", name.toString)
+            global.reporter.report(pos, "exp.path.but.found.class", path)
         }
     }
     

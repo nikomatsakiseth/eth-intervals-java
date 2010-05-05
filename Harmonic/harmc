@@ -1,3 +1,0 @@
-#!/bin/bash
-MYDIR=$(dirname $0)
-scala -classpath "$MYDIR/bin:$MYDIR/lib/asm-debug-all-3.2.jar" harmonic.compiler.Main "$@"

@@ -1,7 +1,7 @@
 import re
 
-COMPILE_CMD = ["./harmc", "--no-localize", "--check-bytecode", "--dump-bytecode", "-d", "bin-test", "@compile_opts", "$filenm"]
-EXECUTE_CMD = ["env", "CLASSPATH=bin-test", "./harm", "$classnm"]
+COMPILE_CMD = ["./harmonize", "compile", "--no-localize", "--check-bytecode", "--dump-bytecode", "-d", "bin-test", "@compile_opts", "$filenm"]
+EXECUTE_CMD = ["env", "CLASSPATH=bin-test", "./harmonize", "run", "$classnm"]
 EXTENSION = ".harm"
 
 def format_error(outfilenm, linenum, msg):

@@ -1,0 +1,5 @@
+Manifest-Version: 1.0
+
+Class-Path: lib/asm-debug-all-3.2.jar lib/Intervals.jar lib/pcollections-1.0.0.jar
+
+# Main-Class: harmonic.Harmonize

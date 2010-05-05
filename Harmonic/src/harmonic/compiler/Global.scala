@@ -136,35 +136,60 @@ class Global(
                     // Those intervals whose names are listed in parentheses are created by
                     // the create interval and are not listed in the intervals array.
                 
-                    val header = master.subinterval() { 
+                    val header = master.subinterval(
+                        name = "%s.Header".format(csym.name)
+                    ) { 
                         _ => ResolveHeader(this, compUnit).resolveClassHeader(csym, cdecl)                        
                     }
                     
-                    val body = master.subinterval(after = List(header.end)) { 
+                    val body = master.subinterval(
+                        name = "%s.Body".format(csym.name),
+                        after = List(header.end)
+                    ) { 
                         _ => ResolveBody(this, compUnit).resolveClassBody(csym, cdecl)
                     }
 
-                    val lower = master.subinterval(after = List(body.end)) { 
+                    val lower = master.subinterval(
+                        name = "%s.Lower".format(csym.name),
+                        after = List(body.end)
+                    ) { 
                         _ => () // Lower is really just a placeholder.
                     }
                     
-                    val create = master.subinterval(during = List(lower)) {
+                    val create = master.subinterval(
+                        name = "%s.Create".format(csym.name),
+                        during = List(lower)
+                    ) {
                         _ => Create(this).createMemberIntervals(csym)
                     }
                     
-                    val members = master.subinterval(during = List(lower), after = List(create.end)) { 
+                    val members = master.subinterval(
+                        name = "%s.Members".format(csym.name),
+                        during = List(lower), 
+                        after = List(create.end)
+                    ) { 
                         _ => ()
                     }
                     
-                    val merge = master.subinterval(during = List(lower), after = List(members.end)) { 
+                    val merge = master.subinterval(
+                        name = "%s.Merge".format(csym.name),
+                        during = List(lower), 
+                        after = List(members.end)
+                    ) { 
                         _ => Merge(this).mergeMemberIntervals(csym)
                     }
                     
-                    val gather = master.subinterval(after = List(lower.end)) {
+                    val gather = master.subinterval(
+                        name = "%s.Gather".format(csym.name),
+                        after = List(lower.end)
+                    ) {
                         _ => GatherOverrides(this).forSym(csym)
                     }
 
-                    val byteCode = master.subinterval(after = List(gather.end)) { 
+                    val byteCode = master.subinterval(
+                        name = "%s.ByteCode".format(csym.name),
+                        after = List(gather.end)
+                    ) { 
                         _ => ByteCode(this).writeClassSymbol(csym)
                     }
                     

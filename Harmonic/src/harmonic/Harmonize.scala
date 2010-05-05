@@ -6,7 +6,7 @@ import harmonic.lang.Application
 import harmonic.compiler.ByteCode.implSuffix
 import java.io
 
-object Launch {
+object Harmonize {
     
     val version = "1.0"
     
@@ -64,9 +64,9 @@ object Launch {
                 if(res != null) out.printf("%s\n", res)
             } catch {
                 case UsageError(msg) => {
-                    err.printf("harm: Launch tool for the Harmonic Language, version %s\n", version)
+                    err.printf("The Harmonic Language, version %s\n", version)
                     err.printf("\n")
-                    err.printf("Usage: harm fully.qualified.application.class.name [args]\n")
+                    err.printf("Usage: harmonize run fully.qualified.application.class.name [args]\n")
                     err.printf("\n")
                     err.printf("Error: %s\n", msg)
                 }
@@ -75,7 +75,18 @@ object Launch {
     }
     
     def main(args: Array[String]) {
-        new Instance(System.in, System.out, System.err).main(args)
+        if(args.length > 0 && args(0) == "run") {
+            new Instance(System.in, System.out, System.err).main(args.slice(1, args.length))
+        } else if(args.length > 0 && args(0) == "compile") {
+            harmonic.compiler.Main.main(args.slice(1, args.length))
+        } else {
+            System.err.printf("The Harmonic Language, version %s\n", version)
+            System.err.printf("\n")
+            System.err.printf("Usage:\n")
+            System.err.printf("  harmonize compile ...\n")
+            System.err.printf("  harmonize run ...\n")
+            System.err.printf("\n")
+        }
     }
     
 }

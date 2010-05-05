@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="MacRoman" standalone="no"?>
 <jardesc>
-    <jar path="/Users/niko/git/intervals-java/Analysis/lib/Intervals.jar"/>
+    <jar path="/Users/niko/git/intervals-java/Harmonic/lib/Intervals.jar"/>
     <options buildIfNeeded="true" compress="true" descriptionLocation="/Intervals/Intervals.jardesc" exportErrors="true" exportWarnings="true" includeDirectoryEntries="false" overwrite="false" saveDescription="true" storeRefactorings="false" useSourceFolders="false"/>
     <storedRefactorings deprecationInfo="true" structuralOnly="false"/>
     <selectedProjects/>

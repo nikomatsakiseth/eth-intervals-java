@@ -52,10 +52,11 @@ class ClassFromSource(
     /** List of class members being lowered. */
     var lowerMembers: List[LowerMember] = Nil
     
-    def constructors = List(constructor)
+    def constructors = {
+        intervals(Pass.Create).join()        
+        List(constructor)
+    }
     
-    // ___ Computed by Subintervals of Pass.Members _________________________
-
     def methodsNamed(mthdName: Name.Method) = {
         intervals(Pass.Create).join()
         lowerMembers.flatMap(_.toOptMethodSymbol(mthdName))

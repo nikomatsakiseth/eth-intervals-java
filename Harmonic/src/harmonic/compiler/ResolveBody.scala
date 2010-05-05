@@ -24,12 +24,12 @@ import Util._
 case class ResolveBody(global: Global, compUnit: in.CompUnit) 
 extends Resolve(global, compUnit) 
 {
-    def resolveClassBody(csym: ClassSymbol, cdecl: in.ClassDecl) = {
+    def resolveClassBody(csym: ClassFromSource, cdecl: in.ClassDecl) = {
         val symTab = constructSymbolTable(csym)
-        val outCdecl = InScope(symTab, true).resolveClassDecl(cdecl)
+        csym.resolvedSource = InScope(symTab, true).resolveClassDecl(cdecl)
 
         if(global.config.dumpResolvedTrees) {
-            outCdecl.println(PrettyPrinter.stdout)
+            csym.resolvedSource.println(PrettyPrinter.stdout)
         }
     }
     
@@ -317,9 +317,29 @@ extends Resolve(global, compUnit)
 
         // ___ Paths ____________________________________________________________
         
-        type EitherQualOr[T] = Either[Name.Qual, T]
+        sealed abstract class ResolvePathResult
+        case class ResolvedToList(names: List[String]) extends ResolvePathResult
+        sealed abstract class ResolvePathFinalResult extends ResolvePathResult
+        case class ResolvedToClass(className: Name.Class) extends ResolvePathFinalResult
+        case class ResolvedToPath(path: out.AstPath) extends ResolvePathFinalResult
         
-        def resolvePathToEither(path: in.AstPath): EitherQualOr[out.AstPath] = withPosOfR(path, {
+        object ResolvePathResult {
+            def apply(names: List[String]) = {
+                val quals = resolveRelList(names)
+                quals.firstSome(_.asClassName) match {
+                    case Some(className) => ResolvedToClass(className)
+                    case None => ResolvedToList(names)
+                }
+            }
+        }
+        
+        def withPosOfRes(path: in.AstPath, res: ResolvePathResult) = res match {
+            case ResolvedToList(_) => res
+            case ResolvedToClass(_) => res
+            case ResolvedToPath(outPath) => ResolvedToPath(withPosOf(path, outPath))
+        }
+        
+        def resolvePathToAny(path: in.AstPath): ResolvePathResult = withPosOfRes(path, {
             def thisField(memberName: Name.Member) = {
                 out.PathDot(
                     out.PathBase(Ast.LocalName(Name.ThisLocal), ()),
@@ -331,38 +351,38 @@ extends Resolve(global, compUnit)
                 case in.PathBase(in.RelBase(text), ()) => {
                     symTab.get(text) match {
                         case None => {
-                            Left(resolveAgainstPackage(Name.Root, text))
+                            ResolvePathResult(List(text))
                         }
 
                         case Some(SymTab.LocalVar(name)) => {
-                            Right(out.PathBase(Ast.LocalName(name), ()))
+                            ResolvedToPath(out.PathBase(Ast.LocalName(name), ()))
                         }
 
                         case Some(SymTab.Type(mname)) => {
                             Error.NotField(mname).report(global, path.pos)
-                            Right(out.PathErr(path.toString))
+                            ResolvedToPath(out.PathErr(path.toString))
                         }
 
                         case Some(SymTab.InstanceField(mname)) if isStatic => {
                             Error.NotInStaticScope(mname).report(global, path.pos)
-                            Right(out.PathErr(path.toString))
+                            ResolvedToPath(out.PathErr(path.toString))
                         }
                             
                         case Some(SymTab.Ghost(mname)) if isStatic => {
                             Error.NotInStaticScope(mname).report(global, path.pos)
-                            Right(out.PathErr(path.toString))
+                            ResolvedToPath(out.PathErr(path.toString))
                         }
 
                         case Some(SymTab.InstanceField(mname)) => {
-                            Right(thisField(mname))
+                            ResolvedToPath(thisField(mname))
                         }
 
                         case Some(SymTab.Ghost(mname)) => {
-                            Right(thisField(mname))
+                            ResolvedToPath(thisField(mname))
                         }
 
                         case Some(SymTab.StaticField(name)) => {
-                            Right(out.PathBase(Ast.MemberName(name), ()))
+                            ResolvedToPath(out.PathBase(Ast.MemberName(name), ()))
                         }
                     }
                 }
@@ -370,63 +390,79 @@ extends Resolve(global, compUnit)
                 case in.PathBase(relDot: in.RelDot, ()) => {
                     val memberName = resolveDottedMemberName(relDot)
                     if(symTab.valuesIterator.exists(_.isInstanceFieldNamed(memberName.name)))
-                        Right(thisField(memberName.name))
+                        ResolvedToPath(thisField(memberName.name))
                     else 
-                        Right(out.PathBase(memberName, ()))
+                        ResolvedToPath(out.PathBase(memberName, ()))
                 }
                 
                 case in.PathDot(base, relBase @ in.RelBase(text), (), ()) => {
-                    resolvePathToEither(base) match {
-                        case Left(pkgName: Name.Package) =>
-                            Left(resolveAgainstPackage(pkgName, text))
-                        case Left(className: Name.Class) =>
+                    resolvePathToAny(base) match {
+                        case ResolvedToList(names) => 
+                            ResolvePathResult(text :: names)
+                            
+                        case ResolvedToClass(className) =>
                             resolveAgainstClass(className, text) match {
-                                case Some(innerClassName) => Left(innerClassName)
+                                case Some(innerClassName) =>  {
+                                    ResolvedToClass(innerClassName)                                    
+                                }
+                                
                                 case None => {
                                     val memberName = Name.Member(className, text)
-                                    Right(out.PathBase(Ast.MemberName(memberName), ()))
+                                    ResolvedToPath(out.PathBase(Ast.MemberName(memberName), ()))
                                 }
                             }
-                        case Right(outBase) => {
+                            
+                        case ResolvedToPath(outBase) => {
                             val classlessName = Name.ClasslessMember(text)
-                            Right(out.PathDot(outBase, Ast.ClasslessMemberName(classlessName), (), ()))
+                            ResolvedToPath(out.PathDot(outBase, Ast.ClasslessMemberName(classlessName), (), ()))
                         }
                     }
                 }
                 
                 case in.PathDot(base, memberName: in.RelDot, (), ()) => {
-                    resolvePathToEither(base) match {
-                        case Left(name) => {
-                            Error.ExpPath(name).report(global, path.pos)
-                            Right(out.PathErr(path.toString))
+                    resolvePathToAny(base) match {
+                        case ResolvedToList(_) | ResolvedToClass(_) => {
+                            Error.ExpPath(base.toString).report(global, path.pos)
+                            ResolvedToPath(out.PathErr(path.toString))
                         }
-                        case Right(outBase) => {
-                            Right(out.PathDot(outBase, resolveMemberName(memberName), (), ()))
+                        case ResolvedToPath(outBase) => {
+                            ResolvedToPath(out.PathDot(outBase, resolveMemberName(memberName), (), ()))
                         }
                     }
                 }
             }
         })
         
+        def resolvePathToFinal(path: in.AstPath): ResolvePathFinalResult = {
+            resolvePathToAny(path) match {
+                case ResolvedToList(names) => ResolvedToClass(resolveToClassOrObject(path.pos, names))
+                case ResolvedToClass(className) => ResolvedToClass(className)
+                case ResolvedToPath(path) => ResolvedToPath(path)
+            }
+        }
+        
         def resolvePathToPath(path: in.AstPath): out.AstPath = withPosOf(path, {
-            resolvePathToEither(path) match {
-                case Left(name) => {
-                    Error.ExpPath(name).report(global, path.pos)
+            resolvePathToAny(path) match {
+                case ResolvedToList(_) | ResolvedToClass(_) => {
+                    Error.ExpPath(path.toString).report(global, path.pos)
                     out.PathErr(path.toString)
                 }
                 
-                case Right(path) => path
+                case ResolvedToPath(path) => {
+                    path
+                }
             }
         })
         
         def resolvePathToClassName(path: in.AstPath): Name.Class = {
-            resolvePathToEither(path) match {
-                case Left(className: Name.Class) =>
-                    className
+            resolvePathToFinal(path) match {
+                case ResolvedToClass(className) => {
+                    className                    
+                }
                     
-                case _ => {
+                case ResolvedToPath(_) => {
                     Error.ExpClassName(path.toString).report(global, path.pos)
-                    Name.ObjectClass                    
+                    Name.ObjectClass          
                 }
             }
         }
@@ -449,18 +485,24 @@ extends Resolve(global, compUnit)
             
             // `a.b.c` could be path or class type:
             case in.PathType(in.PathDot(base, in.RelBase(name), (), ())) => {
-                resolvePathToEither(base) match {
-                    case Left(qualName) => {
-                        val className = Name.Class(qualName, name)
+                resolvePathToAny(base) match {
+                    case ResolvedToList(names) => {
+                        val className = resolveToClassOrObject(tref.pos, name :: names)
+                        out.ClassType(Ast.ClassName(className), List())
+                    }
+                    
+                    case ResolvedToClass(outerClassName) => {
+                        val className = Name.Class(outerClassName, name)
                         global.requireLoadedOrLoadable(tref.pos, className)
                         out.ClassType(Ast.ClassName(className), List())
                     }
                     
-                    case Right(outBase) =>
+                    case ResolvedToPath(outBase) => {
                         out.TypeVar(
                             outBase, 
                             Ast.ClasslessMemberName(Name.ClasslessMember(name))
-                        )
+                        )                        
+                    }
                 }
             }
             
@@ -570,15 +612,9 @@ extends Resolve(global, compUnit)
                 }
                 
                 case in.PathExpr(path) => {
-                    resolvePathToEither(path) match {
-                        case Left(className: Name.Class) => out.Static(className)
-                        
-                        case Left(pkgName: Name.Package) => {
-                            Error.ExpPath(pkgName).report(global, path.pos)
-                            out.Null(())
-                        }
-                        
-                        case Right(outPath) => pathToExpr(outPath)
+                    resolvePathToFinal(path) match {
+                        case ResolvedToClass(className) => out.Static(className)
+                        case ResolvedToPath(outPath) => pathToExpr(outPath)
                     }
                 }
                 

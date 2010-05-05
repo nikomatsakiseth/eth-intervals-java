@@ -85,7 +85,7 @@ abstract class Resolve(global: Global, compUnit: in.CompUnit) {
       * `List(String, lang, java)`), match it against the
       * imports to come up with a list of possible qualified names. 
       * Symbols for any ClassNames found in the resulting list exist. */
-    private[this] def resolveRelList(relList: List[String]): List[Name.Qual] = relList match {
+    protected[this] def resolveRelList(relList: List[String]): List[Name.Qual] = relList match {
         case Nil => List(Name.Root)
         
         case List(name) => {
@@ -103,12 +103,19 @@ abstract class Resolve(global: Global, compUnit: in.CompUnit) {
     }
     
     def resolveToClass(pos: Position, relList: List[String]): Option[Name.Class] = {
-        val expansions = resolveRelList(relList)
-        val result = expansions.firstSome(_.asClassName)
-        if(!result.isDefined) {
-            Error.CannotResolve(relList.reverse.mkString(".")).report(global, pos)
+        debugIndent("resolveToClass(%s)", relList) {
+            val expansions = resolveRelList(relList)
+            debug("expansions = %s", expansions)
+            val result = expansions.firstSome(_.asClassName)
+            if(!result.isDefined) {
+                Error.CannotResolve(relList.reverse.mkString(".")).report(global, pos)
+            }
+            result
         }
-        result
+    }
+    
+    def resolveToClassOrObject(pos: Position, relList: List[String]): Name.Class = {
+        resolveToClass(pos, relList).getOrElse(Name.ObjectClass)
     }
 
     /** Converts a relative name like `a.b.c` to a list like `List("c", "b", "a") */
@@ -118,7 +125,7 @@ abstract class Resolve(global: Global, compUnit: in.CompUnit) {
     }
     
     def resolveName(relName: in.RelName): Ast.ClassName = withPosOf(relName, {
-        val className = resolveToClass(relName.pos, relNameToRelList(relName)).getOrElse(Name.ObjectClass)
+        val className = resolveToClassOrObject(relName.pos, relNameToRelList(relName))
         Ast.ClassName(className)
     })
 
