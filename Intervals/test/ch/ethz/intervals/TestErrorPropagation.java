@@ -576,6 +576,30 @@ public class TestErrorPropagation {
 		Assert.assertEquals(1, sb.length());
 	}
 
-
+	/**
+	 * Check that when an error propagates from a pred of the
+	 * end point, the interval is not cancelled but its successors
+	 * are.
+	 */
+	@Test public void successorsOfStartPoint() {
+		final AtomicInteger integer = new AtomicInteger();
+		try {
+			Intervals.inline(new VoidInlineTask() {
+				public void run(Interval subinterval) {
+					Interval thr = new ThrowExceptionTask(subinterval);
+					Interval x = new IncTask(subinterval, "x", integer, 1);
+					Interval y = new IncTask(subinterval, "y", integer, 10);
+					Intervals.addHb(thr.end, x.start);
+					Intervals.addHb(x.start, y.start);
+					Intervals.addHb(y.end, x.end);
+				}
+			});
+			Assert.fail("Exception not thrown");
+		} catch (RethrownException e) {
+			Assert.assertEquals(1, e.allErrors().size()); // both the original exc and new exc are carried over
+			Assert.assertTrue(containsSubtypeOf(e.allErrors(), TestException.class)); // original exc
+			Assert.assertEquals(0, integer.get()); // x and y ran, but not z 
+		}
+	}
 
 }

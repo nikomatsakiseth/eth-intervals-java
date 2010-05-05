@@ -136,13 +136,8 @@ class Current {
 		// p's parent.  In other words, edges are permitted from
 		// high-level nodes down the tree, but not the other direction.
 		
-		Point parentEnd;
-		if(from.isStartPoint())
-			parentEnd = from.bound.bound;
-		else
-			parentEnd = from.bound;
-			
-		if(parentEnd == null || to.isBoundedBy(parentEnd))
+		Point interBound = from.interBound();
+		if(interBound == null || to.isBoundedBy(interBound))
 			return;
 		
 		throw new MustBeBoundedByException(from.bound, to);

@@ -81,7 +81,12 @@ implements PointMirror
 	final boolean didOccurWithError() {
 		return (waitCount == OCCURRED_WITH_ERROR);
 	}
-
+	
+	final Point interBound() {
+		if(isStartPoint()) return bound.bound;
+		return bound;
+	}
+	
 	private void cancel() {
 		assert !didOccur();
 		interval.cancel(this);
@@ -208,7 +213,8 @@ implements PointMirror
 			
 			// True if the user could legally invoke addHb(src, tar) 
 			boolean userCouldLegallyAddHbToTarFrom(Point src) {
-				return src.bound == null || boundsTar(src.bound);
+				Point srcInterBound = src.interBound();
+				return srcInterBound == null || boundsTar(srcInterBound);
 			}
 		}
 		final BoundHelper bh = new BoundHelper();
@@ -218,7 +224,7 @@ implements PointMirror
 		// If src could not legally connect to tar, then it can only HB tar
 		// if its bound HB tar:
 		while(!bh.userCouldLegallyAddHbToTarFrom(src))
-			src = src.bound;
+			src = src.interBound();
 		
 		// If src has no outgoing edges, then it can only HB tar if its bound HB tar:
 		while(src.outEdgesSync() == null) {
@@ -361,8 +367,9 @@ implements PointMirror
 			 * But we do need to deliver to anyone up to but not including
 			 * the bound.  See {@link TestErrorPropagation#predecessorsOfSubintervalEndThatDie()}
 			 * for reason why. */
+			Point interBound = interBound();
 			Point p = pnt;
-			while(p != bound) {
+			while(p != interBound) {
 				p.cancel();
 				p = p.bound;
 			}
