@@ -194,6 +194,34 @@ public class Intervals {
 		ExecutionLog.logEdge(from, to);
 	}
 
+	/** Invokes {@link #addHb(Interval, Interval)} if both
+	 *  {@code from} and {@code to} are not null. */
+	public static void addHbIfNotNull(Interval from, Interval to) {
+		if(from != null && to != null)
+			addHb(from, to);
+	}	
+	
+	/** Invokes {@link #addHb(Point, Interval)} if both
+	 *  {@code from} and {@code to} are not null. */
+	public static void addHbIfNotNull(Point from, Interval to) {
+		if(from != null && to != null)
+			addHb(from, to);
+	}	
+	
+	/** Invokes {@link #addHb(Interval, Point)} if both
+	 *  {@code from} and {@code to} are not null. */
+	public static void addHbIfNotNull(Interval from, Point to) {
+		if(from != null && to != null)
+			addHb(from, to);
+	}	
+	
+	/** Invokes {@link #addHb(Point, Point)} if both
+	 *  {@code from} and {@code to} are not null. */
+	public static void addHbIfNotNull(Point from, Point to) {
+		if(from != null && to != null)
+			addHb(from, to);
+	}	
+	
 	/** Helper method of {@link #addHb(Point, Point)}.
 	 *  Pulled apart for use with testing. */
 	static void optimisticallyAddEdge(

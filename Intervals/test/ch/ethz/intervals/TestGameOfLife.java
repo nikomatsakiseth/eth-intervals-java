@@ -371,7 +371,7 @@ public class TestGameOfLife {
 					Point prevGen = null;
 					for(int gen = 0; gen < numGens; gen++) {
 						Interval thisGen = new GenTask(Intervals.child(), gen);
-						Intervals.addHb(prevGen, thisGen.start);
+						Intervals.addHbIfNotNull(prevGen, thisGen.start);
 						thisGen.schedule();
 						prevGen = thisGen.end;
 					}
@@ -566,7 +566,7 @@ public class TestGameOfLife {
 					Point[][] prevGen = points[(gen - 1) % 2];					
 					for(int r = -1; r <= 1; r++)
 						for(int c = -1; c <= 1; c++) {
-							Intervals.addHb(prevGen[tile.tr+r][tile.tc+c], start);
+							Intervals.addHbIfNotNull(prevGen[tile.tr+r][tile.tc+c], start);
 						}
 				}
 			}
