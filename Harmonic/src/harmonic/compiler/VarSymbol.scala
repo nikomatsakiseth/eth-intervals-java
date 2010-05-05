@@ -7,7 +7,7 @@ object VarSymbol {
     
     def error[N <: Name.Var](name: N, optExpTy: Option[Type.Ref]) = {
         val ty = optExpTy.getOrElse(Type.Null)
-        new VarSymbol.Any(Modifier.Set.empty, name, ty) {
+        new VarSymbol(Modifier.Set.empty, name, ty) {
             override def isError = true
         }
     }

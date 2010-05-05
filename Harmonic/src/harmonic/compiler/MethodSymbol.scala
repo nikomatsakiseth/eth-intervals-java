@@ -9,12 +9,12 @@ object MethodSymbol {
         val parameterPatterns = name.parts.zipWithIndex.map { case (_, i) => 
             Pattern.Var(Name.LocalVar("arg%d".format(i)), Type.Null)
         }
-        new Method(
-            pos         = InterPosition.forClassNamed(clsName),
+        new MethodSymbol(
+            pos       = InterPosition.forClassNamed(clsName),
             modifiers = Modifier.Set.empty,
-            kind        = ErrorMethod, 
-            clsName     = clsName, 
-            name        = name, 
+            kind      = MethodKind.ErrorMethod, 
+            clsName   = clsName, 
+            name      = name, 
             MethodSignature(Type.Null, Type.Null, parameterPatterns)
         ) {
             override def isError = true
@@ -35,8 +35,6 @@ class MethodSymbol(
     
     def isFromClassNamed(aName: Name.Qual) = (clsName == aName)
     def isNamed(aName: Name.Method) = (name == aName)
-    
-    def methodId = Id.Method(clsName, name, msig.parameterPatterns)
     
     /** For methods whose source will be emitted, we compute the 
       * overridden methods.  The ordering is significant,

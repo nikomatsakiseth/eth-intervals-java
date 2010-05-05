@@ -14,7 +14,7 @@ object MethodResolutionOrder {
   *
   * For a nice introduction to C3 see: http://www.python.org/download/releases/2.3/mro/ */
 case class MethodResolutionOrder(global: Global) {
-    private[this] val data: MethodResolutionOrder.Data = globaldata(classOf[MethodResolutionOrder.Data])
+    private[this] val data: MethodResolutionOrder.Data = global.data(classOf[MethodResolutionOrder.Data])
     private[this] var stack: List[ClassSymbol] = Nil
     
     /** Merges the lists of MROs for each supertype into one MRO. */
@@ -37,7 +37,7 @@ case class MethodResolutionOrder(global: Global) {
             case -1 => {
                 if(!superLists.isEmpty) {
                     Error.AmbiguousInheritance(
-                        csym.name, superLists.map(_.head)
+                        csym.name, superLists.map(_.head.name)
                     ).report(global, csym.pos)
                 }
                 List()
@@ -55,23 +55,26 @@ case class MethodResolutionOrder(global: Global) {
     }
     
     /** Returns C3 order for `csym`.  This list is never empty.*/
-    def forSym(csym: ClassSymbol): List[ClassSymbol] = {
+    def forSym(csym: ClassSymbol): List[ClassSymbol] = data.synchronized {
         data.mroCache.get(csym) match {
             case Some(order) => order
             
-            case None if stack.contains(csym) => {
-                val idx = stack.indexOf(csym)
-                Error.CircularInheritance(
-                    csym.name, stack.take(idx).reverse
-                ).report(global, csym.pos)
-                data.mroCache(csym) = List(csym)
-                List(csym)
-            }
+            // Circular inheritance ought to be detected
+            // in ResolveHeaders now.  I left this code
+            // in anyhow in case we want it in the future.
+            //case None if stack.contains(csym) => {
+            //    val idx = stack.indexOf(csym)
+            //    Error.CircularInheritance(
+            //        csym.name, stack.take(idx).map(_.name).reverse
+            //    ).report(global, csym.pos)
+            //    data.mroCache(csym) = List(csym)
+            //    List(csym)
+            //}
             
             case None => {
                 stack = csym :: stack
                 val superNames = csym.superClassNames
-                val superCsyms = superNames.map(globalclasses)
+                val superCsyms = superNames.map(global.csym)
                 val superLists = superCsyms.map(forSym)
                 val list = csym :: merge(csym, superLists)
                 data.mroCache(csym) = list

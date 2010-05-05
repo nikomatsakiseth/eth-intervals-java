@@ -120,10 +120,10 @@ object Util {
             val result = new Interval(inter, name) {
                 override def run() = func(this)
             }
-            after.foreach(Intervals.addHb(_, result.start))
-            before.foreach(Intervals.addHb(result.end, _))
-            during.foreach(Intervals.addHb(_.start, result.start))
-            during.foreach(Intervals.addHb(result.end, _.end))
+            after.foreach(pnt => Intervals.addHb(pnt, result.start))
+            before.foreach(pnt => Intervals.addHb(result.end, pnt))
+            during.foreach(inter => Intervals.addHb(inter.start, result.start))
+            during.foreach(inter => Intervals.addHb(result.end, inter.end))
             result.schedule()
             
             result

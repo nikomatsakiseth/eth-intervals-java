@@ -2,7 +2,7 @@ package harmonic.compiler
 
 import java.io.PrintStream
 import scala.util.parsing.input.Position
-import collection.mutable.ListSet
+import scala.collection.mutable
 
 class Reporter(config: Config) {
     case class Error(pos: Position, msgKey: String, msgArgs: List[String]) {
@@ -11,12 +11,14 @@ class Reporter(config: Config) {
             else "%s(%s)".format(msgKey, msgArgs.mkString(", "))
     }
     
-    private[this] val errors = new ListSet[Error]()
+    private[this] val errors = new mutable.ListBuffer[Error]()
     
     def hasErrors = !errors.isEmpty
     
     def report(pos: Position, msgKey: String, msgArgs: String*) = synchronized {
-        errors += Error(pos, msgKey, msgArgs.toList)
+        val error = Error(pos, msgKey, msgArgs.toList)
+        if(!errors.contains(error))
+            errors += error
     }
     
     def posString(pos: Position) = {

@@ -7,7 +7,7 @@ abstract class ClassFromCompiledSource(
 {
     def internalImplName = name.internalName
     def pos = InterPosition.forClassNamed(name)
-    def interval(name: String) = None
+    def optInterval(idx: Int) = None
     def setMethodGroups(groups: List[MethodGroup]) {}
 }
 

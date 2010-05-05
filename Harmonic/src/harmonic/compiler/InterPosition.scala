@@ -5,7 +5,7 @@ import scala.util.parsing.input.Position
 trait InterPosition extends Position {
     def file: java.io.File
     
-    def equals(obj: Object) = {
+    override def equals(obj: Any) = {
         obj match {
             case ip: InterPosition => 
                 super.equals(obj) && (file == ip.file)

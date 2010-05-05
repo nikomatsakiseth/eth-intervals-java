@@ -13,7 +13,6 @@ import Util._
   * - Fills in any inferred types.  (Note that we don't perform a full type check!)
   * - Removes nested expressions into intermediate variables. */
 case class Lower(global: Global) {
-    private[this] val data = globaldata(classOf[Lower.Data])
     private[this] val emptyEnv = Env.empty(global)
     
     def classParamAndEnv(csym: ClassFromSource): (out.Param, Env) = {
@@ -22,7 +21,6 @@ case class Lower(global: Global) {
         val env0 = emptyEnv.plusThis(thisTy, thisSym)
         val cdecl = csym.resolvedSource
         val (List(outParam), env) = lowerMethodParams(env0, List(cdecl.pattern))
-        data.classParamAndEnvs(csym) = (outParam, env)
         (outParam, env)
     }
     
@@ -217,7 +215,7 @@ case class Lower(global: Global) {
         
         def toTypedPath(path: in.AstPath): Path.Typed = {
             def errorPath(name: String) = {
-                val sym = Symbol.errorLocalVar(Name.LocalVar(name), None)
+                val sym = VarSymbol.error(Name.LocalVar(name), None)
                 Path.TypedBase(sym)
             }
 
@@ -427,7 +425,7 @@ case class Lower(global: Global) {
                         case Some(fsym) => fsym
                         case None => {
                             Error.NoSuchMember(csym.toType, name).report(global, memberName.pos)
-                            Symbol.errorField(name, None)
+                            VarSymbol.error(name, None)
                         }
                     }
                     out.FieldLvalue(memberName, fsym)
@@ -586,11 +584,11 @@ case class Lower(global: Global) {
                         }
                         case Some(fsym) /* !Static */ => {
                             Error.ExpStatic(memberVar).report(global, expr.name.pos)
-                            Symbol.errorField(memberVar, optExpTy)
+                            VarSymbol.error(memberVar, optExpTy)
                         }
                         case None => {
                             Error.NoSuchMember(csym.toType, expr.name.name).report(global, expr.name.pos)
-                            Symbol.errorField(memberVar, optExpTy)
+                            VarSymbol.error(memberVar, optExpTy)
                         }
                     }
                     out.Field(owner, Ast.MemberName(fsym.name), fsym, fsym.ty)
@@ -609,7 +607,7 @@ case class Lower(global: Global) {
                         case Left(err) => {
                             err.report(global, expr.name.pos)
                             val memberVar = expr.name.name.inDefaultClass(Name.ObjectClass)
-                            Symbol.errorField(memberVar, optExpTy)
+                            VarSymbol.error(memberVar, optExpTy)
                         }
                     }
                     val subst = Subst(Path.This -> sym.name.toPath)

@@ -4,24 +4,14 @@ import scala.collection.mutable
 import scala.util.parsing.input.Position
 import ch.ethz.intervals.Interval
 
-object ClassSymbol {
-    // Pre-defined interval names
-    // (Plug-ins may define additional intervals)
-    val Header = "Header"
-    val Body ="Body"
-    val Lower ="Lower"
-    val Create = "Create"
-    val Members = "Members"
-    val Merge = "Merge"
-    val ByteCode = "ByteCode"    
-}
-
 abstract class ClassSymbol(
     val name: Name.Class,
     global: Global
 ) extends Symbol {
     
-    def interval(name: String): Option[Interval]
+    /** Returns the interval for pass #`idx`, if applicable
+      * to this kind of symbol. */
+    def optInterval(idx: Int): Option[Interval]
     
     // ___ Invokable at any time ____________________________________________
     

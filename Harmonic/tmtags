@@ -1077,7 +1077,7 @@ superclasses	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Symbo
 sym	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^        def sym: VSym$/;"	methods	line:310
 sym	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^                val sym = new VarSymbol.Any(name, ty)$/;"	constants	line:927
 sym	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/State.scala	/^                val sym = classes(cdecl.name.qualName).asInstanceOf[ClassFromSource]$/;"	constants	line:51
-sym	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^            val sym = locals.get(name).getOrElse(Symbol.errorVar(name, None))$/;"	constants	line:175
+sym	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^            val sym = locals.get(name).getOrElse(VarSymbol.errorVar(name, None))$/;"	constants	line:175
 sym	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^            val sym = lookupFieldOrError(typedBase.ty, name, None)$/;"	constants	line:181
 sym	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^            val sym = env.lookupFieldOrError(astOwner.ty, name, None)$/;"	constants	line:65
 sym	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^            val sym = env.lookupLocal(pattern.name.name).get \/\/ should be a variable already created$/;"	constants	line:329

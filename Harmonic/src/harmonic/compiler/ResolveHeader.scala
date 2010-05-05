@@ -5,6 +5,8 @@ import java.io.File
 import scala.collection.mutable.ListBuffer
 import scala.collection.immutable.Map
 
+import ch.ethz.intervals._
+
 import Ast.{Parse => in}
 import Ast.{Resolve => out}
 import Util._
@@ -22,10 +24,28 @@ extends Resolve(global, compUnit)
         csym: ClassFromSource,
         cdecl: in.ClassDecl
     ) {
-        csym.superClassNames = cdecl.superClasses.map(resolveName).map(_.name)
-        val superCsyms = csym.superClassNames.map(global.csym)
-        val superHeaderPasses = superCsyms.flatMap(_.resolveHeader)
-        csym.resolveHeaderClosure.foreach(_.addDependencies(superHeaderPasses))
+        // Resolve the names of all superclasses and add an edge
+        // so that resolving our header does not complete until
+        // their headers have been resolved.  
+        csym.superClassNames = cdecl.superClasses.flatMap { relName =>
+            val superName = resolveName(relName).name
+            val superCsym = global.csym(superName) 
+            
+            superCsym.optInterval(Pass.Header) match {
+                case None => Some(superName)
+                case Some(inter) => {
+                    try {
+                        Intervals.addHb(inter.end, csym.intervals(Pass.Header).end)
+                        Some(superName)
+                    } catch {
+                        case _: CycleException => {
+                            Error.CircularInheritance(csym.name, superName).report(global, csym.pos)
+                            None
+                        }
+                    }                                    
+                }
+            }
+        }
         
         csym.varMembers = cdecl.members.flatMap {
             case decl: in.IntervalDecl =>

@@ -3,18 +3,21 @@ package harmonic.compiler
 import ch.ethz.intervals._
 import Ast.{Resolve => in}
 import Ast.{Lower => out}
+import Util._
 
 class LowerMember(
     global: Global,
     csym: ClassFromSource,
-    members: Interval,
     val inMemberDecl: in.MemberDecl
 ) {
     // ___ AST ______________________________________________________________
     
     private[this] var outMemberDecl: out.MemberDecl = null
-    private[this] val inter = global.master.subinterval(during = members) { inter =>
-        outMemberDecl = Lower(global).lowerMemberDecl(inMemberDecl)
+    private[this] val inter = {
+        val members = csym.intervals(Pass.Members)
+        global.master.subinterval(during = List(members)) { inter =>
+            outMemberDecl = Lower(global).lowerMemberDecl(csym, inMemberDecl)
+        }
     }
     
     /** Read lowered member decl without blocking */
@@ -26,8 +29,8 @@ class LowerMember(
     // ___ Symbol Creation __________________________________________________
     
     def toOptSymbol = inMemberDecl match {
-        case decl: in.MemberDecl => toOptMethodSymbol(decl.name)
-        case decl: in.FieldDecl => toOptFieldSymbol(decl.name)
+        case decl: in.MethodDecl => toOptMethodSymbol(decl.name)
+        case decl: in.FieldDecl => toOptFieldSymbol(decl.name.name)
         case _ => None
     }
     
@@ -72,11 +75,11 @@ class LowerMember(
         inMemberDecl match {
             case inDecl @ in.MethodDecl(_, MthdName, _, params, inReturnTref: in.ResolveTypeRef, _, _) => {
                 // Fully explicit, can construct the symbol.
-                createSymbolOnce {
+                Some(createSymbolOnce {
                     val (outParams, env) = Lower(global).lowerMethodParams(csym.classEnv, params)
                     val outReturnTref = Lower(global).InEnv(env).lowerTypeRef(inReturnTref)
                     (inDecl, outParams, outReturnTref)                    
-                }
+                })
             }
 
             case in.MethodDecl(_, MthdName, _, _, inReturnTref: in.InferredTypeRef, _, None) => {
@@ -92,10 +95,10 @@ class LowerMember(
                 // Wait for lowering to finish, then construct symbol.  This might fail.
                 try {
                     inter.join()
-                    createSymbolOnce {
+                    Some(createSymbolOnce {
                         val outDecl = memberDecl.asInstanceOf[out.MethodDecl]
                         (inDecl, outDecl.params, outDecl.returnTref)
-                    }
+                    })
                 } catch {
                     case _: CycleException => {
                         global.reporter.report(inDecl.returnTref.pos, 
@@ -145,10 +148,10 @@ class LowerMember(
         inMemberDecl match {
             case inDecl @ in.FieldDecl(_, MemName, inTref: in.ResolveTypeRef, _) => {
                 // Fully explicit.  Construct the symbol.
-                createSymbolOnce {
+                Some(createSymbolOnce {
                     val outTref = Lower(global).InEnv(csym.classEnv).lowerTypeRef(inTref)
                     (inDecl, outTref)
-                }
+                })
             }
             
             case in.FieldDecl(_, MemName, inTref: in.InferredTypeRef, None) => {
@@ -164,10 +167,10 @@ class LowerMember(
                 // Wait for lowering to finish, then construct symbol.  This might fail.
                 try {
                     inter.join()
-                    createSymbolOnce {
+                    Some(createSymbolOnce {
                         val outDecl = memberDecl.asInstanceOf[out.FieldDecl]
                         (inDecl, outDecl.tref)
-                    }
+                    })
                 } catch {
                     case _: CycleException => {
                         global.reporter.report(inDecl.tref.pos, 
@@ -178,6 +181,8 @@ class LowerMember(
                     }
                 }
             }
+            
+            case _ => None
         }
         
     }    

@@ -28,14 +28,14 @@ object Error {
     }
     
     case class CircularInheritance(
-        className: Name.Class,
-        stack: List[Name.Class]
+        className: Name.Class, 
+        extendsClass: Name.Class
     ) {
         def report(global: Global, pos: Position) {
-            global.reporter.report(csym.pos,
+            global.reporter.report(pos,
                 "circular.inheritance",
                 className.toString, 
-                stack.mkString(", ")
+                extendsClass.toString
             )
         }                
     }

@@ -1,44 +1,35 @@
 package harmonic.compiler
 
 import scala.collection.mutable
+import scala.util.parsing.input.Position
 import ch.ethz.intervals.Interval
 import Util._
 
 class ClassFromSource(
     name: Name.Class,
-    global: Global
+    global: Global,
+    val pos: Position
 ) extends ClassSymbol(name, global) {
 
     def internalImplName = name.internalName + ByteCode.implSuffix
     
-    private[this] var errorReports = 0
-    
-    def addErrorReport() = synchronized {
-        errorReports += 1
-    }
-    
-    private[this] val intervals = new mutable.ListMap[String, Interval]()
-    
-    def interval(name: String) = synchronized {
-        intervals.get(name)
-    }
-    
-    def addInterval(name: String)(inter: Interval): Interval = synchronized {
-        intervals(name) = inter
-        inter    
-    }
-    
     def isNamed(aName: Name.Qual) = (name == aName)
     
-    def pos = resolvedSource.pos
-
-    // ___ Computed by Header Interval ______________________________________
+    /** Array containing the intervals for each of
+      * the passes defined in the class `Pass`. 
+      * Initialized in Global.createSymbols() and used
+      * read-only thereafter. */
+    var intervals: Array[Interval] = null
+    
+    def optInterval(idx: Int) = Some(intervals(idx))
+    
+    // ___ Computed by Pass.Header __________________________________________
 
     var superClassNames: List[Name.Class] = Nil
     
     var varMembers: List[SymTab.Entry] = Nil
     
-    // ___ Computed by Body Interval ________________________________________
+    // ___ Computed by Pass.Body ____________________________________________
     
     /** Class declaration with names fully resolved. */
     var resolvedSource: Ast.Resolve.ClassDecl = null
@@ -47,7 +38,7 @@ class ClassFromSource(
         Modifier.forResolvedAnnotations(resolvedSource.annotations)            
     }
         
-    // ___ Computed by Create Interval ______________________________________
+    // ___ Computed by Pass.Create __________________________________________
     
     /** Lowered version of class parameter */
     var classParam: Ast.Lower.Param = null
@@ -63,27 +54,29 @@ class ClassFromSource(
     
     def constructors = List(constructor)
     
-    // ___ Computed by Subintervals of Members Interval _____________________
+    // ___ Computed by Subintervals of Pass.Members _________________________
 
     def methodsNamed(mthdName: Name.Method) = {
-        interval(ClassSymbol.Create).foreach(_.join())
+        intervals(Pass.Create).join()
         lowerMembers.flatMap(_.toOptMethodSymbol(mthdName))
     }
     
     def fieldNamed(name: Name.Member) = {
-        interval(ClassSymbol.Create).foreach(_.join())
+        intervals(Pass.Create).join()
         lowerMembers.firstSome(_.toOptFieldSymbol(name))        
     }
     
-    // ___ Computed by Merge Interval _______________________________________
+    // ___ Computed by Pass.Merge ___________________________________________
 
     var loweredMethods: List[(MethodSymbol, Ast.Lower.MethodDecl)] = Nil
     
-    def allMethodSymbols: List[MethodSymbol] = loweredMethods.map(_._1)
+    var loweredFields: List[(VarSymbol.Field, Ast.Lower.FieldDecl)] = Nil
     
     var loweredSource: Ast.Lower.ClassDecl = null
     
-    // ___ Computed by Bytecode Interval ____________________________________
+    def allMethodSymbols: List[MethodSymbol] = loweredMethods.map(_._1)
+    
+    // ___ Computed by Pass.Gather __________________________________________
     
     /** A complete list of all versions of all methods offered by this class,
       * whether they are defined in this class or in a superclass. Populated 
