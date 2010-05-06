@@ -80,7 +80,9 @@ class ClassFromSource(
     
     def fieldNamed(name: Name.Member) = {
         intervals(Pass.Create).join()
-        lowerMembers.firstSome(_.toOptFieldSymbol(name))        
+        lowerMembers.firstSome(_.toOptFieldSymbol(name)).ifNone {
+            classParam.symbols.find(_.isNamed(name))                
+        }
     }
     
     // ___ Computed by Pass.Merge ___________________________________________

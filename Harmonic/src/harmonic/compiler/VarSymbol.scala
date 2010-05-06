@@ -24,5 +24,5 @@ class VarSymbol[+N <: Name.Var](
         System.identityHashCode(this)
     )
     
-    def isNamed(aName: Name.Var) = (name == aName)    
+    def isNamed(aName: N) = (name == aName)    
 }

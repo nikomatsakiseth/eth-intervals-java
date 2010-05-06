@@ -81,6 +81,11 @@ object Util {
             case Some(value) => Right(value)
             case None => Left(err)
         }
+        
+        def ifNone(func: => Option[E]) = option match {
+            case Some(e) => option
+            case None => func
+        }
     }
     implicit def extendedOption[E](option: Option[E]) = new ExtendedOption(option)
     
