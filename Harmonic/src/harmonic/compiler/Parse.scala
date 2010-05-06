@@ -289,11 +289,17 @@ class Parse extends StdTokenParsers with PackratParsers {
     // being parsed as the path `a.b.c` followed by `()`.  Instead it would
     // be parsed as `a.b` and then `.c()`.
     
+    lazy val path = positioned(
+        varName~rep("."~>memberName) ^^ {
+            case v~fs => fs.foldLeft[out.AstPath](out.PathBase(v, ()))(out.PathDot(_, _, (), ()))
+        }
+    )
+    
     lazy val notArg = not(guard("(" | "{" | "{{"))
     
-    lazy val path = positioned(
-        varName~rep("."~>memberName<~notArg) ^^ {
-            case v~fs => fs.foldLeft[out.AstPath](out.PathBase(v, ()))(out.PathDot(_, _, (), ()))
+    lazy val pathAsExpr = positioned(
+        varName~notArg~rep("."~>memberName<~notArg) ^^ {
+            case v~_~fs => fs.foldLeft[out.AstPath](out.PathBase(v, ()))(out.PathDot(_, _, (), ()))
         }
     )
     
@@ -355,9 +361,9 @@ class Parse extends StdTokenParsers with PackratParsers {
     
     lazy val expr0: PackratParser[out.Expr] = positioned(
         rcvr~"."~rep1(callPart)             ^^ { case r~"."~cps => outMethodCall(r, cps) }
-    |   path                                ^^ { case p => out.PathExpr(p) }
-    |   expr0~"."~varName                   ^^ { case r~"."~f => out.Field(r, f, (), ()) }
     |   impThis~rep1(callPart)              ^^ { case r~cps => outMethodCall(r, cps) }
+    |   pathAsExpr                          ^^ { case p => out.PathExpr(p) }
+    |   expr0~"."~varName                   ^^ { case r~"."~f => out.Field(r, f, (), ()) }
     |   arg
     |   numericLit                          ^^ { l => out.Literal(Integer.valueOf(l), ()) }
     |   stringLit                           ^^ { l => out.Literal(l, ()) }
