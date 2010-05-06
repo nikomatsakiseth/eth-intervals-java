@@ -33,9 +33,17 @@ extends Resolve(global, compUnit)
             
             superCsym.optInterval(Pass.Header) match {
                 case None => Some(superName)
-                case Some(inter) => {
+                case Some(superHeader) => {
                     try {
-                        Intervals.addHb(inter.end, csym.intervals(Pass.Header).end)
+                        // superHeader.end -> header.end
+                        Intervals.addHb(superHeader.end, csym.intervals(Pass.Header).end)
+                        
+                        // superLower.end -> gather.start
+                        superCsym.optInterval(Pass.Lower).foreach { superLower =>
+                            Intervals.addHb(superLower.end, csym.intervals(Pass.Gather).start)
+                        }
+                        
+                        // if both succeed, include this supertype:
                         Some(superName)
                     } catch {
                         case _: CycleException => {

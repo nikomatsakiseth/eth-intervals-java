@@ -80,6 +80,7 @@ case class GatherOverrides(global: Global) {
         val mro = MethodResolutionOrder(global).forSym(csym)
         mro.foreach { mroCsym =>
             val msyms = mroCsym.allMethodSymbols
+            debug("csym '%s' defines %s symbols", csym, msyms.length)
             msyms.foreach(methodGroups.addMsym)
         }        
         methodGroups

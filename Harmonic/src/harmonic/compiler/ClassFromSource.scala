@@ -2,7 +2,7 @@ package harmonic.compiler
 
 import scala.collection.mutable
 import scala.util.parsing.input.Position
-import ch.ethz.intervals.Interval
+import ch.ethz.intervals._
 import Util._
 
 class ClassFromSource(
@@ -23,6 +23,22 @@ class ClassFromSource(
     
     def optInterval(idx: Int) = Some(intervals(idx))
     
+    // ___ Guarded Data _____________________________________________________
+    
+    class GuardedBy[T](pass: Int) {
+        private[this] var value: Option[T] = None
+        
+        def get: T = {
+            assert(Intervals.checkReadable(intervals(pass)))
+            value.get
+        }
+
+        def set(v: T) = {
+            assert(Intervals.checkWritable(intervals(pass)))
+            value = Some(v)
+        }
+    }
+
     // ___ Computed by Pass.Header __________________________________________
 
     var superClassNames: List[Name.Class] = Nil
