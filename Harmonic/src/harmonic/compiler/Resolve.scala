@@ -103,15 +103,12 @@ abstract class Resolve(global: Global, compUnit: in.CompUnit) {
     }
     
     def resolveToClass(pos: Position, relList: List[String]): Option[Name.Class] = {
-        debugIndent("resolveToClass(%s)", relList) {
-            val expansions = resolveRelList(relList)
-            debug("expansions = %s", expansions)
-            val result = expansions.firstSome(_.asClassName)
-            if(!result.isDefined) {
-                Error.CannotResolve(relList.reverse.mkString(".")).report(global, pos)
-            }
-            result
+        val expansions = resolveRelList(relList)
+        val result = expansions.firstSome(_.asClassName)
+        if(!result.isDefined) {
+            Error.CannotResolve(relList.reverse.mkString(".")).report(global, pos)
         }
+        result
     }
     
     def resolveToClassOrObject(pos: Position, relList: List[String]): Name.Class = {

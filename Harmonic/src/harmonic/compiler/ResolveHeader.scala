@@ -55,14 +55,30 @@ extends Resolve(global, compUnit)
             }
         }
         
-        csym.varMembers = cdecl.members.flatMap {
-            case decl: in.IntervalDecl =>
-                Some(SymTab.InstanceField(Name.Member(csym.name, decl.name.nm)))
-            case decl: in.FieldDecl =>
-                Some(SymTab.InstanceField(Name.Member(csym.name, decl.name.nm)))
-            case _ =>
-                None
+        def addVarMembersFromMember(varMembers: List[SymTab.Entry], decl: in.MemberDecl): List[SymTab.Entry] = {
+            decl match {
+                case decl: in.IntervalDecl =>
+                    SymTab.InstanceField(Name.Member(csym.name, decl.name.nm)) :: varMembers
+                case decl: in.FieldDecl =>
+                    SymTab.InstanceField(Name.Member(csym.name, decl.name.nm)) :: varMembers
+                case _ =>
+                    varMembers                
+            }
         }
+        
+        def addVarMembersFromParam(varMembers: List[SymTab.Entry], param: in.Param): List[SymTab.Entry] = {
+            param match {
+                case in.TupleParam(params) => 
+                    params.foldLeft(varMembers)(addVarMembersFromParam)
+                case in.VarParam(_, _, Ast.LocalName(Name.LocalVar(text)), _) => 
+                    SymTab.InstanceField(Name.Member(csym.name, text)) :: varMembers
+                case _ =>
+                    varMembers
+            }
+        }
+        
+        csym.varMembers = cdecl.members.foldLeft(List[SymTab.Entry]())(addVarMembersFromMember)
+        csym.varMembers = addVarMembersFromParam(csym.varMembers, cdecl.pattern)
     }
     
 }

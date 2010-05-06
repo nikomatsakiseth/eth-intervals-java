@@ -152,6 +152,12 @@ class LowerMember(
             }
         }
         
+        def fallback(inDecl: in.FieldDecl) = {
+            createSymbolOnce { // fall back to a return type of Object:
+                (inDecl, out.TypeRef(Type.Object))  
+            }            
+        }
+        
         inMemberDecl match {
             case inDecl @ in.FieldDecl(_, MemName, inTref: in.ResolveTypeRef, _) => {
                 // Fully explicit.  Construct the symbol.
@@ -161,13 +167,13 @@ class LowerMember(
                 })
             }
             
-            case in.FieldDecl(_, MemName, inTref: in.InferredTypeRef, None) => {
+            case inDecl @ in.FieldDecl(_, MemName, inTref: in.InferredTypeRef, None) => {
                 // Cannot infer the type of an abstract field.
                 global.reporter.report(inTref.pos, 
                     "explicit.type.required.if.abstract", 
                     MemName.toString
                 )
-                None
+                fallback(inDecl)
             }
             
             case inDecl @ in.FieldDecl(_, MemName, in.InferredTypeRef(), Some(_)) => {
@@ -184,7 +190,7 @@ class LowerMember(
                             "explicit.type.required.due.to.cycle",
                             MemName.toString
                         )
-                        None                     
+                        fallback(inDecl)
                     }
                 }
             }

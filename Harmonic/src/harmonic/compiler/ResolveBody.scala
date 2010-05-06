@@ -25,8 +25,27 @@ case class ResolveBody(global: Global, compUnit: in.CompUnit)
 extends Resolve(global, compUnit) 
 {
     def resolveClassBody(csym: ClassFromSource, cdecl: in.ClassDecl) = {
-        val symTab = constructSymbolTable(csym)
-        csym.resolvedSource = InScope(symTab, true).resolveClassDecl(cdecl)
+        
+        // Class parameters must be resolved starting from an empty scope.
+        // This guarantees that they don't reference other fields in their
+        // types.  They are permitted to reference other class params, but
+        // only those that appear earlier in the list.
+        val emptyScope = InScope(Map())
+        val resolve = new ResolveClassParams(csym.name, emptyScope, cdecl.pattern)
+
+        // Process the rest of the class with all members in scope:
+        val classScope = InScope(constructSymbolTable(csym))
+        
+        csym.resolvedSource = withPosOf(cdecl,
+            out.ClassDecl(
+                name = Ast.ClassName(csym.name),
+                annotations = cdecl.annotations.map(classScope.resolveAnnotation),
+                superClasses = cdecl.superClasses.map(resolveName),
+                pattern = resolve.outParam,
+                members = cdecl.members.map(classScope.resolveMember(csym.name, _)),
+                sym = ()
+            )
+        )
 
         if(global.config.dumpResolvedTrees) {
             csym.resolvedSource.println(PrettyPrinter.stdout)
@@ -66,7 +85,7 @@ extends Resolve(global, compUnit)
     /** Creates a symbol table containing the members of `csym` */
     def constructSymbolTable(csym: ClassSymbol): SymTab.Map = {
         var superSymTab = mergeSuperSymbolTables(csym)
-        csym.varMembers.foldLeft(superSymTab)(_ + _)
+        csym.varMembers.foldLeft(superSymTab)(_ + _) + SymTab.LocalVar(Name.ThisLocal)
     }
     
     abstract class ResolveParams(var scope: InScope, inParams: List[in.Param]) {
@@ -77,10 +96,10 @@ extends Resolve(global, compUnit)
             case varParam: in.VarParam => resolveVarParam(varParam)
         })
 
-        def resolveTupleParam(tupleParam: in.TupleParam) = {
+        def resolveTupleParam(tupleParam: in.TupleParam) = withPosOf(tupleParam, {
             val outParams = tupleParam.params.map(resolveParam)
-            withPosOf(tupleParam, out.TupleParam(outParams))
-        }
+            out.TupleParam(outParams)
+        })
 
         def resolveVarParam(varParam: in.VarParam) = withPosOf(varParam, {
             val outAnnotations = varParam.annotations.map(scope.resolveAnnotation)
@@ -184,9 +203,6 @@ extends Resolve(global, compUnit)
                 }
                 
                 case Some(SymTab.InstanceField(mname)) => {
-                    if(scope.isStatic) {
-                        Error.NotInStaticScope(mname).report(global, name.pos)
-                    }
                     out.FieldLvalue(Ast.MemberName(mname), ())
                 }
                 
@@ -230,28 +246,13 @@ extends Resolve(global, compUnit)
     })
 
     case class InScope(
-        symTab: SymTab.Map,
-        isStatic: Boolean
+        symTab: SymTab.Map
     ) {
         def addEntry(entry: SymTab.Entry) = {
             copy(symTab + entry)            
         }
         
         // ___ Declarations _____________________________________________________
-
-        def resolveClassDecl(cdecl: in.ClassDecl) = withPosOf(cdecl, {
-            val className = cdecl.name.toClass(compUnit.pkg.name)
-            val resolve = new ResolveClassParams(className, this, cdecl.pattern)
-            
-            out.ClassDecl(
-                name = Ast.ClassName(className),
-                annotations = cdecl.annotations.map(resolveAnnotation),
-                superClasses = cdecl.superClasses.map(resolveName),
-                pattern = resolve.outParam,
-                members = cdecl.members.map(resolve.scope.resolveMember(className, _)),
-                sym = ()
-            )            
-        })
 
         def resolveAnnotation(ann: in.Annotation) = withPosOf(ann, 
             out.Annotation(resolveName(ann.name))
@@ -360,16 +361,6 @@ extends Resolve(global, compUnit)
 
                         case Some(SymTab.Type(mname)) => {
                             Error.NotField(mname).report(global, path.pos)
-                            ResolvedToPath(out.PathErr(path.toString))
-                        }
-
-                        case Some(SymTab.InstanceField(mname)) if isStatic => {
-                            Error.NotInStaticScope(mname).report(global, path.pos)
-                            ResolvedToPath(out.PathErr(path.toString))
-                        }
-                            
-                        case Some(SymTab.Ghost(mname)) if isStatic => {
-                            Error.NotInStaticScope(mname).report(global, path.pos)
                             ResolvedToPath(out.PathErr(path.toString))
                         }
 

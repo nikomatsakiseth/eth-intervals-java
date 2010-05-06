@@ -85,14 +85,34 @@ object Util {
     implicit def extendedOption[E](option: Option[E]) = new ExtendedOption(option)
     
     // ___ Debug ____________________________________________________________
-    private[this] var indent: Int = 0
+    //
+    // The output of all threads gets mixed together. You can grep for a 
+    // particular thread id to sort it out. In TextMate, use 
+    // Command-Opt-R with "grep ^001:" or what have you.
     
-    def debug(fmt: String, args: Any*) = 
-        println((" " * indent) + fmt.format(args: _*))
+    class DebugData(val threadId: Int) {
+        var indent: Int = 0
+    }
+    
+    private[this] val local = new java.lang.ThreadLocal[DebugData]() {
+        private[this] var maxThreadId = 0
+        override def initialValue() = synchronized {
+            val threadId = maxThreadId
+            maxThreadId += 1
+            new DebugData(threadId)
+        }
+    }
+    
+    def debug(fmt: String, args: Any*) = {
+        val data = local.get
+        val str = "%03x: ".format(data.threadId) + (" " * data.indent) + fmt.format(args: _*)
+        Util.synchronized { println(str) }
+    }
         
     def debugIndent[R](fmt: String, args: Any*)(func: => R) = {
+        val data = local.get
         debug(fmt, args: _*)
-        indent += 2
+        data.indent += 2
         try {
             val result = func
             if(result != ())
@@ -102,7 +122,7 @@ object Util {
             debug("Error: %s", t)
             throw t
         } finally {
-            indent -= 2
+            data.indent -= 2
         }
     }
     
