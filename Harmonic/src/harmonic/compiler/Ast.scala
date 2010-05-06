@@ -338,7 +338,7 @@ abstract class Ast {
     
     case class TupleParam[+S <: VSym](
         params: List[Param[S]]
-    ) extends Param with TupleAstPattern {
+    ) extends Param[S] with TupleAstPattern[S] {
         def subpatterns = params
     }
     
@@ -347,7 +347,7 @@ abstract class Ast {
         tref: OTR,
         name: LocalName,
         sym: S
-    ) extends Param with VarAstPattern {
+    ) extends Param[S] with VarAstPattern[S] {
         override def toString = "%s %s: %s".format(annotations.mkString(" "), tref, name)
         
         override def print(out: PrettyPrinter) {
@@ -358,11 +358,11 @@ abstract class Ast {
         }        
     }
     
-    sealed abstract class Lvalue extends AstPattern[LVSym]
+    sealed abstract class Lvalue extends AstPattern[VSym]
     
     case class TupleLvalue(
         lvalues: List[Lvalue]
-    ) extends Lvalue with TupleAstPattern {
+    ) extends Lvalue with TupleAstPattern[LVSym] {
         def subpatterns = lvalues
     }
     
@@ -373,7 +373,7 @@ abstract class Ast {
         tref: OTR,
         name: LocalName,
         sym: LVSym
-    ) extends Lvalue with VarAstPattern {
+    ) extends Lvalue with VarAstPattern[LVSym] {
         override def toString = "%s %s: %s".format(annotations.mkString(" "), tref, name)
         
         override def print(out: PrettyPrinter) {
@@ -387,7 +387,7 @@ abstract class Ast {
     case class ReassignVarLvalue(
         name: LocalName,
         sym: LVSym
-    ) extends Lvalue with VarAstPattern {
+    ) extends Lvalue with VarAstPattern[LVSym] {
         override def toString = name.toString
         
         override def print(out: PrettyPrinter) {
@@ -398,7 +398,7 @@ abstract class Ast {
     case class FieldLvalue(
         name: MNC,
         sym: FSym
-    ) extends Lvalue with VarAstPattern {
+    ) extends Lvalue with VarAstPattern[FSym] {
         override def toString = name.toString
         
         override def print(out: PrettyPrinter) {
