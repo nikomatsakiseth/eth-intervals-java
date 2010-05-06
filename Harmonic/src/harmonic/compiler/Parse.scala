@@ -225,7 +225,7 @@ class Parse extends StdTokenParsers with PackratParsers {
     lazy val mthdParam: PackratParser[out.Param] = tupleMthdParam | varMthdParam
     
     lazy val tupleBlkParam = positioned(
-        "("~>comma(mthdParam)<~")" ^^ { case ps => out.TupleParam(ps) }
+        "("~>comma(blkParam)<~")" ^^ { case ps => out.TupleParam(ps) }
     )
     lazy val varBlkParam = positioned(
         annotations~localName~optTypeRef ^^ {

@@ -17,7 +17,7 @@ class ClassFromReflection(
     }
         
     lazy val varMembers = {
-        cls.getDeclaredFields.map(fieldSymTabEntry).toList
+        (cls.getDeclaredFields.map(fieldSymTabEntry) ++ cls.getTypeParameters.map(typeParamSymTabEntry)).toList
     }
         
     lazy val allMethodSymbols = {
@@ -47,6 +47,10 @@ class ClassFromReflection(
         val modifiers = Modifier.forMember(fld)
         if(modifiers.isStatic) SymTab.StaticField(memberName)
         else SymTab.InstanceField(memberName)
+    }
+    
+    private[this] def typeParamSymTabEntry(tv: reflect.TypeVariable[_]) = {
+        SymTab.Type(Name.Member(name, tv.getName))
     }
     
     private[this] def typeArg(pair: (Name.Member, reflect.Type)): Option[Type.TypeArg] = pair match {

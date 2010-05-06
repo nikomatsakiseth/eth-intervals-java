@@ -8,11 +8,11 @@ class GatherTriangleB {
     foo() { }
 }
 
-class GatherTriangleAB // ERROR must.override(foo(), test.gather.GatherTriangleA, test.gather.GatherTriangleB)
+class GatherTriangleAB // ERROR must.resolve.ambiguity(*GatherTriangleAB, foo(), *GatherTriangleA, *GatherTriangleB)
 extends GatherTriangleA, GatherTriangleB { 
 }
 
-class GatherTriangleBA // ERROR must.override(foo(), test.gather.GatherTriangleB, test.gather.GatherTriangleA)
+class GatherTriangleBA // ERROR must.resolve.ambiguity(*GatherTriangleBA, foo(), *GatherTriangleB, *GatherTriangleA)
 extends GatherTriangleB, GatherTriangleA { 
 }
 
