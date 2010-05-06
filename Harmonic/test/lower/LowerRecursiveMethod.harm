@@ -3,12 +3,12 @@ package test.lower;
 class LowerRecursiveMethod {
     
     // Abstract methods need an explicit return type.
-    absFactorial(n: Integer); // ERROR explicit.return.type.required.if.abstract(absFactorial())
+    absFactorial(n: Integer); // ERROR explicit.type.required.if.abstract(absFactorial())
     
     // Recursive method needs an explicit return type:
     //   (I left off the base case for simplicity :)
     impFactorial(n: Integer) { // ERROR explicit.type.required.due.to.cycle(impFactorial())
-        impFactorial(n - 1) + impFactorial(n - 2)  // ERROR no.such.method(Null, +())
+        impFactorial(n - 1) + impFactorial(n - 2)  // ERROR no.such.method(java.lang.Object, +())
     }
     
     // If we provide an explicit return type, the program compiles:

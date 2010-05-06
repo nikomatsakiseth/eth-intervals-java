@@ -72,6 +72,13 @@ class LowerMember(
             }
         }
         
+        def fallback(inDecl: in.MethodDecl) = {
+            createSymbolOnce { // fall back to a return type of Object:
+                val (outParams, env) = Lower(global).lowerMethodParams(csym.classEnv, inDecl.params)
+                (inDecl, outParams, out.TypeRef(Type.Object))  
+            }            
+        }
+        
         inMemberDecl match {
             case inDecl @ in.MethodDecl(_, MthdName, _, params, inReturnTref: in.ResolveTypeRef, _, _) => {
                 // Fully explicit, can construct the symbol.
@@ -82,13 +89,13 @@ class LowerMember(
                 })
             }
 
-            case in.MethodDecl(_, MthdName, _, _, inReturnTref: in.InferredTypeRef, _, None) => {
+            case inDecl @ in.MethodDecl(_, MthdName, _, _, inReturnTref: in.InferredTypeRef, _, None) => {
                 // Cannot infer the type of an abstract method.
                 global.reporter.report(inReturnTref.pos, 
                     "explicit.type.required.if.abstract", 
                     MthdName.toString
                 )
-                None
+                Some(fallback(inDecl))
             }
 
             case inDecl @ in.MethodDecl(_, MthdName, _, _, in.InferredTypeRef(), _, Some(_)) => {
@@ -105,7 +112,7 @@ class LowerMember(
                             "explicit.type.required.due.to.cycle",
                             MthdName.toString
                         )
-                        None                     
+                        Some(fallback(inDecl))
                     }
                 }
             }

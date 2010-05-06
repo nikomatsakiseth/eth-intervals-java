@@ -129,12 +129,19 @@ object Util {
         }
         
         def join() = {
-            Intervals.inline(new InlineTask[Unit]() {
-                override def init(inlineInterval: Interval) = 
-                    Intervals.addHb(inter.end, inlineInterval.start)
-                override def run(inlineInterval: Interval) = 
-                    ()
-            })       
+            try {
+                Intervals.inline(new InlineTask[Unit]() {
+                    override def init(inlineInterval: Interval) = 
+                        Intervals.addHb(inter.end, inlineInterval.start)
+                    override def run(inlineInterval: Interval) = 
+                        ()
+                })                       
+            } catch {
+                // Rethrow wrapped exceptions (if there is exactly one):
+                case r: RethrownException if r.allErrors.size == 1 => {
+                    throw r.allErrors.iterator.next;
+                }
+            }
         }
     }
     implicit def extendedInterval(inter: Interval) = ExtendedInterval(inter)

@@ -80,12 +80,10 @@ case class Lower(global: Global) {
 
         val returnTy = (mdecl.returnTref, optBody) match {
             case (in.InferredTypeRef(), None) => {
-                global.reporter.report(
-                    mdecl.returnTref.pos, 
-                    "explicit.return.type.required.if.abstract", 
-                    mdecl.name.toString
-                )
-                Type.Void
+                // Error: Return type required if abstract,
+                // but we'll report it when the symbol is created,
+                // so don't report it here.
+                Type.Object
             }
 
             case (in.InferredTypeRef(), Some(out.Body(stmts))) => {
