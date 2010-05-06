@@ -180,9 +180,15 @@ object Error {
         }        
     }
     
-    case class ExpPath(path: String) extends Error {
+    case class ExpPathNotClass(className: Name.Class) extends Error {
         def report(global: Global, pos: Position) {
-            global.reporter.report(pos, "exp.path.but.found.class", path)
+            global.reporter.report(pos, "exp.path.but.found.class", className.toString)
+        }
+    }
+    
+    case class NoSuchVar(localName: String) extends Error {
+        def report(global: Global, pos: Position) {
+            global.reporter.report(pos, "no.such.var", localName)
         }
     }
     

@@ -420,15 +420,8 @@ extends Resolve(global, compUnit)
                 }
                 
                 case in.PathDot(base, memberName: in.RelDot, (), ()) => {
-                    resolvePathToAny(base) match {
-                        case ResolvedToList(_) | ResolvedToClass(_) => {
-                            Error.ExpPath(base.toString).report(global, path.pos)
-                            ResolvedToPath(out.PathErr(path.toString))
-                        }
-                        case ResolvedToPath(outBase) => {
-                            ResolvedToPath(out.PathDot(outBase, resolveMemberName(memberName), (), ()))
-                        }
-                    }
+                    val outBase = resolvePathToPath(base)
+                    ResolvedToPath(out.PathDot(outBase, resolveMemberName(memberName), (), ()))
                 }
             }
         })
@@ -443,8 +436,13 @@ extends Resolve(global, compUnit)
         
         def resolvePathToPath(path: in.AstPath): out.AstPath = withPosOf(path, {
             resolvePathToAny(path) match {
-                case ResolvedToList(_) | ResolvedToClass(_) => {
-                    Error.ExpPath(path.toString).report(global, path.pos)
+                case ResolvedToList(names) => {
+                    Error.NoSuchVar(names.last).report(global, path.pos)
+                    out.PathErr(path.toString)
+                }
+                
+                case ResolvedToClass(className) => {
+                    Error.ExpPathNotClass(className).report(global, path.pos)
                     out.PathErr(path.toString)
                 }
                 
