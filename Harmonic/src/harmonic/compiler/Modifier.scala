@@ -10,7 +10,7 @@ object Modifier {
     case object Override extends Mod(4, 0, Name.OverrideClass)
     case object Static extends Mod(4, jModifier.STATIC, Name.VoidClass)
     
-    val All = List(Abstract, Mutable, Override)
+    val All = List(Abstract, Mutable, Override, Static)
     
     case class Set(mods: Int) {
         override def toString = "ModSet(%s)".format(toList.mkString(", "))

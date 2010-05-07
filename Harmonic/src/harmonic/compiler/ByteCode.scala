@@ -117,7 +117,6 @@ case class ByteCode(global: Global) {
         }
         
         def storeVar(index: Int, asmTy: asm.Type) = {
-            println("storeVar: %s, %s".format(index, asmTy))
             mvis.visitVarInsn(asmTy.getOpcode(O.ISTORE), index)
         }
         
@@ -354,17 +353,14 @@ case class ByteCode(global: Global) {
         }
 
         def addUnboxedSym(sym: VarSymbol.Any) = {
-            println("sym %s assigned to slot %d".format(sym, maxSlot))
             syms(sym) = pathToFreshSlot(asmType(sym.ty))
         }
         
         def withStashSlot(func: (Int => Unit)) {
             val stashSlot = maxSlot
-            println("> Stash Slot %d".format(maxSlot))
             maxSlot += 1
             func(stashSlot)
             maxSlot -= 1
-            println("< Stash Slot %d".format(maxSlot))
         }
         
         def pushSym(sym: VarSymbol.Any, mvis: asm.MethodVisitor) = syms(sym).push(mvis)

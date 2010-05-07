@@ -1,0 +1,12 @@
+package test.bytecode;
+
+class BytecodeHelloWorld extends Application {
+
+    @Override main(): Void {
+        System.out.println("Hello, World!");
+        null
+    }
+    
+}
+// EXECUTE
+// Hello, World!

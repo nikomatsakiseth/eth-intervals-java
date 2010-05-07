@@ -59,7 +59,7 @@ class Parse extends StdTokenParsers with PackratParsers {
         "class", "extends", "import", "package", 
         "interval", "requires", "locks", "new",
         "type", "ghost", "true", "false", "this",
-        "super"
+        "super", "null"
     )
     
     def comma[A](p: PackratParser[A]) = repsep(p, ",")<~opt(",")
