@@ -1,14 +1,14 @@
 package test.resolve;
 
-import some.cls.that.does.not.exist; // ERROR cannot.find.class(some.cls.that.does.not.exist)
-import another.cls.that.does.not.exist -> another; // ERROR cannot.find.class(another.cls.that.does.not.exist)
+import some.cls.that.does.not.exist;
+import another.cls.that.does.not.exist -> another;
 import java.lang.Integer -> int;
 import java.lang.Void -> void;
 
 class ResolveInvalidImport {
     a: int;
-    b: exist; 
-    c: another; 
+    b: exist; // ERROR cannot.resolve(exist)
+    c: another; // ERROR cannot.resolve(another)
     d: void;
 }
 // COMPILE

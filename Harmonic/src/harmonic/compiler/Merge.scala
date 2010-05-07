@@ -21,9 +21,10 @@ class Merge(global: Global) {
             }
         }
 
-        csym.loweredFields = csym.lowerMembers.flatMap { lmem =>
+        csym.allFieldSymbols = csym.classParam.symbols ++ csym.lowerMembers.flatMap { lmem =>
             lmem.memberDecl match {
-                case decl: out.FieldDecl => lmem.toOptFieldSymbol(decl.name.name).map(s => (s, decl))
+                case decl: out.FieldDecl => lmem.toOptFieldSymbol(decl.name.name)
+                case decl: out.IntervalDecl => lmem.toOptFieldSymbol(decl.name.name)
                 case _ => None
             }
         }

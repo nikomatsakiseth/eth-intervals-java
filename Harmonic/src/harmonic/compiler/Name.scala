@@ -20,23 +20,23 @@ object Name {
         override def toString = "<root>"
     }
     
-    case class Subpackage(
+    final case class Subpackage(
         base: Package,
         name: String
     ) extends Package {
         def toInternalPrefix = base.toInternalPrefix + name + "/"
-        def toPrefix = base.toPrefix + name + "."
+        def toPrefix = toString + "."
         override def toString = base.toPrefix + name
     }
     
-    case class Class(
+    final case class Class(
         base: Qual,
         name: String
     ) extends Qual {
         def relPath: String = internalName
         def internalName = base.toInternalPrefix + name
         def toInternalPrefix = internalName + "$"
-        def toPrefix = base.toPrefix + name + "."
+        def toPrefix = toString + "."
         override def toString = base.toPrefix + name
         def withSuffix(suffix: String) = Class(base, name + suffix)
         def asClassName = Some(this)
@@ -82,7 +82,7 @@ object Name {
     }
     
     /** Method names. */
-    case class Method(
+    final case class Method(
         parts: List[String]
     ) {
         def javaName = parts.mkString("$")
@@ -103,7 +103,7 @@ object Name {
     }
     
     /** Fully specified names of members (except for methods) */
-    sealed case class Member(
+    final case class Member(
         className: Name.Class,
         text: String
     ) extends Var with UnloweredMember {
@@ -120,7 +120,7 @@ object Name {
     }
     
     /** Names of parameters, local variables */
-    sealed case class LocalVar(
+    final case class LocalVar(
         text: String
     ) extends Var {
         def javaName = text
@@ -134,7 +134,7 @@ object Name {
         
         def inDefaultClass(className: Name.Class): Member
     }
-    case class ClasslessMember(text: String) extends UnloweredMember {
+    final case class ClasslessMember(text: String) extends UnloweredMember {
         def inDefaultClass(className: Name.Class) = Member(className, text)        
     }
     
@@ -145,6 +145,8 @@ object Name {
     val VoidClass = Class(classOf[java.lang.Void])
     
     val ObjectClass = Class(classOf[java.lang.Object])
+
+    val IntervalClass = Class(classOf[harmonic.lang.Interval])
 
     val ArrayClass = Class(classOf[harmonic.lang.Array[_]])
     val ArrayElem = Member(ArrayClass, "E")

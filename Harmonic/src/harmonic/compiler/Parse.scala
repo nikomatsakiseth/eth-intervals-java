@@ -222,7 +222,7 @@ class Parse extends StdTokenParsers with PackratParsers {
         annotations~localName~reqTypeRef ^^ {
             case a~n~t => out.VarParam(a, t, n, ()) }
     )
-    lazy val mthdParam: PackratParser[out.Param] = tupleMthdParam | varMthdParam
+    lazy val mthdParam: PackratParser[out.Param[Unit]] = tupleMthdParam | varMthdParam
     
     lazy val tupleBlkParam = positioned(
         "("~>comma(blkParam)<~")" ^^ { case ps => out.TupleParam(ps) }
@@ -231,7 +231,7 @@ class Parse extends StdTokenParsers with PackratParsers {
         annotations~localName~optTypeRef ^^ {
             case a~n~t => out.VarParam(a, t, n, ()) }
     )
-    lazy val blkParam: PackratParser[out.Param] = tupleBlkParam | varBlkParam
+    lazy val blkParam: PackratParser[out.Param[Unit]] = tupleBlkParam | varBlkParam
     
     lazy val tupleLvalue = positioned(
         "("~>comma(lvalue)<~")" ^^ { case ls => out.TupleLvalue(ls) }
@@ -313,7 +313,7 @@ class Parse extends StdTokenParsers with PackratParsers {
         success(())                             ^^ { case () => out.TupleParam(List()) }
     )
     
-    lazy val blkBody: PackratParser[(out.OptionalParseTypeRef, out.Param, List[out.Stmt])] = (
+    lazy val blkBody: PackratParser[(out.OptionalParseTypeRef, out.Param[Unit], List[out.Stmt])] = (
         tupleBlkParam~reqTypeRef~"->"~stmts     ^^ { case (p~r~"->"~s) => (r, p, s) }
     |   blkParam~infTypeRef~"->"~stmts          ^^ { case (p~r~"->"~s) => (r, p, s) }
     |   noBlkParam~infTypeRef~stmts             ^^ { case (p~r~s) => (r, p, s) }

@@ -55,7 +55,7 @@ extends Resolve(global, compUnit)
             }
         }
         
-        def addVarMembersFromMember(varMembers: List[SymTab.Entry], decl: in.MemberDecl): List[SymTab.Entry] = {
+        def addVarMembersFromMember(varMembers: List[SymTab.Entry], decl: in.MemberDecl) = {
             decl match {
                 case decl: in.IntervalDecl =>
                     SymTab.InstanceField(Name.Member(csym.name, decl.name.nm)) :: varMembers
@@ -66,7 +66,7 @@ extends Resolve(global, compUnit)
             }
         }
         
-        def addVarMembersFromParam(varMembers: List[SymTab.Entry], param: in.Param): List[SymTab.Entry] = {
+        def addVarMembersFromParam(varMembers: List[SymTab.Entry], param: in.Param[Unit]) = {
             param match {
                 case in.TupleParam(params) => 
                     params.foldLeft(varMembers)(addVarMembersFromParam)

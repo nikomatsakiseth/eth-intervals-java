@@ -88,20 +88,20 @@ extends Resolve(global, compUnit)
         csym.varMembers.foldLeft(superSymTab)(_ + _) + SymTab.LocalVar(Name.ThisLocal)
     }
     
-    abstract class ResolveParams(var scope: InScope, inParams: List[in.Param]) {
+    abstract class ResolveParams(var scope: InScope, inParams: List[in.Param[Unit]]) {
         def addEntry(pos: Position, text: String): InScope
         
-        def resolveParam(param: in.Param): out.Param = withPosOf(param, param match {
-            case tupleParam: in.TupleParam => resolveTupleParam(tupleParam)
-            case varParam: in.VarParam => resolveVarParam(varParam)
+        def resolveParam(param: in.Param[Unit]): out.Param[Unit] = withPosOf(param, param match {
+            case tupleParam: in.TupleParam[Unit] => resolveTupleParam(tupleParam)
+            case varParam: in.VarParam[Unit] => resolveVarParam(varParam)
         })
 
-        def resolveTupleParam(tupleParam: in.TupleParam) = withPosOf(tupleParam, {
+        def resolveTupleParam(tupleParam: in.TupleParam[Unit]) = withPosOf(tupleParam, {
             val outParams = tupleParam.params.map(resolveParam)
             out.TupleParam(outParams)
         })
 
-        def resolveVarParam(varParam: in.VarParam) = withPosOf(varParam, {
+        def resolveVarParam(varParam: in.VarParam[Unit]) = withPosOf(varParam, {
             val outAnnotations = varParam.annotations.map(scope.resolveAnnotation)
             val outTypeRef = scope.resolveOptionalTypeRef(varParam.tref)
             scope = addEntry(varParam.pos, varParam.name.name.text)
@@ -116,7 +116,7 @@ extends Resolve(global, compUnit)
         val outParams = inParams.map(resolveParam)
     }
     
-    class ResolveClassParams(className: Name.Class, scope0: InScope, inParam: in.Param)
+    class ResolveClassParams(className: Name.Class, scope0: InScope, inParam: in.Param[Unit])
     extends ResolveParams(scope0, List(inParam)) {
         def outParam = outParams.head
         
@@ -132,7 +132,7 @@ extends Resolve(global, compUnit)
         }
     }
     
-    class ResolveMethodParams(scope0: InScope, inParams: List[in.Param])
+    class ResolveMethodParams(scope0: InScope, inParams: List[in.Param[Unit]])
     extends ResolveParams(scope0, inParams) {
         def addEntry(pos: Position, text: String) = {
             scope.symTab.get(text) match {
@@ -145,7 +145,7 @@ extends Resolve(global, compUnit)
         }
     }
     
-    class ResolveBlockParam(scope0: InScope, inParam: in.Param)
+    class ResolveBlockParam(scope0: InScope, inParam: in.Param[Unit])
     extends ResolveMethodParams(scope0, List(inParam)) {
         def outParam = outParams.head
     }

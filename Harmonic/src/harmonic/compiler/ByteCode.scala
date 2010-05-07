@@ -508,7 +508,7 @@ case class ByteCode(global: Global) {
                     store(sublvalue, rvalue)
                 }
                 
-                case varPat: in.VarAstPattern => {
+                case varPat: in.VarAstPattern[VarSymbol.Any] => {
                     // Micro-optimize generated code to avoid using stashSlot:
                     val sym = varPat.sym
                     val accessPath = accessMap.syms(sym)

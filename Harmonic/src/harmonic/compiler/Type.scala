@@ -35,5 +35,6 @@ object Type {
     
     val Object = Type.Class(Name.ObjectClass, List())
     val Void = Type.Class(Name.VoidClass, List())
+    val Interval = Type.Class(Name.IntervalClass, List())
     
 }

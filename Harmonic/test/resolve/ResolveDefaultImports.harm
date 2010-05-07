@@ -1,8 +1,5 @@
 package test.resolve;
 
-/*
- */
-
 class Resolve1(parent: Interval) {
     
     bad: IntervalX; // ERROR cannot.resolve(IntervalX)
@@ -19,7 +16,7 @@ class Resolve1(parent: Interval) {
     
     cRes: Integer;
     interval c(parent) {
-        cRes = process(aRes + bRes);
+        cRes = process(aRes + bRes); // ERROR no.such.method(test.resolve.Resolve1, process())
     }
 
     a -> c;

@@ -90,11 +90,11 @@ class ClassFromSource(
 
     var loweredMethods: List[(MethodSymbol, Ast.Lower.MethodDecl)] = Nil
     
-    var loweredFields: List[(VarSymbol.Field, Ast.Lower.FieldDecl)] = Nil
-    
     var loweredSource: Ast.Lower.ClassDecl = null
     
     def allMethodSymbols: List[MethodSymbol] = loweredMethods.map(_._1)
+    
+    var allFieldSymbols: List[VarSymbol.Field] = Nil
     
     // ___ Computed by Pass.Gather __________________________________________
     

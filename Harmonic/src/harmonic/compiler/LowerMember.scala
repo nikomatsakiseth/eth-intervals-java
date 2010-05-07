@@ -28,12 +28,6 @@ class LowerMember(
     
     // ___ Symbol Creation __________________________________________________
     
-    def toOptSymbol = inMemberDecl match {
-        case decl: in.MethodDecl => toOptMethodSymbol(decl.name)
-        case decl: in.FieldDecl => toOptFieldSymbol(decl.name.name)
-        case _ => None
-    }
-    
     // ______ Method Symbols ________________________________________________
     //
     // toOptMethodSymbol() tries to create a method symbol with the given 
@@ -131,18 +125,18 @@ class LowerMember(
     
     private[this] var optFieldSymbol: Option[VarSymbol.Field] = None
 
-    def toOptFieldSymbol(MemName: Name.Member): Option[VarSymbol.Field] = {
+    def toOptFieldSymbol(MemName: Name.Member): Option[VarSymbol.Field] = debugIndent("toOptFieldSymbol(%s)", MemName) {
         
-        def createSymbolOnce(func: => (in.FieldDecl, out.TypeRef)) = {
+        def createSymbolOnce(func: => (List[in.Annotation], out.TypeRef)) = {
             synchronized {
                 optFieldSymbol match {
                     case Some(fsym) => fsym
                     
                     case None => {
-                        val (decl, outTref) = func
+                        val (annotations, outTref) = func
                         val fsym = new VarSymbol.Field(
-                            modifiers = Modifier.forResolvedAnnotations(decl.annotations),
-                            name      = decl.name.name,
+                            modifiers = Modifier.forResolvedAnnotations(annotations),
+                            name      = MemName,
                             ty        = outTref.ty
                         )
                         optFieldSymbol = Some(fsym)
@@ -154,21 +148,25 @@ class LowerMember(
         
         def fallback(inDecl: in.FieldDecl) = {
             createSymbolOnce { // fall back to a return type of Object:
-                (inDecl, out.TypeRef(Type.Object))  
+                (inDecl.annotations, out.TypeRef(Type.Object))  
             }            
         }
         
+        debug("inMemberDecl = %s", inMemberDecl)
+        
         inMemberDecl match {
-            case inDecl @ in.FieldDecl(_, MemName, inTref: in.ResolveTypeRef, _) => {
+            case inDecl @ in.FieldDecl(_, Ast.MemberName(MemName), inTref: in.ResolveTypeRef, _) => {
                 // Fully explicit.  Construct the symbol.
+                debug("Explicit field type: %s", inTref)
                 Some(createSymbolOnce {
                     val outTref = Lower(global).InEnv(csym.classEnv).lowerTypeRef(inTref)
-                    (inDecl, outTref)
+                    (inDecl.annotations, outTref)
                 })
             }
             
-            case inDecl @ in.FieldDecl(_, MemName, inTref: in.InferredTypeRef, None) => {
+            case inDecl @ in.FieldDecl(_, Ast.MemberName(MemName), inTref: in.InferredTypeRef, None) => {
                 // Cannot infer the type of an abstract field.
+                debug("Inferred type ref, no definition: %s", inTref)
                 global.reporter.report(inTref.pos, 
                     "explicit.type.required.if.abstract", 
                     MemName.toString
@@ -176,13 +174,14 @@ class LowerMember(
                 Some(fallback(inDecl))
             }
             
-            case inDecl @ in.FieldDecl(_, MemName, in.InferredTypeRef(), Some(_)) => {
+            case inDecl @ in.FieldDecl(_, Ast.MemberName(MemName), in.InferredTypeRef(), Some(_)) => {
                 // Wait for lowering to finish, then construct symbol.  This might fail.
+                debug("Inferred type ref, with definition")
                 try {
                     inter.join()
                     Some(createSymbolOnce {
                         val outDecl = memberDecl.asInstanceOf[out.FieldDecl]
-                        (inDecl, outDecl.tref)
+                        (inDecl.annotations, outDecl.tref)
                     })
                 } catch {
                     case _: CycleException => {
@@ -193,6 +192,12 @@ class LowerMember(
                         Some(fallback(inDecl))
                     }
                 }
+            }
+            
+            case inDecl @ in.IntervalDecl(_, Ast.MemberName(MemName), _, _) => {
+                Some(createSymbolOnce {
+                    (List(), out.TypeRef(Type.Interval))
+                })
             }
             
             case _ => None
