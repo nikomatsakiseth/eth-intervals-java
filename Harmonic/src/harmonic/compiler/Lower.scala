@@ -15,18 +15,17 @@ import Util._
 case class Lower(global: Global) {
     private[this] val emptyEnv = Env.empty(global)
     
-    def classParamAndEnv(csym: ClassFromSource): (out.Param, Env) = {
+    def classParamAndEnv(csym: ClassFromSource): (out.Param[VarSymbol.Field], Env) = {
         val thisTy = Type.Class(csym.name, List())
         val thisSym = new VarSymbol.Local(Modifier.Set.empty, Name.ThisLocal, thisTy)
         val env0 = emptyEnv.plusThis(thisTy, thisSym)
         val cdecl = csym.resolvedSource
-        val (List(outParam), env) = lowerMethodParams(env0, List(cdecl.pattern))
+        val (outParam, env) = lowerClassParam(csym, env0, cdecl.pattern)
         (outParam, env)
     }
     
     def createSymbolForConstructor(csym: ClassFromSource) = {
         val cdecl = csym.resolvedSource
-        val (outParam, env) = classParamAndEnv(csym)
         new MethodSymbol(
             pos       = cdecl.pattern.pos,
             modifiers = Modifier.Set.empty,
@@ -36,7 +35,7 @@ case class Lower(global: Global) {
             MethodSignature(
                 returnTy = Type.Void,
                 receiverTy = csym.toType,
-                parameterPatterns = List(out.toPatternRef(outParam))
+                parameterPatterns = List(out.toPatternRef(csym.classParam))
             )
         )
     }
@@ -138,20 +137,41 @@ case class Lower(global: Global) {
     // ___ Parameters _______________________________________________________
     
     // Method parameters always have a specified type.  
-    def lowerMethodParams(classEnv: Env, inParams: List[in.Param]) = {
-        lowerAnyParams(classEnv, inParams.map(p => (Type.Object, p)))
-    }
-    
-    // The type of block parameters can be inferred from context.
-    def lowerBlockParam(env: Env, expTy: Type.Ref, inParam: in.Param) = {
-        val (List(outParam), env1) = lowerAnyParams(env, List((expTy, inParam)))
+    def lowerClassParam(csym: ClassSymbol, classEnv: Env, inParam: in.Param[Unit]) = {
+        def toName(name: Name.LocalVar) = Name.Member(csym.name, name.text)
+        def addSym(env: Env, sym: VarSymbol.Field) = env
+        val (List(outParam), env1) = lowerAnyParams(toName, addSym)(classEnv, List((Type.Object, inParam)))
         (outParam, env1)
     }
     
-    def lowerAnyParams(env0: Env, inputs: List[(Type.Ref, in.Param)]): (List[out.Param], Env) = {
+    // Method parameters always have a specified type.  
+    def lowerMethodParams(classEnv: Env, inParams: List[in.Param[Unit]]) = {
+        def toName(name: Name.LocalVar) = name
+        def addSym(env: Env, sym: VarSymbol.Local) = env.plusLocalVar(sym)
+        lowerAnyParams(toName, addSym)(classEnv, inParams.map(p => (Type.Object, p)))
+    }
+    
+    // The type of block parameters can be inferred from context.
+    def lowerBlockParam(env: Env, expTy: Type.Ref, inParam: in.Param[Unit]) = {
+        def toName(name: Name.LocalVar) = name
+        def addSym(env: Env, sym: VarSymbol.Local) = env.plusLocalVar(sym)
+        val (List(outParam), env1) = lowerAnyParams(toName, addSym)(env, List((expTy, inParam)))
+        (outParam, env1)
+    }
+    
+    def lowerAnyParams[N <: Name.Var](
+        toName: (Name.LocalVar => N),
+        addSym: ((Env, VarSymbol[N]) => Env)
+    )(
+        env0: Env, 
+        inputs: List[(Type.Ref, in.Param[Unit])]
+    ): (List[out.Param[VarSymbol[N]]], Env) = {
         var env = env0
         
-        def lowerParam(expTy: Type.Ref, param: in.Param): out.Param = withPosOf(param, {
+        def lowerParam(
+            expTy: Type.Ref, 
+            param: in.Param[Unit]
+        ): out.Param[VarSymbol[N]] = withPosOf(param, {
             (expTy, param) match {
                 // Unpack singleton tuples:
                 case (ty, in.TupleParam(List(p))) => out.TupleParam(List(lowerParam(ty, p)))
@@ -191,8 +211,8 @@ case class Lower(global: Global) {
                         case tref: in.ResolveTypeRef => InEnv(env).toTypeRef(tref)
                     }
                     val modifiers = Modifier.forLoweredAnnotations(outAnnotations)
-                    val sym = new VarSymbol.Local(modifiers, name.name, ty)
-                    env = env.plusLocalVar(sym)
+                    val sym = new VarSymbol(modifiers, toName(name.name), ty)
+                    env = addSym(env, sym)
                     out.VarParam(outAnnotations, out.TypeRef(ty), name, sym)
                 }
             }

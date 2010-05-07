@@ -15,7 +15,6 @@ object Env {
         pathRels = Nil,
         typeRels = Nil
     )
-    
 }
 
 /** The environment is used during a type check but also in other phases
@@ -133,12 +132,6 @@ case class Env(
     def localIsDefined(name: Name.LocalVar) = 
         locals.isDefinedAt(name)
     
-    def lookupLocal(name: Name.LocalVar) = 
-        locals.get(name)
-    
-    def lookupLocalOrError(name: Name.LocalVar, optExpTy: Option[Type.Ref]) = 
-        locals.get(name).getOrElse(VarSymbol.error(name, optExpTy))
-        
     def lookupThis = 
         locals(Name.ThisLocal)
     

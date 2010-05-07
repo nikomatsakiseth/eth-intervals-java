@@ -57,7 +57,7 @@ class ClassFromSource(
     // ___ Computed by Pass.Create __________________________________________
     
     /** Lowered version of class parameter */
-    var classParam: Ast.Lower.Param = null
+    var classParam: Ast.Lower.Param[VarSymbol.Field] = null
     
     /** Environment immediately within the class body */
     var classEnv: Env = null
@@ -81,7 +81,8 @@ class ClassFromSource(
     def fieldNamed(name: Name.Member) = {
         intervals(Pass.Create).join()
         lowerMembers.firstSome(_.toOptFieldSymbol(name)).ifNone {
-            classParam.symbols.find(_.isNamed(name))                
+            val fsyms: List[VarSymbol.Field] = classParam.symbols
+            fsyms.find(_.isNamed(name))
         }
     }
     

@@ -46,7 +46,7 @@ class LowerMember(
 
     def toOptMethodSymbol(MthdName: Name.Method): Option[MethodSymbol] = {
         
-        def createSymbolOnce(func: => (in.MethodDecl, List[out.Param], out.TypeRef)) = {
+        def createSymbolOnce(func: => (in.MethodDecl, List[out.Param[VarSymbol.Local]], out.TypeRef)) = {
             synchronized {
                 optMthdSymbol match {
                     case Some(msym) => msym
@@ -173,7 +173,7 @@ class LowerMember(
                     "explicit.type.required.if.abstract", 
                     MemName.toString
                 )
-                fallback(inDecl)
+                Some(fallback(inDecl))
             }
             
             case inDecl @ in.FieldDecl(_, MemName, in.InferredTypeRef(), Some(_)) => {
@@ -190,7 +190,7 @@ class LowerMember(
                             "explicit.type.required.due.to.cycle",
                             MemName.toString
                         )
-                        fallback(inDecl)
+                        Some(fallback(inDecl))
                     }
                 }
             }

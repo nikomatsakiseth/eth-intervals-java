@@ -159,7 +159,7 @@ abstract class Ast {
         name: CND,
         annotations: List[Annotation],
         superClasses: List[CN],
-        pattern: Param[MSym],
+        pattern: Param[FSym],
         members: List[MemberDecl],
         sym: CSym
     ) extends Node { // TODO Inner classes
@@ -315,7 +315,7 @@ abstract class Ast {
         def subpatterns: List[AstPattern[S]]
         def ty: TyTuple = tupleTy(subpatterns.map(_.ty))
         
-        def symbols = subpatterns.flatMap(_.symbols)
+        def symbols: List[S] = subpatterns.flatMap(_.symbols)
 
         override def toString = "(%s)".format(subpatterns.mkString(", "))
         
@@ -329,12 +329,10 @@ abstract class Ast {
         def sym: S
         def ty = vsymTy(sym)
         
-        def symbols = List(sym)
+        def symbols: List[S] = List(sym)
     }
     
-    sealed abstract class Param[+S <: VSym] extends AstPattern {
-        def sym: S
-    }
+    sealed abstract class Param[+S <: VSym] extends AstPattern[S]
     
     case class TupleParam[+S <: VSym](
         params: List[Param[S]]
@@ -362,7 +360,7 @@ abstract class Ast {
     
     case class TupleLvalue(
         lvalues: List[Lvalue]
-    ) extends Lvalue with TupleAstPattern[LVSym] {
+    ) extends Lvalue with TupleAstPattern[VSym] {
         def subpatterns = lvalues
     }
     
@@ -926,12 +924,12 @@ object Ast {
         
         def toPatternRef(pat: Param[VSym]): Pattern.Ref = pat match {
             case TupleParam(params) => Pattern.Tuple(params.map(toPatternRef))
-            case VarParam(_, _, _, sym) => Pattern.Var(sym.name, sym.ty)
+            case VarParam(_, _, Ast.LocalName(name), sym) => Pattern.Var(name, sym.ty)
         }
         
-        def toPatternAnon(pat: AstPattern): Pattern.Anon = pat match {
-            case pat: TupleAstPattern => Pattern.SubstdTuple(pat.subpatterns.map(toPatternAnon))
-            case pat: VarAstPattern => Pattern.SubstdVar(pat.sym.ty)
+        def toPatternAnon(pat: AstPattern[VSym]): Pattern.Anon = pat match {
+            case pat: TupleAstPattern[VSym] => Pattern.SubstdTuple(pat.subpatterns.map(toPatternAnon))
+            case pat: VarAstPattern[VSym] => Pattern.SubstdVar(pat.sym.ty)
         }
         
     }
