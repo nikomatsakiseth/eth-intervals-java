@@ -50,7 +50,7 @@ class LowerMember(
                         val msym = new MethodSymbol(
                             pos       = decl.pos,
                             modifiers = Modifier.forResolvedAnnotations(decl.annotations),
-                            kind      = MethodKind.Inter,
+                            kind      = MethodKind.HarmonicVirtual,
                             clsName   = csym.name,
                             name      = MthdName,
                             MethodSignature(

@@ -67,13 +67,19 @@ class ClassFromReflection(
     }
     
     private[this] def typeRef(ty: reflect.Type): Type.Ref = ty match {
+        case ty: Class[_] if ty.isArray => {
+            val targ = typeArg(Name.ArrayElem, ty.getComponentType).get
+            global.requireLoadedOrLoadable(pos, Name.ArrayClass)
+            Type.Class(Name.ArrayClass, List(targ))            
+        }
         case ty: Class[_] => {
             val name = Name.Class(ty)
-            global.requireLoadedOrLoadable(InterPosition.forClass(ty), name)
+            global.requireLoadedOrLoadable(pos, name)
             Type.Class(name, List())
         }
         case ty: reflect.GenericArrayType => {
             val targ = typeArg(Name.ArrayElem, ty.getGenericComponentType).get
+            global.requireLoadedOrLoadable(pos, Name.ArrayClass)
             Type.Class(Name.ArrayClass, List(targ))
         }
         case ty: reflect.TypeVariable[_] => {
@@ -109,9 +115,15 @@ class ClassFromReflection(
     
     private[this] def ctorSymbol(mthd: reflect.Constructor[_]) = {
         new MethodSymbol(
-            pos       = InterPosition.forClass(mthd.getDeclaringClass),
+            pos       = pos,
             modifiers = Modifier.forMember(mthd),
-            kind      = MethodKind.JavaVirtual,
+            kind      = MethodKind.Java(
+                MethodKind.JavaSpecial, 
+                cls, 
+                Name.InitMethod.javaName,
+                mthd.getParameterTypes,
+                classOf[Unit]
+            ),
             clsName   = name,
             name      = Name.InitMethod,
             MethodSignature(
@@ -124,10 +136,24 @@ class ClassFromReflection(
     }
     
     private[this] def methodSymbol(mthd: reflect.Method) = {
+        val op = {
+            if((mthd.getModifiers & reflect.Modifier.STATIC) != 0)
+                MethodKind.JavaStatic
+            else if((cls.getModifiers & reflect.Modifier.INTERFACE) != 0)
+                MethodKind.JavaInterface
+            else
+                MethodKind.JavaVirtual            
+        }
         new MethodSymbol(
-            pos       = InterPosition.forClass(mthd.getDeclaringClass),
+            pos       = pos,
             modifiers = Modifier.forMember(mthd),
-            kind      = MethodKind.JavaVirtual, // FIXME 
+            kind      = MethodKind.Java(
+                op,
+                cls,
+                mthd.getName,
+                mthd.getParameterTypes,
+                mthd.getReturnType
+            ),
             clsName   = name,
             name      = Name.Method(List(mthd.getName)),
             MethodSignature(

@@ -50,7 +50,13 @@ case class Intrinsic(global: Global) {
                     new MethodSymbol(
                         pos = InterPosition.forClass(classOf[Intrinsic]),
                         modifiers = Modifier.Set.empty,
-                        kind = MethodKind.IntrinsicMath(javaName, leftClass, rightClass, returnClass),
+                        kind = MethodKind.Java(
+                            MethodKind.JavaStatic,
+                            classOf[IntrinsicMathGen],
+                            javaName,
+                            Array(leftClass, rightClass),
+                            returnClass
+                        ),
                         clsName = leftTy.name,
                         name = interName, 
                         MethodSignature(
@@ -89,9 +95,15 @@ case class Intrinsic(global: Global) {
         def controlFlow(
             mthdName: String,
             argumentClasses: Array[Class[_]],
-            resultClass: Class[_]
+            returnClass: Class[_]
         ) = {
-            MethodKind.IntrinsicStatic(classOf[IntrinsicControlFlow], mthdName, argumentClasses, resultClass)
+            MethodKind.Java(
+                MethodKind.JavaStatic,
+                classOf[IntrinsicControlFlow],
+                mthdName,
+                argumentClasses,
+                returnClass
+            )
         }
         
         def templateTy(

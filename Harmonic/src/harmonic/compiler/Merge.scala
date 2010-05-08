@@ -39,6 +39,11 @@ class Merge(global: Global) {
                 sym          = csym
             )
         )
+        
+
+        if(global.config.dumpLoweredTrees) {
+            csym.loweredSource.println(PrettyPrinter.stdout)
+        }
     }
     
 }

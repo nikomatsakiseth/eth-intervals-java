@@ -1,25 +1,27 @@
 package harmonic.compiler
 
+import org.objectweb.asm.{Opcodes => O}
+
 object MethodKind {
     
-    // Just provides useful defaults.
-    case class IntrinsicMath(
-        staticMthdName: String,
-        leftClass: java.lang.Class[_], 
-        rightClass: java.lang.Class[_], 
-        resultClass: java.lang.Class[_]
-    ) extends MethodKind
-    case class IntrinsicStatic(
+    sealed abstract class JavaOpcode(val op: Int)
+    case object JavaVirtual extends JavaOpcode(O.INVOKEVIRTUAL)
+    case object JavaInterface extends JavaOpcode(O.INVOKEINTERFACE)
+    case object JavaStatic extends JavaOpcode(O.INVOKESTATIC)
+    case object JavaSpecial extends JavaOpcode(O.INVOKESPECIAL)
+    
+    sealed abstract class Harmonic(val op: Int) extends MethodKind
+    case object HarmonicVirtual extends Harmonic(O.INVOKEINTERFACE)
+    case object HarmonicCtor extends Harmonic(O.INVOKESPECIAL)
+    
+    case class Java(
+        op: JavaOpcode,
         ownerClass: java.lang.Class[_],
-        staticMthdName: String,
+        mthdName: String,
         argumentClasses: Array[java.lang.Class[_]],
         resultClass: java.lang.Class[_]
     ) extends MethodKind
-    case object Inter extends MethodKind
-    case object InterCtor extends MethodKind
-    case object JavaVirtual extends MethodKind
-    case object JavaInterface extends MethodKind
-    case object JavaStatic extends MethodKind
+    
     case object ErrorMethod extends MethodKind
         
 }

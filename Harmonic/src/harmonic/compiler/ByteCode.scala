@@ -48,16 +48,30 @@ case class ByteCode(global: Global) {
     val asmVoidType = asm.Type.getObjectType("java/lang/Void")
     val asmBooleanType = asm.Type.getObjectType("java/lang/Boolean")
     
-    val primitives = Map[java.lang.Class[_], asm.Type](
-        (classOf[java.lang.Boolean] -> asm.Type.BOOLEAN_TYPE),
-        (classOf[java.lang.Byte] -> asm.Type.BYTE_TYPE),
-        (classOf[java.lang.Character] -> asm.Type.CHAR_TYPE),
-        (classOf[java.lang.Short] -> asm.Type.SHORT_TYPE),
-        (classOf[java.lang.Integer] -> asm.Type.INT_TYPE),
-        (classOf[java.lang.Long] -> asm.Type.LONG_TYPE),
-        (classOf[java.lang.Float] -> asm.Type.FLOAT_TYPE),
-        (classOf[java.lang.Double] -> asm.Type.DOUBLE_TYPE)
+    case class BoxInfo(
+        boxType: asm.Type,  // i.e., java.lang.Integer
+        primType: asm.Type, // i.e., int
+        unboxMethod: String // i.e., "intValue"
     )
+    
+    val boxes = List(
+        BoxInfo(asm.Type.getType(classOf[java.lang.Boolean]), asm.Type.BOOLEAN_TYPE, "intValue"),
+        BoxInfo(asm.Type.getType(classOf[java.lang.Byte]), asm.Type.BYTE_TYPE, "byteValue"),
+        BoxInfo(asm.Type.getType(classOf[java.lang.Character]), asm.Type.CHAR_TYPE, "charValue"),
+        BoxInfo(asm.Type.getType(classOf[java.lang.Short]), asm.Type.SHORT_TYPE, "shortValue"),
+        BoxInfo(asm.Type.getType(classOf[java.lang.Integer]), asm.Type.INT_TYPE, "intValue"),
+        BoxInfo(asm.Type.getType(classOf[java.lang.Long]), asm.Type.LONG_TYPE, "longValue"),
+        BoxInfo(asm.Type.getType(classOf[java.lang.Float]), asm.Type.FLOAT_TYPE, "floatValue"),
+        BoxInfo(asm.Type.getType(classOf[java.lang.Double]), asm.Type.DOUBLE_TYPE, "doubleValue")        
+    )
+    
+    def boxInfoForPrimitiveType(asmType: asm.Type) = {
+        boxes.find(_.primType == asmType).get
+    }
+
+    def boxInfoForBoxType(asmType: asm.Type) = {
+        boxes.find(_.boxType == asmType).get
+    }
     
     def asmType(ty: Type.Ref): asm.Type = ty match {
         case Type.Class(name, List()) => asm.Type.getObjectType(name.internalName)
@@ -67,11 +81,7 @@ case class ByteCode(global: Global) {
         case _ => asmObjectType
     }
 
-    def downcastNeeded(toAsmTy: asm.Type, fromAsmTy: asm.Type): Boolean = {
-        toAsmTy != asmObjectType && toAsmTy != fromAsmTy
-    }
-    
-    def downcastNeeded(toTy: Type.Ref, fromTy: Type.Ref): Boolean = {
+    def convertNeeded(toTy: Type.Ref, fromTy: Type.Ref): Boolean = {
         (toTy, fromTy) match {
             case (Type.Class(toName, _), Type.Class(fromName, _)) => {
                 val toSym = global.csym(toName)
@@ -79,7 +89,9 @@ case class ByteCode(global: Global) {
                 !fromSym.isSubclass(toSym)
             }
             
-            case _ => downcastNeeded(asmType(toTy), asmType(fromTy))
+            case _ => {
+                (toTy != Type.Object) && (asmType(toTy) != asmType(fromTy))
+            }
         }                    
     }
     
@@ -142,22 +154,111 @@ case class ByteCode(global: Global) {
             case _ => mvis.visitLdcInsn(value)
         }
         
-        def downcast(toAsmTy: asm.Type) {
-            toAsmTy.getSort match {
-                case asm.Type.ARRAY =>
-                    mvis.visitTypeInsn(O.CHECKCAST, toAsmTy.getInternalName)
+        def box(box: BoxInfo) {
+            mvis.visitMethodInsn(
+                O.INVOKESTATIC,
+                box.boxType.getInternalName,
+                "valueOf",
+                getMethodDescriptor(box.boxType, Array(box.primType))
+            )            
+        }
+        
+        def unbox(box: BoxInfo) {
+            mvis.visitMethodInsn(
+                O.INVOKEVIRTUAL,
+                box.boxType.getInternalName,
+                box.unboxMethod,
+                getMethodDescriptor(box.primType, Array())
+            )
+        }
+        
+        def convert(toAsmTy: asm.Type, fromAsmTy: asm.Type) {
+            if(toAsmTy != fromAsmTy) {
+                (toAsmTy.getSort, fromAsmTy.getSort) match {
+                    // Downcast arrays and objects:
+                    case (asm.Type.ARRAY, _) =>
+                        mvis.visitTypeInsn(O.CHECKCAST, toAsmTy.getInternalName)
+                    case (asm.Type.OBJECT, asm.Type.OBJECT) =>
+                        mvis.visitTypeInsn(O.CHECKCAST, toAsmTy.getInternalName)           
+                    case (asm.Type.OBJECT, asm.Type.ARRAY) =>
+                        // No action needed, toAsmTy better be "Object"
+
+                    // Convert to/from void:
+                    case (asm.Type.OBJECT, asm.Type.VOID) => 
+                        mvis.visitInsn(O.ACONST_NULL)
+                    case (asm.Type.VOID, asm.Type.OBJECT) => 
+                        mvis.visitInsn(O.POP)
+
+                    // Box/unbox primitive types:
+                    case (asm.Type.OBJECT, _) => {
+                        val boxInfo = boxInfoForPrimitiveType(fromAsmTy)
+                        box(boxInfo)
+                        convert(toAsmTy, boxInfo.boxType)
+                    }
+                    case (_, asm.Type.OBJECT) =>  {
+                        val boxInfo = boxInfoForPrimitiveType(toAsmTy)
+                        unbox(boxInfo)
+                        convert(toAsmTy, boxInfo.primType)
+                    }
                     
-                case asm.Type.OBJECT =>
-                    mvis.visitTypeInsn(O.CHECKCAST, toAsmTy.getInternalName)                        
-            }                
+                    // From int to:
+                    case (asm.Type.BYTE, asm.Type.INT) =>
+                        mvis.visitInsn(O.I2B)
+                    case (asm.Type.CHAR, asm.Type.INT) =>
+                        mvis.visitInsn(O.I2C)
+                    case (asm.Type.SHORT, asm.Type.INT) =>
+                        mvis.visitInsn(O.I2S)
+                    case (asm.Type.LONG, asm.Type.INT) =>
+                        mvis.visitInsn(O.I2L)
+                    case (asm.Type.FLOAT, asm.Type.INT) =>
+                        mvis.visitInsn(O.I2F)
+                    case (asm.Type.DOUBLE, asm.Type.INT) =>
+                        mvis.visitInsn(O.I2D)
+                        
+                    // From long to:
+                    case (asm.Type.FLOAT, asm.Type.LONG) =>
+                        mvis.visitInsn(O.L2F)
+                    case (asm.Type.DOUBLE, asm.Type.LONG) =>
+                        mvis.visitInsn(O.L2D)
+                    case (_, asm.Type.LONG) => {
+                        mvis.visitInsn(O.L2I)
+                        convert(toAsmTy, asm.Type.INT_TYPE)
+                    }
+                        
+                        
+                    // From float to:
+                    case (asm.Type.LONG, asm.Type.FLOAT) =>
+                        mvis.visitInsn(O.F2L)
+                    case (asm.Type.DOUBLE, asm.Type.FLOAT) =>
+                        mvis.visitInsn(O.F2D)
+                    case (_, asm.Type.FLOAT) => {
+                        mvis.visitInsn(O.F2I)                        
+                        convert(toAsmTy, asm.Type.INT_TYPE)
+                    }
+                        
+                    // From double to:
+                    case (asm.Type.LONG, asm.Type.DOUBLE) =>
+                        mvis.visitInsn(O.D2L)
+                    case (asm.Type.FLOAT, asm.Type.DOUBLE) =>
+                        mvis.visitInsn(O.D2F)
+                    case (asm.Type.INT, asm.Type.DOUBLE) => {
+                        mvis.visitInsn(O.D2I)
+                        convert(toAsmTy, asm.Type.INT_TYPE)
+                    }
+
+                    // Anything else is an error:
+                    case _ => 
+                        throw new RuntimeException("Unhandled case in convert: %s <= %s".format(
+                            toAsmTy, fromAsmTy)
+                        )
+                }                
+            }
         }
         
-        def downcast(toTy: Type.Ref) {
-            downcast(asmType(toTy))
-        }
-        
-        def downcastIfNeeded(toTy: Type.Ref, fromTy: Type.Ref) {
-            if(downcastNeeded(toTy, fromTy)) downcast(toTy)
+        def convert(toTy: Type.Ref, fromTy: Type.Ref) {
+            if(convertNeeded(toTy, fromTy)) {
+                convert(asmType(toTy), asmType(fromTy))                
+            }
         }
     }
     implicit def extendedMethodVisitor(mvis: asm.MethodVisitor) = ExtendedMethodVisitor(mvis)
@@ -356,11 +457,12 @@ case class ByteCode(global: Global) {
             syms(sym) = pathToFreshSlot(asmType(sym.ty))
         }
         
-        def withStashSlot(func: (Int => Unit)) {
+        def withStashSlot[R](func: (Int => R)) = {
             val stashSlot = maxSlot
             maxSlot += 1
-            func(stashSlot)
+            val res = func(stashSlot)
             maxSlot -= 1
+            res
         }
         
         def pushSym(sym: VarSymbol.Any, mvis: asm.MethodVisitor) = syms(sym).push(mvis)
@@ -514,7 +616,7 @@ case class ByteCode(global: Global) {
                 }
                 
                 case _ => {
-                    pushRvalues(in.toPatternAnon(lvalue), rvalue)
+                    pushRvalues(in.toPatternAnon(lvalue), rvalue, Nil)
                     popRvalues(lvalue, rvalue)
                 }
             }
@@ -525,21 +627,31 @@ case class ByteCode(global: Global) {
           * are pushed in pre-order. In other words, if `lvalue` were a 
           * pattern like `((a, b), c)`, then the values for `a`, `b`, 
           * and `c` would be pushed in that order.
+          *
+          * The `asmTypes` parameter is used when invoking Java methods.
+          * It contains optional Java types for the values being pushed.
+          * The first `asmTypes.length` values to be pushed will be further
+          * convert/unboxed into the types given (if there are more values
+          * to be pushed, they are unaffected).  When values are being
+          * passed between Harmonic methods, or stored into Harmonic fields,
+          * one can just pass the empty list for `asmTypes`.
           */
-        def pushRvalues(lvalue: Pattern.Anon, rvalue: in.Expr) {
+        def pushRvalues(lvalue: Pattern.Anon, rvalue: in.Expr, asmTypes: List[asm.Type]): List[asm.Type] = {
             (lvalue, rvalue) match {
                 case (Pattern.AnonTuple(List(l)), _) =>
-                    pushRvalues(l, rvalue)
+                    pushRvalues(l, rvalue, asmTypes)
                     
                 case (_, in.Tuple(List(r))) =>
-                    pushRvalues(lvalue, r)
+                    pushRvalues(lvalue, r, asmTypes)
                     
                 case (Pattern.AnonTuple(ls), in.Tuple(rs)) if sameLength(ls, rs) =>
-                    ls.zip(rs).foreach { case (l, r) => pushRvalues(l, r) }
+                    ls.zip(rs).foldLeft(asmTypes) {
+                        case (aT, (l, r)) => pushRvalues(l, r, aT)
+                    }
                     
                 case _ => {
                     pushExprValueDowncastingTo(lvalue.ty, rvalue)
-                    expand(lvalue)
+                    expand(lvalue, asmTypes)
                 }
             }
         }
@@ -563,23 +675,31 @@ case class ByteCode(global: Global) {
             }
         }
         
-        def expand(lvalue: Pattern.Anon) {
+        def expand(lvalue: Pattern.Anon, inAsmTypes: List[asm.Type]): List[asm.Type] = {
             lvalue match {
                 case Pattern.AnonTuple(sublvalues) => {
                     accessMap.withStashSlot { stashSlot =>
                         mvis.visitVarInsn(O.ASTORE, stashSlot) // Stack: ...
-                        sublvalues.zipWithIndex.foreach { case (sublvalue, idx) =>
+                        sublvalues.zipWithIndex.foldLeft(inAsmTypes) { case (asmTypes, (sublvalue, idx)) =>
                             mvis.visitVarInsn(O.ALOAD, stashSlot) // Stack: ..., array
                             mvis.pushIntegerConstant(idx) // Stack: ..., array, index
                             mvis.visitInsn(O.AALOAD) // Stack: ..., array[index]
-                            mvis.downcast(sublvalue.ty) // Stack: ..., array[index]
-                            expand(sublvalue) 
+                            mvis.convert(sublvalue.ty, Type.Object) // Stack: ..., array[index]
+                            expand(sublvalue, asmTypes) 
                         }
                         // Stack: ..., array[0], ..., array[N]
                     }
                 }
 
-                case _: Pattern.AnonVar => 
+                case Pattern.AnonVar(ty) => {
+                    inAsmTypes match {
+                        case Nil => Nil
+                        case asmTy :: tl => {
+                            mvis.convert(asmTy, asmType(ty))
+                            tl
+                        }
+                    }                    
+                }
             }
         }
         
@@ -596,22 +716,21 @@ case class ByteCode(global: Global) {
         
         def pushExprValueDowncastingTo(toAsmTy: asm.Type, expr: in.Expr) {
             pushExprValue(expr)
-            if(downcastNeeded(toAsmTy, asmType(expr.ty)))
-                mvis.downcast(toAsmTy)
+            mvis.convert(toAsmTy, asmType(expr.ty))
         }
         
         def pushExprValueDowncastingTo(toTy: Type.Ref, expr: in.Expr) {
             pushExprValue(expr)
-            if(downcastNeeded(toTy, expr.ty))
-                mvis.downcast(toTy)
+            mvis.convert(toTy, expr.ty)
         }
         
         def pushMethodArgs(
             msig: MethodSignature[Pattern.Anon],
-            args: List[in.Expr]
+            args: List[in.Expr],
+            inAsmTypes: List[asm.Type]
         ) {
-            msig.parameterPatterns.zip(args).foreach { case (pattern, arg) =>
-                pushRvalues(pattern, arg)
+            msig.parameterPatterns.zip(args).foldLeft(inAsmTypes) { case (asmTypes, (pattern, arg)) =>
+                pushRvalues(pattern, arg, asmTypes)
             }
         }
         
@@ -646,7 +765,7 @@ case class ByteCode(global: Global) {
                 
                 case in.Cast(subexpr, tref) => {
                     pushExprValue(subexpr)
-                    mvis.downcastIfNeeded(tref.ty, subexpr.ty)
+                    mvis.convert(tref.ty, subexpr.ty)
                 }
                 
                 case in.Literal(obj: java.lang.String, _) => {
@@ -673,17 +792,7 @@ case class ByteCode(global: Global) {
                 
                 case in.Literal(obj, _) => {
                     mvis.visitLdcInsn(obj)
-                    
-                    val objClass = obj.getClass
-                    val classType = asm.Type.getType(objClass)
-                    val primType = primitives(objClass)
-                    
-                    mvis.visitMethodInsn(
-                        O.INVOKESTATIC,
-                        classType.getInternalName,
-                        "valueOf",
-                        getMethodDescriptor(classType, Array(primType))
-                    )
+                    mvis.box(boxInfoForBoxType(asm.Type.getType(obj.getClass)))
                 }
                 
                 case in.Var(_, sym) => {
@@ -700,19 +809,36 @@ case class ByteCode(global: Global) {
                 }
 
                 case in.MethodCall(in.Static(_), name, args, (msym, msig)) => {
-                    pushMethodArgs(msig, args)
-                    mvis.visitMethodInsn(
-                        O.INVOKESTATIC,
-                        msym.clsName.internalName,
-                        msym.name.javaName,
-                        mroMethodDescFromSig(msig)
-                    )
+                    msym.kind match {
+                        case MethodKind.Java(
+                            MethodKind.JavaStatic, 
+                            ownerClass, 
+                            mthdName, 
+                            argumentClasses, 
+                            resultClass
+                        ) => {
+                            val resultAsmTy = asm.Type.getType(resultClass)
+                            val argAsmTys = argumentClasses.map(asm.Type.getType)
+                            pushMethodArgs(msig, args, argAsmTys.toList)                                    
+                            mvis.visitMethodInsn(
+                                O.INVOKESTATIC,
+                                asm.Type.getType(ownerClass).getInternalName,
+                                mthdName,
+                                getMethodDescriptor(resultAsmTy, argAsmTys)
+                            )
+                            mvis.convert(asmType(msig.returnTy), resultAsmTy)
+                        }
+                        
+                        case _ => {
+                            throw new RuntimeException("Static call to non-static method: " + msym)
+                        }
+                    }                    
                 }
                 
                 case in.MethodCall(in.Super(_), name, args, (msym, msig)) => {
                     mvis.visitVarInsn(O.ALOAD, 0)   // load this ptr
                     nextMro.push(mvis)              // load next index in MRO
-                    pushMethodArgs(msig, args)
+                    pushMethodArgs(msig, args, Nil)
                     mvis.visitMethodInsn(
                         O.INVOKEINTERFACE,
                         msym.clsName.internalName,
@@ -722,54 +848,43 @@ case class ByteCode(global: Global) {
                 }
                 
                 case in.MethodCall(receiver: in.Var, name, args, (msym, msig)) => {
-                    def callWithDetails(op: Int, ownerAsmType: asm.Type, desc: String) = {
-                        pushExprValue(receiver)
-                        pushMethodArgs(msig, args)
-                        mvis.visitMethodInsn(op, ownerAsmType.getInternalName, msym.name.javaName, desc)
-                    }
-                    
-                    def callWithOpcode(op: Int) = {
-                        val ownerAsmType = asmType(msig.receiverTy)
-                        val desc = plainMethodDescFromSig(msym.msig)
-                        callWithDetails(op, ownerAsmType, desc)
-                    }
-                    
                     msym.kind match {
-                        case MethodKind.IntrinsicMath(mthdName, leftClass, rightClass, returnClass) => {
-                            assert(args.length == 1)
-                            val leftAsmTy = asm.Type.getType(leftClass)
-                            val rightAsmTy = asm.Type.getType(rightClass)
-                            pushExprValueDowncastingTo(leftAsmTy, receiver)
-                            pushExprValueDowncastingTo(rightAsmTy, args.head)
-                            mvis.visitMethodInsn(
-                                O.INVOKESTATIC, 
-                                asm.Type.getType(classOf[IntrinsicMathGen]).getInternalName, 
-                                mthdName,
-                                getMethodDescriptor(asm.Type.getType(returnClass), Array(leftAsmTy, rightAsmTy))
-                            )
+                        case harm: MethodKind.Harmonic => {
+                            pushExprValue(receiver)
+                            pushMethodArgs(msig, args, Nil)
+                            val owner = asmType(msig.receiverTy).getInternalName
+                            val desc = plainMethodDescFromSig(msym.msig)
+                            mvis.visitMethodInsn(harm.op, owner, msym.name.javaName, desc)
                         }
                         
-                        case MethodKind.IntrinsicStatic(ownerClass, mthdName, argumentClasses, resultClass) => {
+                        case MethodKind.Java(op, ownerClass, mthdName, argumentClasses, resultClass) => {
+                            val ownerAsmTy = asm.Type.getType(ownerClass)
                             val resultAsmTy = asm.Type.getType(resultClass)
                             val argAsmTys = argumentClasses.map(asm.Type.getType)
-                            pushExprValueDowncastingTo(argAsmTys(0), receiver)
-                            pushMethodArgs(msig, args)
+                            
+                            op match {
+                                case MethodKind.JavaStatic => {
+                                    pushExprValueDowncastingTo(argAsmTys(0), receiver)
+                                    pushMethodArgs(msig, args, argAsmTys.toList.drop(1))
+                                }
+                                case _ => {
+                                    pushExprValueDowncastingTo(ownerAsmTy, receiver)
+                                    pushMethodArgs(msig, args, argAsmTys.toList)
+                                }
+                            }
+                            
                             mvis.visitMethodInsn(
-                                O.INVOKESTATIC,
-                                asm.Type.getType(ownerClass).getInternalName,
+                                op.op,
+                                ownerAsmTy.getInternalName,
                                 mthdName,
                                 getMethodDescriptor(resultAsmTy, argAsmTys)
                             )
+                            
+                            mvis.convert(asmType(msig.returnTy), resultAsmTy)
                         }
                         
-                        case MethodKind.Inter => callWithOpcode(O.INVOKEINTERFACE)
-                        case MethodKind.InterCtor => callWithOpcode(O.INVOKESPECIAL)
-                        case MethodKind.JavaVirtual => callWithOpcode(O.INVOKEVIRTUAL)
-                        case MethodKind.JavaInterface => callWithOpcode(O.INVOKEINTERFACE)
-                        case MethodKind.JavaStatic => callWithOpcode(O.INVOKESTATIC)
-                        
                         case MethodKind.ErrorMethod => {
-                            throw new RuntimeException("TODO")
+                            throw new RuntimeException("Call to error method")
                         }
                     }
                 }
@@ -1028,15 +1143,15 @@ case class ByteCode(global: Global) {
     //          return value((Integer)array[0], (Integer)array[1]);
     //      }
     // This method is called a "forwarding" method.  It's only purpose is
-    // to downcast and pack/unpack its arguments.   Our type check should
-    // ensure that these downcasts and array dereferences succeed.
+    // to convert and pack/unpack its arguments.   Our type check should
+    // ensure that these converts and array dereferences succeed.
     //
     // To do this adaptation, we make use of the `pushRvalues()` method 
     // defined above, which is the same method that pushes arguments to
     // normal method calls.  To use the function we create an expression
     // representing the "source" arguments (in the example above this would
     // just be `arg`, but if the source has tuples it can be slightly
-    // more involved).  We then insert a top-level downcast, so the final
+    // more involved).  We then insert a top-level convert, so the final
     // expression passed to `pushRvalues()` would be `((Integer, Integer)) arg`
     // (mixing Java cast syntax with Harmonic types).
     
@@ -1068,11 +1183,11 @@ case class ByteCode(global: Global) {
             // the types of the source parameters may be supertypes of the target types.
             tarPatterns.zip(rvalues).foreach { case (tarPattern, rvalue) =>
                 val casted = 
-                    if(downcastNeeded(tarPattern.ty, rvalue.ty))
+                    if(convertNeeded(tarPattern.ty, rvalue.ty))
                         in.Cast(rvalue, in.TypeRef(tarPattern.ty))
                     else 
                         rvalue
-                stmtVisitor.pushRvalues(tarPattern, casted)
+                stmtVisitor.pushRvalues(tarPattern, casted, Nil)
             }
         }
     }
@@ -1081,7 +1196,7 @@ case class ByteCode(global: Global) {
       * signature is more specialized in the subtype than in the supertype.
       * The interface Block, for example, defines a method Object value(Object arg).
       * Most blocks however will be specialized for a particular type.  Therefore
-      * we emit a forwarding method that simply downcasts (or tuple-expands) arg as
+      * we emit a forwarding method that simply converts (or tuple-expands) arg as
       * needed to invoke the more specific version. */
     def writeForwardingMethodIfNeeded(
         className: Name.Class,

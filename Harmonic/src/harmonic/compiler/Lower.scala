@@ -29,7 +29,7 @@ case class Lower(global: Global) {
         new MethodSymbol(
             pos       = cdecl.pattern.pos,
             modifiers = Modifier.Set.empty,
-            kind      = MethodKind.InterCtor,
+            kind      = MethodKind.HarmonicCtor,
             clsName   = csym.name,
             name      = Name.InitMethod,
             MethodSignature(

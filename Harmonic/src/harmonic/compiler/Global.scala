@@ -190,7 +190,7 @@ class Global(
                         name = "%s.ByteCode".format(csym.name),
                         after = List(gather.end)
                     ) { 
-                        _ => ByteCode(this).writeClassSymbol(csym)
+                        _ => if(!reporter.hasErrors) ByteCode(this).writeClassSymbol(csym)
                     }
                     
                     csym.intervals = Array(header, body,  lower, create, members, merge, gather, byteCode)
