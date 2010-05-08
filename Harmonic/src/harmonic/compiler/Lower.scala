@@ -580,7 +580,7 @@ case class Lower(global: Global) {
             case expr: in.Expr => lowerExprToVar(None)(expr)
         })
         
-        def lowerField(optExpTy: Option[Type.Ref])(expr: in.Field) = introduceVar(expr, { 
+        def lowerField(optExpTy: Option[Type.Ref])(expr: in.Field) = withPosOf(expr, { 
             lowerOwner(expr.owner) match {
                 // Static field ref. like System.out:
                 case owner @ out.Static(className) => {
@@ -634,7 +634,7 @@ case class Lower(global: Global) {
             }
         })
         
-        def lowerLiteralExpr(expr: in.Literal) = introduceVar(expr, {
+        def lowerLiteralExpr(expr: in.Literal) = withPosOf(expr, {
             val ty = Type.Class(Name.Class(expr.obj.getClass), List())
             out.Literal(expr.obj, ty)
         })
@@ -659,7 +659,7 @@ case class Lower(global: Global) {
                 case List(msym) => {
                     val subst = mthdSubst(msym, inRcvr, inArgs)
                     val optExpTys = msym.msig.parameterPatterns.map(p => Some(subst.ty(p.ty)))
-                    val outArgs = optExpTys.zip(inArgs).map { case (t,a) => lowerExpr(t)(a) }
+                    val outArgs = optExpTys.zip(inArgs).map { case (t,a) => lowerExprToAtomic(t)(a) }
                     val msig = subst.methodSignature(msym.msig)
                     Some((outArgs, (msym, msig)))
                 }
@@ -668,7 +668,7 @@ case class Lower(global: Global) {
                 //   In theory, we could try to be smarter (i.e., if all options agree on the
                 //   type of a particular argument, etc).
                 case _ => {
-                    val outArgs = inArgs.map(lowerExpr(None))
+                    val outArgs = inArgs.map(lowerExprToAtomic(None))
                     val argTys = outArgs.map(_.ty)
                     
                     // Find those symbols that are potentially applicable
@@ -734,7 +734,7 @@ case class Lower(global: Global) {
             }            
         }
         
-        def lowerMethodCall(optExpTy: Option[Type.Ref])(mcall: in.MethodCall) = introduceVar(mcall, {
+        def lowerMethodCall(optExpTy: Option[Type.Ref])(mcall: in.MethodCall) = withPosOf(mcall, {
             // Find all potential methods:
             val (rcvr, rcvrTy, msyms) = lowerRcvr(mcall.rcvr, mcall.name) match {
                 case rcvr @ out.Static(className) => {
@@ -762,7 +762,7 @@ case class Lower(global: Global) {
             }
         })
         
-        def lowerNewCtor(expr: in.NewCtor) = introduceVar(expr, {
+        def lowerNewCtor(expr: in.NewCtor) = withPosOf(expr, {
             toTypeRef(expr.tref) match {
                 case ty @ Type.Class(name, _) => {
                     val csym = global.csym(name)
@@ -798,11 +798,11 @@ case class Lower(global: Global) {
             }
         })
         
-        def lowerNewAnon(expr: in.NewAnon) = introduceVar(expr, {
+        def lowerNewAnon(expr: in.NewAnon) = withPosOf(expr, {
             throw new RuntimeException("TODO")
         })
         
-        def lowerNull(optExpTy: Option[Type.Ref])(expr: in.Null) = introduceVar(expr, {
+        def lowerNull(optExpTy: Option[Type.Ref])(expr: in.Null) = withPosOf(expr, {
             val ty = optExpTy.getOrElse(Type.Null)
             out.Null(ty)
         })
@@ -811,12 +811,12 @@ case class Lower(global: Global) {
             optExpTy match {
                 case Some(Type.Tuple(tys)) if sameLength(tys, tuple.exprs) => {
                     val outExprs = tys.zip(tuple.exprs).map { case (t, e) => 
-                        lowerExpr(Some(t))(e)
+                        lowerExprToAtomic(Some(t))(e)
                     }
                     out.Tuple(outExprs)
                 }
                 case _ => {
-                    val exprs = tuple.exprs.map(lowerExpr(None))
+                    val exprs = tuple.exprs.map(lowerExprToAtomic(None))
                     out.Tuple(exprs)                    
                 }
             }
@@ -833,7 +833,7 @@ case class Lower(global: Global) {
             case _ => None
         }
                 
-        def lowerBlock(optExpTy: Option[Type.Ref])(tmpl: in.Block) = introduceVar(tmpl, {
+        def lowerBlock(optExpTy: Option[Type.Ref])(tmpl: in.Block) = withPosOf(tmpl, {
             val expArgumentTy = optTypeArg(Name.BlockA, optExpTy).getOrElse(Type.Void)
             
             val (outParam, subenv) = lowerBlockParam(env, expArgumentTy, tmpl.param)
@@ -876,7 +876,7 @@ case class Lower(global: Global) {
         def lowerCast(expr: in.Cast) = withPosOf(expr, {
             val ty = toTypeRef(expr.typeRef)
             out.Cast(
-                lowerExpr(Some(ty))(expr),
+                lowerExprToAtomic(Some(ty))(expr),
                 out.TypeRef(ty)
             )
         })
@@ -913,7 +913,7 @@ case class Lower(global: Global) {
             out.Var(v.name, env.locals(v.name.name))
         })
         
-        def lowerExpr(optExpTy: Option[Type.Ref])(expr: in.Expr): out.AtomicExpr = expr match {
+        def lowerExpr(optExpTy: Option[Type.Ref])(expr: in.Expr): out.Expr = expr match {
             case e: in.Tuple => lowerTuple(optExpTy)(e)
             case e: in.Block => lowerBlock(optExpTy)(e)
             case e: in.Cast => lowerCast(e)
@@ -924,13 +924,20 @@ case class Lower(global: Global) {
             case e: in.NewCtor => lowerNewCtor(e)
             case e: in.NewAnon => lowerNewAnon(e)
             case e: in.Null => lowerNull(optExpTy)(e)
-            case e: in.ImpVoid => introduceVar(expr, out.Null(Type.Void))
+            case e: in.ImpVoid => out.Null(Type.Void)
             case e: in.ImpThis => lowerImpThis(e)
         }
         
         def lowerExprToVar(optExpTy: Option[Type.Ref])(expr: in.Expr): out.Var = {
             lowerExpr(optExpTy)(expr) match {
                 case v: out.Var => v
+                case e => introduceVar(expr, e)
+            }
+        }
+        
+        def lowerExprToAtomic(optExpTy: Option[Type.Ref])(expr: in.Expr): out.AtomicExpr = {
+            lowerExpr(optExpTy)(expr) match {
+                case atomic: out.AtomicExpr => atomic
                 case e => introduceVar(expr, e)
             }
         }
