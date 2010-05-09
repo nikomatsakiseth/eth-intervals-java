@@ -74,7 +74,7 @@ class LowerMember(
         }
         
         inMemberDecl match {
-            case inDecl @ in.MethodDecl(_, MthdName, _, params, inReturnTref: in.ResolveTypeRef, _, _) => {
+            case inDecl @ in.MethodDecl(_, MthdName, params, inReturnTref: in.ResolveTypeRef, _, _) => {
                 // Fully explicit, can construct the symbol.
                 Some(createSymbolOnce {
                     val (outParams, env) = Lower(global).lowerMethodParams(csym.classEnv, params)
@@ -83,7 +83,7 @@ class LowerMember(
                 })
             }
 
-            case inDecl @ in.MethodDecl(_, MthdName, _, _, inReturnTref: in.InferredTypeRef, _, None) => {
+            case inDecl @ in.MethodDecl(_, MthdName, _, inReturnTref: in.InferredTypeRef, _, None) => {
                 // Cannot infer the type of an abstract method.
                 global.reporter.report(inReturnTref.pos, 
                     "explicit.type.required.if.abstract", 
@@ -92,7 +92,7 @@ class LowerMember(
                 Some(fallback(inDecl))
             }
 
-            case inDecl @ in.MethodDecl(_, MthdName, _, _, in.InferredTypeRef(), _, Some(_)) => {
+            case inDecl @ in.MethodDecl(_, MthdName, _, in.InferredTypeRef(), _, Some(_)) => {
                 // Wait for lowering to finish, then construct symbol.  This might fail.
                 try {
                     inter.join()
@@ -162,16 +162,7 @@ class LowerMember(
                 })
             }
             
-            case inDecl @ in.FieldDecl(_, Ast.MemberName(MemName), inTref: in.InferredTypeRef, None) => {
-                // Cannot infer the type of an abstract field.
-                global.reporter.report(inTref.pos, 
-                    "explicit.type.required.if.abstract", 
-                    MemName.toString
-                )
-                Some(fallback(inDecl))
-            }
-            
-            case inDecl @ in.FieldDecl(_, Ast.MemberName(MemName), in.InferredTypeRef(), Some(_)) => {
+            case inDecl @ in.FieldDecl(_, Ast.MemberName(MemName), in.InferredTypeRef(), _) => {
                 // Wait for lowering to finish, then construct symbol.  This might fail.
                 try {
                     inter.join()

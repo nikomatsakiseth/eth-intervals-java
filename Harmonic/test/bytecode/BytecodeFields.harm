@@ -2,7 +2,7 @@ package test.bytecode;
 
 class BytecodeFields extends Application {
     
-    value: Integer;
+    value: Integer = null;
     
     @Override main(): Void {
         value = 22;

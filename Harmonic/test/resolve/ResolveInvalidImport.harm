@@ -6,9 +6,9 @@ import java.lang.Integer -> int;
 import java.lang.Void -> void;
 
 class ResolveInvalidImport {
-    a: int;
-    b: exist; // ERROR cannot.resolve(exist)
-    c: another; // ERROR cannot.resolve(another)
-    d: void;
+    a: int = null;
+    b: exist = null; // ERROR cannot.resolve(exist)
+    c: another = null; // ERROR cannot.resolve(another)
+    d: void = null;
 }
 // COMPILE

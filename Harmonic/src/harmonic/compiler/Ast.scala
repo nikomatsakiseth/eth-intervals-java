@@ -161,7 +161,8 @@ abstract class Ast {
         superClasses: List[CN],
         pattern: Param[FSym],
         members: List[MemberDecl],
-        sym: CSym
+        sym: CSym,
+        thisSym: LVSym
     ) extends Node { // TODO Inner classes
         override def toString = "[class %s%s]".format(
             name, pattern
@@ -189,25 +190,21 @@ abstract class Ast {
     case class IntervalDecl(
         annotations: List[Annotation],
         name: MND,
-        optParent: Option[AstPath],
-        optBody: Option[Body]
+        parent: AstPath,
+        body: Body
     ) extends MemberDecl {
-        override def toString = "[interval %s(%s)]".format(name, optParent)
+        override def toString = "[interval %s(%s)]".format(name, parent)
         
         override def print(out: PrettyPrinter) {
             annotations.foreach(_.println(out))
-            optParent match {
-                case None => out.writeln("interval %s", name)
-                case Some(parent) => out.writeln("interval %s(%s)", name, parent)
-            }
-            printOptBody(out, optBody)
+            out.writeln("interval %s(%s)", name, parent)
+            body.print(out)
         }
     }
     
     case class MethodDecl(
         annotations: List[Annotation],
         name: Name.Method,
-        receiverSym: LVSym,
         params: List[Param[LVSym]],
         returnTref: OTR,
         requirements: List[PathRequirement],
@@ -248,7 +245,7 @@ abstract class Ast {
         annotations: List[Annotation],
         name: MND,
         tref: OTR,
-        optBody: Option[Body]
+        body: Body
     ) extends MemberDecl {
         override def asFieldNamed(fldName: Name.Var) = {
             if(name == fldName) Some(this)
@@ -259,12 +256,8 @@ abstract class Ast {
             annotations.foreach(_.println(out))
             tref.printsp(out)
             name.print(out)
-            optBody match {
-                case None =>
-                case Some(body) => 
-                    out.write(" = ")
-                    body.print(out)
-            }
+            out.write(" = ")
+            body.print(out)
             out.write(";")
         }
     }

@@ -43,7 +43,8 @@ extends Resolve(global, compUnit)
                 superClasses = cdecl.superClasses.map(resolveName),
                 pattern = resolve.outParam,
                 members = cdecl.members.map(classScope.resolveMember(csym.name, _)),
-                sym = ()
+                sym = (),
+                thisSym = ()
             )
         )
 
@@ -270,9 +271,9 @@ extends Resolve(global, compUnit)
         def resolveIntervalDecl(className: Name.Class, decl: in.IntervalDecl) = withPosOf(decl, {
             out.IntervalDecl(
                 annotations = decl.annotations.map(resolveAnnotation),
-                name = Ast.MemberName(Name.Member(className, decl.name.nm)),
-                optParent = decl.optParent.map(resolvePathToPath),
-                optBody = decl.optBody.map(resolveBody)
+                name        = Ast.MemberName(Name.Member(className, decl.name.nm)),
+                parent      = resolvePathToPath(decl.parent),
+                body        = resolveBody(decl.body)
             )
         })
         
@@ -281,7 +282,6 @@ extends Resolve(global, compUnit)
             val mthdScope = resolveParam.scope
             out.MethodDecl(
                 annotations = decl.annotations.map(mthdScope.resolveAnnotation),
-                receiverSym = (),
                 name = decl.name,
                 params = resolveParam.outParams,
                 returnTref = mthdScope.resolveOptionalTypeRef(decl.returnTref),
@@ -303,7 +303,7 @@ extends Resolve(global, compUnit)
                 annotations = decl.annotations.map(resolveAnnotation),
                 name = Ast.MemberName(Name.Member(className, decl.name.nm)),
                 tref = resolveOptionalTypeRef(decl.tref),
-                optBody = decl.optBody.map(resolveBody)
+                body = resolveBody(decl.body)
             )
         })
 

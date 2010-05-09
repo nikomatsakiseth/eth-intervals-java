@@ -10,6 +10,7 @@ class ClassFromErroroneousSource(
     def methodsNamed(name: Name.Method) = Nil
     def fieldNamed(name: Name.Member) = None
     def allMethodSymbols = Nil
+    def allFieldSymbols = Nil
     def varMembers = Nil
 }
 

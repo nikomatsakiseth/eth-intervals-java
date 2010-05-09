@@ -50,6 +50,11 @@ class ClassFromClassFile(
         vFields.find(_.isNamed(name))
     }
     
+    def allFieldSymbols = {
+        load()
+        vFields
+    }
+    
     // ___ Class File Loading _______________________________________________
     
     def load() = synchronized {

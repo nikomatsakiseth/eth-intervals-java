@@ -14,6 +14,7 @@ object ByteCode {
     val noSuffix = ""
     val implSuffix = "$Harmonic$Impl"
     val staticSuffix = "$Harmonic$Static"
+    val harmonicInit = "$Harmonic$init"
 }
 
 /** The final step in compilation: generates appropriate 
@@ -30,6 +31,7 @@ case class ByteCode(global: Global) {
     import ByteCode.noSuffix
     import ByteCode.implSuffix
     import ByteCode.staticSuffix
+    import ByteCode.harmonicInit
     
     // ___ Generating fresh, unique class names _____________________________
     
@@ -1383,6 +1385,46 @@ case class ByteCode(global: Global) {
         boxedArray.createArrayIfNeeded(mvis)
     }
 
+    /** The static constructor simply executes the
+      * class body.  It does not invoke any super
+      * constructors. */
+    def writeStaticConstructorMethodImpl(
+        csym: ClassFromSource,
+        cvis: asm.ClassVisitor
+    ) = {
+        val msym = csym.constructor
+        val mdesc = plainMethodDescFromSig(msym.msig)
+        
+        val mvis = cvis.visitMethod(
+            O.ACC_PUBLIC + O.ACC_STATIC,
+            harmonicInit,
+            mdesc,
+            null, // generic signature
+            null  // thrown exceptions
+        )
+        mvis.visitCode
+        
+        val accessMap = new AccessMap(csym.name)
+        val thisPath = accessMap.addUnboxedSym(csym.loweredSource.thisSym)
+        val paramPaths = asm.Type.getArgumentTypes(mdesc).map(accessMap.pathToFreshSlot)
+        addInstanceFields(accessMap, thisPath, csym)
+        
+        // first, store the classs parameters:
+        csym.classParam.symbols.zipWithIndex.foreach { case (fsym, i) =>
+            thisPath.pushLvalue(mvis)
+            paramPaths(i).pushLvalue(mvis)
+            mvis.setHarmonicField(fsym)
+        }
+        
+        // next, "execute" the members in the body, if appropriate:
+        //csym.members.foreach {
+        //    case in.IntervalDecl(_, _, parent, body) =>
+        //    case in.FieldDecl(_, _, _, body) =>
+        //    case in.RelDecl(_, _, PcHb, _) =>
+        //    case _ =>
+        //}
+    }
+
     /** Generates a static method which contains the actual implementation. */
     def writeStaticMethodImpl(
         csym: ClassFromSource, 
@@ -1402,7 +1444,7 @@ case class ByteCode(global: Global) {
 
             // Construct access map:
             val accessMap = new AccessMap(csym.name)
-            val thisPath = accessMap.addUnboxedSym(decl.receiverSym)
+            val thisPath = accessMap.addUnboxedSym(csym.loweredSource.thisSym)
             val nextMro = accessMap.pathToFreshSlot(asm.Type.INT_TYPE)
             decl.params.flatMap(_.symbols).foreach(accessMap.addUnboxedSym)
             addSymbolsDeclaredIn(accessMap, body.stmts, mvis)

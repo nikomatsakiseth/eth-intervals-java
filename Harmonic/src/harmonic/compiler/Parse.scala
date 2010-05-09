@@ -137,7 +137,7 @@ class Parse extends StdTokenParsers with PackratParsers {
         annotations~"class"~relBase~optClassTupleParam~superClasses~"{"~
             rep(member)~
         "}" ^^ {
-            case a~_~n~p~sups~"{"~mems~"}" => out.ClassDecl(n, a, sups, p, mems, ())
+            case a~_~n~p~sups~"{"~mems~"}" => out.ClassDecl(n, a, sups, p, mems, (), ())
         }
     )
     
@@ -153,7 +153,7 @@ class Parse extends StdTokenParsers with PackratParsers {
             case ann~parts~ret~reqs~optBody => 
                 val name = Name.Method(parts.map(_._1))
                 val params = parts.map(_._2)
-                out.MethodDecl(ann, name, (), params, ret, reqs, optBody)
+                out.MethodDecl(ann, name, params, ret, reqs, optBody)
         }
     )
     
@@ -187,10 +187,9 @@ class Parse extends StdTokenParsers with PackratParsers {
     )
     
     lazy val intervalDecl = positioned(
-        annotations~"interval"~relBase~";" ^^ { 
-            case ann~_~nm~";" => out.IntervalDecl(ann, nm, None, None) }
-    |   annotations~"interval"~relBase~"("~path~")"~optBody ^^ { 
-            case ann~_~nm~"("~qn~")"~optBody => out.IntervalDecl(ann, nm, Some(qn), optBody) }
+        annotations~"interval"~relBase~"("~path~")"~body ^^ { 
+            case a~_~n~"("~p~")"~b => out.IntervalDecl(a, n, p, b) 
+        }
     )
     
     lazy val optBody = (
@@ -198,13 +197,13 @@ class Parse extends StdTokenParsers with PackratParsers {
     |   ";"     ^^^ None
     )
     
-    lazy val optFieldValue = opt(positioned(
+    lazy val fieldValue = positioned(
         "="~>expr ^^ { case e => out.Body(List(e)) }
     |   "="~>body
-    ))
+    )
     
     lazy val fieldDecl = positioned(
-        annotations~relBase~optTypeRef~optFieldValue~";" ^^ {
+        annotations~relBase~optTypeRef~fieldValue~";" ^^ {
             case a~n~t~v~";" => out.FieldDecl(a, n, t, v) 
         }
     )

@@ -66,8 +66,8 @@ case class Lower(global: Global) {
     ): out.IntervalDecl = withPosOf(decl, out.IntervalDecl(
         annotations = decl.annotations.map(InEnv(csym.classEnv).lowerAnnotation),
         name = decl.name,
-        optParent = decl.optParent.map(InEnv(csym.classEnv).lowerPath),
-        optBody = decl.optBody.map(lowerBody(csym.classEnv, _))
+        parent = InEnv(csym.classEnv).lowerPath(decl.parent),
+        body = lowerBody(csym.classEnv, decl.body)
     ))
     
     def addNullStmtToStmts(stmts: List[out.Stmt]) = {
@@ -110,7 +110,6 @@ case class Lower(global: Global) {
         out.MethodDecl(
             annotations  = mdecl.annotations.map(InEnv(env).lowerAnnotation),
             name         = mdecl.name,
-            receiverSym  = env.lookupThis,
             params       = outParams,
             returnTref   = out.TypeRef(returnTy),
             requirements = mdecl.requirements.map(InEnv(env).lowerRequirement),
@@ -126,28 +125,17 @@ case class Lower(global: Global) {
         decl: in.FieldDecl
     ): out.FieldDecl = withPosOf(decl, {
         val env = csym.classEnv
-        val optBody = decl.optBody.map(lowerBody(env, _))
-        val ty = (decl.tref, optBody) match {
-            case (tref: in.ResolveTypeRef, _) => // Explicit type.
-                InEnv(env).toTypeRef(tref)
-                
-            case (in.InferredTypeRef(), Some(out.Body(stmts))) => { // Implicit type.
-                stmts.last.ty
-            }
-            
-            case (in.InferredTypeRef(), None) => {
-                global.reporter.report(
-                    decl.tref.pos, "explicit.type.reqd.if.abstract", decl.name.toString
-                )
-                Type.Object
-            }
+        val body = lowerBody(env, decl.body)
+        val ty = decl.tref match {
+            case tref: in.ResolveTypeRef => InEnv(env).toTypeRef(tref)
+            case in.InferredTypeRef() => body.stmts.last.ty
         }
         out.FieldDecl(
             annotations = decl.annotations.map(InEnv(env).lowerAnnotation),
             name = decl.name,
             tref = out.TypeRef(ty),
-            optBody = optBody
-        )        
+            body = body
+        )
     })
     
     // ___ Parameters _______________________________________________________

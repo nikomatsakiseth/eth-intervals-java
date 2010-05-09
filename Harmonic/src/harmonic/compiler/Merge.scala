@@ -36,7 +36,8 @@ class Merge(global: Global) {
                 superClasses = cdecl.superClasses,
                 pattern      = csym.classParam,
                 members      = csym.lowerMembers.map(_.memberDecl),
-                sym          = csym
+                sym          = csym,
+                thisSym      = csym.classEnv.lookupThis
             )
         )
         
