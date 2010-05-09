@@ -1,7 +1,7 @@
 package test.resolve;
 
 class ResolveLazyLoad2 {
-	a: ResolveLazyLoad1;
-	b: ResolveLazyLoad1;
+	a: ResolveLazyLoad1 = null;
+	b: ResolveLazyLoad1 = null;
 }
 // COMPILE
