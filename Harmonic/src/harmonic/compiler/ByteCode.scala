@@ -225,7 +225,6 @@ case class ByteCode(global: Global) {
                         convert(toAsmTy, asm.Type.INT_TYPE)
                     }
                         
-                        
                     // From float to:
                     case (asm.Type.LONG, asm.Type.FLOAT) =>
                         mvis.visitInsn(O.F2L)

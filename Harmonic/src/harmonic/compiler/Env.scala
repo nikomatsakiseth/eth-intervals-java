@@ -184,7 +184,7 @@ case class Env(
         optExpTy: Option[Type.Ref]
     ): VarSymbol.Field = {
         lookupField(ownerTy, name) match {
-            case Left(_) => VarSymbol.error(name.inDefaultClass(Name.ObjectClass), optExpTy)
+            case Left(_) => VarSymbol.errorField(name.inDefaultClass(Name.ObjectClass), optExpTy)
             case Right(sym) => sym
         }
     }    
@@ -224,7 +224,7 @@ case class Env(
     
     def typedPath(path: Path.Ref): Path.Typed = path match {
         case Path.Base(name: Name.LocalVar) => {
-            val lvsym = locals.get(name).getOrElse(VarSymbol.error(name, None))
+            val lvsym = locals.get(name).getOrElse(VarSymbol.errorLocal(name, None))
             Path.TypedBase(lvsym)
         }
         

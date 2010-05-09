@@ -2,22 +2,40 @@ package harmonic.compiler
 
 object VarSymbol {
     type Any = VarSymbol[Name.Var]
-    type Field = VarSymbol[Name.Member]
-    type Local = VarSymbol[Name.LocalVar]
     
-    def error[N <: Name.Var](name: N, optExpTy: Option[Type.Ref]) = {
+    class Field(
+        val modifiers: Modifier.Set,
+        val name: Name.Member,
+        val ty: Type.Ref,
+        val kind: FieldKind
+    ) extends VarSymbol[Name.Member]
+    
+    def errorField(name: Name.Member, optExpTy: Option[Type.Ref]) = {
         val ty = optExpTy.getOrElse(Type.Null)
-        new VarSymbol(Modifier.Set.empty, name, ty) {
+        new Field(Modifier.Set.empty, name, ty, FieldKind.Harmonic) {
+            override def isError = true
+        }
+    }
+    
+    class Local(
+        val modifiers: Modifier.Set,
+        val name: Name.LocalVar,
+        val ty: Type.Ref
+    ) extends VarSymbol[Name.LocalVar]
+    
+    def errorLocal(name: Name.LocalVar, optExpTy: Option[Type.Ref]) = {
+        val ty = optExpTy.getOrElse(Type.Null)
+        new Local(Modifier.Set.empty, name, ty) {
             override def isError = true
         }
     }
 }
 
-class VarSymbol[+N <: Name.Var](
-    val modifiers: Modifier.Set,
-    val name: N,
+abstract class VarSymbol[+N <: Name.Var] extends Symbol {
+    val modifiers: Modifier.Set
+    val name: N
     val ty: Type.Ref
-) extends Symbol {
+    
     override def toString = "%s(%s, %x)".format(
         getClass.getSimpleName,
         name, 

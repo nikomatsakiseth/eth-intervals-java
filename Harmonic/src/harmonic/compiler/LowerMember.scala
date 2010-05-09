@@ -137,7 +137,8 @@ class LowerMember(
                         val fsym = new VarSymbol.Field(
                             modifiers = Modifier.forResolvedAnnotations(annotations),
                             name      = MemName,
-                            ty        = outTref.ty
+                            ty        = outTref.ty,
+                            kind      = FieldKind.Harmonic
                         )
                         optFieldSymbol = Some(fsym)
                         fsym

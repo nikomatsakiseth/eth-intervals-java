@@ -154,40 +154,43 @@ case class Lower(global: Global) {
     
     // Method parameters always have a specified type.  
     def lowerClassParam(csym: ClassSymbol, classEnv: Env, inParam: in.Param[Unit]) = {
-        def toName(name: Name.LocalVar) = Name.Member(csym.name, name.text)
+        def newSym(modifiers: Modifier.Set, name: Name.LocalVar, ty: Type.Ref) = 
+            new VarSymbol.Field(modifiers, Name.Member(csym.name, name.text), ty, FieldKind.Harmonic)
         def addSym(env: Env, sym: VarSymbol.Field) = env
-        val (List(outParam), env1) = lowerAnyParams(toName, addSym)(classEnv, List((Type.Object, inParam)))
+        val (List(outParam), env1) = lowerAnyParams(newSym, addSym)(classEnv, List((Type.Object, inParam)))
         (outParam, env1)
     }
     
     // Method parameters always have a specified type.  
     def lowerMethodParams(classEnv: Env, inParams: List[in.Param[Unit]]) = {
-        def toName(name: Name.LocalVar) = name
+        def newSym(modifiers: Modifier.Set, name: Name.LocalVar, ty: Type.Ref) = 
+            new VarSymbol.Local(modifiers, name, ty)
         def addSym(env: Env, sym: VarSymbol.Local) = env.plusLocalVar(sym)
-        lowerAnyParams(toName, addSym)(classEnv, inParams.map(p => (Type.Object, p)))
+        lowerAnyParams(newSym, addSym)(classEnv, inParams.map(p => (Type.Object, p)))
     }
     
     // The type of block parameters can be inferred from context.
     def lowerBlockParam(env: Env, expTy: Type.Ref, inParam: in.Param[Unit]) = {
-        def toName(name: Name.LocalVar) = name
+        def newSym(modifiers: Modifier.Set, name: Name.LocalVar, ty: Type.Ref) = 
+            new VarSymbol.Local(modifiers, name, ty)
         def addSym(env: Env, sym: VarSymbol.Local) = env.plusLocalVar(sym)
-        val (List(outParam), env1) = lowerAnyParams(toName, addSym)(env, List((expTy, inParam)))
+        val (List(outParam), env1) = lowerAnyParams(newSym, addSym)(env, List((expTy, inParam)))
         (outParam, env1)
     }
     
-    def lowerAnyParams[N <: Name.Var](
-        toName: (Name.LocalVar => N),
-        addSym: ((Env, VarSymbol[N]) => Env)
+    def lowerAnyParams[S <: VarSymbol.Any](
+        newSym: ((Modifier.Set, Name.LocalVar, Type.Ref) => S),
+        addSym: ((Env, S) => Env)
     )(
         env0: Env, 
         inputs: List[(Type.Ref, in.Param[Unit])]
-    ): (List[out.Param[VarSymbol[N]]], Env) = {
+    ): (List[out.Param[S]], Env) = {
         var env = env0
         
         def lowerParam(
             expTy: Type.Ref, 
             param: in.Param[Unit]
-        ): out.Param[VarSymbol[N]] = withPosOf(param, {
+        ): out.Param[S] = withPosOf(param, {
             (expTy, param) match {
                 // Unpack singleton tuples:
                 case (ty, in.TupleParam(List(p))) => out.TupleParam(List(lowerParam(ty, p)))
@@ -227,7 +230,7 @@ case class Lower(global: Global) {
                         case tref: in.ResolveTypeRef => InEnv(env).toTypeRef(tref)
                     }
                     val modifiers = Modifier.forLoweredAnnotations(outAnnotations)
-                    val sym = new VarSymbol(modifiers, toName(name.name), ty)
+                    val sym = newSym(modifiers, name.name, ty)
                     env = addSym(env, sym)
                     out.VarParam(outAnnotations, out.TypeRef(ty), name, sym)
                 }
@@ -249,7 +252,7 @@ case class Lower(global: Global) {
         
         def toTypedPath(path: in.AstPath): Path.Typed = {
             def errorPath(name: String) = {
-                val sym = VarSymbol.error(Name.LocalVar(name), None)
+                val sym = VarSymbol.errorLocal(Name.LocalVar(name), None)
                 Path.TypedBase(sym)
             }
 
@@ -459,7 +462,7 @@ case class Lower(global: Global) {
                         case Some(fsym) => fsym
                         case None => {
                             Error.NoSuchMember(csym.toType, name).report(global, memberName.pos)
-                            VarSymbol.error(name, None)
+                            VarSymbol.errorField(name, None)
                         }
                     }
                     out.FieldLvalue(memberName, fsym)
@@ -618,11 +621,11 @@ case class Lower(global: Global) {
                         }
                         case Some(fsym) /* !Static */ => {
                             Error.ExpStatic(memberVar).report(global, expr.name.pos)
-                            VarSymbol.error(memberVar, optExpTy)
+                            VarSymbol.errorField(memberVar, optExpTy)
                         }
                         case None => {
                             Error.NoSuchMember(csym.toType, expr.name.name).report(global, expr.name.pos)
-                            VarSymbol.error(memberVar, optExpTy)
+                            VarSymbol.errorField(memberVar, optExpTy)
                         }
                     }
                     out.Field(owner, Ast.MemberName(fsym.name), fsym, fsym.ty)
@@ -641,7 +644,7 @@ case class Lower(global: Global) {
                         case Left(err) => {
                             err.report(global, expr.name.pos)
                             val memberVar = expr.name.name.inDefaultClass(Name.ObjectClass)
-                            VarSymbol.error(memberVar, optExpTy)
+                            VarSymbol.errorField(memberVar, optExpTy)
                         }
                     }
                     val subst = Subst(Path.This -> sym.name.toPath)

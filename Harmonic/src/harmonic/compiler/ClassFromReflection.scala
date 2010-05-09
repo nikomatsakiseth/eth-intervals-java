@@ -102,7 +102,8 @@ class ClassFromReflection(
         new VarSymbol.Field(
             modifiers = Modifier.forMember(fld),
             name      = Name.Member(name, fld.getName),
-            ty        = typeRef(fld.getGenericType)
+            ty        = typeRef(fld.getGenericType),
+            kind      = FieldKind.Java
         )        
     }
     
