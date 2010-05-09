@@ -1,0 +1,25 @@
+package test.bytecode;
+
+class BytecodeFields extends Application {
+    
+    value: Integer;
+    
+    @Override main(): Void {
+        value = 22;
+        
+        System.out.println(value);
+        System.out.println(this.value);
+        
+        value = value + 1;
+        
+        System.out.println(value);
+        System.out.println(this.value);
+    }
+    
+}
+// COMPILE
+// EXECUTE
+// 22
+// 22
+// 23
+// 23

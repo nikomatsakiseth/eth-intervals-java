@@ -1,0 +1,14 @@
+package test.bytecode;
+
+class BytecodeInitFields extends Application {
+    
+    value: Integer = 22;
+    
+    @Override main(): Void {
+        System.out.println(value);
+    }
+    
+}
+// COMPILE
+// EXECUTE
+// 22

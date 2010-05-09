@@ -80,4 +80,7 @@ abstract class ClassSymbol(
     /** Symbols for all methods defined on this class but not superclasses. */
     def allMethodSymbols: List[MethodSymbol]
     
+    /** Symbols for all methods defined on this class but not superclasses. */
+    def allFieldSymbols: List[VarSymbol.Field]
+    
 }

@@ -363,13 +363,14 @@ class Parse extends StdTokenParsers with PackratParsers {
         rcvr~"."~rep1(callPart)             ^^ { case r~"."~cps => outMethodCall(r, cps) }
     |   impThis~rep1(callPart)              ^^ { case r~cps => outMethodCall(r, cps) }
     |   pathAsExpr                          ^^ { case p => out.PathExpr(p) }
-    |   expr0~"."~varName                   ^^ { case r~"."~f => out.Field(r, f, (), ()) }
+    |   expr0~"."~memberName                ^^ { case r~"."~f => out.Field(r, f, (), ()) }
     |   arg
     |   numericLit                          ^^ { l => out.Literal(Integer.valueOf(l), ()) }
     |   stringLit                           ^^ { l => out.Literal(l, ()) }
-    |   "true"                              ^^ { l => out.Literal(java.lang.Boolean.TRUE, ()) }
-    |   "false"                             ^^ { l => out.Literal(java.lang.Boolean.FALSE, ()) }
-    |   "null"                              ^^ { case _ => out.Null() }
+    |   "this"                              ^^ { _ => out.Var(Ast.LocalName(Name.ThisLocal), ()) }
+    |   "true"                              ^^ { _ => out.Literal(java.lang.Boolean.TRUE, ()) }
+    |   "false"                             ^^ { _ => out.Literal(java.lang.Boolean.FALSE, ()) }
+    |   "null"                              ^^ { _ => out.Null() }
     |   newExpr
     )
     

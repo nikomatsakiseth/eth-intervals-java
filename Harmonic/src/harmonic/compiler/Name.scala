@@ -6,6 +6,7 @@ object Name {
     
     sealed abstract class Qual {
         def toInternalPrefix: String
+        def toTag: String
         def toPrefix: String
         def asClassName: Option[Class]
     }
@@ -16,6 +17,7 @@ object Name {
     
     case object Root extends Package {
         def toInternalPrefix = ""
+        def toTag = "$Harmonic$"
         def toPrefix = ""
         override def toString = "<root>"
     }
@@ -25,6 +27,7 @@ object Name {
         name: String
     ) extends Package {
         def toInternalPrefix = base.toInternalPrefix + name + "/"
+        def toTag = base.toTag + name + "$"
         def toPrefix = toString + "."
         override def toString = base.toPrefix + name
     }
@@ -33,13 +36,27 @@ object Name {
         base: Qual,
         name: String
     ) extends Qual {
-        def relPath: String = internalName
-        def internalName = base.toInternalPrefix + name
         def toInternalPrefix = internalName + "$"
+        
+        /** Tag used in generated fields etc: `String` == `$Harmonic$java$lang$String$` */
+        def toTag = base.toTag + name + "$"
+        
         def toPrefix = toString + "."
-        override def toString = base.toPrefix + name
-        def withSuffix(suffix: String) = Class(base, name + suffix)
+        
         def asClassName = Some(this)
+        
+        /** Relative path leading to the `.class` file for this class, but without 
+          * any extension. `String` == `java/lang/String` */
+        def relPath: String = internalName
+        
+        /** So-called "Internal name" used in JVM: `String` == `java/lang/String` */
+        def internalName = base.toInternalPrefix + name
+        
+        /** User-visible, absolute name. `String` == `java.lang.String` */
+        override def toString = base.toPrefix + name
+        
+        /** Creates a new class name in same package but with the given suffix. */
+        def withSuffix(suffix: String) = Class(base, name + suffix)
     }
     
     object Package {
@@ -92,8 +109,6 @@ object Name {
     
     /** Names of variables */
     sealed abstract class Var {
-        def javaName: String
-        
         // The shorthand form the user would use to refer
         // to this variable.  For example, a field "foo"
         // in a class "Bar" would return "foo".
@@ -109,8 +124,6 @@ object Name {
     ) extends Var with UnloweredMember {
         override def toString = "(%s.%s)".format(className, text)
         
-        def javaName = text
-        
         def matches(unlowerName: UnloweredMember) = unlowerName match {
             case u: ClasslessMember => (text == u.text)
             case u: Member => (this == u)
@@ -123,7 +136,6 @@ object Name {
     final case class LocalVar(
         text: String
     ) extends Var {
-        def javaName = text
         override def toString = text
     }
     

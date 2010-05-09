@@ -23,11 +23,11 @@ class ClassFromReflection(
     lazy val allMethodSymbols = {
         cls.getDeclaredMethods.map(methodSymbol).toList
     }
-        
-    lazy val fields = {
-        cls.getDeclaredFields.map(fieldSymbol).toList
-    }        
     
+    lazy val allFieldSymbols = {
+        cls.getDeclaredFields.map(fieldSymbol).toList
+    }
+        
     lazy val superClassNames = {
         val allNames = (cls.getSuperclass :: cls.getInterfaces.toList).filter(_ != null).map(Name.Class)
         allNames.foreach(global.requireLoadedOrLoadable(pos, _))
@@ -39,7 +39,7 @@ class ClassFromReflection(
     }
     
     def fieldNamed(name: Name.Member) = {
-        fields.find(_.isNamed(name))        
+        allFieldSymbols.find(_.isNamed(name))        
     }
     
     private[this] def fieldSymTabEntry(fld: reflect.Field) = {
@@ -103,7 +103,7 @@ class ClassFromReflection(
             modifiers = Modifier.forMember(fld),
             name      = Name.Member(name, fld.getName),
             ty        = typeRef(fld.getGenericType),
-            kind      = FieldKind.Java
+            kind      = FieldKind.Java(cls, fld.getName, fld.getType)
         )        
     }
     
