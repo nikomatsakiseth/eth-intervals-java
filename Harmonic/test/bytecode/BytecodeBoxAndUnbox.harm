@@ -1,0 +1,15 @@
+package test.bytecode;
+
+class BytecodeBoxAndUnbox extends Application {
+    
+    @Override main(): Void {
+        System.out.println("Hello, World!".substring(7));
+        System.out.println("Hello, World!".indexOf(","));
+    }
+    
+}
+// COMPILE
+// --dump-lowered-trees
+// EXECUTE
+// World!
+// 5
