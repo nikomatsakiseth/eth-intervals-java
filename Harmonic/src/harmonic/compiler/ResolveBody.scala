@@ -348,7 +348,6 @@ extends Resolve(global, compUnit)
                     (), ()
                 )
             }
-            debugIndent("resolvePathToAny(%s)", path) {
             path match {
                 case in.PathBase(in.RelBase(text), ()) => {
                     symTab.get(text) match {
@@ -415,7 +414,6 @@ extends Resolve(global, compUnit)
                     val outBase = resolvePathToPath(base)
                     ResolvedToPath(out.PathDot(outBase, resolveMemberName(memberName), (), ()))
                 }
-            }
             }
         })
         

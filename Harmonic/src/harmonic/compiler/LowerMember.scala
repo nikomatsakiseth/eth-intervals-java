@@ -125,7 +125,7 @@ class LowerMember(
     
     private[this] var optFieldSymbol: Option[VarSymbol.Field] = None
 
-    def toOptFieldSymbol(MemName: Name.Member): Option[VarSymbol.Field] = debugIndent("toOptFieldSymbol(%s)", MemName) {
+    def toOptFieldSymbol(MemName: Name.Member): Option[VarSymbol.Field] = {
         
         def createSymbolOnce(func: => (List[in.Annotation], out.TypeRef)) = {
             synchronized {
@@ -152,12 +152,9 @@ class LowerMember(
             }            
         }
         
-        debug("inMemberDecl = %s", inMemberDecl)
-        
         inMemberDecl match {
             case inDecl @ in.FieldDecl(_, Ast.MemberName(MemName), inTref: in.ResolveTypeRef, _) => {
                 // Fully explicit.  Construct the symbol.
-                debug("Explicit field type: %s", inTref)
                 Some(createSymbolOnce {
                     val outTref = Lower(global).InEnv(csym.classEnv).lowerTypeRef(inTref)
                     (inDecl.annotations, outTref)
@@ -166,7 +163,6 @@ class LowerMember(
             
             case inDecl @ in.FieldDecl(_, Ast.MemberName(MemName), inTref: in.InferredTypeRef, None) => {
                 // Cannot infer the type of an abstract field.
-                debug("Inferred type ref, no definition: %s", inTref)
                 global.reporter.report(inTref.pos, 
                     "explicit.type.required.if.abstract", 
                     MemName.toString
@@ -176,7 +172,6 @@ class LowerMember(
             
             case inDecl @ in.FieldDecl(_, Ast.MemberName(MemName), in.InferredTypeRef(), Some(_)) => {
                 // Wait for lowering to finish, then construct symbol.  This might fail.
-                debug("Inferred type ref, with definition")
                 try {
                     inter.join()
                     Some(createSymbolOnce {

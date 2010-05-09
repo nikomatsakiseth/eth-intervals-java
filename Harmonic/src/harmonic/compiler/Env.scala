@@ -96,33 +96,29 @@ case class Env(
     // ___ Finding member names _____________________________________________
     
     def lookupEntry(csym: ClassSymbol, uName: Name.UnloweredMember): CanFail[SymTab.MemberEntry] = {
-        debugIndent("lookupEntry(%s, %s)", csym, uName) {
-            val mro = MethodResolutionOrder(global).forSym(csym)
+        val mro = MethodResolutionOrder(global).forSym(csym)
 
-            // Find all entries that could match `uName`:
-            val allEntries = mro.flatMap { mrosym => 
-                mrosym.varMembers.flatMap(_.asMemberEntryMatching(uName)) 
-            }
-            debug("allEntries = %s", allEntries)
-
-            // Try to find if there is one that shadows all others:
-            allEntries match {
-                case List() => Left(Error.NoSuchMember(csym.toType, uName))
-                case List(entry) => Right(entry)
-                case entry :: otherEntries => {
-                    debug("entry = %s", entry)
-                    val csym = global.csym(entry.name.className)
-                    val remEntries = otherEntries.filterNot { entry =>
-                        global.csym(entry.name.className).isSubclass(csym)
-                    }
-                    if(remEntries.isEmpty) {
-                        Right(entry)
-                    } else {
-                        Left(Error.AmbiguousMember(entry :: remEntries))                    
-                    }
-                }
-            }            
+        // Find all entries that could match `uName`:
+        val allEntries = mro.flatMap { mrosym => 
+            mrosym.varMembers.flatMap(_.asMemberEntryMatching(uName)) 
         }
+
+        // Try to find if there is one that shadows all others:
+        allEntries match {
+            case List() => Left(Error.NoSuchMember(csym.toType, uName))
+            case List(entry) => Right(entry)
+            case entry :: otherEntries => {
+                val csym = global.csym(entry.name.className)
+                val remEntries = otherEntries.filterNot { entry =>
+                    global.csym(entry.name.className).isSubclass(csym)
+                }
+                if(remEntries.isEmpty) {
+                    Right(entry)
+                } else {
+                    Left(Error.AmbiguousMember(entry :: remEntries))                    
+                }
+            }
+        }            
     }
     
     // ___ Looking up fields and methods ____________________________________
@@ -171,11 +167,8 @@ case class Env(
         uName: Name.UnloweredMember
     ): CanFail[VarSymbol.Field] = {
         def findSym(memberVar: Name.Member) = {
-            debugIndent("findSym(%s)", memberVar) {
-                val memberCsym = global.csym(memberVar.className)
-                debug("memberCsym = %s", memberCsym)
-                memberCsym.fieldNamed(memberVar).orErr(Error.NoSuchMember(ownerTy, uName))                
-            }
+            val memberCsym = global.csym(memberVar.className)
+            memberCsym.fieldNamed(memberVar).orErr(Error.NoSuchMember(ownerTy, uName))                
         }
         
         lookupMember(ownerTy, uName) {
