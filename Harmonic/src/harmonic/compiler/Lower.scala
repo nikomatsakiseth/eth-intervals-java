@@ -70,6 +70,18 @@ case class Lower(global: Global) {
         optBody = decl.optBody.map(lowerBody(csym.classEnv, _))
     ))
     
+    def addNullStmtToStmts(stmts: List[out.Stmt]) = {
+        if(stmts.last.ty != Type.Void) {
+            stmts :+ withPosOf(stmts.last, out.Null(Type.Void))
+        } else {
+            stmts
+        }
+    }
+    
+    def addNullStmtToBody(body: out.Body) = withPosOf(body, {
+        out.Body(addNullStmtToStmts(body.stmts))
+    })
+    
     def lowerMethodDecl(
         csym: ClassFromSource, 
         mdecl: in.MethodDecl
@@ -86,11 +98,12 @@ case class Lower(global: Global) {
             }
 
             case (in.InferredTypeRef(), Some(out.Body(stmts))) => {
-                stmts.last.ty // TODO Have to eliminate type vars and things that go out of scope
+                // TODO Have to eliminate type vars and things that go out of scope
+                stmts.last.ty
             }
 
             case (tref: in.ResolveTypeRef, _) => {
-                InEnv(env).toTypeRef(tref)
+                InEnv(env).toTypeRef(tref) 
             }
         }
 
@@ -101,7 +114,10 @@ case class Lower(global: Global) {
             params       = outParams,
             returnTref   = out.TypeRef(returnTy),
             requirements = mdecl.requirements.map(InEnv(env).lowerRequirement),
-            optBody      = optBody
+            optBody      = {
+                if(returnTy == Type.Void) optBody.map(addNullStmtToBody)
+                else optBody                
+            }
         )
     }
     
@@ -835,21 +851,16 @@ case class Lower(global: Global) {
                 
         def lowerBlock(optExpTy: Option[Type.Ref])(tmpl: in.Block) = withPosOf(tmpl, {
             val expArgumentTy = optTypeArg(Name.BlockA, optExpTy).getOrElse(Type.Void)
-            
             val (outParam, subenv) = lowerBlockParam(env, expArgumentTy, tmpl.param)
-            val outStmts = lowerStmts(subenv, tmpl.stmts)
+            val outStmts0 = lowerStmts(subenv, tmpl.stmts)
             
-            // This commented code extracts the expected return type from `optExpTy`: we decided
-            // instead to extract the expected return type from `outStmts`.  As a side
-            // comment, note that the `this` pointer inside an interval template does
-            // not change, unlike an inner or anonymous class.
-            //
-            // val expReturnTy = optTypeArg(Name.BlockR, optExpTy).getOrElse(Type.Void)
-            // val (outReturnTypeRef, returnTy) = tmpl.returnTref match {
-            //     case tref: in.TypeRef => (lowerTypeRef(tref), symbolType(tref))
-            //     case in.InferredTypeRef() => (astType(env)(tmpl.returnTref, expReturnTy), expReturnTy)
-            // }
-            
+            // Add a "null" statement to the end if the expected return type is Void.
+            val outStmts = optTypeArg(Name.BlockR, optExpTy) match {
+                case Some(Type.Void) => addNullStmtToStmts(outStmts0)
+                case _ => outStmts0
+            }
+
+            // Infer return type based on the last statement in `outStmts`
             val returnTy = tmpl.returnTref match {
                 case in.InferredTypeRef() => outStmts.last.ty
                 case tref: in.ResolveTypeRef => toTypeRef(tref)

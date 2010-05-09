@@ -1,13 +1,12 @@
 package test.bytecode;
 
-class BytecodeHelloWorld extends Application {
+class BytecodeNullInsert extends Application {
 
     @Override main(): Void {
         System.out.println("Hello, World!");
+        22
     }
     
 }
-// COMPILE
-// --dump-lowered-trees
 // EXECUTE
 // Hello, World!
