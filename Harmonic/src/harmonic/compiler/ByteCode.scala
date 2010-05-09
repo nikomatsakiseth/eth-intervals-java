@@ -116,12 +116,20 @@ case class ByteCode(global: Global) {
         )
     }
     
-    def staticMethodDescFromSym(msym: MethodSymbol): String = {
+    def staticPlainMethodDescFromSym(msym: MethodSymbol): String = {
+        val ret = msym.msig.returnTy.toAsmType
+        val rcvr = asm.Type.getObjectType(msym.clsName.internalName)
+        val params = msym.msig.parameterPatterns.flatMap(_.varTys).map(_.toAsmType)
+        getMethodDescriptor(ret, (rcvr :: params).toArray)
+    }
+    
+    def staticMroMethodDescFromSym(msym: MethodSymbol): String = {
         val ret = msym.msig.returnTy.toAsmType
         val rcvr = asm.Type.getObjectType(msym.clsName.internalName)
         val params = msym.msig.parameterPatterns.flatMap(_.varTys).map(_.toAsmType)
         getMethodDescriptor(ret, (rcvr :: asm.Type.INT_TYPE :: params).toArray)
     }
+
     
     sealed case class ExtendedMethodVisitor(mvis: asm.MethodVisitor) {
         def complete {
@@ -1023,19 +1031,23 @@ case class ByteCode(global: Global) {
             }
         }
         
-        def returnResultOfStatements(stmts: List[in.Stmt]) {
+        def pushResultOfStatements(stmts: List[in.Stmt]) {
             stmts match {
                 case List() => 
                     throw new RuntimeException("No empty lists")
                 case List(stmt) => {
                     pushStatement(stmt)
-                    mvis.visitInsn(O.ARETURN)                
                 }
                 case hd :: tl => {
                     execStatement(hd)
-                    returnResultOfStatements(tl)
+                    pushResultOfStatements(tl)
                 }                
             }
+        }
+        
+        def returnResultOfStatements(stmts: List[in.Stmt]) {
+            pushResultOfStatements(stmts)
+            mvis.visitInsn(O.ARETURN)                
         }
         
         /** Returns an access map for a method-local class with
@@ -1393,7 +1405,7 @@ case class ByteCode(global: Global) {
         cvis: asm.ClassVisitor
     ) = {
         val msym = csym.constructor
-        val mdesc = plainMethodDescFromSig(msym.msig)
+        val mdesc = staticPlainMethodDescFromSym(msym)
         
         val mvis = cvis.visitMethod(
             O.ACC_PUBLIC + O.ACC_STATIC,
@@ -1411,18 +1423,42 @@ case class ByteCode(global: Global) {
         
         // first, store the classs parameters:
         csym.classParam.symbols.zipWithIndex.foreach { case (fsym, i) =>
-            thisPath.pushLvalue(mvis)
+            debug("classParam: %s", fsym)
+            thisPath.push(mvis)
             paramPaths(i).pushLvalue(mvis)
             mvis.setHarmonicField(fsym)
         }
         
         // next, "execute" the members in the body, if appropriate:
-        //csym.members.foreach {
-        //    case in.IntervalDecl(_, _, parent, body) =>
-        //    case in.FieldDecl(_, _, _, body) =>
-        //    case in.RelDecl(_, _, PcHb, _) =>
-        //    case _ =>
-        //}
+        val stmtVisitor = new StatementVisitor(accessMap, IntConstant(0), mvis)
+        csym.lowerMembers.foreach { lowerMember =>
+            lowerMember.memberDecl match {
+                case in.IntervalDecl(_, Ast.MemberName(name), parent, body) => {
+                    val fsym = lowerMember.toOptFieldSymbol(name).get
+                    thisPath.push(mvis)
+                    throw new RuntimeException("TODO: Intervals")
+                    mvis.setHarmonicField(fsym)
+                }
+
+                case in.FieldDecl(_, Ast.MemberName(name), _, body) => {
+                    val fsym = lowerMember.toOptFieldSymbol(name).get
+                    debug("fieldDecl: %s, thisPath: %s", fsym, thisPath)
+                    thisPath.push(mvis)
+                    stmtVisitor.pushResultOfStatements(body.stmts) 
+                    mvis.setHarmonicField(fsym)
+                }
+
+                case in.RelDecl(_, _, PcHb, _) => {
+                    throw new RuntimeException("TODO: Happens-Before Relations")
+                }
+
+                case _ => // Other kinds of decl's have no associated actions
+            }
+        }
+        
+        mvis.visitInsn(O.ACONST_NULL)
+        mvis.visitInsn(O.ARETURN)
+        mvis.complete
     }
 
     /** Generates a static method which contains the actual implementation. */
@@ -1436,7 +1472,7 @@ case class ByteCode(global: Global) {
             val mvis = cvis.visitMethod(
                 O.ACC_PUBLIC + O.ACC_STATIC,
                 decl.name.javaName,
-                staticMethodDescFromSym(msym),
+                staticMroMethodDescFromSym(msym),
                 null, // generic signature
                 null  // thrown exceptions
             )
@@ -1627,7 +1663,7 @@ case class ByteCode(global: Global) {
                     O.INVOKESTATIC,
                     verMsym.clsName.internalName + staticSuffix,
                     verMsym.name.javaName,
-                    staticMethodDescFromSym(verMsym)
+                    staticMroMethodDescFromSym(verMsym)
                 ) // invoke appropriate static implementation
                 mvis.visitInsn(O.ARETURN)                
             }
@@ -1773,6 +1809,8 @@ case class ByteCode(global: Global) {
         csym.loweredMethods.foreach { case (msym, mdecl) =>
             writeStaticMethodImpl(csym, cvis, msym, mdecl)
         }
+        
+        writeStaticConstructorMethodImpl(csym, cvis)
         
         wr.end()
     }
