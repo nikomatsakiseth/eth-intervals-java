@@ -115,7 +115,12 @@ class Parse extends StdTokenParsers with PackratParsers {
     |   "import"~>relName<~"."<~"*"<~";"        ^^ out.ImportAll
     )
     
-    lazy val superClasses = opt("extends"~>comma1(relName)) ^^ {
+    lazy val extendsDecl = positioned(
+        relName~"("~comma(path)~")"             ^^ { case n~"("~es~")" => out.ExtendsDecl(n, es) }
+    |   relName                                 ^^ { case n => out.ExtendsDecl(n, List()) }
+    )
+    
+    lazy val superClasses = opt("extends"~>comma1(extendsDecl)) ^^ {
         case Some(names) => names
         case None => List()
     }

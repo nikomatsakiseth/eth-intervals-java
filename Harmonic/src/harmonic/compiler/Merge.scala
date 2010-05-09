@@ -33,7 +33,7 @@ class Merge(global: Global) {
             out.ClassDecl(
                 name         = cdecl.name,
                 annotations  = cdecl.annotations.map(Lower(global).InEnv(emptyEnv).lowerAnnotation),
-                superClasses = cdecl.superClasses,
+                extendsDecls = cdecl.extendsDecls.map(Lower(global).InEnv(csym.classEnv).lowerExtendsDecl),
                 pattern      = csym.classParam,
                 members      = csym.lowerMembers.map(_.memberDecl),
                 sym          = csym,

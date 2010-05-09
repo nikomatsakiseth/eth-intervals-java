@@ -27,7 +27,7 @@ extends Resolve(global, compUnit)
         // Resolve the names of all superclasses and add an edge
         // so that resolving our header does not complete until
         // their headers have been resolved.  
-        csym.superClassNames = cdecl.superClasses.flatMap { relName =>
+        csym.superClassNames = cdecl.extendsDecls.flatMap { case in.ExtendsDecl(relName, _) =>
             val superName = resolveName(relName).name
             val superCsym = global.csym(superName) 
             

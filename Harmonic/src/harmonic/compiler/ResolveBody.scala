@@ -40,7 +40,7 @@ extends Resolve(global, compUnit)
             out.ClassDecl(
                 name = Ast.ClassName(csym.name),
                 annotations = cdecl.annotations.map(classScope.resolveAnnotation),
-                superClasses = cdecl.superClasses.map(resolveName),
+                extendsDecls = cdecl.extendsDecls.map(classScope.resolveExtendsDecl),
                 pattern = resolve.outParam,
                 members = cdecl.members.map(classScope.resolveMember(csym.name, _)),
                 sym = (),
@@ -254,6 +254,13 @@ extends Resolve(global, compUnit)
         }
         
         // ___ Declarations _____________________________________________________
+
+        def resolveExtendsDecl(extendsDecl: in.ExtendsDecl) = withPosOf(extendsDecl, {
+            out.ExtendsDecl(
+                className = resolveName(extendsDecl.className),
+                paths     = extendsDecl.paths.map(resolvePathToPath)
+            )
+        })
 
         def resolveAnnotation(ann: in.Annotation) = withPosOf(ann, 
             out.Annotation(resolveName(ann.name))

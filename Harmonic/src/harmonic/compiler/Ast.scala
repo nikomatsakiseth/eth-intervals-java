@@ -158,7 +158,7 @@ abstract class Ast {
     case class ClassDecl(
         name: CND,
         annotations: List[Annotation],
-        superClasses: List[CN],
+        extendsDecls: List[ExtendsDecl],
         pattern: Param[FSym],
         members: List[MemberDecl],
         sym: CSym,
@@ -172,13 +172,25 @@ abstract class Ast {
             annotations.foreach(_.println(out))
             out.write("class %s", name)
             pattern.println(out)
-            if(!superClasses.isEmpty) {
+            if(!extendsDecls.isEmpty) {
                 out.write("extends ")
-                printSep(out, superClasses, ", ")
+                printSep(out, extendsDecls, ", ")
             }
             out.indented("{", "}") {
                 members.foreach(_.println(out))
             }
+        }
+    }
+    
+    case class ExtendsDecl(
+        className: CN,
+        paths: List[AstPath]
+    ) extends Node {
+        override def print(out: PrettyPrinter) {
+            className.print(out)
+            out.write("(")
+            printSep(out, paths, ", ")
+            out.write(")")
         }
     }
     

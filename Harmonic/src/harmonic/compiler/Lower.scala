@@ -380,6 +380,13 @@ case class Lower(global: Global) {
         def lowerAnnotation(ann: in.Annotation) = withPosOf(ann,
             out.Annotation(name = ann.name)
         )
+        
+        def lowerExtendsDecl(extendsDecl: in.ExtendsDecl) = withPosOf(extendsDecl,
+            out.ExtendsDecl(
+                className = extendsDecl.className,
+                paths     = extendsDecl.paths.map(lowerPath)
+            )
+        )
     }
     
     // ___ Lowering Statements ______________________________________________
