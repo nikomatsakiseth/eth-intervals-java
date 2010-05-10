@@ -8,6 +8,7 @@ import scala.collection.immutable.Set
 import asm.{Opcodes => O}
 
 import Ast.{Lower => in}
+import Ast.Lower.Extensions._
 import Util._
 
 object ByteCode {
@@ -675,7 +676,7 @@ case class ByteCode(global: Global) {
                 }
                 
                 case _ => {
-                    pushRvalues(in.toPatternAnon(lvalue), rvalue, Nil)
+                    pushRvalues(lvalue.toPatternAnon, rvalue, Nil)
                     popRvalues(lvalue, rvalue)
                 }
             }
@@ -911,7 +912,7 @@ case class ByteCode(global: Global) {
                         }
                         
                         case _ => {
-                            throw new RuntimeException("Static call to non-static method: " + msym)
+                            throw new RuntimeException("Static call to method of unexp. kind: %s".format(msym.kind))
                         }
                     }                    
                 }
@@ -964,8 +965,9 @@ case class ByteCode(global: Global) {
                             mvis.convert(msig.returnTy.toAsmType, resultAsmTy)
                         }
                         
-                        case MethodKind.ErrorMethod => {
-                            throw new RuntimeException("Call to error method")
+                        case MethodKind.JavaDummyCtor 
+                        |   MethodKind.ErrorMethod => {
+                            throw new RuntimeException("Call to method of unexp. kind: %s".format(msym.kind))
                         }
                     }
                 }
@@ -1163,7 +1165,7 @@ case class ByteCode(global: Global) {
             val methodSig = MethodSignature(
                 tmpl.returnTref.ty,
                 blockTy,
-                List(in.toPatternRef(tmpl.param))
+                List(tmpl.param.toPatternRef)
             )
 
             // 

@@ -182,18 +182,6 @@ abstract class Ast {
         }
     }
     
-    case class ExtendsDecl(
-        className: CN,
-        paths: List[AstPath]
-    ) extends Node {
-        override def print(out: PrettyPrinter) {
-            className.print(out)
-            out.write("(")
-            printSep(out, paths, ", ")
-            out.write(")")
-        }
-    }
-    
     private def printOptBody(out: PrettyPrinter, optBody: Option[Body]) = optBody match {
         case Some(b) => b.print(out)
         case None => out.write(";")
@@ -302,6 +290,34 @@ abstract class Ast {
         }
     }
     
+    // ___ Extends Declarations _____________________________________________
+    //
+    // Class constructor arguments have limited form due to the need to be
+    // able to re-order them and perform static analysis.  This may change.
+    
+    case class ExtendsDecl(
+        className: CN,
+        arg: ExtendsArg,
+        data: MCallData
+    ) extends Node {
+        override def print(out: PrettyPrinter) {
+            className.print(out)
+            arg.print(out)
+        }
+    }
+    
+    sealed abstract class ExtendsArg extends Node {
+        def ty: Ty
+    }
+    case class TupleExtendsArg(args: List[ExtendsArg]) extends ExtendsArg {
+        override def toString = "(%s)".format(args.mkString(", "))
+        def ty: TyTuple = tupleTy(args.map(_.ty))
+    }
+    case class PathExtendsArg(path: AstPath) extends ExtendsArg {
+        override def toString = path.toString
+        def ty = path.ty
+    }
+        
     // ___ Params and Lvalues _______________________________________________
     //
     // In general patterns are used for "assignable" things.  There are several
@@ -927,16 +943,26 @@ object Ast {
         def mthdSym(data: MCallData) = data._1
         def returnTy(data: MCallData) = data._2.returnTy
         
-        def toPatternRef(pat: Param[VSym]): Pattern.Ref = pat match {
-            case TupleParam(params) => Pattern.Tuple(params.map(toPatternRef))
-            case VarParam(_, _, Ast.LocalName(name), sym) => Pattern.Var(name, sym.ty)
+        object Extensions {
+            case class ExtendedParam(pat: Param[VSym]) {
+                def toPatternRef: Pattern.Ref = pat match {
+                    case TupleParam(params) => Pattern.Tuple(params.map(_.toPatternRef))
+                    case VarParam(_, _, Ast.LocalName(name), sym) => Pattern.Var(name, sym.ty)
+                }
+            }
+            implicit def extendedParam(pat: Param[VSym]): ExtendedParam = 
+                ExtendedParam(pat)
+            
+            case class ExtendedPatternAnon(pat: AstPattern[VSym]) {
+                def toPatternAnon: Pattern.Anon = pat match {
+                    case pat: TupleAstPattern[VSym] => Pattern.SubstdTuple(pat.subpatterns.map(_.toPatternAnon))
+                    case pat: VarAstPattern[VSym] => Pattern.SubstdVar(pat.sym.ty)
+                }
+            }
+            implicit def extendedPatternAnon(pat: AstPattern[VSym]): ExtendedPatternAnon = 
+                ExtendedPatternAnon(pat)
         }
-        
-        def toPatternAnon(pat: AstPattern[VSym]): Pattern.Anon = pat match {
-            case pat: TupleAstPattern[VSym] => Pattern.SubstdTuple(pat.subpatterns.map(toPatternAnon))
-            case pat: VarAstPattern[VSym] => Pattern.SubstdVar(pat.sym.ty)
-        }
-        
+
     }
 
 }

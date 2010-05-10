@@ -6,6 +6,7 @@ import scala.util.parsing.input.Position
 
 import Ast.{Resolve => in}
 import Ast.{Lower => out}
+import Ast.Lower.Extensions._
 import Util._
 
 /** Lowers the IR to what is expected by the type check.  This has two
@@ -35,7 +36,7 @@ case class Lower(global: Global) {
             MethodSignature(
                 returnTy = Type.Void,
                 receiverTy = csym.toType,
-                parameterPatterns = List(out.toPatternRef(csym.classParam))
+                parameterPatterns = List(csym.classParam.toPatternRef)
             )
         )
     }
@@ -381,12 +382,137 @@ case class Lower(global: Global) {
             out.Annotation(name = ann.name)
         )
         
-        def lowerExtendsDecl(extendsDecl: in.ExtendsDecl) = withPosOf(extendsDecl,
+        def dummySubst(subst: Subst)(pat: Pattern.Ref, text: String): Subst = pat match {
+            case Pattern.Var(name, _) =>
+                subst + (name.toPath -> Name.LocalVar(text).toPath)
+                
+            case Pattern.Tuple(patterns) =>
+                patterns.zipWithIndex.foldLeft(subst) { case (s, (p, i)) =>
+                    dummySubst(s)(p, "%s[%d]".format(text, i))
+                }
+        }
+        
+        def addPatExtendsArgSubst(subst: Subst, pair: (Pattern.Ref, out.ExtendsArg)): Subst = {
+            pair match {
+                case (Pattern.Tuple(List(pat)), arg) => 
+                    addPatExtendsArgSubst(subst, (pat, arg))
+                    
+                case (pat, out.TupleExtendsArg(List(arg))) =>
+                    addPatExtendsArgSubst(subst, (pat, arg))
+                    
+                case (Pattern.Tuple(pats), out.TupleExtendsArg(args)) if sameLength(pats, args) =>
+                    pats.zip(args).foldLeft(subst)(addPatExtendsArgSubst)
+            
+                case (Pattern.Var(name, _), out.PathExtendsArg(out.TypedPath(path))) =>
+                    subst + (name.toPath -> path.toPath)
+                
+                case (pat, arg) => 
+                    dummySubst(subst)(pat, tmpVarName(arg))
+            }
+        }
+        
+        def lowerExtendsArg(arg: in.ExtendsArg): out.ExtendsArg = withPosOf(arg, {
+            arg match {
+                case in.PathExtendsArg(path) => out.PathExtendsArg(lowerPath(path))
+                case in.TupleExtendsArg(args) => out.TupleExtendsArg(args.map(lowerExtendsArg))
+            }
+        })
+        
+        def lowerExtendsDecl(extendsDecl: in.ExtendsDecl) = withPosOf(extendsDecl, {
+            // Lower the argument paths 
+            val arg = lowerExtendsArg(extendsDecl.arg)
+            
+            // Create a subst. by converting lowered paths to exprs
+            val thisSym = env.lookupThis
+            def createSubst(msym: MethodSymbol) = {
+                val pats = msym.msig.parameterPatterns
+                pats.zip(List(arg)).foldLeft(Subst.empty)(addPatExtendsArgSubst)
+            }
+            
+            // Find the constructor being invoked (if any)
+            val targetCsym = global.csym(extendsDecl.className.name)
+            targetCsym.optInterval(Pass.Body).foreach(_.join())
+            val msyms = targetCsym.constructors
+            val data = resolveOverloading(extendsDecl.pos, createSubst, msyms, List(arg.ty)).getOrElse {
+                val errorSym = MethodSymbol.error(Name.InitMethod, targetCsym.name)
+                (errorSym, errorSym.msig)
+            }
+            
             out.ExtendsDecl(
                 className = extendsDecl.className,
-                paths     = extendsDecl.paths.map(lowerPath)
+                arg       = arg,
+                data      = data
             )
-        )
+        })
+        
+        // ___  _________________________________________________________________
+        
+        def resolveOverloading(
+            pos: Position,
+            createSubst: (MethodSymbol => Subst),
+            msyms: List[MethodSymbol],
+            argTys: List[Type.Ref]
+        ): Option[out.MCallData] = {
+            // Find those symbols that are potentially applicable
+            // to the arguments provided:
+            def potentiallyApplicable(msym: MethodSymbol) = {
+                val subst = createSubst(msym)
+                val parameterTys = msym.msig.parameterPatterns.map(p => subst.ty(p.ty))
+                // FIXME Add suitable temps to the environment for the vars ref'd in subst.
+                argTys.zip(parameterTys).forall { case (p, a) => 
+                    env.isSuitableArgument(p, a) 
+                }                        
+            }
+            val applicableMsyms = msyms.filter(potentiallyApplicable)
+            
+            // Try to find an unambiguously "best" choice:
+            def isBetterChoiceThan(msym_better: MethodSymbol, msym_worse: MethodSymbol) = {
+                Pattern.optSubst(
+                    msym_better.msig.parameterPatterns,
+                    msym_worse.msig.parameterPatterns
+                ) match {
+                    case None => false
+                    case Some(subst) => {
+                        msym_better.msig.parameterPatterns.zip(msym_worse.msig.parameterPatterns).forall {
+                            case (pat_better, pat_worse) =>
+                                env.isSuitableArgument(subst.ty(pat_better.ty), pat_worse.ty)
+                        }
+                    }
+                }
+            }
+            def isBestChoice(msym: MethodSymbol) = {
+                applicableMsyms.forall { msym_other =>
+                    msym == msym_other || isBetterChoiceThan(msym, msym_other)
+                }
+            }
+            val bestMsyms = applicableMsyms.filter(isBestChoice)
+            
+            (bestMsyms, applicableMsyms) match {
+                case (List(msym), _) => {
+                    val subst = createSubst(msym) // must succeed or else would not be appl.
+                    val msig = subst.methodSignature(msym.msig)
+                    Some((msym, msig))
+                }
+                
+                case (List(), List()) => {
+                    global.reporter.report(
+                        pos,
+                        "no.applicable.methods",
+                        argTys.map(_.toString).mkString(", ")
+                    )
+                    None
+                }
+                
+                case _ => {
+                    global.reporter.report(
+                        pos,
+                        "ambiguous.method.call",
+                        bestMsyms.length.toString
+                    )
+                    None
+                }
+            }        
+        }
     }
     
     // ___ Lowering Statements ______________________________________________
@@ -538,53 +664,39 @@ case class Lower(global: Global) {
             withPosOf(fromExpr, out.Var(Ast.LocalName(name), sym))
         }
         
-        def dummySubst(subst: Subst)(pat: Pattern.Ref, text: String): Subst = pat match {
-            case Pattern.Var(name, _) =>
-                subst + (name.toPath -> Name.LocalVar(text).toPath)
+        def addPatSubst(subst: Subst, pair: (Pattern.Ref, Ast#ParseRcvr)): Subst = {
+            pair match {
+                case (pat: Pattern.Tuple, ast: Ast#Tuple) if sameLength(pat.patterns, ast.exprs) =>
+                    pat.patterns.zip(ast.exprs).foldLeft(subst)(addPatSubst)
                 
-            case Pattern.Tuple(patterns) =>
-                patterns.zipWithIndex.foldLeft(subst) { case (s, (p, i)) =>
-                    dummySubst(s)(p, "%s[%d]".format(text, i))
-                }
-        }
-        
-        def patSubst(subst: Subst)(pat: Pattern.Ref, expr: in.ParseRcvr): Subst = {
-            (pat, expr) match {
-                case (patTup: Pattern.Tuple, astTup: in.Tuple) if sameLength(patTup.patterns, astTup.exprs) =>
-                    patTup.patterns.zip(astTup.exprs).foldLeft(subst) { 
-                        case (s, (p, e)) => patSubst(s)(p, e) 
-                    }
+                case (pat: Pattern.Var, ast: Ast#Var) =>
+                    subst + (pat.name.toPath -> ast.name.name.toPath)
                 
-                case (patVar: Pattern.Var, astVar: in.Var) =>
-                    subst + (patVar.name.toPath -> astVar.name.name.toPath)
+                case (pat: Pattern.Var, _: Ast#Super) =>
+                    subst + (pat.name.toPath -> Path.This)
                 
-                case (patVar: Pattern.Var, _: in.Super) =>
-                    subst + (patVar.name.toPath -> Path.This)
-                
-                case (_, astTup: in.Tuple) if astTup.exprs.length == 1 =>
-                    patSubst(subst)(pat, astTup.exprs.head)
+                case (pat, ast: Ast#Tuple) if ast.exprs.length == 1 =>
+                    addPatSubst(subst, (pat, ast.exprs.head))
                     
-                case (patTup: Pattern.Tuple, _) if patTup.patterns.length == 1 =>
-                    patSubst(subst)(patTup.patterns.head, expr)
+                case (pat: Pattern.Tuple, ast) if pat.patterns.length == 1 =>
+                    addPatSubst(subst, (pat.patterns.head, ast))
                     
-                case _ => 
-                    dummySubst(subst)(pat, tmpVarName(expr))
+                case (pat, ast) => 
+                    dummySubst(subst)(pat, tmpVarName(ast))
             }
         }
         
-        def patSubsts(allPatterns: List[Pattern.Ref], allExprs: List[in.ParseRcvr]): Subst = {
+        def patSubsts(allPatterns: List[Pattern.Ref], allExprs: List[Ast#ParseRcvr]): Subst = {
             assert(allPatterns.length == allExprs.length) // Guaranteed syntactically.
-            allPatterns.zip(allExprs).foldLeft(Subst.empty) { case (s, (p, e)) =>
-                patSubst(s)(p, e)
-            }
+            allPatterns.zip(allExprs).foldLeft(Subst.empty)(addPatSubst)
         }
         
-        def mthdSubst(msym: MethodSymbol, rcvr: in.ParseRcvr, args: List[in.ParseTlExpr]) = {
+        def mthdSubst(msym: MethodSymbol, rcvr: Ast#ParseRcvr, args: List[Ast#ParseTlExpr]) = {
             val msig = msym.msig
             rcvr match {
-                case in.Static(_) | in.Super(_) => 
+                case _: Ast#Static | _: Ast#Super => 
                     patSubsts(msig.parameterPatterns, args)
-                case rcvr: in.ParseTlExpr =>
+                case rcvr: Ast#ParseTlExpr =>
                     patSubsts(msig.thisPattern :: msig.parameterPatterns, rcvr :: args)
             }
         }
@@ -684,65 +796,10 @@ case class Lower(global: Global) {
                 case _ => {
                     val outArgs = inArgs.map(lowerExprToAtomic(None))
                     val argTys = outArgs.map(_.ty)
-                    
-                    // Find those symbols that are potentially applicable
-                    // to the arguments provided:
-                    def potentiallyApplicable(msym: MethodSymbol) = {
-                        val subst = mthdSubst(msym, inRcvr, inArgs)
-                        val parameterTys = msym.msig.parameterPatterns.map(p => subst.ty(p.ty))
-                        // FIXME Add suitable temps to the environment for the vars ref'd in subst.
-                        argTys.zip(parameterTys).forall { case (p, a) => 
-                            env.isSuitableArgument(p, a) 
-                        }
-                    }
-                    val applicableMsyms = msyms.filter(potentiallyApplicable)
-                    
-                    // Try to find an unambiguously "best" choice:
-                    def isBetterChoiceThan(msym_better: MethodSymbol, msym_worse: MethodSymbol) = {
-                        Pattern.optSubst(
-                            msym_better.msig.parameterPatterns,
-                            msym_worse.msig.parameterPatterns
-                        ) match {
-                            case None => false
-                            case Some(subst) => {
-                                msym_better.msig.parameterPatterns.zip(msym_worse.msig.parameterPatterns).forall {
-                                    case (pat_better, pat_worse) =>
-                                        env.isSuitableArgument(subst.ty(pat_better.ty), pat_worse.ty)
-                                }
-                            }
-                        }
-                    }
-                    def isBestChoice(msym: MethodSymbol) = {
-                        applicableMsyms.forall { msym_other =>
-                            msym == msym_other || isBetterChoiceThan(msym, msym_other)
-                        }
-                    }
-                    val bestMsyms = applicableMsyms.filter(isBestChoice)
-                    
-                    (bestMsyms, applicableMsyms) match {
-                        case (List(msym), _) => {
-                            val subst = mthdSubst(msym, inRcvr, inArgs)
-                            val msig = subst.methodSignature(msym.msig)
-                            Some((outArgs, (msym, msig)))
-                        }
-                        
-                        case (List(), List()) => {
-                            global.reporter.report(
-                                pos,
-                                "no.applicable.methods",
-                                argTys.map(_.toString).mkString(", ")
-                            )
-                            None
-                        }
-                        
-                        case _ => {
-                            global.reporter.report(
-                                pos,
-                                "ambiguous.method.call",
-                                bestMsyms.length.toString
-                            )
-                            None
-                        }
+                    def createSubst(msym: MethodSymbol) = 
+                        mthdSubst(msym, inRcvr, inArgs)
+                    resolveOverloading(pos, createSubst, msyms, argTys).map { data => 
+                        (outArgs, data)
                     }
                 }
             }            

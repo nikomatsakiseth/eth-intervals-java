@@ -1,6 +1,7 @@
 package harmonic.compiler
 
 import java.lang.reflect
+import java.lang.reflect.{Modifier => jModifier}
 
 class ClassFromReflection(
     name: Name.Class,
@@ -13,7 +14,21 @@ class ClassFromReflection(
     }
     
     lazy val constructors = {
-        cls.getConstructors.map(ctorSymbol).toList
+        val ctors = cls.getConstructors
+        if(!ctors.isEmpty) {
+            ctors.map(ctorSymbol).toList            
+        } else { // gin up an empty constructor for interfaces:
+            List(
+                new MethodSymbol(
+                    pos       = pos, 
+                    modifiers = Modifier.Set.empty,
+                    kind      = MethodKind.JavaDummyCtor,
+                    clsName   = name,
+                    name      = Name.InitMethod,
+                    MethodSignature(Type.Void, toType, List())
+                )
+            )
+        }
     }
         
     lazy val varMembers = {

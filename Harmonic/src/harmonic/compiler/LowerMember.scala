@@ -3,6 +3,7 @@ package harmonic.compiler
 import ch.ethz.intervals._
 import Ast.{Resolve => in}
 import Ast.{Lower => out}
+import Ast.Lower.Extensions._
 import Util._
 
 class LowerMember(
@@ -56,7 +57,7 @@ class LowerMember(
                             MethodSignature(
                                 returnTy          = outReturnTref.ty,
                                 receiverTy        = csym.toType,
-                                parameterPatterns = outParams.map(out.toPatternRef)
+                                parameterPatterns = outParams.map(_.toPatternRef)
                             )                        
                         )
                         optMthdSymbol = Some(msym)

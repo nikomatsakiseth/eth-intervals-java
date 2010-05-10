@@ -115,9 +115,24 @@ class Parse extends StdTokenParsers with PackratParsers {
     |   "import"~>relName<~"."<~"*"<~";"        ^^ out.ImportAll
     )
     
+    lazy val extendsArg: PackratParser[out.ExtendsArg] = (
+        tupleExtendsArg | pathExtendsArg
+    )
+    
+    lazy val tupleExtendsArg = positioned(
+        "("~>comma(extendsArg)<~")"             ^^ out.TupleExtendsArg
+    )
+    
+    lazy val pathExtendsArg = positioned(
+        path                                    ^^ out.PathExtendsArg
+    )
+    
+    lazy val noExtendsArg = positioned(
+        success(())                             ^^ { _ => out.TupleExtendsArg(List()) }
+    )
+    
     lazy val extendsDecl = positioned(
-        relName~"("~comma(path)~")"             ^^ { case n~"("~es~")" => out.ExtendsDecl(n, es) }
-    |   relName                                 ^^ { case n => out.ExtendsDecl(n, List()) }
+        relName~(tupleExtendsArg|noExtendsArg)  ^^ { case n~ea => out.ExtendsDecl(n, ea, ()) }
     )
     
     lazy val superClasses = opt("extends"~>comma1(extendsDecl)) ^^ {

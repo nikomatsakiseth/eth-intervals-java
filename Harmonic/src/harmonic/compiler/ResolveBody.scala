@@ -258,8 +258,18 @@ extends Resolve(global, compUnit)
         def resolveExtendsDecl(extendsDecl: in.ExtendsDecl) = withPosOf(extendsDecl, {
             out.ExtendsDecl(
                 className = resolveName(extendsDecl.className),
-                paths     = extendsDecl.paths.map(resolvePathToPath)
+                arg       = resolveExtendsArg(extendsDecl.arg),
+                data      = ()
             )
+        })
+        
+        def resolveExtendsArg(arg: in.ExtendsArg): out.ExtendsArg = withPosOf(arg, {
+            arg match {
+                case arg: in.TupleExtendsArg => 
+                    out.TupleExtendsArg(arg.args.map(resolveExtendsArg))
+                case arg: in.PathExtendsArg =>
+                    out.PathExtendsArg(resolvePathToPath(arg.path))
+            }
         })
 
         def resolveAnnotation(ann: in.Annotation) = withPosOf(ann, 

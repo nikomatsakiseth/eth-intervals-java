@@ -3,6 +3,7 @@ package harmonic.compiler
 import scala.collection.mutable
 import scala.util.parsing.input.Position
 import ch.ethz.intervals.Interval
+import Util._
 
 abstract class ClassSymbol(
     val name: Name.Class,

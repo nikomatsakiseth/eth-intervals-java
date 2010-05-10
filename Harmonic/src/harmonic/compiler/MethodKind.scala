@@ -22,6 +22,8 @@ object MethodKind {
         resultClass: java.lang.Class[_]
     ) extends MethodKind
     
+    case object JavaDummyCtor extends MethodKind
+    
     case object ErrorMethod extends MethodKind
         
 }
