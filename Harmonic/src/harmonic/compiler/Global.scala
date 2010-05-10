@@ -113,10 +113,10 @@ class Global(
                     // For a class being loaded from source, this is the structure:
                     //
                     // header -> body -> | lower --------------------- | -> gather -> byteCode
-                    //                    \                           /
-                    //                     create -> members -> (merge)
-                    //                              \        /
-                    //                              (member0)
+                    //      ^             \                           /|
+                    //      |              create -> members -> (merge)|
+                    // header (supers)              \        /         |
+                    //                               (member0)   lower(supers)
                     //                                 ...
                     //                              (memberN)
                     //
@@ -135,6 +135,10 @@ class Global(
                     //
                     // Those intervals whose names are listed in parentheses are created by
                     // the create interval and are not listed in the intervals array.
+                    //
+                    // The intervals labeled (supers) are the corresponding intervals from
+                    // the supertypes of this class (if any).  Those dependencies are added
+                    // during the header pass (see `ResolveHeader`).
                 
                     val header = master.subinterval(
                         name = "%s.Header".format(csym.name)

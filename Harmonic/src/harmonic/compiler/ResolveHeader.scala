@@ -38,9 +38,9 @@ extends Resolve(global, compUnit)
                         // superHeader.end -> header.end
                         Intervals.addHb(superHeader.end, csym.intervals(Pass.Header).end)
                         
-                        // superLower.end -> gather.start
+                        // superLower.end -> lower.end
                         superCsym.optInterval(Pass.Lower).foreach { superLower =>
-                            Intervals.addHb(superLower.end, csym.intervals(Pass.Gather).start)
+                            Intervals.addHb(superLower.end, csym.intervals(Pass.Lower).end)
                         }
                         
                         // if both succeed, include this supertype:

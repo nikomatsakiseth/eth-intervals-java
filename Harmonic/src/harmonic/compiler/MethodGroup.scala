@@ -27,4 +27,8 @@ class MethodGroup(
     
     def addMsym(msym: MethodSymbol) = msymsBuffer += msym
     def msyms = msymsBuffer.toList
+    
+    override def toString = {
+        "MethodGroup(%s, %s, %x)".format(methodName, msig, System.identityHashCode(this))
+    }
 }

@@ -21,6 +21,23 @@ case class GatherOverrides(global: Global) {
     /** Populates `csym.methodGroups` as well as the `overrides` 
       * fields of all method symbols defined in `csym` */
     def forSym(csym: ClassSymbol): Unit = data.synchronized {
+        
+        // TODO Convert dependencies for GatherOverrides into HB edges
+        //
+        // The full dependencies for GatherOverrides are:
+        //
+        // 1. Must not run until lowering for all supertypes is
+        //    complete.  This is assured by ResolveHeader.
+        //
+        // 2. GatherOverrides must execute on all supertypes.
+        //    This is currently assured using `data`.  The
+        //    problem is that `GatherOverrides` must also run
+        //    for classes loaded from .class files or reflection,
+        //    because we need to determine the overrides
+        //    for the methods defined in those classes as well.
+        //    Currently there are no intervals associated with
+        //    such classes, but that will have to change.
+        
         if(data.gathered.add(csym)) {
             // First process supertypes:
             val superNames = csym.superClassNames
