@@ -39,6 +39,22 @@ object Error {
             )
         }                
     }
+    
+    case class ExtendsNotEquiv(
+        leftName: Name.Class,
+        leftArg: Ast#ExtendsArg,
+        rightName: Name.Class,
+        rightArg: Ast#ExtendsArg
+    ) extends Error {
+        def report(global: Global, pos: Position) {
+            global.reporter.report(pos, 
+                "extends.not.equiv",
+                leftName.toString, leftArg.toString,
+                rightName.toString, rightArg.toString
+            )
+        }
+    }
+
 
     case class AmbiguousInheritance(
         className: Name.Class,

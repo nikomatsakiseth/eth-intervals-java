@@ -588,19 +588,26 @@ case class ByteCode(global: Global) {
         case in.DeclareVarLvalue(_, _, _, sym) => List(sym)
         case _ => Nil
     }
+    
+    def summarizeSymbolsInPath(summary: SymbolSummary, path: Path.Typed): SymbolSummary = {
+        path match {
+            case Path.TypedBase(sym: VarSymbol.Local) => summary.copy(readSyms = summary.readSyms + sym)
+            case Path.TypedCast(_, path) => summarizeSymbolsInPath(summary, path)
+            case Path.TypedConstant(_) => summary
+            case Path.TypedField(path, _) => summarizeSymbolsInPath(summary, path)
+            case Path.TypedIndex(array, index) => List(array, index).foldLeft(summary)(summarizeSymbolsInPath)            
+        }
+    }
+    
+    def summarizeSymbolsInPathNode(summary: SymbolSummary, node: in.TypedPath) = {
+        summarizeSymbolsInPath(summary, node.path)        
+    }
 
     def summarizeSymbolsInRcvr(summary: SymbolSummary, rcvr: in.Rcvr): SymbolSummary = {
         rcvr match {
             case in.Static(_) => summary
             case in.Super(_) => summary
-            case expr: in.Var => summarizeSymbolsInExpr(summary, expr)
-        }
-    }
-    
-    def summarizeSymbolsInOwner(summary: SymbolSummary, owner: in.Owner): SymbolSummary = {
-        owner match {
-            case in.Static(_) => summary
-            case expr: in.Var => summarizeSymbolsInExpr(summary, expr)
+            case in.TypedPath(path) => summarizeSymbolsInPath(summary, path)
         }
     }
     
@@ -615,16 +622,13 @@ case class ByteCode(global: Global) {
                     sharedSyms = summary.sharedSyms ++ summaryTmpl.readSyms ++ summaryTmpl.writeSyms
                 )
             }
-            case in.Cast(subexpr, _) => summarizeSymbolsInExpr(summary, subexpr)
-            case in.Literal(_, _) => summary
-            case in.Var(_, sym) => summary.copy(readSyms = summary.readSyms + sym)
-            case in.Field(owner, _, _, _) => summarizeSymbolsInOwner(summary, owner)
+            case in.PathExpr(in.TypedPath(path)) => summarizeSymbolsInPath(summary, path)
             case in.MethodCall(receiver, _, args, _) => {
                 val receiverSummary = summarizeSymbolsInRcvr(summary, receiver)
-                args.foldLeft(receiverSummary)(summarizeSymbolsInExpr)
+                args.foldLeft(receiverSummary)(summarizeSymbolsInPathNode)
             }
-            case in.NewCtor(_, arg, _, _) => summarizeSymbolsInExpr(summary, arg)
-            case in.NewAnon(_, arg, mems, _, _, _) => summarizeSymbolsInExpr(summary, arg) // FIXME mems
+            case in.NewCtor(_, arg, _, _) => summarizeSymbolsInPathNode(summary, arg)
+            case in.NewAnon(_, arg, mems, _, _, _) => summarizeSymbolsInPathNode(summary, arg) // FIXME mems
             case in.Null(_) => summary
         }
     }
@@ -774,16 +778,6 @@ case class ByteCode(global: Global) {
             }
         }
         
-        def pushExprValueDowncastingTo(toAsmTy: asm.Type, expr: in.Expr) {
-            pushExprValue(expr)
-            mvis.convert(toAsmTy, expr.ty.toAsmType)
-        }
-        
-        def pushExprValueDowncastingTo(toTy: Type.Ref, expr: in.Expr) {
-            pushExprValue(expr)
-            mvis.convert(toTy, expr.ty)
-        }
-        
         def pushMethodArgs(
             msig: MethodSignature[Pattern.Anon],
             args: List[in.Expr],
@@ -792,6 +786,95 @@ case class ByteCode(global: Global) {
             msig.parameterPatterns.zip(args).foldLeft(inAsmTypes) { case (asmTypes, (pattern, arg)) =>
                 pushRvalues(pattern, arg, asmTypes)
             }
+        }
+        
+        def pushPathValueDowncastingTo(toAsmTy: asm.Type, path: Path.Typed) {
+            pushPathValue(path)
+            mvis.convert(toAsmTy, path.ty.toAsmType)
+        }
+        
+        def pushPathValue(path: Path.Typed) {
+            path match {
+                case Path.TypedBase(lvsym: VarSymbol.Local) => {
+                    accessMap.pushSym(lvsym, mvis)
+                }
+                
+                case Path.TypedBase(fsym: VarSymbol.Field) => {
+                    fsym.kind match {
+                        case FieldKind.Java(owner, name, cls) => {
+                            mvis.visitFieldInsn(
+                                O.GETSTATIC, 
+                                asm.Type.getType(owner).getInternalName, 
+                                name, 
+                                asm.Type.getType(cls).getDescriptor
+                            )                            
+                        }
+                        case FieldKind.Harmonic => 
+                            throw new RuntimeException("No static harmonic fields")
+                    }
+                }
+                
+                case Path.TypedCast(ty, subpath) => {
+                    pushPathValue(subpath)
+                    mvis.convert(ty, subpath.ty)
+                }
+                
+                case Path.TypedConstant(obj: java.lang.String) => {
+                    mvis.visitLdcInsn(obj)
+                }
+                
+                case Path.TypedConstant(java.lang.Boolean.TRUE) => {
+                    mvis.visitFieldInsn(
+                        O.GETSTATIC, 
+                        asmBooleanType.getInternalName,
+                        "TRUE",
+                        asmBooleanType.getDescriptor
+                    )
+                }
+                
+                case Path.TypedConstant(java.lang.Boolean.FALSE) => {
+                    mvis.visitFieldInsn(
+                        O.GETSTATIC, 
+                        asmBooleanType.getInternalName,
+                        "FALSE",
+                        asmBooleanType.getDescriptor
+                    )                    
+                }
+                
+                case Path.TypedConstant(obj) => {
+                    mvis.visitLdcInsn(obj)
+                    mvis.box(boxInfoForBoxType(asm.Type.getType(obj.getClass)))
+                }
+                
+                case Path.TypedField(ownerPath, fsym) => {
+                    pushPathValue(ownerPath)
+                    fsym.kind match {
+                        case FieldKind.Java(owner, name, cls) => {
+                            mvis.visitFieldInsn(
+                                O.GETFIELD, 
+                                asm.Type.getType(owner).getInternalName, 
+                                name, 
+                                asm.Type.getType(cls).getDescriptor
+                            )                                                    
+                        }
+                        case FieldKind.Harmonic => {
+                            mvis.getHarmonicField(fsym)                            
+                        }
+                    }
+                }
+                
+                case Path.TypedIndex(arrayPath, indexPath) => {
+                    pushPathValue(arrayPath)
+                    pushPathValue(indexPath)
+                    mvis.visitInsn(O.AALOAD)
+                    mvis.convert(path.ty, Type.Object)
+                }
+            }
+        }
+        
+        def pushExprValueDowncastingTo(toTy: Type.Ref, expr: in.Expr) {
+            pushExprValue(expr)
+            mvis.convert(toTy, expr.ty)
         }
         
         /** Evaluates `expr`, pushing the result onto the stack.
@@ -821,73 +904,6 @@ case class ByteCode(global: Global) {
                 
                 case tmpl: in.Block => {
                     pushAnonymousBlock(tmpl)
-                }
-                
-                case in.Cast(subexpr, tref) => {
-                    pushExprValue(subexpr)
-                    mvis.convert(tref.ty, subexpr.ty)
-                }
-                
-                case in.Literal(obj: java.lang.String, _) => {
-                    mvis.visitLdcInsn(obj)
-                }
-                
-                case in.Literal(java.lang.Boolean.TRUE, _) => {
-                    mvis.visitFieldInsn(
-                        O.GETSTATIC, 
-                        asmBooleanType.getInternalName,
-                        "TRUE",
-                        asmBooleanType.getDescriptor
-                    )
-                }
-                
-                case in.Literal(java.lang.Boolean.FALSE, _) => {
-                    mvis.visitFieldInsn(
-                        O.GETSTATIC, 
-                        asmBooleanType.getInternalName,
-                        "FALSE",
-                        asmBooleanType.getDescriptor
-                    )                    
-                }
-                
-                case in.Literal(obj, _) => {
-                    mvis.visitLdcInsn(obj)
-                    mvis.box(boxInfoForBoxType(asm.Type.getType(obj.getClass)))
-                }
-                
-                case in.Var(_, sym) => {
-                    accessMap.syms(sym).push(mvis)
-                }
-                
-                case in.Field(in.Static(_), _, fsym, _) => {
-                    fsym.kind match {
-                        case FieldKind.Java(owner, name, cls) => {
-                            mvis.visitFieldInsn(
-                                O.GETSTATIC, 
-                                asm.Type.getType(owner).getInternalName, 
-                                name, 
-                                asm.Type.getType(cls).getDescriptor
-                            )                            
-                        }
-                        case FieldKind.Harmonic => 
-                            throw new RuntimeException("No static harmonic fields")
-                    }
-                }
-                
-                case in.Field(owner: in.Var, _, fsym, _) => {
-                    pushExprValue(owner)
-                    fsym.kind match {
-                        case FieldKind.Java(owner, name, cls) => {
-                            mvis.visitFieldInsn(
-                                O.GETFIELD, 
-                                asm.Type.getType(owner).getInternalName, 
-                                name, 
-                                asm.Type.getType(cls).getDescriptor
-                            )                                                    
-                        }
-                        case FieldKind.Harmonic => 
-                            mvis.getHarmonicField(fsym)
-                    }
                 }
 
                 case in.MethodCall(in.Static(_), name, args, (msym, msig)) => {
@@ -929,10 +945,10 @@ case class ByteCode(global: Global) {
                     )
                 }
                 
-                case in.MethodCall(receiver: in.Var, name, args, (msym, msig)) => {
+                case in.MethodCall(in.TypedPath(receiver), name, args, (msym, msig)) => {
                     msym.kind match {
                         case harm: MethodKind.Harmonic => {
-                            pushExprValue(receiver)
+                            pushPathValue(receiver)
                             pushMethodArgs(msig, args, Nil)
                             val owner = msig.receiverTy.toAsmType.getInternalName
                             val desc = plainMethodDescFromSig(msym.msig)
@@ -946,11 +962,11 @@ case class ByteCode(global: Global) {
                             
                             op match {
                                 case MethodKind.JavaStatic => {
-                                    pushExprValueDowncastingTo(argAsmTys(0), receiver)
+                                    pushPathValueDowncastingTo(argAsmTys(0), receiver)
                                     pushMethodArgs(msig, args, argAsmTys.toList.drop(1))
                                 }
                                 case _ => {
-                                    pushExprValueDowncastingTo(ownerAsmTy, receiver)
+                                    pushPathValueDowncastingTo(ownerAsmTy, receiver)
                                     pushMethodArgs(msig, args, argAsmTys.toList)
                                 }
                             }
@@ -1255,14 +1271,14 @@ case class ByteCode(global: Global) {
         // So if the source patterns were `(a: A, b: B)` and `(c: C)`, we would:
         // (a) Create three symbols `a`, `b`, and `c`
         // (b) Return the expressions `(a, b)` and `c`.
-        def constructExprFromPattern(pattern: Pattern.Ref): in.AtomicExpr = pattern match {
+        def constructExprFromPattern(pattern: Pattern.Ref): in.Expr = pattern match {
             case Pattern.Tuple(subpatterns) => 
                 in.Tuple(subpatterns.map(constructExprFromPattern))
                 
             case Pattern.Var(name, ty) => {
                 val sym = new VarSymbol.Local(Modifier.Set.empty, name, ty)
                 accessMap.addUnboxedSym(sym)
-                in.Var(Ast.LocalName(name), sym)
+                Path.TypedBase(sym).toExpr
             }
         }
         val rvalues = srcPatterns.map(constructExprFromPattern)
@@ -1272,11 +1288,12 @@ case class ByteCode(global: Global) {
             // stack.  We may have to cast the rvalue to the target type, because
             // the types of the source parameters may be supertypes of the target types.
             tarPatterns.zip(rvalues).foreach { case (tarPattern, rvalue) =>
-                val casted = 
+                val casted = {
                     if(convertNeeded(tarPattern.ty, rvalue.ty))
                         in.Cast(rvalue, in.TypeRef(tarPattern.ty))
                     else 
-                        rvalue
+                        rvalue                    
+                }
                 stmtVisitor.pushRvalues(tarPattern, casted, Nil)
             }
         }

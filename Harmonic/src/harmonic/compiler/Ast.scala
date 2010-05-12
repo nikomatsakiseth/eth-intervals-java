@@ -47,9 +47,9 @@ abstract class Ast {
     type Expr <: ParseTlExpr
     type AstPath <: TypedNode
     
-    type NE <: ParseTlExpr
-    type Rcvr <: ParseRcvr
-    type Owner <: ParseOwner
+    type NE <: TypedNode
+    type Rcvr <: Node
+    type Owner <: Node
     
     type Ty
     type TyClass <: Ty
@@ -533,7 +533,7 @@ abstract class Ast {
         override def toString = owner + "." + name
     }
     
-    case class TypedPath(path: Path.Typed) extends TypedNode {
+    case class TypedPath(path: Path.Typed) extends TypedNode with LowerTlExpr with LowerRcvr {
         def ty = toTy(path.ty)
     }
     
@@ -568,15 +568,9 @@ abstract class Ast {
     sealed abstract trait ResolveTlExpr extends ParseTlExpr with ResolveOwner with ResolveStmt
     
     sealed abstract trait LowerRcvr extends ResolveRcvr
-    sealed abstract trait LowerOwner extends LowerRcvr with ResolveOwner
     sealed abstract trait LowerTlExpr extends ResolveTlExpr with LowerStmt
 
-    /** Atomic expressions are variables and tuples of variables.
-      * After lowering, only AtomicExpr may be nested within 
-      * other expressions. */
-    sealed abstract trait AtomicExpr extends LowerTlExpr
-    
-    case class Tuple(exprs: List[NE]) extends AtomicExpr {
+    case class Tuple(exprs: List[Expr]) extends LowerTlExpr {
         override def toString = "(%s)".format(exprs.mkString(", "))
         
         def ty = tupleTy(exprs.map(_.ty))
@@ -615,7 +609,7 @@ abstract class Ast {
         }
     }
     
-    case class Cast(expr: NE, typeRef: TR) extends AtomicExpr {
+    case class Cast(expr: NE, typeRef: TR) extends ResolveTlExpr {
         def ty = trefTy(typeRef)
         
         override def toString = "(%s)(%s)".format(typeRef, expr)
@@ -628,15 +622,14 @@ abstract class Ast {
             expr.print(out)
             out.write(")")
         }
-        
     }
     
-    case class Literal(obj: Object, ty: Ty) extends LowerTlExpr {
+    /** Literals are lowered into paths */
+    case class Literal(obj: Object, ty: Ty) extends ResolveTlExpr {
         override def toString = obj.toString
     }
     
-    case class Assign(lvalue: Lvalue, rvalue: Expr) 
-    extends LowerStmt {
+    case class Assign(lvalue: Lvalue, rvalue: Expr) extends LowerStmt {
         def ty = rvalue.ty
         override def toString = "%s = %s".format(lvalue, rvalue)
         
@@ -647,11 +640,24 @@ abstract class Ast {
         }        
     }
     
-    // After parsing, paths like `a.b.c` are represented
-    // using one of these nodes rather than Var and Field
-    // nodes.  This helps to reduce duplicate code during
-    // the reduction phase.
-    case class PathExpr(path: AstPath) extends ParseTlExpr {
+    /** We follow a slightly convoluted path with respect to the
+      * representation of expressions:
+      *
+      * - After parsing, we start with PathExpr instances where possible,
+      *   and only use `Field` etc where needed due to nested expressions.
+      *   This allows `Resolve` to consolidate code for resolving paths
+      *   that would otherwise be duplicated between expressions and declarations.
+      *
+      * - During resolve, we convert these to uses of Field etc. as 
+      *   appropriate and remove all PathExpr nodes.  This allows Lower to
+      *   deal consistently with Field nodes rather than having two alternate
+      *   representations.
+      * 
+      * - During lower, we reintroduce PathExprs for nested expressions 
+      *   (though at this time AstPath is mapped to TypedPath).  This permits 
+      *   the type check and later phases to work consistently with paths.
+      */
+    case class PathExpr(path: AstPath) extends LowerTlExpr with LowerRcvr {
         def ty = path.ty
         override def toString = path.toString
         override def print(out: PrettyPrinter) {
@@ -659,23 +665,13 @@ abstract class Ast {
         }
     }
     
-    case class Var(name: LocalName, sym: LVSym) extends AtomicExpr with LowerOwner {
-        override def toString = name.toString
-        def ty = vsymTy(sym)
-        
-        override def print(out: PrettyPrinter) {
-            out.write(name.toString)
-            out.write(" /*%s*/".format(sym))
-        }
-    }
-    
-    case class Field(owner: Owner, name: MN, sym: FSym, ty: Ty) extends LowerTlExpr {
+    /** Field references are replaced after lowering with paths. */
+    case class Field(owner: Owner, name: MN, ty: Ty) extends ResolveTlExpr {
         override def toString = "%s.%s".format(owner, name)
         
         override def print(out: PrettyPrinter) {
             owner.printdot(out)
             name.print(out)
-            out.write(" /*%s;%s*/".format(sym, ty))
         }
     }
     
@@ -683,10 +679,13 @@ abstract class Ast {
         override def toString = "super"
     }
     
-    case class Static(name: Name.Class) extends LowerOwner {
+    case class Static(name: Name.Class) extends ResolveOwner with LowerRcvr {
         override def toString = name.toString
     }
     
+    // Note: 
+    // - Before lowering, there is one arg per name component.
+    // - After lowering, there is one arg per named value in the method symbol.
     case class MethodCall(rcvr: Rcvr, name: Name.Method, args: List[NE], data: MCallData)
     extends LowerTlExpr {
         def ty = returnTy(data)
@@ -700,13 +699,26 @@ abstract class Ast {
         override def print(out: PrettyPrinter) {
             var first = true
             rcvr.printdot(out)
-            name.parts.zip(args).foreach { case (p, a) =>
-                if(!first) out.write(" ")
-                first = false
+            data match {
+                // Pre-lowering, not yet linked to a symbol:
+                case () => { 
+                    name.parts.zip(args).foreach { case (p, a) =>
+                        if(!first) out.write(" ")
+                        first = false
+
+                        out.write(p)
+                        out.write(" ")
+                        a.print(out)
+                    }                                    
+                }
                 
-                out.write(p)
-                out.write(" ")
-                a.print(out)
+                // Post-lowering:
+                case _ => {
+                    out.write(name.javaName)
+                    out.write("(")
+                    printSep(out, args, ", ")
+                    out.write(")")                    
+                }
             }
         }        
     }
@@ -737,25 +749,21 @@ abstract class Ast {
         }        
     }
     
-    case class Null(ty: Ty)
-    extends LowerTlExpr {
+    case class Null(ty: Ty) extends LowerTlExpr {
         override def toString = "null"
     }
     
     /** ImpVoid is inserted when there is an empty set of statements like "{ }". */
-    case class ImpVoid(ty: Ty)
-    extends ResolveTlExpr {
+    case class ImpVoid(ty: Ty) extends ResolveTlExpr {
         override def toString = "<(Void)null>"
     }
     
     /** Inserted as the default receiver for methods etc */
-    case class ImpThis(ty: Ty)
-    extends ParseTlExpr {
+    case class ImpThis(ty: Ty) extends ParseTlExpr {
         override def toString = "<this>"
     }
    
-    case class Labeled(name: LocalName, body: Body)
-    extends LowerStmt {
+    case class Labeled(name: LocalName, body: Body) extends LowerStmt {
         def ty = body.stmts.last.ty
         override def toString = "%s: %s".format(name, body)
         
@@ -906,6 +914,10 @@ object Ast {
         def tupleTy(tys: List[Ty]) = ()
         def mthdSym(unit: MSym) = ()
         def returnTy(unit: MCallData) = ()
+        
+        def varExpr(name: Name.LocalVar) = {
+            PathExpr(PathBase(Ast.LocalName(name), ()))        
+        }
     }
 
     /** After Lower(): types inferred (but not checked!) and 
@@ -919,12 +931,12 @@ object Ast {
         type VN = VarName
         type OTR = TypeRef
         type TR = TypeRef
-        type NE = AtomicExpr
+        type NE = AstPath
         type Stmt = LowerStmt
         type Expr = LowerTlExpr
         type AstPath = TypedPath
         type Rcvr = LowerRcvr
-        type Owner = LowerOwner
+        type Owner = ResolveOwner // No longer relevant.
         type CSym = ClassSymbol
         type VSym = VarSymbol.Any
         type LVSym = VarSymbol.Local
@@ -961,6 +973,14 @@ object Ast {
             }
             implicit def extendedPatternAnon(pat: AstPattern[VSym]): ExtendedPatternAnon = 
                 ExtendedPatternAnon(pat)
+
+            case class ExtendedTypedPath(path: Path.Typed) {
+                def toNode: TypedPath = TypedPath(path)
+                def toNodeWithPosOf(n: Node): TypedPath = withPosOf(n, toNode)
+                def toExpr: PathExpr = PathExpr(toNode)
+            }
+            implicit def extendedTypedPath(path: Path.Typed) = 
+                ExtendedTypedPath(path)
         }
 
     }

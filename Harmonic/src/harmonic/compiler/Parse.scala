@@ -73,7 +73,9 @@ class Parse extends StdTokenParsers with PackratParsers {
     
     // ___ Names ____________________________________________________________
     
-    lazy val relBase = positioned(ident ^^ out.RelBase)
+    lazy val varIdent = ident | "this"
+    
+    lazy val relBase = positioned(varIdent ^^ out.RelBase)
     
     lazy val relDot = positioned(
         relBase~"."~ident~rep1("."~>ident) ^^ {
@@ -81,8 +83,6 @@ class Parse extends StdTokenParsers with PackratParsers {
     )
     
     lazy val relName = relDot | relBase
-    
-    lazy val varIdent = ident | "this"
     
     lazy val localName = positioned(varIdent ^^ { s => Ast.LocalName(Name.LocalVar(s)) })    
     lazy val varName = relBase | "("~>relName<~")"
@@ -382,11 +382,10 @@ class Parse extends StdTokenParsers with PackratParsers {
         rcvr~"."~rep1(callPart)             ^^ { case r~"."~cps => outMethodCall(r, cps) }
     |   impThis~rep1(callPart)              ^^ { case r~cps => outMethodCall(r, cps) }
     |   pathAsExpr                          ^^ { case p => out.PathExpr(p) }
-    |   expr0~"."~memberName                ^^ { case r~"."~f => out.Field(r, f, (), ()) }
+    |   expr0~"."~memberName                ^^ { case r~"."~f => out.Field(r, f, ()) }
     |   arg
     |   numericLit                          ^^ { l => out.Literal(Integer.valueOf(l), ()) }
     |   stringLit                           ^^ { l => out.Literal(l, ()) }
-    |   "this"                              ^^ { _ => out.Var(Ast.LocalName(Name.ThisLocal), ()) }
     |   "true"                              ^^ { _ => out.Literal(java.lang.Boolean.TRUE, ()) }
     |   "false"                             ^^ { _ => out.Literal(java.lang.Boolean.FALSE, ()) }
     |   "null"                              ^^ { _ => out.Null() }

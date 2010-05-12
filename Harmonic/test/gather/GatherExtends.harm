@@ -1,0 +1,17 @@
+package test.gather;
+
+class GatherExtends1(a: Integer) {
+    
+}
+
+class GatherExtends2(b: Integer) extends GatherExtends1(b) {
+    
+}
+
+class GatherExtends(a: Integer, b: Integer) 
+extends GatherExtends1(a), 
+        GatherExtends2(b)   // ERROR foo
+{
+    
+}
+// COMPILE

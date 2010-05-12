@@ -593,22 +593,9 @@ extends Resolve(global, compUnit)
             //)
         })
 
-        def pathToExpr(path: out.AstPath): out.Expr = withPosOf(path, path match {
-            case out.PathErr(_) => 
-                out.Null(())
-            case out.PathBase(name: Ast.LocalName, ()) => 
-                out.Var(name, ())
-            case out.PathBase(name @ Ast.MemberName(Name.Member(className, _)), ()) => 
-                out.Field(out.Static(className), name, (), ())
-            case out.PathDot(base, name, (), ()) => 
-                out.Field(pathToExpr(base), name, (), ())
-        })
-        
-        def resolveVarExpr(expr: in.Var): out.Expr = withPosOf(expr, {
-            val relName = in.RelBase(expr.name.name.text)
-            val inPath = withPosOf(expr, in.PathBase(relName, ()))
-            pathToExpr(resolvePathToPath(inPath))
-        })
+        def pathToExpr(path: out.AstPath): out.Expr = withPosOf(path, 
+            out.PathExpr(path)
+        )
         
         def resolveOwner(owner: in.Owner): out.Owner = withPosOf(owner, {
             owner match {
@@ -634,7 +621,7 @@ extends Resolve(global, compUnit)
         // not a path, such as in `a.b().c`
         def resolveField(expr: in.Field) = withPosOf(expr, {
             val memberName = resolveMemberName(expr.name)
-            out.Field(resolveOwner(expr.owner), memberName, (), ())
+            out.Field(resolveOwner(expr.owner), memberName, ())
         })
         
         def resolveRcvr(rcvr: in.Rcvr): out.Rcvr = withPosOf(rcvr, {
@@ -663,14 +650,13 @@ extends Resolve(global, compUnit)
             case in.Cast(v, t) => out.Cast(resolveExpr(v), resolveTypeRef(t))
             case e: in.Literal => resolveLiteral(e)
             case e: in.PathExpr => resolvePathExpr(e)
-            case e: in.Var => resolveVarExpr(e)
             case e: in.Field => resolveField(e)
             case e: in.MethodCall => resolveMethodCall(e)
             case e: in.NewCtor => resolveNewCtor(e)
             case e: in.NewAnon => resolveNewAnon(e)
             case in.Null(()) => out.Null(())
             case in.ImpVoid(()) => out.ImpVoid(())
-            case in.ImpThis(()) => out.Var(Ast.LocalName(Name.ThisLocal), ())
+            case in.ImpThis(()) => out.varExpr(Name.ThisLocal)
         })
 
         def resolveLiteral(expr: in.Literal) = {

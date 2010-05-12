@@ -187,7 +187,7 @@ class Global(
                         name = "%s.Gather".format(csym.name),
                         after = List(lower.end)
                     ) {
-                        _ => GatherOverrides(this).forSym(csym)
+                        _ => Gather(this).forSym(csym)
                     }
 
                     val byteCode = master.subinterval(
