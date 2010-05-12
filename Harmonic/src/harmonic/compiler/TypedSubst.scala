@@ -13,11 +13,19 @@ class TypedSubst(
     
     def typedPath(path: Path.Typed): Path.Typed = {
         path match {
+            case Path.TypedConstant(_) => path
+            
             case Path.TypedBase(vsym) =>
                 map.get(vsym).getOrElse(path)
         
             case Path.TypedField(base, fsym) => 
                 Path.TypedField(typedPath(base), fsym)
+                
+            case Path.TypedCast(ty, path) =>
+                Path.TypedCast(ty, typedPath(path))
+            
+            case Path.TypedIndex(array, index) =>
+                Path.TypedIndex(typedPath(array), typedPath(index))
         }
     }
     

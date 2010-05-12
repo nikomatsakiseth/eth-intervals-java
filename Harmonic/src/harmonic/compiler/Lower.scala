@@ -280,7 +280,7 @@ case class Lower(global: Global) {
             
             case (pat, expr) => {
                 val path = expr match {
-                    case in.PathExpr(in.PathBase(Ast.LocalName(name), ())) =>
+                    case in.PathBase(Ast.LocalName(name), ()) =>
                         Path.Base(name)
                     case in.Field(in.Static(className), name, _) => 
                         Path.Base(name.name.inDefaultClass(className))
@@ -317,7 +317,7 @@ case class Lower(global: Global) {
         
         // ___ Paths ____________________________________________________________
         
-        def typedPathForPath(path: in.AstPath): Path.Typed = {
+        def typedPathForPath(path: in.PathNode): Path.Typed = {
             def errorPath(name: String) = {
                 val sym = VarSymbol.errorLocal(Name.LocalVar(name), None)
                 Path.TypedBase(sym)
@@ -372,11 +372,11 @@ case class Lower(global: Global) {
             }
         }
         
-        def pathForPath(path: in.AstPath): Path.Ref = {
+        def pathForPath(path: in.PathNode): Path.Ref = {
             typedPathForPath(path).toPath
         }
         
-        def lowerPath(path: in.AstPath): out.TypedPath = {
+        def lowerPath(path: in.PathNode): out.TypedPath = {
             typedPathForPath(path).toNodeWithPosOf(path)
         }
 
@@ -746,7 +746,7 @@ case class Lower(global: Global) {
                             VarSymbol.errorField(memberVar, optExpTy)
                         }
                     }
-                    Path.TypedBase(fsym).toExpr
+                    Path.TypedBase(fsym).toNode
                 }
                 
                 // Instance field ref like foo.bar:
@@ -766,13 +766,13 @@ case class Lower(global: Global) {
                             VarSymbol.errorField(memberVar, optExpTy)
                         }
                     }
-                    Path.TypedField(ownerPath, fsym).toExpr
+                    Path.TypedField(ownerPath, fsym).toNode
                 }              
             }
         })
         
         def lowerLiteralExpr(expr: in.Literal) = withPosOf(expr, {
-            Path.TypedConstant(expr.obj).toExpr
+            Path.TypedConstant(expr.obj).toNode
         })
         
         def identifyBestMethod(
@@ -820,7 +820,7 @@ case class Lower(global: Global) {
         def flattenMethodArgs(
             parameterPatterns: List[Pattern.Ref], 
             outExprs: List[out.Expr]
-        ): List[out.AstPath] = {
+        ): List[out.PathNode] = {
             def flattenArg(pair: (Pattern.Ref, out.Expr)): List[out.TypedPath] = {
                 pair match {
                     case (Pattern.Tuple(List(pat)), expr) => {
@@ -891,20 +891,20 @@ case class Lower(global: Global) {
                     val rcvr = in.varExpr(tvar)
                     val best = identifyBestMethod(
                         expr.pos, msyms, Name.InitMethod,
-                        ty, rcvr, List(expr.arg))
+                        ty, rcvr, expr.args)
                     best match {
-                        case Some((List(arg), (msym, msig))) => {
+                        case Some((args, (msym, msig))) => {
                             out.NewCtor(
                                 tref = lowerTypeRef(expr.tref),
-                                arg = arg,
-                                msym = msym,
+                                args = args,
+                                data = (msym, msig),
                                 ty = ty
                             )
                         }
-                            
                         
-                        case _ =>
-                            out.Null(ty)
+                        case None => {
+                            out.Null(ty)                            
+                        }
                     }
                 }
                 
@@ -916,10 +916,6 @@ case class Lower(global: Global) {
                     out.Null(ty)
                 }
             }
-        })
-        
-        def lowerNewAnon(expr: in.NewAnon) = withPosOf(expr, {
-            throw new RuntimeException("TODO")
         })
         
         def lowerNull(optExpTy: Option[Type.Ref])(expr: in.Null) = withPosOf(expr, {
@@ -984,14 +980,14 @@ case class Lower(global: Global) {
         })
         
         def lowerImpThis(expr: in.Expr) = withPosOf(expr, {
-            Path.TypedBase(env.lookupThis).toExpr
+            Path.TypedBase(env.lookupThis).toNode
         })
         
         def lowerCast(expr: in.Cast) = withPosOf(expr, {
             Path.TypedCast(
                 toTypeRef(expr.typeRef),
                 lowerToTypedPath(None)(expr.expr)
-            ).toExpr
+            ).toNode
         })
     
         def lowerRcvr(rcvr: in.Rcvr, mthdName: Name.Method): out.Rcvr = withPosOf(rcvr, rcvr match {
@@ -1023,15 +1019,15 @@ case class Lower(global: Global) {
         })
         
         def lowerExpr(optExpTy: Option[Type.Ref])(expr: in.Expr): out.Expr = expr match {
+            case in.TypedPath(path) => out.TypedPath(path) // TODO Refine types further to elim this case
             case e: in.Tuple => lowerTuple(optExpTy)(e)
             case e: in.Block => lowerBlock(optExpTy)(e)
             case e: in.Cast => lowerCast(e)
-            case e: in.PathExpr => out.PathExpr(lowerPath(e.path))
+            case e: in.PathNode => lowerPath(e)
             case e: in.Literal => lowerLiteralExpr(e)
             case e: in.Field => lowerField(optExpTy)(e)
             case e: in.MethodCall => lowerMethodCall(optExpTy)(e)
             case e: in.NewCtor => lowerNewCtor(e)
-            case e: in.NewAnon => lowerNewAnon(e)
             case e: in.Null => lowerNull(optExpTy)(e)
             case e: in.ImpVoid => out.Null(Type.Void)
             case e: in.ImpThis => lowerImpThis(e)
@@ -1048,8 +1044,8 @@ case class Lower(global: Global) {
         def typedPathForExpr(outExpr: out.Expr): Path.Typed = {
             outExpr match {
                 // Extract paths are synactically final:
-                case out.PathExpr(out.TypedPath(outPath @ Path.TypedConstant(_))) => outPath
-                case out.PathExpr(out.TypedPath(outPath @ Path.TypedBase(_))) => outPath
+                case out.TypedPath(outPath @ Path.TypedConstant(_)) => outPath
+                case out.TypedPath(outPath @ Path.TypedBase(_)) => outPath
                 
                 // Store everything else into a variable and return that:
                 case _ => {

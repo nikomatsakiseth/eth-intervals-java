@@ -22,6 +22,7 @@ class Config
     var ignoreErrors = false
     var useReflection = true
     var localize = false
+    var emitDebugInfo = true
     
     private[this] def usage(err: PrintStream) {
         err.printf("The Harmonic Language, version %s\n", version)
@@ -34,6 +35,7 @@ class Config
         err.printf("  -sourcepath <paths>\n")
         err.printf("  --no-reflection\n")
         err.printf("  --no-localize\n")
+        err.printf("  --no-debug-info\n")
         err.printf("\n")
         err.printf("Debugging options:\n")
         err.printf("  --dump-parsed-trees\n")
@@ -109,6 +111,9 @@ class Config
                     i += 1
                 } else if(args(i) == "--no-localize") {
                     localize = false
+                    i += 1
+                } else if(args(i) == "--no-debug-info") {
+                    emitDebugInfo = false
                     i += 1
                 } else if(args(i) startsWith "-") {
                     usage(System.err)

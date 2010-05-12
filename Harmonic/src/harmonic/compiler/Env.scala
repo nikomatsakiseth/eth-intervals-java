@@ -239,6 +239,18 @@ case class Env(
             val sym = lookupFieldOrError(typedBase.ty, name, None)
             Path.TypedField(typedBase, sym)
         }
+        
+        case Path.Cast(ty, base) => {
+            Path.TypedCast(ty, typedPath(base))
+        }
+        
+        case Path.Constant(obj) => {
+            Path.TypedConstant(obj)
+        }
+        
+        case Path.Index(array, index) => {
+            Path.TypedIndex(typedPath(array), typedPath(index))
+        }
     }
     
     def typeOfPath(path: Path.Ref) = typedPath(path).ty
@@ -251,16 +263,31 @@ case class Env(
     class Equater extends TransitiveCloser[Path.Ref] {
         protected[this] def successors(P1: Path.Ref): Iterable[Path.Ref] = {
             val byField = P1 match {
-                case Path.Base(_) => Set()
                 case Path.Field(base, name) => {
                     compute(base).map(Path.Field(_, name))
                 }
+                
+                case Path.Cast(_, base) => {
+                    Set(base)
+                }
+                
+                case Path.Index(array, index) => {
+                    (compute(array) cross compute(index)).map { case (a, i) =>
+                        Path.Index(a, i)
+                    }
+                }
+                
+                case Path.Base(_) | Path.Constant(_) => {
+                    Set()
+                }
             }
+            
             val byRel = pathRels.flatMap {
                 case (P1, PcEq, p2) => Some(p2)
                 case (p2, PcEq, P1) => Some(p2)
                 case _ => None
             }
+            
             byField ++ byRel
         }
     }

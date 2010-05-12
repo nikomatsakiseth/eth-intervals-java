@@ -11,6 +11,9 @@ class Subst(private val map: Map[Path.Ref, Path.Ref]) {
         case (Some(q), _) => q
         case (None, Path.Base(v)) => Path.Base(v)
         case (None, Path.Field(owner, f)) => Path.Field(path(owner), f)
+        case (None, Path.Constant(obj)) => p
+        case (None, Path.Cast(ty, base)) => Path.Cast(ty, path(base))
+        case (None, Path.Index(array, index)) => Path.Index(path(array), path(index))
     }
     
     def pattern(p: Pattern.Anon): Pattern.Anon = p match {

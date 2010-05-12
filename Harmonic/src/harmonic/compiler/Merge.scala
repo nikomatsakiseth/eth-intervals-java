@@ -40,7 +40,6 @@ class Merge(global: Global) {
                 thisSym      = csym.classEnv.lookupThis
             )
         )
-        
 
         if(global.config.dumpLoweredTrees) {
             csym.loweredSource.println(PrettyPrinter.stdout)

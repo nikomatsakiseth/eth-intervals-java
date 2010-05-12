@@ -45,7 +45,7 @@ abstract class Ast {
     
     type Stmt <: ParseStmt  
     type Expr <: ParseTlExpr
-    type AstPath <: TypedNode
+    type PathNode <: TypedNode
     
     type NE <: TypedNode
     type Rcvr <: Node
@@ -190,7 +190,7 @@ abstract class Ast {
     case class IntervalDecl(
         annotations: List[Annotation],
         name: MND,
-        parent: AstPath,
+        parent: PathNode,
         body: Body
     ) extends MemberDecl {
         override def toString = "[interval %s(%s)]".format(name, parent)
@@ -230,7 +230,7 @@ abstract class Ast {
     }
     
     case class PathRequirement(
-        left: AstPath, rel: PcRel, right: AstPath
+        left: PathNode, rel: PcRel, right: PathNode
     ) extends Node {
         override def toString = "%s %s %s".format(left, rel, right)
         
@@ -264,9 +264,9 @@ abstract class Ast {
     
     case class RelDecl(
         annotations: List[Annotation],        
-        left: AstPath, 
+        left: PathNode, 
         kind: PcRel,
-        right: AstPath
+        right: PathNode
     ) extends MemberDecl {
         override def toString = "%s %s %s".format(left, kind, right)
         override def print(out: PrettyPrinter) {
@@ -313,7 +313,7 @@ abstract class Ast {
         override def toString = "(%s)".format(args.mkString(", "))
         def ty: TyTuple = tupleTy(args.map(_.ty))
     }
-    case class PathExtendsArg(path: AstPath) extends ExtendsArg {
+    case class PathExtendsArg(path: PathNode) extends ExtendsArg {
         override def toString = path.toString
         def ty = path.ty
     }
@@ -456,11 +456,11 @@ abstract class Ast {
     
     sealed abstract trait ParseTypeRef extends OptionalParseTypeRef
     
-    case class PathType(path: AstPath) extends ParseTypeRef {
+    case class PathType(path: PathNode) extends ParseTypeRef {
         override def toString = path.toString        
     }
     
-    case class ConstrainedType(path: AstPath, typeArgs: List[TypeArg]) extends ParseTypeRef {
+    case class ConstrainedType(path: PathNode, typeArgs: List[TypeArg]) extends ParseTypeRef {
         override def toString = "%s[%s]".format(path, typeArgs.mkString(", "))        
     }
     
@@ -468,7 +468,7 @@ abstract class Ast {
     
     sealed abstract trait ResolveTypeRef extends OptionalResolveTypeRef
     
-    case class TypeVar(path: AstPath, typeVar: MN) extends ResolveTypeRef {
+    case class TypeVar(path: PathNode, typeVar: MN) extends ResolveTypeRef {
         override def toString = "%s.%s".format(path, typeVar)
     }
     
@@ -504,7 +504,7 @@ abstract class Ast {
         def forGhost(aName: VarName) = None
     }
     
-    case class PathTypeArg(name: MN, rel: PcRel, path: AstPath) extends TypeArg {
+    case class PathTypeArg(name: MN, rel: PcRel, path: PathNode) extends TypeArg {
         override def toString = "%s %s %s".format(name, rel, path)
         
         def forTypeVar(aName: VarName) = None
@@ -515,11 +515,9 @@ abstract class Ast {
     // 
     // Paths are like mini-expressions that always have the form `a.b.c`
 
-    sealed abstract trait ResolvePath extends TypedNode
+    sealed abstract trait ParsePath extends ResolveTlExpr
     
-    sealed abstract trait ParsePath extends ResolvePath
-    
-    case class PathErr(name: String) extends ResolvePath {
+    case class PathErr(name: String) extends ParsePath {
         def ty = errTy
         override def toString = "<err:%s>".format(name)
     }
@@ -529,7 +527,7 @@ abstract class Ast {
         def ty = vsymTy(sym)
     }
     
-    case class PathDot(owner: AstPath, name: MN, sym: FSym, ty: Ty) extends ParsePath {
+    case class PathDot(owner: PathNode, name: MN, sym: FSym, ty: Ty) extends ParsePath {
         override def toString = owner + "." + name
     }
     
@@ -640,31 +638,6 @@ abstract class Ast {
         }        
     }
     
-    /** We follow a slightly convoluted path with respect to the
-      * representation of expressions:
-      *
-      * - After parsing, we start with PathExpr instances where possible,
-      *   and only use `Field` etc where needed due to nested expressions.
-      *   This allows `Resolve` to consolidate code for resolving paths
-      *   that would otherwise be duplicated between expressions and declarations.
-      *
-      * - During resolve, we convert these to uses of Field etc. as 
-      *   appropriate and remove all PathExpr nodes.  This allows Lower to
-      *   deal consistently with Field nodes rather than having two alternate
-      *   representations.
-      * 
-      * - During lower, we reintroduce PathExprs for nested expressions 
-      *   (though at this time AstPath is mapped to TypedPath).  This permits 
-      *   the type check and later phases to work consistently with paths.
-      */
-    case class PathExpr(path: AstPath) extends LowerTlExpr with LowerRcvr {
-        def ty = path.ty
-        override def toString = path.toString
-        override def print(out: PrettyPrinter) {
-            path.print(out)
-        }
-    }
-    
     /** Field references are replaced after lowering with paths. */
     case class Field(owner: Owner, name: MN, ty: Ty) extends ResolveTlExpr {
         override def toString = "%s.%s".format(owner, name)
@@ -724,28 +697,13 @@ abstract class Ast {
     }
     
     /** Used to create new instances of classes. */
-    case class NewCtor(tref: TR, arg: NE, msym: MSym, ty: TyClass) extends LowerTlExpr {
-        override def toString = "new %s%s".format(tref, arg)
+    case class NewCtor(tref: TR, args: List[NE], data: MCallData, ty: TyClass) extends LowerTlExpr {
+        override def toString = "new %s%s".format(tref, args.mkString("(", "", ")"))
         
         override def print(out: PrettyPrinter) {
             out.write("new ")
             tref.print(out)
-            arg.print(out)
-        }        
-    }
-    
-    /** Used to create new instances of classes. */
-    case class NewAnon(tref: TR, arg: NE, members: List[MemberDecl], csym: CSym, msym: MSym, ty: TyClass) 
-    extends LowerTlExpr {
-        override def toString = "new %s%s { ... }".format(tref, arg)
-        
-        override def print(out: PrettyPrinter) {
-            out.write("new ")
-            tref.print(out)
-            arg.print(out)
-            out.indented("{", "}") {
-                members.foreach(_.println(out))
-            }
+            args.foreach(_.print(out))
         }        
     }
     
@@ -856,7 +814,7 @@ object Ast {
         type NE = ParseTlExpr
         type Stmt = ParseStmt
         type Expr = ParseTlExpr
-        type AstPath = ParsePath
+        type PathNode = ParsePath
         type Rcvr = ParseRcvr
         type Owner = ParseOwner
         type CSym = Unit
@@ -894,7 +852,7 @@ object Ast {
         type NE = ResolveTlExpr
         type Stmt = ResolveStmt
         type Expr = ResolveTlExpr
-        type AstPath = ResolvePath
+        type PathNode = ParsePath
         type Rcvr = ResolveRcvr
         type Owner = ResolveOwner
         type CSym = Unit
@@ -916,7 +874,7 @@ object Ast {
         def returnTy(unit: MCallData) = ()
         
         def varExpr(name: Name.LocalVar) = {
-            PathExpr(PathBase(Ast.LocalName(name), ()))        
+            PathBase(Ast.LocalName(name), ())
         }
     }
 
@@ -931,10 +889,10 @@ object Ast {
         type VN = VarName
         type OTR = TypeRef
         type TR = TypeRef
-        type NE = AstPath
+        type NE = PathNode
         type Stmt = LowerStmt
         type Expr = LowerTlExpr
-        type AstPath = TypedPath
+        type PathNode = TypedPath
         type Rcvr = LowerRcvr
         type Owner = ResolveOwner // No longer relevant.
         type CSym = ClassSymbol
@@ -977,7 +935,6 @@ object Ast {
             case class ExtendedTypedPath(path: Path.Typed) {
                 def toNode: TypedPath = TypedPath(path)
                 def toNodeWithPosOf(n: Node): TypedPath = withPosOf(n, toNode)
-                def toExpr: PathExpr = PathExpr(toNode)
             }
             implicit def extendedTypedPath(path: Path.Typed) = 
                 ExtendedTypedPath(path)

@@ -310,7 +310,7 @@ class Parse extends StdTokenParsers with PackratParsers {
     
     lazy val path = positioned(
         varName~rep("."~>memberName) ^^ {
-            case v~fs => fs.foldLeft[out.AstPath](out.PathBase(v, ()))(out.PathDot(_, _, (), ()))
+            case v~fs => fs.foldLeft[out.PathNode](out.PathBase(v, ()))(out.PathDot(_, _, (), ()))
         }
     )
     
@@ -318,7 +318,7 @@ class Parse extends StdTokenParsers with PackratParsers {
     
     lazy val pathAsExpr = positioned(
         varName~notArg~rep("."~>memberName<~notArg) ^^ {
-            case v~_~fs => fs.foldLeft[out.AstPath](out.PathBase(v, ()))(out.PathDot(_, _, (), ()))
+            case v~_~fs => fs.foldLeft[out.PathNode](out.PathBase(v, ()))(out.PathDot(_, _, (), ()))
         }
     )
     
@@ -359,19 +359,11 @@ class Parse extends StdTokenParsers with PackratParsers {
     }
     def args(cps: List[(String, out.Expr)]) = cps.map(_._2)
     
-    lazy val newAnon = positioned(
-        "new"~typeRef~tuple~"{"~rep(member)~"}" ^^ {
-            case "new"~t~a~"{"~m~"}" => out.NewAnon(t, a, m, (), (), ())
-        }
-    )
-    
-    lazy val newCtor = positioned(
+    lazy val newExpr = positioned(
         "new"~typeRef~tuple ^^ {
-            case "new"~t~a => out.NewCtor(t, a, (), ())
+            case "new"~t~a => out.NewCtor(t, List(a), (), ())
         }
     )
-    
-    lazy val newExpr = newAnon | newCtor
     
     lazy val rcvr: PackratParser[out.Rcvr] = positioned(
         expr0
@@ -381,7 +373,7 @@ class Parse extends StdTokenParsers with PackratParsers {
     lazy val expr0: PackratParser[out.Expr] = positioned(
         rcvr~"."~rep1(callPart)             ^^ { case r~"."~cps => outMethodCall(r, cps) }
     |   impThis~rep1(callPart)              ^^ { case r~cps => outMethodCall(r, cps) }
-    |   pathAsExpr                          ^^ { case p => out.PathExpr(p) }
+    |   pathAsExpr
     |   expr0~"."~memberName                ^^ { case r~"."~f => out.Field(r, f, ()) }
     |   arg
     |   numericLit                          ^^ { l => out.Literal(Integer.valueOf(l), ()) }

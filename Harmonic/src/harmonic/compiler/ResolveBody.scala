@@ -339,7 +339,7 @@ extends Resolve(global, compUnit)
         case class ResolvedToList(names: List[String]) extends ResolvePathResult
         sealed abstract class ResolvePathFinalResult extends ResolvePathResult
         case class ResolvedToClass(className: Name.Class) extends ResolvePathFinalResult
-        case class ResolvedToPath(path: out.AstPath) extends ResolvePathFinalResult
+        case class ResolvedToPath(path: out.PathNode) extends ResolvePathFinalResult
         
         object ResolvePathResult {
             def apply(names: List[String]) = {
@@ -351,13 +351,13 @@ extends Resolve(global, compUnit)
             }
         }
         
-        def withPosOfRes(path: in.AstPath, res: ResolvePathResult) = res match {
+        def withPosOfRes(path: in.PathNode, res: ResolvePathResult) = res match {
             case ResolvedToList(_) => res
             case ResolvedToClass(_) => res
             case ResolvedToPath(outPath) => ResolvedToPath(withPosOf(path, outPath))
         }
         
-        def resolvePathToAny(path: in.AstPath): ResolvePathResult = withPosOfRes(path, {
+        def resolvePathToAny(path: in.PathNode): ResolvePathResult = withPosOfRes(path, {
             def thisField(memberName: Name.Member) = {
                 out.PathDot(
                     out.PathBase(Ast.LocalName(Name.ThisLocal), ()),
@@ -366,6 +366,9 @@ extends Resolve(global, compUnit)
                 )
             }
             path match {
+                case in.PathErr(text) => 
+                    ResolvedToPath(out.PathErr(text))
+                
                 case in.PathBase(in.RelBase(text), ()) => {
                     symTab.get(text) match {
                         case None => {
@@ -434,7 +437,7 @@ extends Resolve(global, compUnit)
             }
         })
         
-        def resolvePathToFinal(path: in.AstPath): ResolvePathFinalResult = {
+        def resolvePathToFinal(path: in.PathNode): ResolvePathFinalResult = {
             resolvePathToAny(path) match {
                 case ResolvedToList(names) => ResolvedToClass(resolveToClassOrObject(path.pos, names))
                 case ResolvedToClass(className) => ResolvedToClass(className)
@@ -442,7 +445,7 @@ extends Resolve(global, compUnit)
             }
         }
         
-        def resolvePathToPath(path: in.AstPath): out.AstPath = withPosOf(path, {
+        def resolvePathToPath(path: in.PathNode): out.PathNode = withPosOf(path, {
             resolvePathToAny(path) match {
                 case ResolvedToList(names) => {
                     Error.NoSuchVar(names.last).report(global, path.pos)
@@ -460,7 +463,7 @@ extends Resolve(global, compUnit)
             }
         })
         
-        def resolvePathToClassName(path: in.AstPath): Name.Class = {
+        def resolvePathToClassName(path: in.PathNode): Name.Class = {
             resolvePathToFinal(path) match {
                 case ResolvedToClass(className) => {
                     className                    
@@ -485,6 +488,8 @@ extends Resolve(global, compUnit)
         }
         
         def resolveTypeRef(tref: in.ParseTypeRef): out.ResolveTypeRef = withPosOf(tref, tref match {
+            case in.PathType(in.PathErr(_)) => out.NullType() // TODO Refine types further to elim this case
+            
             case in.NullType() => out.NullType()
             
             case in.TupleType(trefs) => out.TupleType(trefs.map(resolveTypeRef))
@@ -575,40 +580,17 @@ extends Resolve(global, compUnit)
         def resolveNewCtor(expr: in.NewCtor): out.NewCtor = withPosOf(expr, {
             out.NewCtor(
                 tref = resolveTypeRef(expr.tref),
-                arg = resolveExpr(expr.arg),
-                msym = (),
-                ty = ()
+                args = expr.args.map(resolveExpr),
+                data = (),
+                ty   = ()
             )
         })
 
-        def resolveNewAnon(expr: in.NewAnon): out.NewAnon = withPosOf(expr, {
-            throw new RuntimeException("TODO: Anonymous inner classes")
-            //out.NewAnon(
-            //    tref = resolveTypeRef(expr.tref),
-            //    arg = resolveExpr(expr.arg),
-            //    members = expr.members.map(resolveMember(XXX)),
-            //    csym = (),
-            //    msym = (),
-            //    ty = ()
-            //)
-        })
-
-        def pathToExpr(path: out.AstPath): out.Expr = withPosOf(path, 
-            out.PathExpr(path)
-        )
-        
         def resolveOwner(owner: in.Owner): out.Owner = withPosOf(owner, {
             owner match {
                 case in.Static(name) => {
                     global.requireLoadedOrLoadable(owner.pos, name)
                     out.Static(name)
-                }
-                
-                case in.PathExpr(path) => {
-                    resolvePathToFinal(path) match {
-                        case ResolvedToClass(className) => out.Static(className)
-                        case ResolvedToPath(outPath) => pathToExpr(outPath)
-                    }
                 }
                 
                 case expr: in.Expr => {
@@ -640,20 +622,16 @@ extends Resolve(global, compUnit)
             )
         }
         
-        def resolvePathExpr(expr: in.PathExpr) = {
-            pathToExpr(resolvePathToPath(expr.path))
-        }
-
         def resolveExpr(expr: in.Expr): out.Expr = withPosOf(expr, expr match {
+            case in.TypedPath(path) => out.TypedPath(path) // TODO Refine types further to elim this case
             case tuple: in.Tuple => resolveTuple(tuple)
             case tmpl: in.Block => resolveBlock(tmpl)
             case in.Cast(v, t) => out.Cast(resolveExpr(v), resolveTypeRef(t))
-            case e: in.Literal => resolveLiteral(e)
-            case e: in.PathExpr => resolvePathExpr(e)
-            case e: in.Field => resolveField(e)
-            case e: in.MethodCall => resolveMethodCall(e)
-            case e: in.NewCtor => resolveNewCtor(e)
-            case e: in.NewAnon => resolveNewAnon(e)
+            case expr: in.Literal => resolveLiteral(expr)
+            case expr: in.PathNode => resolvePathToPath(expr)
+            case expr: in.Field => resolveField(expr)
+            case expr: in.MethodCall => resolveMethodCall(expr)
+            case expr: in.NewCtor => resolveNewCtor(expr)
             case in.Null(()) => out.Null(())
             case in.ImpVoid(()) => out.ImpVoid(())
             case in.ImpThis(()) => out.varExpr(Name.ThisLocal)

@@ -342,9 +342,8 @@ def extract_fragments(filenm):
 # Code for determing what to do with a test file
 
 def extract_metadata(filenm):
-    """ Given a file, returns the compile options and expected output
-    that appear in the comments at the end of the file (returns,
-    therefore, a tuple of lists of strings). """
+    """ Extracts the skip state, compile options, and expected output
+    from the comments at the end of the file. """
     
     filelines = open(filenm).readlines()
     lines = []
@@ -352,8 +351,6 @@ def extract_metadata(filenm):
         if line.startswith(COMMENT):
             line = line[len(COMMENT):].strip()
             lines.append(line)
-            if line in TEST_TYPES:
-                break
         else:
             break
 

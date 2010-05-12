@@ -5,6 +5,7 @@ import org.objectweb.asm.Type.getMethodDescriptor
 import scala.collection.mutable
 import scala.collection.immutable.Map
 import scala.collection.immutable.Set
+import scala.util.parsing.input.Position
 import asm.{Opcodes => O}
 
 import Ast.{Lower => in}
@@ -278,6 +279,15 @@ case class ByteCode(global: Global) {
                 convert(toTy.toAsmType, fromTy.toAsmType)                
             }
         }
+        
+        def setPosition(pos: Position) {
+            if(global.config.emitDebugInfo) {
+                val label = new asm.Label()
+                mvis.visitLabel(label)
+                mvis.visitLineNumber(pos.line, label)                
+            }
+        }
+        
     }
     implicit def extendedMethodVisitor(mvis: asm.MethodVisitor) = ExtendedMethodVisitor(mvis)
     
@@ -297,8 +307,11 @@ case class ByteCode(global: Global) {
     
     // ___ Writing .class, .s files _________________________________________
     
-    class ClassWriter(className: Name.Class, suffix: String) 
-    {
+    class ClassWriter(
+        className: Name.Class, 
+        suffix: String,
+        pos: Position
+    ) {
         private[this] def fileWithExtension(ext: String) = {
             val relPath = className.relPath + suffix + ext
             new java.io.File(global.config.outputDir, relPath)
@@ -331,6 +344,12 @@ case class ByteCode(global: Global) {
         val writer = new asm.ClassWriter(asm.ClassWriter.COMPUTE_MAXS | asm.ClassWriter.COMPUTE_FRAMES)
         val checker = check(writer)
         val (cvis, optTraceWriter) = trace(writer)
+        
+        if(global.config.emitDebugInfo) {
+            pos match {
+                case pos: InterPosition => cvis.visitSource(pos.file.getPath, null)
+            }            
+        }
 
         def end() {
             cvis.visitEnd()
@@ -592,6 +611,7 @@ case class ByteCode(global: Global) {
     def summarizeSymbolsInPath(summary: SymbolSummary, path: Path.Typed): SymbolSummary = {
         path match {
             case Path.TypedBase(sym: VarSymbol.Local) => summary.copy(readSyms = summary.readSyms + sym)
+            case Path.TypedBase(sym: VarSymbol.Field) => summary // static fields don't count
             case Path.TypedCast(_, path) => summarizeSymbolsInPath(summary, path)
             case Path.TypedConstant(_) => summary
             case Path.TypedField(path, _) => summarizeSymbolsInPath(summary, path)
@@ -622,13 +642,12 @@ case class ByteCode(global: Global) {
                     sharedSyms = summary.sharedSyms ++ summaryTmpl.readSyms ++ summaryTmpl.writeSyms
                 )
             }
-            case in.PathExpr(in.TypedPath(path)) => summarizeSymbolsInPath(summary, path)
+            case in.TypedPath(path) => summarizeSymbolsInPath(summary, path)
             case in.MethodCall(receiver, _, args, _) => {
                 val receiverSummary = summarizeSymbolsInRcvr(summary, receiver)
                 args.foldLeft(receiverSummary)(summarizeSymbolsInPathNode)
             }
-            case in.NewCtor(_, arg, _, _) => summarizeSymbolsInPathNode(summary, arg)
-            case in.NewAnon(_, arg, mems, _, _, _) => summarizeSymbolsInPathNode(summary, arg) // FIXME mems
+            case in.NewCtor(_, args, _, _) => args.foldLeft(summary)(summarizeSymbolsInPathNode)
             case in.Null(_) => summary
         }
     }
@@ -674,8 +693,10 @@ case class ByteCode(global: Global) {
                     // Micro-optimize generated code to avoid using stashSlot:
                     val sym = varPat.sym
                     val accessPath = accessMap.syms(sym)
+                    mvis.setPosition(lvalue.pos)
                     accessPath.pushLvalue(mvis)
                     pushExprValueDowncastingTo(lvalue.ty, rvalue)
+                    mvis.setPosition(lvalue.pos)
                     accessPath.storeLvalue(mvis)
                 }
                 
@@ -768,8 +789,10 @@ case class ByteCode(global: Global) {
         }
         
         def contract(lvalue: in.Lvalue) {
-            def storeSym(sym: VarSymbol.Any) =
-                accessMap.syms(sym).storeLvalueWithoutPush(mvis)
+            def storeSym(sym: VarSymbol.Any) = {
+                mvis.setPosition(lvalue.pos)
+                accessMap.syms(sym).storeLvalueWithoutPush(mvis)                
+            }
             lvalue match {
                 case in.TupleLvalue(sublvalues) => sublvalues.reverse.foreach(contract)
                 case in.DeclareVarLvalue(_, _, _, sym) => storeSym(sym)
@@ -882,7 +905,12 @@ case class ByteCode(global: Global) {
           * Stack: ... => ..., value
           */
         def pushExprValue(expr: in.Expr) {
+            mvis.setPosition(expr.pos)
             expr match {
+                case in.TypedPath(path) => {
+                    pushPathValue(path)
+                }
+                
                 case in.Tuple(List()) => {
                     mvis.visitInsn(O.ACONST_NULL)
                 }
@@ -988,7 +1016,7 @@ case class ByteCode(global: Global) {
                     }
                 }
                 
-                case in.NewCtor(tref, arg, msym, Type.Class(name, _)) => {
+                case in.NewCtor(tref, arg, (msym, _), Type.Class(name, _)) => {
                     val internalImplName = global.csym(name).internalImplName
                     mvis.visitTypeInsn(O.NEW, internalImplName)
                     mvis.visitInsn(O.DUP)
@@ -1001,10 +1029,6 @@ case class ByteCode(global: Global) {
                             msym.msig.parameterPatterns.flatMap(_.varTys).map(_.toAsmType).toArray
                         )
                     )
-                }
-                
-                case in.NewAnon(tref, arg, mems, csym, msym, ty) => {
-                    throw new RuntimeException("TODO")                    
                 }
                 
                 case in.Null(_) => {
@@ -1153,7 +1177,7 @@ case class ByteCode(global: Global) {
         ) {
             val name = freshClassName(accessMap.context)
             val blockTy = Type.Class(name, List())
-            val tmplwr = new ClassWriter(name, noSuffix)
+            val tmplwr = new ClassWriter(name, noSuffix, tmpl.pos)
 
             tmplwr.cvis.visit(
                 O.V1_5,
@@ -1278,7 +1302,7 @@ case class ByteCode(global: Global) {
             case Pattern.Var(name, ty) => {
                 val sym = new VarSymbol.Local(Modifier.Set.empty, name, ty)
                 accessMap.addUnboxedSym(sym)
-                Path.TypedBase(sym).toExpr
+                Path.TypedBase(sym).toNode
             }
         }
         val rvalues = srcPatterns.map(constructExprFromPattern)
@@ -1289,9 +1313,10 @@ case class ByteCode(global: Global) {
             // the types of the source parameters may be supertypes of the target types.
             tarPatterns.zip(rvalues).foreach { case (tarPattern, rvalue) =>
                 val casted = {
-                    if(convertNeeded(tarPattern.ty, rvalue.ty))
-                        in.Cast(rvalue, in.TypeRef(tarPattern.ty))
-                    else 
+                    // TODO -- Reinsert downcasts where needed.
+                    //if(convertNeeded(tarPattern.ty, rvalue.ty))
+                    //    in.Cast(rvalue, in.TypeRef(tarPattern.ty))
+                    //else 
                         rvalue                    
                 }
                 stmtVisitor.pushRvalues(tarPattern, casted, Nil)
@@ -1730,7 +1755,7 @@ case class ByteCode(global: Global) {
     // ___ Classes __________________________________________________________
     
     def writeInterClassInterface(csym: ClassFromSource) {
-        val wr = new ClassWriter(csym.name, noSuffix)
+        val wr = new ClassWriter(csym.name, noSuffix, csym.pos)
         import wr.cvis
         
         val superClassNames = csym.superClassNames
@@ -1756,7 +1781,7 @@ case class ByteCode(global: Global) {
     }
     
     def writeImplClass(csym: ClassFromSource) {
-        val wr = new ClassWriter(csym.name, implSuffix)
+        val wr = new ClassWriter(csym.name, implSuffix, csym.pos)
         import wr.cvis
 
         val implClassName = csym.name.withSuffix(implSuffix)
@@ -1811,7 +1836,7 @@ case class ByteCode(global: Global) {
     }
     
     def writeStaticClass(csym: ClassFromSource) {
-        val wr = new ClassWriter(csym.name, staticSuffix)
+        val wr = new ClassWriter(csym.name, staticSuffix, csym.pos)
         import wr.cvis
 
         cvis.visit(

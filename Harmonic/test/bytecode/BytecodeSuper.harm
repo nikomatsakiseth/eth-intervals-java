@@ -34,5 +34,8 @@ class BytecodeSuper extends Application {
     }
     
 }
+// COMPILE
+// --dump-resolved-trees
+// --dump-lowered-trees
 // EXECUTE
 // 3456
