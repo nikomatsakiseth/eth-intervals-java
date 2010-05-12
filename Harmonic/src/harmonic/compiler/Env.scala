@@ -251,18 +251,39 @@ case class Env(
         case Path.Index(array, index) => {
             Path.TypedIndex(typedPath(array), typedPath(index))
         }
+        
+        case Path.Tuple(paths) => {
+            Path.TypedTuple(paths.map(typedPath))
+        }
     }
     
     def typeOfPath(path: Path.Ref) = typedPath(path).ty
     
     // ___ Equating Paths ___________________________________________________   
     //
-    // Two paths are equatable if they will always refer to the same object
-    // at runtime.
+    // Two paths are equatable if they will always refer to equal objects
+    // at runtime.  We consider two objects equal if they are either
+    // pointer-equal or if they are value objects with the same
+    // constituents.  
     
     class Equater extends TransitiveCloser[Path.Ref] {
+        private[this] def crossAll(paths: List[Path.Ref]): List[List[Path.Ref]] = {
+            paths match {
+                case path :: tl => {
+                    val crossedTls = crossAll(tl)
+                    compute(path).toList.flatMap { hd =>
+                        crossedTls.map(hd :: _)
+                    }
+                }
+                
+                case List() => {
+                    List()
+                }
+            }
+        }
+        
         protected[this] def successors(P1: Path.Ref): Iterable[Path.Ref] = {
-            val byField = P1 match {
+            val byInduction = P1 match {
                 case Path.Field(base, name) => {
                     compute(base).map(Path.Field(_, name))
                 }
@@ -277,9 +298,26 @@ case class Env(
                     }
                 }
                 
+                case Path.Tuple(paths) => {
+                    crossAll(paths).map(Path.Tuple)
+                }
+                
                 case Path.Base(_) | Path.Constant(_) => {
                     Set()
                 }
+            }
+            
+            val bySimplify = P1 match {
+                case Path.Tuple(List(path)) => Some(path)
+                
+                case Path.Index(
+                    Path.Tuple(paths), 
+                    Path.Constant(index: java.lang.Integer)
+                ) if index.intValue < paths.length => {
+                    Some(paths(index.intValue))
+                }
+                
+                case _ => None
             }
             
             val byRel = pathRels.flatMap {
@@ -288,7 +326,7 @@ case class Env(
                 case _ => None
             }
             
-            byField ++ byRel
+            byInduction ++ bySimplify ++ byRel
         }
     }
     

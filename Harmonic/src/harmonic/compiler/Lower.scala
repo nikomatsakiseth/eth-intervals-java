@@ -233,37 +233,22 @@ case class Lower(global: Global) {
     
     def addPatPathToSubst(subst: Subst, pair: (Pattern.Ref, Path.Ref)): Subst = {
         pair match {
-            case (Pattern.Tuple(pats), array) => {
+            case (Pattern.Tuple(List(pat)), path) => 
+                addPatPathToSubst(subst, (pat, path))
+                
+            case (pat, Path.Tuple(List(path))) => 
+                addPatPathToSubst(subst, (pat, path))
+                
+            case (Pattern.Tuple(pats), Path.Tuple(paths)) if sameLength(paths, paths) => 
+                pats.zip(paths).foldLeft(subst)(addPatPathToSubst)
+                
+            case (Pattern.Tuple(pats), array) =>
                 pats.zipWithIndex.foldLeft(subst) { case (s, (pat, idx)) =>
                     addPatPathToSubst(s, (pat, Path.Index(array, Path.Constant.integer(idx))))
                 }
-            }
             
-            case (Pattern.Var(name, _), path) => {
+            case (Pattern.Var(name, _), path) =>
                 subst + (name.toPath -> path)
-            }
-        }
-    }
-    
-    def addPathExtendsArgToSubst(subst: Subst, pair: (Pattern.Ref, out.ExtendsArg)): Subst = {
-        pair match {
-            case (Pattern.Tuple(List(pat)), arg) => 
-                addPathExtendsArgToSubst(subst, (pat, arg))
-                
-            case (pat, out.TupleExtendsArg(List(arg))) =>
-                addPathExtendsArgToSubst(subst, (pat, arg))
-                
-            case (Pattern.Tuple(pats), out.TupleExtendsArg(args)) if sameLength(pats, args) =>
-                pats.zip(args).foldLeft(subst)(addPathExtendsArgToSubst)
-        
-            case (pat, out.PathExtendsArg(out.TypedPath(path))) =>
-                addPatPathToSubst(subst, (pat, path.toPath))
-            
-            case (pat, arg) => {
-                // This is an error: RHS must be a tuple with mismatched arity.
-                val path = Path.Base(Name.LocalVar(tmpVarName(arg)))
-                addPatPathToSubst(subst, (pat, path))
-            }
         }
     }
     
@@ -304,6 +289,45 @@ case class Lower(global: Global) {
                 substFromPatExprs(msig.parameterPatterns, args)
             case rcvr: in.Expr =>
                 substFromPatExprs(msig.thisPattern :: msig.parameterPatterns, rcvr :: args)
+        }
+    }
+    
+    // Flattens the method arguments into a list of final paths:
+    def flattenAssignment(
+        lvalues: List[Pattern.Anon], 
+        rvalues: List[out.TypedPath]
+    ): List[out.PathNode] = {
+        def flattenPair(pos: out.TypedPath)(pair: (Pattern.Anon, Path.Typed)): List[out.TypedPath] = {
+            pair match {
+                case (Pattern.AnonTuple(List(pat)), path) => {
+                    flattenPair(pos)((pat, path))
+                }
+                
+                case (pat, Path.TypedTuple(List(path))) => {
+                    flattenPair(pos)((pat, path))
+                }
+                
+                case (Pattern.AnonTuple(pats), Path.TypedTuple(paths)) if sameLength(pats, paths) => {
+                    pats.zip(paths).flatMap(flattenPair(pos))
+                }
+                    
+                case (Pattern.AnonTuple(pats), path) => {
+                    pats.indices.map({ idx =>
+                        Path.TypedIndex(
+                            path,
+                            Path.TypedConstant.integer(idx)
+                        ).toNodeWithPosOf(pos)
+                    }).toList
+                }
+                
+                case (Pattern.AnonVar(_), path) => {
+                    List(path.toNodeWithPosOf(pos))
+                }
+            }
+        }
+        
+        lvalues.zip(rvalues).flatMap {
+            case (l, r) => flattenPair(r)(l, r.path)
         }
     }
     
@@ -460,47 +484,45 @@ case class Lower(global: Global) {
             out.Annotation(name = ann.name)
         )
         
-        def dummySubst(subst: Subst)(pat: Pattern.Ref, text: String): Subst = pat match {
-            case Pattern.Var(name, _) =>
-                subst + (name.toPath -> Name.LocalVar(text).toPath)
-                
-            case Pattern.Tuple(patterns) =>
-                patterns.zipWithIndex.foldLeft(subst) { case (s, (p, i)) =>
-                    dummySubst(s)(p, "%s[%d]".format(text, i))
-                }
-        }
-        
-        def lowerExtendsArg(arg: in.ExtendsArg): out.ExtendsArg = withPosOf(arg, {
+        def lowerExtendsArg(arg: in.ExtendsArg): out.TypedPath = withPosOf(arg, {
             arg match {
-                case in.PathExtendsArg(path) => out.PathExtendsArg(lowerPath(path))
-                case in.TupleExtendsArg(args) => out.TupleExtendsArg(args.map(lowerExtendsArg))
+                case in.PathExtendsArg(path) => lowerPath(path)
+                case in.TupleExtendsArg(args) => {
+                    val paths = args.map(n => lowerExtendsArg(n).path)
+                    Path.TypedTuple(paths).toNode
+                }
             }
         })
         
         def lowerExtendsDecl(extendsDecl: in.ExtendsDecl) = withPosOf(extendsDecl, {
             // Lower the argument paths 
-            val arg = lowerExtendsArg(extendsDecl.arg)
+            val args = extendsDecl.args.map(lowerExtendsArg)
+            val argPaths = args.map(_.path.toPath) // list of untyped paths
             
             // Create a subst. by converting lowered paths to exprs
             val thisSym = env.lookupThis
             def createSubst(msym: MethodSymbol) = {
                 val pats = msym.msig.parameterPatterns
-                pats.zip(List(arg)).foldLeft(Subst.empty)(addPathExtendsArgToSubst)
+                pats.zip(argPaths).foldLeft(Subst.empty)(addPatPathToSubst)
             }
             
             // Find the constructor being invoked (if any)
             val targetCsym = global.csym(extendsDecl.className.name)
             targetCsym.optInterval(Pass.Body).foreach(_.join())
             val msyms = targetCsym.constructors
-            val data = resolveOverloading(extendsDecl.pos, createSubst, msyms, List(arg.ty)).getOrElse {
+            val (msym, msig) = resolveOverloading(extendsDecl.pos, createSubst, msyms, args.map(_.ty)).getOrElse {
                 val errorSym = MethodSymbol.error(Name.InitMethod, targetCsym.name)
                 (errorSym, errorSym.msig)
             }
             
+            // Finally, convert the extends args to the flattened repr
+            // used in the Lower code:
+            val flatArgs = flattenAssignment(msym.msig.parameterPatterns, args)
+            
             out.ExtendsDecl(
                 className = extendsDecl.className,
-                arg       = arg,
-                data      = data
+                args      = flatArgs,
+                data      = (msym, msig)
             )
         })
         
@@ -795,8 +817,8 @@ case class Lower(global: Global) {
                 case List(msym) => {
                     val subst = mthdSubst(msym, inRcvr, inArgs)
                     val optExpTys = msym.msig.parameterPatterns.map(p => Some(subst.ty(p.ty)))
-                    val outArgs = optExpTys.zip(inArgs).map { case (t,a) => lowerExpr(t)(a) }
-                    val flatArgs = flattenMethodArgs(msym.msig.parameterPatterns, outArgs)
+                    val outArgs = optExpTys.zip(inArgs).map { case (t,a) => lowerToTypedPathNode(t)(a) }
+                    val flatArgs = flattenAssignment(msym.msig.parameterPatterns, outArgs)
                     val msig = subst.methodSignature(msym.msig)
                     Some((flatArgs, (msym, msig)))
                 }
@@ -805,53 +827,15 @@ case class Lower(global: Global) {
                 //   In theory, we could try to be smarter (i.e., if all options agree on the
                 //   type of a particular argument, etc).
                 case _ => {
-                    val outArgs = inArgs.map(lowerExpr(None))
+                    val outArgs = inArgs.map(lowerToTypedPathNode(None))
                     val argTys = outArgs.map(_.ty)
                     def createSubst(msym: MethodSymbol) = mthdSubst(msym, inRcvr, inArgs)
                     resolveOverloading(pos, createSubst, msyms, argTys).map { case (msym, msig) => 
-                        val flatArgs = flattenMethodArgs(msym.msig.parameterPatterns, outArgs)
+                        val flatArgs = flattenAssignment(msym.msig.parameterPatterns, outArgs)
                         (flatArgs, (msym, msig))
                     }
                 }
             }            
-        }
-        
-        // Flattens the method arguments into a list of final paths:
-        def flattenMethodArgs(
-            parameterPatterns: List[Pattern.Ref], 
-            outExprs: List[out.Expr]
-        ): List[out.PathNode] = {
-            def flattenArg(pair: (Pattern.Ref, out.Expr)): List[out.TypedPath] = {
-                pair match {
-                    case (Pattern.Tuple(List(pat)), expr) => {
-                        flattenArg((pat, expr))
-                    }
-                    
-                    case (pat, out.Tuple(List(expr))) => {
-                        flattenArg((pat, expr))
-                    }
-                    
-                    case (Pattern.Tuple(pats), out.Tuple(exprs)) if sameLength(pats, exprs) => {
-                        pats.zip(exprs).flatMap(flattenArg)
-                    }
-                        
-                    case (Pattern.Tuple(pats), expr) => {
-                        val varPath = typedPathForExpr(expr)
-                        pats.indices.map({ idx =>
-                            Path.TypedIndex(
-                                varPath,
-                                Path.TypedConstant.integer(idx)
-                            ).toNodeWithPosOf(expr)
-                        }).toList
-                    }
-                    
-                    case (Pattern.Var(_, _), expr) => {
-                        List(typedPathNodeForExpr(expr))                        
-                    }
-                }
-            }
-            
-            parameterPatterns.zip(outExprs).flatMap(flattenArg)
         }
         
         def lowerMethodCall(optExpTy: Option[Type.Ref])(mcall: in.MethodCall) = withPosOf(mcall, {
@@ -924,18 +908,17 @@ case class Lower(global: Global) {
         })
 
         def lowerTuple(optExpTy: Option[Type.Ref])(tuple: in.Tuple) = withPosOf(tuple, {
-            optExpTy match {
+            val paths = optExpTy match {
                 case Some(Type.Tuple(tys)) if sameLength(tys, tuple.exprs) => {
-                    val outExprs = tys.zip(tuple.exprs).map { case (t, e) => 
-                        lowerExpr(Some(t))(e)
+                    tys.zip(tuple.exprs).map { case (t, e) => 
+                        lowerToTypedPath(Some(t))(e)
                     }
-                    out.Tuple(outExprs)
                 }
                 case _ => {
-                    val exprs = tuple.exprs.map(lowerExpr(None))
-                    out.Tuple(exprs)                    
+                    tuple.exprs.map(lowerToTypedPath(None))
                 }
             }
+            Path.TypedTuple(paths).toNode
         })
         
         def optTypeArg(TypeVarName: Name.Var, optExpTy: Option[Type.Ref]) = optExpTy match {
@@ -1041,11 +1024,10 @@ case class Lower(global: Global) {
             typedPathNodeForExpr(lowerExpr(optExpTy)(expr))
         }
 
-        def typedPathForExpr(outExpr: out.Expr): Path.Typed = {
+        def typedPathForExprFilter(filter: (Path.Typed => Boolean))(outExpr: out.Expr): Path.Typed = {
             outExpr match {
-                // Extract paths are synactically final:
-                case out.TypedPath(outPath @ Path.TypedConstant(_)) => outPath
-                case out.TypedPath(outPath @ Path.TypedBase(_)) => outPath
+                // Extract paths meeting the filter:
+                case out.TypedPath(outPath) if filter(outPath) => outPath
                 
                 // Store everything else into a variable and return that:
                 case _ => {
@@ -1066,6 +1048,17 @@ case class Lower(global: Global) {
                     Path.TypedBase(sym)
                 }
             }
+        }
+        
+        def isAtomicPath(path: Path.Typed) = path match {
+            case Path.TypedBase(_: VarSymbol.Local) => true
+            case Path.TypedTuple(_) => true
+            case Path.TypedConstant(_) => true
+            case _ => false
+        }
+        
+        def typedPathForExpr(outExpr: out.Expr) = {
+            typedPathForExprFilter(isAtomicPath)(outExpr)
         }
         
         def typedPathNodeForExpr(outExpr: out.Expr): out.TypedPath = {

@@ -26,18 +26,11 @@ class TypedSubst(
             
             case Path.TypedIndex(array, index) =>
                 Path.TypedIndex(typedPath(array), typedPath(index))
+                
+            case Path.TypedTuple(paths) =>
+                Path.TypedTuple(paths.map(typedPath))
         }
     }
-    
-    def extendsArg(arg: in.ExtendsArg): in.ExtendsArg = withPosOf(arg, {
-        arg match {
-            case in.TupleExtendsArg(args) => 
-                in.TupleExtendsArg(args.map(extendsArg))
-                
-            case in.PathExtendsArg(in.TypedPath(path)) => 
-                in.PathExtendsArg(in.TypedPath(typedPath(path)))
-        }
-    })
     
 }
 

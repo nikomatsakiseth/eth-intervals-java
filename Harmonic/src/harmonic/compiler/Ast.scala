@@ -48,6 +48,7 @@ abstract class Ast {
     type PathNode <: TypedNode
     
     type NE <: TypedNode
+    type EA <: TypedNode
     type Rcvr <: Node
     type Owner <: Node
     
@@ -297,16 +298,19 @@ abstract class Ast {
     
     case class ExtendsDecl(
         className: CN,
-        arg: ExtendsArg,
+        args: List[EA],
         data: MCallData
     ) extends Node {
         override def print(out: PrettyPrinter) {
             className.print(out)
-            arg.print(out)
+            args.foreach(_.print(out))
         }
     }
     
-    sealed abstract class ExtendsArg extends Node {
+    // ExtendsArgs are not used until lowering to represent
+    // the arguments of a class constructor.  Note that only
+    // paths are permitted.
+    sealed abstract class ExtendsArg extends TypedNode {
         def ty: Ty
     }
     case class TupleExtendsArg(args: List[ExtendsArg]) extends ExtendsArg {
@@ -568,7 +572,7 @@ abstract class Ast {
     sealed abstract trait LowerRcvr extends ResolveRcvr
     sealed abstract trait LowerTlExpr extends ResolveTlExpr with LowerStmt
 
-    case class Tuple(exprs: List[Expr]) extends LowerTlExpr {
+    case class Tuple(exprs: List[Expr]) extends ResolveTlExpr {
         override def toString = "(%s)".format(exprs.mkString(", "))
         
         def ty = tupleTy(exprs.map(_.ty))
@@ -812,6 +816,7 @@ object Ast {
         type OTR = OptionalParseTypeRef
         type TR = ParseTypeRef
         type NE = ParseTlExpr
+        type EA = ExtendsArg
         type Stmt = ParseStmt
         type Expr = ParseTlExpr
         type PathNode = ParsePath
@@ -850,6 +855,7 @@ object Ast {
         type OTR = OptionalResolveTypeRef
         type TR = ResolveTypeRef
         type NE = ResolveTlExpr
+        type EA = ExtendsArg
         type Stmt = ResolveStmt
         type Expr = ResolveTlExpr
         type PathNode = ParsePath
@@ -890,6 +896,7 @@ object Ast {
         type OTR = TypeRef
         type TR = TypeRef
         type NE = PathNode
+        type EA = TypedPath
         type Stmt = LowerStmt
         type Expr = LowerTlExpr
         type PathNode = TypedPath

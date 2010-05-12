@@ -258,7 +258,7 @@ extends Resolve(global, compUnit)
         def resolveExtendsDecl(extendsDecl: in.ExtendsDecl) = withPosOf(extendsDecl, {
             out.ExtendsDecl(
                 className = resolveName(extendsDecl.className),
-                arg       = resolveExtendsArg(extendsDecl.arg),
+                args      = extendsDecl.args.map(resolveExtendsArg),
                 data      = ()
             )
         })

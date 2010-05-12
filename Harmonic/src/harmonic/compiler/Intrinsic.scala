@@ -34,11 +34,9 @@ case class Intrinsic(global: Global) {
         numericTypes.foreach(ensureLoadable)
         
         for(leftClass <- numericTypes; rightClass <- numericTypes) {
-            val returnIndex = Math.max(
-                Math.max(
-                    numericTypes.indexOf(leftClass), 
-                    numericTypes.indexOf(rightClass)
-                ),
+            val returnIndex = (
+                numericTypes.indexOf(leftClass) max
+                numericTypes.indexOf(rightClass) max
                 numericTypes.indexOf(classOf[java.lang.Integer])
             )
             val returnClass = numericTypes(returnIndex)

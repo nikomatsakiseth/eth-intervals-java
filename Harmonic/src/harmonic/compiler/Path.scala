@@ -24,6 +24,9 @@ object Path {
     case class Index(array: Path.Ref, index: Path.Ref) extends Ref {
         override def toString = "%s[%s]".format(array, index)
     }
+    case class Tuple(paths: List[Ref]) extends Ref {
+        override def toString = "(%s)".format(paths.mkString(","))
+    }
     
     val This = Path.Base(Name.ThisLocal)    
     val Method = Path.Base(Name.MethodLocal)
@@ -64,6 +67,11 @@ object Path {
         lazy val ty = {
             Type.Var(array.toPath, Name.ArrayElem)
         }
+        override def toString = toPath.toString
+    }
+    case class TypedTuple(paths: List[Typed]) extends Typed {
+        def toPath = Tuple(paths.map(_.toPath))
+        lazy val ty = Type.Tuple(paths.map(_.ty))
         override def toString = toPath.toString
     }
 }

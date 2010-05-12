@@ -6,7 +6,7 @@ import scala.util.parsing.input.NoPosition
 import scala.util.parsing.input.OffsetPosition
 import scala.util.parsing.input.CharArrayReader.EofCh
 import scala.util.parsing.syntax.Tokens
-import scala.util.parsing.syntax.StdTokens
+import scala.util.parsing.combinator.token.StdTokens
 import scala.util.parsing.combinator.syntactical.StdTokenParsers
 import scala.util.parsing.combinator.lexical.StdLexical
 import scala.util.parsing.combinator.PackratParsers
@@ -132,7 +132,7 @@ class Parse extends StdTokenParsers with PackratParsers {
     )
     
     lazy val extendsDecl = positioned(
-        relName~(tupleExtendsArg|noExtendsArg)  ^^ { case n~ea => out.ExtendsDecl(n, ea, ()) }
+        relName~(tupleExtendsArg|noExtendsArg)  ^^ { case n~ea => out.ExtendsDecl(n, List(ea), ()) }
     )
     
     lazy val superClasses = opt("extends"~>comma1(extendsDecl)) ^^ {

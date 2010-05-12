@@ -24,24 +24,13 @@ case class GatherExtends(global: Global) {
         
         // Extends declarations for (transitive) supertypes of `csym`.
         // All substituted so as to be in terms of the parameters of `csym`.        
-        val result = new mutable.HashMap[Name.Class, (Name.Class, in.ExtendsArg)]()
+        val result = new mutable.HashMap[Name.Class, (Name.Class, List[Path.Typed])]()
         
         // Returns None if pair are equivalent, else returns `Some(pos)` where
         // pos is the position of the item in the left which caused an error.
-        def notEquatable(env: Env)(pair: (in.ExtendsArg, in.ExtendsArg)): Option[(in.ExtendsArg, in.ExtendsArg)] = {
-            pair match {
-                case (in.TupleExtendsArg(List(left)), right) =>
-                    notEquatable(env)((left, right))
-                case (left, in.TupleExtendsArg(List(right))) =>
-                    notEquatable(env)((left, right))
-                case (in.TupleExtendsArg(lefts), in.TupleExtendsArg(rights)) if sameLength(lefts, rights) =>
-                    lefts.zip(rights).firstSome(notEquatable(env))
-                case (in.PathExtendsArg(left), in.PathExtendsArg(right)) 
-                if env.pathsAreEquatable(left.path.toPath, right.path.toPath) =>
-                    None
-                case (left, right) => 
-                    Some((left, right))
-            }
+        def notEquatable(env: Env)(pair: (Path.Typed, Path.Typed)): Boolean = {
+            val (left, right) = pair
+            env.pathsAreEquatable(left.toPath, right.toPath)
         }
         
         def addExtendsDecl(
@@ -52,7 +41,7 @@ case class GatherExtends(global: Global) {
             extendsDecl: in.ExtendsDecl
         ) = {
             val className = extendsDecl.className.name
-            val arg = subst.extendsArg(extendsDecl.arg)
+            val args = extendsDecl.args.map(n => subst.typedPath(n.path))
             
             global.csym(className) match {
                 // Harmonic classes may be extended multiple times,
@@ -61,12 +50,12 @@ case class GatherExtends(global: Global) {
                 case csym: ClassFromSource => {
                     result.get(className) match {
                         case None => {
-                            result(className) = (fromClass, arg)                            
+                            result(className) = (fromClass, args)                            
                         }
                     
-                        case Some((rightClass, rightArg)) => {
-                            notEquatable(env)(arg, rightArg) match {
-                                case None => // Arg is equivalent to otherArg.
+                        case Some((rightClass, rightArgs)) => {
+                            args.zip(rightArgs).find(notEquatable(env)) match {
+                                case None => // All are equatable.
                                 case Some((left, right)) => {
                                     Error.ExtendsNotEquiv(fromClass, left, rightClass, right).report(global, pos)
                                 }
