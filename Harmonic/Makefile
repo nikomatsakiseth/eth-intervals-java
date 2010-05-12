@@ -1,7 +1,8 @@
 JAVA=java
 JAVAC=javac
 SBT=${JAVA} -Dsbt.log.noformat=true -Xmx256M -jar sbt-launch-0.7.0.jar
-SCALAC=scalac -make:changed -Xfatal-warnings
+# -Xfatal-warnings -unchecked
+SCALAC=scalac -make:changed 
 SCALA=scala
 JARFILES=$(wildcard lib/*.jar)
 JARPATH=$(subst .jar ,.jar:,${JARFILES})

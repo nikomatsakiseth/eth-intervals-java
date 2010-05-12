@@ -930,20 +930,25 @@ object Ast {
             implicit def extendedParam(pat: Param[VSym]): ExtendedParam = 
                 ExtendedParam(pat)
             
-            case class ExtendedPatternAnon(pat: AstPattern[VSym]) {
+            case class ExtendedPatternAnon(pat: AstPattern[VarSymbol.Any]) {
                 def toPatternAnon: Pattern.Anon = pat match {
-                    case pat: TupleAstPattern[VSym] => Pattern.SubstdTuple(pat.subpatterns.map(_.toPatternAnon))
-                    case pat: VarAstPattern[VSym] => Pattern.SubstdVar(pat.sym.ty)
+                    case pat: TupleAstPattern[VarSymbol.Any] => 
+                        Pattern.SubstdTuple(pat.subpatterns.map(_.toPatternAnon))
+                    case pat: VarAstPattern[VarSymbol.Any] =>
+                        // Note: the [VarSymbol.Any] should not be needed, 
+                        // as it is the lower bound of VarAstPattern, but 
+                        // scalac doesn't seem to realize it
+                        Pattern.SubstdVar(pat.sym.ty)
                 }
             }
-            implicit def extendedPatternAnon(pat: AstPattern[VSym]): ExtendedPatternAnon = 
+            implicit def extendedPatternAnon(pat: AstPattern[VarSymbol.Any]): ExtendedPatternAnon = 
                 ExtendedPatternAnon(pat)
 
             case class ExtendedTypedPath(path: Path.Typed) {
                 def toNode: TypedPath = TypedPath(path)
                 def toNodeWithPosOf(n: Node): TypedPath = withPosOf(n, toNode)
             }
-            implicit def extendedTypedPath(path: Path.Typed) = 
+            implicit def extendedTypedPath(path: Path.Typed): ExtendedTypedPath = 
                 ExtendedTypedPath(path)
         }
 
