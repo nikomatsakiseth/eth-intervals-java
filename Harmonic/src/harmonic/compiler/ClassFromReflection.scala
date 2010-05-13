@@ -9,6 +9,8 @@ class ClassFromReflection(
     val cls: java.lang.Class[_]
 ) extends ClassFromCompiledSource(name, global) {
     
+    def isPrivate(member: reflect.Member) = (member.getModifiers & reflect.Modifier.PRIVATE) != 0
+    
     lazy val modifiers = {
         Modifier.forClass(cls)
     }
@@ -36,15 +38,20 @@ class ClassFromReflection(
     }
         
     lazy val allMethodSymbols = {
-        cls.getDeclaredMethods.map(methodSymbol).toList
+        cls.getDeclaredMethods.filterNot(isPrivate).map(methodSymbol).toList
     }
     
     lazy val allFieldSymbols = {
-        cls.getDeclaredFields.map(fieldSymbol).toList
+        cls.getDeclaredFields.filterNot(isPrivate).map(fieldSymbol).toList
     }
         
     lazy val superClassNames = {
-        val allNames = (cls.getSuperclass :: cls.getInterfaces.toList).filter(_ != null).map(Name.Class)
+        val allNames = {
+            if((cls.getModifiers & reflect.Modifier.INTERFACE) != 0)
+                cls.getInterfaces.toList.map(Name.Class) :+ Name.ObjectClass
+            else
+                (cls.getSuperclass :: cls.getInterfaces.toList).filter(_ != null).map(Name.Class)
+        }
         allNames.foreach(global.requireLoadedOrLoadable(pos, _))
         allNames
     }
@@ -98,10 +105,16 @@ class ClassFromReflection(
             Type.Class(Name.ArrayClass, List(targ))
         }
         case ty: reflect.TypeVariable[_] => {
-            // TODO Method type variables... how can we do it?
-            val cls = ty.getGenericDeclaration.asInstanceOf[java.lang.Class[_]]
-            val name = Name.Class(cls)
-            Type.Var(Path.This, Name.Member(name, ty.getName))
+            ty.getGenericDeclaration match {
+                case cls: java.lang.Class[_] => {
+                    val name = Name.Class(cls)
+                    Type.Var(Path.This, Name.Member(name, ty.getName))    
+                }                                
+                case _ => {
+                    // TODO Method type variables... how can we do it?                    
+                    Type.Var(Path.This, Name.Member(Name.ObjectClass, ty.getName))                                    
+                }
+            }
         }
         case ty: reflect.ParameterizedType => {
             val cls = ty.getRawType.asInstanceOf[Class[_]]

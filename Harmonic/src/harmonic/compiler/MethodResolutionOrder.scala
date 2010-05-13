@@ -38,6 +38,9 @@ case class MethodResolutionOrder(global: Global) {
         superLists.findIndexOf(isGoodHead) match {
             case -1 => {
                 if(!superLists.isEmpty) {
+                    debugIndent("Ambiguous state:") {
+                        superLists.foreach(l => debug("%s", l))
+                    }
                     Error.AmbiguousInheritance(
                         csym.name, superLists.map(_.head.name)
                     ).report(global, csym.pos)
@@ -46,44 +49,56 @@ case class MethodResolutionOrder(global: Global) {
             }
             
             case idx => {
-                val before = superLists.take(idx)
-                val after = superLists.drop(idx + 1)
-                superLists(idx) match {
-                    case List(head) => head :: merge(csym, before ::: after)
-                    case head :: tl => head :: merge(csym, before ::: (tl :: after))
+                val head = superLists(idx).head
+                def dropHead(l: List[ClassSymbol]): Option[List[ClassSymbol]] = {
+                    l.dropWhile(_ == head) match {
+                        case List() => None
+                        case list => Some(list)
+                    }                    
                 }
+                debug("chose %s", head)
+                head :: merge(csym, superLists.flatMap(dropHead))
             }
         }
     }
     
     /** Returns C3 order for `csym`.  This list is never empty.*/
     def forSym(csym: ClassSymbol): List[ClassSymbol] = data.synchronized {
-        data.mroCache.get(csym) match {
-            case Some(order) => order
+        debugIndent("forSym(%s)", csym) {
+            data.mroCache.get(csym) match {
+                case Some(order) => order
 
-            // Circular inheritance ought to be detected
-            // in ResolveHeaders now.  I left this code
-            // in anyhow in case we want it in the future.
-            //case None if stack.contains(csym) => {
-            //    val idx = stack.indexOf(csym)
-            //    Error.CircularInheritance(
-            //        csym.name, stack.take(idx).map(_.name).reverse
-            //    ).report(global, csym.pos)
-            //    data.mroCache(csym) = List(csym)
-            //    List(csym)
-            //}
+                // Circular inheritance ought to be detected
+                // in ResolveHeaders now.  I left this code
+                // in anyhow in case we want it in the future.
+                //case None if stack.contains(csym) => {
+                //    val idx = stack.indexOf(csym)
+                //    Error.CircularInheritance(
+                //        csym.name, stack.take(idx).map(_.name).reverse
+                //    ).report(global, csym.pos)
+                //    data.mroCache(csym) = List(csym)
+                //    List(csym)
+                //}
 
-            case None => {
-                stack = csym :: stack
-                val superNames = csym.superClassNames
-                val superCsyms = superNames.map(global.csym)
-                val superLists = superCsyms.map(forSym)
-                val list = csym :: merge(csym, superLists)
-                data.mroCache(csym) = list
-                stack = stack.tail
-                list
-            }
-        }            
+                case None => {
+                    stack = csym :: stack
+                    val superNames = csym.superClassNames
+                    val superCsyms = superNames.map(global.csym)
+                    val superLists = superCsyms.map(forSym)
+                
+                    debugIndent("superLists") {
+                        superCsyms.zip(superLists).foreach { case (csym, list) =>
+                            debug("csym = %s, list = %s", csym, list)
+                        }
+                    }
+                
+                    val list = csym :: merge(csym, superLists)
+                    data.mroCache(csym) = list
+                    stack = stack.tail
+                    list
+                }
+            }            
+        }
     }
     
     def forClassType(classTy: Type.Class): List[ClassSymbol] = {

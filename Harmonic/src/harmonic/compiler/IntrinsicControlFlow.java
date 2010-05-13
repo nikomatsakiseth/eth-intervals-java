@@ -47,7 +47,7 @@ public class IntrinsicControlFlow {
         }
     }
 
-    public static <Void, A> Void forEach(
+    public static <A> Void forEach(
         Iterable<A> iterable,
         Block<Void,A> eachTmpl
     ) {

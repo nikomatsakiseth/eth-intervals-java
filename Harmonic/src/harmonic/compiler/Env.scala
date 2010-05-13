@@ -110,7 +110,7 @@ case class Env(
             case entry :: otherEntries => {
                 val csym = global.csym(entry.name.className)
                 val remEntries = otherEntries.filterNot { entry =>
-                    global.csym(entry.name.className).isSubclass(csym)
+                    csym.isSubclass(global.csym(entry.name.className))
                 }
                 if(remEntries.isEmpty) {
                     Right(entry)

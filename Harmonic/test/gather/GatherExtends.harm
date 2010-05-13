@@ -15,3 +15,4 @@ extends GatherExtends1(a),
     
 }
 // COMPILE
+// --dump-lowered-trees

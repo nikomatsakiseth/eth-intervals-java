@@ -1,0 +1,25 @@
+package test.bytecode;
+
+class BytecodeForEach extends Application {
+
+    mulPairs(list: Iterable[T: (Integer, Integer)]) {
+        result = 0;
+        list.forEach { (x, y) ->
+            result = result + (x * y);
+        };
+        result
+    }
+    
+    @Override
+    main() {
+        list = new java.util.ArrayList[E: (Integer, Integer)]();
+        list.add((1, 2));
+        list.add((3, 4));
+        mulPairs(list);
+    }
+    
+}
+// COMPILE
+// --dump-lowered-trees
+// EXECUTE
+// 14

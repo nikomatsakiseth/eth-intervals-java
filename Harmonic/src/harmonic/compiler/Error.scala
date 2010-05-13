@@ -12,10 +12,10 @@ abstract class Error {
 }
 
 object Error {
-    case class NotOverride() extends Error {
+    case class NotOverride(className: Name.Class, methodName: Name.Method) extends Error {
         def report(global: Global, pos: Position) {
             global.reporter.report(pos, 
-                "method.does.not.override"
+                "method.does.not.override", className.toString, methodName.toString
             )
         }                
     }

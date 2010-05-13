@@ -438,7 +438,9 @@ abstract class Ast {
     // ______ Types after lowering __________________________________________
     
     /** Symbolic ref. to a type, used after lowering */
-    case class TypeRef(ty: Type.Ref) extends Node
+    case class TypeRef(ty: Type.Ref) extends Node {
+        override def toString = ty.toString
+    }
     
     // ______ Inferable types _______________________________________________
     //
@@ -536,6 +538,7 @@ abstract class Ast {
     }
     
     case class TypedPath(path: Path.Typed) extends TypedNode with LowerTlExpr with LowerRcvr {
+        override def toString = path.toString
         def ty = toTy(path.ty)
     }
     
