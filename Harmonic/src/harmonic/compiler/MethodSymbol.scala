@@ -36,6 +36,12 @@ class MethodSymbol(
     def isFromClassNamed(aName: Name.Qual) = (clsName == aName)
     def isNamed(aName: Name.Method) = (name == aName)
     
+    def substForFlatArgs(flatArgs: List[Path.Typed]) = {
+        msig.parameterPatterns.flatMap(_.varNames).zip(flatArgs).foldLeft(Subst.empty) {
+            case (s, (x, tp)) => s + (x.toPath -> tp.toPath)
+        }
+    }
+    
     /** For methods whose source will be emitted, we compute the 
       * overridden methods.  The ordering is significant,
       * because when super is invoked it will proceed to the

@@ -41,6 +41,7 @@ object Error {
     }
     
     case class ExtendsNotEquiv(
+        extendedName: Name.Class,
         leftName: Name.Class,
         leftPath: Path.Typed,
         rightName: Name.Class,
@@ -49,6 +50,7 @@ object Error {
         def report(global: Global, pos: Position) {
             global.reporter.report(pos, 
                 "extends.not.equiv",
+                extendedName.toString,
                 leftName.toString, leftPath.toString,
                 rightName.toString, rightPath.toString
             )

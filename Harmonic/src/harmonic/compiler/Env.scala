@@ -330,7 +330,7 @@ case class Env(
         }
     }
     
-    def equatable(path: Path.Ref) = new Equater().compute(path)
+    def equatable(path: Path.Ref) = debugIndent("equatable(%s)", path) { new Equater().compute(path) }
     def pathsAreEquatable(path1: Path.Ref, path2: Path.Ref) = equatable(path1) contains path2
     
     // ___ Bounding Type Variables __________________________________________

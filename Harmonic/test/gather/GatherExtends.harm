@@ -8,9 +8,9 @@ class GatherExtends2(b: Integer) extends GatherExtends1(b) {
     
 }
 
-class GatherExtends(a: Integer, b: Integer) 
+class GatherExtends(a: Integer, b: Integer) // ERROR extends.not.equiv(test.gather.GatherExtends1, test.gather.GatherExtends2, this.(test.gather.GatherExtends.b), test.gather.GatherExtends, this.(test.gather.GatherExtends.a))
 extends GatherExtends1(a), 
-        GatherExtends2(b)   // ERROR foo
+        GatherExtends2(b)   
 {
     
 }

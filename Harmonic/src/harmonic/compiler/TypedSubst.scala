@@ -6,18 +6,35 @@ import Ast.{Lower => in}
 import Util._
 
 class TypedSubst(
-    map: Map[VarSymbol.Any, Path.Typed]
+    lvmap: Map[VarSymbol.Local, Path.Typed],
+    fmap: Map[(VarSymbol.Local, VarSymbol.Field), Path.Typed]
 ) {
     
-    def +(p: Pair[VarSymbol.Local, Path.Typed]) = new TypedSubst(map + p)
+    def +(p: Pair[VarSymbol.Local, Path.Typed]): TypedSubst = {
+        new TypedSubst(lvmap + p, fmap)
+    }
+    
+    def plusField(p: Pair[(VarSymbol.Local, VarSymbol.Field), Path.Typed]) = {
+        new TypedSubst(lvmap, fmap + p)        
+    }
     
     def typedPath(path: Path.Typed): Path.Typed = {
         path match {
-            case Path.TypedConstant(_) => path
+            // Perform substitutions:
             
-            case Path.TypedBase(vsym) =>
-                map.get(vsym).getOrElse(path)
+            case Path.TypedBase(vsym: VarSymbol.Local) 
+            if lvmap.isDefinedAt(vsym) =>
+                lvmap(vsym)
         
+            case Path.TypedField(Path.TypedBase(vsym: VarSymbol.Local), fsym) 
+            if fmap.isDefinedAt((vsym, fsym)) => 
+                fmap((vsym, fsym))
+                
+            // Pass through:
+            
+            case Path.TypedBase(_) | Path.TypedConstant(_) =>
+                path
+
             case Path.TypedField(base, fsym) => 
                 Path.TypedField(typedPath(base), fsym)
                 
@@ -35,5 +52,5 @@ class TypedSubst(
 }
 
 object TypedSubst {
-    val empty = new TypedSubst(Map())
+    val empty = new TypedSubst(Map(), Map())
 }

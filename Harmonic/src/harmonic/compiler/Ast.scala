@@ -301,6 +301,8 @@ abstract class Ast {
         args: List[EA],
         data: MCallData
     ) extends Node {
+        override def toString = "extends %s(%s)".format(className, args.mkString(", "))
+        
         override def print(out: PrettyPrinter) {
             className.print(out)
             args.foreach(_.print(out))

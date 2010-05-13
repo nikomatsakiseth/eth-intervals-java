@@ -28,9 +28,9 @@ case class GatherExtends(global: Global) {
         
         // Returns None if pair are equivalent, else returns `Some(pos)` where
         // pos is the position of the item in the left which caused an error.
-        def notEquatable(env: Env)(pair: (Path.Typed, Path.Typed)): Boolean = {
+        def notEquatable(env: Env)(pair: (Path.Typed, Path.Typed)): Boolean = debugIndent("notEquatable(%s)", pair) {
             val (left, right) = pair
-            env.pathsAreEquatable(left.toPath, right.toPath)
+            !env.pathsAreEquatable(left.toPath, right.toPath)
         }
         
         def addExtendsDecl(
@@ -39,9 +39,11 @@ case class GatherExtends(global: Global) {
             subst: TypedSubst
         )(
             extendsDecl: in.ExtendsDecl
-        ) = {
+        ): Unit = debugIndent("addExtendsDecl(%s, %s)", fromClass, extendsDecl){
             val className = extendsDecl.className.name
             val args = extendsDecl.args.map(n => subst.typedPath(n.path))
+
+            debug("args = (%s)", args.mkString(", "))
             
             global.csym(className) match {
                 // Harmonic classes may be extended multiple times,
@@ -54,26 +56,37 @@ case class GatherExtends(global: Global) {
                         }
                     
                         case Some((rightClass, rightArgs)) => {
+                            debug("rightArgs = (%s)", rightArgs.mkString(", "))
                             args.zip(rightArgs).find(notEquatable(env)) match {
                                 case None => // All are equatable.
                                 case Some((left, right)) => {
-                                    Error.ExtendsNotEquiv(fromClass, left, rightClass, right).report(global, pos)
+                                    Error.ExtendsNotEquiv(
+                                        csym.name,
+                                        fromClass, left, 
+                                        rightClass, right).report(global, pos)
                                 }
                             }
                         }
                     }
                     
-                    
+                    // Recursively process each of the extends declarations from `csym`:
+                    //    To do so, must create subst from ctor params of `csym` to the arguments.
+                    val thisSym = csym.loweredSource.thisSym
+                    val fieldSyms = csym.loweredSource.pattern.symbols
+                    val nextSubst = fieldSyms.zip(args).foldLeft(TypedSubst.empty) { case (s, (fsym, arg)) =>
+                        s plusField ((thisSym, fsym) -> arg)
+                    }
+                    addFor(nextSubst)(csym)
                 }
             
                 // Non-harmonic classes are currently only Java interfaces,
                 // so no worries there. 
                 // TODO Extend to support a single Java class
-                case _ => {}
+                case _ => ()
             }
         }
     
-        def addFor(subst: TypedSubst)(csym: ClassFromSource) = {
+        def addFor(subst: TypedSubst)(csym: ClassFromSource): Unit = debugIndent("addFor(%s)", csym) {
             val env = csym.classEnv
             csym.loweredSource.extendsDecls.foreach(addExtendsDecl(env, csym.name, subst))                    
         }
