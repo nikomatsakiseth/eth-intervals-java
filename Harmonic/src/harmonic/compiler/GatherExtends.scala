@@ -96,7 +96,7 @@ case class GatherExtends(global: Global) {
     def forSym(csym: ClassFromSource) = {
         val data = new Data(csym.pos)
         data.addFor(TypedSubst.empty)(csym)
-        csym.extendedClasses = MethodResolutionOrder(global).forSym(csym).tail.reverse.flatMap { 
+        csym.ExtendedClasses.v = MethodResolutionOrder(global).forSym(csym).tail.reverse.flatMap { 
             case mroCsym: ClassFromSource => {
                 val (_, decl, args) = data.result(mroCsym.name) 
                 Some((decl, args))

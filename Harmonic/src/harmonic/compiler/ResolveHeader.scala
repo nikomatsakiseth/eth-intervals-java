@@ -27,7 +27,7 @@ extends Resolve(global, compUnit)
         // Resolve the names of all superclasses and add an edge
         // so that resolving our header does not complete until
         // their headers have been resolved.  
-        csym.superClassNames = cdecl.extendsDecls.flatMap { case in.ExtendsDecl(relName, _, ()) =>
+        csym.SuperClassNames.v = cdecl.extendsDecls.flatMap { case in.ExtendsDecl(relName, _, ()) =>
             val superName = resolveName(relName).name
             val superCsym = global.csym(superName) 
             
@@ -77,8 +77,8 @@ extends Resolve(global, compUnit)
             }
         }
         
-        csym.varMembers = cdecl.members.foldLeft(List[SymTab.Entry]())(addVarMembersFromMember)
-        csym.varMembers = addVarMembersFromParam(csym.varMembers, cdecl.pattern)
+        csym.VarMembers.v = cdecl.members.foldLeft(List[SymTab.Entry]())(addVarMembersFromMember)
+        csym.VarMembers.v = addVarMembersFromParam(csym.varMembers, cdecl.pattern)
     }
     
 }

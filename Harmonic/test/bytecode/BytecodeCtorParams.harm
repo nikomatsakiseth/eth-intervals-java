@@ -1,0 +1,50 @@
+package test.bytecode;
+
+class BytecodeCtorParams1(a: Integer) 
+{
+    getA(): Integer {
+        a
+    }
+}
+
+class BytecodeCtorParams2(a: Integer, b: Integer) 
+extends BytecodeCtorParams1(b) 
+{
+    @Override
+    getA(): Integer {
+        a; 
+    }
+    
+    getB(): Integer {
+        b; 
+    }
+}
+
+class BytecodeCtorParams extends Application {
+    
+    print1(p: BytecodeCtorParams1) {
+        System.out.print("print1: ");
+        System.out.println(p.getA());
+    }
+    
+    print2(p: BytecodeCtorParams2) {
+        print1(p);
+        System.out.print("print2: ");
+        System.out.print(p.getA());
+        System.out.print(", ");
+        System.out.println(p.getB());
+    }
+    
+    @Override main(): Void {
+        print1(new BytecodeCtorParams1(1));
+        print2(new BytecodeCtorParams2(2, 3));
+    }
+    
+}
+// COMPILE
+// --dump-resolved-trees
+// --dump-lowered-trees
+// EXECUTE
+// print1: 1
+// print1: 3
+// print2: 2, 3

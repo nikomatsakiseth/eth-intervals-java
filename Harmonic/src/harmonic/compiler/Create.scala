@@ -15,12 +15,12 @@ class Create(global: Global) {
         
         // Just lower the constructor now.
         val (classParam, classEnv) = Lower(global).classParamAndEnv(csym)
-        csym.classParam = classParam
-        csym.classEnv = classEnv
-        csym.constructor = Lower(global).createSymbolForConstructor(csym)
+        csym.ClassParam.v = classParam
+        csym.ClassEnv.v = classEnv
+        csym.Constructor.v = Lower(global).createSymbolForConstructor(csym)
         
         // Create futures for lowering each member declaration:
-        csym.lowerMembers = cdecl.members.map(new LowerMember(global, csym, _))
+        csym.LowerMembers.v = cdecl.members.map(new LowerMember(global, csym, _))
     }
     
 }

@@ -282,7 +282,7 @@ abstract class Ast {
     case class Annotation(
         name: CN
     ) extends Node {
-        override def toString = "[%s]".format(name)
+        override def toString = "@%s".format(name)
         
         override def print(out: PrettyPrinter) {
             out.write("[")
@@ -305,7 +305,9 @@ abstract class Ast {
         
         override def print(out: PrettyPrinter) {
             className.print(out)
+            out.write("(")
             args.foreach(_.print(out))
+            out.write(")")
         }
     }
     
@@ -379,7 +381,7 @@ abstract class Ast {
             annotations.foreach(_.printsp(out))
             name.print(out)
             out.write(": ")
-            tref.printsp(out)
+            tref.print(out)
         }        
     }
     
@@ -469,7 +471,12 @@ abstract class Ast {
     }
     
     case class ConstrainedType(path: PathNode, typeArgs: List[TypeArg]) extends ParseTypeRef {
-        override def toString = "%s[%s]".format(path, typeArgs.mkString(", "))        
+        override def toString = (
+            typeArgs match {
+                case List() => path.toString
+                case _ => "%s[%s]".format(path, typeArgs.mkString(", "))
+            }
+        )
     }
     
     // ______ Types after resolve ___________________________________________

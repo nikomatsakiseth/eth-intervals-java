@@ -36,7 +36,7 @@ extends Resolve(global, compUnit)
         // Process the rest of the class with all members in scope:
         val classScope = InScope(constructSymbolTable(csym))
         
-        csym.resolvedSource = withPosOf(cdecl,
+        csym.ResolvedSource.v = withPosOf(cdecl,
             out.ClassDecl(
                 name = Ast.ClassName(csym.name),
                 annotations = cdecl.annotations.map(classScope.resolveAnnotation),

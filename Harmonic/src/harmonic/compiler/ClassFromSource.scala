@@ -28,12 +28,12 @@ class ClassFromSource(
     class GuardedBy[T](pass: Int) {
         private[this] var value: Option[T] = None
         
-        def get: T = {
+        def v: T = {
             assert(Intervals.checkReadable(intervals(pass)))
             value.get
         }
-
-        def set(v: T) = {
+        
+        def v_=(v: T) = {
             assert(Intervals.checkWritable(intervals(pass)))
             value = Some(v)
         }
@@ -41,14 +41,16 @@ class ClassFromSource(
 
     // ___ Computed by Pass.Header __________________________________________
 
-    var superClassNames: List[Name.Class] = Nil
-    
-    var varMembers: List[SymTab.Entry] = Nil
+    val SuperClassNames = new GuardedBy[List[Name.Class]](Pass.Header)
+    def superClassNames = SuperClassNames.v
+
+    val VarMembers = new GuardedBy[List[SymTab.Entry]](Pass.Header)
+    def varMembers = VarMembers.v
     
     // ___ Computed by Pass.Body ____________________________________________
     
-    /** Class declaration with names fully resolved. */
-    var resolvedSource: Ast.Resolve.ClassDecl = null
+    val ResolvedSource = new GuardedBy[Ast.Resolve.ClassDecl](Pass.Body)
+    def resolvedSource = ResolvedSource.v
     
     def modifiers = {
         Modifier.forResolvedAnnotations(resolvedSource.annotations)            
@@ -57,16 +59,20 @@ class ClassFromSource(
     // ___ Computed by Pass.Create __________________________________________
     
     /** Lowered version of class parameter */
-    var classParam: Ast.Lower.Param[VarSymbol.Field] = null
+    val ClassParam = new GuardedBy[Ast.Lower.Param[VarSymbol.Field]](Pass.Create)    
+    def classParam = ClassParam.v
     
     /** Environment immediately within the class body */
-    var classEnv: Env = null
+    val ClassEnv = new GuardedBy[Env](Pass.Create)
+    def classEnv = ClassEnv.v
     
     /** Method symbol for constructor, once defined. */
-    var constructor: MethodSymbol = null
+    val Constructor = new GuardedBy[MethodSymbol](Pass.Create)
+    def constructor = Constructor.v
     
     /** List of class members being lowered. */
-    var lowerMembers: List[LowerMember] = Nil
+    val LowerMembers = new GuardedBy[List[LowerMember]](Pass.Create)
+    def lowerMembers = LowerMembers.v
     
     def constructors = {
         intervals(Pass.Create).join()        
@@ -88,25 +94,30 @@ class ClassFromSource(
     
     // ___ Computed by Pass.Merge ___________________________________________
 
-    var loweredMethods: List[(MethodSymbol, Ast.Lower.MethodDecl)] = Nil
-    
-    var loweredSource: Ast.Lower.ClassDecl = null
-    
+    val LoweredMethods = new GuardedBy[List[(MethodSymbol, Ast.Lower.MethodDecl)]](Pass.Merge)
+    def loweredMethods = LoweredMethods.v
+
+    val LoweredSource = new GuardedBy[Ast.Lower.ClassDecl](Pass.Merge)
+    def loweredSource = LoweredSource.v
+
     def allMethodSymbols: List[MethodSymbol] = loweredMethods.map(_._1)
-    
-    var allFieldSymbols: List[VarSymbol.Field] = Nil
+
+    val AllFieldSymbols = new GuardedBy[List[VarSymbol.Field]](Pass.Merge)
+    def allFieldSymbols = AllFieldSymbols.v
     
     // ___ Computed by Pass.Gather __________________________________________
     
     /** A complete list of all versions of all methods offered by this class,
       * whether they are defined in this class or in a superclass. Populated 
       * by GatherOverrides for all classes being compiled and their supertypes. */
-    var methodGroups: List[MethodGroup] = Nil
-    
-    var extendedClasses: List[(Ast.Lower.ExtendsDecl, List[Path.Typed])] = null
+    val MethodGroups = new GuardedBy[List[MethodGroup]](Pass.Gather)
+    def methodGroups = MethodGroups.v
+
+    val ExtendedClasses = new GuardedBy[List[(Ast.Lower.ExtendsDecl, List[Path.Typed])]](Pass.Gather)    
+    def extendedClasses = ExtendedClasses.v
     
     def setMethodGroups(groups: List[MethodGroup]) {
-        methodGroups = groups
+        MethodGroups.v = groups
     }
 
 }
