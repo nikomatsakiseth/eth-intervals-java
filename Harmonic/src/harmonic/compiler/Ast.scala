@@ -285,9 +285,8 @@ abstract class Ast {
         override def toString = "@%s".format(name)
         
         override def print(out: PrettyPrinter) {
-            out.write("[")
+            out.write("@")
             name.print(out)
-            out.write("]")
         }
     }
     

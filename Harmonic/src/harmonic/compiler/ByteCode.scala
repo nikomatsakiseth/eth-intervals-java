@@ -68,25 +68,20 @@ case class ByteCode(global: Global) {
         BoxInfo(asm.Type.getType(classOf[java.lang.Float]), asm.Type.FLOAT_TYPE, "floatValue"),
         BoxInfo(asm.Type.getType(classOf[java.lang.Double]), asm.Type.DOUBLE_TYPE, "doubleValue")        
     )
+    def boxInfoForPrimitiveType(asmType: asm.Type) = boxes.find(_.primType == asmType).get
+    def boxInfoForBoxType(asmType: asm.Type) = boxes.find(_.boxType == asmType).get
     
-    def boxInfoForPrimitiveType(asmType: asm.Type) = {
-        boxes.find(_.primType == asmType).get
-    }
-
-    def boxInfoForBoxType(asmType: asm.Type) = {
-        boxes.find(_.boxType == asmType).get
-    }
-    
-    case class ExtendedTypeRef(ty: Type.Ref) {
+    case class ExtendedTypeRef(ty: Type.Ref) 
+    {
         def toAsmType: asm.Type = ty match {
             case Type.Class(name, List()) => asm.Type.getObjectType(name.internalName)
             case Type.Tuple(List()) => asmVoidType
-            case Type.Tuple(List(ty)) => ExtendedTypeRef(ty).toAsmType
+            case Type.Tuple(List(ty)) => ty.toAsmType
             case Type.Tuple(_) => asmObjectArrayType
             case _ => asmObjectType            
         }
     }
-    implicit def extendedTypeRef(ty: Type.Ref) = ExtendedTypeRef(ty)
+    implicit def extendedTypeRef(ty: Type.Ref): ExtendedTypeRef = ExtendedTypeRef(ty)
 
     def convertNeeded(toTy: Type.Ref, fromTy: Type.Ref): Boolean = {
         (toTy, fromTy) match {
@@ -136,7 +131,6 @@ case class ByteCode(global: Global) {
         getMethodDescriptor(ret, (rcvr :: asm.Type.INT_TYPE :: params).toArray)
     }
 
-    
     sealed case class ExtendedMethodVisitor(mvis: asm.MethodVisitor) {
         def complete {
             mvis.visitMaxs(0, 0)
@@ -358,6 +352,10 @@ case class ByteCode(global: Global) {
             pos match {
                 case pos: InterPosition => cvis.visitSource(pos.file.getPath, null)
             }            
+        }
+        
+        def flush() = {
+            optTraceWriter.foreach(_.flush())
         }
 
         def end() {
@@ -596,7 +594,8 @@ case class ByteCode(global: Global) {
         // Symbols which are accessed from an inner class of some kind: 
         //    (A subset of readSyms and writeSyms)
         sharedSyms: Set[VarSymbol.Any]
-    ) {
+    ) 
+    {
         def accessSyms = readSyms ++ writeSyms
         def boxedSyms(sym: VarSymbol.Any) = writeSyms(sym) && sharedSyms(sym)
     }
@@ -838,12 +837,42 @@ case class ByteCode(global: Global) {
         }
         
         def pushMethodArgs(
+            /** Method being called */
+            msym: MethodSymbol,
+            
+            /** Signature at call site */
             msig: MethodSignature[Pattern.Anon],
-            args: List[in.Expr],
-            inAsmTypes: List[asm.Type]
+            
+            /** 0 if called from a static context, 1 if not */
+            rcvr: Int,
+            
+            /** Argument expressions */
+            args: List[in.Expr]
         ) {
-            msig.parameterPatterns.zip(args).foldLeft(inAsmTypes) { case (asmTypes, (pattern, arg)) =>
-                pushExprRvalues(pattern, arg, asmTypes)
+            def pushConvertingTo(asmTypes: Array[asm.Type]) {
+                asmTypes.zip(args).foreach { case (asmType, expr) =>
+                    pushExprValue(expr)
+                    mvis.convert(asmType, expr.ty.toAsmType)
+                }
+            }
+
+            msym.kind match {
+                case MethodKind.Java(MethodKind.JavaStatic, _, _, argumentClasses, _) => {
+                    val asmTys = argumentClasses.drop(rcvr).map(asm.Type.getType)
+                    pushConvertingTo(asmTys)
+                }
+                
+                case MethodKind.Java(_, _, _, argumentClasses, _) => {
+                    val asmTys = argumentClasses.map(asm.Type.getType)
+                    pushConvertingTo(asmTys)                    
+                }
+                
+                case _ => {
+                    val tys = msig.parameterPatterns.flatMap(_.varTys)
+                    tys.zip(args).foreach { case (ty, arg) =>
+                        pushExprValueDowncastingTo(ty, arg)
+                    }
+                }
             }
         }
         
@@ -985,7 +1014,7 @@ case class ByteCode(global: Global) {
                         ) => {
                             val resultAsmTy = asm.Type.getType(resultClass)
                             val argAsmTys = argumentClasses.map(asm.Type.getType)
-                            pushMethodArgs(msig, args, argAsmTys.toList)                                    
+                            pushMethodArgs(msym, msig, 0, args)
                             mvis.visitMethodInsn(
                                 O.INVOKESTATIC,
                                 asm.Type.getType(ownerClass).getInternalName,
@@ -1004,7 +1033,7 @@ case class ByteCode(global: Global) {
                 case in.MethodCall(in.Super(_), name, args, (msym, msig)) => {
                     mvis.visitVarInsn(O.ALOAD, 0)   // load this ptr
                     nextMro.push(mvis)              // load next index in MRO
-                    pushMethodArgs(msig, args, Nil)
+                    pushMethodArgs(msym, msig, 1, args)
                     mvis.visitMethodInsn(
                         O.INVOKEINTERFACE,
                         msym.clsName.internalName,
@@ -1017,7 +1046,7 @@ case class ByteCode(global: Global) {
                     msym.kind match {
                         case harm: MethodKind.Harmonic => {
                             pushPathValue(receiver)
-                            pushMethodArgs(msig, args, Nil)
+                            pushMethodArgs(msym, msig, 1, args)
                             val owner = msig.receiverTy.toAsmType.getInternalName
                             val desc = plainMethodDescFromSig(msym.msig)
                             mvis.visitMethodInsn(harm.op, owner, msym.name.javaName, desc)
@@ -1028,16 +1057,16 @@ case class ByteCode(global: Global) {
                             val resultAsmTy = asm.Type.getType(resultClass)
                             val argAsmTys = argumentClasses.map(asm.Type.getType)
                             
+                            // Push Receiver (first argument if static):
                             op match {
-                                case MethodKind.JavaStatic => {
+                                case MethodKind.JavaStatic => 
                                     pushPathValueDowncastingTo(argAsmTys(0), receiver)
-                                    pushMethodArgs(msig, args, argAsmTys.toList.drop(1))
-                                }
-                                case _ => {
+                                case _ =>
                                     pushPathValueDowncastingTo(ownerAsmTy, receiver)
-                                    pushMethodArgs(msig, args, argAsmTys.toList)
-                                }
                             }
+                            
+                            // Push Method Arguments:
+                            pushMethodArgs(msym, msig, 1, args)
                             
                             mvis.visitMethodInsn(
                                 op.op,
@@ -1056,10 +1085,11 @@ case class ByteCode(global: Global) {
                     }
                 }
                 
-                case in.NewCtor(tref, arg, (msym, _), Type.Class(name, _)) => {
+                case in.NewCtor(tref, args, (msym, msig), Type.Class(name, _)) => {
                     val internalImplName = global.csym(name).internalImplName
                     mvis.visitTypeInsn(O.NEW, internalImplName)
                     mvis.visitInsn(O.DUP)
+                    pushMethodArgs(msym, msig, 1, args)
                     mvis.visitMethodInsn(
                         O.INVOKESPECIAL,
                         internalImplName,
@@ -1538,7 +1568,7 @@ case class ByteCode(global: Global) {
         cvis: asm.ClassVisitor, 
         msym: MethodSymbol,
         decl: in.MethodDecl
-    ) {
+    ): Unit = debugIndent("writeStaticMethodImpl(%s, %s)", csym, msym) {
         decl.optBody.foreach { body => // Only for non-abstract methods:
             val mvis = cvis.visitMethod(
                 O.ACC_PUBLIC + O.ACC_STATIC,
@@ -1828,6 +1858,15 @@ case class ByteCode(global: Global) {
         addInstanceFields(accessMap, thisPath, csym)
         val stmtVisitor = new StatementVisitor(accessMap, IntConstant(0), mvis)
         
+        // Invoke java class constructor
+        mvis.visitVarInsn(O.ALOAD, 0)
+        mvis.visitMethodInsn(
+            O.INVOKESPECIAL,
+            Name.ObjectClass.internalName,
+            Name.InitMethod.javaName,
+            "()V"
+        )
+
         // Store class parameters and parameters for all superclasses:
         csym.classParam.symbols.zipWithIndex.foreach { case (fsym, i) =>
             debug("classParam: %s", fsym)
@@ -1851,15 +1890,6 @@ case class ByteCode(global: Global) {
             }
         }
         
-        // Invoke java class constructor
-        mvis.visitVarInsn(O.ALOAD, 0)
-        mvis.visitMethodInsn(
-            O.INVOKESPECIAL,
-            Name.ObjectClass.internalName,
-            Name.InitMethod.javaName,
-            "()V"
-        )
-
         // Invoke Harmonic supertype constructors:
         csym.extendedClasses.foreach { case (in.ExtendsDecl(_, _, (msym, _)), paths) => 
             thisPath.push(mvis)
@@ -1888,52 +1918,56 @@ case class ByteCode(global: Global) {
         val wr = new ClassWriter(csym.name, implSuffix, csym.pos)
         import wr.cvis
 
-        val implClassName = csym.name.withSuffix(implSuffix)
-        cvis.visit(
-            O.V1_5,
-            O.ACC_PUBLIC,
-            implClassName.internalName,
-            null, // FIXME Signature
-            Name.ObjectClass.internalName,
-            Array(csym.name.internalName)
-        )
+        try {
+            val implClassName = csym.name.withSuffix(implSuffix)
+            cvis.visit(
+                O.V1_5,
+                O.ACC_PUBLIC,
+                implClassName.internalName,
+                null, // FIXME Signature
+                Name.ObjectClass.internalName,
+                Array(csym.name.internalName)
+            )
         
-        writeImplCtor(csym, cvis)
+            writeImplCtor(csym, cvis)
 
-        // Declare fields and accessors for all inherited fields:
-        allInheritedFieldSymbols(csym).foreach { fsym =>
-            fsym.kind match {
-                case FieldKind.Java(_, _, _) => // ignore fields declared in Java types.
-                case FieldKind.Harmonic => {
-                    val javaName = accessorName(fsym.name)
-                    val javaDesc = fsym.ty.toAsmType.getDescriptor
+            // Declare fields and accessors for all inherited fields:
+            allInheritedFieldSymbols(csym).foreach { fsym =>
+                fsym.kind match {
+                    case FieldKind.Java(_, _, _) => // ignore fields declared in Java types.
+                    case FieldKind.Harmonic => {
+                        val javaName = accessorName(fsym.name)
+                        val javaDesc = fsym.ty.toAsmType.getDescriptor
                     
-                    val fvis = cvis.visitField(O.ACC_PRIVATE, javaName, javaDesc, null, null)
-                    fvis.visitEnd
+                        val fvis = cvis.visitField(O.ACC_PRIVATE, javaName, javaDesc, null, null)
+                        fvis.visitEnd
                     
-                    val mvisGet = visitFieldAccessor(0, csym, cvis, fsym, accessorGetDesc)
-                    mvisGet.visitCode
-                    mvisGet.visitVarInsn(O.ALOAD, 0)
-                    mvisGet.visitFieldInsn(O.GETFIELD, implClassName.internalName, javaName, javaDesc)
-                    mvisGet.visitInsn(O.ARETURN)
-                    mvisGet.complete
+                        val mvisGet = visitFieldAccessor(0, csym, cvis, fsym, accessorGetDesc)
+                        mvisGet.visitCode
+                        mvisGet.visitVarInsn(O.ALOAD, 0)
+                        mvisGet.visitFieldInsn(O.GETFIELD, implClassName.internalName, javaName, javaDesc)
+                        mvisGet.visitInsn(O.ARETURN)
+                        mvisGet.complete
                     
-                    val mvisSet = visitFieldAccessor(0, csym, cvis, fsym, accessorSetDesc)
-                    mvisSet.visitCode
-                    mvisSet.visitVarInsn(O.ALOAD, 0)
-                    mvisSet.visitVarInsn(O.ALOAD, 1)
-                    mvisSet.visitFieldInsn(O.PUTFIELD, implClassName.internalName, javaName, javaDesc)
-                    mvisSet.visitInsn(O.RETURN)
-                    mvisSet.complete
+                        val mvisSet = visitFieldAccessor(0, csym, cvis, fsym, accessorSetDesc)
+                        mvisSet.visitCode
+                        mvisSet.visitVarInsn(O.ALOAD, 0)
+                        mvisSet.visitVarInsn(O.ALOAD, 1)
+                        mvisSet.visitFieldInsn(O.PUTFIELD, implClassName.internalName, javaName, javaDesc)
+                        mvisSet.visitInsn(O.RETURN)
+                        mvisSet.complete
+                    }
                 }
             }
-        }
 
-        // Implement all inherited methods with simple forwarders:
-        csym.methodGroups.foreach { group =>
-            writePlainToMroDispatch(csym, cvis, group)
-            writeMroMethodImpl(csym, cvis, group)
-            writeForwardingMethods(csym, cvis, group)
+            // Implement all inherited methods with simple forwarders:
+            csym.methodGroups.foreach { group =>
+                writePlainToMroDispatch(csym, cvis, group)
+                writeMroMethodImpl(csym, cvis, group)
+                writeForwardingMethods(csym, cvis, group)
+            }
+        } finally {
+            wr.flush()
         }
         
         wr.end()
@@ -1943,24 +1977,28 @@ case class ByteCode(global: Global) {
         val wr = new ClassWriter(csym.name, staticSuffix, csym.pos)
         import wr.cvis
 
-        cvis.visit(
-            O.V1_5,
-            O.ACC_PUBLIC,
-            csym.name.internalName + staticSuffix,
-            null, // FIXME Signature
-            "java/lang/Object",
-            Array(csym.name.internalName)
-        )
-        
-        writeEmptyCtor(csym.name, Name.ObjectClass, cvis)
-        
-        csym.loweredMethods.foreach { case (msym, mdecl) =>
-            writeStaticMethodImpl(csym, cvis, msym, mdecl)
+        try {
+            cvis.visit(
+                O.V1_5,
+                O.ACC_PUBLIC,
+                csym.name.internalName + staticSuffix,
+                null, // FIXME Signature
+                "java/lang/Object",
+                Array(csym.name.internalName)
+            )
+
+            writeEmptyCtor(csym.name, Name.ObjectClass, cvis)
+
+            csym.loweredMethods.foreach { case (msym, mdecl) =>
+                writeStaticMethodImpl(csym, cvis, msym, mdecl)
+            }
+
+            writeStaticConstructorMethodImpl(csym, cvis)
+        } finally {
+            wr.flush()
         }
         
-        writeStaticConstructorMethodImpl(csym, cvis)
-        
-        wr.end()
+        wr.end()            
     }
     
     def writeClassSymbol(csym: ClassFromSource) = {

@@ -156,6 +156,8 @@ object Util {
         def join() = {
             try {
                 Intervals.inline(new InlineTask[Unit]() {
+                    override def toString = 
+                        "join(%s)".format(inter)
                     override def init(inlineInterval: Interval) = 
                         Intervals.addHb(inter.end, inlineInterval.start)
                     override def run(inlineInterval: Interval) = 

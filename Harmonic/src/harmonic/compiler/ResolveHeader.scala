@@ -78,7 +78,7 @@ extends Resolve(global, compUnit)
         }
         
         csym.VarMembers.v = cdecl.members.foldLeft(List[SymTab.Entry]())(addVarMembersFromMember)
-        csym.VarMembers.v = addVarMembersFromParam(csym.varMembers, cdecl.pattern)
+        csym.VarMembers.v = addVarMembersFromParam(csym.VarMembers.v, cdecl.pattern)
     }
     
 }

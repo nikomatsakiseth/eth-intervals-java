@@ -17,13 +17,15 @@ class LowerMember(
     private[this] val inter = {
         val members = csym.intervals(Pass.Members)
         global.master.subinterval(during = List(members)) { inter =>
-            outMemberDecl = Lower(global).lowerMemberDecl(csym, inMemberDecl)
+            debugIndent("lowering %s", inMemberDecl) {
+                outMemberDecl = Lower(global).lowerMemberDecl(csym, inMemberDecl)                
+            }
         }
     }
     
     /** Read lowered member decl without blocking */
     def memberDecl = {
-        assert(Intervals.checkReadable(inter))
+        assert(Intervals.checkReadable(inter) && outMemberDecl != null)
         outMemberDecl
     }
     

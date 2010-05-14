@@ -2,8 +2,12 @@ package test.bytecode;
 
 class BytecodeCtorParams1(a: Integer) 
 {
+    getA1(): Integer {
+        getA();
+    }
+    
     getA(): Integer {
-        a
+        a;
     }
 }
 
@@ -24,7 +28,9 @@ class BytecodeCtorParams extends Application {
     
     print1(p: BytecodeCtorParams1) {
         System.out.print("print1: ");
-        System.out.println(p.getA());
+        System.out.print(p.getA());
+        System.out.print(" / ");
+        System.out.println(p.getA1());
     }
     
     print2(p: BytecodeCtorParams2) {
@@ -45,6 +51,6 @@ class BytecodeCtorParams extends Application {
 // --dump-resolved-trees
 // --dump-lowered-trees
 // EXECUTE
-// print1: 1
-// print1: 3
+// print1: 1 / 1
+// print1: 2 / 3
 // print2: 2, 3

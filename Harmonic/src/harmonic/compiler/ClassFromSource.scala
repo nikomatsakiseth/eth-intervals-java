@@ -28,6 +28,11 @@ class ClassFromSource(
     class GuardedBy[T](pass: Int) {
         private[this] var value: Option[T] = None
         
+        def join = {
+            intervals(pass).join()
+            v
+        }
+        
         def v: T = {
             assert(Intervals.checkReadable(intervals(pass)))
             value.get
@@ -42,10 +47,10 @@ class ClassFromSource(
     // ___ Computed by Pass.Header __________________________________________
 
     val SuperClassNames = new GuardedBy[List[Name.Class]](Pass.Header)
-    def superClassNames = SuperClassNames.v
+    def superClassNames = SuperClassNames.join
 
     val VarMembers = new GuardedBy[List[SymTab.Entry]](Pass.Header)
-    def varMembers = VarMembers.v
+    def varMembers = VarMembers.join
     
     // ___ Computed by Pass.Body ____________________________________________
     
@@ -75,18 +80,15 @@ class ClassFromSource(
     def lowerMembers = LowerMembers.v
     
     def constructors = {
-        intervals(Pass.Create).join()        
-        List(constructor)
+        List(Constructor.join)
     }
     
     def methodsNamed(mthdName: Name.Method) = {
-        intervals(Pass.Create).join()
-        lowerMembers.flatMap(_.toOptMethodSymbol(mthdName))
+        LowerMembers.join.flatMap(_.toOptMethodSymbol(mthdName))
     }
     
     def fieldNamed(name: Name.Member) = {
-        intervals(Pass.Create).join()
-        lowerMembers.firstSome(_.toOptFieldSymbol(name)).ifNone {
+        LowerMembers.join.firstSome(_.toOptFieldSymbol(name)).ifNone {
             val fsyms: List[VarSymbol.Field] = classParam.symbols
             fsyms.find(_.isNamed(name))
         }
