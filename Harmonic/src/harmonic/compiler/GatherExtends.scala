@@ -24,7 +24,7 @@ case class GatherExtends(global: Global) {
         
         // Extends declarations for (transitive) supertypes of `csym`.
         // All substituted so as to be in terms of the parameters of `csym`.        
-        val result = new mutable.HashMap[Name.Class, (Name.Class, List[Path.Typed])]()
+        val result = new mutable.HashMap[Name.Class, (Name.Class, in.ExtendsDecl, List[Path.Typed])]()
         
         // Returns None if pair are equivalent, else returns `Some(pos)` where
         // pos is the position of the item in the left which caused an error.
@@ -52,10 +52,10 @@ case class GatherExtends(global: Global) {
                 case csym: ClassFromSource => {
                     result.get(className) match {
                         case None => {
-                            result(className) = (fromClass, args)                            
+                            result(className) = (fromClass, extendsDecl, args)                            
                         }
                     
-                        case Some((rightClass, rightArgs)) => {
+                        case Some((rightClass, _, rightArgs)) => {
                             debug("rightArgs = (%s)", rightArgs.mkString(", "))
                             args.zip(rightArgs).find(notEquatable(env)) match {
                                 case None => // All are equatable.
@@ -96,6 +96,13 @@ case class GatherExtends(global: Global) {
     def forSym(csym: ClassFromSource) = {
         val data = new Data(csym.pos)
         data.addFor(TypedSubst.empty)(csym)
+        csym.extendedClasses = MethodResolutionOrder(global).forSym(csym).tail.reverse.flatMap { 
+            case mroCsym: ClassFromSource => {
+                val (_, decl, args) = data.result(mroCsym.name) 
+                Some((decl, args))
+            }
+            case _ => None
+        }
     }
     
 }

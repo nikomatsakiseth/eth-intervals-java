@@ -103,6 +103,8 @@ class ClassFromSource(
       * by GatherOverrides for all classes being compiled and their supertypes. */
     var methodGroups: List[MethodGroup] = Nil
     
+    var extendedClasses: List[(Ast.Lower.ExtendsDecl, List[Path.Typed])] = null
+    
     def setMethodGroups(groups: List[MethodGroup]) {
         methodGroups = groups
     }

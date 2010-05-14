@@ -104,6 +104,10 @@ case class ByteCode(global: Global) {
     
     def asmClassType(name: Name.Class) = asm.Type.getObjectType(name.internalName)
     
+    def harmonicInitDesc(name: Name.Class) = {
+        getMethodDescriptor(asm.Type.VOID_TYPE, Array(asmClassType(name)))
+    }
+
     def plainMethodDescFromSig(msig: MethodSignature[Pattern.Anon]): String = {
         getMethodDescriptor(
             msig.returnTy.toAsmType,
@@ -157,6 +161,11 @@ case class ByteCode(global: Global) {
         }
         
         def setHarmonicField(fsym: VarSymbol.Field) = {
+            debug("setHarmonicField(%s): emitting call to %s%s", 
+                fsym, 
+                accessorName(fsym.name), 
+                accessorSetDesc(fsym.ty)
+            )
             mvis.visitMethodInsn(
                 O.INVOKEINTERFACE,
                 fsym.name.className.internalName,
@@ -1470,7 +1479,7 @@ case class ByteCode(global: Global) {
         }
         boxedArray.createArrayIfNeeded(mvis)
     }
-
+    
     /** The static constructor simply executes the
       * class body.  It does not invoke any super
       * constructors. */
@@ -1479,12 +1488,10 @@ case class ByteCode(global: Global) {
         cvis: asm.ClassVisitor
     ) = {
         val msym = csym.constructor
-        val mdesc = staticPlainMethodDescFromSym(msym)
-        
         val mvis = cvis.visitMethod(
             O.ACC_PUBLIC + O.ACC_STATIC,
             harmonicInit,
-            mdesc,
+            harmonicInitDesc(msym.clsName),
             null, // generic signature
             null  // thrown exceptions
         )
@@ -1492,16 +1499,7 @@ case class ByteCode(global: Global) {
         
         val accessMap = new AccessMap(csym.name)
         val thisPath = accessMap.addUnboxedSym(csym.loweredSource.thisSym)
-        val paramPaths = asm.Type.getArgumentTypes(mdesc).map(accessMap.pathToFreshSlot)
         addInstanceFields(accessMap, thisPath, csym)
-        
-        // first, store the classs parameters:
-        csym.classParam.symbols.zipWithIndex.foreach { case (fsym, i) =>
-            debug("classParam: %s", fsym)
-            thisPath.push(mvis)
-            paramPaths(i).pushLvalue(mvis)
-            mvis.setHarmonicField(fsym)
-        }
         
         // next, "execute" the members in the body, if appropriate:
         val stmtVisitor = new StatementVisitor(accessMap, IntConstant(0), mvis)
@@ -1530,8 +1528,7 @@ case class ByteCode(global: Global) {
             }
         }
         
-        mvis.visitInsn(O.ACONST_NULL)
-        mvis.visitInsn(O.ARETURN)
+        mvis.visitInsn(O.RETURN)
         mvis.complete
     }
 
@@ -1810,6 +1807,83 @@ case class ByteCode(global: Global) {
         wr.end()
     }
     
+    def writeImplCtor(
+        csym: ClassFromSource,
+        cvis: asm.ClassVisitor
+    ): Unit = debugIndent("writeImplCtor(%s)", csym) {
+        val msym = csym.constructor
+        val paramAsmTys = msym.msig.parameterPatterns.flatMap(_.varTys).map(_.toAsmType)
+        val mvis = cvis.visitMethod(
+            O.ACC_PUBLIC,
+            Name.InitMethod.javaName,
+            getMethodDescriptor(asm.Type.VOID_TYPE, paramAsmTys.toArray),
+            null, // generic signature
+            null  // thrown exceptions
+        )
+        mvis.visitCode
+
+        val accessMap = new AccessMap(csym.name)
+        val thisPath = accessMap.addUnboxedSym(csym.loweredSource.thisSym)
+        val paramPaths = paramAsmTys.map(accessMap.pathToFreshSlot)
+        addInstanceFields(accessMap, thisPath, csym)
+        val stmtVisitor = new StatementVisitor(accessMap, IntConstant(0), mvis)
+        
+        // Store class parameters and parameters for all superclasses:
+        csym.classParam.symbols.zipWithIndex.foreach { case (fsym, i) =>
+            debug("classParam: %s", fsym)
+            thisPath.push(mvis)
+            paramPaths(i).push(mvis)
+            mvis.setHarmonicField(fsym)
+        }
+        csym.extendedClasses.foreach { case (in.ExtendsDecl(_, args, (msym, _)), paths) =>
+            global.csym(msym.clsName) match {
+                case superCsym: ClassFromSource => {
+                    superCsym.classParam.symbols.zip(paths).zip(args).foreach { 
+                        case ((fsym, path), arg) => {
+                            debug("superParam: %s = %s", fsym, path)
+                            mvis.setPosition(arg.pos)
+                            thisPath.push(mvis)
+                            stmtVisitor.pushPathValue(path)
+                            mvis.setHarmonicField(fsym)                            
+                        }
+                    }                    
+                }
+            }
+        }
+        
+        // Invoke java class constructor
+        mvis.visitVarInsn(O.ALOAD, 0)
+        mvis.visitMethodInsn(
+            O.INVOKESPECIAL,
+            Name.ObjectClass.internalName,
+            Name.InitMethod.javaName,
+            "()V"
+        )
+
+        // Invoke Harmonic supertype constructors:
+        csym.extendedClasses.foreach { case (in.ExtendsDecl(_, _, (msym, _)), paths) => 
+            thisPath.push(mvis)
+            mvis.visitMethodInsn(
+                O.INVOKESTATIC,
+                msym.clsName.internalName + staticSuffix,
+                harmonicInit,
+                harmonicInitDesc(msym.clsName)
+            )
+        }
+        
+        // Finally invoke this class's constructor:
+        thisPath.push(mvis)
+        mvis.visitMethodInsn(
+            O.INVOKESTATIC,
+            csym.name.internalName + staticSuffix,
+            harmonicInit,
+            harmonicInitDesc(csym.constructor.clsName)
+        )
+        
+        mvis.visitInsn(O.RETURN)
+        mvis.complete
+    }
+    
     def writeImplClass(csym: ClassFromSource) {
         val wr = new ClassWriter(csym.name, implSuffix, csym.pos)
         import wr.cvis
@@ -1824,7 +1898,7 @@ case class ByteCode(global: Global) {
             Array(csym.name.internalName)
         )
         
-        writeEmptyCtor(csym.name, Name.ObjectClass, cvis)
+        writeImplCtor(csym, cvis)
 
         // Declare fields and accessors for all inherited fields:
         allInheritedFieldSymbols(csym).foreach { fsym =>
