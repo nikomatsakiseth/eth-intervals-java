@@ -59,7 +59,7 @@ class Parse extends StdTokenParsers with PackratParsers {
         "class", "extends", "import", "package", 
         "interval", "requires", "locks", "new",
         "type", "ghost", "true", "false", "this",
-        "super", "null"
+        "super", "null", "return", "break", "continue"
     )
     
     def comma[A](p: PackratParser[A]) = repsep(p, ",")<~opt(",")
@@ -398,16 +398,18 @@ class Parse extends StdTokenParsers with PackratParsers {
     lazy val stmt: PackratParser[out.Stmt] = positioned(
         localName~":"~body                  ^^ { case l~":"~b => out.Labeled(l, b) }
     |   lvalue~"="~expr                     ^^ { case l~"="~e => out.Assign(l, e) }
+    |   "return"~expr                       ^^ { case _~e => out.MethodReturn(e) }
+    |   "return"~impVoid                    ^^ { case _~e => out.MethodReturn(e) }
     |   expr
     )
     
-    lazy val impVoidStmt = (
+    lazy val impVoid = (
         positioned(success(()) ^^ { case () => out.ImpVoid(()) })        
     )
     
     lazy val stmts: PackratParser[List[out.Stmt]] = (
         rep1sep(stmt, ";")<~opt(";")
-    |   impVoidStmt ^^ { s => List(s) }
+    |   impVoid ^^ { s => List(s) }
     )
     
 }

@@ -571,6 +571,11 @@ extends Resolve(global, compUnit)
                 outAssign :: outStmts
             }
             
+            case (stmt @ in.MethodReturn(expr)) :: stmts => {
+                val outStmt = withPosOf(stmt, out.MethodReturn(resolveExpr(expr)))
+                outStmt :: resolveStmts(stmts)
+            }
+            
             case (stmt @ in.Labeled(name, body)) :: stmts => {
                 val outStmt = withPosOf(stmt, out.Labeled(name, resolveBody(body)))
                 outStmt :: resolveStmts(stmts)

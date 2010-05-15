@@ -2,11 +2,11 @@ package test.lower;
 
 class LowerReflection {
     invokeToString(obj: Object) {
-        obj.toString().concat("foo");
+        return obj.toString().concat("foo");
     }
     
     invokeHashCode(obj: Object) {
-        obj.hashCode();
+        return obj.hashCode();
     }
     
     errors(obj: Object): Void {

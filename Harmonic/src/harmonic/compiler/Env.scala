@@ -10,7 +10,7 @@ import Error.CanFail
 object Env {
     def empty(global: Global) = Env(
         global   = global,
-        thisTy   = Type.Object,
+        thisTy   = Type.Top,
         locals   = Map(),
         pathRels = Nil,
         typeRels = Nil
@@ -402,6 +402,129 @@ case class Env(
             }
             
             case (b, _) => b
+        }
+    }
+    
+    def minimalUpperBoundClassTys(ty: Type.Ref) = {
+        minimalUpperBoundType(ty).flatMap {
+            case clsTy: Type.Class => Some(clsTy)
+            case _ => None
+        }
+    }
+    
+    // ___ Mutual Upper-Bound _______________________________________________
+    //
+    // TODO Smarten up Mutual Upper Bound but be wary of infinite recursion.
+    //
+    // This could be smarter in a number of ways:
+    // - List[E <: String], List[E <: Object] currently has List as its UB
+    // - Type variables bounded by tuples end up as Object
+    //
+    // Probably more.  The reason for this is I don't want
+    // to think too hard about infinite recursion.  Not yet anyhow.
+    
+    /** True if the type argument `arg` affects a member defined on `csym` */
+    private[this] def appliesTo(csym: ClassSymbol)(arg: Type.Arg) = {
+        val argClassName = arg.name.className
+        val argCsym = global.csym(argClassName)
+        csym.isSubclass(argCsym)
+    }
+    
+    /** Returns type arguments only if both sides agree. */
+    private[this] def intersectArgs(leftArgs: List[Type.Arg], rightArgs: List[Type.Arg]) = {
+        val leftMap = leftArgs.map(arg => (arg.name, arg)).toMap
+        rightArgs.filter(rightArg => {
+            leftMap.get(rightArg.name) match {
+                // No left arg by that name.  Drop it.
+                case None => false 
+                
+                // Same arg on left.  Keep it.
+                case Some(leftArg) if leftArg == rightArg => true 
+                
+                // Different arg on left.  For now, drop it.
+                case Some(_) => false
+            }
+        })
+    }
+    
+    private[this] def mutualUpperBoundVar(varTy: Type.Var, otherTy: Type.Ref) = {
+        val ub = minimalUpperBoundType(varTy)
+        if(ub.contains(otherTy)) otherTy
+        else ub.firstSome({
+            case clsTy: Type.Class => Some(mutualUpperBound(clsTy, otherTy))
+            case _ => None
+        }).getOrElse(Type.Top)
+    }
+    
+    private[this] def mutualUpperBoundUnmatchedTuple(tys: List[Type.Ref], otherTy: Type.Ref) = {
+        val boundTy = mutualUpperBoundOfList(tys)
+        mutualUpperBound((Type.arrayExtends(boundTy), otherTy))
+    }
+    
+    def mutualUpperBoundOfList(tys: List[Type.Ref]): Type.Ref = {
+        tys match {
+            case List() => Type.Top
+            case List(ty) => ty
+            case tys => tys.reduceLeft { (a, b) => mutualUpperBound((a, b)) }
+        }
+    }
+    
+    
+    /** Given a pair of types, returns a new type that is a supertype
+      * of both.  Tries to pick a precise type when possible. */
+    def mutualUpperBound(pair: (Type.Ref, Type.Ref)): Type.Ref = {
+        pair match {
+            case (leftTy, rightTy) if leftTy == rightTy =>
+                leftTy
+                
+            // ___ null _____________________________________________________________
+            
+            case (Type.Null, _) => Type.Top
+            
+            case (_, Type.Null) => Type.Top
+            
+            // ___ tuples ___________________________________________________________
+            
+            case (Type.Tuple(List(leftTy)), rightTy) =>
+                mutualUpperBound((leftTy, rightTy))
+            
+            case (leftTy, Type.Tuple(List(rightTy))) =>
+                mutualUpperBound((leftTy, rightTy))
+                
+            case (Type.Tuple(leftTys), Type.Tuple(rightTys)) if sameLength(leftTys, rightTys) =>
+                Type.Tuple(leftTys.zip(rightTys).map(mutualUpperBound))
+                
+            case (Type.Tuple(tys), otherTy) => 
+                mutualUpperBoundUnmatchedTuple(tys, otherTy)
+                
+            case (otherTy, Type.Tuple(tys)) =>
+                mutualUpperBoundUnmatchedTuple(tys, otherTy)
+                
+            // ___ type variables ___________________________________________________
+
+            case (varTy: Type.Var, otherTy) => mutualUpperBoundVar(varTy, otherTy)
+
+            case (otherTy, varTy: Type.Var) => mutualUpperBoundVar(varTy, otherTy)
+
+            // ___ class types ______________________________________________________
+            
+            case (Type.Class(leftName, leftArgs), Type.Class(rightName, rightArgs)) => {
+                // Find the most specific class symbol that is a supertype of both:
+                // - We use MRO to decide what is more specific.  Note that this
+                //   search can't fail: if will find Object, if nothing else.
+                val leftCsym = global.csym(leftName)
+                val rightCsym = global.csym(rightName)
+                val leftMro = MethodResolutionOrder(global).forSym(leftCsym)
+                val bestCsym = leftMro.find(rightCsym.isSubclass(_)).get 
+                
+                // Restrict the arguments to those defined on that class symbol:
+                // TODO Have to first fully elaborate left, right args
+                val leftArgsUp = leftArgs.filter(appliesTo(bestCsym))
+                val rightArgsUp = rightArgs.filter(appliesTo(bestCsym))
+                val bestArgs = intersectArgs(leftArgsUp, rightArgsUp)
+                
+                Type.Class(bestCsym.name, bestArgs)
+            }
         }
     }
     

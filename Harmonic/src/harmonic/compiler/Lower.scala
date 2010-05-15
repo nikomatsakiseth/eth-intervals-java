@@ -83,6 +83,19 @@ case class Lower(global: Global) {
         out.Body(addNullStmtToStmts(body.stmts))
     })
     
+    def inferredReturnType(env: Env, stmts: List[out.Stmt]) = {
+        val retTypes = stmts.flatMap {
+            case out.MethodReturn(path) => Some(path.ty)
+            case _ => None
+        }
+        
+        // TODO Have to eliminate type vars and things that go out of scope
+        if(retTypes.isEmpty)
+            Type.Void
+        else
+            env.mutualUpperBoundOfList(retTypes)
+    }
+    
     def lowerMethodDecl(
         csym: ClassFromSource, 
         mdecl: in.MethodDecl
@@ -95,12 +108,11 @@ case class Lower(global: Global) {
                 // Error: Return type required if abstract,
                 // but we'll report it when the symbol is created,
                 // so don't report it here.
-                Type.Object
+                Type.Top
             }
 
             case (in.InferredTypeRef(), Some(out.Body(stmts))) => {
-                // TODO Have to eliminate type vars and things that go out of scope
-                stmts.last.ty
+                inferredReturnType(env, stmts)
             }
 
             case (tref: in.ResolveTypeRef, _) => {
@@ -146,7 +158,7 @@ case class Lower(global: Global) {
         def newSym(modifiers: Modifier.Set, name: Name.LocalVar, ty: Type.Ref) = 
             new VarSymbol.Field(modifiers, Name.Member(csym.name, name.text), ty, FieldKind.Harmonic)
         def addSym(env: Env, sym: VarSymbol.Field) = env
-        val (List(outParam), env1) = lowerAnyParams(newSym, addSym)(classEnv, List((Type.Object, inParam)))
+        val (List(outParam), env1) = lowerAnyParams(newSym, addSym)(classEnv, List((Type.Top, inParam)))
         (outParam, env1)
     }
     
@@ -155,7 +167,7 @@ case class Lower(global: Global) {
         def newSym(modifiers: Modifier.Set, name: Name.LocalVar, ty: Type.Ref) = 
             new VarSymbol.Local(modifiers, name, ty)
         def addSym(env: Env, sym: VarSymbol.Local) = env.plusLocalVar(sym)
-        lowerAnyParams(newSym, addSym)(classEnv, inParams.map(p => (Type.Object, p)))
+        lowerAnyParams(newSym, addSym)(classEnv, inParams.map(p => (Type.Top, p)))
     }
     
     // The type of block parameters can be inferred from context.
@@ -205,7 +217,7 @@ case class Lower(global: Global) {
                         }
                         
                         case _ => { // No match, just infer Object.
-                            val outParams = params.map(lowerParam(Type.Object, _))
+                            val outParams = params.map(lowerParam(Type.Top, _))
                             out.TupleParam(outParams)
                         }
                     }
@@ -696,7 +708,19 @@ case class Lower(global: Global) {
                 }
                 
                 case in.Labeled(name, body) => {
-                    optStmts.foreach(_ += withPosOf(stmt, out.Labeled(name, lowerBody(env, body))))
+                    optStmts.foreach(_ += withPosOf(stmt, 
+                        out.Labeled(name, lowerBody(env, body))
+                    ))
+                    env
+                }
+                
+                case in.MethodReturn(expr) => {
+                    // TODO: We could know the expected return type of the method if it was provided
+                    // TODO: Check that return is allowed here (i.e., not field, not async block)
+                    val path = lowerToTypedPathNode(None)(expr)
+                    optStmts.foreach(_ += withPosOf(stmt,
+                        out.MethodReturn(path)
+                    ))
                     env
                 }
                 
@@ -995,7 +1019,7 @@ case class Lower(global: Global) {
                             "no.super.class.implements",
                             mthdName.toString
                         )
-                        out.Super(Type.Object)
+                        out.Super(Type.Top)
                     }
                 }
             }

@@ -4,7 +4,7 @@ class LowerIntrinsicControlFlow {
     chooseOne(cond: Boolean) {
         a = 3;
         b = 4;
-        cond.if { a } else { b };
+        return cond.if { a } else { b };
     }
     
     conditionallyModifyLocal(cond: Boolean) {
@@ -12,7 +12,7 @@ class LowerIntrinsicControlFlow {
         cond.if { 
             a = a + 4;
         };
-        a
+        return a;
     }
     
     checkForNull(value: Object) {
@@ -21,21 +21,21 @@ class LowerIntrinsicControlFlow {
         value.ifNull {
             a = a + b;
         };
-        b
+        return b;
     }
     
     checkForNullElse(value: Object) {
-        value.ifNull {
+        return value.ifNull {
             value.toString()
         } else {
             0
-        }
+        };
     }
     
     infiniteLoop() {
         result = 0;
         { true }.while { result = result + 1; };
-        result
+        return result;
     }
     
     errors(c: Boolean): Void {

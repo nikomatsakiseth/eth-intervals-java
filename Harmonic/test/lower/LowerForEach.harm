@@ -7,7 +7,7 @@ class LowerForEach {
         list.forEach { value ->
             result = result + value; // ERROR no.applicable.methods(list.(java.lang.Iterable.T))
         };
-        result
+        return result;
     }
 
     sumIntegers(list: Iterable[T: Integer]) {
@@ -15,7 +15,7 @@ class LowerForEach {
         list.forEach { value ->
             result = result + value;
         };
-        result
+        return result;
     }
     
     sumPairs(list: Iterable[T: (Integer, Integer)]) {
@@ -23,7 +23,7 @@ class LowerForEach {
         list.forEach { (x, y) ->
             result = result + (x + y);
         };
-        result
+        return result;
     }
     
 }

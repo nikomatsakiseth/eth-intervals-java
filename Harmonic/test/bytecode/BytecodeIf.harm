@@ -25,7 +25,7 @@ class BytecodeIf extends Application {
             result = result + 100000; 
         };
         
-        result
+        return result;
     }
     
 }

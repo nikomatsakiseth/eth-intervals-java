@@ -662,11 +662,14 @@ case class ByteCode(global: Global) {
     
     def summarizeSymbolsInStmt(summary: SymbolSummary, stmt: in.Stmt): SymbolSummary = {
         stmt match {
-            case expr: in.Expr => summarizeSymbolsInExpr(summary, expr)
+            case expr: in.Expr => 
+                summarizeSymbolsInExpr(summary, expr)
             
-            case in.Labeled(name, in.Body(stmts)) => {
+            case in.Labeled(name, in.Body(stmts)) =>
                 stmts.foldLeft(summary)(summarizeSymbolsInStmt)
-            }
+            
+            case in.MethodReturn(expr) => 
+                summarizeSymbolsInExpr(summary, expr)
             
             case in.Assign(local, expr) => {
                 val summaryExpr = summarizeSymbolsInExpr(summary, expr)
@@ -684,7 +687,16 @@ case class ByteCode(global: Global) {
     
     // ___ Statements _______________________________________________________
     
-    class StatementVisitor(accessMap: AccessMap, nextMro: ValuePath, mvis: asm.MethodVisitor) {
+    val IN_BLOCK = 1
+    
+    class StatementVisitor(
+        flags: Int,
+        accessMap: AccessMap, 
+        nextMro: ValuePath, 
+        mvis: asm.MethodVisitor
+    ) {
+        
+        def inBlock = (flags & IN_BLOCK) != 0
         
         /** Generates the instructions to store to an lvalue, unpacking
           * tuple values as needed.  
@@ -1121,6 +1133,29 @@ case class ByteCode(global: Global) {
                 case in.Labeled(name, in.Body(stmts)) => {
                     stmts.foreach(execStatement) // FIXME Not really right.
                 }
+                
+                case in.MethodReturn(path) if inBlock => {
+                    // Emit "throw new Return(<path>)" if in a block
+                    mvis.visitTypeInsn(O.NEW, Name.ReturnClass.internalName)
+                    mvis.visitInsn(O.DUP)
+                    pushPathValue(path.path)
+                    mvis.visitMethodInsn(
+                        O.INVOKESPECIAL,
+                        Name.ReturnClass.internalName,
+                        Name.InitMethod.javaName,
+                        getMethodDescriptor(
+                            asm.Type.VOID_TYPE,
+                            Array(asmObjectType)
+                        )
+                    )
+                    mvis.visitInsn(O.ATHROW)
+                }
+
+                case in.MethodReturn(path) => {
+                    // Emit "return <path>" if in a method
+                    pushPathValue(path.path)
+                    mvis.visitInsn(O.ARETURN)
+                }
 
                 case in.Assign(lvalue, rvalue) => {
                     store(lvalue, rvalue)
@@ -1160,6 +1195,10 @@ case class ByteCode(global: Global) {
         def returnResultOfStatements(stmts: List[in.Stmt]) {
             pushResultOfStatements(stmts)
             mvis.visitInsn(O.ARETURN)                
+        }
+        
+        def execStatements(stmts: List[in.Stmt]) {
+            stmts.foreach(execStatement)
         }
         
         /** Returns an access map for a method-local class with
@@ -1300,7 +1339,12 @@ case class ByteCode(global: Global) {
             addSymbolsDeclaredIn(derivedAccessMap, tmpl.stmts, tmplmvis)
             
             // Visit the statements:
-            val stmtVisitor = new StatementVisitor(derivedAccessMap, IntConstant(1), tmplmvis)
+            val stmtVisitor = new StatementVisitor(
+                IN_BLOCK, 
+                derivedAccessMap, 
+                IntConstant(1), 
+                tmplmvis
+            )
             stmtVisitor.returnResultOfStatements(tmpl.stmts)
             tmplmvis.complete
             
@@ -1435,7 +1479,7 @@ case class ByteCode(global: Global) {
         }
             
         val adapter = new ParameterAdapter(accessMap, overriddenSig.parameterPatterns)
-        val stmtVisitor = new StatementVisitor(accessMap, IntConstant(0), mvis)
+        val stmtVisitor = new StatementVisitor(0, accessMap, IntConstant(0), mvis)
         adapter.adaptTo(masterSig.parameterPatterns, stmtVisitor)
         
         // Invoke master version of the method and return its result:
@@ -1532,7 +1576,7 @@ case class ByteCode(global: Global) {
         addInstanceFields(accessMap, thisPath, csym)
         
         // next, "execute" the members in the body, if appropriate:
-        val stmtVisitor = new StatementVisitor(accessMap, IntConstant(0), mvis)
+        val stmtVisitor = new StatementVisitor(0, accessMap, IntConstant(0), mvis)
         csym.lowerMembers.foreach { lowerMember =>
             lowerMember.memberDecl match {
                 case in.IntervalDecl(_, Ast.MemberName(name), parent, body) => {
@@ -1588,8 +1632,40 @@ case class ByteCode(global: Global) {
             addInstanceFields(accessMap, thisPath, csym)
 
             // Emit statements:
-            val stmtVisitor = new StatementVisitor(accessMap, nextMro, mvis)
-            stmtVisitor.returnResultOfStatements(body.stmts)                
+            val stmtVisitor = new StatementVisitor(0, accessMap, nextMro, mvis)
+            val startLabel = new asm.Label()
+            mvis.visitLabel(startLabel)
+            stmtVisitor.execStatements(body.stmts)
+            val endLabel = new asm.Label()
+            mvis.visitLabel(endLabel)
+
+            // For now, just emit a "return null"
+            // in case user did not have an explicit
+            // return.  Later we should always add
+            // an explicit return.
+            mvis.visitInsn(O.ACONST_NULL)
+            mvis.visitInsn(O.ARETURN)
+            
+            // Emit try-catch region to catch Return exceptions:
+            // > catch (Return e) { return e.value; }
+            val returnLabel = new asm.Label()
+            mvis.visitLabel(returnLabel)
+            mvis.visitFieldInsn(
+                O.GETFIELD, 
+                Name.ReturnClass.internalName, 
+                "value", 
+                asmObjectType.getDescriptor
+            )
+            mvis.convert(msym.msig.returnTy.toAsmType, asmObjectType)
+            mvis.visitInsn(O.ARETURN)
+            
+            mvis.visitTryCatchBlock(
+                startLabel, 
+                endLabel, 
+                returnLabel, 
+                Name.ReturnClass.internalName
+            )
+            
             mvis.complete
         }
     }
@@ -1686,7 +1762,7 @@ case class ByteCode(global: Global) {
         val adapter = new ParameterAdapter(accessMap, group.msig.parameterPatterns)
         thisPtr.push(mvis) // push this ptr
         mvis.pushIntegerConstant(0) // push default index for 'mro'
-        val stmtVisitor = new StatementVisitor(accessMap, IntConstant(0), mvis)
+        val stmtVisitor = new StatementVisitor(0, accessMap, IntConstant(0), mvis)
         adapter.adaptTo(group.msig.parameterPatterns, stmtVisitor) // push parameters
         mvis.visitMethodInsn(
             O.INVOKEINTERFACE,
@@ -1758,7 +1834,7 @@ case class ByteCode(global: Global) {
                 mvis.visitLabel(verLabel)
                 thisPtr.push(mvis)                      // push this ptr
                 mvis.pushIntegerConstant(verInt + 1)    // push next MRO
-                val stmtVisitor = new StatementVisitor(accessMap, IntConstant(verInt + 1), mvis)
+                val stmtVisitor = new StatementVisitor(0, accessMap, IntConstant(verInt + 1), mvis)
                 adapter.adaptTo(verMsym.msig.parameterPatterns, stmtVisitor) // push args
                 mvis.visitMethodInsn(
                     O.INVOKESTATIC,
@@ -1856,7 +1932,7 @@ case class ByteCode(global: Global) {
         val thisPath = accessMap.addUnboxedSym(csym.loweredSource.thisSym)
         val paramPaths = paramAsmTys.map(accessMap.pathToFreshSlot)
         addInstanceFields(accessMap, thisPath, csym)
-        val stmtVisitor = new StatementVisitor(accessMap, IntConstant(0), mvis)
+        val stmtVisitor = new StatementVisitor(0, accessMap, IntConstant(0), mvis)
         
         // Invoke java class constructor
         mvis.visitVarInsn(O.ALOAD, 0)

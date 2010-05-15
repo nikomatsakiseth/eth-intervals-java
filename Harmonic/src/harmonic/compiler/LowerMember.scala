@@ -70,7 +70,7 @@ class LowerMember(
         def fallback(inDecl: in.MethodDecl) = {
             createSymbolOnce { // fall back to a return type of Object:
                 val (outParams, env) = Lower(global).lowerMethodParams(csym.classEnv, inDecl.params)
-                (inDecl, outParams, out.TypeRef(Type.Object))  
+                (inDecl, outParams, out.TypeRef(Type.Top))  
             }            
         }
         
@@ -150,7 +150,7 @@ class LowerMember(
         
         def fallback(inDecl: in.FieldDecl) = {
             createSymbolOnce { // fall back to a return type of Object:
-                (inDecl.annotations, out.TypeRef(Type.Object))  
+                (inDecl.annotations, out.TypeRef(Type.Top))  
             }            
         }
         

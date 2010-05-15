@@ -7,7 +7,7 @@ class BytecodeForEach extends Application {
         list.forEach { (x, y) ->
             result = result + (x * y);
         };
-        result
+        return result;
     }
     
     @Override
@@ -15,7 +15,7 @@ class BytecodeForEach extends Application {
         list = new java.util.ArrayList[E: (Integer, Integer)]();
         list.add((1, 2));
         list.add((3, 4));
-        mulPairs(list);
+        return mulPairs(list);
     }
     
 }

@@ -4,7 +4,7 @@ class LowerIntrinsicMath {
     method() {
         a = 3;
         b = 4;
-        a + b;
+        return a + b;
     }
 }
 // COMPILE

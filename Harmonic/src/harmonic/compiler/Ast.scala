@@ -65,6 +65,7 @@ abstract class Ast {
     type MCallData
     
     def errTy: Ty
+    def voidTy: Ty
     def toTy(ty: Type.Ref): Ty
     def vsymTy(vsym: VSym): Ty
     def trefTy(tref: TR): Ty
@@ -746,6 +747,18 @@ abstract class Ast {
         }
     }
     
+    case class MethodReturn(value: NE) extends LowerStmt {
+        def ty = voidTy
+        
+        override def toString = "return(%s)".format(value)
+        
+        override def print(out: PrettyPrinter) {
+            out.write("return(")
+            value.print(out)
+            out.write(")")
+        }
+    }
+    
 }
 
 object Ast {
@@ -844,6 +857,7 @@ object Ast {
         type TyTuple = Unit
         
         def errTy = ()
+        def voidTy = ()
         def toTy(ty: Type.Ref) = ()
         def trefTy(tref: TR) = ()
         def vsymTy(unit: VSym) = ()
@@ -883,6 +897,7 @@ object Ast {
         type TyTuple = Unit
 
         def errTy = ()
+        def voidTy = ()
         def toTy(ty: Type.Ref) = ()
         def trefTy(tref: TR) = ()
         def vsymTy(unit: VSym) = ()
@@ -923,7 +938,8 @@ object Ast {
         type TyClass = Type.Class
         type TyTuple = Type.Tuple
 
-        def errTy = Type.Object
+        def errTy = Type.Top
+        def voidTy = Type.Void
         def toTy(ty: Type.Ref) = ty
         def trefTy(tref: TR) = tref.ty
         def vsymTy(vsym: VSym) = vsym.ty

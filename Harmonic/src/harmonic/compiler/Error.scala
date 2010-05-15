@@ -27,6 +27,14 @@ object Error {
         }                
     }
     
+    case class ReturnWithAndWithoutValue() {
+        def report(global: Global, pos: Position) {
+            global.reporter.report(pos,
+                "return.with.and.without.value"
+            )
+        }
+    }
+    
     case class CircularInheritance(
         className: Name.Class, 
         extendsClass: Name.Class

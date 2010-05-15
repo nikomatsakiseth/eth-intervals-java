@@ -173,6 +173,8 @@ object Name {
     val BlockA = Member(BlockClass, "A")
     val BlockParent = Member(BlockClass, "Parent")
     val ValueMethod = Method(List("value"))
+    
+    val ReturnClass = Class(classOf[harmonic.runtime.Return])
 
     val InitMethod = Method(List("<init>"))
        

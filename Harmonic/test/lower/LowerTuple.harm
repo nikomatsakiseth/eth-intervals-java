@@ -2,7 +2,7 @@ package test.lower;
 
 class LowerTuple {
     tuple4() {
-        (1, "harmonic", "interval", 2);
+        return (1, "harmonic", "interval", 2);
     }
     
     unpack() {
@@ -14,12 +14,12 @@ class LowerTuple {
     
     toVar() {
         (a, b, c, d) = (1, "harmonic", "interval", 2);
-        arguments(a, b, c, d);
+        return arguments(a, b, c, d);
     }
     
     withBlock() {
         sumBlock = { (a: Integer, b: Integer) -> a + b };
-        sumBlock.value(1, 2);
+        return sumBlock.value(1, 2);
     }
     
     errors(): Void {

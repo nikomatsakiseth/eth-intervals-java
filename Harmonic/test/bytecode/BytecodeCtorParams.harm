@@ -3,11 +3,11 @@ package test.bytecode;
 class BytecodeCtorParams1(a: Integer) 
 {
     getA1(): Integer {
-        a;
+        return a;
     }
     
     getA(): Integer {
-        a;
+        return a;
     }
 }
 
@@ -16,11 +16,11 @@ extends BytecodeCtorParams1(b)
 {
     @Override
     getA(): Integer {
-        a; 
+        return a; 
     }
     
     getB(): Integer {
-        b; 
+        return b; 
     }
 }
 

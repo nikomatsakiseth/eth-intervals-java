@@ -21,7 +21,9 @@ object Type {
         override def toString = "Null"
     }
     
-    sealed abstract class Arg
+    sealed abstract class Arg {
+        def name: Name.Member
+    }
     case class PathArg(name: Name.Member, rel: PcRel, path: Path.Ref) extends Arg {
         override def toString = "%s %s %s".format(name, rel, path)
     }
@@ -36,5 +38,19 @@ object Type {
     val Object = Type.Class(Name.ObjectClass, List())
     val Void = Type.Class(Name.VoidClass, List())
     val Interval = Type.Class(Name.IntervalClass, List())
+
+    // Use Type.Top when you want the most general
+    // type you can get, of which all others are a subtype.
+    val Top = Object
+
+    // Returns `Array[E <: ty]`
+    def arrayExtends(ty: Type.Ref) = {
+        Class(
+            Name.ArrayClass,
+            List(
+                TypeArg(Name.ArrayElem, TcSub, ty)
+            )
+        )
+    }
     
 }

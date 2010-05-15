@@ -3,7 +3,7 @@ package test.bytecode;
 class BytecodeSeven extends Application {
 
     @Override main(): Object {
-        3 + 4
+        return 3 + 4;
     }
     
 }
