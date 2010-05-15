@@ -15,8 +15,7 @@ class LowerMember(
     
     private[this] var outMemberDecl: out.MemberDecl = null
     private[this] val inter = {
-        val members = csym.intervals(Pass.Members)
-        global.master.subinterval(during = List(members)) { inter =>
+        global.master.subinterval(during = List(csym.members)) { inter =>
             debugIndent("lowering %s", inMemberDecl) {
                 outMemberDecl = Lower(global).lowerMemberDecl(csym, inMemberDecl)                
             }

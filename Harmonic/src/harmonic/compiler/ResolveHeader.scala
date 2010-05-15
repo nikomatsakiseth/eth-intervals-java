@@ -36,11 +36,11 @@ extends Resolve(global, compUnit)
                 case Some(superHeader) => {
                     try {
                         // superHeader.end -> header.end
-                        Intervals.addHb(superHeader.end, csym.intervals(Pass.Header).end)
+                        Intervals.addHb(superHeader.end, csym.header.end)
                         
                         // superLower.end -> lower.end
                         superCsym.optInterval(Pass.Lower).foreach { superLower =>
-                            Intervals.addHb(superLower.end, csym.intervals(Pass.Lower).end)
+                            Intervals.addHb(superLower.end, csym.lower.end)
                         }
                         
                         // if both succeed, include this supertype:
