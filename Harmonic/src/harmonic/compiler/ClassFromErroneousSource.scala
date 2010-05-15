@@ -1,16 +1,16 @@
 package harmonic.compiler
 
 class ClassFromErroroneousSource(
-    name: Name.Class,
-    global: Global
-) extends ClassFromCompiledSource(name, global) {
-    def modifiers = Modifier.Set.empty
-    def constructors = Nil
-    def superClassNames = Nil
-    def methodsNamed(name: Name.Method) = Nil
-    def fieldNamed(name: Name.Member) = None
-    def allMethodSymbols = Nil
-    def allFieldSymbols = Nil
-    def varMembers = Nil
+    val name: Name.Class,
+    val global: Global
+) extends ClassFromCompiledSource {
+    protected[this] def loadData = Data(
+        modifiers = Modifier.Set.empty,
+        superClassNames = List(Name.ObjectClass),
+        constructors = Nil,
+        varMembers = Nil,
+        allMethodSymbols = Nil,
+        allFieldSymbols = Nil
+    )
 }
 

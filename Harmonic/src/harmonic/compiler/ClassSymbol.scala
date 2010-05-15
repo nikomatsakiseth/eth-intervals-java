@@ -5,14 +5,25 @@ import scala.util.parsing.input.Position
 import ch.ethz.intervals.Interval
 import Util._
 
-abstract class ClassSymbol(
-    val name: Name.Class,
-    global: Global
-) extends Symbol {
+abstract class ClassSymbol extends Symbol {
+    val name: Name.Class
+    val global: Global
     
-    /** Returns the interval for pass #`idx`, if applicable
-      * to this kind of symbol. */
-    def optInterval(idx: Int): Option[Interval]
+    // ___ Intervals ________________________________________________________
+    //
+    // Every class symbol potentially has several intervals corresponding
+    // to different processing phases.  For some class symbols, these intervals
+    // may not actually do any work to speak of.  Note that the intervals
+    // may be created lazily.
+    
+    def header: Interval
+    def body: Interval
+    def lower: Interval
+    def create: Interval
+    def members: Interval
+    def merge: Interval
+    def gather: Interval
+    def byteCode: Interval
     
     // ___ Invokable at any time ____________________________________________
     

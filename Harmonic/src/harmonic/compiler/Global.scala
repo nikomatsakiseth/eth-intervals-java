@@ -18,6 +18,8 @@ class Global(
         inlineInterval { inter =>
             master = inter
             
+            Intrinsic(this).add()
+            
             // Start by parsing the input files.  This will create
             // various subintervals of master, which will begin to
             // execute once all parsing and loading is complete.

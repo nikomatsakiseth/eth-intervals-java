@@ -7,51 +7,31 @@ import scala.collection.mutable
 import Ast.{Lower => in}
 import Util._
 
-object GatherOverrides {
-    class Data {
-        val gathered = new mutable.HashSet[ClassSymbol]()
-    }
-}
-
 /** Determines which methods override one another. */
 case class GatherOverrides(global: Global) {
     
-    private[this] val data: GatherOverrides.Data = global.data(classOf[GatherOverrides.Data])
-    
     /** Populates `csym.methodGroups` as well as the `overrides` 
       * fields of all method symbols defined in `csym` */
-    def forSym(csym: ClassSymbol): Unit = data.synchronized {
+    def forSym(csym: ClassSymbol): Unit = debugIndent("GatherOverrides(%s)", csym) {
         
-        // TODO Convert dependencies for GatherOverrides into HB edges
-        //
         // The full dependencies for GatherOverrides are:
         //
         // 1. Must not run until lowering for all supertypes is
-        //    complete.  This is assured by ResolveHeader.
+        //    complete.  This is assured because it comes after
+        //    lower, and super.lower.end->lower.end.
         //
-        // 2. GatherOverrides must execute on all supertypes.
-        //    This is currently assured using `data`.  The
-        //    problem is that `GatherOverrides` must also run
-        //    for classes loaded from .class files or reflection,
-        //    because we need to determine the overrides
-        //    for the methods defined in those classes as well.
-        //    Currently there are no intervals associated with
-        //    such classes, but that will have to change.
+        // 2. GatherOverrides must execute on all supertypes
+        //    so that the supertype's MethodSymbols have
+        //    their overrides fields initialized.
+        //    This is assured by ResolveHeader which adds
+        //    edges super.gather.end->gather.start.
         
-        if(data.gathered.add(csym)) {
-            // First process supertypes:
-            val superNames = csym.superClassNames
-            val superCsyms = superNames.map(global.csym)
-            superCsyms.foreach(forSym)
-            
-            // Now process csym:
-            var env = Env.empty(global) // TODO Enrich environment based on `csym`
-            val methodGroups = gatherMethodGroups(csym, env)
-            computeOverrides(csym, methodGroups)
-            val allGroups = methodGroups.allGroups
-            allGroups.foreach(sanityCheckGroup(csym, _))
-            csym.setMethodGroups(allGroups)
-        }
+        var env = Env.empty(global) // TODO Enrich environment based on `csym`
+        val methodGroups = gatherMethodGroups(csym, env)
+        computeOverrides(csym, methodGroups)
+        val allGroups = methodGroups.allGroups
+        allGroups.foreach(sanityCheckGroup(csym, _))
+        csym.setMethodGroups(allGroups)
     }
     
     class MethodGroups(env: Env) {
@@ -67,8 +47,9 @@ case class GatherOverrides(global: Global) {
             msig: MethodSignature[Pattern.Ref]
         )(
             group: MethodGroup
-        ) =
-            env.overrides(msig, group.msig)
+        ) = {
+            env.overrides(msig, group.msig)            
+        }
             
         /** Add `msym` to an appropriate group, creating a new one if needed */
         def addMsym(msym: MethodSymbol) = {
@@ -97,6 +78,9 @@ case class GatherOverrides(global: Global) {
         val mro = MethodResolutionOrder(global).forSym(csym)
         mro.foreach { mroCsym =>
             val msyms = mroCsym.allMethodSymbols
+            debugIndent("Adding Methods From %s", csym) {
+                msyms.foreach(msym => debug("msym %s msig = %s", msym, msym.msig))
+            }
             msyms.foreach(methodGroups.addMsym)
         }        
         methodGroups
@@ -112,11 +96,20 @@ case class GatherOverrides(global: Global) {
             val group = methodGroups.group(msym)
             msym.overrides ++= group.msyms.dropWhile(_.isFromClassNamed(csym.name))
             
-            if(msym.overrides.isEmpty && msym.modifiers.isOverride) {
-                Error.NotOverride(csym.name, msym.name).report(global, msym.pos)
-            } else if (!msym.overrides.isEmpty && !msym.modifiers.isOverride) {
-                val classNames = msym.overrides.map(_.clsName).toList
-                Error.NotMarkedOverride(msym.name, classNames).report(global, msym.pos)
+            msym.kind match {
+                case _: MethodKind.Harmonic => {
+                    if(msym.overrides.isEmpty && msym.modifiers.isOverride) {
+                        Error.NotOverride(csym.name, msym.name).report(global, msym.pos)
+                    } else if (!msym.overrides.isEmpty && !msym.modifiers.isOverride) {
+                        val classNames = msym.overrides.map(_.clsName).toList
+                        Error.NotMarkedOverride(msym.name, classNames).report(global, msym.pos)
+                    }                    
+                }
+                
+                case _: MethodKind.Java 
+                |   MethodKind.JavaDummyCtor 
+                |   MethodKind.ErrorMethod => {
+                }
             }
         }
     }
@@ -156,6 +149,9 @@ case class GatherOverrides(global: Global) {
             }
             
             case msyms => {
+                debugIndent("Multiple Overrides in %s", csym) {
+                    msyms.foreach(msym => debug("msym %s msig = %s", msym, msym.msig))
+                }
                 Error.MultipleOverridesInSameClass(
                     csym.name, group.methodName, msyms.length
                 ).report(global, csym.pos)

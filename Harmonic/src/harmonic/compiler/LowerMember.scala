@@ -13,19 +13,18 @@ class LowerMember(
 ) {
     // ___ AST ______________________________________________________________
     
-    private[this] var outMemberDecl: out.MemberDecl = null
-    private[this] val inter = {
+    private[this] val inter: Interval = {
         global.master.subinterval(during = List(csym.members)) { inter =>
             debugIndent("lowering %s", inMemberDecl) {
-                outMemberDecl = Lower(global).lowerMemberDecl(csym, inMemberDecl)                
+                outMemberDecl.v = Lower(global).lowerMemberDecl(csym, inMemberDecl)                
             }
         }
     }
+    private[this] val outMemberDecl = new GuardedBy[out.MemberDecl](inter)
     
     /** Read lowered member decl without blocking */
     def memberDecl = {
-        assert(Intervals.checkReadable(inter) && outMemberDecl != null)
-        outMemberDecl
+        outMemberDecl.v
     }
     
     // ___ Symbol Creation __________________________________________________

@@ -6,11 +6,11 @@ import ch.ethz.intervals._
 import Util._
 
 class ClassFromSource(
-    name: Name.Class,
-    global: Global,
+    val name: Name.Class,
+    val global: Global,
     compUnit: Ast.Parse.CompUnit,
     parseCdecl: Ast.Parse.ClassDecl
-) extends ClassSymbol(name, global) {
+) extends ClassSymbol {
     import global.master
     
     def pos = parseCdecl.pos
@@ -53,7 +53,9 @@ class ClassFromSource(
     // during the header pass (see `ResolveHeader`).
 
     val header: Interval = master.subinterval(
-        name = "%s.Header".format(name)
+        name = "%s.Header".format(name),
+        // Hold off on scheduling header until class def'n is complete:
+        schedule = false 
     ) { 
         _ => ResolveHeader(global, compUnit).resolveClassHeader(this, parseCdecl)                        
     }
@@ -67,7 +69,10 @@ class ClassFromSource(
 
     val lower: Interval = master.subinterval(
         name = "%s.Lower".format(name),
-        after = List(body.end)
+        after = List(body.end),
+        // Scheduled explicitly so we can add
+        // create/members/merge within
+        schedule = false 
     ) { 
         _ => () // Lower is really just a placeholder.
     }
@@ -109,32 +114,6 @@ class ClassFromSource(
         _ => if(!global.reporter.hasErrors) ByteCode(global).writeClassSymbol(this)
     }
     
-    private[this] val intervals = Array(header, body,  lower, create, members, merge, gather, byteCode)
-    intervals.foreach(_.schedule())
-    
-    def optInterval(idx: Int) = Some(intervals(idx))
-    
-    // ___ Guarded Data _____________________________________________________
-    
-    class GuardedBy[T](pass: Interval) {
-        private[this] var value: Option[T] = None
-        
-        def join = {
-            pass.join()
-            v
-        }
-        
-        def v: T = {
-            assert(Intervals.checkReadable(pass))
-            value.get
-        }
-        
-        def v_=(v: T) = {
-            assert(Intervals.checkWritable(pass))
-            value = Some(v)
-        }
-    }
-
     // ___ Computed by Pass.Header __________________________________________
 
     val SuperClassNames = new GuardedBy[List[Name.Class]](header)
@@ -213,4 +192,13 @@ class ClassFromSource(
         MethodGroups.v = groups
     }
 
+    // ___ Schedule unscheduled intervals ___________________________________
+    //
+    // It is important that this happen last.  This is because the header
+    // interval may begin and try to read a field, such as SuperClassNames,
+    // which has not yet been initialized!
+
+    header.schedule()
+    lower.schedule()
+    
 }

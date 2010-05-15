@@ -138,7 +138,8 @@ object Util {
             during: List[Interval] = Nil,
             before: List[Point] = Nil,
             after: List[Point] = Nil,
-            name: String = null
+            name: String = null,
+            schedule: Boolean = true
         )(
             func: (Interval => Unit)
         ): Interval = {
@@ -149,6 +150,7 @@ object Util {
             before.foreach(pnt => Intervals.addHb(result.end, pnt))
             during.foreach(inter => Intervals.addHb(inter.start, result.start))
             during.foreach(inter => Intervals.addHb(result.end, inter.end))
+            if(schedule) result.schedule()
             
             result
         }

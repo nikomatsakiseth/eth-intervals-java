@@ -508,7 +508,7 @@ case class Lower(global: Global) {
             
             // Find the constructor being invoked (if any)
             val targetCsym = global.csym(extendsDecl.className.name)
-            targetCsym.optInterval(Pass.Body).foreach(_.join())
+            targetCsym.body.join()
             val msyms = targetCsym.constructors
             val (msym, msig) = resolveOverloading(extendsDecl.pos, createSubst, msyms, args.map(_.ty)).getOrElse {
                 val errorSym = MethodSymbol.error(Name.InitMethod, targetCsym.name)

@@ -10,7 +10,6 @@ object Main {
         val err = 
             if(config.loadFrom(args)) {
                 val global = new Global(config, new Reporter(config))
-                Intrinsic(global).add()
                 global.compile()
                 if (global.reporter.hasErrors) {
                     global.reporter.print(System.err)                

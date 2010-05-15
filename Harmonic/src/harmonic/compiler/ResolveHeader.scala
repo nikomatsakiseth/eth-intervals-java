@@ -12,6 +12,34 @@ import Ast.{Resolve => out}
 import Util._
 import SymTab.extendedMap
 
+object ResolveHeader {
+    
+    /** Given a list of superclass names, adds edges from the superclass
+      * intervals to our own where needed.  The returned list of superclass
+      * names omits those that cause a cycle. */
+    def cookRawSuperClasses(csym: ClassSymbol, rawSuperClassNames: List[Name.Class]) = {
+        import csym.global
+        
+        rawSuperClassNames.flatMap { superName =>
+            val superCsym = global.csym(superName) 
+            
+            debug("Adding edges %s -> %s", superCsym, csym)
+            try {
+                Intervals.addHb(superCsym.header.end, csym.header.end)
+                Intervals.addHb(superCsym.lower.end, csym.lower.end)
+                Intervals.addHb(superCsym.gather.end, csym.gather.start)
+                Some(superName)
+            } catch {
+                case _: CycleException => {
+                    Error.CircularInheritance(csym.name, superName).report(global, csym.pos)
+                    None
+                }
+            }                                    
+        }
+    }
+    
+}
+
 /** Header resolution resolves only those parts needed to resolve the
   * rest of the body.  Before we can resolve a class body, we must first 
   * ensure that its headers and those of its superclasses (transitively) have 
@@ -23,37 +51,14 @@ extends Resolve(global, compUnit)
     def resolveClassHeader(
         csym: ClassFromSource,
         cdecl: in.ClassDecl
-    ) {
+    ): Unit = debugIndent("resolveClassHeader(%s)", csym) {
         // Resolve the names of all superclasses and add an edge
         // so that resolving our header does not complete until
         // their headers have been resolved.  
-        csym.SuperClassNames.v = cdecl.extendsDecls.flatMap { case in.ExtendsDecl(relName, _, ()) =>
-            val superName = resolveName(relName).name
-            val superCsym = global.csym(superName) 
-            
-            superCsym.optInterval(Pass.Header) match {
-                case None => Some(superName)
-                case Some(superHeader) => {
-                    try {
-                        // superHeader.end -> header.end
-                        Intervals.addHb(superHeader.end, csym.header.end)
-                        
-                        // superLower.end -> lower.end
-                        superCsym.optInterval(Pass.Lower).foreach { superLower =>
-                            Intervals.addHb(superLower.end, csym.lower.end)
-                        }
-                        
-                        // if both succeed, include this supertype:
-                        Some(superName)
-                    } catch {
-                        case _: CycleException => {
-                            Error.CircularInheritance(csym.name, superName).report(global, csym.pos)
-                            None
-                        }
-                    }                                    
-                }
-            }
+        val rawSuperClassNames = cdecl.extendsDecls.map { case in.ExtendsDecl(relName, _, ()) =>
+            resolveName(relName).name
         }
+        csym.SuperClassNames.v = ResolveHeader.cookRawSuperClasses(csym, rawSuperClassNames)
         
         def addVarMembersFromMember(varMembers: List[SymTab.Entry], decl: in.MemberDecl): List[SymTab.Entry] = {
             decl match {

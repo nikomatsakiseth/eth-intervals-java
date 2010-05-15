@@ -3,66 +3,67 @@ package harmonic.compiler
 import java.lang.reflect
 import java.lang.reflect.{Modifier => jModifier}
 
+import scala.collection.mutable
+
+import Util._
+
 class ClassFromReflection(
-    name: Name.Class,
-    global: Global,
+    val name: Name.Class,
+    val global: Global,
     val cls: java.lang.Class[_]
-) extends ClassFromCompiledSource(name, global) {
+) extends ClassFromCompiledSource {
     
     def isPrivate(member: reflect.Member) = (member.getModifiers & reflect.Modifier.PRIVATE) != 0
+    def isDeclaredByCls(member: reflect.Member) = (member.getDeclaringClass == cls)
+    def isSuitable(member: reflect.Member) = isDeclaredByCls(member) && !isPrivate(member)
     
-    lazy val modifiers = {
-        Modifier.forClass(cls)
-    }
-    
-    lazy val constructors = {
-        val ctors = cls.getConstructors
-        if(!ctors.isEmpty) {
-            ctors.map(ctorSymbol).toList            
-        } else { // gin up an empty constructor for interfaces:
-            List(
-                new MethodSymbol(
-                    pos       = pos, 
-                    modifiers = Modifier.Set.empty,
-                    kind      = MethodKind.JavaDummyCtor,
-                    clsName   = name,
-                    name      = Name.InitMethod,
-                    MethodSignature(Type.Void, toType, List())
+    protected[this] def loadData = Data(
+        modifiers = Modifier.forClass(cls),
+        
+        superClassNames = {
+            val allNames = {
+                if((cls.getModifiers & reflect.Modifier.INTERFACE) != 0)
+                    cls.getInterfaces.toList.map(Name.Class) :+ Name.ObjectClass
+                else
+                    (cls.getSuperclass :: cls.getInterfaces.toList).filter(_ != null).map(Name.Class)
+            }
+            allNames.foreach(global.requireLoadedOrLoadable(pos, _))
+            allNames
+        },
+        
+        varMembers = {
+            (
+                cls.getDeclaredFields.map(fieldSymTabEntry) ++ 
+                cls.getTypeParameters.map(typeParamSymTabEntry)
+            ).toList
+        },
+        
+        constructors = {
+            val ctors = cls.getConstructors
+            if(!ctors.isEmpty) {
+                ctors.map(ctorSymbol).toList            
+            } else { // gin up an empty constructor for interfaces:
+                List(
+                    new MethodSymbol(
+                        pos       = pos, 
+                        modifiers = Modifier.Set.empty,
+                        kind      = MethodKind.JavaDummyCtor,
+                        clsName   = name,
+                        name      = Name.InitMethod,
+                        MethodSignature(Type.Void, toType, List())
+                    )
                 )
-            )
+            }            
+        },
+        
+        allMethodSymbols = {
+            elimPrimitiveConflicts(elimCovariantReturns(cls.getDeclaredMethods).filter(isSuitable).map(methodSymbol))
+        },
+        
+        allFieldSymbols = {
+            cls.getDeclaredFields.filter(isSuitable).map(fieldSymbol).toList
         }
-    }
-        
-    lazy val varMembers = {
-        (cls.getDeclaredFields.map(fieldSymTabEntry) ++ cls.getTypeParameters.map(typeParamSymTabEntry)).toList
-    }
-        
-    lazy val allMethodSymbols = {
-        cls.getDeclaredMethods.filterNot(isPrivate).map(methodSymbol).toList
-    }
-    
-    lazy val allFieldSymbols = {
-        cls.getDeclaredFields.filterNot(isPrivate).map(fieldSymbol).toList
-    }
-        
-    lazy val superClassNames = {
-        val allNames = {
-            if((cls.getModifiers & reflect.Modifier.INTERFACE) != 0)
-                cls.getInterfaces.toList.map(Name.Class) :+ Name.ObjectClass
-            else
-                (cls.getSuperclass :: cls.getInterfaces.toList).filter(_ != null).map(Name.Class)
-        }
-        allNames.foreach(global.requireLoadedOrLoadable(pos, _))
-        allNames
-    }
-    
-    def methodsNamed(name: Name.Method) = {
-        allMethodSymbols.filter(_.isNamed(name))        
-    }
-    
-    def fieldNamed(name: Name.Member) = {
-        allFieldSymbols.find(_.isNamed(name))        
-    }
+    )
     
     private[this] def fieldSymTabEntry(fld: reflect.Field) = {
         val memberName = Name.Member(name, fld.getName)
@@ -192,6 +193,83 @@ class ClassFromReflection(
                     mthd.getGenericParameterTypes.toList.zipWithIndex.map(paramPattern)))
             )
         )
+    }
+    
+    // Unfortunately, if a class overrides a method with a covariant
+    // return type, Java reflection gives us two method symbols!
+    // This method purges the entry with the least specific type.
+    private[this] def elimCovariantReturns(mthds: Array[reflect.Method]) = {
+        val methodMap = new mutable.HashMap[(String, List[Class[_]]), reflect.Method]()
+        
+        mthds.foreach { mthd =>
+            val key = (mthd.getName, mthd.getParameterTypes.toList)
+            methodMap.get(key) match {
+                case None => 
+                    methodMap(key) = mthd
+                case Some(prevMthd) =>
+                    if(prevMthd.getReturnType.isAssignableFrom(mthd.getReturnType))
+                        methodMap(key) = mthd
+            }
+        }
+        
+        methodMap.valuesIterator.toList
+    }
+    
+    private[this] def preferNew(
+        oldClasses: Array[java.lang.Class[_]],
+        newClasses: Array[java.lang.Class[_]]
+    ) = {
+        // Some(true) if newClass is a boxed version of oldClass
+        // Some(false) if oldClass is a boxed version of newClass
+        // Otherwise None
+        def isPreferable(oldClass: java.lang.Class[_], newClass: java.lang.Class[_]): Option[Boolean] = {
+            if(oldClass.isPrimitive && !newClass.isPrimitive) Some(true)
+            else if(newClass.isPrimitive && !oldClass.isPrimitive) Some(false)
+            else if(oldClass.isArray) {
+                assert(newClass.isArray)
+                isPreferable(oldClass.getComponentType, newClass.getComponentType)
+            }
+            else None
+        }
+        
+        // Both of these class signatures mapped to the same Harmonic types.
+        // This can happen when primitive types are involved as well as boxed
+        // types.  We find the first case where such a difference is found
+        // and prefer the boxed version, since it more directly matches what 
+        // we have and may (for example) have defined semantics for null.
+        (0 until oldClasses.length).firstSome(i => isPreferable(oldClasses(i), newClasses(i))).get
+    }
+    
+    // If there is a java method foo(int) and another foo(Integer), just
+    // drop the foo(int) version.  
+    private[this] def elimPrimitiveConflicts(msyms: List[MethodSymbol]) = debugIndent("elimPrimitiveConflicts(%s)", cls) {
+        val methodMap = new mutable.HashMap[(Name.Method, List[Pattern.Ref]), MethodSymbol]()
+        
+        // Safe because we only ever generate symbols with a kind of MethodKind.Java:
+        def argClasses(msym: MethodSymbol) =
+            msym.kind.asInstanceOf[MethodKind.Java].argumentClasses
+        
+        msyms.foreach { msym =>
+            val key = (msym.name, msym.msig.parameterPatterns)
+            methodMap.get(key) match {
+                case None => {
+                    debug("key = %s (first, args = %s)", key, argClasses(msym).mkString("(", ",", ")"))
+                    methodMap(key) = msym                    
+                }
+                case Some(prevMsym) => {
+                    if(preferNew(argClasses(prevMsym), argClasses(msym))) {
+                        debug("key = %s (overwrite, prefer %s to %s)", 
+                            key, argClasses(msym).mkString("(", ",", ")"), argClasses(prevMsym).mkString("(", ",", ")"))
+                        methodMap(key) = msym
+                    } else {
+                        debug("key = %s (keep, prefer %s to %s)", 
+                            key, argClasses(prevMsym).mkString("(", ",", ")"), argClasses(msym).mkString("(", ",", ")"))
+                    }
+                }
+            }
+        }
+        
+        methodMap.valuesIterator.toList
     }
 }
 
