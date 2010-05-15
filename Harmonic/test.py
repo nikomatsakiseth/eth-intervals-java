@@ -558,7 +558,7 @@ def handle_negative_test(res, experrors, retcode, stdout, stderr):
 
 def handle_positive_test(res, exp_output, retcode, stdout, stderr):
     diff = list(difflib.unified_diff(
-            exp_output, stdout.strip().split('\n'), lineterm=""))
+            exp_output, (stdout+stderr).strip().split('\n'), lineterm=""))
     if diff:
         res.error("expected output not found")
         res.diff(exp_output, diff)

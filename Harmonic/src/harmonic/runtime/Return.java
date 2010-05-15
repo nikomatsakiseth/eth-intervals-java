@@ -8,7 +8,7 @@ public class Return extends Exception {
     // into ByteCode.scala, so don't change it.
     public final Object value;
     
-    Return(Object value) {
+    public Return(Object value) {
         this.value = value;
     }
     

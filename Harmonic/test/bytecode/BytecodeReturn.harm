@@ -1,0 +1,24 @@
+package test.bytecode;
+
+class BytecodeReturn extends Application {
+
+    @Override
+    main(): Void {
+        list = new java.util.ArrayList[E: (Integer, Integer)]();
+        list.add((1, 2));
+        list.add((3, 4));
+        list.forEach { (x, y) -> 
+            System.out.print("x = ");
+            System.out.print(x);
+            System.out.print(", y = ");
+            System.out.println(y);
+            return;
+        };
+        System.out.println("done with loop.");
+    }
+    
+}
+// COMPILE
+// --dump-lowered-trees
+// EXECUTE
+// x = 1, y = 2
