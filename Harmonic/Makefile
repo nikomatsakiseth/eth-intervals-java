@@ -36,4 +36,4 @@ compile: ${GENERATEDJAVA}
 # To keep .test files, add "--preserve" to test.py invocation
 test: compile
 	rm -rf bin-test/*
-	python test.py --preserve $$(find test -name '*.harm')
+	time python test.py --preserve $$(find test -name '*.harm')

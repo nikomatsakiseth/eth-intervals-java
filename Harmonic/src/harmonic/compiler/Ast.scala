@@ -737,12 +737,12 @@ abstract class Ast {
         override def toString = "<this>"
     }
    
-    case class Labeled(name: LocalName, body: Body) extends LowerStmt {
-        def ty = body.stmts.last.ty
-        override def toString = "%s: %s".format(name, body)
+    case class InlineInterval(name: LocalName, body: Body) extends LowerStmt {
+        def ty = voidTy
+        override def toString = "interval %s {...}".format(name)
         
         override def print(out: PrettyPrinter) {
-            out.write("%s: ", name)
+            out.write("interval %s", name)
             body.print(out)
         }
     }

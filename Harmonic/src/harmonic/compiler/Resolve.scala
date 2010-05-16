@@ -76,6 +76,7 @@ abstract class Resolve(global: Global, compUnit: in.CompUnit) {
     val allImports = (
         ImportAll(Name.Root) ::
         ImportAll(Name.Package("java.lang")) ::
+        ImportAll(Name.Package("ch.ethz.intervals")) ::
         ImportAll(Name.Package("harmonic.lang")) ::
         ImportAll(compUnit.pkg.name) ::
         compUnit.imports.flatMap(resolveImport)

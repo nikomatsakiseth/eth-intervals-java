@@ -2,6 +2,7 @@ package harmonic.lang;
 
 public interface Application {
     
-    public Object main(); // FIXME Add args
+    /** Launches the application in the given context. */
+    public Object main(ApplicationContext ctx);
   
 }

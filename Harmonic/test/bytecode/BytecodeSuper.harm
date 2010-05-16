@@ -25,7 +25,7 @@ class BytecodeSuper6 extends BytecodeSuperAdd1, BytecodeSuper5  {
 
 class BytecodeSuper extends Application {
 
-    @Override main(): Object {
+    @Override main(ctx: ApplicationContext): Object {
         res3 = new BytecodeSuper3().value();
         res4 = new BytecodeSuper4().value();
         res5 = new BytecodeSuper5().value();

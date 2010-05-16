@@ -3,7 +3,7 @@ package test.bytecode;
 class BytecodeReturn extends Application {
 
     @Override
-    main(): Void {
+    main(ctx: ApplicationContext): Void {
         list = new java.util.ArrayList[E: (Integer, Integer)]();
         list.add((1, 2));
         list.add((3, 4));

@@ -2,7 +2,7 @@ package test.bytecode;
 
 class BytecodeNullInsert extends Application {
 
-    @Override main(): Void {
+    @Override main(ctx: ApplicationContext): Void {
         System.out.println("Hello, World!");
         22
     }

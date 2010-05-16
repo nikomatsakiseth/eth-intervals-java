@@ -1,6 +1,6 @@
 import re
 
-COMPILE_CMD = ["./harmonize", "compile", "--no-localize", "--check-bytecode", "--dump-bytecode", "-d", "bin-test", "@compile_opts", "$filenm"]
+COMPILE_CMD = ["./harmonize", "compile", "--no-localize", "--dump-bytecode", "-d", "bin-test", "@compile_opts", "$filenm"]
 EXECUTE_CMD = ["env", "CLASSPATH=bin-test", "./harmonize", "run", "$classnm"]
 EXTENSION = ".harm"
 

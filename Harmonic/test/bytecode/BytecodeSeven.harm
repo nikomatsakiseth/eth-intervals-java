@@ -2,7 +2,7 @@ package test.bytecode;
 
 class BytecodeSeven extends Application {
 
-    @Override main(): Object {
+    @Override main(ctx: ApplicationContext): Object {
         return 3 + 4;
     }
     

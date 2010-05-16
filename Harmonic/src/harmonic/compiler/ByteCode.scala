@@ -665,7 +665,7 @@ case class ByteCode(global: Global) {
             case expr: in.Expr => 
                 summarizeSymbolsInExpr(summary, expr)
             
-            case in.Labeled(name, in.Body(stmts)) =>
+            case in.InlineInterval(name, in.Body(stmts)) =>
                 stmts.foldLeft(summary)(summarizeSymbolsInStmt)
             
             case in.MethodReturn(expr) => 
@@ -1130,7 +1130,7 @@ case class ByteCode(global: Global) {
                     mvis.visitInsn(O.POP)
                 }
 
-                case in.Labeled(name, in.Body(stmts)) => {
+                case in.InlineInterval(name, in.Body(stmts)) => {
                     stmts.foreach(execStatement) // FIXME Not really right.
                 }
                 
@@ -1426,12 +1426,15 @@ case class ByteCode(global: Global) {
             // stack.  We may have to cast the rvalue to the target type, because
             // the types of the source parameters may be supertypes of the target types.
             tarPatterns.zip(rvalues).foreach { case (tarPattern, rvalue) =>
+                debug("adaptTo(%s, %s):", tarPattern.ty, rvalue.ty)
                 val casted = {
-                    if(convertNeeded(tarPattern.ty, rvalue.ty))
+                    if(convertNeeded(tarPattern.ty, rvalue.ty)) {
+                        debug("  adding cast")
                         Path.TypedCast(tarPattern.ty, rvalue)
-                    else 
+                    } else 
                         rvalue                    
                 }
+                debug("  casted=%s", casted)
                 stmtVisitor.pushPathRvalues(tarPattern, casted, Nil)
             }
         }

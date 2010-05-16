@@ -576,8 +576,8 @@ extends Resolve(global, compUnit)
                 outStmt :: resolveStmts(stmts)
             }
             
-            case (stmt @ in.Labeled(name, body)) :: stmts => {
-                val outStmt = withPosOf(stmt, out.Labeled(name, resolveBody(body)))
+            case (stmt @ in.InlineInterval(name, body)) :: stmts => {
+                val outStmt = withPosOf(stmt, out.InlineInterval(name, resolveBody(body)))
                 outStmt :: resolveStmts(stmts)
             }
         }

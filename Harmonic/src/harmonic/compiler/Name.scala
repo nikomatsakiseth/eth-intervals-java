@@ -158,7 +158,7 @@ object Name {
     
     val ObjectClass = Class(classOf[java.lang.Object])
 
-    val IntervalClass = Class(classOf[harmonic.lang.Interval])
+    val IntervalClass = Class(classOf[ch.ethz.intervals.Interval])
 
     val ArrayClass = Class(classOf[harmonic.lang.Array[_]])
     val ArrayElem = Member(ArrayClass, "E")

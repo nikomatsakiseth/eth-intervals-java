@@ -11,7 +11,7 @@ class BytecodeForEach extends Application {
     }
     
     @Override
-    main() {
+    main(ctx: ApplicationContext) {
         list = new java.util.ArrayList[E: (Integer, Integer)]();
         list.add((1, 2));
         list.add((3, 4));

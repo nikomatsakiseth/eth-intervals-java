@@ -5,7 +5,7 @@ class GatherOverride extends Application {
     @Override foo() { // ERROR method.does.not.override(test.gather.GatherOverride, foo())
     }
     
-    main(): Object { // ERROR method.must.be.marked.override(main(), harmonic.lang.Application)
+    main(ctx: ApplicationContext): Object { // ERROR method.must.be.marked.override(main(), harmonic.lang.Application)
         return 22;
     }
     

@@ -126,10 +126,7 @@ case class Lower(global: Global) {
             params       = outParams,
             returnTref   = out.TypeRef(returnTy),
             requirements = mdecl.requirements.map(InEnv(env).lowerRequirement),
-            optBody      = {
-                if(returnTy == Type.Void) optBody.map(addNullStmtToBody)
-                else optBody                
-            }
+            optBody      = optBody                
         )
     }
     
@@ -707,9 +704,9 @@ case class Lower(global: Global) {
                     ll.env
                 }
                 
-                case in.Labeled(name, body) => {
+                case in.InlineInterval(name, body) => {
                     optStmts.foreach(_ += withPosOf(stmt, 
-                        out.Labeled(name, lowerBody(env, body))
+                        out.InlineInterval(name, lowerBody(env, body))
                     ))
                     env
                 }

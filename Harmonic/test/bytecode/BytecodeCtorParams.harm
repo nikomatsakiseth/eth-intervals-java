@@ -41,7 +41,7 @@ class BytecodeCtorParams extends Application {
         System.out.println(p.getB());
     }
     
-    @Override main(): Void {
+    @Override main(ctx: ApplicationContext): Void {
         print1(new BytecodeCtorParams1(1));
         print2(new BytecodeCtorParams2(2, 3));
     }

@@ -5,6 +5,8 @@ import scala.collection.mutable
 import harmonic.lang.Application
 import harmonic.compiler.ByteCode.implSuffix
 import java.io
+import harmonic.compiler.Util._
+import ch.ethz.intervals._
 
 object Harmonize {
     
@@ -30,7 +32,7 @@ object Harmonize {
             }
         }
 
-        def main(args: Array[String]) {
+        def main(args: Array[String]): Unit = {
             try {
                 parseArgs(args)
                 
@@ -60,8 +62,22 @@ object Harmonize {
                 }
                 
                 val app = ctor.newInstance().asInstanceOf[Application]
-                val res = app.main() //appArgs.toArray)
-                if(res != null) out.printf("%s\n", res)
+                Intervals.inline(
+                    new VoidInlineTask() {
+                        override def toString = "%s.main()".format(appClassName)
+                        override def run(root: Interval) {
+                            val ctx = new harmonic.lang.ApplicationContext() {
+                                val getIn = System.in
+                                val getOut = System.out
+                                val getErr = System.err
+                                val getArgs = appArgs.toArray
+                                val getRoot = root
+                            }
+                            val res = app.main(ctx)
+                            if(res != null) out.printf("%s\n", res)                            
+                        }
+                    }
+                )
             } catch {
                 case UsageError(msg) => {
                     err.printf("The Harmonic Language, version %s\n", version)
@@ -78,7 +94,9 @@ object Harmonize {
         if(args.length > 0 && args(0) == "run") {
             new Instance(System.in, System.out, System.err).main(args.slice(1, args.length))
         } else if(args.length > 0 && args(0) == "compile") {
-            harmonic.compiler.Main.main(args.slice(1, args.length))
+            measure("compiler") {
+                harmonic.compiler.Main.main(args.slice(1, args.length))                
+            }
         } else {
             System.err.printf("The Harmonic Language, version %s\n", version)
             System.err.printf("\n")

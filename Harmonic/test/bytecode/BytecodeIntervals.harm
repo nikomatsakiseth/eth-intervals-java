@@ -1,0 +1,30 @@
+package test.bytecode;
+
+class BytecodeIntervals1(ctx: ApplicationContext) {
+    
+    root = ctx.getRoot();
+    
+    interval a(root) {
+        ctx.getOut().println("Hi from a.");
+    }
+
+    interval b(root) {
+        ctx.getOut().println("Hi from b.");
+    }
+    
+    a -> b;
+    
+}
+
+class BytecodeIntervals extends Application {
+    
+    @Override main(ctx: ApplicationContext): Void {
+        new BytecodeIntervals1(ctx);
+    }
+    
+}
+// COMPILE
+// --dump-resolved-trees
+// --dump-lowered-trees
+// EXECUTE
+// 3456

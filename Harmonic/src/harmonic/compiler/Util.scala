@@ -74,7 +74,7 @@ object Util {
             }
         }
     }
-    implicit def extendedList[E](list: List[E]) = new ExtendedList(list)
+    implicit def extendedList[E](list: List[E]): ExtendedList[E] = new ExtendedList(list)
     
     class ExtendedOption[E](option: Option[E]) {
         def orErr(err: => Error): CanFail[E] = option match {
@@ -87,7 +87,7 @@ object Util {
             case None => func
         }
     }
-    implicit def extendedOption[E](option: Option[E]) = new ExtendedOption(option)
+    implicit def extendedOption[E](option: Option[E]): ExtendedOption[E] = new ExtendedOption(option)
     
     // ___ Debug ____________________________________________________________
     //
@@ -128,6 +128,28 @@ object Util {
             throw t
         } finally {
             data.indent -= 2
+        }
+    }
+    
+    // ___ Profiling ________________________________________________________
+    
+    def measure[R](label: String)(func: => R) = {
+        val start = System.currentTimeMillis
+        try {
+            func
+        } finally {
+            val elapsedMilli = System.currentTimeMillis - start
+            val elapsedSec = elapsedMilli / 1000
+            val elapsedMin = elapsedSec / 60
+            Util.synchronized {
+                println("%s: %s ms == %s min %s sec %s ms".format(
+                    label,
+                    elapsedMilli,
+                    elapsedMin,
+                    elapsedSec % 60,
+                    elapsedMilli % 1000
+                ))
+            }
         }
     }
     

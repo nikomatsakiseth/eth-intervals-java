@@ -4,7 +4,7 @@ class BytecodeInitFields extends Application {
     
     value: Integer = 22;
     
-    @Override main(): Void {
+    @Override main(ctx: ApplicationContext): Void {
         System.out.println(value);
     }
     

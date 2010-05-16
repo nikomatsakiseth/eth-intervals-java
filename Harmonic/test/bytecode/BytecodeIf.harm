@@ -2,7 +2,7 @@ package test.bytecode;
 
 class BytecodeIf extends Application {
 
-    @Override main(): Object {
+    @Override main(ctx: ApplicationContext): Object {
         result = 0;
         
         true.if { 
