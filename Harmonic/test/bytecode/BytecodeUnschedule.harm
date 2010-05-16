@@ -1,6 +1,6 @@
 package test.bytecode;
 
-class BytecodeSchedule1(
+class BytecodeUnschedule1(
     ctx: ApplicationContext
 ) {
     
@@ -12,9 +12,9 @@ class BytecodeSchedule1(
     
 }
 
-class BytecodeSchedule2(
+class BytecodeUnschedule2(
     ctx: ApplicationContext,
-    sched1: BytecodeSchedule1
+    sched1: BytecodeUnschedule1
 ) {
     
     root = ctx.getRoot();
@@ -27,11 +27,11 @@ class BytecodeSchedule2(
     
 }
 
-class BytecodeSchedule extends Application {
+class BytecodeUnschedule extends Application {
     
     @Override main(ctx: ApplicationContext): Void {
-        sched1 = new BytecodeSchedule1(ctx);
-        sched2 = new BytecodeSchedule2(ctx, sched1);
+        sched1 = new BytecodeUnschedule1(ctx);
+        sched2 = new BytecodeUnschedule2(ctx, sched1);
     }
     
 }

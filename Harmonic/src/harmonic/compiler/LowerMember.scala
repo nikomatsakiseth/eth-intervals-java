@@ -185,7 +185,7 @@ class LowerMember(
             
             case inDecl @ in.IntervalDecl(_, Ast.MemberName(MemName), _, _) => {
                 Some(createSymbolOnce {
-                    (List(), out.TypeRef(Type.Interval))
+                    (inDecl.annotations, out.TypeRef(Type.Interval))
                 })
             }
             
