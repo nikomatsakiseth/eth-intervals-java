@@ -10,7 +10,8 @@ class ClassFromErroroneousSource(
         constructors = Nil,
         varMembers = Nil,
         allMethodSymbols = Nil,
-        allFieldSymbols = Nil
+        allFieldSymbols = Nil,
+        allIntervalSymbols = Nil
     )
 }
 

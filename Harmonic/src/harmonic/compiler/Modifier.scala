@@ -9,8 +9,9 @@ object Modifier {
     case object Mutable extends Mod(2, 0, Name.MutableClass)
     case object Override extends Mod(4, 0, Name.OverrideClass)
     case object Static extends Mod(8, jModifier.STATIC, Name.VoidClass)
+    case object Unscheduled extends Mod(16, 0, Name.UnscheduledClass)
     
-    val All = List(Abstract, Mutable, Override, Static)
+    val All = List(Abstract, Mutable, Override, Static, Unscheduled)
     
     case class Set(mods: Int) {
         override def toString = "ModSet(%s)".format(toList.mkString(", "))
@@ -26,6 +27,9 @@ object Modifier {
         
         def isStatic = contains(Static)
         def isNotStatic = !contains(Static)
+        
+        def isUnscheduled = contains(Unscheduled)
+        def isNotUnscheduled = !contains(Unscheduled)
     }
     
     object Set {

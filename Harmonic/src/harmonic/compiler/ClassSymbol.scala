@@ -95,4 +95,7 @@ abstract class ClassSymbol extends Symbol {
     /** Symbols for all methods defined on this class but not superclasses. */
     def allFieldSymbols: List[VarSymbol.Field]
     
+    /** Symbols for all interval members defined on this class but not superclasses. */
+    def allIntervalSymbols: List[VarSymbol.Field]
+    
 }

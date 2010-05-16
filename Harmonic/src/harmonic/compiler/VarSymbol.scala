@@ -1,9 +1,13 @@
 package harmonic.compiler
 
+import scala.util.parsing.input.Position
+import scala.util.parsing.input.NoPosition
+
 object VarSymbol {
     type Any = VarSymbol[Name.Var]
     
     class Field(
+        val pos: Position,
         val modifiers: Modifier.Set,
         val name: Name.Member,
         val ty: Type.Ref,
@@ -12,20 +16,23 @@ object VarSymbol {
     
     def errorField(name: Name.Member, optExpTy: Option[Type.Ref]) = {
         val ty = optExpTy.getOrElse(Type.Null)
-        new Field(Modifier.Set.empty, name, ty, FieldKind.Harmonic) {
+        new Field(NoPosition, Modifier.Set.empty, name, ty, FieldKind.Harmonic) {
             override def isError = true
         }
     }
     
     class Local(
+        val pos: Position,
         val modifiers: Modifier.Set,
         val name: Name.LocalVar,
         val ty: Type.Ref
-    ) extends VarSymbol[Name.LocalVar]
+    ) extends VarSymbol[Name.LocalVar] {
+        def toTypedPath = Path.TypedBase(this)
+    }
     
     def errorLocal(name: Name.LocalVar, optExpTy: Option[Type.Ref]) = {
         val ty = optExpTy.getOrElse(Type.Null)
-        new Local(Modifier.Set.empty, name, ty) {
+        new Local(NoPosition, Modifier.Set.empty, name, ty) {
             override def isError = true
         }
     }

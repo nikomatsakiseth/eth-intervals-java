@@ -176,6 +176,9 @@ class ClassFromSource(
 
     val AllFieldSymbols = new GuardedBy[List[VarSymbol.Field]](merge)
     def allFieldSymbols = AllFieldSymbols.v
+
+    val AllIntervalSymbols = new GuardedBy[List[VarSymbol.Field]](merge)
+    def allIntervalSymbols = AllIntervalSymbols.v
     
     // ___ Computed by Pass.Gather __________________________________________
     

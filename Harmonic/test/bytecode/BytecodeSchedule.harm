@@ -1,0 +1,45 @@
+package test.bytecode;
+
+class BytecodeSchedule1(
+    ctx: ApplicationContext
+) {
+    
+    root = ctx.getRoot();
+    
+    interval a(root) {
+        ctx.getOut().println("Hi from a.");
+    }
+    
+}
+
+class BytecodeSchedule2(
+    ctx: ApplicationContext,
+    sched1: BytecodeSchedule1
+) {
+    
+    root = ctx.getRoot();
+    
+    interval b(root) {
+        ctx.getOut().println("Hi from b.");
+    }
+    
+    // This should fail! sched1.a should
+    // be scheduled already.
+    b -> sched1.a;
+    
+}
+
+class BytecodeSchedule extends Application {
+    
+    @Override main(ctx: ApplicationContext): Void {
+        sched1 = new BytecodeSchedule1(ctx);
+        sched2 = new BytecodeSchedule2(ctx, sched1);
+    }
+    
+}
+// COMPILE
+// --dump-resolved-trees
+// --dump-lowered-trees
+// EXECUTE
+// Hi from a.
+// Hi from b.

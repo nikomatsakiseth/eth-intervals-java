@@ -29,7 +29,8 @@ abstract class ClassFromCompiledSource extends ClassSymbol
         varMembers: List[SymTab.Entry],
         constructors: List[MethodSymbol],
         allMethodSymbols: List[MethodSymbol],
-        allFieldSymbols: List[VarSymbol.Field]
+        allFieldSymbols: List[VarSymbol.Field],
+        allIntervalSymbols: List[VarSymbol.Field]
     )
     
     protected[this] def loadData: Data
@@ -41,6 +42,7 @@ abstract class ClassFromCompiledSource extends ClassSymbol
     final def constructors: List[MethodSymbol] = LoadedData.join.constructors
     final def allMethodSymbols: List[MethodSymbol] = LoadedData.join.allMethodSymbols
     final def allFieldSymbols: List[VarSymbol.Field] = LoadedData.join.allFieldSymbols
+    final def allIntervalSymbols: List[VarSymbol.Field] = LoadedData.join.allIntervalSymbols
     final def methodsNamed(name: Name.Method): List[MethodSymbol] = allMethodSymbols.filter(_.isNamed(name))
     final def fieldNamed(name: Name.Member): Option[VarSymbol.Field] = allFieldSymbols.find(_.isNamed(name))
     

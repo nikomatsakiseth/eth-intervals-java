@@ -136,6 +136,7 @@ class LowerMember(
                     case None => {
                         val (annotations, outTref) = func
                         val fsym = new VarSymbol.Field(
+                            pos       = inMemberDecl.pos,
                             modifiers = Modifier.forResolvedAnnotations(annotations),
                             name      = MemName,
                             ty        = outTref.ty,

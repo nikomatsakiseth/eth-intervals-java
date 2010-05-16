@@ -34,6 +34,7 @@ object Path {
     sealed abstract class Typed {
         def ty: Type.Ref
         def toPath: Path.Ref
+        def /(fsym: VarSymbol.Field) = TypedField(this, fsym)
     }
     case class TypedBase(sym: VarSymbol.Any) extends Typed {
         def toPath = Path.Base(sym.name)

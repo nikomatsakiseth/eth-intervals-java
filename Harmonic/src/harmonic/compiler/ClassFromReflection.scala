@@ -62,7 +62,9 @@ class ClassFromReflection(
         
         allFieldSymbols = {
             cls.getDeclaredFields.filter(isSuitable).map(fieldSymbol).toList
-        }
+        },
+        
+        allIntervalSymbols = Nil
     )
     
     private[this] def fieldSymTabEntry(fld: reflect.Field) = {
@@ -129,6 +131,7 @@ class ClassFromReflection(
     
     private[this] def fieldSymbol(fld: reflect.Field) = {
         new VarSymbol.Field(
+            pos       = pos,
             modifiers = Modifier.forMember(fld),
             name      = Name.Member(name, fld.getName),
             ty        = typeRef(fld.getGenericType),

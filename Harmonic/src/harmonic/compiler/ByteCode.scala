@@ -6,6 +6,7 @@ import scala.collection.mutable
 import scala.collection.immutable.Map
 import scala.collection.immutable.Set
 import scala.util.parsing.input.Position
+import scala.util.parsing.input.NoPosition
 import asm.{Opcodes => O}
 
 import Ast.{Lower => in}
@@ -1536,7 +1537,7 @@ case class ByteCode(global: Global) {
                 Path.TypedTuple(subpatterns.map(constructPathFromPattern))
                 
             case Pattern.Var(name, ty) => {
-                val sym = new VarSymbol.Local(Modifier.Set.empty, name, ty)
+                val sym = new VarSymbol.Local(NoPosition, Modifier.Set.empty, name, ty)
                 accessMap.addUnboxedSym(sym)
                 Path.TypedBase(sym)
             }
@@ -2122,7 +2123,7 @@ case class ByteCode(global: Global) {
             )
         }
         
-        // Finally invoke this class's constructor:
+        // Invoke this class's constructor:
         thisPath.push(mvis)
         mvis.visitMethodInsn(
             O.INVOKESTATIC,
@@ -2130,6 +2131,21 @@ case class ByteCode(global: Global) {
             harmonicInit,
             harmonicInitDesc(csym.constructor.clsName)
         )
+        
+        // Finally, schedule all intervals created in the method body:
+        MethodResolutionOrder(global).forSym(csym).flatMap(_.allIntervalSymbols).foreach { fsym =>
+            if(fsym.modifiers.isNotUnscheduled) {
+                mvis.setPosition(fsym.pos)
+                val interPath = csym.loweredSource.thisSym.toTypedPath / fsym
+                stmtVisitor.pushPathValue(interPath)
+                mvis.visitMethodInsn(
+                    O.INVOKEVIRTUAL,
+                    asmIntervalType.getInternalName,
+                    "schedule",
+                    "()V"
+                )                
+            }
+        }
         
         mvis.visitInsn(O.RETURN)
         mvis.complete

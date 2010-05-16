@@ -166,6 +166,7 @@ object Name {
     val AbstractClass = Class(classOf[harmonic.lang.Abstract])
     val MutableClass = Class(classOf[harmonic.lang.Mutable])
     val OverrideClass = Class(classOf[java.lang.Override])
+    val UnscheduledClass = Class(classOf[harmonic.lang.Unscheduled])
 
     val BlockClass = Class(classOf[harmonic.lang.Block[_, _]])
     val AsyncBlockClass = Class(classOf[harmonic.lang.AsyncBlock[_, _]])
