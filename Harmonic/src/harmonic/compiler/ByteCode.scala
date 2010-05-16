@@ -37,8 +37,8 @@ case class ByteCode(global: Global) {
     
     // ___ Generating fresh, unique class names _____________________________
     
-    def freshClassName(context: Name.Class) = {
-        context.withSuffix("$" + global.freshInteger())
+    def freshClassName(context: Name.Class, node: Ast.Node) = {
+        context.withSuffix("$%s$%s".format(node.pos.line, node.pos.column))
     }
     
     def freshVarName(base: Option[Name.Var]) = {
@@ -48,9 +48,14 @@ case class ByteCode(global: Global) {
     // ___ Types and Asm Types ______________________________________________
     
     val asmObjectArrayType = asm.Type.getType("[Ljava/lang/Object;")
-    val asmObjectType = asm.Type.getObjectType("java/lang/Object")
-    val asmVoidType = asm.Type.getObjectType("java/lang/Void")
-    val asmBooleanType = asm.Type.getObjectType("java/lang/Boolean")
+    val asmObjectType = asm.Type.getType(classOf[java.lang.Object])
+    val asmVoidClassType = asm.Type.getType(classOf[java.lang.Void])
+    val asmBooleanType = asm.Type.getType(classOf[java.lang.Boolean])
+    val asmDependencyType = asm.Type.getType(classOf[ch.ethz.intervals.Dependency])
+    val asmStringType = asm.Type.getType(classOf[java.lang.String])
+    val asmIntervalsType = asm.Type.getType(classOf[ch.ethz.intervals.Intervals])
+    val asmIntervalType = asm.Type.getType(classOf[ch.ethz.intervals.Interval])
+    val asmPointType = asm.Type.getType(classOf[ch.ethz.intervals.Point])
     
     case class BoxInfo(
         boxType: asm.Type,  // i.e., java.lang.Integer
@@ -75,7 +80,7 @@ case class ByteCode(global: Global) {
     {
         def toAsmType: asm.Type = ty match {
             case Type.Class(name, List()) => asm.Type.getObjectType(name.internalName)
-            case Type.Tuple(List()) => asmVoidType
+            case Type.Tuple(List()) => asmVoidClassType
             case Type.Tuple(List(ty)) => ty.toAsmType
             case Type.Tuple(_) => asmObjectArrayType
             case _ => asmObjectType            
@@ -896,7 +901,7 @@ case class ByteCode(global: Global) {
             pushPathValue(path)
             mvis.convert(toAsmTy, path.ty.toAsmType)
         }
-        
+
         def pushPathValue(path: Path.Typed) {
             path match {
                 case Path.TypedTuple(List()) => {
@@ -995,6 +1000,11 @@ case class ByteCode(global: Global) {
             }
         }
         
+        def pushExprValueDowncastingTo(toAsmTy: asm.Type, expr: in.Expr) {
+            pushExprValue(expr)
+            mvis.convert(toAsmTy, expr.ty.toAsmType)
+        }
+        
         def pushExprValueDowncastingTo(toTy: Type.Ref, expr: in.Expr) {
             pushExprValue(expr)
             mvis.convert(toTy, expr.ty)
@@ -1054,10 +1064,10 @@ case class ByteCode(global: Global) {
                     )
                 }
                 
-                case in.MethodCall(in.TypedPath(receiver), name, args, (msym, msig)) => {
+                case in.MethodCall(receiver: in.TypedPath, name, args, (msym, msig)) => {
                     msym.kind match {
                         case harm: MethodKind.Harmonic => {
-                            pushPathValue(receiver)
+                            pushExprValue(receiver)
                             pushMethodArgs(msym, msig, 1, args)
                             val owner = msig.receiverTy.toAsmType.getInternalName
                             val desc = plainMethodDescFromSig(msym.msig)
@@ -1072,9 +1082,9 @@ case class ByteCode(global: Global) {
                             // Push Receiver (first argument if static):
                             op match {
                                 case MethodKind.JavaStatic => 
-                                    pushPathValueDowncastingTo(argAsmTys(0), receiver)
+                                    pushExprValueDowncastingTo(argAsmTys(0), receiver)
                                 case _ =>
-                                    pushPathValueDowncastingTo(ownerAsmTy, receiver)
+                                    pushExprValueDowncastingTo(ownerAsmTy, receiver)
                             }
                             
                             // Push Method Arguments:
@@ -1138,7 +1148,7 @@ case class ByteCode(global: Global) {
                     // Emit "throw new Return(<path>)" if in a block
                     mvis.visitTypeInsn(O.NEW, Name.ReturnClass.internalName)
                     mvis.visitInsn(O.DUP)
-                    pushPathValue(path.path)
+                    pushExprValue(path)
                     mvis.visitMethodInsn(
                         O.INVOKESPECIAL,
                         Name.ReturnClass.internalName,
@@ -1153,7 +1163,7 @@ case class ByteCode(global: Global) {
 
                 case in.MethodReturn(path) => {
                     // Emit "return <path>" if in a method
-                    pushPathValue(path.path)
+                    pushExprValue(path)
                     mvis.visitInsn(O.ARETURN)
                 }
 
@@ -1276,6 +1286,118 @@ case class ByteCode(global: Global) {
             derivedAccessMap
         }
         
+        /** Creates a new subclass of Interval whose `run()` method
+          * executes the given declaration. */
+        def pushIntervalSubclass(
+            decl: in.IntervalDecl
+        ) {
+            val name = freshClassName(accessMap.context, decl)
+            val interwr = new ClassWriter(name, noSuffix, decl.pos)
+            
+            interwr.cvis.visit(
+                O.V1_5,
+                O.ACC_PUBLIC,
+                name.internalName,
+                null, // FIXME Signature
+                Name.IntervalClass.internalName,
+                null
+            )
+
+            // In the creating class, create an instance of the interval class
+            // and give it access to the this pointer:
+            val interCtorDesc = getMethodDescriptor(asm.Type.VOID_TYPE, Array(asmDependencyType))
+            mvis.visitTypeInsn(O.NEW, name.internalName)
+            mvis.visitInsn(O.DUP)
+            pushExprValue(decl.parent)
+            mvis.visitMethodInsn(
+                O.INVOKESPECIAL,
+                name.internalName,
+                Name.InitMethod.javaName,
+                interCtorDesc // note: constructor is generated below
+            )
+            
+            // Derive the access map that will be used in the run method.
+            // This may emits statement into the current method.
+            val interAccessMap = deriveAccessMap(name, interwr.cvis, decl.body.stmts)
+
+            // Interval constructor always looks like:
+            //    OurClass(Dependency parent) {
+            //       super(parent, "our name");
+            //    }
+            def writeIntervalCtor = {
+                val ctormvis = interwr.cvis.visitMethod(
+                    O.ACC_PUBLIC,
+                    Name.InitMethod.javaName,
+                    interCtorDesc,
+                    null, // generic signature
+                    null  // thrown exceptions
+                )
+                ctormvis.visitCode
+                ctormvis.visitVarInsn(O.ALOAD, 0)
+                ctormvis.visitVarInsn(O.ALOAD, 1)
+                ctormvis.visitLdcInsn(decl.name.toString)
+                ctormvis.visitMethodInsn(
+                    O.INVOKESPECIAL,
+                    Name.IntervalClass.internalName,
+                    Name.InitMethod.javaName,
+                    getMethodDescriptor(asm.Type.VOID_TYPE, Array(asmDependencyType, asmStringType))
+                )
+                ctormvis.visitInsn(O.RETURN)
+                ctormvis.complete
+            }
+            writeIntervalCtor
+
+            // Interval body:
+            //  void run() { 
+            //      try { 
+            //          <stmts>;
+            //          return;
+            //      } catch (Return r) {
+            //          return;
+            //      }
+            //  }
+            // Note that interval bodies never return a value.
+            // (For now, anyhow.)
+            def writeIntervalRun = {
+                val runmvis = interwr.cvis.visitMethod(
+                    O.ACC_PROTECTED,
+                    "run",
+                    getMethodDescriptor(asm.Type.VOID_TYPE, Array()),
+                    null, // generic signature
+                    null  // thrown exceptions
+                )
+                runmvis.visitCode
+
+                val startLabel = new asm.Label()
+                runmvis.visitLabel(startLabel)
+
+                val stmts = decl.body.stmts
+                addSymbolsDeclaredIn(interAccessMap, stmts, runmvis)
+                val interStmtVisitor = new StatementVisitor(0, interAccessMap, IntConstant(0), runmvis)
+                interStmtVisitor.execStatements(stmts)
+                runmvis.visitInsn(O.RETURN)
+                val endLabel = new asm.Label()
+                runmvis.visitLabel(endLabel)
+
+                val catchLabel = new asm.Label()
+                runmvis.visitLabel(catchLabel)
+                runmvis.visitInsn(O.POP)
+                runmvis.visitInsn(O.RETURN)
+
+                runmvis.visitTryCatchBlock(
+                    startLabel, 
+                    endLabel, 
+                    catchLabel, 
+                    Name.ReturnClass.internalName
+                )
+
+                runmvis.complete
+            }
+            writeIntervalRun
+            
+            interwr.end
+        }
+        
         /** Creates a new class representing the statements
           * in `tmpl` and pushes an instance of that class
           * onto the bytecode stack.  The class will have fields
@@ -1284,7 +1406,7 @@ case class ByteCode(global: Global) {
         def pushAnonymousBlock(
             tmpl: in.Block
         ) {
-            val name = freshClassName(accessMap.context)
+            val name = freshClassName(accessMap.context, tmpl)
             val blockTy = Type.Class(name, List())
             val tmplwr = new ClassWriter(name, noSuffix, tmpl.pos)
 
@@ -1328,10 +1450,10 @@ case class ByteCode(global: Global) {
             tmplmvis.visitCode
             
             // Add parameters to the access map:
-            //    If there are no parameter, there will still be one in the bytecode of type Void,
+            //    If there are no parameters, there will still be one in the bytecode of type Void,
             //    so just reserve the local variable slot.
             tmpl.param.symbols match {
-                case List() => accessMap.pathToFreshSlot(asmVoidType)
+                case List() => accessMap.pathToFreshSlot(asmVoidClassType)
                 case syms => syms.foreach(derivedAccessMap.addUnboxedSym)
             }
             
@@ -1574,31 +1696,52 @@ case class ByteCode(global: Global) {
         )
         mvis.visitCode
         
-        val accessMap = new AccessMap(csym.name)
-        val thisPath = accessMap.addUnboxedSym(csym.loweredSource.thisSym)
-        addInstanceFields(accessMap, thisPath, csym)
+        val thisSym = csym.loweredSource.thisSym
+        
+        def newAccessMap(stmts: List[in.Stmt]) = {
+            val accessMap = new AccessMap(csym.name)
+            val thisPath = accessMap.addUnboxedSym(thisSym)
+            addInstanceFields(accessMap, thisPath, csym)
+            addSymbolsDeclaredIn(accessMap, stmts, mvis)
+            accessMap            
+        }
         
         // next, "execute" the members in the body, if appropriate:
-        val stmtVisitor = new StatementVisitor(0, accessMap, IntConstant(0), mvis)
         csym.lowerMembers.foreach { lowerMember =>
             lowerMember.memberDecl match {
-                case in.IntervalDecl(_, Ast.MemberName(name), parent, body) => {
+                case decl @ in.IntervalDecl(_, Ast.MemberName(name), _, _) => {
                     val fsym = lowerMember.toOptFieldSymbol(name).get
-                    thisPath.push(mvis)
-                    throw new RuntimeException("TODO: Intervals")
+                    
+                    val accessMap = newAccessMap(Nil)
+                    val stmtVisitor = new StatementVisitor(0, accessMap, IntConstant(0), mvis)
+                    
+                    accessMap.pushSym(thisSym, mvis)
+                    stmtVisitor.pushIntervalSubclass(decl)
                     mvis.setHarmonicField(fsym)
                 }
 
-                case in.FieldDecl(_, Ast.MemberName(name), _, body) => {
+                case in.FieldDecl(_, Ast.MemberName(name), _, in.Body(stmts)) => {
                     val fsym = lowerMember.toOptFieldSymbol(name).get
-                    debug("fieldDecl: %s, thisPath: %s", fsym, thisPath)
-                    thisPath.push(mvis)
-                    stmtVisitor.pushResultOfStatements(body.stmts) 
+                    
+                    val accessMap = newAccessMap(stmts)
+                    val stmtVisitor = new StatementVisitor(0, accessMap, IntConstant(0), mvis)
+
+                    accessMap.pushSym(thisSym, mvis)
+                    stmtVisitor.pushResultOfStatements(stmts) 
                     mvis.setHarmonicField(fsym)
                 }
 
-                case in.RelDecl(_, _, PcHb, _) => {
-                    throw new RuntimeException("TODO: Happens-Before Relations")
+                case in.RelDecl(_, from, PcHb, to) => {
+                    val accessMap = newAccessMap(Nil)
+                    val stmtVisitor = new StatementVisitor(0, accessMap, IntConstant(0), mvis)
+                    stmtVisitor.pushExprValue(from)
+                    stmtVisitor.pushExprValue(to)
+                    mvis.visitMethodInsn(
+                        O.INVOKESTATIC,
+                        asmIntervalsType.getInternalName,
+                        "addHb",
+                        getMethodDescriptor(asm.Type.VOID_TYPE, Array(from.ty.toAsmType, to.ty.toAsmType))
+                    )
                 }
 
                 case _ => // Other kinds of decl's have no associated actions
@@ -1868,7 +2011,6 @@ case class ByteCode(global: Global) {
         superName: Name.Class,
         cvis: asm.ClassVisitor
     ) {
-        // FIXME We have to figure out our ctor model.
         val mvis = cvis.visitMethod(
             O.ACC_PUBLIC,
             Name.InitMethod.javaName,

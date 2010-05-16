@@ -27,4 +27,5 @@ class BytecodeIntervals extends Application {
 // --dump-resolved-trees
 // --dump-lowered-trees
 // EXECUTE
-// 3456
+// Hi from a.
+// Hi from b.
