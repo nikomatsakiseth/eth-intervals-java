@@ -11,7 +11,9 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import ch.ethz.intervals.impl.IntervalImpl;
+import ch.ethz.intervals.mirror.Interval;
 import ch.ethz.intervals.quals.Creator;
+import ch.ethz.intervals.task.AbstractTask;
 
 /**
  * Bounded-buffer Producer Consumer example
@@ -49,129 +51,139 @@ public class TestBBPCLinks {
 		public int produced;
 		
 		/** Producer <em>i+1</em> */
-		public IntervalImpl nextProducer;
+		public Interval nextProducer;
 		
 		/** Where producer <em>i+1</em> will write its data */
-		public @Creator("nextProducer") ProducerData nextProducerData;		
+		public ProducerData nextProducerData;		
 	}
 	
 	/** Where consumers write information about the next consumer. */
 	class ConsumerData {
 		/** Consumer <em>i+1</em> */
-		public IntervalImpl nextConsumer;
+		public Interval nextConsumer;
 		
 		/** Where consumer <em>i+1</em> will write its data */
-		public @Creator("nextConsumer") ConsumerData nextConsumerData;		
+		public ConsumerData nextConsumerData;		
 	}
 	
-	class Producer extends IntervalImpl {
-		protected final int index;
-		protected final @Creator("hb this") ConsumerData cdata;
-		protected final @Creator("this") ProducerData pdata;
+	public void newProducer(
+			int index,
+			Interval prevProducer,
+			ProducerData prevPdata,
+			Interval consumer,
+			ConsumerData cdata
+	) {
+		Producer nextProducer = new Producer(index, cdata);
+		Interval inter = prevProducer.getParent().newAsyncChild(nextProducer);
 		
-		public Producer(
-				int index,
-				IntervalImpl prev,
-				IntervalImpl cons,
-				@Creator("cons") ConsumerData cdata) 
-		{
-			super(prev.parent);
-			Intervals.addHb(prev.end, start);
-			Intervals.addHb(cons.end, start);
+		prevPdata.nextProducerData = nextProducer.pdata;
+		prevPdata.nextProducer = inter;
 			
+		Intervals.addHb(prevProducer, inter);
+		Intervals.addHb(consumer, inter);
+	}
+	
+	class Producer extends AbstractTask {
+		protected final int index;
+		protected final ConsumerData cdata;
+		protected final ProducerData pdata;
+		
+		public Producer(int index, ConsumerData cdata)
+		{
+			super("p"+index);
 			this.index = index;
 			this.cdata = cdata;
 			this.pdata = new /*@writer("this")*/ ProducerData();
 		}
 
-		public void run() {
+		public void run(Interval current) {
 			pdata.produced = index;
 			producerTimes.add(stamp.getAndIncrement());
 			
 			if(index + 1 < MAX) { 
 				// Create next producer, if any.  Publish its data and endpoint.
-				Producer nextProducer = new Producer(index + 1, this, cdata.nextConsumer, cdata.nextConsumerData);
-				pdata.nextProducerData = nextProducer.pdata;
-				pdata.nextProducer = nextProducer;
+				newProducer(index + 1, current, pdata, cdata.nextConsumer, cdata.nextConsumerData);
 			} 
 		}		
 	}
 	
-	class Consumer extends IntervalImpl {
+	public void newConsumer(
+			int index,
+			Interval producer,
+			ProducerData pdata,
+			Interval prevConsumer,
+			ConsumerData prevCdata
+	) {
+		Consumer nextConsumer = new Consumer(index, pdata);
+		Interval inter = prevConsumer.getParent().newAsyncChild(nextConsumer);
+		
+		Intervals.addHb(prevConsumer, inter);
+		Intervals.addHb(producer, inter);
+		
+		prevCdata.nextConsumer = inter;
+		prevCdata.nextConsumerData = nextConsumer.cdata;
+	}
+	
+	class Consumer extends AbstractTask {
 		protected final int index;
 		protected final @Creator("hb this") ProducerData pdata;
 		protected final @Creator("this") ConsumerData cdata;
 
 		public Consumer(
 				int index,
-				IntervalImpl prevConsumer,
-				IntervalImpl producer,
 				@Creator("producer") ProducerData pdata) 
 		{
-			super(prevConsumer.parent);
-			Intervals.addHb(prevConsumer.end, start);
-			Intervals.addHb(producer.end, start);
+			super("c"+index);
 			
 			this.index = index;
 			this.pdata = pdata;
 			this.cdata = new /*@writer("this")*/ ConsumerData();
 		}
 		
-		public String toString() {
-			return "Consumer["+index+"]";
-		}
-		
-		@Override public void run() {
+		@Override public void run(Interval current) {
 			consumed.add(pdata.produced); // "Consume" the data.
 			consumerTimes.add(stamp.getAndIncrement());			
 			
 			if(pdata.nextProducer != null) {
-				Consumer nextConsumer = new Consumer(
-						index + 1,
-						this,
-						pdata.nextProducer,
-						pdata.nextProducerData);
-				cdata.nextConsumer = nextConsumer;
-				cdata.nextConsumerData = nextConsumer.cdata;
+				newConsumer(index + 1, pdata.nextProducer, pdata.nextProducerData, current, cdata);
 			}
 		}		
 	}
 	
-	class Init extends IntervalImpl {
+	class Init extends AbstractTask {
 
-		public Init(@ParentForNew("Parent") Dependency dep) {
-			super(dep);
+		public Init() {
+			super("Init");
 		}
 
 		@Override
-		protected void run() {
+		public void run(Interval current) {
 			// Create a dummy chain of consumer datas from index -N to -1.
 			// These consumer datas are all written by this interval.
-			@Creator("this") ConsumerData cdata_1 = new /*@writer("this")*/ ConsumerData();			
-			@Creator("this") ConsumerData cdata_N = cdata_1;
+			ConsumerData cdata_1 = new ConsumerData();			
+			ConsumerData cdata_N = cdata_1;
 			for(int i = -1; i <= -N; i--) {
-				@Creator("this") ConsumerData cdata_i = new /*@writer("this")*/ ConsumerData();
-				cdata_i.nextConsumer = this;
+				ConsumerData cdata_i = new ConsumerData();
+				cdata_i.nextConsumer = current;
 				cdata_i.nextConsumerData = cdata_N;
 				cdata_N = cdata_i;
 			}
 			
 			// Create first producer, and provide it cdata -N, so that
 			// prod N will wait for cons 0:
-			Producer prod0 = new Producer(0, this, this, cdata_N);
+			ProducerData pdata_1 = new ProducerData();
+			newProducer(0, current, pdata_1, current, cdata_N);
 			
 			// Create first consumer, and link its cdata to cdata -1:
-			Consumer cons0 = new Consumer(0, this, prod0, prod0.pdata);
-			cdata_1.nextConsumer = cons0;
-			cdata_1.nextConsumerData = cons0.cdata;
+			newConsumer(0, pdata_1.nextProducer, pdata_1.nextProducerData, current, cdata_1);
 		}
 	
 	}
 	
 	@Test public final void test() {
-		inline(new VoidInlineTask() {
-			@Override public void run(IntervalImpl subinterval) {
-				new Init(subinterval);
+		inline(new AbstractTask() {
+			@Override public void run(Interval subinterval) {
+				subinterval.newAsyncChild(new Init());
 			}			
 		});
 		
