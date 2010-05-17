@@ -1,106 +1,30 @@
-package ch.ethz.intervals;
+package ch.ethz.intervals.impl;
 
 import java.util.Set;
 
 import pcollections.Empty;
 import pcollections.HashTreePSet;
 import pcollections.PSet;
-import ch.ethz.intervals.ThreadPool.Worker;
+import ch.ethz.intervals.IntervalException;
+import ch.ethz.intervals.Intervals;
+import ch.ethz.intervals.RethrownException;
 import ch.ethz.intervals.guard.Guard;
-import ch.ethz.intervals.mirror.IntervalMirror;
-import ch.ethz.intervals.mirror.LockMirror;
-import ch.ethz.intervals.mirror.PointMirror;
-import ch.ethz.intervals.quals.Is;
-import ch.ethz.intervals.quals.Requires;
+import ch.ethz.intervals.impl.ThreadPool.Worker;
+import ch.ethz.intervals.mirror.AsyncInterval;
+import ch.ethz.intervals.mirror.InlineInterval;
+import ch.ethz.intervals.mirror.Interval;
+import ch.ethz.intervals.mirror.Lock;
+import ch.ethz.intervals.mirror.Point;
+import ch.ethz.intervals.mirror.Task;
 import ch.ethz.intervals.util.ChunkList;
 
-@Parent @ParentForNew("this")
-public abstract class Interval 
+public abstract class IntervalImpl 
 extends ThreadPool.WorkItem 
-implements Dependency, Guard, IntervalMirror
+implements Guard, Interval
 {	
 	// =====================================================================================
 	// Public interface (and some private supporting functions):
 	
-	public final @Is("Parent") Interval parent;
-	public final Point start;
-	public final Point end;
-	
-	public Interval(@ParentForNew("Parent") Dependency dep) {
-		this(dep, null);
-	}
-	
-	public Interval(@ParentForNew("Parent") Dependency dep, String name) {
-		Interval parent = dep.parentForNewInterval();
-		Current current = Current.get();
-		
-		// If parent == null, then direct child of root interval:
-		Point parentEnd = Intervals.end(parent);
-		
-		// Note: if this check passes, then no need to check for cycles 
-		// for the path from current.start->bnd.  This is because we require
-		// one of the following three conditions to be true, and in all three
-		// cases a path current.start->bnd must already exist:
-		// (1) Bound was created by us and is unscheduled.  Then a
-		//     path current.start->bnd was already added.
-		// (2) Bound is current.end.  current.start->current.end.
-		// (3) A path exists from current.end -> bnd.  Same as (2).
-		if(parent != null)
-			current.checkCanAddChild(parent);
-		
-		this.name = name;
-		this.parent = parent;
-		end = new Point(name, Point.FLAG_END, parentEnd, 2, this);
-		start = new Point(name, Point.NO_FLAGS, end, 2, this);		
-
-		State parentState;
-		if(parent != null)
-			parentState = parent.addChildInterval(this);
-		else 
-			parentState = State.PAR; // Root interval always in PAR state.
-		
-		if(!parentState.permitsNewChildren)
-			throw new IntervalException.ParPhaseCompleted(parent);			
-		if(!parentState.willSignalChild)
-			start.addWaitCountUnsync(-1);
-		if(parentState.childrenCancelled)
-			state = State.CANCEL_WAIT;
-		else 
-			state = State.WAIT;
-		
-		unscheduled = current;
-		current.addUnscheduled(this);
-				
-		ExecutionLog.logNewInterval(null, start, end);
-		
-		dep.addHbToNewInterval(this);		
-	}
-	
-
-	/**
-	 * Defines the behavior of the interval.  Must be
-	 * overridden. Non-blocking child intervals of {@code this} only 
-	 * execute once this method has returned.
-	 * 
-	 * <p>Executed by the scheduler when {@code this}
-	 * is the current interval.  <b>Do not invoke manually.</b> */
-	@Requires("method suspends this")
-	protected abstract void run();
-	
-	/** Invoked if an error occurs in this interval or in a child.  Gives the
-	 *  interval an opportunity to filter and handle errors before propagating
-	 *  them onwards.  If you return {@code null} or an empty set, the errors are 
-	 *  considered handled and so the interval is considered to terminate without error.
-	 *  Otherwise, the returned errors will be propagated to {@link #parent},
-	 *  and any successors of {@code this} will not execute.
-	 *   
-	 *  @param errors An immutable set of errors which occurred.
-	 *  @returns the set of errors to propogate forward, or {@code null} for none. */
-	protected Set<? extends Throwable> catchErrors(Set<Throwable> errors) {
-		return errors;
-	}
-
-
 	@Override
 	public String toString() {
 		if(name != null)
@@ -109,70 +33,36 @@ implements Dependency, Guard, IntervalMirror
 	}
 	
 	/**
-	 * Schedules {@code this} for execution.  You can also
-	 * schedule all pending intervals using {@link Intervals#schedule()},
-	 * or simply wait until the creating interval ends. 
-	 * 
-	 * @throws IntervalException.AlreadyScheduled if already scheduled
-	 */
-	public final void schedule() throws IntervalException.AlreadyScheduled {
-		Current current = Current.get();
-		current.schedule(this);
-	}
-	
-	/**
 	 * Returns the bounding point of this interval.
 	 */
-	public final Point bound() {
+	public final PointImpl bound() {
 		return end.bound;
 	}
 	
-	/**
-	 * Returns {@link #end}, 
-	 * thus ensuring that new intervals using
-	 * {@code this} as their {@link Dependency} execute
-	 * during {@code this}.
-	 */
-	@Override
-	public final Interval parentForNewInterval() {
-		return this;
-	}
-
-	/**
-	 * Adds an edge from {@link #start} to {@code inter.start},
-	 * thus ensuring that new intervals using
-	 * {@code this} as their {@link Dependency} execute
-	 * during {@code this}.
-	 */
-	@Override
-	public final void addHbToNewInterval(Interval inter) {
-		start.addEdgeAndAdjust(inter.start, ChunkList.NORMAL);
-	}
-	
-	private boolean isWritableBy(IntervalMirror inter) {
+	private boolean isWritableBy(Interval inter) {
 		while(inter != this && inter.isSynchronous())
-			inter = inter.parent();
+			inter = inter.getParent();
 		return (inter == this);
 	}
 	
-	private boolean isReadableBy(PointMirror mr, IntervalMirror inter) {
+	private boolean isReadableBy(Point mr, Interval inter) {
 		return (isWritableBy(inter) || (mr != null && end.hbeq(mr)));
 	}
 	
 	@Override
-	public IntervalException checkLockable(IntervalMirror interval, LockMirror lock) {
+	public IntervalException checkLockable(Interval interval, Lock lock) {
 		return new IntervalException.CannotBeLockedBy(this, lock);
 	}
 
 	@Override
-	public IntervalException checkReadable(PointMirror mr, IntervalMirror inter) {
+	public IntervalException checkReadable(Point mr, Interval inter) {
 		if(!isReadableBy(mr, inter))
 			return new IntervalException.MustHappenBefore(end, mr);
 		return null;
 	}
 
 	@Override
-	public IntervalException checkWritable(PointMirror mr, IntervalMirror inter) {
+	public IntervalException checkWritable(Point mr, Interval inter) {
 		if(!isWritableBy(inter))
 			return new IntervalException.NotSubinterval(inter, this);
 		return null;
@@ -183,7 +73,7 @@ implements Dependency, Guard, IntervalMirror
 	 * when it executes, or it is a blocking subinterval of
 	 * someone who will.
 	 */
-	@Override public final boolean locks(LockMirror lock) {
+	@Override public final boolean locks(Lock lock) {
 		if(holdsLockItself(lock))
 			return true;
 		
@@ -197,27 +87,31 @@ implements Dependency, Guard, IntervalMirror
 	 * True if {@code this} will hold the lock {@code lock}
 	 * when it executes.
 	 */
-	final boolean holdsLockItself(LockMirror lock) {
+	final boolean holdsLockItself(Lock lock) {
 		for(LockList ll = revLocksSync(); ll != null; ll = ll.next)
-			if(ll.lock == lock)
+			if(ll.lockImpl == lock)
 				return true;
 		return false;
 	}
 	
-	@Override public PointMirror start() {
+	@Override public Point getStart() {
 		return start;
 	}
 	
-	@Override public PointMirror end() {
+	@Override public Point getEnd() {
 		return end;
 	}
 	
-	@Override public void addLock(LockMirror lock, Guard guard) {
-		if(lock instanceof Lock) {
-			Intervals.addExclusiveLock(this, (Lock) lock, guard);
-		} else {
-			throw new UnsupportedOperationException("Must be subtype of Lock");
-		}
+	@Override public void addLock(Lock lock) {
+		addLock(lock, null);
+	}
+	
+	@Override public void addLock(Lock _lock, Guard guard) {
+		LockImpl lock = (LockImpl) _lock;
+		
+		Current current = Current.get();
+		current.checkCanAddDep(start);
+		addExclusiveLock(lock, guard);
 	}
 
 	@Override
@@ -226,12 +120,34 @@ implements Dependency, Guard, IntervalMirror
 	}
 
 	@Override
-	public Interval parent() {
+	public IntervalImpl getParent() {
 		return parent;
+	}
+
+	@Override
+	public AsyncInterval newAsyncChild(Task task) {
+		return new AsyncIntervalImpl(this, task);
+	}
+
+	@Override
+	public InlineInterval newInlineChild(Task task) {
+		// Warning: there is code in FactoryImpl that
+		// creates new InlineIntervalImpl's directly, 
+		// bypassing these safety checks (because it
+		// knows they will pass).
+
+		if(Intervals.SAFETY_CHECKS && Current.get().inter != this)
+			throw new IntervalException.MustBeCurrent(this);
+		return new InlineIntervalImpl(this, task);
 	}
 
 	// =====================================================================================
 	// Package or private interface:
+	
+	final IntervalImpl parent;
+	final PointImpl start;
+	final PointImpl end;
+	final Task task;
 	
 	/* State diagram for intervals:
 	 * 
@@ -301,7 +217,7 @@ implements Dependency, Guard, IntervalMirror
 	private Current unscheduled;
 	
 	/** @see Current#unscheduled */
-	Interval nextUnscheduled;
+	IntervalImpl nextUnscheduled;
 	
 	/** Current state of this interval.  
 	 * 
@@ -310,7 +226,7 @@ implements Dependency, Guard, IntervalMirror
 	 *  Locking policy:
 	 *  <ul>
 	 *  <li> The only time that the state is externally affected is when pred. and parents invoke
-	 *       {@link #cancel(Point)} during the waiting period (i.e., before ref count of start reaches 0).
+	 *       {@link #cancel(PointImpl)} during the waiting period (i.e., before ref count of start reaches 0).
 	 *       No lock is required here because they are all setting {@code state} to the same value,
 	 *       and the requisite HAPPENS BEFORE relation is established by them decrementing the ref count
 	 *       of start anyhow.
@@ -357,21 +273,61 @@ implements Dependency, Guard, IntervalMirror
 	 * 
 	 *  Once we transition to {@link State#PAR}, set to null and never
 	 *  changed. Modified only under lock! */
-	private ChunkList<Interval> pendingChildIntervals = null;
+	private ChunkList<IntervalImpl> pendingChildIntervals = null;
 	
-	/** Constructor used by blocking subintervals */
-	Interval(String name, Current current, Interval parent, int pntFlags, int startWaitCount, int endWaitCount) {
-		this.state = State.WAIT;
-		this.name = name;
-		this.parent = parent;		
-		this.end = new Point(name, pntFlags | Point.FLAG_END, Intervals.end(parent), endWaitCount, this);
-		this.start = new Point(name, pntFlags, end, startWaitCount, this);
+	IntervalImpl(
+			IntervalImpl parent, 
+			Task task, 
+			int pntFlags
+	) {
+		// Careful: invoke before adding interval to any
+		// tables, so if it fails we have no cleanup.
+		String taskName = task.getName();
+		
+		Current current = Current.get();
+		
+		// If parent == null, then direct child of root interval:
+		PointImpl parentEnd = 
+			(PointImpl) Intervals.getEnd(parent);
+		
+		// Note: if this check passes, then no need to check for cycles 
+		// for the path from current.start->bnd.  This is because we require
+		// one of the following three conditions to be true, and in all three
+		// cases a path current.start->bnd must already exist:
+		// (1) Bound was created by us and is unscheduled.  Then a
+		//     path current.start->bnd was already added.
+		// (2) Bound is current.end.  current.start->current.end.
+		// (3) A path exists from current.end -> bnd.  Same as (2).
+		if(parent != null)
+			current.checkCanAddChild(parent);
+		
+		this.name = taskName;
+		this.parent = parent;
+		this.task = task;
+		end = new PointImpl(name, pntFlags | PointImpl.FLAG_END, parentEnd, 2, this);
+		start = new PointImpl(name, pntFlags, end, 2, this);		
+
+		State parentState;
+		if(parent != null)
+			parentState = parent.addChildInterval(this);
+		else 
+			parentState = State.PAR; // Root interval always in PAR state.
+		
+		if(!parentState.permitsNewChildren)
+			throw new IntervalException.ParPhaseCompleted(parent);			
+		if(!parentState.willSignalChild)
+			start.addWaitCountUnsync(-1);
+		if(parentState.childrenCancelled)
+			state = State.CANCEL_WAIT;
+		else 
+			state = State.WAIT;
 		
 		unscheduled = current;
-		current.addUnscheduled(this);		
+		current.addUnscheduled(this);
+				
+		ExecutionLog.logNewInterval(null, start, end);
 		
-		if(end.bound != null)
-			end.bound.addWaitCount();
+		task.attachedTo(this);
 	}
 	
 	/** Moves to a new state. */
@@ -381,7 +337,7 @@ implements Dependency, Guard, IntervalMirror
 		state = newState;
 	}
 	
-	private State addChildInterval(Interval inter) {
+	private State addChildInterval(IntervalImpl inter) {
 		State state;
 		
 		// Atomically read current state and add 'inter' to our linked
@@ -399,7 +355,7 @@ implements Dependency, Guard, IntervalMirror
 		return state;
 	}
 	
-	synchronized void cancel(Point pnt) {
+	synchronized void cancel(PointImpl pnt) {
 		// See declaration for state field for a discussion of why no lock is needed here.
 		if(pnt == start) {
 			switch(state) {
@@ -441,9 +397,9 @@ implements Dependency, Guard, IntervalMirror
 		revLocks = locks;
 	}
 	
-	/** Note: Safety checks apply!  See {@link Current#checkCanAddDep(Point)} */ 
-	void addExclusiveLock(Lock lock, Guard guard) {
-		LockList list = new LockList(this, lock, guard, null);
+	/** Note: Safety checks apply!  See {@link Current#checkCanAddDep(PointImpl)} */ 
+	void addExclusiveLock(LockImpl lockImpl, Guard guard) {
+		LockList list = new LockList(this, lockImpl, guard, null);
 		synchronized(this) {
 			list.next = revLocks;			
 			setRevLocksUnsync(list);
@@ -469,17 +425,17 @@ implements Dependency, Guard, IntervalMirror
 	}
 	
 	/** Invoked by {@code point} when its wait count reaches zero. 
-	 *  Should eventually invoke {@link Point#occur(boolean)} */
-	void didReachWaitCountZero(Point point) {
+	 *  Should eventually invoke {@link PointImpl#occur(boolean)} */
+	void didReachWaitCountZero(PointImpl pointImpl) {
 		switch(state) {
 		case WAIT:
-			assert point == start;
+			assert pointImpl == start;
 			transitionUnsync(State.LOCK);
 			acquireNextUnacquiredLock();
 			break;
 			
 		case CANCEL_WAIT:
-			assert point == start;
+			assert pointImpl == start;
 			// Transition to CANCEL_PAR occurs once start point occurred.
 			// This way it occurs atomically with reading list of pending intervals.
 			start.occur(true);
@@ -487,7 +443,7 @@ implements Dependency, Guard, IntervalMirror
 			
 		case PAR:
 		case CATCH_PAR:
-			assert point == end;
+			assert pointImpl == end;
 			if(vertExceptions != null) {
 				transitionUnsync(State.CATCH);
 				
@@ -498,13 +454,7 @@ implements Dependency, Guard, IntervalMirror
 				
 				Current cur = Current.push(this);
 				
-				try { // Execute catchErrors():
-					if(errors != null)
-						errors = makePSet(catchErrors(errors), errors);
-				} catch(Throwable t) {
-					errors = errors.plus(t); // keep previous errors, what the heck.
-				}
-				
+				errors = catchErrors(errors);
 				cur.pop();
 				
 				boolean hasUncaughtExceptions = (errors != null);
@@ -523,19 +473,30 @@ implements Dependency, Guard, IntervalMirror
 			break;
 			
 		case CANCEL_PAR:
-			assert point == end;
+			assert pointImpl == end;
 			end.occur(true);
 			break;
 						
 		default:
-			assert point == start || point == end;
+			assert pointImpl == start || pointImpl == end;
 			throw new IntervalException.InternalError(
 					String.format("Invalid state %s when %s point %s reached wait count 0",
-							state, (point == start ? "start" : "end"), point));
+							state, (pointImpl == start ? "start" : "end"), pointImpl));
+		}
+	}
+	
+	protected PSet<Throwable> catchErrors(PSet<Throwable> errors) {
+		if(errors == null)
+			return null;
+		
+		try { // Execute catchErrors():
+			return makePSet(task.catchErrors(errors), errors);
+		} catch(Throwable t) {
+			return errors.plus(t); // keep previous errors, what the heck.
 		}
 	}
 
-	/** Acquires the next unacquired lock, invoking {@link Point#occur(boolean)}
+	/** Acquires the next unacquired lock, invoking {@link PointImpl#occur(boolean)}
 	 *  when complete.  If some lock cannot be immediately acquired,
 	 *  then it returns and waits for a callback when the lock has
 	 *  been acquired. */
@@ -569,7 +530,7 @@ implements Dependency, Guard, IntervalMirror
 		
 		// Check that acquiring this lock did not
 		// create a data race:		
-		Throwable err = (ll.guard == null ? null : ll.guard.checkLockable(this, ll.lock));
+		Throwable err = (ll.guard == null ? null : ll.guard.checkLockable(this, ll.lockImpl));
 		if(err != null)
 			addVertExceptionUnsyc(err);
 		
@@ -579,33 +540,33 @@ implements Dependency, Guard, IntervalMirror
 	/** Tries to acquire the lock indicated by {@code thisLockList}: first determines 
 	 *  if this is a recursive acquire by checking for an ancestor which has already 
 	 *  acquired {@code thisLockList}. If one is found, tries to acquire the parent's lock.  
-	 *  Otherwise, tries to acquire the {@link LockList#lock} of {@code thisLockList} 
+	 *  Otherwise, tries to acquire the {@link LockList#lockImpl} of {@code thisLockList} 
 	 *  directly.
 	 *  
 	 *  @param thisLockList the {@link LockList} entry we are acquiring
 	 */
 	private int acquireLock(LockList thisLockList) {
 		// First check whether we are recursively acquiring this lock:
-		for(Interval ancestor = parent; ancestor != null; ancestor = ancestor.parent) {
+		for(IntervalImpl ancestor = parent; ancestor != null; ancestor = ancestor.parent) {
 			for(LockList ancLockList = ancestor.revLocks; ancLockList != null; ancLockList = ancLockList.next)
-				if(ancLockList.lock == thisLockList.lock) {
+				if(ancLockList.lockImpl == thisLockList.lockImpl) {
 					return ancLockList.tryAndEnqueue(thisLockList);
 				}
 		}
 		
 		// If not:
-		return thisLockList.lock.tryAndEnqueue(thisLockList);							
+		return thisLockList.lockImpl.tryAndEnqueue(thisLockList);							
 	}
 
 	/** Invoked by {@code pnt} when it has occurred. */
-	final void didOccur(Point pnt) {
+	final void didOccur(PointImpl pnt) {
 		assert pnt.didOccur();
 		switch(state) {
 		case LOCK:
 			assert pnt == start;
 			if(vertExceptions == null) { // No errors acquiring locks.
 				transitionUnsync(State.RUN);
-				Intervals.POOL.submit(this);
+				ContextImpl.POOL.submit(this);
 			} else { // Errors while acquiring locks: skip run() method.
 				finishSequentialPortion(State.CATCH_PAR);
 			}
@@ -654,7 +615,7 @@ implements Dependency, Guard, IntervalMirror
 		try {
 			try {
 				try {
-					run();
+					task.run(this);
 				} catch(Throwable t) {
 					addVertExceptionUnsyc(t);
 				}
@@ -675,7 +636,7 @@ implements Dependency, Guard, IntervalMirror
 	 *  If the new state is an error state, then our child intervals 
 	 *  will be cancelled before we start them. */
 	private void finishSequentialPortion(final State newState) {
-		ChunkList<Interval> pending;
+		ChunkList<IntervalImpl> pending;
 		synchronized(this) {
 			transitionUnsync(newState);
 			pending = pendingChildIntervals;
@@ -683,8 +644,8 @@ implements Dependency, Guard, IntervalMirror
 		}
 		
 		if(pending != null) {
-			new ChunkList.Iterator<Interval>(pending) {
-				@Override public void doForEach(Interval child, int flags) {
+			new ChunkList.Iterator<IntervalImpl>(pending) {
+				@Override public void doForEach(IntervalImpl child, int flags) {
 					if(newState.childrenCancelled)
 						child.cancel(child.start);
 					child.start.arrive(1);

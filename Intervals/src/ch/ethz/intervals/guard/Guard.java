@@ -1,11 +1,11 @@
 package ch.ethz.intervals.guard;
 
-import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
-import ch.ethz.intervals.Lock;
-import ch.ethz.intervals.mirror.IntervalMirror;
-import ch.ethz.intervals.mirror.LockMirror;
-import ch.ethz.intervals.mirror.PointMirror;
+import ch.ethz.intervals.impl.IntervalImpl;
+import ch.ethz.intervals.impl.LockImpl;
+import ch.ethz.intervals.mirror.Interval;
+import ch.ethz.intervals.mirror.Lock;
+import ch.ethz.intervals.mirror.Point;
 import ch.ethz.intervals.quals.Creator;
 import ch.ethz.intervals.quals.GuardedBy;
 
@@ -14,11 +14,11 @@ import ch.ethz.intervals.quals.GuardedBy;
  * There are three subtypes of {@link Guard}, each with different properties: 
  * <ol>
  * 
- * <li>{@link Lock}: Fields guarded by a {@link Lock} may only be read or written 
+ * <li>{@link LockImpl}: Fields guarded by a {@link LockImpl} may only be read or written 
  * during an interval which holds the lock.  
  *  
- * <li>{@link Interval}: Fields guarded by an {@link Interval} {@code inter} may only be
- * written by the {@link Interval#run()} method of {@code inter}, but they
+ * <li>{@link IntervalImpl}: Fields guarded by an {@link IntervalImpl} {@code inter} may only be
+ * written by the {@link IntervalImpl#run()} method of {@code inter}, but they
  * may be read by an interval which {@code inter} <em>happens before</em>.\
  * 
  * <li>{@link ReadTrackingDynamicGuard}: Fields guarded by a dynamic guard are dynamically monitored
@@ -55,21 +55,21 @@ public interface Guard {
 	 * 
 	 * @returns null if there is no error, otherwise a descriptive exception
 	 */
-	public RuntimeException checkWritable(PointMirror mr, IntervalMirror inter); 
+	public RuntimeException checkWritable(Point mr, Interval inter); 
 
 	/** 
-	 * Same as {@link #checkWritable(PointMirror, IntervalMirror)}, but only
+	 * Same as {@link #checkWritable(Point, Interval)}, but only
 	 * for read access.
 	 */
-	public RuntimeException checkReadable(PointMirror mr, IntervalMirror current);
+	public RuntimeException checkReadable(Point mr, Interval current);
 		
 	/**
 	 * Checks whether fields protected by this guard may legally be locked
 	 * by the lock {@code lock}.  Users would never normally need to
 	 * invoke this method directly; it is invoked automatically when you
-	 * use the method {@link Intervals#addExclusiveLock(Interval, Lock)}.
+	 * use the method {@link Intervals#addExclusiveLock(IntervalImpl, LockImpl)}.
 	 * 
 	 * @returns null if there is no error, otherwise a descriptive exception
 	 */
-	public RuntimeException checkLockable(IntervalMirror interval, LockMirror lock);
+	public RuntimeException checkLockable(Interval interval, Lock lock);
 }

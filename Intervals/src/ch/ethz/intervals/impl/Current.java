@@ -1,8 +1,15 @@
-package ch.ethz.intervals;
+package ch.ethz.intervals.impl;
 
 import static ch.ethz.intervals.Intervals.SAFETY_CHECKS;
+import ch.ethz.intervals.CycleException;
+import ch.ethz.intervals.EdgeNeededException;
+import ch.ethz.intervals.IntervalException;
+import ch.ethz.intervals.MustBeBoundedByException;
+import ch.ethz.intervals.NotInRootIntervalException;
+import ch.ethz.intervals.IntervalException.AlreadyScheduled;
 
-class Current {
+public class Current
+{
 	
 	private static ThreadLocal<Current> local = new ThreadLocal<Current>() {
 
@@ -13,21 +20,21 @@ class Current {
 		
 	};
 	
-	static Current get() {
+	public static Current get() {
 		return local.get();
 	}
 	
-	static Current push(Interval inter) {
+	static Current push(IntervalImpl inter) {
 		Current c = get();
 		Current n = new Current(c, inter);
 		local.set(n);
 		return n;
 	}
 	
-	final Current prev;           /** Previous Current on stack. */
-	final Interval inter;         /** Smallest containing interval. {@code null} if root. */
-	Point mr;                  	  /** Most recent point on inter.line that occurred. Not always inter.start! May be {@code null} if root. */
-	private Interval unscheduled; /** Linked list of unscheduled intervals. */
+	public final Current prev;          /** Previous Current on stack. */
+	public final IntervalImpl inter;	/** Smallest containing interval. {@code null} if root. */
+	public PointImpl mr;                /** Most recent point on inter.line that occurred. Not always inter.start! May be {@code null} if root. */
+	private IntervalImpl unscheduled; 	/** Linked list of unscheduled intervals. */
 	
 	private Current() {
 		this.prev = null;
@@ -36,62 +43,62 @@ class Current {
 		this.unscheduled = null;
 	}
 
-	Current(Current prev, Interval inter) {
+	Current(Current prev, IntervalImpl inter) {
 		assert inter != null && inter.start.didOccur();
 		this.prev = prev;
 		this.inter = inter;
 		this.mr = inter.start;
 	}
 	
-	void updateMostRecent(Point mr) {
+	void updateMostRecent(PointImpl mr) {
 		assert mr.didOccur();
 		this.mr = mr;
 	}
 	
-	void addUnscheduled(Interval interval) {
-		interval.nextUnscheduled = unscheduled;
-		unscheduled = interval;
+	void addUnscheduled(IntervalImpl intervalImpl) {
+		intervalImpl.nextUnscheduled = unscheduled;
+		unscheduled = intervalImpl;
 	}
 	
-	boolean isUnscheduled(Point pnt) {
-		Interval interval = pnt.racyInterval();
-		if(interval == null)
+	boolean isUnscheduled(PointImpl pnt) {
+		IntervalImpl intervalImpl = pnt.racyInterval();
+		if(intervalImpl == null)
 			return false;
-		return interval.isUnscheduled(this);
+		return intervalImpl.isUnscheduled(this);
 	}
 
-	void schedule(Interval interval) {
-		Interval p = unscheduled;
+	void schedule(IntervalImpl intervalImpl) {
+		IntervalImpl p = unscheduled;
 		
-		if(p == interval) {
-			unscheduled = interval.nextUnscheduled;
+		if(p == intervalImpl) {
+			unscheduled = intervalImpl.nextUnscheduled;
 		} else {
-			while(p != null && p.nextUnscheduled != interval)
+			while(p != null && p.nextUnscheduled != intervalImpl)
 				p = p.nextUnscheduled;
 			
 			if(p == null)
-				throw new IntervalException.AlreadyScheduled(interval);
+				throw new IntervalException.AlreadyScheduled(intervalImpl);
 			
-			p.nextUnscheduled = interval.nextUnscheduled;
+			p.nextUnscheduled = intervalImpl.nextUnscheduled;
 		}
 		
-		interval.nextUnscheduled = null;
-		scheduleUnchecked(interval);
+		intervalImpl.nextUnscheduled = null;
+		scheduleUnchecked(intervalImpl);
 	}
 
 	void schedule() {
-		Interval p = unscheduled;
+		IntervalImpl p = unscheduled;
 		while(p != null) {
 			scheduleUnchecked(p);
 			
-			Interval n = p.nextUnscheduled;
+			IntervalImpl n = p.nextUnscheduled;
 			p.nextUnscheduled = null;
 			p = n;
 		}
 		unscheduled = null;
 	}
 
-	private void scheduleUnchecked(Interval p) {
+	private void scheduleUnchecked(IntervalImpl p) {
 		assert p.isUnscheduled(this);
 		
 		if(Debug.ENABLED)
@@ -107,7 +114,7 @@ class Current {
 		local.set(prev);
 	}
 
-	void checkCanAddChild(Interval parent) {
+	void checkCanAddChild(IntervalImpl parent) {
 		if(SAFETY_CHECKS) {
 			if(isUnscheduled(parent.start))
 				return;
@@ -121,7 +128,7 @@ class Current {
 		}
 	}
 
-	void checkCanAddDep(Point to) {		
+	void checkCanAddDep(PointImpl to) {		
 		if(SAFETY_CHECKS) {
 			if(isUnscheduled(to))
 				return;
@@ -131,19 +138,19 @@ class Current {
 		}		
 	}
 	
-	void checkEdgeEndPointsProperlyBound(Point from, Point to) {
+	void checkEdgeEndPointsProperlyBound(PointImpl from, PointImpl to) {
 		// An edge p->q is only permitted if q is bound by
 		// p's parent.  In other words, edges are permitted from
 		// high-level nodes down the tree, but not the other direction.
 		
-		Point interBound = from.interBound();
+		PointImpl interBound = from.interBound();
 		if(interBound == null || to.isBoundedBy(interBound))
 			return;
 		
 		throw new MustBeBoundedByException(from.bound, to);
 	}
 
-	void checkCanAddHb(Point from, Point to) {
+	void checkCanAddHb(PointImpl from, PointImpl to) {
 		if(SAFETY_CHECKS) {
 			checkCanAddDep(to);
 			checkEdgeEndPointsProperlyBound(from, to);
@@ -151,14 +158,14 @@ class Current {
 		}
 	}
 
-	void checkCycle(Point from, Point to) {
+	void checkCycle(PointImpl from, PointImpl to) {
 		if(SAFETY_CHECKS) {
 			if(from != null && to.hb(from))
 				throw new CycleException(from, to);
 		}
 	}
 
-	public Point start() {
+	public PointImpl start() {
 		if(inter != null)
 			return inter.start;
 		return null;

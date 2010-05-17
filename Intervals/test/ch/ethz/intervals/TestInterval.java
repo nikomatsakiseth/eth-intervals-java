@@ -9,6 +9,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Assert;
 import org.junit.Test;
 
+import ch.ethz.intervals.impl.IntervalImpl;
+
 public class TestInterval {
 	
 	/** many tests are not guaranteed to fail, so we repeat them 
@@ -19,7 +21,7 @@ public class TestInterval {
 		//System.err.println(String.format(fmt, args));
 	}
 	
-	static class IncTask extends Interval {
+	static class IncTask extends IntervalImpl {
 		public final AtomicInteger i;
 		public final int amnt;
 
@@ -41,7 +43,7 @@ public class TestInterval {
 		}		
 	}
 	
-	class AddTask extends Interval {
+	class AddTask extends IntervalImpl {
 
 		public final List<List<Integer>> list;
 		public final List<Integer> id;
@@ -76,11 +78,11 @@ public class TestInterval {
 			final List<List<Integer>> list = Collections.synchronizedList(new ArrayList<List<Integer>>());
 			Intervals.inline(new VoidInlineTask() {
 				@Override public String toString() { return "parentInterval"; }
-				public void run(final Interval parentInterval) {
+				public void run(final IntervalImpl parentInterval) {
 					Intervals.inline(new VoidInlineTask() {
 						@Override public String toString() { return "childInterval"; }
-						public void run(final Interval childInterval) {							
-							Interval after = new AddTask(parentInterval, list, 2);
+						public void run(final IntervalImpl childInterval) {							
+							IntervalImpl after = new AddTask(parentInterval, list, 2);
 							Intervals.addHb(childInterval.end, after.start);
 							new AddTask(childInterval, list, 1);
 							new AddTask(childInterval, list, 1);
@@ -103,7 +105,7 @@ public class TestInterval {
 		final int c = 1024;
 		final AtomicInteger cnt = new AtomicInteger();
 		Intervals.inline(new VoidInlineTask() {
-			public void run(Interval _) {
+			public void run(IntervalImpl _) {
 				for(int i = 0; i < c; i++)
 					new IncTask(Intervals.child(), "c"+i, cnt);
 			}			
@@ -119,7 +121,7 @@ public class TestInterval {
 		final int c = 1024;
 		final AtomicInteger cnt = new AtomicInteger();
 		Intervals.inline(new VoidInlineTask() {
-			public void run(Interval _) {
+			public void run(IntervalImpl _) {
 				for(int i = 0; i < c; i++) {
 					new IncTask(Intervals.child(), "c"+i, cnt).schedule();
 				}
@@ -137,8 +139,8 @@ public class TestInterval {
 		final int c = 1024;
 		final AtomicInteger cnt = new AtomicInteger();
 		Intervals.inline(new VoidInlineTask() {
-			public void run(Interval _) {
-				Interval future = new EmptyInterval(Intervals.child(), "during");
+			public void run(IntervalImpl _) {
+				IntervalImpl future = new EmptyInterval(Intervals.child(), "during");
 				for(int i = 0; i < c; i++)
 					new IncTask(future, "c"+i, cnt);
 			}
@@ -158,15 +160,15 @@ public class TestInterval {
 		 */
 		final AtomicInteger successful = new AtomicInteger();
 		Intervals.inline(new VoidInlineTask() {
-			public void run(Interval subinterval) {
-				Interval worker = new EmptyInterval(subinterval, "worker");
-				Interval d = new EmptyInterval(worker, "d");
-				Interval k = new EmptyInterval(d, "k");
-				Interval n = new EmptyInterval(d, "n");
-				Interval a = new EmptyInterval(worker, "a");
-				Interval m = new EmptyInterval(a, "m");
-				Interval t = new EmptyInterval(a, "t");
-				Interval s = new EmptyInterval(t, "s");
+			public void run(IntervalImpl subinterval) {
+				IntervalImpl worker = new EmptyInterval(subinterval, "worker");
+				IntervalImpl d = new EmptyInterval(worker, "d");
+				IntervalImpl k = new EmptyInterval(d, "k");
+				IntervalImpl n = new EmptyInterval(d, "n");
+				IntervalImpl a = new EmptyInterval(worker, "a");
+				IntervalImpl m = new EmptyInterval(a, "m");
+				IntervalImpl t = new EmptyInterval(a, "t");
+				IntervalImpl s = new EmptyInterval(t, "s");
 				
 				Assert.assertEquals(d.end, d.end.mutualBound(d.end));
 				Assert.assertEquals(d.end, k.end.mutualBound(n.end));

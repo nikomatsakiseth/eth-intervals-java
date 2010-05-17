@@ -2,13 +2,15 @@ package ch.ethz.intervals;
 
 import static ch.ethz.intervals.Intervals.addHb;
 import static ch.ethz.intervals.Intervals.inline;
-import static ch.ethz.intervals.Intervals.child;
-import static ch.ethz.intervals.Intervals.successor;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.Assert;
 import org.junit.Test;
+
+import ch.ethz.intervals.impl.IntervalImpl;
+import ch.ethz.intervals.mirror.Interval;
+import ch.ethz.intervals.task.AbstractTask;
 
 /**
  * Bounded-Buffer Producer Consumer example using arrays.
@@ -27,83 +29,88 @@ public class TestBBPCArray {
 	int[] consumed = new int[M];
 	int[] produced = new int[M];
 
-	public class BBPC extends Interval {
+	public class BBPC extends AbstractTask {
 
-		public BBPC(@ParentForNew("Parent") Dependency dep) {
-			super(dep);
+		public BBPC() {
+			super("BBPC");
 		}
 
 		final int N = 3;
-		final Interval[] producers = new Interval[N];
-		final Interval[] consumers = new Interval[N];
+		final Interval[] producers = new IntervalImpl[N];
+		final Interval[] consumers = new IntervalImpl[N];
 
-		class Producer extends Interval {
+		public Interval newProducer(Interval parent, int index) {
+			Interval inter = parent.newAsyncChild(new Producer(index)); 
+			
+			// comes after the previous producer:
+			if (index > 0)
+				addHb(producers[(index - 1) % N], inter);
+			
+			// and the consumer N indices before:
+			if (index >= N)
+				addHb(consumers[(index - N) % N], inter);
+			
+			return inter;
+		}
+
+		class Producer extends AbstractTask {
 			final int index;
 
-			public Producer(@ParentForNew("Parent") Dependency dep, int index) {
-				super(dep);
+			public Producer(int index) {
+				super("p"+index);
 				this.index = index;
-				
-				// comes after the previous producer:
-				if (index > 0)
-					addHb(producers[(index - 1) % N].end, start);
-				
-				// and the consumer N indices before:
-				if (index >= N)
-					addHb(consumers[(index - N) % N].end, start);
 			}
-
-			public String toString() {
-				return "Producer["+index+"]";
-			}
-
-			public void run() {
+			
+			public void run(Interval current) {
 				produced[index] = (index * 2);
 				if(index + 1 < M)
-					producers[(index + 1) % N] = new Producer(successor(), index + 1);
+					producers[(index + 1) % N] = newProducer(current.getParent(), index + 1);
 				else
 					producers[(index + 1) % N] = null;
 			}
 		}
 
-		class Consumer extends Interval {
+		public Interval newConsumer(Interval parent, int index) {
+			Interval inter = parent.newAsyncChild(new Consumer(index));
+			
+			// comes after the producer:
+			addHb(producers[index % N], inter);
+			
+			// and after the previous consumer:
+			if (index > 0)
+				addHb(consumers[(index - 1) % N], inter);
+			
+			return inter;
+		}
+		
+		class Consumer extends AbstractTask {
 			final int index;
 			
-			public Consumer(@ParentForNew("Parent") Dependency dep, int index) {
-				super(dep);
+			public Consumer(int index) {
+				super("c"+index);
 				this.index = index;
-
-				// comes after the producer:
-				addHb(producers[index % N].end, start);
-				
-				// and after the previous consumer:
-				if (index > 0)
-					addHb(consumers[(index - 1) % N].end, start);
 			}
 			
-			public String toString() {
-				return "Consumer["+index+"]";
-			}
-
-			public void run() {
+			public void run(Interval current) {
 				consumed[index] = produced[index];
 				if(producers[(index + 1) % N] != null)
-					consumers[(index + 1) % N] = new Consumer(successor(), index + 1);
+					consumers[(index + 1) % N] = newConsumer(current.getParent(), index + 1);
 			}
 		}
 
-		public void run() {
-			producers[0] = new Producer(this, 0);
-			consumers[0] = new Consumer(this, 0);
+		public void run(Interval current) {
+			producers[0] = newProducer(current, 0);
+			consumers[0] = newConsumer(current, 0);
 		}
 
 	}
 
 	@Test
 	public void test() {
-		inline(new VoidInlineTask() {
+		inline(new AbstractTask() {
+			@Override
 			public void run(Interval subinterval) {
-				new BBPC(subinterval);
+				subinterval.newAsyncChild(new BBPC());
 			}
 		});
 

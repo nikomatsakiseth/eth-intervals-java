@@ -3,16 +3,16 @@ package erco.intervals.tsp;
 import java.util.PriorityQueue;
 
 import ch.ethz.intervals.InlineTask;
-import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
-import ch.ethz.intervals.Lock;
 import ch.ethz.intervals.VoidInlineTask;
+import ch.ethz.intervals.impl.IntervalImpl;
+import ch.ethz.intervals.impl.LockImpl;
 import ch.ethz.intervals.quals.Creator;
 import ch.ethz.intervals.quals.GuardedBy;
 
 public class Config {
-	private final Lock minLock;
-	private final Lock queueLock;
+	private final LockImpl minLock;
+	private final LockImpl queueLock;
 	private final @Creator("queueLock") PriorityQueue<TourElement> queue;	
 	final int numNodes;
 	final int/*@Creator("Constructor")*/[]/*@Creator("Constructor")*/[] weights;
@@ -24,8 +24,8 @@ public class Config {
 	@GuardedBy("minLock") int[] minTour;
 	
 	Config(int tspSize) {
-		minLock = new Lock();
-		queueLock = new Lock();
+		minLock = new LockImpl();
+		queueLock = new LockImpl();
 		queue = new PriorityQueue<TourElement>();
 		numNodes = tspSize;
 		weights = new int[numNodes + 1][numNodes + 1];
@@ -36,10 +36,10 @@ public class Config {
 	
 	TourElement getTour() {
 		return Intervals.inline(new InlineTask<TourElement>() {
-			@Override public void init(Interval subinterval) {
+			@Override public void init(IntervalImpl subinterval) {
 				Intervals.addExclusiveLock(subinterval, queueLock);
 			}
-			@Override public TourElement run(Interval subinterval) {
+			@Override public TourElement run(IntervalImpl subinterval) {
 				return queue.remove();
 			}
 		});
@@ -47,10 +47,10 @@ public class Config {
 
 	public void enqueue(final TourElement newTour) {
 		Intervals.inline(new VoidInlineTask() {
-			@Override public void init(Interval subinterval) {
+			@Override public void init(IntervalImpl subinterval) {
 				Intervals.addExclusiveLock(subinterval, queueLock);
 			}
-			@Override public void run(Interval subinterval) {
+			@Override public void run(IntervalImpl subinterval) {
 				queue.add(newTour);
 			}
 		});
@@ -58,10 +58,10 @@ public class Config {
 	
 	public void setBest(final int curDist, final int[] path) {
 		Intervals.inline(new VoidInlineTask() {
-			@Override public void init(Interval subinterval) {
+			@Override public void init(IntervalImpl subinterval) {
 				Intervals.addExclusiveLock(subinterval, minLock);
 			}
-			@Override public void run(Interval subinterval) {
+			@Override public void run(IntervalImpl subinterval) {
 				if(curDist < minTourLength) {
 					System.arraycopy(path, 0, minTour, 0, minTour.length);
 					minTourLength = curDist;

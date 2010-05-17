@@ -37,11 +37,11 @@ import java.util.Random;
 
 import jgfmt.jgfutil.JGFInstrumentor;
 import ch.ethz.intervals.Dependency;
-import ch.ethz.intervals.IndexedInterval;
-import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.ParentForNew;
 import ch.ethz.intervals.VoidInlineTask;
+import ch.ethz.intervals.impl.IntervalImpl;
+import ch.ethz.intervals.task.IndexedTask;
 
 class IDEATest {
 
@@ -68,13 +68,13 @@ class IDEATest {
 		// Encrypt plain1.
 		if(JGFCryptBench.nthreads == -1) {
 			Intervals.inline(new VoidInlineTask() {
-				@Override public void run(Interval subinterval) {
+				@Override public void run(IntervalImpl subinterval) {
 					new IDEARunnerTask(subinterval, plain1.length / 8, plain1, crypt1, Z);
 				}
 			});
 			
 			Intervals.inline(new VoidInlineTask() {
-				@Override public void run(Interval subinterval) {
+				@Override public void run(IntervalImpl subinterval) {
 					new IDEARunnerTask(subinterval, crypt1.length / 8, crypt1, plain2, DK);
 				}
 			});
@@ -670,7 +670,7 @@ class IDEARunner implements Runnable {
 
 } // End of class
 
-class IDEARunnerTask extends IndexedInterval {
+class IDEARunnerTask extends IndexedTask {
 	public final IDEARunner runner;
 	
 	public IDEARunnerTask(@ParentForNew("Parent") Dependency dep, int size, byte[] text1, byte[] text2, int[] key) {

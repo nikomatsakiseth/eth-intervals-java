@@ -1,18 +1,20 @@
 package ch.ethz.intervals;
 
+import ch.ethz.intervals.impl.PointImpl;
+
 public class MustBeBoundedByException extends IntervalException {
 	private static final long serialVersionUID = -3545763123904421907L;
 	
-	public final Point bound;
-	public final Point point;
+	public final PointImpl bound;
+	public final PointImpl pointImpl;
 	
-	public MustBeBoundedByException(Point bound, Point point) {
+	public MustBeBoundedByException(PointImpl bound, PointImpl pointImpl) {
 		this.bound = bound;
-		this.point = point;
+		this.pointImpl = pointImpl;
 	}
 	
 	public String toString() {
-		return point + " must be bounded by " + bound;
+		return pointImpl + " must be bounded by " + bound;
 	}
 	
 }

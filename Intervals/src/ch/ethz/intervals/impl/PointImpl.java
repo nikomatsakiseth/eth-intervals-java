@@ -1,5 +1,6 @@
-package ch.ethz.intervals;
+package ch.ethz.intervals.impl;
 
+import static ch.ethz.intervals.util.ChunkList.NORMAL;
 import static ch.ethz.intervals.util.ChunkList.SPECULATIVE;
 import static ch.ethz.intervals.util.ChunkList.TEST_EDGE;
 import static ch.ethz.intervals.util.ChunkList.WAITING;
@@ -10,12 +11,14 @@ import java.util.LinkedList;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
-import ch.ethz.intervals.ThreadPool.Worker;
-import ch.ethz.intervals.mirror.PointMirror;
+import ch.ethz.intervals.CycleException;
+import ch.ethz.intervals.Intervals;
+import ch.ethz.intervals.impl.ThreadPool.Worker;
+import ch.ethz.intervals.mirror.Point;
 import ch.ethz.intervals.util.ChunkList;
 
-public final class Point 
-implements PointMirror 
+public final class PointImpl 
+implements Point 
 {
 	public static final int NO_FLAGS = 0;
 	public static final int FLAG_END = 1;		  /** is end point? */
@@ -29,24 +32,24 @@ implements PointMirror
 	/** Value of {@link #waitCount} if we have occurred with uncaught exceptions. */
 	public static final int OCCURRED_WITH_ERROR = -2;
 	
-	private static AtomicIntegerFieldUpdater<Point> waitCountUpdater =
-		AtomicIntegerFieldUpdater.newUpdater(Point.class, "waitCount");
+	private static AtomicIntegerFieldUpdater<PointImpl> waitCountUpdater =
+		AtomicIntegerFieldUpdater.newUpdater(PointImpl.class, "waitCount");
 
 	final String name;							/** Possibly null */
-	final Point bound;						  	/** if a start point, the paired end point.  otherwise, null. */
+	final PointImpl bound;						  	/** if a start point, the paired end point.  otherwise, null. */
 	final int flags;                            /** various flags */
 	final int depth;							/** depth of bound + 1 */
 	
-	private ChunkList<Point> outEdges;          /** Linked list of outgoing edges from this point. */
+	private ChunkList<PointImpl> outEdges;          /** Linked list of outgoing edges from this point. */
 	private volatile int waitCount;           	/** Number of preceding points that have not arrived. */	                                              	
-	private Interval interval;            	  	/** Interval which owns this point.  Set to {@code null} when the point occurs. */
+	private IntervalImpl intervalImpl;            	  	/** Interval which owns this point.  Set to {@code null} when the point occurs. */
 
-	Point(String name, int flags, Point bound, int waitCount, Interval interval) {
+	PointImpl(String name, int flags, PointImpl bound, int waitCount, IntervalImpl intervalImpl) {
 		this.name = name;
 		this.flags = flags;
 		this.bound = bound;
 		this.waitCount = waitCount;
-		this.interval = interval;
+		this.intervalImpl = intervalImpl;
 		this.depth = (bound == null ? 0 : bound.depth + 1);
 	}
 	
@@ -62,7 +65,7 @@ implements PointMirror
 		return (flags & FLAG_SYNCHRONOUS) == FLAG_SYNCHRONOUS;
 	}
 
-	final synchronized ChunkList<Point> outEdgesSync() {
+	final synchronized ChunkList<PointImpl> outEdgesSync() {
 		return outEdges;
 	}
 	
@@ -82,14 +85,14 @@ implements PointMirror
 		return (waitCount == OCCURRED_WITH_ERROR);
 	}
 	
-	final Point interBound() {
+	final PointImpl interBound() {
 		if(isStartPoint()) return bound.bound;
 		return bound;
 	}
 	
 	private void cancel() {
 		assert !didOccur();
-		interval.cancel(this);
+		intervalImpl.cancel(this);
 	}
 
 	/** 
@@ -98,8 +101,8 @@ implements PointMirror
 	 * is not a guarantee that point has not occurred by the time you
 	 * receive the return value!
 	 */
-	Interval racyInterval() {
-		return this.interval;
+	IntervalImpl racyInterval() {
+		return this.intervalImpl;
 	}
 
 	@Override
@@ -112,9 +115,10 @@ implements PointMirror
 		return "Point("+System.identityHashCode(this)+")";
 	}
 	
-	Point mutualBound(Point j) {
-		
-		Point i = this;
+	@Override
+	public PointImpl mutualBound(Point _j) {
+		PointImpl j = (PointImpl) _j;
+		PointImpl i = this;
 		
 		while(i.depth > j.depth) {
 			i = i.bound;		
@@ -132,13 +136,13 @@ implements PointMirror
 		return i;
 	}
 	
-	@Override public final Point bound() {
+	@Override public final PointImpl bound() {
 		return bound;
 	}
 	
-	public final boolean isBoundedBy(Point p) {
+	public final boolean isBoundedBy(PointImpl p) {
 		if(bound != null) {
-			Point b = bound;
+			PointImpl b = bound;
 			while(b.depth > p.depth) 
 				b = b.bound;
 			return (b == p);
@@ -147,37 +151,37 @@ implements PointMirror
 	}
 	
 	/** True if {@code p} bounds {@code this} or one of its bounds */
-	@Override public final boolean isBoundedBy(PointMirror p) {
-		if(p instanceof Point) 
-			return isBoundedBy((Point)p);
+	@Override public final boolean isBoundedBy(Point p) {
+		if(p instanceof PointImpl) 
+			return isBoundedBy((PointImpl)p);
 		return false; // always bounded by a genuine Point, not some funky mirror
 	}
 
-	/** True if {@code p == this} or {@link #isBoundedBy(Point)} */
-	public final boolean isBoundedByOrEqualTo(Point p) {
+	/** True if {@code p == this} or {@link #isBoundedBy(PointImpl)} */
+	public final boolean isBoundedByOrEqualTo(PointImpl p) {
 		return (this == p) || isBoundedBy(p);
 	}
 
 	/** Returns true if {@code this} <i>happens before</i> {@code p} */
-	@Override public final boolean hb(final PointMirror p) {
+	@Override public final boolean hb(final Point p) {
 		return hb(p, SPECULATIVE|TEST_EDGE);
 	}
 	
 	/** Returns true if {@code this == p} or {@code this} <i>happens before</i> {@code p} */
-	@Override public boolean hbeq(final PointMirror p) {
+	@Override public boolean hbeq(final Point p) {
 		return (this == p) || hb(p);
 	}
 	
 	/** Returns true if {@code this} <i>happens before</i> {@code p},
 	 *  including speculative edges. */
-	boolean hbOrSpec(final PointMirror p) {
+	boolean hbOrSpec(final Point p) {
 		return hb(p, TEST_EDGE);
 	}
 	
 	/** true if {@code this} -> {@code p}.
 	 * @param tar another point
 	 * @param skipFlags Skips edges which have any of the flags in here. */
-	private boolean hb(final PointMirror tar, final int skipFlags) {
+	private boolean hb(final Point tar, final int skipFlags) {
 		assert tar != null;
 		
 		// XXX We currently access the list of outgoing edges with
@@ -205,21 +209,21 @@ implements PointMirror
 		
 		// Efficiently check whether a point bounds tar or not:
 		class BoundHelper {
-			final PointMirror[] tarBounds = Intervals.bounds(tar);
+			final PointImpl[] tarBounds = (PointImpl[]) tar.getBounds();
 			
-			boolean boundsTar(Point p) {
+			boolean boundsTar(PointImpl p) {
 				return p.depth < tarBounds.length && tarBounds[p.depth] == p;
 			}
 			
 			// True if the user could legally invoke addHb(src, tar) 
-			boolean userCouldLegallyAddHbToTarFrom(Point src) {
-				Point srcInterBound = src.interBound();
+			boolean userCouldLegallyAddHbToTarFrom(PointImpl src) {
+				PointImpl srcInterBound = src.interBound();
 				return srcInterBound == null || boundsTar(srcInterBound);
 			}
 		}
 		final BoundHelper bh = new BoundHelper();
 		
-		Point src = this;
+		PointImpl src = this;
 		
 		// If src could not legally connect to tar, then it can only HB tar
 		// if its bound HB tar:
@@ -237,14 +241,14 @@ implements PointMirror
 		// whether src can reach tar.  
 		class SearchHelper {
 			boolean foundIt = false;
-			final Set<Point> visited = new HashSet<Point>(64);
-			final LinkedList<Point> queue = new LinkedList<Point>();
+			final Set<PointImpl> visited = new HashSet<PointImpl>(64);
+			final LinkedList<PointImpl> queue = new LinkedList<PointImpl>();
 			
 			boolean shouldContinue() {
 				return !foundIt && !queue.isEmpty();
 			}
 			
-			boolean tryEnqueue(Point pnt) {
+			boolean tryEnqueue(PointImpl pnt) {
 				if(pnt != null) {		
 					if((pnt == tar) // found tar
 						|| 
@@ -264,7 +268,7 @@ implements PointMirror
 		sh.queue.add(src);
 		
 		do {
-			Point q = sh.queue.remove();
+			PointImpl q = sh.queue.remove();
 			
 			if(sh.tryEnqueue(q.bound))
 				return true;
@@ -272,10 +276,10 @@ implements PointMirror
 			// Only explore non-bound edges if it's 
 			// legal for the user to connect q to tar.
 			if(bh.userCouldLegallyAddHbToTarFrom(q)) {
-				ChunkList<Point> qOutEdges = q.outEdgesSync(); 
+				ChunkList<PointImpl> qOutEdges = q.outEdgesSync(); 
 				if(qOutEdges != null) {
-					new ChunkList.InterruptibleIterator<Point>(qOutEdges) {
-						public boolean forEach(Point toPoint, int flags) {
+					new ChunkList.InterruptibleIterator<PointImpl>(qOutEdges) {
+						public boolean forEach(PointImpl toPoint, int flags) {
 							if((flags & skipFlags) == 0)
 								return sh.tryEnqueue(toPoint);
 							return false;
@@ -290,7 +294,7 @@ implements PointMirror
 
 	/** When a preceding point (or something else we were waiting for)
 	 *  occurs, this method is invoked.  Once {@link #waitCount} 
-	 *  reaches 0, invokes {@link Interval#didReachWaitCountZero(Point)}.
+	 *  reaches 0, invokes {@link IntervalImpl#didReachWaitCountZero(PointImpl)}.
 	 *  
 	 *  @param cnt the number of preceding things that occurred,
 	 *  should always be positive and non-zero */
@@ -309,10 +313,10 @@ implements PointMirror
 	/** Invoked by {@link #arrive(int)} when wait count reaches zero,
 	 *  but also from {@link Intervals#inline(InlineTask)} */
 	void didReachWaitCountZero() {
-		interval.didReachWaitCountZero(this);
+		intervalImpl.didReachWaitCountZero(this);
 	}
 	
-	/** Invoked by {@link #interval} after wait count reaches zero.
+	/** Invoked by {@link #intervalImpl} after wait count reaches zero.
 	 *  Each point occurs precisely once.  
 	 *  
 	 *  @param withError true if there were uncaught exceptions that propagate to this point. */
@@ -323,7 +327,7 @@ implements PointMirror
 
 		// Save copies of our outgoing edges at the time we occurred:
 		//      They may be modified further while we are notifying successors.
-		final ChunkList<Point> outEdges;
+		final ChunkList<PointImpl> outEdges;
 		synchronized(this) {
 			outEdges = this.outEdges;
 			this.waitCount = newWaitCount;
@@ -338,8 +342,8 @@ implements PointMirror
 		
 		// Notify our successors:
 		if(outEdges != null) {
-			new ChunkList.Iterator<Point>(outEdges) {
-				public void doForEach(Point toPoint, int flags) {
+			new ChunkList.Iterator<PointImpl>(outEdges) {
+				public void doForEach(PointImpl toPoint, int flags) {
 					if(ChunkList.waiting(flags)) {
 						notifySuccessor(toPoint, true);
 					}
@@ -349,14 +353,14 @@ implements PointMirror
 		if(bound != null)
 			notifySuccessor(bound, true);
 		
-		interval.didOccur(this);
-		interval = null;
+		intervalImpl.didOccur(this);
+		intervalImpl = null;
 	}
 	
 	/** Takes the appropriate action to notify a successor {@code pnt}
 	 *  that {@code this} has occurred.  Propagates exceptions and 
 	 *  optionally invokes {@link #arrive(int)}. */
-	private void notifySuccessor(Point pnt, boolean arrive) {
+	private void notifySuccessor(PointImpl pnt, boolean arrive) {
 		if(didOccurWithError()) {
 			/* No need to deliver the error to our bound:
 			 * - If we originated the error, it's a vertical error delivered by us.
@@ -367,8 +371,8 @@ implements PointMirror
 			 * But we do need to deliver to anyone up to but not including
 			 * the bound.  See {@link TestErrorPropagation#predecessorsOfSubintervalEndThatDie()}
 			 * for reason why. */
-			Point interBound = interBound();
-			Point p = pnt;
+			PointImpl interBound = interBound();
+			PointImpl p = pnt;
 			while(p != interBound) {
 				p.cancel();
 				p = p.bound;
@@ -409,7 +413,7 @@ implements PointMirror
 	 * tries to do useful work in the meantime!
 	 */
 	void join() {
-		Worker worker = Intervals.POOL.currentWorker();
+		Worker worker = ContextImpl.POOL.currentWorker();
 	
 		if(worker == null) {
 			synchronized(this) {
@@ -436,11 +440,11 @@ implements PointMirror
 
 	/** Simply adds an outgoing edge, without acquiring locks or performing any
 	 *  further checks. */
-	private void primAddOutEdge(Point targetPnt, int flags) {
+	private void primAddOutEdge(PointImpl targetPnt, int flags) {
 		outEdges = ChunkList.add(outEdges, targetPnt, flags);
 	}
 	
-	void addSpeculativeEdge(Point targetPnt, int flags) {
+	void addSpeculativeEdge(PointImpl targetPnt, int flags) {
 		synchronized(this) {
 			primAddOutEdge(targetPnt, flags | ChunkList.SPECULATIVE);
 		}
@@ -450,7 +454,7 @@ implements PointMirror
 	 * Optimized routine for the case where 'this' is known to have
 	 * already occurred and not to have had any exceptions.
 	 */
-	void addEdgeAfterOccurredWithoutException(Point targetPnt, int edgeFlags) {
+	void addEdgeAfterOccurredWithoutException(PointImpl targetPnt, int edgeFlags) {
 		synchronized(this) {
 			assert didOccurWithoutError();			
 			primAddOutEdge(targetPnt, edgeFlags);
@@ -463,7 +467,7 @@ implements PointMirror
 	 *  
 	 * Returns the number of wait counts added to {@code toImpl}.
 	 */
-	void addEdgeAndAdjust(Point toImpl, int flags) {
+	void addEdgeAndAdjust(PointImpl toImpl, int flags) {
 		assert !speculative(flags) : "addEdgeAndAdjust should not be used for spec. edges!";		
 		
 		// Note: we must increment the wait count before we release
@@ -489,13 +493,13 @@ implements PointMirror
 	
 	/** Removes an edge to {@code toImpl}, returning true 
 	 *  if this point has occurred. */
-	void unAddEdge(Point toImpl) {
+	void unAddEdge(PointImpl toImpl) {
 		synchronized(this) {
 			ChunkList.remove(outEdges, toImpl);
 		}
 	}
 
-	void confirmEdgeAndAdjust(Point toImpl, int flags) {
+	void confirmEdgeAndAdjust(PointImpl toImpl, int flags) {
 		
 		// Careful
 		//
@@ -526,7 +530,134 @@ implements PointMirror
 	}
 
 	@Override
-	public void addHb(PointMirror pnt) {
+	public void addHb(Point _to) {
+		PointImpl to = (PointImpl)_to;
+		
+		/* Subtle:
+		 * 
+		 * It is rather expensive to guarantee that adding the edge
+		 * from->to will not lead to a cycle!  This is because the
+		 * check and addition would have to be done atomically
+		 * across the whole graph.
+		 * 
+		 * Consider the following scenario:
+		 * 
+		 *  i1---+
+		 *       |
+		 *       v
+		 *       a < - - - b
+		 *       |         ^
+		 *       v         |
+		 *       c - - - > d
+		 *                 ^
+		 *                 |
+		 *  i2-------------+
+		 * 
+		 * The edges b->a and c->d are both being added in parallel
+		 * by intervals i1 and i2.  The edges a->c and d->b both exist already.  
+		 * Now, these two edges to be added do not share any endpoints, but
+		 * together they form a cycle.  If both do a cycle check
+		 * simultaneously, they will not find a problem, but then
+		 * both could proceed to add and create a problem.
+		 * 
+		 * There are several possible solutions here.  One technique
+		 * would be to accumulate locks during the cycle check and
+		 * only release them once the add is complete.  This guarantees
+		 * that the region of the graph you care about is modified 
+		 * atomically.  A modified version of this algorithm acquires
+		 * locks not on the nodes themselves but on the *bound* of the
+		 * node.  This would have the effect of segmenting the graph so
+		 * that fewer locks are required (no locks would ever be acquired
+		 * on leaf nodes, essentially).  You know that this technique is
+		 * deadlock free because the graph you are walking is acyclic, as
+		 * an invariant.
+		 * 
+		 * Another technique is to be optimistic: insert the edge, and
+		 * then do the check.  If you find a cycle, uninsert the edge and
+		 * throw an exception.  
+		 * 
+		 * To make this easier, we insert the edge with
+		 * a flag that marks it as SPECULATIVE.  It will then be ignored 
+		 * should the source point occur in the meantime, and also for any
+		 * hb() checks the user may perform.  This means that after 
+		 * we have confirmed the edge is okay, we have to remove the speculative
+		 * mark.  At that time, we also adjust its wait count and 
+		 * propagate any exceptions. 
+		 */
+		
+		Current current = Current.get();
+		current.checkCanAddDep(to);
+		
+		current.checkEdgeEndPointsProperlyBound(this, to);
+		
+		// Avoid edges that duplicate the bound.  Besides
+		// saving space, this check lets us guarantee that
+		// walking the outEdges from a point never leads to its
+		// bound.  We rely on this in error propagation code,
+		// since the bound is somewhat special.
+		if(isBoundedBy(to))
+			return; 
+		
+		// Optimistically add edge (though it may cause a cycle!):
+		//
+		//   If safety checks are enabled, then we initially record
+		//   the edge as non-deterministic until we have confirmed
+		//   that it causes no problems.
+		
+		if(!Intervals.SAFETY_CHECKS) {
+			addEdgeAndAdjust(to, NORMAL);
+		} else {
+			// Really, these helper methods ought to be inlined,
+			// but they are separated to aid in testing. 
+			optimisticallyAddEdge(this, to);
+			checkForCycleAndRecover(this, to);			
+		}
+		
+		ExecutionLog.logEdge(this, to);
 	}
 
+	
+	/** Helper method of {@link #addHb(Point)}.
+	 *  Pulled apart for use with testing. */
+	static void optimisticallyAddEdge(
+			PointImpl from,
+			PointImpl to) 
+	{
+		// Note: the edge is considered speculative until we have
+		// verified that the resulting graph is acyclic.
+		from.addSpeculativeEdge(to, NORMAL);
+	}
+	
+	/** Helper method of {@link #addHb(Point)}.
+	 *  Pulled apart for use with testing. */
+	static void checkForCycleAndRecover(
+			PointImpl from,
+			PointImpl to) 
+	{
+		if(to.hbOrSpec(from)) {
+			recoverFromCycle(from, to);
+			throw new CycleException(from, to);
+		} else {
+			from.confirmEdgeAndAdjust(to, NORMAL);
+		}
+	}
+
+	/** Helper method of {@link #addHb(Point)}.
+	 *  Pulled apart for use with testing. */
+	static void recoverFromCycle(PointImpl fromImpl, PointImpl toImpl) {
+		// Uh-oh, error, go into damage control.
+		fromImpl.unAddEdge(toImpl);
+	}
+
+	@Override
+	public PointImpl[] getBounds() {
+		PointImpl b = this;
+		PointImpl[] bounds = new PointImpl[depth+1];
+		for(int i = depth; i >= 0; i--) {
+			bounds[i] = b;
+			b = b.bound;
+		}
+		return bounds;			
+	}
+	
 }

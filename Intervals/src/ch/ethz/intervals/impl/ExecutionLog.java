@@ -1,4 +1,4 @@
-package ch.ethz.intervals;
+package ch.ethz.intervals.impl;
 
 import java.awt.event.WindowEvent;
 import java.awt.event.WindowListener;
@@ -97,7 +97,7 @@ public class ExecutionLog {
 		return System.identityHashCode(i);
 	}
 	
-	static void logNewInterval(Point current, Point sp, Point ep) {
+	static void logNewInterval(PointImpl current, PointImpl sp, PointImpl ep) {
 		ExecutionLog l = log;
 		if(l != null) {
 			l.events.add(new EventLog.NewInterval(
@@ -108,7 +108,7 @@ public class ExecutionLog {
 		}
 	}
 	
-	static void logScheduleInterval(Interval i) {
+	static void logScheduleInterval(IntervalImpl i) {
 		ExecutionLog l = log;
 		if(l != null) {
 			l.events.add(new EventLog.Schedule(
@@ -117,21 +117,21 @@ public class ExecutionLog {
 		}
 	}
 	
-	static void logEdge(Point from, Point to) {
+	static void logEdge(PointImpl from, PointImpl to) {
 		ExecutionLog l = log;
 		if(l != null) {
 			l.events.add(new EventLog.Edge(l.identity(from), l.identity(to)));
 		}
 	}
 	
-	static void logArrive(Point pnt) {
+	static void logArrive(PointImpl pnt) {
 		ExecutionLog l = log;
 		if(l != null) {
 			l.events.add(new EventLog.Arrive(l.identity(pnt)));
 		}
 	}
 	
-	static void logLock(Point i, Lock g) {
+	static void logLock(PointImpl i, LockImpl g) {
 		ExecutionLog l = log;
 		if(l != null) {
 			l.events.add(new EventLog.AddLock(l.identity(i), l.identity(g)));

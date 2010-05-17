@@ -5,9 +5,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Assert;
 import org.junit.Test;
 
+import ch.ethz.intervals.impl.IntervalImpl;
+import ch.ethz.intervals.impl.PointImpl;
+
 public class TestIllegalEdges {
 
-	private void addIllegalEdge(Point from, Point to, Class<? extends IntervalException> err) {
+	private void addIllegalEdge(PointImpl from, PointImpl to, Class<? extends IntervalException> err) {
 		try {
 			Intervals.addHb(from, to);
 			Assert.fail("No error");
@@ -16,16 +19,16 @@ public class TestIllegalEdges {
 		}
 	}
 	
-	private void addLegalEdge(Point from, Point to) {
+	private void addLegalEdge(PointImpl from, PointImpl to) {
 		Intervals.addHb(from, to);
 	}
 	
 	@Test public void testCE() {
 		Intervals.inline(new VoidInlineTask() {			
 			@Override public String toString() { return "a"; }
-			@Override public void run(Interval a) {
-				Interval a1 = new EmptyInterval(a, "a1"); 
-				Interval a12 = new EmptyInterval(a1, "a12"); 
+			@Override public void run(IntervalImpl a) {
+				IntervalImpl a1 = new EmptyInterval(a, "a1"); 
+				IntervalImpl a12 = new EmptyInterval(a1, "a12"); 
 				addIllegalEdge(a12.end, a1.start, CycleException.class);
 			}
 		});
@@ -34,11 +37,11 @@ public class TestIllegalEdges {
 	@Test public void testMBBB() {
 		Intervals.inline(new VoidInlineTask() {			
 			@Override public String toString() { return "a"; }
-			@Override public void run(Interval a) {
-				Interval a1 = new EmptyInterval(a, "a1"); 
-				Interval a12 = new EmptyInterval(a1, "a12"); 
-				Interval a2 = new EmptyInterval(a, "a2"); 
-				Interval b = new EmptyInterval(Intervals.root(), "a");
+			@Override public void run(IntervalImpl a) {
+				IntervalImpl a1 = new EmptyInterval(a, "a1"); 
+				IntervalImpl a12 = new EmptyInterval(a1, "a12"); 
+				IntervalImpl a2 = new EmptyInterval(a, "a2"); 
+				IntervalImpl b = new EmptyInterval(Intervals.root(), "a");
 				
 				// Permitted because it is a duplicate:
 				addIllegalEdge(a12.end, a1.end, MustBeBoundedByException.class);
@@ -71,19 +74,19 @@ public class TestIllegalEdges {
 	@Test public void testMBBBWithSub() {
 		Intervals.inline(new VoidInlineTask() {			
 			@Override public String toString() { return "a"; }
-			@Override public void run(Interval a) {
+			@Override public void run(IntervalImpl a) {
 				class Helper {
-					Interval a1, a12, a2, b;
+					IntervalImpl a1, a12, a2, b;
 				}
 				final Helper h = new Helper();
 				
 				Intervals.inline(new VoidInlineTask() {					
 					@Override public String toString() { return "a1"; }
-					@Override public void run(Interval a1) {
+					@Override public void run(IntervalImpl a1) {
 						h.a1 = a1;
 						Intervals.inline(new VoidInlineTask() {							
 							@Override public String toString() { return "a12"; }
-							@Override public void run(Interval a12) {
+							@Override public void run(IntervalImpl a12) {
 								h.a12 = a12;
 							}
 						});
@@ -110,10 +113,10 @@ public class TestIllegalEdges {
 		final AtomicInteger integer = new AtomicInteger();
 		try {
 			Intervals.inline(new VoidInlineTask() {			
-				@Override public void run(Interval subinterval) {
-					final Interval a = new TestInterval.IncTask(subinterval, "a", integer);
+				@Override public void run(IntervalImpl subinterval) {
+					final IntervalImpl a = new TestInterval.IncTask(subinterval, "a", integer);
 					
-					new Interval(subinterval, "b") {
+					new IntervalImpl(subinterval, "b") {
 						@Override protected void run() {
 							new TestInterval.IncTask(a, "a1", integer, 10);
 						}

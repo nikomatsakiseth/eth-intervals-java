@@ -9,19 +9,22 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Assert;
 import org.junit.Test;
 
+import ch.ethz.intervals.impl.IntervalImpl;
+import ch.ethz.intervals.impl.LockImpl;
+
 public class TestLocks {
 	
 	final AtomicInteger stamp = new AtomicInteger();
 	
-	class IdInterval extends Interval {
+	class IdInterval extends IntervalImpl {
 		final List<String> list;
 		final String id;
-		final Lock lock;
+		final LockImpl lockImpl;
 		
-		public IdInterval(@ParentForNew("Parent") Dependency dep, List<String> list, String id, Lock l1) {
+		public IdInterval(@ParentForNew("Parent") Dependency dep, List<String> list, String id, LockImpl l1) {
 			super(dep);
 			Intervals.addExclusiveLock(this, l1);
-			this.lock = l1;
+			this.lockImpl = l1;
 			this.list = list;
 			this.id = id;
 		}
@@ -31,8 +34,8 @@ public class TestLocks {
 		}
 
 		@Override protected void run() {
-			Assert.assertTrue(Intervals.checkWritable(lock));
-			Assert.assertTrue(this.locks(lock));
+			Assert.assertTrue(Intervals.checkWritable(lockImpl));
+			Assert.assertTrue(this.locks(lockImpl));
 			list.add(id);
 		}
 	}
@@ -43,10 +46,10 @@ public class TestLocks {
 	// Just test that locks work at all:
 	@Test public void simple() {
 		for(int i = 0; i < REPEAT; i++) {
-			final Lock l1 = new Lock();
+			final LockImpl l1 = new LockImpl();
 			final List<String> ids = new ArrayList<String>();
 			Intervals.inline(new VoidInlineTask() {			
-				@Override public void run(Interval subinterval) {
+				@Override public void run(IntervalImpl subinterval) {
 					new IdInterval(subinterval, ids, "0", l1);					
 					new IdInterval(subinterval, ids, "1", l1);					
 					new IdInterval(subinterval, ids, "2", l1);					
@@ -62,15 +65,15 @@ public class TestLocks {
 	// Test recursive locking:
 	@Test public void recursive() {
 		for(int i = 0; i < REPEAT; i++) {
-			final Lock l1 = new Lock();
+			final LockImpl l1 = new LockImpl();
 			final List<String> ids = new ArrayList<String>();
 			Intervals.inline(new VoidInlineTask() {			
-				@Override public void run(Interval subinterval) {
-					Interval a = new IdInterval(subinterval, ids, "a", l1);
-					Interval a1 = new IdInterval(a, ids, "a1", l1);
-					Interval a11 = new IdInterval(a1, ids, "a11", l1);
-					Interval a111 = new IdInterval(a11, ids, "a111", l1);
-					Interval a2 = new IdInterval(a, ids, "a2", l1);
+				@Override public void run(IntervalImpl subinterval) {
+					IntervalImpl a = new IdInterval(subinterval, ids, "a", l1);
+					IntervalImpl a1 = new IdInterval(a, ids, "a1", l1);
+					IntervalImpl a11 = new IdInterval(a1, ids, "a11", l1);
+					IntervalImpl a111 = new IdInterval(a11, ids, "a111", l1);
+					IntervalImpl a2 = new IdInterval(a, ids, "a2", l1);
 					new IdInterval(a2, ids, "a21", l1);
 				}
 			});
@@ -95,9 +98,9 @@ public class TestLocks {
 		final String name;
 		final long[] times;
 		final List<String> ids;
-		final Lock l1;
+		final LockImpl l1;
 		
-		public LockingVoidSubinterval(String n, long[] times, List<String> ids, Lock l1) {
+		public LockingVoidSubinterval(String n, long[] times, List<String> ids, LockImpl l1) {
 			this.name = n;
 			this.times = times;
 			this.ids = ids;
@@ -106,10 +109,10 @@ public class TestLocks {
 		@Override public String toString() {
 			return name;
 		}
-		@Override public void init(Interval subinterval) {
+		@Override public void init(IntervalImpl subinterval) {
 			Intervals.addExclusiveLock(subinterval, l1);
 		}
-		@Override public void run(Interval subinterval) {
+		@Override public void run(IntervalImpl subinterval) {
 			times[0] = System.currentTimeMillis();
 			ids.add(name+":"+Intervals.checkWritable(l1));
 			try { // just to make it more likely that the lock fails
@@ -124,7 +127,7 @@ public class TestLocks {
 	 *  both eventually get it, but run in disjoint times: */
 	@Test public void subinterLock() {
 		for(int i = 0; i < REPEAT_SMALL; i++) {
-			final Lock l1 = new Lock();
+			final LockImpl l1 = new LockImpl();
 			final List<String> ids = Collections.synchronizedList(new ArrayList<String>());
 			final long[] aTimes = new long[2];
 			final long[] bTimes = new long[2];
@@ -133,14 +136,14 @@ public class TestLocks {
 				@Override public String toString() {
 					return "outer";
 				}
-				@Override public void run(Interval subinterval) {
-					new Interval(subinterval, "inner1") {						
+				@Override public void run(IntervalImpl subinterval) {
+					new IntervalImpl(subinterval, "inner1") {						
 						@Override protected void run() {
 							Intervals.inline(new LockingVoidSubinterval("a", aTimes, ids, l1));
 						}
 					};
 					
-					new Interval(subinterval, "inner2") {						
+					new IntervalImpl(subinterval, "inner2") {						
 						@Override protected void run() {
 							Intervals.inline(new LockingVoidSubinterval("b", bTimes, ids, l1));
 						}
@@ -164,7 +167,7 @@ public class TestLocks {
 	/** Like {@link #subinterLock()} but the locks are acquired by async intervals: */
 	@Test public void interLock() {
 		for(int i = 0; i < REPEAT_SMALL; i++) {
-			final Lock l1 = new Lock();
+			final LockImpl l1 = new LockImpl();
 			final List<String> ids = Collections.synchronizedList(new ArrayList<String>());
 			final long[] aTimes = new long[2];
 			final long[] bTimes = new long[2];
@@ -173,15 +176,15 @@ public class TestLocks {
 				@Override public String toString() {
 					return "outer";
 				}
-				@Override public void run(Interval subinterval) {
-					Interval a = new Interval(subinterval, "a") {						
+				@Override public void run(IntervalImpl subinterval) {
+					IntervalImpl a = new IntervalImpl(subinterval, "a") {						
 						@Override protected void run() {
 							new LockingVoidSubinterval("a", aTimes, ids, l1).run(this);
 						}
 					};
 					Intervals.addExclusiveLock(a, l1);
 					
-					Interval b = new Interval(subinterval, "b") {						
+					IntervalImpl b = new IntervalImpl(subinterval, "b") {						
 						@Override protected void run() {
 							new LockingVoidSubinterval("b", bTimes, ids, l1).run(this);
 						}
@@ -206,17 +209,17 @@ public class TestLocks {
 	// If locks are acquired strictly in order, should not deadlock.
 	@Test public void lockOrdering() {
 		for(int repeat = 0; repeat < REPEAT; repeat++) {
-			final Lock l1 = new Lock(), l2 = new Lock();
+			final LockImpl l1 = new LockImpl(), l2 = new LockImpl();
 			final int[] executed = new int[3];
 			
 			Intervals.inline(new VoidInlineTask() {			
 				@Override public String toString() {
 					return "outer";
 				}
-				@Override public void run(Interval subinterval) {
-					Interval a1 = new Interval(subinterval, "a1") {						
+				@Override public void run(IntervalImpl subinterval) {
+					IntervalImpl a1 = new IntervalImpl(subinterval, "a1") {						
 						@Override protected void run() {
-							Interval a2 = new Interval(this, "a2") {
+							IntervalImpl a2 = new IntervalImpl(this, "a2") {
 								@Override protected void run() { executed[1]++; }
 							};
 							Intervals.addExclusiveLock(a2, l2);
@@ -225,7 +228,7 @@ public class TestLocks {
 					};
 					Intervals.addExclusiveLock(a1, l1);
 	
-					Interval b = new Interval(subinterval, "b") {						
+					IntervalImpl b = new IntervalImpl(subinterval, "b") {						
 						@Override protected void run() {
 							executed[2]++;
 						}
@@ -246,17 +249,17 @@ public class TestLocks {
 	/** Same test as {@link #lockOrdering()} but {@code b} is a subinterval */
 	@Test public void lockOrderingSubinter() {
 		for(int repeat = 0; repeat < REPEAT; repeat++) {
-			final Lock l1 = new Lock(), l2 = new Lock();
+			final LockImpl l1 = new LockImpl(), l2 = new LockImpl();
 			final int[] executed = new int[3];
 			
 			Intervals.inline(new VoidInlineTask() {			
 				@Override public String toString() {
 					return "outer";
 				}
-				@Override public void run(Interval subinterval) {
-					Interval a1 = new Interval(subinterval, "a1") {						
+				@Override public void run(IntervalImpl subinterval) {
+					IntervalImpl a1 = new IntervalImpl(subinterval, "a1") {						
 						@Override protected void run() {
-							Interval a2 = new Interval(this, "a2") {
+							IntervalImpl a2 = new IntervalImpl(this, "a2") {
 								@Override protected void run() { executed[1]++; }
 							};
 							Intervals.addExclusiveLock(a2, l2);
@@ -265,15 +268,15 @@ public class TestLocks {
 					};
 					Intervals.addExclusiveLock(a1, l1);
 	
-					Interval bOuter = new Interval(subinterval, "bOuter") {						
+					IntervalImpl bOuter = new IntervalImpl(subinterval, "bOuter") {						
 						@Override protected void run() {
 							Intervals.inline(new VoidInlineTask() {
 								@Override public String toString() { return "b"; }
-								@Override public void init(Interval subinterval) {
+								@Override public void init(IntervalImpl subinterval) {
 									Intervals.addExclusiveLock(subinterval, l1);
 									Intervals.addExclusiveLock(subinterval, l2);
 								}
-								@Override public void run(Interval subinterval) {
+								@Override public void run(IntervalImpl subinterval) {
 									executed[2]++;
 								}
 							});

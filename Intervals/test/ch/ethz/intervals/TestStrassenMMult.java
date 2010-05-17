@@ -6,6 +6,8 @@ import junit.framework.Assert;
 
 import org.junit.Test;
 
+import ch.ethz.intervals.impl.IntervalImpl;
+
 /**
  * Based on code from the Intel Threading Challenge.
  */
@@ -118,10 +120,10 @@ public class TestStrassenMMult {
 			final Matrix C22 = C.submatrix(m2, n2);
 			
 			Intervals.inline(new VoidInlineTask() {				
-				@Override public void run(Interval subinterval) {
+				@Override public void run(IntervalImpl subinterval) {
 					
 					// M1 = (A11 + A22)*(B11 + B22)
-					new Interval(Intervals.child()) {
+					new IntervalImpl(Intervals.child()) {
 						@Override public void run() {
 							Matrix tAM1 = new Matrix(m2, p2);
 							addMatrixBlocks(tAM1, m2, p2, A11, A22);
@@ -132,7 +134,7 @@ public class TestStrassenMMult {
 					};
 					
 					//M2 = (A21 + A22)*B11
-					new Interval(Intervals.child()) {
+					new IntervalImpl(Intervals.child()) {
 						@Override public void run() {
 							Matrix tAM2 = new Matrix(m2, p2);
 							addMatrixBlocks(tAM2, m2, p2, A21, A22);
@@ -141,7 +143,7 @@ public class TestStrassenMMult {
 					};
 					
 					//M3 = A11*(B12 - B22)
-					new Interval(Intervals.child()) {
+					new IntervalImpl(Intervals.child()) {
 						@Override public void run() {
 							Matrix tBM3 = new Matrix(p2, n2);
 							subMatrixBlocks(tBM3, p2, n2, B12, B22);
@@ -150,7 +152,7 @@ public class TestStrassenMMult {
 					};
 					
 					//M4 = A22*(B21 - B11)
-					new Interval(Intervals.child()) {
+					new IntervalImpl(Intervals.child()) {
 						@Override public void run() {
 							Matrix tBM4 = new Matrix(p2, n2);
 							subMatrixBlocks(tBM4, p2, n2, B21, B11);
@@ -159,7 +161,7 @@ public class TestStrassenMMult {
 					};
 					
 					//M5 = (A11 + A12)*B22
-					new Interval(Intervals.child()) {
+					new IntervalImpl(Intervals.child()) {
 						@Override public void run() {
 							Matrix tAM5 = new Matrix(m2, p2);
 							addMatrixBlocks(tAM5, m2, p2, A11, A12);
@@ -168,7 +170,7 @@ public class TestStrassenMMult {
 					};
 					
 					//M6 = (A21 - A11)*(B11 + B12)
-					new Interval(Intervals.child()) {
+					new IntervalImpl(Intervals.child()) {
 						@Override public void run() {
 							Matrix tAM6 = new Matrix(m2, p2);
 							Matrix tBM6 = new Matrix(p2, n2);
@@ -179,7 +181,7 @@ public class TestStrassenMMult {
 					};
 
 					//M7 = (A12 - A22)*(B21 + B22)
-					new Interval(Intervals.child()) {
+					new IntervalImpl(Intervals.child()) {
 						@Override public void run() {
 							Matrix tAM7 = new Matrix(m2, p2);
 							Matrix tBM7 = new Matrix(p2, n2);

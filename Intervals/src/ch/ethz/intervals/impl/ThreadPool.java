@@ -1,4 +1,4 @@
-package ch.ethz.intervals;
+package ch.ethz.intervals.impl;
 
 import java.util.ArrayList;
 import java.util.concurrent.Semaphore;
@@ -6,7 +6,8 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-class ThreadPool {
+
+public class ThreadPool {
 	
 	class KeepAliveThread extends Thread {		
 		public final Semaphore sem = new Semaphore(1);
@@ -181,6 +182,7 @@ class ThreadPool {
 			this.id = id;
 		}
 		
+		@Override
 		public String toString(){
 			return "("+getName()+")";
 		}
@@ -284,7 +286,7 @@ class ThreadPool {
 		
 	}
 	
-	final int numWorkers = Runtime.getRuntime().availableProcessors();
+	public final int numWorkers = Runtime.getRuntime().availableProcessors();
 	final Worker[] workers = new Worker[numWorkers];
 	final Worker sentinel = new Worker(-1);
 	final static ThreadLocal<Worker> currentWorker = new ThreadLocal<Worker>();
@@ -294,7 +296,7 @@ class ThreadPool {
 	final ArrayList<Worker> idleWorkers = new ArrayList<Worker>(); // guarded by idleLock
 	volatile boolean idleWorkersExist;
 	
-	ThreadPool() {
+	public ThreadPool() {
 		for(int i = 0; i < numWorkers; i++) {
 			Worker worker = new Worker(i);
 			workers[i] = worker;
@@ -305,11 +307,11 @@ class ThreadPool {
 			worker.start();
 	}
 	
-	Worker currentWorker() {
+	public Worker currentWorker() {
 		return currentWorker.get();
 	}
 	
-	void submit(WorkItem item) {		
+	public void submit(WorkItem item) {		
 		Worker worker = currentWorker();
 		if(worker != null)
 			worker.enqueue(item);

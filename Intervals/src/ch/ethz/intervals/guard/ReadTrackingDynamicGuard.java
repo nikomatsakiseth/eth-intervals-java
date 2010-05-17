@@ -3,8 +3,8 @@ package ch.ethz.intervals.guard;
 import ch.ethz.intervals.IntervalException;
 import ch.ethz.intervals.IntervalException.DataRace;
 import ch.ethz.intervals.IntervalException.DataRace.Role;
-import ch.ethz.intervals.mirror.IntervalMirror;
-import ch.ethz.intervals.mirror.PointMirror;
+import ch.ethz.intervals.mirror.Interval;
+import ch.ethz.intervals.mirror.Point;
 import ch.ethz.intervals.util.ChunkList;
 
 /**
@@ -14,7 +14,7 @@ import ch.ethz.intervals.util.ChunkList;
  * not be written again.
  */
 public class ReadTrackingDynamicGuard
-extends WriteTrackingDynamicGuard<ChunkList<PointMirror>> {
+extends WriteTrackingDynamicGuard<ChunkList<Point>> {
 
 	public ReadTrackingDynamicGuard() {
 		super();
@@ -26,15 +26,15 @@ extends WriteTrackingDynamicGuard<ChunkList<PointMirror>> {
 
 	@Override
 	protected void checkHappensAfterActiveReads(
-			final PointMirror mr, 
-			final IntervalMirror inter, 
+			final Point mr, 
+			final Interval inter, 
 			final Role interRole,
-			final ChunkList<PointMirror> reads)
+			final ChunkList<Point> reads)
 	{
-		final PointMirror interEnd = inter.end();
+		final Point interEnd = inter.getEnd();
 		if(reads != null) {
-			new ChunkList.Iterator<PointMirror>(reads) {
-				@Override public void doForEach(PointMirror rd, int _) {
+			new ChunkList.Iterator<Point>(reads) {
+				@Override public void doForEach(Point rd, int _) {
 					if(rd != interEnd && !rd.hbeq(mr))
 						throw new IntervalException.DataRace(
 								ReadTrackingDynamicGuard.this, 
@@ -46,9 +46,9 @@ extends WriteTrackingDynamicGuard<ChunkList<PointMirror>> {
 	}
 
 	@Override
-	protected ChunkList<PointMirror> addActiveReadBoundedBy(
-			ChunkList<PointMirror> reads, 
-			PointMirror interEnd) 
+	protected ChunkList<Point> addActiveReadBoundedBy(
+			ChunkList<Point> reads, 
+			Point interEnd) 
 	{
 		return ChunkList.add(reads, interEnd, ChunkList.NO_FLAGS);
 	}

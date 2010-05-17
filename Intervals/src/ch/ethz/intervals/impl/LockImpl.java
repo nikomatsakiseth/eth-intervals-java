@@ -1,23 +1,26 @@
-package ch.ethz.intervals;
+package ch.ethz.intervals.impl;
 
+import ch.ethz.intervals.IntervalException;
+import ch.ethz.intervals.IntervalException.CannotBeLockedBy;
+import ch.ethz.intervals.IntervalException.LockNotHeld;
 import ch.ethz.intervals.guard.Guard;
-import ch.ethz.intervals.mirror.IntervalMirror;
-import ch.ethz.intervals.mirror.LockMirror;
-import ch.ethz.intervals.mirror.PointMirror;
+import ch.ethz.intervals.mirror.Interval;
+import ch.ethz.intervals.mirror.Lock;
+import ch.ethz.intervals.mirror.Point;
 
 
-public class Lock
+public class LockImpl
 extends /*@Writer("this.constructor")*/ LockBase 
-implements Guard, LockMirror
+implements Guard, Lock
 {
 	private final String name;
 	
-	public Lock() {
+	public LockImpl() {
 		super(false);
 		this.name = null;
 	}
 	
-	public Lock(String name) {
+	public LockImpl(String name) {
 		super(false);
 		this.name = name;
 	}
@@ -30,19 +33,19 @@ implements Guard, LockMirror
 	}
 	
 	@Override
-	public IntervalException checkLockable(IntervalMirror interval, LockMirror lock) {
+	public IntervalException checkLockable(Interval interval, Lock lock) {
 		if(lock != this)
 			return new IntervalException.CannotBeLockedBy(this, lock);
 		return null;
 	}
 
 	@Override
-	public IntervalException checkReadable(PointMirror mr, IntervalMirror inter) {
+	public IntervalException checkReadable(Point mr, Interval inter) {
 		return checkWritable(mr, inter);
 	}
 
 	@Override
-	public IntervalException checkWritable(PointMirror mr, IntervalMirror inter) {
+	public IntervalException checkWritable(Point mr, Interval inter) {
 		if(!inter.locks(this))
 			return new IntervalException.LockNotHeld(this, inter);
 		return null;

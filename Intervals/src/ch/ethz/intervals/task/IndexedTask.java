@@ -1,6 +1,8 @@
-package ch.ethz.intervals;
+package ch.ethz.intervals.task;
 
-import static ch.ethz.intervals.Intervals.POOL;
+import ch.ethz.intervals.Intervals;
+import ch.ethz.intervals.impl.ContextImpl;
+import ch.ethz.intervals.mirror.Interval;
 
 /**
  * A more efficient way of creating {@code count} distinct
@@ -13,24 +15,23 @@ import static ch.ethz.intervals.Intervals.POOL;
  * interval, which is always an ancestor of the current interval
  * but may not be the current interval itself.  
  */
-public abstract class IndexedInterval extends Interval {
+public abstract class IndexedTask extends AbstractTask {
 	private final int lo0, hi0;
 	private final int threshold;
 
 	/** {@link #run(int, int)} will be invoked from all indices i where {@code 0 <= i < count} */
-	public IndexedInterval(@ParentForNew("Parent") Dependency dep, int count) {
-		this(dep, 0, count);
+	public IndexedTask(int count) {
+		this(0, count);
 	}
 	
 	/** {@link #run(int, int)} will be invoked from all indices i where {@code lo <= i < hi} */
-	public IndexedInterval(@ParentForNew("Parent") Dependency dep, int lo, int hi) {
-		super(dep);
+	public IndexedTask(int lo, int hi) {
 		this.lo0 = lo;
 		this.hi0 = hi;
 		
 		// By default, about 16 times as many tasks as threads.
 		int count = hi - lo;
-        int p = POOL.numWorkers;
+        int p = Intervals.context().getNumWorkers();
         this.threshold = (p > 1) ? (1 + count / (p << 4)) : count;		
 	}
 	
@@ -38,19 +39,18 @@ public abstract class IndexedInterval extends Interval {
 		return String.format("IndexedTask@%x(%d-%d)", System.identityHashCode(this), lo0, hi0);
 	}
 	
-	abstract public void run(int fromIndex, int toIndex);
+	abstract public void run(Interval current, int fromIndex, int toIndex);
 
 	@Override
-	public void run() {
-    	new Subtask(lo0, hi0);
+	public void run(Interval parent) {
+		parent.newAsyncChild(new Subtask(lo0, hi0));
 	}
 	
-	final class Subtask extends Interval {
+	final class Subtask extends AbstractTask {
         final int lo;
         final int hi;
 		
         Subtask(int lo, int hi) {
-        	super(IndexedInterval.this);
             this.lo = lo;
             this.hi = hi;
         }
@@ -60,7 +60,7 @@ public abstract class IndexedInterval extends Interval {
         }
 
 		@Override
-		public void run() {
+		public void run(Interval current) {
             int l = lo;
             int h = hi;
             if (h - l > threshold) {
@@ -69,14 +69,13 @@ public abstract class IndexedInterval extends Interval {
                 do {
                     int rh = h;
                     h = (l + h) >>> 1;
-                    Subtask t = new Subtask(h, rh);
-                    t.schedule();
+                    current.newAsyncChild(new Subtask(h, rh)).schedule();
                 } while (h - l > g);
                 
             }
             
             // Run what's left:
-            IndexedInterval.this.run(l, h);            	
+            IndexedTask.this.run(current, l, h);            	
 		}		
 	}
 

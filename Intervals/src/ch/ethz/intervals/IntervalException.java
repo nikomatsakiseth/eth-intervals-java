@@ -2,9 +2,10 @@ package ch.ethz.intervals;
 
 import ch.ethz.intervals.guard.ReadTrackingDynamicGuard;
 import ch.ethz.intervals.guard.Guard;
-import ch.ethz.intervals.mirror.IntervalMirror;
-import ch.ethz.intervals.mirror.LockMirror;
-import ch.ethz.intervals.mirror.PointMirror;
+import ch.ethz.intervals.impl.IntervalImpl;
+import ch.ethz.intervals.mirror.Interval;
+import ch.ethz.intervals.mirror.Lock;
+import ch.ethz.intervals.mirror.Point;
 
 
 /** Base class for all exceptions thrown by the interval runtime. */
@@ -26,11 +27,26 @@ public abstract class IntervalException extends RuntimeException {
 		super(arg0, arg1);
 	}
 	
-	public static class NotSubinterval extends IntervalException {
-		public final IntervalMirror current;
-		public final IntervalMirror reqdParent;
+	public static class MustBeCurrent extends IntervalException {
+		public final Interval inter;
 		
-		public NotSubinterval(IntervalMirror current, IntervalMirror reqdParent) {
+		public MustBeCurrent(Interval inter) {
+			this.inter = inter;
+		}
+
+		public String toString() {
+			return String.format(
+					"%s must be the current interval to perform this operation", 
+					inter);
+		}		
+		
+	}
+
+	public static class NotSubinterval extends IntervalException {
+		public final Interval current;
+		public final Interval reqdParent;
+		
+		public NotSubinterval(Interval current, Interval reqdParent) {
 			this.current = current;
 			this.reqdParent = reqdParent;
 		}
@@ -43,10 +59,10 @@ public abstract class IntervalException extends RuntimeException {
 	}
 
 	public static class LockNotHeld extends IntervalException {
-		public final LockMirror lock;
-		public final IntervalMirror inter;
+		public final Lock lock;
+		public final Interval inter;
 
-		public LockNotHeld(LockMirror lock, IntervalMirror inter) {
+		public LockNotHeld(Lock lock, Interval inter) {
 			this.lock = lock;
 			this.inter = inter;
 		}
@@ -59,10 +75,10 @@ public abstract class IntervalException extends RuntimeException {
 	}
 	
 	public static class MustHappenBefore extends IntervalException {
-		public final PointMirror before;
-		public final PointMirror after;
+		public final Point before;
+		public final Point after;
 
-		public MustHappenBefore(PointMirror before, PointMirror after) {
+		public MustHappenBefore(Point before, Point after) {
 			this.before = before;
 			this.after = after;
 		}
@@ -87,9 +103,9 @@ public abstract class IntervalException extends RuntimeException {
 		public static final Role READ = new NamedRole("READ");
 		public static final Role WRITE = new NamedRole("WRITE");
 		public static class LockRole extends Role {
-			public final LockMirror lock;
+			public final Lock lock;
 			
-			public LockRole(LockMirror lock) {
+			public LockRole(Lock lock) {
 				this.lock = lock;
 			}
 
@@ -99,17 +115,17 @@ public abstract class IntervalException extends RuntimeException {
 		public final Guard dg;      			/** Guard on which the race occurred. */
 		
 		public final Role interloperRole;  		/** Kind of access which failed. */
-		public final IntervalMirror interloper; /** Interval performing failed access. */
+		public final Interval interloper; /** Interval performing failed access. */
 
 		public final Role ownerRole;       		/** Current role of {@link #dg} */
-		public final PointMirror ownerBound;    /** Bound when current role ends. */
+		public final Point ownerBound;    /** Bound when current role ends. */
 		
 		public DataRace(
 				Guard dg,
 				Role interloperRole,
-				IntervalMirror interloper,
+				Interval interloper,
 				Role ownerRole,
-				PointMirror ownerBound) 
+				Point ownerBound) 
 		{
 			this.dg = dg;
 			this.interloperRole = interloperRole;
@@ -137,9 +153,9 @@ public abstract class IntervalException extends RuntimeException {
 	}
 
 	public static class AlreadyScheduled extends IntervalException {
-		public final IntervalMirror inter;
+		public final Interval inter;
 
-		AlreadyScheduled(Interval inter) {
+		public AlreadyScheduled(IntervalImpl inter) {
 			this.inter = inter;
 		}
 		
@@ -150,9 +166,9 @@ public abstract class IntervalException extends RuntimeException {
 	
 	public static class CannotBeLockedBy extends IntervalException {
 		public final Guard guard;
-		public final LockMirror lock;
+		public final Lock lock;
 
-		CannotBeLockedBy(Guard guard, LockMirror lock) {
+		public CannotBeLockedBy(Guard guard, Lock lock) {
 			this.guard = guard;
 			this.lock = lock;
 		}
@@ -163,9 +179,9 @@ public abstract class IntervalException extends RuntimeException {
 	}
 	
 	public static class ParPhaseCompleted extends IntervalException {
-		public final IntervalMirror interval;
+		public final Interval interval;
 		
-		ParPhaseCompleted(IntervalMirror interval) {
+		public ParPhaseCompleted(Interval interval) {
 			this.interval = interval;
 		}
 		

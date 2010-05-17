@@ -16,6 +16,8 @@ import ch.ethz.intervals.IntervalException.DataRace;
 import ch.ethz.intervals.guard.ReadSummarizingDynamicGuard;
 import ch.ethz.intervals.guard.ReadTrackingDynamicGuard;
 import ch.ethz.intervals.guard.Guard;
+import ch.ethz.intervals.impl.IntervalImpl;
+import ch.ethz.intervals.impl.LockImpl;
 import ch.ethz.intervals.util.ChunkList;
 
 public class TestDynamicGuard {
@@ -51,8 +53,8 @@ public class TestDynamicGuard {
 	}
 
 	class DgIntervalFactory {
-		public final Lock l1 = new Lock("l1");
-		public final Lock l2 = new Lock("l2");
+		public final LockImpl l1 = new LockImpl("l1");
+		public final LockImpl l2 = new LockImpl("l2");
 		
 		public final ReadTrackingDynamicGuard dg1 = new ReadTrackingDynamicGuard("dg1");
 		
@@ -71,11 +73,11 @@ public class TestDynamicGuard {
 			return resultCheckedCounter == results.size();
 		}
 		
-		public Interval create(@ParentForNew("Parent") Dependency dep, String name, int flags) {
+		public IntervalImpl create(@ParentForNew("Parent") Dependency dep, String name, int flags) {
 			return new DgInterval(dep, name, flags);
 		}
 		
-		class DgInterval extends Interval {
+		class DgInterval extends IntervalImpl {
 			
 			final String name;
 			final int flags;
@@ -135,10 +137,10 @@ public class TestDynamicGuard {
 		final List<Boolean> results = new ArrayList<Boolean>();
 		
 		Intervals.inline(new VoidInlineTask() { 
-			@Override public void run(Interval a) {
+			@Override public void run(IntervalImpl a) {
 				final ReadTrackingDynamicGuard dg = new ReadTrackingDynamicGuard();
 				
-				final Interval a1 = new Interval(a, "a1") {
+				final IntervalImpl a1 = new IntervalImpl(a, "a1") {
 					@Override protected void run() {
 						results.add(isReadable(dg));
 						results.add(isWritable(dg));
@@ -146,14 +148,14 @@ public class TestDynamicGuard {
 					}
 				};
 				
-				final Interval a2 = new Interval(a, "a2") {					
+				final IntervalImpl a2 = new IntervalImpl(a, "a2") {					
 					{ Intervals.addHb(a1.end, this.start); }
 					@Override protected void run() {
 						results.add(isReadable(dg));
 						
 						for(int i = 1; i <= a2children; i++) {
 							final int num = i;
-							new Interval(this) {
+							new IntervalImpl(this) {
 								@Override public String toString() { return "a2"+num; }
 								@Override protected void run() {
 									results.add(isReadable(dg));
@@ -163,7 +165,7 @@ public class TestDynamicGuard {
 					}
 				};
 				
-				new Interval(a, "a3") {										
+				new IntervalImpl(a, "a3") {										
 					{ Intervals.addHb(a2.end, this.start); }
 					@Override protected void run() {
 						results.add(isReadable(dg));
@@ -193,12 +195,12 @@ public class TestDynamicGuard {
 		final List<Boolean> results = new ArrayList<Boolean>();
 		
 		Intervals.inline(new VoidInlineTask() { 
-			@Override public void run(Interval a) {
+			@Override public void run(IntervalImpl a) {
 				final ReadTrackingDynamicGuard dg = new ReadTrackingDynamicGuard();
 				
 				Intervals.inline(new VoidInlineTask() {
 					@Override public String toString() { return "a1"; }
-					@Override public void run(Interval a1) {
+					@Override public void run(IntervalImpl a1) {
 						results.add(isReadable(dg));
 						results.add(isWritable(dg));
 						results.add(isReadable(dg));
@@ -207,11 +209,11 @@ public class TestDynamicGuard {
 				
 				Intervals.inline(new VoidInlineTask() {					
 					@Override public String toString() { return "a2"; }
-					@Override public void run(Interval a2) {
+					@Override public void run(IntervalImpl a2) {
 						results.add(isReadable(dg));
 						
 						for(int i = 1; i <= a2children; i++) {
-							new Interval(a2, "a2"+i) {
+							new IntervalImpl(a2, "a2"+i) {
 								@Override protected void run() {
 									results.add(isReadable(dg));
 								}
@@ -222,7 +224,7 @@ public class TestDynamicGuard {
 				
 				Intervals.inline(new VoidInlineTask() {					
 					@Override public String toString() { return "a3"; }
-					@Override public void run(Interval a3) {
+					@Override public void run(IntervalImpl a3) {
 						results.add(isReadable(dg));
 						results.add(isReadable(dg));
 						results.add(isWritable(dg));
@@ -250,7 +252,7 @@ public class TestDynamicGuard {
 		final List<Boolean> results = new ArrayList<Boolean>();
 		
 		Intervals.inline(new VoidInlineTask() { 
-			@Override public void run(Interval a) {
+			@Override public void run(IntervalImpl a) {
 				final ReadTrackingDynamicGuard dg = new ReadTrackingDynamicGuard();
 				
 				results.add(isReadable(dg));
@@ -259,11 +261,11 @@ public class TestDynamicGuard {
 				
 				Intervals.inline(new VoidInlineTask() {					
 					@Override public String toString() { return "a2"; }
-					@Override public void run(Interval a2) {
+					@Override public void run(IntervalImpl a2) {
 						results.add(isReadable(dg));
 						
 						for(int i = 1; i <= a2children; i++) {
-							new Interval(a2, "a2"+i) {
+							new IntervalImpl(a2, "a2"+i) {
 								@Override protected void run() {
 									results.add(isReadable(dg));
 								}
@@ -310,10 +312,10 @@ public class TestDynamicGuard {
 		final List<Boolean> results = new ArrayList<Boolean>();
 		
 		Intervals.inline(new VoidInlineTask() { 
-			@Override public void run(final Interval a) {
+			@Override public void run(final IntervalImpl a) {
 				final ReadTrackingDynamicGuard dg = new ReadTrackingDynamicGuard();
 				
-				final Interval a1 = new Interval(a, "a1") {
+				final IntervalImpl a1 = new IntervalImpl(a, "a1") {
 					@Override protected void run() {
 						results.add(isReadable(dg));
 						results.add(isWritable(dg));
@@ -321,7 +323,7 @@ public class TestDynamicGuard {
 					}
 				};
 				
-				final Interval a2 = new Interval(a, "a2") {					
+				final IntervalImpl a2 = new IntervalImpl(a, "a2") {					
 					{ Intervals.addHb(a1.end, this.start); }
 					@Override protected void run() {
 						results.add(isReadable(dg));
@@ -330,7 +332,7 @@ public class TestDynamicGuard {
 
 				// a3 runs in parallel with a2 (in theory) but
 				// we use a TESTS edge to force it to run afterwards:
-				final Interval a3 = new Interval(a, "a3") {
+				final IntervalImpl a3 = new IntervalImpl(a, "a3") {
 					{ 
 						Intervals.addHb(a1.end, this.start);
 						a2.end.addEdgeAndAdjust(start, ChunkList.TEST_EDGE);
@@ -340,7 +342,7 @@ public class TestDynamicGuard {
 					}
 				};
 				
-				new Interval(a, "a4") {										
+				new IntervalImpl(a, "a4") {										
 					{ Intervals.addHb(a3.end, this.start); }
 					@Override protected void run() {
 						results.add(isReadable(dg));
@@ -382,17 +384,17 @@ public class TestDynamicGuard {
 		final DgIntervalFactory f = new DgIntervalFactory();
 		
 		Intervals.inline(new VoidInlineTask() { 
-			@Override public void run(final Interval outer) {				
-				Interval a = f.create(outer, "a", FLAG_WR1);
-				Interval a1 = f.create(a, "a1", FLAG_RD1);
-				Interval a2 = f.create(a, "a2", FLAG_RD1);
-				Interval a3 = f.create(a, "a3", FLAG_RD1);
-				Interval a4 = f.create(a, "a4", FLAG_WR1);
+			@Override public void run(final IntervalImpl outer) {				
+				IntervalImpl a = f.create(outer, "a", FLAG_WR1);
+				IntervalImpl a1 = f.create(a, "a1", FLAG_RD1);
+				IntervalImpl a2 = f.create(a, "a2", FLAG_RD1);
+				IntervalImpl a3 = f.create(a, "a3", FLAG_RD1);
+				IntervalImpl a4 = f.create(a, "a4", FLAG_WR1);
 				Intervals.addHb(a1, a4);
 				Intervals.addHb(a2, a4);
 				Intervals.addHb(a3, a4);
 				
-				Interval b = f.create(outer, "b", FLAG_RD1);
+				IntervalImpl b = f.create(outer, "b", FLAG_RD1);
 				
 				a1.end.addEdgeAndAdjust(b.start, TEST_EDGE);
 				b.start.addEdgeAndAdjust(a4.start, TEST_EDGE);
@@ -421,17 +423,17 @@ public class TestDynamicGuard {
 		final List<Boolean> results = new ArrayList<Boolean>();
 		
 		Intervals.inline(new VoidInlineTask() { 
-			@Override public void run(final Interval a) {
+			@Override public void run(final IntervalImpl a) {
 				final ReadTrackingDynamicGuard dg = new ReadTrackingDynamicGuard();
 				
-				final Interval a1 = new Interval(a) {
+				final IntervalImpl a1 = new IntervalImpl(a) {
 					@Override public String toString() { return "a1"; }
 					@Override protected void run() {
 						results.add(isWritable(dg));
 					}
 				};
 				
-				final Interval a2 = new Interval(a) {					
+				final IntervalImpl a2 = new IntervalImpl(a) {					
 					{ Intervals.addHb(a1.end, this.start); }
 					@Override public String toString() { return "a2"; }
 					@Override protected void run() {
@@ -439,7 +441,7 @@ public class TestDynamicGuard {
 					}
 				};
 				
-				new Interval(a) {										
+				new IntervalImpl(a) {										
 					{ Intervals.addHb(a2.end, this.start); }
 					@Override public String toString() { return "a3"; }					
 					@Override protected void run() {
@@ -465,7 +467,7 @@ public class TestDynamicGuard {
 		final DgIntervalFactory f = new DgIntervalFactory();
 		
 		Intervals.inline(new VoidInlineTask() { 
-			@Override public void run(final Interval outer) {
+			@Override public void run(final IntervalImpl outer) {
 				f.create(outer, "a", FLAG_LCK1FOR1|FLAG_WR1);
 				f.create(outer, "b", FLAG_LCK1FOR1|FLAG_WR1);
 			}
@@ -480,8 +482,8 @@ public class TestDynamicGuard {
 		final DgIntervalFactory f = new DgIntervalFactory();
 		
 		Intervals.inline(new VoidInlineTask() { 
-			@Override public void run(final Interval a) {				
-				Interval withLock1 = f.create(a, "withLock1", FLAG_LCK1FOR1|FLAG_RD1);
+			@Override public void run(final IntervalImpl a) {				
+				IntervalImpl withLock1 = f.create(a, "withLock1", FLAG_LCK1FOR1|FLAG_RD1);
 				f.create(withLock1, "noLock", FLAG_WR1);
 			}
 		});		
@@ -497,7 +499,7 @@ public class TestDynamicGuard {
 		final DgIntervalFactory f = new DgIntervalFactory();
 		
 		Intervals.inline(new VoidInlineTask() { 
-			@Override public void run(final Interval a) {				
+			@Override public void run(final IntervalImpl a) {				
 				f.create(a, "reader0", FLAG_RD1);
 				f.create(a, "reader1", FLAG_RD1);
 				f.create(a, "reader2", FLAG_RD1);
@@ -516,16 +518,16 @@ public class TestDynamicGuard {
 		final DgIntervalFactory f = new DgIntervalFactory();
 		
 		Intervals.inline(new VoidInlineTask() { 
-			@Override public void run(final Interval a) {				
-				Interval withLock1 = f.create(a, "withLock1", FLAG_LCK1FOR1);
+			@Override public void run(final IntervalImpl a) {				
+				IntervalImpl withLock1 = f.create(a, "withLock1", FLAG_LCK1FOR1);
 				
-				Interval readers = f.create(withLock1, "readers", 0);
-				Interval reader0 = f.create(readers, "reader0", FLAG_RD1);
-				Interval reader1 = f.create(readers, "reader1", FLAG_RD1);
-				Interval reader2 = f.create(readers, "reader2", FLAG_RD1);
+				IntervalImpl readers = f.create(withLock1, "readers", 0);
+				IntervalImpl reader0 = f.create(readers, "reader0", FLAG_RD1);
+				IntervalImpl reader1 = f.create(readers, "reader1", FLAG_RD1);
+				IntervalImpl reader2 = f.create(readers, "reader2", FLAG_RD1);
 				
-				Interval writers = f.create(withLock1, "writers", 0);
-				Interval writer0 = f.create(writers, "writer0", FLAG_RD1|FLAG_WR1);
+				IntervalImpl writers = f.create(withLock1, "writers", 0);
+				IntervalImpl writer0 = f.create(writers, "writer0", FLAG_RD1|FLAG_WR1);
 				
 				Intervals.addHb(readers.end, writers.start);
 			}
@@ -545,16 +547,16 @@ public class TestDynamicGuard {
 		final DgIntervalFactory f = new DgIntervalFactory();
 		
 		Intervals.inline(new VoidInlineTask() { 
-			@Override public void run(final Interval a) {				
-				Interval withLock1 = f.create(a, "withLock1", FLAG_LCK1FOR1);
+			@Override public void run(final IntervalImpl a) {				
+				IntervalImpl withLock1 = f.create(a, "withLock1", FLAG_LCK1FOR1);
 				
-				Interval readers = f.create(withLock1, "readers", 0);
-				Interval reader0 = f.create(readers, "reader0", FLAG_RD1);
-				Interval reader1 = f.create(readers, "reader1", FLAG_RD1);
-				Interval reader2 = f.create(readers, "reader2", FLAG_RD1);
+				IntervalImpl readers = f.create(withLock1, "readers", 0);
+				IntervalImpl reader0 = f.create(readers, "reader0", FLAG_RD1);
+				IntervalImpl reader1 = f.create(readers, "reader1", FLAG_RD1);
+				IntervalImpl reader2 = f.create(readers, "reader2", FLAG_RD1);
 				
-				Interval writers = f.create(withLock1, "writers", 0);
-				Interval writer0 = f.create(writers, "writer0", FLAG_RD1|FLAG_WR1);
+				IntervalImpl writers = f.create(withLock1, "writers", 0);
+				IntervalImpl writer0 = f.create(writers, "writer0", FLAG_RD1|FLAG_WR1);
 				
 				Intervals.addHb(readers.end, writers.start);
 			}
@@ -574,21 +576,21 @@ public class TestDynamicGuard {
 		final DgIntervalFactory f = new DgIntervalFactory();
 		
 		Intervals.inline(new VoidInlineTask() { 
-			@Override public void run(final Interval a) {		
-				Interval b1 = f.create(a, "b1", 0);
+			@Override public void run(final IntervalImpl a) {		
+				IntervalImpl b1 = f.create(a, "b1", 0);
 				
-				Interval wr1 = f.create(b1, "wr1", FLAG_WR1|FLAG_WR2);
+				IntervalImpl wr1 = f.create(b1, "wr1", FLAG_WR1|FLAG_WR2);
 				
-				Interval reader0 = f.create(b1, "reader0", FLAG_RD1|FLAG_RD2);
-				Interval reader1 = f.create(b1, "reader1", FLAG_RD1|FLAG_RD2);
+				IntervalImpl reader0 = f.create(b1, "reader0", FLAG_RD1|FLAG_RD2);
+				IntervalImpl reader1 = f.create(b1, "reader1", FLAG_RD1|FLAG_RD2);
 				Intervals.addHb(wr1, reader0);
 				Intervals.addHb(wr1, reader1);
 				
-				Interval wr2 = f.create(b1, "wr2", FLAG_WR1|FLAG_WR2);
+				IntervalImpl wr2 = f.create(b1, "wr2", FLAG_WR1|FLAG_WR2);
 				Intervals.addHb(reader0, wr2);
 				Intervals.addHb(reader1, wr2);	
 				
-				Interval b2 = f.create(a, "b2", FLAG_WR1|FLAG_WR2);
+				IntervalImpl b2 = f.create(a, "b2", FLAG_WR1|FLAG_WR2);
 				Intervals.addHb(b1, b2);
 			}
 		});		
@@ -619,10 +621,10 @@ public class TestDynamicGuard {
 		final DgIntervalFactory f = new DgIntervalFactory();
 		
 		Intervals.inline(new VoidInlineTask() { 
-			@Override public void run(final Interval a) {				
-				Interval wrParent = f.create(a, "wrParent", FLAG_WR1);				
-				Interval wrChild1 = f.create(wrParent, "wrChild1", FLAG_WR1);
-				Interval wrChild2 = f.create(wrParent, "wrChild2", FLAG_WR1);
+			@Override public void run(final IntervalImpl a) {				
+				IntervalImpl wrParent = f.create(a, "wrParent", FLAG_WR1);				
+				IntervalImpl wrChild1 = f.create(wrParent, "wrChild1", FLAG_WR1);
+				IntervalImpl wrChild2 = f.create(wrParent, "wrChild2", FLAG_WR1);
 				Intervals.addHb(wrChild1, wrChild2);
 			}
 		});		
@@ -639,10 +641,10 @@ public class TestDynamicGuard {
 		final DgIntervalFactory f = new DgIntervalFactory();
 		
 		Intervals.inline(new VoidInlineTask() { 
-			@Override public void run(final Interval a) {				
-				Interval wrParent = f.create(a, "wrParent", FLAG_WR1);				
-				Interval wrChild1 = f.create(wrParent, "wrChild1", FLAG_WR1);
-				Interval wrChild2 = f.create(wrParent, "wrChild2", FLAG_WR1);
+			@Override public void run(final IntervalImpl a) {				
+				IntervalImpl wrParent = f.create(a, "wrParent", FLAG_WR1);				
+				IntervalImpl wrChild1 = f.create(wrParent, "wrChild1", FLAG_WR1);
+				IntervalImpl wrChild2 = f.create(wrParent, "wrChild2", FLAG_WR1);
 				f.create(wrParent, "rdChild", FLAG_RD1);
 				Intervals.addHb(wrChild1, wrChild2);
 			}
@@ -665,9 +667,9 @@ public class TestDynamicGuard {
 		try {
 			Intervals.inline(new VoidInlineTask() { 
 				@Override public String toString() { return "parent"; }
-				@Override public void run(final Interval parent) {
-					Interval lockChild = f.create(parent, "lockChild", FLAG_LCK1FOR1); 
-					Interval unlockChild = f.create(parent, "unlockChild", unlockFlag); 
+				@Override public void run(final IntervalImpl parent) {
+					IntervalImpl lockChild = f.create(parent, "lockChild", FLAG_LCK1FOR1); 
+					IntervalImpl unlockChild = f.create(parent, "unlockChild", unlockFlag); 
 					
 					if(lockFirst) 
 						lockChild.end.addEdgeAndAdjust(unlockChild.start, ChunkList.TEST_EDGE);
@@ -715,13 +717,13 @@ public class TestDynamicGuard {
 		
 		Intervals.inline(new VoidInlineTask() {
 			@Override public String toString() { return "outer"; }
-			@Override public void run(Interval subinterval) {
-				Interval wr = f.create(subinterval, "wr", FLAG_WR1);
-				Interval ro = f.create(subinterval, "rdOwner", FLAG_RD1);
+			@Override public void run(IntervalImpl subinterval) {
+				IntervalImpl wr = f.create(subinterval, "wr", FLAG_WR1);
+				IntervalImpl ro = f.create(subinterval, "rdOwner", FLAG_RD1);
 				Intervals.addHb(wr, ro);
 
 				// Note: rp is parallel to wr and ro, but "happens" to come after ro:
-				Interval rp = f.create(subinterval, "rdPar", FLAG_RD1);
+				IntervalImpl rp = f.create(subinterval, "rdPar", FLAG_RD1);
 				ro.end.addEdgeAndAdjust(rp.start, ChunkList.TEST_EDGE);
 			}
 		});
@@ -745,13 +747,13 @@ public class TestDynamicGuard {
 		
 		Intervals.inline(new VoidInlineTask() {
 			@Override public String toString() { return "outer"; }
-			@Override public void run(Interval subinterval) {
-				Interval wr1a = f.create(subinterval, "wr1a", FLAG_WR1);
-				Interval l2a = f.create(subinterval, "l1a", FLAG_LCK1FOR1);
+			@Override public void run(IntervalImpl subinterval) {
+				IntervalImpl wr1a = f.create(subinterval, "wr1a", FLAG_WR1);
+				IntervalImpl l2a = f.create(subinterval, "l1a", FLAG_LCK1FOR1);
 				Intervals.addHb(wr1a, l2a);
 
-				Interval l2b = f.create(subinterval, "l1b", FLAG_LCK1FOR1);
-				Interval wr1b = f.create(subinterval, "wr1b", FLAG_WR1);
+				IntervalImpl l2b = f.create(subinterval, "l1b", FLAG_LCK1FOR1);
+				IntervalImpl wr1b = f.create(subinterval, "wr1b", FLAG_WR1);
 				Intervals.addHb(l2b, wr1b);
 
 				l2a.end.addEdgeAndAdjust(l2b.start, TEST_EDGE);
@@ -778,16 +780,16 @@ public class TestDynamicGuard {
 		try {
 			Intervals.inline(new VoidInlineTask() {
 				@Override public String toString() { return "outer"; }
-				@Override public void run(Interval subinterval) {
-					Interval wr1a = f.create(subinterval, "wr1a", FLAG_WR1);
-					Interval l2a = f.create(subinterval, "l2a", FLAG_LCK1FOR1);
+				@Override public void run(IntervalImpl subinterval) {
+					IntervalImpl wr1a = f.create(subinterval, "wr1a", FLAG_WR1);
+					IntervalImpl l2a = f.create(subinterval, "l2a", FLAG_LCK1FOR1);
 					Intervals.addHb(wr1a, l2a);
 	
-					Interval l2b = f.create(subinterval, "l2b", FLAG_LCK1FOR1);
-					Interval wr1b = f.create(subinterval, "wr1b", FLAG_WR1);
+					IntervalImpl l2b = f.create(subinterval, "l2b", FLAG_LCK1FOR1);
+					IntervalImpl wr1b = f.create(subinterval, "wr1b", FLAG_WR1);
 					Intervals.addHb(l2b, wr1b);
 	
-					Interval l2c = f.create(subinterval, "l2c", FLAG_WR1|FLAG_LCK1FOR1);
+					IntervalImpl l2c = f.create(subinterval, "l2c", FLAG_WR1|FLAG_LCK1FOR1);
 					
 					l2a.end.addEdgeAndAdjust(l2b.start, TEST_EDGE);
 					wr1b.end.addEdgeAndAdjust(l2c.start, TEST_EDGE);
@@ -824,16 +826,16 @@ public class TestDynamicGuard {
 		
 		Intervals.inline(new VoidInlineTask() {
 			@Override public String toString() { return "outer"; }
-			@Override public void run(Interval subinterval) {
-				Interval wr1a = f.create(subinterval, "wr1a", FLAG_WR1);
-				Interval l2a = f.create(subinterval, "l2a", FLAG_LCK1FOR1);
+			@Override public void run(IntervalImpl subinterval) {
+				IntervalImpl wr1a = f.create(subinterval, "wr1a", FLAG_WR1);
+				IntervalImpl l2a = f.create(subinterval, "l2a", FLAG_LCK1FOR1);
 				Intervals.addHb(wr1a, l2a);
 
-				Interval l2b = f.create(subinterval, "l2b", FLAG_LCK1FOR1);
-				Interval wr1b = f.create(subinterval, "wr1b", FLAG_WR1);
+				IntervalImpl l2b = f.create(subinterval, "l2b", FLAG_LCK1FOR1);
+				IntervalImpl wr1b = f.create(subinterval, "wr1b", FLAG_WR1);
 				Intervals.addHb(l2b, wr1b);
 
-				Interval l2c = f.create(subinterval, "l2c", FLAG_WR2|FLAG_LCK1FOR2);
+				IntervalImpl l2c = f.create(subinterval, "l2c", FLAG_WR2|FLAG_LCK1FOR2);
 				
 				l2a.end.addEdgeAndAdjust(l2b.start, TEST_EDGE);
 				wr1b.end.addEdgeAndAdjust(l2c.start, TEST_EDGE);
@@ -853,16 +855,16 @@ public class TestDynamicGuard {
 		
 		Intervals.inline(new VoidInlineTask() {
 			@Override public String toString() { return "outer"; }
-			@Override public void run(Interval subinterval) {
-				Interval wr1a = f.create(subinterval, "wr1a", FLAG_WR1);
-				Interval em = f.create(subinterval, "em", FLAG_LCK1FOR1|FLAG_WR1);
+			@Override public void run(IntervalImpl subinterval) {
+				IntervalImpl wr1a = f.create(subinterval, "wr1a", FLAG_WR1);
+				IntervalImpl em = f.create(subinterval, "em", FLAG_LCK1FOR1|FLAG_WR1);
 				Intervals.addHb(wr1a, em);
 
-				Interval unem = f.create(subinterval, "unem", FLAG_LCK1FOR1|FLAG_WR1);
+				IntervalImpl unem = f.create(subinterval, "unem", FLAG_LCK1FOR1|FLAG_WR1);
 				em.end.addEdgeAndAdjust(unem.start, TEST_EDGE);
 				
 				// Note: this write is not ordered with respect to the unembed.
-				Interval wr1b = f.create(subinterval, "wr1b", FLAG_WR1);
+				IntervalImpl wr1b = f.create(subinterval, "wr1b", FLAG_WR1);
 				unem.end.addEdgeAndAdjust(wr1b.start, TEST_EDGE);
 			}
 		});

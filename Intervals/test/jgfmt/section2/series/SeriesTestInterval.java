@@ -41,10 +41,10 @@ package jgfmt.section2.series;
 import static jgfmt.section2.series.SeriesTest.array_rows;
 import jgfmt.jgfutil.JGFInstrumentor;
 import ch.ethz.intervals.Dependency;
-import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.ParentForNew;
 import ch.ethz.intervals.VoidInlineTask;
+import ch.ethz.intervals.impl.IntervalImpl;
 
 public class SeriesTestInterval {
 
@@ -71,7 +71,7 @@ public class SeriesTestInterval {
 		//Thread debugThread = Debug.dumpDebugStateAfterTimeElapsed(8);
 
 		Intervals.inline(new VoidInlineTask() {
-			@Override public void run(Interval subinterval) {
+			@Override public void run(IntervalImpl subinterval) {
 				for (int i = 0; i < array_rows; i++)
 					new SeriesRunnerInterval(subinterval, i);
 				//Intervals.forkJoinIndexed(array_rows, new SeriesRunnerInterval());				
@@ -93,7 +93,7 @@ public class SeriesTestInterval {
 
 // This is the Thread
 
-class SeriesRunnerInterval extends Interval {
+class SeriesRunnerInterval extends IntervalImpl {
 	
 	final int id;
 	

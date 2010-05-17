@@ -2,6 +2,10 @@ package ch.ethz.intervals;
 
 import org.junit.Test;
 
+import ch.ethz.intervals.impl.IntervalImpl;
+import ch.ethz.intervals.impl.LockImpl;
+import ch.ethz.intervals.impl.PointImpl;
+
 public class TestPatternLock {
 	
 	public static class DebugInterval extends EmptyInterval {
@@ -31,25 +35,25 @@ public class TestPatternLock {
 		 *      |--> l2 -----------|
 		 */
 			
-		final Lock l = new Lock();
+		final LockImpl l = new LockImpl();
 		
 		Intervals.inline(new VoidInlineTask() {
-			public void run(Interval subinterval) {
+			public void run(IntervalImpl subinterval) {
 				new SetupInterval(subinterval) {
-					@Override protected void setup(Point setupEnd, Interval worker) {
-						Interval a = new DebugInterval(worker, ("a"));
-						Interval b = new DebugInterval(worker, ("b"));
-						Interval c = new DebugInterval(worker, ("c"));
-						Interval b1 = new DebugInterval(b, ("b1"));
-						Interval b11 = new DebugInterval(b, ("b11"));
-						Interval b2 = new DebugInterval(b, ("b2"));
+					@Override protected void setup(PointImpl setupEnd, IntervalImpl worker) {
+						IntervalImpl a = new DebugInterval(worker, ("a"));
+						IntervalImpl b = new DebugInterval(worker, ("b"));
+						IntervalImpl c = new DebugInterval(worker, ("c"));
+						IntervalImpl b1 = new DebugInterval(b, ("b1"));
+						IntervalImpl b11 = new DebugInterval(b, ("b11"));
+						IntervalImpl b2 = new DebugInterval(b, ("b2"));
 						
 						Intervals.addHb(a.end, b.start);
 						Intervals.addHb(b.end, c.start);
 						Intervals.addHb(b1.end, b11.start);
 						
-						Interval l1 = (Interval) new DebugInterval(b, ("l1"));
-						Interval l2 = (Interval) new DebugInterval(b, ("l2"));
+						IntervalImpl l1 = (IntervalImpl) new DebugInterval(b, ("l1"));
+						IntervalImpl l2 = (IntervalImpl) new DebugInterval(b, ("l2"));
 						
 						Intervals.addExclusiveLock(l1, l);
 						Intervals.addExclusiveLock(l2, l);

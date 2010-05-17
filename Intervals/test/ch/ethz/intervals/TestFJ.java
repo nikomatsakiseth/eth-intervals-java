@@ -12,6 +12,8 @@ import junit.framework.Assert;
 
 import org.junit.Test;
 
+import ch.ethz.intervals.impl.IntervalImpl;
+
 public class TestFJ {
 
 	final int N = 22;
@@ -22,7 +24,7 @@ public class TestFJ {
 		// Interval task instance: defines the behavior of an interval,
 		// like a Runnable.  This particular instance just adds the number
 		// "i" to "list".
-		class AddTask extends Interval {
+		class AddTask extends IntervalImpl {
 			final int i;
 			
 			public AddTask(@ParentForNew("Parent") Dependency dep, int i) {
@@ -42,7 +44,7 @@ public class TestFJ {
 		// interval always waits for them to finish before 
 		// proceeding.
 		Intervals.inline(new VoidInlineTask() {
-			public void run(Interval subinterval) {
+			public void run(IntervalImpl subinterval) {
 				for(int i = 0; i < N; i++)
 					new AddTask(subinterval, i);				
 			}			

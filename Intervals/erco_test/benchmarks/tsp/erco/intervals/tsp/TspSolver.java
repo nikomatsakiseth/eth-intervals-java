@@ -4,15 +4,15 @@ import java.util.BitSet;
 
 import ch.ethz.intervals.Dependency;
 import ch.ethz.intervals.InlineTask;
-import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.ParentForNew;
+import ch.ethz.intervals.impl.IntervalImpl;
 import ch.ethz.intervals.quals.Constructor;
 import ch.ethz.intervals.quals.Creator;
 import ch.ethz.intervals.quals.GuardedBy;
 import ch.ethz.intervals.quals.Requires;
 
-public class TspSolver extends Interval {
+public class TspSolver extends IntervalImpl {
 	
 	final @Creator("readableBy parent") Config config;
 	
@@ -61,7 +61,7 @@ public class TspSolver extends Interval {
 			if (t1 && t2 && t3) {					
 				final int newNode = i;
 				TourElement newTour = Intervals.inline(new InlineTask<TourElement>() {
-					@Override public TourElement run(Interval subinterval) {
+					@Override public TourElement run(IntervalImpl subinterval) {
 						@Constructor("initNewTour") TourElement newTour = 
 							new /*@Constructor("initNewTour")*/ TourElement(newNode);
 						newTour.previous = curr;

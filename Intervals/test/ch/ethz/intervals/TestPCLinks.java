@@ -12,6 +12,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Assert;
 import org.junit.Test;
 
+import ch.ethz.intervals.impl.IntervalImpl;
+import ch.ethz.intervals.impl.PointImpl;
+
 /**
  * Agent Producer-Consumer Example 
  *
@@ -47,13 +50,13 @@ public class TestPCLinks {
 		public int produced;
 		
 		/** End of producer <em>i+1</em> */
-		public Point endOfNextProducer;
+		public PointImpl endOfNextProducer;
 		
 		/** Where producer <em>i+1</em> will write its data */
 		public ProducerData dataForNextProducer;		
 	}
 	
-	class Producer extends Interval {
+	class Producer extends IntervalImpl {
 		protected final ProducerData pdata;
 		protected final int index;
 		
@@ -78,19 +81,19 @@ public class TestPCLinks {
 			} 
 		}
 		
-		protected Interval nextProducer(ProducerData dataForNextProducer) {
+		protected IntervalImpl nextProducer(ProducerData dataForNextProducer) {
 			return new Producer(Intervals.successor(), index + 1, dataForNextProducer);			
 		}
 	}
 	
-	class Consumer extends Interval {
+	class Consumer extends IntervalImpl {
 		protected final int index;
 		protected final ProducerData pdata;
 
 		public Consumer(
 				Dependency dep, 
 				int index, 
-				Point endOfProducer, 
+				PointImpl endOfProducer, 
 				ProducerData pdata) 
 		{
 			super(dep);
@@ -125,9 +128,9 @@ public class TestPCLinks {
 
 	protected void runProducerConsumer() {
 		inline(new VoidInlineTask() {
-			@Override public void run(Interval subinterval) {
+			@Override public void run(IntervalImpl subinterval) {
 				ProducerData data0 = new ProducerData();
-				Interval prod0 = new Producer(child(), 0, data0);
+				IntervalImpl prod0 = new Producer(child(), 0, data0);
 				new Consumer(child(), 0, prod0.end, data0);
 			}			
 		});

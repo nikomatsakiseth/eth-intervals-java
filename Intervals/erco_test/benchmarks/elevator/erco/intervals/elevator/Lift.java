@@ -11,9 +11,9 @@ import java.util.Enumeration;
 import java.util.Vector;
 
 import ch.ethz.intervals.Dependency;
-import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
-import ch.ethz.intervals.Lock;
+import ch.ethz.intervals.impl.IntervalImpl;
+import ch.ethz.intervals.impl.LockImpl;
 import ch.ethz.intervals.quals.Creator;
 
 @Creator("this.lock")
@@ -29,7 +29,7 @@ class Lift {
 	/** The lock is acquired by all intervals pertaining to this lift. 
 	 *  It shouldn't really be necessary as (at the moment, anyway) there
 	 *  can only be one of those at a time. */
-	private final Lock lock;
+	private final LockImpl lockImpl;
 	
 	private final String name;
 	
@@ -54,7 +54,7 @@ class Lift {
 	// The thread starts itself
 	public Lift(int numFloors, Controls c) {
 		name = "Lift " + count++;
-		lock = new Lock();
+		lockImpl = new LockImpl();
 		controls = c;
 		firstFloor = 1;
 		lastFloor = numFloors;
@@ -68,18 +68,18 @@ class Lift {
 		}
 	}
 	
-	public void start(Interval parent) {		
+	public void start(IntervalImpl parent) {		
 		nextLiftInterval(parent);		
 	}
 	
 	// IDLE
 	// First check to see if there is an up or down call on what ever floor
 	// the elevator is idle on. If there isn't one, then check the other floors.
-	private final class LiftIdleInterval extends Interval {
+	private final class LiftIdleInterval extends IntervalImpl {
 
 		public LiftIdleInterval(Dependency dep) {
 			super(dep, name + "-IDLE");
-			Intervals.addExclusiveLock(this, lock);
+			Intervals.addExclusiveLock(this, lockImpl);
 		}
 
 		@Override
@@ -140,11 +140,11 @@ class Lift {
 	// First change floor (up or down as appropriate)
 	// Drop off passengers if we have to
 	// Then pick up passengers if we have to
-	private final class LiftMovingInterval extends Interval {
+	private final class LiftMovingInterval extends IntervalImpl {
 		
 		public LiftMovingInterval(Dependency dep) {
 			super(dep, name + "-MOVING");
-			Intervals.addExclusiveLock(this, lock);
+			Intervals.addExclusiveLock(this, lockImpl);
 		}
 
 		@Override
@@ -239,7 +239,7 @@ class Lift {
 	// Body of the thread. If the elevator is idle, it checks for calls
 	// every tenth of a second. If it is moving, it takes 1 second to
 	// move between floors.
-	private void nextLiftInterval(Interval parent) {
+	private void nextLiftInterval(IntervalImpl parent) {
 		while (true) {
 			if (travelDir == IDLE) {
 				new /*@ch.ethz.intervals.Parent("parent")*/ LiftIdleInterval(parent);

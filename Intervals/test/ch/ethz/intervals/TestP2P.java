@@ -10,6 +10,9 @@ import junit.framework.Assert;
 
 import org.junit.Test;
 
+import ch.ethz.intervals.impl.IntervalImpl;
+import ch.ethz.intervals.impl.PointImpl;
+
 public class TestP2P {
 	
 	final int N = 22;
@@ -27,13 +30,13 @@ public class TestP2P {
 		}
 		
 	    @Override
-		public void setup(Point _, Interval parent) {        
-	        Point[][] intervals = new Point[2][M+2];
+		public void setup(PointImpl _, IntervalImpl parent) {        
+	        PointImpl[][] intervals = new PointImpl[2][M+2];
 	        
 	        for(int n = 0; n < N; n++) {
 	            int bit = n % 2, prevBit = 1 - bit;
 	            for(int m = 1; m < M+1; m++) {
-	            	Interval i = new AddTask(parent, n, m-1);
+	            	IntervalImpl i = new AddTask(parent, n, m-1);
 	                intervals[bit][m] = i.end; 
 	                if(intervals[prevBit][m-1] != null)
 	                	Intervals.addHb(intervals[prevBit][m-1], i.start);
@@ -46,7 +49,7 @@ public class TestP2P {
 	        }   
 	    }
 
-		class AddTask extends Interval {
+		class AddTask extends IntervalImpl {
 			
 			final int n, m;
 			
@@ -68,7 +71,7 @@ public class TestP2P {
 	
 	@Test public void testP2P() {
 		P2P p2p = Intervals.inline(new InlineTask<P2P>() {
-			public P2P run(Interval subinterval) {
+			public P2P run(IntervalImpl subinterval) {
 				return new P2P(subinterval);
 			}
 		});

@@ -1,6 +1,5 @@
-package ch.ethz.intervals;
+package ch.ethz.intervals.impl;
 
-import static ch.ethz.intervals.Intervals.POOL;
 
 //******************************************************
 // Note: IntReduction and LongReduction are automatically
@@ -27,7 +26,7 @@ public class DoubleReduction {
 	
 	public DoubleReduction(double initialValue) {
 		value = initialValue;
-		int workers = POOL.numWorkers;
+		int workers = ContextImpl.POOL.numWorkers;
 		values = new double[workers * PAD];
 	}
 	
@@ -50,7 +49,7 @@ public class DoubleReduction {
 			synchronized(this) {
 				next = this.next;
 				if(next == null) {
-					int parSize = POOL.numWorkers * PAD - length;
+					int parSize = ContextImpl.POOL.numWorkers * PAD - length;
 					int newSize = Math.max(parSize, index - length + PAD);
 					this.next = next = new DoubleReduction(0, newSize);
 				}
@@ -76,7 +75,7 @@ public class DoubleReduction {
 	 */
 	// @JPartMethod(effects="AtomicWr(@W)")
 	public void add(double amnt) {
-		int index = POOL.currentWorker().id * PAD;
+		int index = ContextImpl.POOL.currentWorker().id * PAD;
 		add(amnt, index);
 	}
 	
@@ -88,7 +87,7 @@ public class DoubleReduction {
 	 */
 	// @JPartMethod(effects="AtomicWr(@W)")
 	public void subtract(double amnt) {
-		int index = POOL.currentWorker().id * PAD;
+		int index = ContextImpl.POOL.currentWorker().id * PAD;
 		add(-amnt, index);
 	}
 	

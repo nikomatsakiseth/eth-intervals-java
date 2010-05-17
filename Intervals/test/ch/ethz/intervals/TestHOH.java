@@ -6,6 +6,8 @@ import static java.lang.String.format;
 import org.junit.Assert;
 import org.junit.Test;
 
+import ch.ethz.intervals.impl.IntervalImpl;
+import ch.ethz.intervals.impl.LockImpl;
 import ch.ethz.intervals.quals.DefinesGhost;
 
 @DefinesGhost
@@ -17,12 +19,12 @@ public class TestHOH {
     
 	static class Link 
 	extends Object {
-		final Lock lock;
+		final LockImpl lockImpl;
 		int data;
 		Link next;
 		
 		public Link(int data, Link next) {
-			this.lock = new Lock();
+			this.lockImpl = new LockImpl();
 			this.data = data;
 			this.next = next;
 		}
@@ -65,7 +67,7 @@ public class TestHOH {
 		void transform(Link l);
 	}
 
-	class MapWalk extends Interval {
+	class MapWalk extends IntervalImpl {
 	    final Link link;
 	    final Transform transform;
 
@@ -74,14 +76,14 @@ public class TestHOH {
 			this.link = link;
 			this.transform = transform;
 			
-        	Intervals.addExclusiveLock(this, link.lock, null);
+        	Intervals.addExclusiveLock(this, link.lockImpl, null);
 		}
 		
 		@Override
 	    public void run() {
 	        transform.transform(link);
 	        if(link.next != null) {
-	        	Interval next = new MapWalk(parent, link.next, transform);
+	        	IntervalImpl next = new MapWalk(parent, link.next, transform);
 	        	Intervals.addHb(next.start, end);
             }
 	    } 
@@ -108,7 +110,7 @@ public class TestHOH {
 	public @Test void testDouble() {
 		final Link list = buildList(5, 10, 25);
 		inline(new VoidInlineTask() {
-			public void run(Interval subinterval) {
+			public void run(IntervalImpl subinterval) {
 				new MapWalk(subinterval, list, new DoubleTransform());		
 			}
 		});

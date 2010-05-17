@@ -20,11 +20,11 @@
 
 package jgfmt.section2.lufact;
 
-import ch.ethz.intervals.IndexedInterval;
-import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
-import ch.ethz.intervals.Point;
 import ch.ethz.intervals.VoidInlineTask;
+import ch.ethz.intervals.impl.IntervalImpl;
+import ch.ethz.intervals.impl.PointImpl;
+import ch.ethz.intervals.task.IndexedTask;
 
 class LinpackInterval {
 
@@ -114,8 +114,8 @@ class LinpackInterval {
 					// row elimination with column indexing
 					final int k0 = k;
 					Intervals.inline(new VoidInlineTask() {						
-						@Override public void run(Interval subinterval) {
-							new IndexedInterval(subinterval, kp1, n) {						
+						@Override public void run(IntervalImpl subinterval) {
+							new IndexedTask(subinterval, kp1, n) {						
 								@Override
 								public void run(int fromIndex, int toIndex) {
 									for(int j = fromIndex; j < toIndex; j++) {

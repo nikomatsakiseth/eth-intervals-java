@@ -10,6 +10,9 @@ import java.util.Set;
 import org.junit.Assert;
 import org.junit.Test;
 
+import ch.ethz.intervals.impl.IntervalImpl;
+import ch.ethz.intervals.impl.PointImpl;
+
 public class TestFuzzyBarrier {
 	
 	final int N = 22; // number of workers
@@ -17,9 +20,9 @@ public class TestFuzzyBarrier {
 	final Random R = new Random(66L);
 	
 	class Barrier extends SetupInterval {
-		private Interval allRounds;
-		private Interval thisRound;
-		private Interval nextRound;
+		private IntervalImpl allRounds;
+		private IntervalImpl thisRound;
+		private IntervalImpl nextRound;
 		int roundId = 0;
 		final List<Integer> list = Collections.synchronizedList(new ArrayList<Integer>());
 		int prevListSize = 0;
@@ -29,16 +32,16 @@ public class TestFuzzyBarrier {
 		}
 
 		@Override
-		public void setup(Point currentEnd, Interval worker) {
+		public void setup(PointImpl currentEnd, IntervalImpl worker) {
 			this.allRounds = worker;			
 			startRound(new EmptyInterval(allRounds, "round0"));			
 			for(int id = 0; id < N; id++)
 				new WorkerTask(thisRound, id, R.nextInt(MAX_COUNTER));
 		}
 		
-	    private void startRound(Interval inter) {
+	    private void startRound(IntervalImpl inter) {
 	        thisRound = inter;
-	        Interval barrier = new BarrierTask(allRounds, ++roundId);
+	        IntervalImpl barrier = new BarrierTask(allRounds, ++roundId);
 	        nextRound = new EmptyInterval(allRounds, "round"+roundId);
 	       
 	        // thisRound.end -> barrier -> nextRound.start
@@ -46,7 +49,7 @@ public class TestFuzzyBarrier {
 	        Intervals.addHb(barrier.end, nextRound.start);
 	    }
 	    
-	    class BarrierTask extends Interval {
+	    class BarrierTask extends IntervalImpl {
 
 			public BarrierTask(@ParentForNew("Parent") Dependency dep, int id) {
 				super(dep, "barrier"+id);
@@ -63,17 +66,17 @@ public class TestFuzzyBarrier {
 			}
 	    }
 	    
-	    class WorkerTask extends Interval {
+	    class WorkerTask extends IntervalImpl {
 	    	public final int id;
 	    	public final int counter;
 	    	
-			public WorkerTask(Interval during, int id, int counter) {
+			public WorkerTask(IntervalImpl during, int id, int counter) {
 				super(during, "worker["+id+"/"+roundId+"]");
 				this.id = id;
 				this.counter = counter;
 			}
 
-	    	class FuzzyTask extends Interval {
+	    	class FuzzyTask extends IntervalImpl {
 	    		
 				public FuzzyTask(@ParentForNew("Parent") Dependency dep, WorkerTask nextWorker) {
 					super(dep, "fuzzy"+id);
@@ -104,7 +107,7 @@ public class TestFuzzyBarrier {
 	@Test public void doTest() {
 		Barrier b = Intervals.inline(new InlineTask<Barrier>() {
 			@Override public String toString() { return "doTest"; }
-			@Override public Barrier run(Interval subinterval) {
+			@Override public Barrier run(IntervalImpl subinterval) {
 				return new Barrier(subinterval);
 			}
 		});

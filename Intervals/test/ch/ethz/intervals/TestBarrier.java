@@ -10,78 +10,89 @@ import java.util.Set;
 import org.junit.Assert;
 import org.junit.Test;
 
+import ch.ethz.intervals.impl.ContextImpl;
+import ch.ethz.intervals.impl.PointImpl;
+import ch.ethz.intervals.mirror.Interval;
+import ch.ethz.intervals.task.AbstractTask;
+import ch.ethz.intervals.task.EmptyTask;
+import ch.ethz.intervals.task.ResultTask;
+import ch.ethz.intervals.task.SetupTask;
+
 public class TestBarrier {
 	
 	final int N = 22; // number of workers
 	final int MAX_COUNTER = 44;
 	final Random R = new Random(66L);
+	
+	public void println(String s) {
+		//System.err.println(s);
+	}
 
-	class Barrier extends SetupInterval {
+	class Barrier extends SetupTask {
 		private Interval parent;
 		private Interval thisRound;
 		private Interval nextRound;
 		final List<Integer> list = Collections.synchronizedList(new ArrayList<Integer>());
 		int prevListSize = 0;
 		
-		public Barrier(@ParentForNew("Parent") Dependency dep) {
-			super(dep);
-		}
-		
-		public String toString() {
-			return "Barrier";
+		Barrier() {
+			super("Barrier");
 		}
 
 		@Override
-		public void setup(Point currentEnd, Interval worker) {
+		public void setup(Interval setup, Interval worker) {
 			this.parent = worker;			
-			startRound(new EmptyInterval(parent, "round"));			
+			startRound(parent.newAsyncChild(new EmptyTask("round-1")), 0);			
 			for(int id = 0; id < N; id++)
-				new WorkerTask(thisRound, id, R.nextInt(MAX_COUNTER));
+				thisRound.newAsyncChild(new WorkerTask(id, R.nextInt(MAX_COUNTER)));
 		}
 		
-	    private void startRound(Interval inter) {
+	    private void startRound(Interval inter, int id) {
 	        thisRound = inter;
-	        Interval barrier = new BarrierTask(parent);
-	        nextRound = new EmptyInterval(parent, "round");
+	        Interval barrier = parent.newAsyncChild(new BarrierTask(id));
+	        nextRound = parent.newAsyncChild(new EmptyTask("round" + id));
 	       
 	        // thisRound.end -> barrier -> nextRound.start
-	        Intervals.addHb(thisRound.end, barrier.start);
-	        Intervals.addHb(barrier.end, nextRound.start);
+	        Intervals.addHb(thisRound, barrier);
+	        Intervals.addHb(barrier, nextRound);
 	    }
 	    
-	    class BarrierTask extends Interval {
-
-			public BarrierTask(@ParentForNew("Parent") Dependency dep) {
-				super(dep);
-			}
-
+	    class BarrierTask extends AbstractTask {
+	    	final int prevRoundId;
+	    	
+	    	BarrierTask(int prevRoundId) {
+	    		super("Barrier" + prevRoundId);
+	    		this.prevRoundId = prevRoundId;
+	    	}
+	    	
 			@Override
-			public void run() {
-				System.err.println("Barrier");
+			public void run(Interval current) {
+				println(toString());
 				list.add(-1);
 				if(list.size() > prevListSize + 1) {
 					prevListSize = list.size();
-					startRound(nextRound);
+					startRound(nextRound, prevRoundId + 1);
 				}
 			}
+			
 	    }
 	    
-	    class WorkerTask extends Interval {
+	    class WorkerTask extends AbstractTask {
 	    	public final int id;
 	    	public final int counter;
 	    	
-			public WorkerTask(Interval during, int id, int counter) {
-				super(during);
+			public WorkerTask(int id, int counter) {
+				super("Worker-"+id+"-"+counter);
 				this.id = id;
 				this.counter = counter;
 			}
 
 			@Override
-			public void run() {
-				System.err.println("Worker: "+id+" counter="+counter);
+			public void run(Interval current) {
+				println(toString());
 				list.add(id | (counter << 16));
 				if(counter > 0)
-					new WorkerTask(nextRound, id, counter-1);
+					nextRound.newAsyncChild(new WorkerTask(id, counter-1));
 			}
 	    }
 	}
@@ -90,10 +101,11 @@ public class TestBarrier {
 		//ExecutionLog.enableGui();
 		Barrier b;
 		try {
-			b = 
-				Intervals.inline(new InlineTask<Barrier>() {			
-					public Barrier run(Interval subinterval) {
-						return new Barrier(subinterval);
+			b = Intervals.inline(new ResultTask<Barrier>() {			
+					@Override public Barrier compute(Interval subinterval) {
+						Barrier barrier = new Barrier();
+						subinterval.newAsyncChild(barrier);
+						return barrier;
 					}
 				});
 		} finally {

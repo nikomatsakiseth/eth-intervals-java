@@ -10,6 +10,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.Test;
 
+import ch.ethz.intervals.impl.IntervalImpl;
+import ch.ethz.intervals.impl.PointImpl;
+
 /**
  * Simple Producer-Consumer Example 
  *
@@ -28,10 +31,10 @@ public class TestPCLoop {
 	
 	List<Integer> consumed = new ArrayList<Integer>();
 	
-	class Consumer extends Interval {
+	class Consumer extends IntervalImpl {
 		public Integer i;
 		
-		public Consumer(@ParentForNew("Parent") Dependency dep, Point endOfPrevConsumer, Integer i) {			
+		public Consumer(@ParentForNew("Parent") Dependency dep, PointImpl endOfPrevConsumer, Integer i) {			
 			super(dep);
 			if(endOfPrevConsumer != null)
 				Intervals.addHb(endOfPrevConsumer, start);
@@ -46,8 +49,8 @@ public class TestPCLoop {
 	@Test public void test() {
 		final int MAX = 100;
 		inline(new VoidInlineTask() {
-			public void run(Interval subinterval) {
-				Point endOfPrevConsumer = null;
+			public void run(IntervalImpl subinterval) {
+				PointImpl endOfPrevConsumer = null;
 				for(int i = 0; i < MAX; i++) {
 					endOfPrevConsumer = new Consumer(child(), endOfPrevConsumer, i).end;
 				}

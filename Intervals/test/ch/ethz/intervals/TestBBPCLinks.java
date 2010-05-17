@@ -10,6 +10,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Assert;
 import org.junit.Test;
 
+import ch.ethz.intervals.impl.IntervalImpl;
 import ch.ethz.intervals.quals.Creator;
 
 /**
@@ -48,7 +49,7 @@ public class TestBBPCLinks {
 		public int produced;
 		
 		/** Producer <em>i+1</em> */
-		public Interval nextProducer;
+		public IntervalImpl nextProducer;
 		
 		/** Where producer <em>i+1</em> will write its data */
 		public @Creator("nextProducer") ProducerData nextProducerData;		
@@ -57,21 +58,21 @@ public class TestBBPCLinks {
 	/** Where consumers write information about the next consumer. */
 	class ConsumerData {
 		/** Consumer <em>i+1</em> */
-		public Interval nextConsumer;
+		public IntervalImpl nextConsumer;
 		
 		/** Where consumer <em>i+1</em> will write its data */
 		public @Creator("nextConsumer") ConsumerData nextConsumerData;		
 	}
 	
-	class Producer extends Interval {
+	class Producer extends IntervalImpl {
 		protected final int index;
 		protected final @Creator("hb this") ConsumerData cdata;
 		protected final @Creator("this") ProducerData pdata;
 		
 		public Producer(
 				int index,
-				Interval prev,
-				Interval cons,
+				IntervalImpl prev,
+				IntervalImpl cons,
 				@Creator("cons") ConsumerData cdata) 
 		{
 			super(prev.parent);
@@ -96,15 +97,15 @@ public class TestBBPCLinks {
 		}		
 	}
 	
-	class Consumer extends Interval {
+	class Consumer extends IntervalImpl {
 		protected final int index;
 		protected final @Creator("hb this") ProducerData pdata;
 		protected final @Creator("this") ConsumerData cdata;
 
 		public Consumer(
 				int index,
-				Interval prevConsumer,
-				Interval producer,
+				IntervalImpl prevConsumer,
+				IntervalImpl producer,
 				@Creator("producer") ProducerData pdata) 
 		{
 			super(prevConsumer.parent);
@@ -136,7 +137,7 @@ public class TestBBPCLinks {
 		}		
 	}
 	
-	class Init extends Interval {
+	class Init extends IntervalImpl {
 
 		public Init(@ParentForNew("Parent") Dependency dep) {
 			super(dep);
@@ -169,7 +170,7 @@ public class TestBBPCLinks {
 	
 	@Test public final void test() {
 		inline(new VoidInlineTask() {
-			@Override public void run(Interval subinterval) {
+			@Override public void run(IntervalImpl subinterval) {
 				new Init(subinterval);
 			}			
 		});

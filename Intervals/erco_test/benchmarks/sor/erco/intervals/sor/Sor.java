@@ -12,11 +12,11 @@ import static ch.ethz.intervals.Intervals.successor;
 import java.util.Date;
 
 import ch.ethz.intervals.Dependency;
-import ch.ethz.intervals.IndexedInterval;
-import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.ParentForNew;
 import ch.ethz.intervals.VoidInlineTask;
+import ch.ethz.intervals.impl.IntervalImpl;
+import ch.ethz.intervals.task.IndexedTask;
 
 public class Sor {
 
@@ -27,7 +27,7 @@ public class Sor {
 	public static final float[][] black_ = new float[M + 2][N + 1];
 	public static final float[][] red_ = new float[M + 2][N + 1];
 
-	abstract static class RowIntervalBase extends IndexedInterval {
+	abstract static class RowIntervalBase extends IndexedTask {
 
 		final int roundsRemaining;
 
@@ -173,7 +173,7 @@ public class Sor {
 		
 		if (!nop) {
 			Intervals.inline(new VoidInlineTask() {
-				@Override public void run(Interval subinterval) {
+				@Override public void run(IntervalImpl subinterval) {
 					new BlackFromRed(subinterval, iterations-1);
 				}			
 			});

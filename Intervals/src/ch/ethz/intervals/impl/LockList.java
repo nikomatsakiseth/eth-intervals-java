@@ -1,4 +1,4 @@
-package ch.ethz.intervals;
+package ch.ethz.intervals.impl;
 
 import ch.ethz.intervals.guard.Guard;
 
@@ -10,30 +10,30 @@ import ch.ethz.intervals.guard.Guard;
  * little list to track which locks an interval should acquire befor
  * activating.
  * 
- * When {@link #lock} is acquired (or while we wait to acquire it),
- * the {@link #nextPending} field is used by {@link #lock} to 
+ * When {@link #lockImpl} is acquired (or while we wait to acquire it),
+ * the {@link #nextPending} field is used by {@link #lockImpl} to 
  * track any other intervals contending for the lock that are forced to queue.
  * 
  * In addition, because a {@link LockList} extends {@link LockBase}, they are
  * lockable objects.  This is to support recursive acquires: any subinterval
- * acquiring {@link #lock} actually contends for locking {@code this}.  
+ * acquiring {@link #lockImpl} actually contends for locking {@code this}.  
  */
 class LockList 
 extends LockBase
 {
 	/** The interval which will be acquiring lock */
-	final Interval inter;
+	final IntervalImpl inter;
 	
 	/** User-specified lock to acquire */
-	final Lock lock;
+	final LockImpl lockImpl;
 	
-	/** Guard being protected by {@link #lock}, if any. */
+	/** Guard being protected by {@link #lockImpl}, if any. */
 	final Guard guard;
 	
 	/** Next lock to acquire */
 	LockList next;
 	
-	/** The actual lockable object we acquired. May be {@link #lock} 
+	/** The actual lockable object we acquired. May be {@link #lockImpl} 
 	 *  but in the case of a recursive acquire may be something else. 
 	 *  Written automatically by {@link LockBase#tryAndEnqueue(LockList)} */
 	LockBase acquiredLock;
@@ -41,10 +41,10 @@ extends LockBase
 	/** Owned by the {@link LockBase}, used to track pending candidates */
 	LockList nextPending;
 	
-	LockList(Interval inter, Lock lock, Guard guard, LockList next) {
+	LockList(IntervalImpl inter, LockImpl lockImpl, Guard guard, LockList next) {
 		super(false);
 		this.inter = inter;
-		this.lock = lock;
+		this.lockImpl = lockImpl;
 		this.guard = guard;
 		this.next = next;
 	}

@@ -2,8 +2,6 @@ package ch.ethz.intervals;
 
 import static ch.ethz.intervals.Intervals.addHb;
 import static ch.ethz.intervals.Intervals.inline;
-import static ch.ethz.intervals.Intervals.child;
-import static ch.ethz.intervals.Intervals.successor;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -11,6 +9,8 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import ch.ethz.intervals.guard.ReadTrackingDynamicGuard;
+import ch.ethz.intervals.mirror.Interval;
+import ch.ethz.intervals.task.AbstractTask;
 
 /**
  * Bounded-Buffer Producer Consumer example using arrays.
@@ -31,23 +31,23 @@ public class TestBBPCArrayWithDynamicGuards {
 	
 	public class BoxedInterval {
 		private final ReadTrackingDynamicGuard dg = new ReadTrackingDynamicGuard();
-		private Interval interval;
+		private Interval intervalImpl;
 		
 		public Interval get() {
 			Intervals.checkReadable(dg);
-			return interval;
+			return intervalImpl;
 		}
 		
-		public void set(Interval interval) {
+		public void set(Interval intervalImpl) {
 			Intervals.checkWritable(dg);
-			this.interval = interval;
+			this.intervalImpl = intervalImpl;
 		}
 	}
 
-	public class BBPC extends Interval {
+	public class BBPC extends AbstractTask {
 
-		public BBPC(@ParentForNew("Parent") Dependency dep) {
-			super(dep);
+		public BBPC() {
+			super("BBPC");
 			
 			for(int i = 0; i < N; i++) {
 				producers[i] = new BoxedInterval();
@@ -58,70 +58,76 @@ public class TestBBPCArrayWithDynamicGuards {
 		final int N = 3;
 		final BoxedInterval[] producers = new BoxedInterval[N];
 		final BoxedInterval[] consumers = new BoxedInterval[N];
+		
+		public Interval newProducer(Interval parent, int index) {
+			Interval inter = parent.newAsyncChild(new Producer(index));
+			
+			// after the consumer N indices before:
+			if (index >= N)
+				addHb(consumers[(index - N) % N].get(), inter);
+			
+			return inter;
+		}
 
-		class Producer extends Interval {
+		class Producer extends AbstractTask {
 			final int index;
 
-			public Producer(@ParentForNew("Parent") Dependency dep, int index) {
-				super(dep);
+			public Producer(int index) {
+				super("p"+index);
 				this.index = index;
-				
-				// and the consumer N indices before:
-				if (index >= N)
-					addHb(consumers[(index - N) % N].get().end, start);
 			}
 
-			public String toString() {
-				return "Producer["+index+"]";
-			}
-
-			public void run() {
+			@Override
+			public void run(Interval current) {
 				produced[index] = (index * 2);
 				if(index + 1 < M)
-					producers[(index + 1) % N].set(new Producer(successor(), index + 1));
+					producers[(index + 1) % N].set(newProducer(current.getParent(), index + 1));
 				else
 					producers[(index + 1) % N].set(null);
 			}
 		}
 
-		class Consumer extends Interval {
+		public Interval newConsumer(Interval parent, int index) {
+			Interval inter = parent.newAsyncChild(new Consumer(index));
+
+			// comes after the producer:
+			addHb(producers[index % N].get(), inter);
+			
+			return inter;
+		}
+
+		class Consumer extends AbstractTask {
 			final int index;
 			
-			public Consumer(@ParentForNew("Parent") Dependency dep, int index) {
-				super(dep);
+			public Consumer(int index) {
+				super("c"+index);
 				this.index = index;
-
-				// comes after the producer:
-				addHb(producers[index % N].get().end, start);
 			}
 			
 			public String toString() {
 				return "Consumer["+index+"]";
 			}
 
-			public void run() {
+			@Override
+			public void run(Interval current) {
 				consumed[index] = produced[index];
 				if(producers[(index + 1) % N].get() != null)
-					consumers[(index + 1) % N].set(new Consumer(successor(), index + 1));
+					consumers[(index + 1) % N].set(newConsumer(current.getParent(), index + 1));
 			}
 		}
 
-		public void run() {
-			Intervals.inline(new VoidInlineTask() {
-				@Override public void run(Interval init) {
-					producers[0].set(new Producer(successor(), 0));
-					consumers[0].set(new Consumer(successor(), 0));
-				}
-			});
+		public void run(Interval current) {
+			producers[0].set(newProducer(current, 0));
+			consumers[0].set(newConsumer(current, 0));
 		}
 
 	}
 
 	@Test
 	public void test() {
-		inline(new VoidInlineTask() {
+		inline(new AbstractTask() {
 			@Override public void run(final Interval subinterval) {
-				new BBPC(subinterval);
+				subinterval.newAsyncChild(new BBPC());
 			}
 		});
 

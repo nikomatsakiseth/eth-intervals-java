@@ -25,9 +25,9 @@ import static jgfmt.section3.montecarlo.AppDemo.JGFavgExpectedReturnRateMC;
 
 import java.util.Vector;
 
-import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.VoidInlineTask;
+import ch.ethz.intervals.impl.IntervalImpl;
 
 
 /**
@@ -160,10 +160,10 @@ public class AppDemoIntervals extends Universal implements AppDemoInterface {
 		results = new Vector<Object>(nRunsMC);
 		
 		Intervals.inline(new VoidInlineTask() {			
-			@Override public void run(Interval subinterval) {
+			@Override public void run(IntervalImpl subinterval) {
 				for (int i = 0; i < nRunsMC; i++) {
 					final int iRun = i;
-					new Interval(subinterval) {
+					new IntervalImpl(subinterval) {
 						public void run() {							
 							final PriceStock ps = new PriceStock();
 							ps.setInitAllTasks(AppDemoIntervals.initAllTasks);

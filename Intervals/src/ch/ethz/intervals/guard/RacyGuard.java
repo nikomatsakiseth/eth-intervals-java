@@ -1,8 +1,8 @@
 package ch.ethz.intervals.guard;
 
-import ch.ethz.intervals.mirror.IntervalMirror;
-import ch.ethz.intervals.mirror.LockMirror;
-import ch.ethz.intervals.mirror.PointMirror;
+import ch.ethz.intervals.mirror.Interval;
+import ch.ethz.intervals.mirror.Lock;
+import ch.ethz.intervals.mirror.Point;
 
 /**
  * A "Guard" which permits reads or writes at any time.  
@@ -22,20 +22,20 @@ public final class RacyGuard implements Guard {
 
 	@Override
 	public RuntimeException checkLockable(
-			IntervalMirror interval,
-			LockMirror lock) 
+			Interval interval,
+			Lock lock) 
 	{
 		return null;
 	}
 
 	@Override
-	public RuntimeException checkReadable(PointMirror mr, IntervalMirror current) 
+	public RuntimeException checkReadable(Point mr, Interval current) 
 	{
 		return null;
 	}
 
 	@Override
-	public RuntimeException checkWritable(PointMirror mr, IntervalMirror inter) 
+	public RuntimeException checkWritable(Point mr, Interval inter) 
 	{
 		return null;
 	}

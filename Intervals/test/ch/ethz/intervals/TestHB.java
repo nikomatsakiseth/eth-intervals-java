@@ -5,23 +5,26 @@ import java.util.Arrays;
 import org.junit.Assert;
 import org.junit.Test;
 
+import ch.ethz.intervals.impl.IntervalImpl;
+import ch.ethz.intervals.impl.PointImpl;
+
 public class TestHB {
 	
-	private void assertHb(Point from, Point to) {
+	private void assertHb(PointImpl from, PointImpl to) {
 		Assert.assertTrue(from.hb(to));
 		Assert.assertFalse(to.hb(from));
 	}	
 	
-	private void assertUnordered(Point pnt1, Point pnt2) {
+	private void assertUnordered(PointImpl pnt1, PointImpl pnt2) {
 		Assert.assertFalse(pnt1.hb(pnt2));
 		Assert.assertFalse(pnt2.hb(pnt1));
 	}	
 	
 	@Test public void ignoresSpeculative() {
 		Intervals.inline(new VoidInlineTask() {			
-			@Override public void run(Interval subinterval) {
-				Interval a = new EmptyInterval(subinterval, "a");
-				Interval b = new EmptyInterval(subinterval, "b");
+			@Override public void run(IntervalImpl subinterval) {
+				IntervalImpl a = new EmptyInterval(subinterval, "a");
+				IntervalImpl b = new EmptyInterval(subinterval, "b");
 				Intervals.optimisticallyAddEdge(a.end, b.start);
 				assertUnordered(a.end, b.start);
 				Intervals.recoverFromCycle(a.end, b.start);
@@ -31,12 +34,12 @@ public class TestHB {
 	
 	@Test public void trans() {
 		class Helper {
-			Interval a, b, c;
+			IntervalImpl a, b, c;
 		}
 		final Helper h = new Helper();
 		
 		Intervals.inline(new VoidInlineTask() {			
-			@Override public void run(Interval subinterval) {
+			@Override public void run(IntervalImpl subinterval) {
 				h.a = new EmptyInterval(subinterval, "a");
 				h.b = new EmptyInterval(subinterval, "b");
 				h.c = new EmptyInterval(subinterval, "c");
@@ -51,12 +54,12 @@ public class TestHB {
 	
 	@Test public void parChild() {
 		class Helper {
-			Interval a, a1;
+			IntervalImpl a, a1;
 		}
 		final Helper h = new Helper();
 		
 		Intervals.inline(new VoidInlineTask() {			
-			@Override public void run(Interval subinterval) {
+			@Override public void run(IntervalImpl subinterval) {
 				h.a = new EmptyInterval(subinterval, "a");
 				h.a1 = new EmptyInterval(h.a, "a1");
 			}
@@ -68,12 +71,12 @@ public class TestHB {
 	
 	@Test public void bounds() {
 		class Helper {
-			Interval a, a1, b, b1;
+			IntervalImpl a, a1, b, b1;
 		}
 		final Helper h = new Helper();
 		
 		Intervals.inline(new VoidInlineTask() {			
-			@Override public void run(Interval subinterval) {
+			@Override public void run(IntervalImpl subinterval) {
 				h.a = new EmptyInterval(subinterval, "a");
 				h.a1 = new EmptyInterval(h.a, "a1");
 				h.b = new EmptyInterval(subinterval, "b");
@@ -97,25 +100,25 @@ public class TestHB {
 		//
 		// which is kind of a stress test for our internal representation.
 		class Helper {
-			Interval p;
-			Interval[] a = new Interval[3];
-			Interval[] b = new Interval[3];
+			IntervalImpl p;
+			IntervalImpl[] a = new IntervalImpl[3];
+			IntervalImpl[] b = new IntervalImpl[3];
 		}
 		final Helper h = new Helper();
 		
 		Intervals.inline(new VoidInlineTask() {			
 			@Override public String toString() { return "p"; }
-			@Override public void run(Interval p) {
+			@Override public void run(IntervalImpl p) {
 				h.p = p;
 				
 				Intervals.inline(new VoidInlineTask() {					
 					@Override public String toString() { return "a0"; }
-					@Override public void run(Interval i) {
+					@Override public void run(IntervalImpl i) {
 						h.a[0] = i;
 						
 						Intervals.inline(new VoidInlineTask() {					
 							@Override public String toString() { return "a1"; }
-							@Override public void run(Interval i) {
+							@Override public void run(IntervalImpl i) {
 								h.a[1] = i;
 								h.a[2] = new EmptyInterval(i, "a2");
 							}
@@ -125,12 +128,12 @@ public class TestHB {
 				
 				Intervals.inline(new VoidInlineTask() {					
 					@Override public String toString() { return "b0"; }
-					@Override public void run(Interval i) {
+					@Override public void run(IntervalImpl i) {
 						h.b[0] = i;
 						
 						Intervals.inline(new VoidInlineTask() {					
 							@Override public String toString() { return "b1"; }
-							@Override public void run(Interval i) {
+							@Override public void run(IntervalImpl i) {
 								h.b[1] = i;
 								h.b[2] = new EmptyInterval(i, "b2");
 							}
@@ -146,7 +149,7 @@ public class TestHB {
 			assertHb(h.a[i].start, h.p.end);
 		}
 		
-		for(Interval[] arr : Arrays.asList(h.a, h.b)) {
+		for(IntervalImpl[] arr : Arrays.asList(h.a, h.b)) {
 			for(int i = 0; i <= 2; i++) {
 				for(int j = i+1; j <= 2; j++) {
 					assertHb(arr[i].start, arr[j].start);

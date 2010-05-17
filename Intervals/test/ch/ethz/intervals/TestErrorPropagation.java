@@ -11,6 +11,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import ch.ethz.intervals.TestInterval.IncTask;
+import ch.ethz.intervals.impl.IntervalImpl;
 import ch.ethz.intervals.util.ChunkList;
 
 public class TestErrorPropagation {
@@ -19,7 +20,7 @@ public class TestErrorPropagation {
 		
 	}
 	
-	class ThrowExceptionTask extends Interval {
+	class ThrowExceptionTask extends IntervalImpl {
 		public ThrowExceptionTask(@ParentForNew("Parent") Dependency dep) {
 			super(dep);
 		}
@@ -36,7 +37,7 @@ public class TestErrorPropagation {
 	@Test public void exceptionPropagatesToParent() {
 		try {
 			Intervals.inline(new VoidInlineTask() {
-				public void run(Interval subinterval) {
+				public void run(IntervalImpl subinterval) {
 					new ThrowExceptionTask(subinterval);
 				}
 			});
@@ -54,7 +55,7 @@ public class TestErrorPropagation {
 	@Test public void catchMethodSubstitutesADifferentException() {
 		try {
 			Intervals.inline(new VoidInlineTask() {
-				public void run(Interval subinterval) {
+				public void run(IntervalImpl subinterval) {
 					new ThrowExceptionTask(subinterval) {
 	
 						@Override
@@ -82,7 +83,7 @@ public class TestErrorPropagation {
 	 */
 	@Test public void catchMethodReturnsEmptySet() {
 		Intervals.inline(new VoidInlineTask() {
-			public void run(Interval subinterval) {
+			public void run(IntervalImpl subinterval) {
 				new ThrowExceptionTask(subinterval) {
 						@Override
 					protected Set<? extends Throwable> catchErrors(
@@ -106,9 +107,9 @@ public class TestErrorPropagation {
 		final AtomicInteger integer = new AtomicInteger();
 		try {
 			Intervals.inline(new VoidInlineTask() {
-				public void run(Interval subinterval) {
-					Interval err = new ThrowExceptionTask(subinterval);
-					Interval inc = new IncTask(subinterval, "inc", integer);
+				public void run(IntervalImpl subinterval) {
+					IntervalImpl err = new ThrowExceptionTask(subinterval);
+					IntervalImpl inc = new IncTask(subinterval, "inc", integer);
 					Intervals.addHb(err, inc);
 				}
 			});
@@ -126,10 +127,10 @@ public class TestErrorPropagation {
 		final AtomicInteger integer = new AtomicInteger();
 		try {
 			Intervals.inline(new VoidInlineTask() {
-				public void run(Interval subinterval) {
-					final Interval thr = new ThrowExceptionTask(subinterval);					
+				public void run(IntervalImpl subinterval) {
+					final IntervalImpl thr = new ThrowExceptionTask(subinterval);					
 					
-					new Interval(subinterval, "add") {
+					new IntervalImpl(subinterval, "add") {
 						{
 							thr.start.addEdgeAndAdjust(start, TEST_EDGE);
 							Intervals.addHb(end, thr.end); 
@@ -165,7 +166,7 @@ public class TestErrorPropagation {
 	@Test public void addingChildrenDuringCatchErrorsIsUncool() {
 		try {
 			Intervals.inline(new VoidInlineTask() {
-				public void run(Interval subinterval) {
+				public void run(IntervalImpl subinterval) {
 					new ThrowExceptionTask(subinterval) {
 						@Override protected Set<? extends Throwable> catchErrors(Set<Throwable> errors) {
 							new EmptyInterval(this, "willCauseAnError");
@@ -191,11 +192,11 @@ public class TestErrorPropagation {
 		final AtomicInteger integer = new AtomicInteger();
 		try {
 			Intervals.inline(new VoidInlineTask() {
-				public void run(Interval subinterval) {
-					Interval thr = new ThrowExceptionTask(subinterval);
-					Interval x = new IncTask(subinterval, "x", integer, 1);
-					Interval y = new IncTask(subinterval, "y", integer, 10);
-					Interval z = new IncTask(subinterval, "z", integer, 100);
+				public void run(IntervalImpl subinterval) {
+					IntervalImpl thr = new ThrowExceptionTask(subinterval);
+					IntervalImpl x = new IncTask(subinterval, "x", integer, 1);
+					IntervalImpl y = new IncTask(subinterval, "y", integer, 10);
+					IntervalImpl z = new IncTask(subinterval, "z", integer, 100);
 					
 					Intervals.addHb(x, z);
 					Intervals.addHb(x.start, thr.start);
@@ -222,11 +223,11 @@ public class TestErrorPropagation {
 		final AtomicInteger integer = new AtomicInteger();
 		try {
 			Intervals.inline(new VoidInlineTask() {
-				public void run(Interval subinterval) {
-					Interval thr = new ThrowExceptionTask(subinterval);
-					Interval x = new IncTask(subinterval, "x", integer, 1);
-					Interval y = new IncTask(x, "y", integer, 10);
-					Interval z = new IncTask(subinterval, "z", integer, 100);
+				public void run(IntervalImpl subinterval) {
+					IntervalImpl thr = new ThrowExceptionTask(subinterval);
+					IntervalImpl x = new IncTask(subinterval, "x", integer, 1);
+					IntervalImpl y = new IncTask(x, "y", integer, 10);
+					IntervalImpl z = new IncTask(subinterval, "z", integer, 100);
 					
 					Intervals.addHb(thr, y);
 					Intervals.addHb(x, z);
@@ -249,16 +250,16 @@ public class TestErrorPropagation {
 		final AtomicInteger integer = new AtomicInteger();
 		try {
 			Intervals.inline(new VoidInlineTask() {
-				public void run(Interval subinterval) {
-					Interval thr = new ThrowExceptionTask(subinterval);
-					Interval a = new ThrowExceptionTask(subinterval) {
+				public void run(IntervalImpl subinterval) {
+					IntervalImpl thr = new ThrowExceptionTask(subinterval);
+					IntervalImpl a = new ThrowExceptionTask(subinterval) {
 						@Override protected Set<? extends Throwable> catchErrors(
 								Set<Throwable> errors) 
 						{
 							return Collections.singleton(new UnsupportedOperationException());
 						}						
 					};
-					Interval b = new IncTask(subinterval, "b", integer, 10);
+					IntervalImpl b = new IncTask(subinterval, "b", integer, 10);
 					
 					Intervals.addHb(a, b);
 					Intervals.addHb(a.start, thr.start);
@@ -282,11 +283,11 @@ public class TestErrorPropagation {
 		// First, run a blocking interval which catches an exception
 		// and re-throws it.
 		class TestHarness {
-			public Interval savedInter;
+			public IntervalImpl savedInter;
 			public void test() {
 				try {
 					Intervals.inline(new VoidInlineTask() {
-						public void run(Interval subinterval) {
+						public void run(IntervalImpl subinterval) {
 							savedInter = subinterval; 
 							new ThrowExceptionTask(subinterval);
 						}						
@@ -308,7 +309,7 @@ public class TestErrorPropagation {
 		// the end of h.savedInter has an associated exception, because h.savedInter.end
 		// (the end of the blocking interval) is set to mask exceptions.
 		Intervals.inline(new VoidInlineTask() {			
-			public void run(Interval subinterval) {
+			public void run(IntervalImpl subinterval) {
 				Intervals.addHb(h.savedInter.end, subinterval.end);
 			}
 		});
@@ -322,8 +323,8 @@ public class TestErrorPropagation {
 			public void test() {
 				try {
 					Intervals.inline(new VoidInlineTask() {
-						public void run(Interval _) {
-							new Interval(Intervals.child()) {
+						public void run(IntervalImpl _) {
+							new IntervalImpl(Intervals.child()) {
 								@Override protected void run() {
 									new ThrowExceptionTask(Intervals.child());
 								}								
@@ -343,46 +344,46 @@ public class TestErrorPropagation {
 
 	@Test(expected=EdgeNeededException.class) 
 	public void raceConditionInBeforeGeneratesError1() {
-		final Interval a = new EmptyInterval(Intervals.root(), "a");
+		final IntervalImpl a = new EmptyInterval(Intervals.root(), "a");
 		Intervals.schedule();
-		Interval b = new EmptyInterval(Intervals.root(), "b");
+		IntervalImpl b = new EmptyInterval(Intervals.root(), "b");
 		Intervals.addHb(b.end, a.start);
 	}
 	
 	@Test(expected=EdgeNeededException.class) 
 	public void raceConditionInBeforeGeneratesError2() {
-		final Interval a = new EmptyInterval(Intervals.root(), "a");
+		final IntervalImpl a = new EmptyInterval(Intervals.root(), "a");
 		Intervals.schedule();
-		Interval b = new EmptyInterval(Intervals.root(), "b");
+		IntervalImpl b = new EmptyInterval(Intervals.root(), "b");
 		Intervals.addHb(b.start, a.end);
 	}
 	
 	@Test(expected=NotInRootIntervalException.class) 
 	public void raceConditionInBeforeGeneratesError3() {
-		final Interval a = new EmptyInterval(Intervals.root(), "a");
+		final IntervalImpl a = new EmptyInterval(Intervals.root(), "a");
 		Intervals.schedule();
 		new EmptyInterval(a, "b");
 	}	
 
 	@Test(expected=CycleException.class) 
 	public void simpleCycleGeneratesError() {
-		final Interval a = new EmptyInterval(Intervals.root(), "a");
-		final Interval b = new EmptyInterval(Intervals.root(), "b");
+		final IntervalImpl a = new EmptyInterval(Intervals.root(), "a");
+		final IntervalImpl b = new EmptyInterval(Intervals.root(), "b");
 		Intervals.addHb(a.end, b.start);
 		Intervals.addHb(b.end, a.start);
 	}
 	
 	@Test(expected=CycleException.class) 
 	public void boundToStartGeneratesError() {
-		final Interval a = new EmptyInterval(Intervals.root(), "a");
-		final Interval b = new EmptyInterval(a, "b");
+		final IntervalImpl a = new EmptyInterval(Intervals.root(), "a");
+		final IntervalImpl b = new EmptyInterval(a, "b");
 		Intervals.addHb(a.end, b.start);
 	}
 	
 	@Test(expected=CycleException.class) 
 	public void boundToEndGeneratesError() {
-		final Interval a = new EmptyInterval(Intervals.root(), "a");
-		final Interval b = new EmptyInterval(a, "b");
+		final IntervalImpl a = new EmptyInterval(Intervals.root(), "a");
+		final IntervalImpl b = new EmptyInterval(a, "b");
 		Intervals.addHb(a.end, b.end);
 	}
 	
@@ -391,7 +392,7 @@ public class TestErrorPropagation {
 			public void test(final int length) {
 				try {
 					Intervals.inline(new VoidInlineTask() {
-						public void run(final Interval subinterval) {			
+						public void run(final IntervalImpl subinterval) {			
 							for(int i = 0; i < length; i++) {
 								new ThrowExceptionTask(subinterval);
 							}
@@ -414,10 +415,10 @@ public class TestErrorPropagation {
 	public void parentIntervalsWithUnexecutedChildrenCancelSafely() {
 		try {
 			Intervals.inline(new VoidInlineTask() {				
-				@Override public void run(Interval subinterval) {
-					Interval thr = new ThrowExceptionTask(subinterval);
+				@Override public void run(IntervalImpl subinterval) {
+					IntervalImpl thr = new ThrowExceptionTask(subinterval);
 					
-					Interval foo = new EmptyInterval(subinterval, "foo");
+					IntervalImpl foo = new EmptyInterval(subinterval, "foo");
 					new EmptyInterval(foo, "bar");
 					
 					Intervals.addHb(thr.end, foo.start);
@@ -431,14 +432,14 @@ public class TestErrorPropagation {
 	
 	@Test 
 	public void raceCondErrorsLeaveSchedulerInStableState() {
-		final Interval a = new EmptyInterval(Intervals.root(), "a");
+		final IntervalImpl a = new EmptyInterval(Intervals.root(), "a");
 		final AtomicInteger i = new AtomicInteger();
 		
 		try {
 			inline(new VoidInlineTask() {
-				public void run(final Interval subinterval) {	
+				public void run(final IntervalImpl subinterval) {	
 					new IncTask(subinterval, "inc", i);
-					Interval b = new EmptyInterval(subinterval, "b");
+					IntervalImpl b = new EmptyInterval(subinterval, "b");
 					Intervals.addHb(b.end, a.start);
 				}			
 			});
@@ -458,10 +459,10 @@ public class TestErrorPropagation {
 		
 		try {
 			inline(new VoidInlineTask() {
-				public void run(final Interval subinterval) {
+				public void run(final IntervalImpl subinterval) {
 					new IncTask(subinterval, "inc", i);
-					Interval a = new EmptyInterval(subinterval, "a");
-					Interval b = new EmptyInterval(subinterval, "b");
+					IntervalImpl a = new EmptyInterval(subinterval, "a");
+					IntervalImpl b = new EmptyInterval(subinterval, "b");
 					Intervals.addHb(a.end, b.start);
 					Intervals.addHb(b.end, a.start);
 				}			
@@ -480,11 +481,11 @@ public class TestErrorPropagation {
 		assert Intervals.SAFETY_CHECKS; // or else this test is not so useful.
 		final AtomicInteger cnt = new AtomicInteger();
 		inline(new VoidInlineTask() {			
-			public void run(final Interval subinterval) {
-				Interval a = new IncTask(subinterval, "a", cnt);
-				Interval b = new IncTask(subinterval, "b", cnt);
-				Interval c = new IncTask(subinterval, "c", cnt);
-				Interval d = new IncTask(subinterval, "d", cnt);
+			public void run(final IntervalImpl subinterval) {
+				IntervalImpl a = new IncTask(subinterval, "a", cnt);
+				IntervalImpl b = new IncTask(subinterval, "b", cnt);
+				IntervalImpl c = new IncTask(subinterval, "c", cnt);
+				IntervalImpl d = new IncTask(subinterval, "d", cnt);
 				
 				Intervals.addHb(a.end, c.start);
 				Intervals.addHb(d.end, b.start);
@@ -509,13 +510,13 @@ public class TestErrorPropagation {
 		final AtomicInteger cnt = new AtomicInteger();
 		inline(new VoidInlineTask() {			
 			@Override public String toString() { return "parent"; }
-			@Override public void run(final Interval subinterval) {				
-				new Interval(subinterval, "child") {		
+			@Override public void run(final IntervalImpl subinterval) {				
+				new IntervalImpl(subinterval, "child") {		
 					@Override protected void run() {
-						Interval b = new IncTask(subinterval, "a", cnt);
-						Interval a = new IncTask(subinterval, "b", cnt);
-						Interval c = new IncTask(subinterval, "c", cnt);
-						Interval d = new IncTask(subinterval, "d", cnt);
+						IntervalImpl b = new IncTask(subinterval, "a", cnt);
+						IntervalImpl a = new IncTask(subinterval, "b", cnt);
+						IntervalImpl c = new IncTask(subinterval, "c", cnt);
+						IntervalImpl d = new IncTask(subinterval, "d", cnt);
 						
 						Intervals.addHb(a.end, c.start);
 						Intervals.addHb(d.end, b.start);
@@ -557,13 +558,13 @@ public class TestErrorPropagation {
 	@Test public void exceptionInitializingInlineInterval() {
 		final StringBuffer sb = new StringBuffer();
 		Intervals.inline(new VoidInlineTask() {			
-			@Override public void run(Interval subinterval) {				
+			@Override public void run(IntervalImpl subinterval) {				
 				try {
 					Intervals.inline(new VoidInlineTask() {
-						@Override public void init(Interval subinterval) {
+						@Override public void init(IntervalImpl subinterval) {
 							throw new TestException();
 						}
-						@Override public void run(Interval subinterval) {
+						@Override public void run(IntervalImpl subinterval) {
 						}
 					});
 					Assert.fail("No exception thrown.");
@@ -585,10 +586,10 @@ public class TestErrorPropagation {
 		final AtomicInteger integer = new AtomicInteger();
 		try {
 			Intervals.inline(new VoidInlineTask() {
-				public void run(Interval subinterval) {
-					Interval thr = new ThrowExceptionTask(subinterval);
-					Interval x = new IncTask(subinterval, "x", integer, 1);
-					Interval y = new IncTask(subinterval, "y", integer, 10);
+				public void run(IntervalImpl subinterval) {
+					IntervalImpl thr = new ThrowExceptionTask(subinterval);
+					IntervalImpl x = new IncTask(subinterval, "x", integer, 1);
+					IntervalImpl y = new IncTask(subinterval, "y", integer, 10);
 					Intervals.addHb(thr.end, x.start);
 					Intervals.addHb(x.start, y.start);
 					Intervals.addHb(y.end, x.end);

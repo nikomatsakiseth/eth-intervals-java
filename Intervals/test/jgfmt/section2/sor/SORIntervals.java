@@ -23,11 +23,11 @@ package jgfmt.section2.sor;
 
 import jgfmt.jgfutil.JGFInstrumentor;
 import ch.ethz.intervals.Dependency;
-import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.ParentForNew;
-import ch.ethz.intervals.Point;
 import ch.ethz.intervals.VoidInlineTask;
+import ch.ethz.intervals.impl.IntervalImpl;
+import ch.ethz.intervals.impl.PointImpl;
 
 //class RowRecord {
 //	private final static boolean DEBUG = false;
@@ -129,10 +129,10 @@ public class SORIntervals {
 		JGFInstrumentor.startTimer("Section2:SOR:Kernel");
 		
 		Intervals.inline(new VoidInlineTask() {			
-			@Override public void run(Interval subinterval) {
+			@Override public void run(IntervalImpl subinterval) {
 				// Intervals from previous iteration:
 				//   (note that null just means "no wait")
-				final Point[][] intervals = new Point[2][M/2+2];
+				final PointImpl[][] intervals = new PointImpl[2][M/2+2];
 
 				// Schedule the various iterations:
 				for (int p = 0; p < 2 * num_iterations; p++) {
@@ -142,7 +142,7 @@ public class SORIntervals {
 					int prevBit = (bit + 1) % 2;
 					
 					int i = 1 + (p % 2);
-					Interval inter = new Row(subinterval, i);
+					IntervalImpl inter = new Row(subinterval, i);
 					intervals[bit][1] = inter.end;
 					if(intervals[prevBit][1] != null)
 						Intervals.addHbIfNotNull(intervals[prevBit][1], inter.start);
@@ -163,7 +163,7 @@ public class SORIntervals {
 				//System.err.println("Created all intervals");
 			}	
 			
-			class Row extends Interval {
+			class Row extends IntervalImpl {
 				
 				final int i;
 

@@ -3,9 +3,9 @@ package ch.ethz.intervals.guard;
 import ch.ethz.intervals.IntervalException;
 import ch.ethz.intervals.IntervalException.DataRace;
 import ch.ethz.intervals.IntervalException.DataRace.Role;
-import ch.ethz.intervals.mirror.IntervalMirror;
-import ch.ethz.intervals.mirror.LockMirror;
-import ch.ethz.intervals.mirror.PointMirror;
+import ch.ethz.intervals.mirror.Interval;
+import ch.ethz.intervals.mirror.Lock;
+import ch.ethz.intervals.mirror.Point;
 
 /**
  * Dynamic guards monitor field accesses dynamically to guarantee 
@@ -27,18 +27,18 @@ import ch.ethz.intervals.mirror.PointMirror;
 abstract class WriteTrackingDynamicGuard<R> implements DynamicGuard {
 	
 	final static class Owner {
-		final PointMirror end;
-		final LockMirror lock;
+		final Point end;
+		final Lock lock;
 		final Owner prev;
 		
-		Owner(PointMirror bound, LockMirror lock, Owner prev) {
+		Owner(Point bound, Lock lock, Owner prev) {
 			this.end = bound;
 			this.lock = lock;
 			this.prev = prev;
 		}
 		
-		public boolean boundsOrEquals(IntervalMirror inter) {
-			return (end == null) || inter.end() == end || inter.end().isBoundedBy(end);
+		public boolean boundsOrEquals(Interval inter) {
+			return (end == null) || inter.getEnd() == end || inter.getEnd().isBoundedBy(end);
 		}
 	}
 
@@ -48,8 +48,8 @@ abstract class WriteTrackingDynamicGuard<R> implements DynamicGuard {
 	
 	protected static final class State<R> {
 		Owner owner;
-		PointMirror mrw;
-		LockMirror mrl;
+		Point mrw;
+		Lock mrl;
 		R activeReads;
 	}
 	
@@ -57,7 +57,7 @@ abstract class WriteTrackingDynamicGuard<R> implements DynamicGuard {
 	Owner owner = WriteTrackingDynamicGuard.rootOwner;
 	
 	/** end of most recent write within current owner */
-	PointMirror mrw = null;
+	Point mrw = null;
 	
 	/** end of potentially active reads within current owner */
 	R activeReads = null;
@@ -85,7 +85,7 @@ abstract class WriteTrackingDynamicGuard<R> implements DynamicGuard {
 	 * <li> Drops any active reads which were bounded by a popped owner. 
 	 * </ul>  
 	 */
-	private State<R> walkBack(PointMirror mr, IntervalMirror inter) {
+	private State<R> walkBack(Point mr, Interval inter) {
 		State<R> result = new State<R>();
 		if(owner.boundsOrEquals(inter)) {
 			result.owner = owner;
@@ -110,8 +110,8 @@ abstract class WriteTrackingDynamicGuard<R> implements DynamicGuard {
 	}
 	
 	private void checkHappensAfterMostRecentWrite(
-			final PointMirror mr,
-			final IntervalMirror inter, 
+			final Point mr,
+			final Interval inter, 
 			final Role interRole,
 			State<R> result) 
 	{
@@ -126,7 +126,7 @@ abstract class WriteTrackingDynamicGuard<R> implements DynamicGuard {
 	 *  @code interEnd the bound of the reader to add to the read set
 	 *  
 	 *  @returns the new read set */
-	protected abstract R addActiveReadBoundedBy(R reads, PointMirror interEnd);
+	protected abstract R addActiveReadBoundedBy(R reads, Point interEnd);
 
 	/** Checks whether the given interval happens after all the reads represented
 	 *  by the read set {@code reads}.  
@@ -139,14 +139,14 @@ abstract class WriteTrackingDynamicGuard<R> implements DynamicGuard {
 	 *  @throws IntervalException if an error is detected
 	 */
 	protected abstract void checkHappensAfterActiveReads(
-			final PointMirror mr,
-			final IntervalMirror inter, 
+			final Point mr,
+			final Interval inter, 
 			final Role interRole,
 			final R reads);
 	
 	@Override
-	public synchronized IntervalException checkReadable(PointMirror mr, IntervalMirror inter) {
-		PointMirror interEnd = inter.end();
+	public synchronized IntervalException checkReadable(Point mr, Interval inter) {
+		Point interEnd = inter.getEnd();
 		
 		// Read by owner, ok.
 		if(owner.end == interEnd)
@@ -167,8 +167,8 @@ abstract class WriteTrackingDynamicGuard<R> implements DynamicGuard {
 	}
 	
 	@Override
-	public synchronized IntervalException checkWritable(final PointMirror mr, final IntervalMirror inter) {
-		PointMirror interEnd = inter.end();
+	public synchronized IntervalException checkWritable(final Point mr, final Interval inter) {
+		Point interEnd = inter.getEnd();
 		
 		// Write by owner, ok.
 		if(owner.end == interEnd)
@@ -191,10 +191,10 @@ abstract class WriteTrackingDynamicGuard<R> implements DynamicGuard {
 	}
 
 	@Override
-	public synchronized IntervalException checkLockable(IntervalMirror inter, LockMirror lock) {
+	public synchronized IntervalException checkLockable(Interval inter, Lock lock) {
 		assert lock != null;
 		
-		PointMirror interStart = inter.end();
+		Point interStart = inter.getEnd();
 		State<R> result = walkBack(interStart, inter);
 
 		try {
@@ -207,7 +207,7 @@ abstract class WriteTrackingDynamicGuard<R> implements DynamicGuard {
 		}
 		
 		// lock is permitted:
-		owner = new WriteTrackingDynamicGuard.Owner(inter.end(), lock, result.owner);
+		owner = new WriteTrackingDynamicGuard.Owner(inter.getEnd(), lock, result.owner);
 		mrw = null;
 		activeReads = null;
 		return null;

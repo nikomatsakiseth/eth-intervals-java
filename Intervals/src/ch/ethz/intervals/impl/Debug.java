@@ -1,16 +1,16 @@
-package ch.ethz.intervals;
+package ch.ethz.intervals.impl;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import ch.ethz.intervals.IndexedInterval.Subtask;
-import ch.ethz.intervals.Interval.State;
-import ch.ethz.intervals.ThreadPool.WorkItem;
-import ch.ethz.intervals.ThreadPool.Worker;
+import ch.ethz.intervals.impl.IntervalImpl.State;
+import ch.ethz.intervals.impl.ThreadPool.WorkItem;
+import ch.ethz.intervals.impl.ThreadPool.Worker;
+import ch.ethz.intervals.task.IndexedTask;
 import ch.ethz.intervals.util.ChunkList;
 
-class Debug {
+public class Debug {
 	
 	public static final boolean ENABLED = false;
 	public static final boolean DUMP_IMMEDIATELY = true;
@@ -45,31 +45,31 @@ class Debug {
 	static abstract class Event {}
 
 	static class ArriveEvent extends Event {
-		public final Point point;
+		public final PointImpl pointImpl;
 		public final int count;
 		public final int newCount;
 		
-		public ArriveEvent(Point point, int count, int newCount) {
-			this.point = point;
+		public ArriveEvent(PointImpl pointImpl, int count, int newCount) {
+			this.pointImpl = pointImpl;
 			this.count = count;
 			this.newCount = newCount;
 		}				
 		
 		public String toString() {
-			return String.format("ARRIVE %s count=%d newCount=%d", point, count, newCount);
+			return String.format("ARRIVE %s count=%d newCount=%d", pointImpl, count, newCount);
 		}
 	}
 	
-	public static void arrive(Point point, int count, int newCount) {
+	public static void arrive(PointImpl pointImpl, int count, int newCount) {
 		if(ENABLED_WAIT_COUNTS)
-			addEvent(new ArriveEvent(point, count, newCount));
+			addEvent(new ArriveEvent(pointImpl, count, newCount));
 	}
 	
 	static class ScheduleEvent extends Event {
-		public final Interval inter;
-		public final Interval current;
+		public final IntervalImpl inter;
+		public final IntervalImpl current;
 		
-		public ScheduleEvent(Interval inter, Interval current) {
+		public ScheduleEvent(IntervalImpl inter, IntervalImpl current) {
 			this.inter = inter;
 			this.current = current;
 		}				
@@ -79,27 +79,27 @@ class Debug {
 		}
 	}
 	
-	public static void schedule(Interval inter, Interval current) {
+	public static void schedule(IntervalImpl inter, IntervalImpl current) {
 		if(ENABLED_WAIT_COUNTS)
 			addEvent(new ScheduleEvent(inter, current));
 	}
 
 	static class OccurEvent extends Event {
-		public final Point point;
-		public final ChunkList<Point> list;
+		public final PointImpl pointImpl;
+		public final ChunkList<PointImpl> list;
 		
-		public OccurEvent(Point point, ChunkList<Point> list) {
-			this.point = point;
+		public OccurEvent(PointImpl pointImpl, ChunkList<PointImpl> list) {
+			this.pointImpl = pointImpl;
 			this.list = list;
 		}				
 		
 		public String toString() {
 			final StringBuilder sb = new StringBuilder();
 			sb.append(String.format("OCCUR %s withError %s bound %s succs", 
-					point, point.didOccurWithError(), point.bound));
+					pointImpl, pointImpl.didOccurWithError(), pointImpl.bound));
 			
-			new ChunkList.Iterator<Point>(list) {
-				public void doForEach(Point toPoint, int flags) {
+			new ChunkList.Iterator<PointImpl>(list) {
+				public void doForEach(PointImpl toPoint, int flags) {
 					if(ChunkList.waiting(flags))
 						sb.append(String.format(" %s(%x)", toPoint, flags & ChunkList.ALL_FLAGS));					
 				}
@@ -109,15 +109,15 @@ class Debug {
 		}
 	}
 	
-	public static void occur(Point point, ChunkList<Point> list) {
+	public static void occur(PointImpl pointImpl, ChunkList<PointImpl> list) {
 		if(ENABLED_WAIT_COUNTS)
-			addEvent(new OccurEvent(point, list));
+			addEvent(new OccurEvent(pointImpl, list));
 	}
 	
 	static class JoinEvent extends Event {
-		public final Point joinedPnt;
+		public final PointImpl joinedPnt;
 		
-		public JoinEvent(Point joinedPnt) {
+		public JoinEvent(PointImpl joinedPnt) {
 			this.joinedPnt = joinedPnt;
 		}
 		
@@ -126,15 +126,15 @@ class Debug {
 		}
 	}
 	
-	public static void join(Point joinedPnt) {
+	public static void join(PointImpl joinedPnt) {
 		addEvent(new JoinEvent(joinedPnt));
 	}
 
 	static class SubIntervalEvent extends Event {
-		public final Interval inter;
+		public final IntervalImpl inter;
 		public final String description;
 
-		public SubIntervalEvent(Interval inter, String description) {
+		public SubIntervalEvent(IntervalImpl inter, String description) {
 			this.inter = inter;
 			this.description = description;
 		}
@@ -144,16 +144,16 @@ class Debug {
 		}
 	}
 	
-	public static void subInterval(Interval inter, String description) {
+	public static void subInterval(IntervalImpl inter, String description) {
 		if(ENABLED_INTER)
 			addEvent(new SubIntervalEvent(inter, description));
 	}
 
 	static class NewIntervalEvent extends Event {
-		public final Interval inter;
+		public final IntervalImpl inter;
 		public final String description;
 
-		public NewIntervalEvent(Interval inter, String description) {
+		public NewIntervalEvent(IntervalImpl inter, String description) {
 			this.inter = inter;
 			this.description = description;
 		}
@@ -163,28 +163,28 @@ class Debug {
 		}
 	}
 	
-	public static void newInterval(Interval inter, String description) {
+	public static void newInterval(IntervalImpl inter, String description) {
 		if(ENABLED_INTER)
 			addEvent(new NewIntervalEvent(inter, description));
 	}
 
 	static class AddWaitCountEvent extends Event {
-		public final Point point;		
+		public final PointImpl pointImpl;		
 		public final int newCount;
 		
-		public AddWaitCountEvent(Point point, int newCount) {
-			this.point = point;
+		public AddWaitCountEvent(PointImpl pointImpl, int newCount) {
+			this.pointImpl = pointImpl;
 			this.newCount = newCount;
 		}
 		
 		public String toString() {
-			return String.format("ADD_WAIT_COUNT %s newCount=%d", point, newCount);
+			return String.format("ADD_WAIT_COUNT %s newCount=%d", pointImpl, newCount);
 		}
 	}
 	
-	public static void addWaitCount(Point point, int newCount) {
+	public static void addWaitCount(PointImpl pointImpl, int newCount) {
 		if(ENABLED_WAIT_COUNTS)
-			addEvent(new AddWaitCountEvent(point, newCount));
+			addEvent(new AddWaitCountEvent(pointImpl, newCount));
 	}
 	
 	static class AwakenIdleEvent extends Event {
@@ -347,77 +347,7 @@ class Debug {
 		if(ENABLED_WORK_STEAL)
 			addEvent(new DequeStealEvent(victimWorker, thiefWorker, thiefHead, taskIndex, task));
 	}
-	
-	static class MapForkEvent extends Event {
-		public final Subtask mapBase, mapFork;
-		public final int b;
-		public final IndexedInterval mapTask;
-		
-		public MapForkEvent(IndexedInterval mapTask, Subtask mapBase, Subtask mapFork, int b) {
-			this.mapTask = mapTask;
-			this.mapBase = mapBase;
-			this.mapFork = mapFork;
-			this.b = b;
-		}
-		
-		public String toString() {
-			return String.format("MAP_FORK %s base=%s new=%s balance=%d", 
-					mapTask, mapBase, mapFork, b);
-		}
-	}
 
-	public static void mapFork(IndexedInterval mapTask, Subtask mapBase, Subtask mapFork, int b) {
-		if(ENABLED_WORK_STEAL)
-			addEvent(new MapForkEvent(mapTask, mapBase, mapFork, b));
-	}
-
-	static class MapCompleteEvent extends Event {
-		public final IndexedInterval mapTask;
-		public final Subtask mapBase;
-		public final int b;
-		public final Point whenDone;
-		
-		public MapCompleteEvent(IndexedInterval mapTask, Subtask mapBase, int b, Point whenDone) {
-			this.mapTask = mapTask;
-			this.mapBase = mapBase;
-			this.b = b;
-			this.whenDone = whenDone;
-		}
-		
-		public String toString() {
-			return String.format("MAP_COMPLETE %s base=%s balance=%d whenDone=%s", 
-					mapTask, mapBase, b, whenDone);
-		}
-	}
-
-	public static void mapComplete(IndexedInterval mapTask, Subtask mapBase, int b, Point whenDone) {
-		if(ENABLED_WORK_STEAL)
-			addEvent(new MapCompleteEvent(mapTask, mapBase, b, whenDone));
-	}
-
-	static class MapRunEvent extends Event {
-		public final IndexedInterval mapTask;
-		public final Subtask mapBase;
-		public final int l, h;
-		
-		public MapRunEvent(IndexedInterval mapTask, Subtask mapBase, int l, int h) {
-			this.mapTask = mapTask;
-			this.mapBase = mapBase;
-			this.l = l;
-			this.h = h;
-		}
-		
-		public String toString() {
-			return String.format("MAP_RUN %s base=%s range=%d-%d",
-					mapTask, mapBase, l, h);
-		}
-	}
-	
-	public static void mapRun(IndexedInterval mapTask, Subtask mapBase, int l, int h) {
-		if(ENABLED_WORK_STEAL)
-			addEvent(new MapRunEvent(mapTask, mapBase, l, h));
-	}
-	
 	static class ExecuteEvent extends Event {
 		public final Worker worker;
 		public final WorkItem item;
@@ -514,11 +444,11 @@ class Debug {
 	}
 
 	static class TransitionEvent extends Event {
-		public final Interval inter;
-		public final Interval.State oldState;
-		public final Interval.State newState;
+		public final IntervalImpl inter;
+		public final IntervalImpl.State oldState;
+		public final IntervalImpl.State newState;
 
-		private TransitionEvent(Interval inter, State oldState, State newState) {
+		private TransitionEvent(IntervalImpl inter, State oldState, State newState) {
 			this.inter = inter;
 			this.oldState = oldState;
 			this.newState = newState;
@@ -530,7 +460,7 @@ class Debug {
 		}
 	}
 
-	public static void transition(Interval inter, State oldState, State newState) {
+	public static void transition(IntervalImpl inter, State oldState, State newState) {
 		if(ENABLED_WAIT_COUNTS)
 			addEvent(new TransitionEvent(inter, oldState, newState));
 	}

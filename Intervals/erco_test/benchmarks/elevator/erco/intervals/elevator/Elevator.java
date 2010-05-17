@@ -13,9 +13,9 @@ import java.io.IOException;
 import java.io.StreamTokenizer;
 import java.util.Vector;
 
-import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.VoidInlineTask;
+import ch.ethz.intervals.impl.IntervalImpl;
 
 public class Elevator {
 
@@ -63,15 +63,15 @@ public class Elevator {
 	// Press the buttons at the correct time
 	private void begin() {
 		Intervals.inline(new VoidInlineTask() {			
-			@Override public void run(final Interval interval) {
+			@Override public void run(final IntervalImpl intervalImpl) {
 				// Create the elevators
 				for (int i = 0; i < numLifts; i++) {
 					Lift lift = new Lift(numFloors, controls);
-					lift.start(interval);
+					lift.start(intervalImpl);
 				}
 				
 				// Create interval which will press the buttons:
-				new Interval(interval) {					
+				new IntervalImpl(intervalImpl) {					
 					@Override protected void run() {						
 						// First tick is 1
 						int time = 1;

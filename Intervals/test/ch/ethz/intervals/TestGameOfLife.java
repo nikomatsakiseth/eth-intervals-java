@@ -12,6 +12,10 @@ import junit.framework.Assert;
 
 import org.junit.Test;
 
+import ch.ethz.intervals.impl.IntervalImpl;
+import ch.ethz.intervals.impl.PointImpl;
+import ch.ethz.intervals.task.IndexedTask;
+
 public class TestGameOfLife {
 	
 	/** If set to true, then we dump the configuration at each intermediate
@@ -201,7 +205,7 @@ public class TestGameOfLife {
 		final int w, h;
 		
 		int gensRemaining;
-		Interval nextGen;
+		IntervalImpl nextGen;
 		
 		public PhasedIntervalBoard(byte[][] initialConfiguration, int rs, int cs, int numGens, int w, int h) {
 			super(initialConfiguration, rs, cs, numGens);
@@ -209,8 +213,8 @@ public class TestGameOfLife {
 			this.h = h;			
 		}
 
-		void switchGens(Interval thisGen) {
-			Interval switchInterval = new SwitchGenTask(thisGen.parent);
+		void switchGens(IntervalImpl thisGen) {
+			IntervalImpl switchInterval = new SwitchGenTask(thisGen.parent);
 			Intervals.addHb(thisGen.end, switchInterval.start);
 			
 			nextGen = new EmptyInterval(thisGen.parent, "gen");
@@ -219,7 +223,7 @@ public class TestGameOfLife {
 			Intervals.schedule();
 		}
 		
-		class SwitchGenTask extends Interval {
+		class SwitchGenTask extends IntervalImpl {
 			
 			public SwitchGenTask(@ParentForNew("Parent") Dependency dep) {
 				super(dep);
@@ -237,7 +241,7 @@ public class TestGameOfLife {
 			new TileTask(nextGen, tile, inBoard, outBoard);
 		}
 
-		class TileTask extends Interval {
+		class TileTask extends IntervalImpl {
 			public final Tile tile;
 			public final byte[][] inBoard;
 			public final byte[][] outBoard;
@@ -272,8 +276,8 @@ public class TestGameOfLife {
 			gensRemaining = numGens;
 			
 			Intervals.inline(new VoidInlineTask() {
-				@Override public void run(Interval sub) {
-					new Interval(sub) {
+				@Override public void run(IntervalImpl sub) {
+					new IntervalImpl(sub) {
 						@Override public void run() {
 							switchGens(this);
 							
@@ -326,7 +330,7 @@ public class TestGameOfLife {
 			super(initialConfiguration, rs, cs, numGens);
 		}
 
-		class ColTask extends IndexedInterval {
+		class ColTask extends IndexedTask {
 			
 			final int row, gen;
 
@@ -346,7 +350,7 @@ public class TestGameOfLife {
 			
 		}
 
-		class GenTask extends IndexedInterval {
+		class GenTask extends IndexedTask {
 
 			final int gen;
 
@@ -367,10 +371,10 @@ public class TestGameOfLife {
 		@Override
 		byte[][] execute() {
 			Intervals.inline(new VoidInlineTask() {
-				@Override public void run(Interval subinterval) {
-					Point prevGen = null;
+				@Override public void run(IntervalImpl subinterval) {
+					PointImpl prevGen = null;
 					for(int gen = 0; gen < numGens; gen++) {
-						Interval thisGen = new GenTask(Intervals.child(), gen);
+						IntervalImpl thisGen = new GenTask(Intervals.child(), gen);
 						Intervals.addHbIfNotNull(prevGen, thisGen.start);
 						thisGen.schedule();
 						prevGen = thisGen.end;
@@ -497,10 +501,10 @@ public class TestGameOfLife {
 				final byte[][] outBoard = data[(gen + 1) % 2];
 				
 				Intervals.inline(new VoidInlineTask() {
-					@Override public void run(final Interval subinterval) {
+					@Override public void run(final IntervalImpl subinterval) {
 						subdivide(rs, cs, w, h, new InvokableWithTile() {
 							public void run(final Tile t) {
-								new Interval(subinterval) {
+								new IntervalImpl(subinterval) {
 									public String toString() 
 									{
 										return "Tile("+t.tr+","+t.tc+")";
@@ -542,17 +546,17 @@ public class TestGameOfLife {
 	class FineGrainedIntervalBoard extends GameOfLifeBoard {
 		
 		final int w, h;
-		final Point[][][] points;
+		final PointImpl[][][] pointImpls;
 
 		FineGrainedIntervalBoard(byte[][] initialConfiguration, int rs, int cs,
 				int numGens, int w, int h) {
 			super(initialConfiguration, rs, cs, numGens);
 			this.w = w;
 			this.h = h;
-			points = new Point[2][rs+2][cs+2];
+			pointImpls = new PointImpl[2][rs+2][cs+2];
 		}
 
-		class TileTask extends Interval {
+		class TileTask extends IntervalImpl {
 			public final Tile tile;
 			public final int gen;
 			
@@ -563,7 +567,7 @@ public class TestGameOfLife {
 				
 				if(gen > 0) {
 					// n.b.: The points array is padded with nulls.
-					Point[][] prevGen = points[(gen - 1) % 2];					
+					PointImpl[][] prevGen = pointImpls[(gen - 1) % 2];					
 					for(int r = -1; r <= 1; r++)
 						for(int c = -1; c <= 1; c++) {
 							Intervals.addHbIfNotNull(prevGen[tile.tr+r][tile.tc+c], start);
@@ -585,7 +589,7 @@ public class TestGameOfLife {
 				tile.run(inBoard, outBoard);
 				
 				if(nextGen < numGens) {
-					points[nextGen % 2][tile.tr][tile.tc] =
+					pointImpls[nextGen % 2][tile.tr][tile.tc] =
 						new TileTask(Intervals.successor(), tile, nextGen).end;
 				}
 			}
@@ -596,10 +600,10 @@ public class TestGameOfLife {
 		byte[][] execute() {
 			
 			Intervals.inline(new VoidInlineTask() {				
-				@Override public void run(Interval subinterval) {
+				@Override public void run(IntervalImpl subinterval) {
 					subdivide(rs, cs, w, h, new InvokableWithTile() {
 						public void run(Tile t) {
-							points[0][t.tr][t.tc] = 
+							pointImpls[0][t.tr][t.tc] = 
 								new TileTask(Intervals.child(), t, 0).end;								
 						}
 					});

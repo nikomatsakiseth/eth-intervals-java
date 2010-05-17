@@ -4,14 +4,14 @@ import ch.ethz.intervals.IntervalException;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.IntervalException.DataRace;
 import ch.ethz.intervals.IntervalException.DataRace.Role;
-import ch.ethz.intervals.mirror.IntervalMirror;
-import ch.ethz.intervals.mirror.PointMirror;
+import ch.ethz.intervals.mirror.Interval;
+import ch.ethz.intervals.mirror.Point;
 
 /**
  * A version of the {@link WriteTrackingDynamicGuard} which does not track
  * individual reads, but rather their mutual bound. If more than one read
  * is active, the next writer must <i>happen after</i> their mutual
- * bound as computed by {@link Intervals#mutualBound(PointMirror, PointMirror)}.
+ * bound as computed by {@link Intervals#mutualBound(Point, Point)}.
  * This checker is sufficient for most usages.
  */
 public class ReadSummarizingDynamicGuard extends WriteTrackingDynamicGuard<Object> {
@@ -25,21 +25,21 @@ public class ReadSummarizingDynamicGuard extends WriteTrackingDynamicGuard<Objec
 	}
 
 	private static class SummarizedRead {
-		public PointMirror bound;
+		public Point bound;
 
-		public SummarizedRead(PointMirror bound) {
+		public SummarizedRead(Point bound) {
 			this.bound = bound;
 		}
 		
-		public void add(PointMirror pnt) {
-			bound = Intervals.mutualBound(bound, pnt);
+		public void add(Point pnt) {
+			bound = bound.mutualBound(pnt);
 		}
 	}
 
 	@Override
 	protected Object addActiveReadBoundedBy(
 			Object reads,
-			PointMirror interEnd) 
+			Point interEnd) 
 	{
 		if(reads == null) // no active readers
 			return interEnd; // ...now exactly 1
@@ -50,7 +50,7 @@ public class ReadSummarizingDynamicGuard extends WriteTrackingDynamicGuard<Objec
 			summary = (SummarizedRead) reads;
 		} else {
 			// used to be just 1 active reader:
-			summary = new SummarizedRead((PointMirror) reads);
+			summary = new SummarizedRead((Point) reads);
 		}
 		
 		summary.add(interEnd);
@@ -59,8 +59,8 @@ public class ReadSummarizingDynamicGuard extends WriteTrackingDynamicGuard<Objec
 
 	@Override
 	protected void checkHappensAfterActiveReads(
-			PointMirror mr,
-			IntervalMirror inter, 
+			Point mr,
+			Interval inter, 
 			Role interRole, 
 			Object reads) 
 	{
@@ -74,8 +74,8 @@ public class ReadSummarizingDynamicGuard extends WriteTrackingDynamicGuard<Objec
 			} else {
 				// Precisely one read:
 				//    Note: if null, then the bound is effectively root.end
-				PointMirror rd = (PointMirror) reads;
-				if(rd != inter.end() && !rd.hbeq(mr))
+				Point rd = (Point) reads;
+				if(rd != inter.getEnd() && !rd.hbeq(mr))
 					throw new IntervalException.DataRace(this, interRole, inter, DataRace.READ, rd);
 			}
 		}

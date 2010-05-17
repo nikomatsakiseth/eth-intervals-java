@@ -1,8 +1,9 @@
-package ch.ethz.intervals;
+package ch.ethz.intervals.impl;
+
 
 /**
  * A {@link LockBase} is a lockable object.  This includes both the
- * {@link Lock} instances exposed to the end user, and the {@link LockList}
+ * {@link LockImpl} instances exposed to the end user, and the {@link LockList}
  * instances that support recursive acquires.
  */
 abstract class LockBase 

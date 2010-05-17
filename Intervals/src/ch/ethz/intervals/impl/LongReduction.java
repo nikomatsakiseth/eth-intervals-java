@@ -1,6 +1,5 @@
-package ch.ethz.intervals;
+package ch.ethz.intervals.impl;
 
-import static ch.ethz.intervals.Intervals.POOL;
 
 //******************************************************
 // Note: IntReduction and LongReduction are automatically
@@ -13,27 +12,27 @@ import static ch.ethz.intervals.Intervals.POOL;
  * and subtraction. 
  */
 // @JPartParams("@V @W=@V")
-public class IntReduction {
+public class LongReduction {
 	
 	private static final int PAD = 4;
 	
 	// @In("@V")
-	private int value;
+	private long value;
 	
 	// @In("@W")
-	private final int[] values;
+	private final long[] values;
 	
-	private volatile IntReduction next;
+	private volatile LongReduction next;
 	
-	public IntReduction(int initialValue) {
+	public LongReduction(long initialValue) {
 		value = initialValue;
-		int workers = POOL.numWorkers;
-		values = new int[workers * PAD];
+		int workers = ContextImpl.POOL.numWorkers;
+		values = new long[workers * PAD];
 	}
 	
-	private IntReduction(int initialValue, int arraySize) {
+	private LongReduction(long initialValue, int arraySize) {
 		value = initialValue;
-		values = new int[arraySize];
+		values = new long[arraySize];
 	}
 
 	
@@ -43,16 +42,16 @@ public class IntReduction {
 	 * of reductions.  I would just grow the array, but I'd need a read-write
 	 * lock then, and I don't want that.
 	 */
-	private void addToNext(int amnt, int index) {
+	private void addToNext(long amnt, int index) {
 		int length = values.length;
-		IntReduction next = this.next;
+		LongReduction next = this.next;
 		if(next == null) {
 			synchronized(this) {
 				next = this.next;
 				if(next == null) {
-					int parSize = POOL.numWorkers * PAD - length;
+					int parSize = ContextImpl.POOL.numWorkers * PAD - length;
 					int newSize = Math.max(parSize, index - length + PAD);
-					this.next = next = new IntReduction(0, newSize);
+					this.next = next = new LongReduction(0, newSize);
 				}
 			}
 		}
@@ -60,7 +59,7 @@ public class IntReduction {
 		next.add(amnt, index - length);
 	}
 	
-	private void add(int amnt, int index) {
+	private void add(long amnt, int index) {
 		if (index >= values.length) {
 			addToNext(amnt, index);
 		} else {		
@@ -75,8 +74,8 @@ public class IntReduction {
 	 * @param amnt amount to be added on next reduce
 	 */
 	// @JPartMethod(effects="AtomicWr(@W)")
-	public void add(int amnt) {
-		int index = POOL.currentWorker().id * PAD;
+	public void add(long amnt) {
+		int index = ContextImpl.POOL.currentWorker().id * PAD;
 		add(amnt, index);
 	}
 	
@@ -87,22 +86,22 @@ public class IntReduction {
 	 * @param amnt amount to be subtracted on next reduce
 	 */
 	// @JPartMethod(effects="AtomicWr(@W)")
-	public void subtract(int amnt) {
-		int index = POOL.currentWorker().id * PAD;
+	public void subtract(long amnt) {
+		int index = ContextImpl.POOL.currentWorker().id * PAD;
 		add(-amnt, index);
 	}
 	
 	/** Computes total difference since last invocation, and resets
 	 *  accumulators. */
 	// @JPartMethod(effects="Access(@W)")
-	private int diff() {
-		int diff = 0;
+	private long diff() {
+		long diff = 0;
 		for (int i = 0; i < values.length; i += PAD) {
 			diff += values[i];
 			values[i] = 0;
 		}
 		
-		IntReduction next = this.next;
+		LongReduction next = this.next;
 		if(next != null)
 			diff += next.diff();
 		
@@ -114,12 +113,12 @@ public class IntReduction {
 	 * the new value.  
 	 * 
 	 * <p>A data-race occurs if this method overlaps
-	 * with calls to {@link #add(int)} or {@link #subtract(int)}.
+	 * with calls to {@link #add(long)} or {@link #subtract(long)}.
 	 * 
 	 * @return the newly accumulated value    
 	 */
 	// @JPartMethod(effects="Access(@V | @W)")
-	public int reduce() {
+	public long reduce() {
 		value += diff();
 		return value;
 	}
@@ -129,12 +128,12 @@ public class IntReduction {
 	 * interal counters.  
 	 * 
 	 * <p>A data-race occurs if this method overlaps
-	 * with calls to {@link #add(int)} or {@link #subtract(int)}.
+	 * with calls to {@link #add(long)} or {@link #subtract(long)}.
 	 * 
 	 * @param v new value
 	 */
 	// @JPartMethod(effects="Wr(@V | @W)")
-	public void resetAll(int v) {
+	public void resetAll(long v) {
 		value = v;
 		resetAccumulators();
 	}
@@ -144,7 +143,7 @@ public class IntReduction {
 	 * {@link #reduce()}.
 	 * 
 	 * <p>A data-race occurs if this method overlaps
-	 * with calls to {@link #add(int)}, {@link #subtract(int)},
+	 * with calls to {@link #add(long)}, {@link #subtract(long)},
 	 * {@link #reduce()} etc.
 	 */
 	// @JPartMethod(effects="Wr(@W)")
@@ -154,31 +153,31 @@ public class IntReduction {
 	
 	/** 
 	 * Read current value without taking into account any 
-	 * calls to {@link #add(int)} or {@link #subtract(int)}
+	 * calls to {@link #add(long)} or {@link #subtract(long)}
 	 * that have occurred since the last {@link #reduce()}
-	 * or {@link #resetAll(int)}.
+	 * or {@link #resetAll(long)}.
 	 * 
 	 * <p>A data-race occurs if this method overlaps
-	 * with calls to {@link #reduce()}, {@link #resetAll(int)},
-	 * or {@link #setValue(int)}.
+	 * with calls to {@link #reduce()}, {@link #resetAll(long)},
+	 * or {@link #setValue(long)}.
 	 */
 	// @JPartMethod(effects="Rd(@V)")
-	public int value() {
+	public long value() {
 		return value;
 	}
 	
 	/** 
 	 * Read current value without taking into account any 
-	 * calls to {@link #add(int)} or {@link #subtract(int)}
+	 * calls to {@link #add(long)} or {@link #subtract(long)}
 	 * that have occurred since the last {@link #reduce()}
-	 * or {@link #resetAll(int)}.
+	 * or {@link #resetAll(long)}.
 	 * 
 	 * <p>A data-race occurs if this method overlaps
-	 * with calls to {@link #reduce()}, {@link #resetAll(int)},
+	 * with calls to {@link #reduce()}, {@link #resetAll(long)},
 	 * or {@link #value()}.
 	 */
 	// @JPartMethod(effects="Wr(@V)")
-	public void setValue(int v) {
+	public void setValue(long v) {
 		value = v;
 	}
 }
