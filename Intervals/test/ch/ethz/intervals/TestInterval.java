@@ -23,7 +23,7 @@ public class TestInterval {
 		//System.err.println(String.format(fmt, args));
 	}
 	
-	static class IncTask extends AbstractTask {
+	public static class IncTask extends AbstractTask {
 		public final AtomicInteger i;
 		public final int amnt;
 

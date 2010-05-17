@@ -609,8 +609,8 @@ implements Point
 		} else {
 			// Really, these helper methods ought to be inlined,
 			// but they are separated to aid in testing. 
-			optimisticallyAddEdge(this, to);
-			checkForCycleAndRecover(this, to);			
+			optimisticallyAddEdge(to);
+			checkForCycleAndRecover(to);			
 		}
 		
 		ExecutionLog.logEdge(this, to);
@@ -619,34 +619,30 @@ implements Point
 	
 	/** Helper method of {@link #addHb(Point)}.
 	 *  Pulled apart for use with testing. */
-	static void optimisticallyAddEdge(
-			PointImpl from,
-			PointImpl to) 
+	void optimisticallyAddEdge(PointImpl to) 
 	{
 		// Note: the edge is considered speculative until we have
 		// verified that the resulting graph is acyclic.
-		from.addSpeculativeEdge(to, NORMAL);
+		addSpeculativeEdge(to, NORMAL);
 	}
 	
 	/** Helper method of {@link #addHb(Point)}.
 	 *  Pulled apart for use with testing. */
-	static void checkForCycleAndRecover(
-			PointImpl from,
-			PointImpl to) 
+	void checkForCycleAndRecover(PointImpl to) 
 	{
-		if(to.hbOrSpec(from)) {
-			recoverFromCycle(from, to);
-			throw new CycleException(from, to);
+		if(to.hbOrSpec(this)) {
+			recoverFromCycle(to);
+			throw new CycleException(this, to);
 		} else {
-			from.confirmEdgeAndAdjust(to, NORMAL);
+			confirmEdgeAndAdjust(to, NORMAL);
 		}
 	}
 
 	/** Helper method of {@link #addHb(Point)}.
 	 *  Pulled apart for use with testing. */
-	static void recoverFromCycle(PointImpl fromImpl, PointImpl toImpl) {
+	void recoverFromCycle(PointImpl to) {
 		// Uh-oh, error, go into damage control.
-		fromImpl.unAddEdge(toImpl);
+		unAddEdge(to);
 	}
 
 	@Override
