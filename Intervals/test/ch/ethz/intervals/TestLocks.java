@@ -11,12 +11,13 @@ import org.junit.Test;
 
 import ch.ethz.intervals.impl.IntervalImpl;
 import ch.ethz.intervals.impl.LockImpl;
+import ch.ethz.intervals.task.AbstractTask;
 
 public class TestLocks {
 	
 	final AtomicInteger stamp = new AtomicInteger();
 	
-	class IdInterval extends IntervalImpl {
+	class IdInterval extends AbstractTask {
 		final List<String> list;
 		final String id;
 		final LockImpl lockImpl;

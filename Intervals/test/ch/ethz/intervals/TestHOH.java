@@ -71,7 +71,6 @@ public class TestHOH {
 	
 	Interval mapWalk(Interval parent, Link link, Transform transform) {
 		Interval inter = parent.newAsyncChild(new MapWalk(link, transform));
-		inter.addLock(link.lockImpl);
 		return inter;
 	}
 
@@ -84,6 +83,12 @@ public class TestHOH {
 			this.transform = transform;
 		}
 		
+		@Override
+		public void attachedTo(Interval inter) {
+			super.attachedTo(inter);
+			inter.addLock(link.lockImpl);
+		}
+
 		@Override
 	    public void run(Interval current) {
 	        transform.transform(link);

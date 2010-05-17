@@ -10,6 +10,12 @@ public interface Task {
 	/** Returns the name of this task. */
 	public String getName();
 	
+	/** 
+	 * Invoked when a new interval is created with
+	 * this as its task. Gives the task a chance
+	 * to add locks or happens-before dependencies. */
+	public void attachedTo(Interval inter);	
+	
 	/**
 	 * Defines the behavior of the interval.  Must be
 	 * overridden. Non-blocking child intervals of only 

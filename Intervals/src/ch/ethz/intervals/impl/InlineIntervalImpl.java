@@ -15,6 +15,9 @@ implements InlineInterval
 	
 	InlineIntervalImpl(IntervalImpl parent, Task task) {
 		super(parent, task);
+		
+		// Note: don't do anything here, as task.attachedTo()
+		// has been called in super();
 	}
 	
 	@Override

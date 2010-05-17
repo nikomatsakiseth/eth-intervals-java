@@ -328,6 +328,9 @@ implements Guard, Interval
 		current.addUnscheduled(this);
 				
 		ExecutionLog.logNewInterval(null, start, end);
+		
+		// Note: do this last, as it could fail!
+		task.attachedTo(this);
 	}
 	
 	/** Moves to a new state. */

@@ -18,6 +18,10 @@ public abstract class AbstractTask implements Task {
 	}
 	
 	@Override
+	public void attachedTo(Interval inter) {
+	}
+
+	@Override
 	public String getName() {
 		if(name != null)
 			return name;
