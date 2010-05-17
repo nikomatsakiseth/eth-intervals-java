@@ -1,11 +1,18 @@
-package ch.ethz.intervals;
+package ch.ethz.intervals.impl;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.Assert;
 import org.junit.Test;
 
+import ch.ethz.intervals.CycleException;
+import ch.ethz.intervals.EdgeNeededException;
+import ch.ethz.intervals.IntervalException;
+import ch.ethz.intervals.Intervals;
+import ch.ethz.intervals.MustBeBoundedByException;
+import ch.ethz.intervals.RethrownException;
 import ch.ethz.intervals.impl.PointImpl;
+import ch.ethz.intervals.impl.TestInterval.IncTask;
 import ch.ethz.intervals.mirror.Interval;
 import ch.ethz.intervals.mirror.Point;
 import ch.ethz.intervals.task.AbstractTask;

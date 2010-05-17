@@ -15,7 +15,7 @@ import ch.ethz.intervals.EdgeNeededException;
 import ch.ethz.intervals.IntervalException;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.RethrownException;
-import ch.ethz.intervals.TestInterval.IncTask;
+import ch.ethz.intervals.impl.TestInterval.IncTask;
 import ch.ethz.intervals.mirror.AsyncInterval;
 import ch.ethz.intervals.mirror.Interval;
 import ch.ethz.intervals.task.AbstractTask;
