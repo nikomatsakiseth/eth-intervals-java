@@ -12,8 +12,12 @@ import junit.framework.Assert;
 
 import org.junit.Test;
 
-import ch.ethz.intervals.impl.IntervalImpl;
 import ch.ethz.intervals.impl.PointImpl;
+import ch.ethz.intervals.mirror.AsyncInterval;
+import ch.ethz.intervals.mirror.Interval;
+import ch.ethz.intervals.mirror.Point;
+import ch.ethz.intervals.task.AbstractTask;
+import ch.ethz.intervals.task.EmptyTask;
 import ch.ethz.intervals.task.IndexedTask;
 
 public class TestGameOfLife {
@@ -71,6 +75,10 @@ public class TestGameOfLife {
 				for(int ci = c0; ci <= cN; ci++) 				
 					gameOfLife(inData, outData, ri, ci);
 		}		
+		
+		public String toString() {
+			return String.format("(%d,%d)", tr, tc);
+		}
 	}
 	
 	interface InvokableWithTile {
@@ -205,7 +213,7 @@ public class TestGameOfLife {
 		final int w, h;
 		
 		int gensRemaining;
-		IntervalImpl nextGen;
+		AsyncInterval nextGen;
 		
 		public PhasedIntervalBoard(byte[][] initialConfiguration, int rs, int cs, int numGens, int w, int h) {
 			super(initialConfiguration, rs, cs, numGens);
@@ -213,24 +221,25 @@ public class TestGameOfLife {
 			this.h = h;			
 		}
 
-		void switchGens(IntervalImpl thisGen) {
-			IntervalImpl switchInterval = new SwitchGenTask(thisGen.parent);
-			Intervals.addHb(thisGen.end, switchInterval.start);
+		void switchGens(Interval thisGen) {
+			AsyncInterval switchInterval = thisGen.getParent().newAsyncChild(new SwitchGenTask());
+			Intervals.addHb(thisGen, switchInterval);
 			
-			nextGen = new EmptyInterval(thisGen.parent, "gen");
-			Intervals.addHb(switchInterval.end, nextGen.start);
+			nextGen = thisGen.getParent().newAsyncChild(new EmptyTask("gen"));
+			Intervals.addHb(switchInterval, nextGen);
 			
-			Intervals.schedule();
+			switchInterval.schedule();
+			nextGen.schedule();
 		}
 		
-		class SwitchGenTask extends IntervalImpl {
+		class SwitchGenTask extends AbstractTask {
 			
-			public SwitchGenTask(@ParentForNew("Parent") Dependency dep) {
-				super(dep);
+			public SwitchGenTask() {
+				super("switchGen["+gensRemaining+"]");
 			}
 
 			@Override
-			public void run() {
+			public void run(Interval current) {
 				if(gensRemaining-- > 0)
 					switchGens(nextGen);
 			}
@@ -238,33 +247,27 @@ public class TestGameOfLife {
 		}
 		
 		public void startTile(Tile tile, byte[][] inBoard, byte[][] outBoard) {
-			new TileTask(nextGen, tile, inBoard, outBoard);
+			nextGen.newAsyncChild(new TileTask(tile, inBoard, outBoard));
 		}
 
-		class TileTask extends IntervalImpl {
+		class TileTask extends AbstractTask {
 			public final Tile tile;
 			public final byte[][] inBoard;
 			public final byte[][] outBoard;
 			
 			public TileTask(
-					Dependency dep,
 					Tile tile,
 					byte[][] inBoard,
 					byte[][] outBoard) 
 			{
-				super(dep);
+				super("Tile"+tile.toString());
 				this.tile = tile;
 				this.inBoard = inBoard;
 				this.outBoard = outBoard;
 			}
 
-			public String toString() 
-			{
-				return "Tile("+tile.tr+","+tile.tc+")";
-			}			
-			
 			@Override
-			public void run() {
+			public void run(Interval current) {
 				tile.run(inBoard, outBoard);
 				if(gensRemaining > 0)
 					startTile(tile, outBoard, inBoard);					
@@ -275,11 +278,11 @@ public class TestGameOfLife {
 		byte[][] execute() {
 			gensRemaining = numGens;
 			
-			Intervals.inline(new VoidInlineTask() {
-				@Override public void run(IntervalImpl sub) {
-					new IntervalImpl(sub) {
-						@Override public void run() {
-							switchGens(this);
+			Intervals.inline(new AbstractTask() {
+				@Override public void run(Interval sub) {
+					sub.newAsyncChild(new AbstractTask("main") {
+						@Override public void run(Interval current) {
+							switchGens(current);
 							
 							subdivide(rs, cs, w, h, new InvokableWithTile() {					
 								@Override public void run(Tile t) {
@@ -287,7 +290,7 @@ public class TestGameOfLife {
 								}
 							});
 						}
-					};
+					});
 				}
 			});
 
@@ -334,14 +337,14 @@ public class TestGameOfLife {
 			
 			final int row, gen;
 
-			protected ColTask(@ParentForNew("Parent") Dependency dep, int gen, int row) {
-				super(dep, 1, cs+1);
+			protected ColTask(int gen, int row) {
+				super(1, cs+1);
 				this.gen = gen;
 				this.row = row;
 			}
 
 			@Override
-			public void run(int fromIndex, int toIndex) {
+			public void run(Interval current, int fromIndex, int toIndex) {
 				byte[][] inData = data[gen % 2];
 				byte[][] outData = data[(gen + 1) % 2];
 				for(int c = fromIndex; c < toIndex; c++)
@@ -354,15 +357,15 @@ public class TestGameOfLife {
 
 			final int gen;
 
-			protected GenTask(@ParentForNew("Parent") Dependency dep, int gen) {
-				super(dep, 1, rs+1);
+			protected GenTask(int gen) {
+				super(1, rs+1);
 				this.gen = gen;
 			}
 
 			@Override
-			public void run(int fromIndex, int toIndex) {
+			public void run(Interval current, int fromIndex, int toIndex) {
 				for(int r = fromIndex; r < toIndex; r++) {
-					new ColTask(this, gen, r).schedule();
+					current.newAsyncChild(new ColTask(gen, r)).schedule();
 				}
 			}
 			
@@ -370,14 +373,14 @@ public class TestGameOfLife {
 
 		@Override
 		byte[][] execute() {
-			Intervals.inline(new VoidInlineTask() {
-				@Override public void run(IntervalImpl subinterval) {
-					PointImpl prevGen = null;
+			Intervals.inline(new AbstractTask() {
+				@Override public void run(Interval subinterval) {
+					Point prevGen = null;
 					for(int gen = 0; gen < numGens; gen++) {
-						IntervalImpl thisGen = new GenTask(Intervals.child(), gen);
-						Intervals.addHbIfNotNull(prevGen, thisGen.start);
+						AsyncInterval thisGen = subinterval.newAsyncChild(new GenTask(gen));
+						Intervals.addHbIfNotNull(prevGen, thisGen.getStart());
 						thisGen.schedule();
-						prevGen = thisGen.end;
+						prevGen = thisGen.getEnd();
 					}
 				}
 				
@@ -500,20 +503,15 @@ public class TestGameOfLife {
 				final byte[][] inBoard = data[gen % 2];
 				final byte[][] outBoard = data[(gen + 1) % 2];
 				
-				Intervals.inline(new VoidInlineTask() {
-					@Override public void run(final IntervalImpl subinterval) {
+				Intervals.inline(new AbstractTask() {
+					@Override public void run(final Interval subinterval) {
 						subdivide(rs, cs, w, h, new InvokableWithTile() {
 							public void run(final Tile t) {
-								new IntervalImpl(subinterval) {
-									public String toString() 
-									{
-										return "Tile("+t.tr+","+t.tc+")";
-									}
-
-									public void run() {
+								subinterval.newAsyncChild(new AbstractTask("Tile"+t) {
+									@Override public void run(Interval current) throws Exception {
 										t.run(inBoard, outBoard);
 									}
-								};								
+								});
 							}
 						});
 					}
@@ -546,42 +544,44 @@ public class TestGameOfLife {
 	class FineGrainedIntervalBoard extends GameOfLifeBoard {
 		
 		final int w, h;
-		final PointImpl[][][] pointImpls;
+		final Point[][][] pointImpls;
 
 		FineGrainedIntervalBoard(byte[][] initialConfiguration, int rs, int cs,
 				int numGens, int w, int h) {
 			super(initialConfiguration, rs, cs, numGens);
 			this.w = w;
 			this.h = h;
-			pointImpls = new PointImpl[2][rs+2][cs+2];
+			pointImpls = new Point[2][rs+2][cs+2];
 		}
 
-		class TileTask extends IntervalImpl {
+		class TileTask extends AbstractTask {
 			public final Tile tile;
 			public final int gen;
 			
-			public TileTask(@ParentForNew("Parent") Dependency dep, Tile tile, int gen) {
-				super(dep);
+			public TileTask(Tile tile, int gen) {
+				super("Tile"+tile);
 				this.tile = tile;
 				this.gen = gen;
+			}
+			
+			@Override
+			public void attachedTo(Interval inter) {
+				super.attachedTo(inter);
 				
 				if(gen > 0) {
 					// n.b.: The points array is padded with nulls.
-					PointImpl[][] prevGen = pointImpls[(gen - 1) % 2];					
+					Point[][] prevGen = pointImpls[(gen - 1) % 2];					
 					for(int r = -1; r <= 1; r++)
 						for(int c = -1; c <= 1; c++) {
-							Intervals.addHbIfNotNull(prevGen[tile.tr+r][tile.tc+c], start);
+							Intervals.addHbIfNotNull(
+									prevGen[tile.tr+r][tile.tc+c], 
+									inter.getStart());
 						}
 				}
 			}
 
-			public String toString() 
-			{
-				return "Tile("+gen+","+tile.tr+","+tile.tc+")";
-			}
-			
 			@Override
-			public void run() {				
+			public void run(Interval current) {				
 				final int nextGen = gen + 1;
 				byte[][] inBoard = data[gen % 2];
 				byte[][] outBoard = data[nextGen % 2];
@@ -590,7 +590,9 @@ public class TestGameOfLife {
 				
 				if(nextGen < numGens) {
 					pointImpls[nextGen % 2][tile.tr][tile.tc] =
-						new TileTask(Intervals.successor(), tile, nextGen).end;
+						current.getParent().newAsyncChild(
+								new TileTask(tile, nextGen)
+						).getEnd();
 				}
 			}
 
@@ -599,12 +601,14 @@ public class TestGameOfLife {
 		@Override
 		byte[][] execute() {
 			
-			Intervals.inline(new VoidInlineTask() {				
-				@Override public void run(IntervalImpl subinterval) {
+			Intervals.inline(new AbstractTask() {				
+				@Override public void run(final Interval subinterval) {
 					subdivide(rs, cs, w, h, new InvokableWithTile() {
 						public void run(Tile t) {
 							pointImpls[0][t.tr][t.tc] = 
-								new TileTask(Intervals.child(), t, 0).end;								
+								subinterval.newAsyncChild(
+										new TileTask(t, 0)
+								).getEnd();
 						}
 					});
 				}

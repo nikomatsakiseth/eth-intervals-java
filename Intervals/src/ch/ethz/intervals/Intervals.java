@@ -78,7 +78,7 @@ public class Intervals {
 	/** 
 	 * Invokes {@link #addHb(Interval, Interval)} if both
 	 * {@code from} and {@code to} are not null. */
-	public static void addHbIfNotNull(IntervalImpl from, IntervalImpl to) {
+	public static void addHbIfNotNull(Interval from, Interval to) {
 		if(from != null && to != null)
 			addHb(from, to);
 	}	
@@ -86,7 +86,7 @@ public class Intervals {
 	/** 
 	 * Invokes {@link #addHb(Point, Interval)} if both
 	 * {@code from} and {@code to} are not null. */
-	public static void addHbIfNotNull(PointImpl from, IntervalImpl to) {
+	public static void addHbIfNotNull(Point from, Interval to) {
 		if(from != null && to != null)
 			addHb(from, to);
 	}	
@@ -94,7 +94,7 @@ public class Intervals {
 	/** 
 	 * Invokes {@link #addHb(Interval, Point)} if both
 	 * {@code from} and {@code to} are not null. */
-	public static void addHbIfNotNull(IntervalImpl from, PointImpl to) {
+	public static void addHbIfNotNull(Interval from, Point to) {
 		if(from != null && to != null)
 			addHb(from, to);
 	}	
@@ -102,7 +102,7 @@ public class Intervals {
 	/** 
 	 * Invokes {@link #addHb(Point, Point)} if both
 	 * {@code from} and {@code to} are not null. */
-	public static void addHbIfNotNull(PointImpl from, PointImpl to) {
+	public static void addHbIfNotNull(Point from, Point to) {
 		if(from != null && to != null)
 			addHb(from, to);
 	}	
