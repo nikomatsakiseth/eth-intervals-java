@@ -6,7 +6,8 @@ import junit.framework.Assert;
 
 import org.junit.Test;
 
-import ch.ethz.intervals.impl.IntervalImpl;
+import ch.ethz.intervals.mirror.Interval;
+import ch.ethz.intervals.task.AbstractTask;
 
 /**
  * Based on code from the Intel Threading Challenge.
@@ -119,77 +120,77 @@ public class TestStrassenMMult {
 			final Matrix C21 = C.submatrix(m2, nf); 
 			final Matrix C22 = C.submatrix(m2, n2);
 			
-			Intervals.inline(new VoidInlineTask() {				
-				@Override public void run(IntervalImpl subinterval) {
+			Intervals.inline(new AbstractTask() {				
+				@Override public void run(final Interval subinterval) {
 					
 					// M1 = (A11 + A22)*(B11 + B22)
-					new IntervalImpl(Intervals.child()) {
-						@Override public void run() {
+					subinterval.newAsyncChild(new AbstractTask() {
+						@Override public void run(Interval current) {
 							Matrix tAM1 = new Matrix(m2, p2);
 							addMatrixBlocks(tAM1, m2, p2, A11, A22);
 							Matrix tBM1 = new Matrix(p2, n2);
 							addMatrixBlocks(tBM1, p2, n2, B11, B22);
 							strassenMult(0, m2, 0, n2, 0, p2, tAM1, tBM1, M1);
 						}						
-					};
+					});
 					
 					//M2 = (A21 + A22)*B11
-					new IntervalImpl(Intervals.child()) {
-						@Override public void run() {
+					subinterval.newAsyncChild(new AbstractTask() {
+						@Override public void run(Interval current) {
 							Matrix tAM2 = new Matrix(m2, p2);
 							addMatrixBlocks(tAM2, m2, p2, A21, A22);
 							strassenMult(0, m2, 0, n2, 0, p2, tAM2, B11, M2);
 						}
-					};
+					});
 					
 					//M3 = A11*(B12 - B22)
-					new IntervalImpl(Intervals.child()) {
-						@Override public void run() {
+					subinterval.newAsyncChild(new AbstractTask() {
+						@Override public void run(Interval current) {
 							Matrix tBM3 = new Matrix(p2, n2);
 							subMatrixBlocks(tBM3, p2, n2, B12, B22);
 							strassenMult(0, m2, 0, n2, 0, p2, A11, tBM3, M3);
 						}
-					};
+					});
 					
 					//M4 = A22*(B21 - B11)
-					new IntervalImpl(Intervals.child()) {
-						@Override public void run() {
+					subinterval.newAsyncChild(new AbstractTask() {
+						@Override public void run(Interval current) {
 							Matrix tBM4 = new Matrix(p2, n2);
 							subMatrixBlocks(tBM4, p2, n2, B21, B11);
 							strassenMult(0, m2, 0, n2, 0, p2, A22, tBM4, M4);
 						}
-					};
+					});
 					
 					//M5 = (A11 + A12)*B22
-					new IntervalImpl(Intervals.child()) {
-						@Override public void run() {
+					subinterval.newAsyncChild(new AbstractTask() {
+						@Override public void run(Interval current) {
 							Matrix tAM5 = new Matrix(m2, p2);
 							addMatrixBlocks(tAM5, m2, p2, A11, A12);
 							strassenMult(0, m2, 0, n2, 0, p2, tAM5, B22, M5);
 						}
-					};
+					});
 					
 					//M6 = (A21 - A11)*(B11 + B12)
-					new IntervalImpl(Intervals.child()) {
-						@Override public void run() {
+					subinterval.newAsyncChild(new AbstractTask() {
+						@Override public void run(Interval current) {
 							Matrix tAM6 = new Matrix(m2, p2);
 							Matrix tBM6 = new Matrix(p2, n2);
 							subMatrixBlocks(tAM6, m2, p2, A21, A11);
 							addMatrixBlocks(tBM6, p2, n2, B11, B12);
 							strassenMult(0, m2, 0, n2, 0, p2, tAM6, tBM6, M6);
 						}
-					};
+					});
 
 					//M7 = (A12 - A22)*(B21 + B22)
-					new IntervalImpl(Intervals.child()) {
-						@Override public void run() {
+					subinterval.newAsyncChild(new AbstractTask() {
+						@Override public void run(Interval current) {
 							Matrix tAM7 = new Matrix(m2, p2);
 							Matrix tBM7 = new Matrix(p2, n2);
 							subMatrixBlocks(tAM7, m2, p2, A12, A22);
 							addMatrixBlocks(tBM7, p2, n2, B21, B22);
 							strassenMult(0, m2, 0, n2, 0, p2, tAM7, tBM7, M7);
 						}
-					};
+					});
 				}
 			});
 

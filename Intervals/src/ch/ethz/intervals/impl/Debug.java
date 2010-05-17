@@ -11,7 +11,7 @@ import ch.ethz.intervals.util.ChunkList;
 
 public class Debug {
 	
-	public static final boolean ENABLED = true;
+	public static final boolean ENABLED = false;
 	public static final boolean DUMP_IMMEDIATELY = true;
 	
 	public static final boolean ENABLED_LOCK = true;         /** Debug statements related to locks. */
