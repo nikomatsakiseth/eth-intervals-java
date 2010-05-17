@@ -10,23 +10,18 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.sun.tools.doclets.internal.toolkit.taglets.ValueTaglet;
-
 import ch.ethz.intervals.CycleException;
 import ch.ethz.intervals.EdgeNeededException;
 import ch.ethz.intervals.IntervalException;
 import ch.ethz.intervals.Intervals;
-import ch.ethz.intervals.NotInRootIntervalException;
 import ch.ethz.intervals.RethrownException;
 import ch.ethz.intervals.TestInterval.IncTask;
 import ch.ethz.intervals.mirror.AsyncInterval;
 import ch.ethz.intervals.mirror.Interval;
-import ch.ethz.intervals.mirror.Point;
 import ch.ethz.intervals.task.AbstractTask;
 import ch.ethz.intervals.task.EmptyTask;
-import ch.ethz.intervals.task.ResultTask;
 
-public class TestErrorPropagation {
+public class TestErrorPropagation extends Util {
 	
 	@SuppressWarnings("serial")
 	static class TestException extends RuntimeException { 
@@ -168,10 +163,6 @@ public class TestErrorPropagation {
 		}
 	}
 	
-	private PointImpl impl(Point start) {
-		return (PointImpl)start;
-	}
-
 	private boolean containsSubtypeOf(Iterable<? extends Object> coll, Class<?> cls) {
 		for(Object o : coll) {
 			if(cls.isInstance(o))
@@ -373,32 +364,6 @@ public class TestErrorPropagation {
 		new TestHarness().test();
 	}
 	
-	abstract class ExpectedErrorTask extends ResultTask<Boolean> {
-		
-		final Class<?> expectedErrorClass;
-		
-		public ExpectedErrorTask(Class<?> expectedErrorClass) {
-			this.expectedErrorClass = expectedErrorClass;
-		}
-
-		abstract void tryIt(Interval current) throws Exception;
-
-		@Override
-		protected Boolean compute(Interval current) throws Exception {
-			try {
-				tryIt(current);
-				return false; // no error thrown
-			} catch (Throwable t) {
-				return expectedErrorClass.isInstance(t);
-			}
-		}
-		
-	}
-	
-	public static void expect(ExpectedErrorTask task) {
-		Assert.assertTrue(Intervals.inline(task));		
-	}
-
 	@Test 
 	public void raceConditionInBeforeGeneratesError1() {
 		expect(new ExpectedErrorTask(EdgeNeededException.class) {
