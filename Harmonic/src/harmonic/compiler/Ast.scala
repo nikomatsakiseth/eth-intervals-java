@@ -194,7 +194,8 @@ abstract class Ast {
         name: MND,
         parent: PathNode,
         body: Body
-    ) extends MemberDecl {
+    ) extends MemberDecl with LowerStmt {
+        def ty = voidTy
         override def toString = "[interval %s(%s)]".format(name, parent)
         
         override def print(out: PrettyPrinter) {

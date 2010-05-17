@@ -671,7 +671,10 @@ case class ByteCode(global: Global) {
             case expr: in.Expr => 
                 summarizeSymbolsInExpr(summary, expr)
             
-            case in.InlineInterval(name, in.Body(stmts)) =>
+            case in.InlineInterval(_, in.Body(stmts)) =>
+                stmts.foldLeft(summary)(summarizeSymbolsInStmt)
+            
+            case in.IntervalDecl(_, _, parent, in.Body(stmts)) =>
                 stmts.foldLeft(summary)(summarizeSymbolsInStmt)
             
             case in.MethodReturn(expr) => 

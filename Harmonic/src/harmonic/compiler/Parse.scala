@@ -397,6 +397,7 @@ class Parse extends StdTokenParsers with PackratParsers {
     
     lazy val stmt: PackratParser[out.Stmt] = positioned(
         "interval"~localName~body           ^^ { case _~l~b => out.InlineInterval(l, b) }
+    |   intervalDecl
     |   lvalue~"="~expr                     ^^ { case l~"="~e => out.Assign(l, e) }
     |   "return"~expr                       ^^ { case _~e => out.MethodReturn(e) }
     |   "return"~impVoid                    ^^ { case _~e => out.MethodReturn(e) }
