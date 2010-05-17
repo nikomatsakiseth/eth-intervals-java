@@ -1,4 +1,4 @@
-package ch.ethz.intervals;
+package ch.ethz.intervals.impl;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -9,8 +9,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Assert;
 import org.junit.Test;
 
+import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.impl.IntervalImpl;
 import ch.ethz.intervals.impl.LockImpl;
+import ch.ethz.intervals.mirror.Interval;
 import ch.ethz.intervals.task.AbstractTask;
 
 public class TestLocks {
@@ -20,23 +22,25 @@ public class TestLocks {
 	class IdInterval extends AbstractTask {
 		final List<String> list;
 		final String id;
-		final LockImpl lockImpl;
+		final LockImpl lock;
 		
-		public IdInterval(@ParentForNew("Parent") Dependency dep, List<String> list, String id, LockImpl l1) {
-			super(dep);
-			Intervals.addExclusiveLock(this, l1);
-			this.lockImpl = l1;
+		public IdInterval(List<String> list, String id, LockImpl l1) {
+			super(id);
+			this.lock = l1;
 			this.list = list;
 			this.id = id;
 		}
 		
-		@Override public String toString() {
-			return id;
+		@Override
+		public void attachedTo(Interval inter) {
+			super.attachedTo(inter);
+			inter.addLock(lock);
 		}
 
-		@Override protected void run() {
-			Assert.assertTrue(Intervals.checkWritable(lockImpl));
-			Assert.assertTrue(this.locks(lockImpl));
+		@Override 
+		public void run(Interval current) {
+			Assert.assertTrue(Intervals.checkWritable(lock));
+			Assert.assertTrue(current.locks(lock));
 			list.add(id);
 		}
 	}
@@ -49,11 +53,11 @@ public class TestLocks {
 		for(int i = 0; i < REPEAT; i++) {
 			final LockImpl l1 = new LockImpl();
 			final List<String> ids = new ArrayList<String>();
-			Intervals.inline(new VoidInlineTask() {			
-				@Override public void run(IntervalImpl subinterval) {
-					new IdInterval(subinterval, ids, "0", l1);					
-					new IdInterval(subinterval, ids, "1", l1);					
-					new IdInterval(subinterval, ids, "2", l1);					
+			Intervals.inline(new AbstractTask("iter"+i) {			
+				@Override public void run(Interval subinterval) {
+					subinterval.newAsyncChild(new IdInterval(ids, "0", l1));					
+					subinterval.newAsyncChild(new IdInterval(ids, "1", l1));					
+					subinterval.newAsyncChild(new IdInterval(ids, "2", l1));					
 				}
 			});
 			Assert.assertEquals(3, ids.size());
@@ -68,14 +72,14 @@ public class TestLocks {
 		for(int i = 0; i < REPEAT; i++) {
 			final LockImpl l1 = new LockImpl();
 			final List<String> ids = new ArrayList<String>();
-			Intervals.inline(new VoidInlineTask() {			
-				@Override public void run(IntervalImpl subinterval) {
-					IntervalImpl a = new IdInterval(subinterval, ids, "a", l1);
-					IntervalImpl a1 = new IdInterval(a, ids, "a1", l1);
-					IntervalImpl a11 = new IdInterval(a1, ids, "a11", l1);
-					IntervalImpl a111 = new IdInterval(a11, ids, "a111", l1);
-					IntervalImpl a2 = new IdInterval(a, ids, "a2", l1);
-					new IdInterval(a2, ids, "a21", l1);
+			Intervals.inline(new AbstractTask("iter"+i) {			
+				@Override public void run(Interval subinterval) {
+					Interval a = subinterval.newAsyncChild(new IdInterval(ids, "a", l1));
+					Interval a1 = a.newAsyncChild(new IdInterval(ids, "a1", l1));
+					Interval a11 = a1.newAsyncChild(new IdInterval(ids, "a11", l1));
+					Interval a111 = a11.newAsyncChild(new IdInterval(ids, "a111", l1));
+					Interval a2 = a.newAsyncChild(new IdInterval(ids, "a2", l1));
+					a2.newAsyncChild(new IdInterval(ids, "a21", l1));
 				}
 			});
 			
@@ -95,7 +99,7 @@ public class TestLocks {
 	}
 	
 	
-	class LockingVoidSubinterval extends VoidInlineTask {
+	class LockingVoidSubinterval extends AbstractTask {
 		final String name;
 		final long[] times;
 		final List<String> ids;
@@ -107,13 +111,10 @@ public class TestLocks {
 			this.ids = ids;
 			this.l1 = l1;
 		}
-		@Override public String toString() {
-			return name;
+		@Override public void attachedTo(Interval subinterval) {
+			subinterval.addLock(l1);
 		}
-		@Override public void init(IntervalImpl subinterval) {
-			Intervals.addExclusiveLock(subinterval, l1);
-		}
-		@Override public void run(IntervalImpl subinterval) {
+		@Override public void run(Interval subinterval) {
 			times[0] = System.currentTimeMillis();
 			ids.add(name+":"+Intervals.checkWritable(l1));
 			try { // just to make it more likely that the lock fails
@@ -133,22 +134,22 @@ public class TestLocks {
 			final long[] aTimes = new long[2];
 			final long[] bTimes = new long[2];
 			
-			Intervals.inline(new VoidInlineTask() {			
+			Intervals.inline(new AbstractTask() {			
 				@Override public String toString() {
 					return "outer";
 				}
-				@Override public void run(IntervalImpl subinterval) {
-					new IntervalImpl(subinterval, "inner1") {						
-						@Override protected void run() {
+				@Override public void run(Interval subinterval) {
+					subinterval.newAsyncChild(new AbstractTask("inner1") {
+						@Override public void run(Interval current) throws Exception {
 							Intervals.inline(new LockingVoidSubinterval("a", aTimes, ids, l1));
 						}
-					};
+					});
 					
-					new IntervalImpl(subinterval, "inner2") {						
-						@Override protected void run() {
+					subinterval.newAsyncChild(new AbstractTask("inner2") {
+						@Override public void run(Interval current) throws Exception {
 							Intervals.inline(new LockingVoidSubinterval("b", bTimes, ids, l1));
 						}
-					};
+					});
 				}
 			});
 			
@@ -173,24 +174,24 @@ public class TestLocks {
 			final long[] aTimes = new long[2];
 			final long[] bTimes = new long[2];
 			
-			Intervals.inline(new VoidInlineTask() {			
+			Intervals.inline(new AbstractTask() {			
 				@Override public String toString() {
 					return "outer";
 				}
-				@Override public void run(IntervalImpl subinterval) {
-					IntervalImpl a = new IntervalImpl(subinterval, "a") {						
-						@Override protected void run() {
-							new LockingVoidSubinterval("a", aTimes, ids, l1).run(this);
+				@Override public void run(Interval subinterval) {
+					Interval a = subinterval.newAsyncChild(new AbstractTask("a") {
+						@Override public void run(Interval current) throws Exception {
+							new LockingVoidSubinterval("a", aTimes, ids, l1).run(current);
 						}
-					};
-					Intervals.addExclusiveLock(a, l1);
+					}); 
+					a.addLock(l1);
 					
-					IntervalImpl b = new IntervalImpl(subinterval, "b") {						
-						@Override protected void run() {
-							new LockingVoidSubinterval("b", bTimes, ids, l1).run(this);
+					Interval b = subinterval.newAsyncChild(new AbstractTask("a") {
+						@Override public void run(Interval current) throws Exception {
+							new LockingVoidSubinterval("b", bTimes, ids, l1).run(current);
 						}
-					};
-					Intervals.addExclusiveLock(b, l1);
+					});
+					b.addLock(l1);
 				}
 			});
 			
@@ -213,31 +214,30 @@ public class TestLocks {
 			final LockImpl l1 = new LockImpl(), l2 = new LockImpl();
 			final int[] executed = new int[3];
 			
-			Intervals.inline(new VoidInlineTask() {			
-				@Override public String toString() {
-					return "outer";
-				}
-				@Override public void run(IntervalImpl subinterval) {
-					IntervalImpl a1 = new IntervalImpl(subinterval, "a1") {						
-						@Override protected void run() {
-							IntervalImpl a2 = new IntervalImpl(this, "a2") {
-								@Override protected void run() { executed[1]++; }
-							};
-							Intervals.addExclusiveLock(a2, l2);
+			Intervals.inline(new AbstractTask("outer") {			
+				@Override public void run(Interval subinterval) {
+					Interval a1 = subinterval.newAsyncChild(new AbstractTask("a1") {
+						@Override public void run(Interval current) {
+							Interval a2 = current.newAsyncChild(new AbstractTask("a2") {
+								@Override public void run(Interval current) {
+									executed[1]++; 
+								}
+							});
+							a2.addLock(l2);
 							executed[0]++;
 						}
-					};
-					Intervals.addExclusiveLock(a1, l1);
+					});
+					a1.addLock(l1);
 	
-					IntervalImpl b = new IntervalImpl(subinterval, "b") {						
-						@Override protected void run() {
+					Interval b = subinterval.newAsyncChild(new AbstractTask("b") {
+						@Override public void run(Interval current) {
 							executed[2]++;
 						}
-					};
+					});
 					
-					Intervals.addHb(a1.start, b.start);
-					Intervals.addExclusiveLock(b, l1);
-					Intervals.addExclusiveLock(b, l2);
+					Intervals.addHb(a1.getStart(), b.getStart());
+					b.addLock(l1);
+					b.addLock(l2);
 				}
 			});
 			
@@ -253,37 +253,35 @@ public class TestLocks {
 			final LockImpl l1 = new LockImpl(), l2 = new LockImpl();
 			final int[] executed = new int[3];
 			
-			Intervals.inline(new VoidInlineTask() {			
-				@Override public String toString() {
-					return "outer";
-				}
-				@Override public void run(IntervalImpl subinterval) {
-					IntervalImpl a1 = new IntervalImpl(subinterval, "a1") {						
-						@Override protected void run() {
-							IntervalImpl a2 = new IntervalImpl(this, "a2") {
-								@Override protected void run() { executed[1]++; }
-							};
-							Intervals.addExclusiveLock(a2, l2);
+			Intervals.inline(new AbstractTask("outer") {
+				@Override public void run(Interval subinterval) {
+					Interval a1 = subinterval.newAsyncChild(new AbstractTask("a1") {
+						@Override public void run(Interval current) {
+							Interval a2 = current.newAsyncChild(new AbstractTask("a2") {
+								@Override public void run(Interval current) {
+									executed[1]++;
+								}
+							});
+							a2.addLock(l2);
 							executed[0]++;
 						}
-					};
-					Intervals.addExclusiveLock(a1, l1);
+					});
+					a1.addLock(l1);
 	
-					IntervalImpl bOuter = new IntervalImpl(subinterval, "bOuter") {						
-						@Override protected void run() {
-							Intervals.inline(new VoidInlineTask() {
-								@Override public String toString() { return "b"; }
-								@Override public void init(IntervalImpl subinterval) {
-									Intervals.addExclusiveLock(subinterval, l1);
-									Intervals.addExclusiveLock(subinterval, l2);
+					Interval bOuter = subinterval.newAsyncChild(new AbstractTask("bOuter") {
+						@Override public void run(Interval current) {
+							Intervals.inline(new AbstractTask("b") {
+								@Override public void attachedTo(Interval subinterval) {
+									subinterval.addLock(l1);
+									subinterval.addLock(l2);
 								}
-								@Override public void run(IntervalImpl subinterval) {
+								@Override public void run(Interval subinterval) {
 									executed[2]++;
 								}
 							});
 						}
-					};					
-					Intervals.addHb(a1.start, bOuter.start);
+					}); 
+					Intervals.addHb(a1.getStart(), bOuter.getStart());
 				}
 			});
 			
