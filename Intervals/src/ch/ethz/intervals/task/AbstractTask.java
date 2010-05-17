@@ -32,14 +32,10 @@ public abstract class AbstractTask implements Task {
 		else
 			return super.toString();
 	}
-	
-	@Override
-	public void attachedTo(Interval current) {
-	}
 
 	@Override
 	public Set<? extends Throwable> catchErrors(Set<Throwable> errors) {
-		return null;
+		return errors;
 	}
 
 }
