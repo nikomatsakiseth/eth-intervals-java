@@ -9,7 +9,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Assert;
 import org.junit.Test;
 
-import ch.ethz.intervals.impl.IntervalImpl;
+import ch.ethz.intervals.mirror.Interval;
+import ch.ethz.intervals.task.AbstractTask;
+import ch.ethz.intervals.task.EmptyTask;
 
 public class TestInterval {
 	
@@ -21,41 +23,39 @@ public class TestInterval {
 		//System.err.println(String.format(fmt, args));
 	}
 	
-	static class IncTask extends IntervalImpl {
+	static class IncTask extends AbstractTask {
 		public final AtomicInteger i;
 		public final int amnt;
 
-		public IncTask(@ParentForNew("Parent") Dependency dep, String name, AtomicInteger i) {
-			super(dep, name);
-			this.i = i;
-			this.amnt = 1;
+		public IncTask(String name, AtomicInteger i) {
+			this(name, i, 1);
 		}
 
-		public IncTask(@ParentForNew("Parent") Dependency dep, String name, AtomicInteger i, int amnt) {
-			super(dep, name);
+		public IncTask(String name, AtomicInteger i, int amnt) {
+			super(name);
 			this.i = i;
 			this.amnt = amnt;
 		}
 
 		@Override
-		public void run() {
+		public void run(Interval current) {
 			i.addAndGet(amnt);
-		}		
+		}
 	}
 	
-	class AddTask extends IntervalImpl {
+	class AddTask extends AbstractTask {
 
 		public final List<List<Integer>> list;
 		public final List<Integer> id;
 		
-		public AddTask(@ParentForNew("Parent") Dependency dep, List<List<Integer>> list, Integer... ids) {
-			super(dep, "Add("+Arrays.asList(ids)+")");
+		public AddTask(List<List<Integer>> list, Integer... ids) {
+			super("Add("+Arrays.asList(ids)+")");
 			this.id = Arrays.asList(ids);
 			this.list = list;
 		}
 
 		@Override
-		public void run() 
+		public void run(Interval current) 
 		{
 			debug("%s", toString());
 			list.add(id);
@@ -76,17 +76,15 @@ public class TestInterval {
 	@Test public void basic() {
 		for (int i = 0; i < repeat; i++) {
 			final List<List<Integer>> list = Collections.synchronizedList(new ArrayList<List<Integer>>());
-			Intervals.inline(new VoidInlineTask() {
-				@Override public String toString() { return "parentInterval"; }
-				public void run(final IntervalImpl parentInterval) {
-					Intervals.inline(new VoidInlineTask() {
-						@Override public String toString() { return "childInterval"; }
-						public void run(final IntervalImpl childInterval) {							
-							IntervalImpl after = new AddTask(parentInterval, list, 2);
-							Intervals.addHb(childInterval.end, after.start);
-							new AddTask(childInterval, list, 1);
-							new AddTask(childInterval, list, 1);
-							new AddTask(childInterval, list, 1);							
+			Intervals.inline(new AbstractTask("parentInterval") {
+				public void run(final Interval parentInterval) {
+					Intervals.inline(new AbstractTask("childInterval") {
+						public void run(final Interval childInterval) {							
+							Interval after = parentInterval.newAsyncChild(new AddTask(list, 2));
+							Intervals.addHb(childInterval, after);
+							childInterval.newAsyncChild(new AddTask(list, 1));
+							childInterval.newAsyncChild(new AddTask(list, 1));
+							childInterval.newAsyncChild(new AddTask(list, 1));							
 						}
 					});					
 				}
@@ -104,10 +102,10 @@ public class TestInterval {
 	@Test public void manyChildren() {
 		final int c = 1024;
 		final AtomicInteger cnt = new AtomicInteger();
-		Intervals.inline(new VoidInlineTask() {
-			public void run(IntervalImpl _) {
+		Intervals.inline(new AbstractTask() {
+			public void run(Interval current) {
 				for(int i = 0; i < c; i++)
-					new IncTask(Intervals.child(), "c"+i, cnt);
+					current.newAsyncChild(new IncTask("c"+i, cnt));
 			}			
 		});
 		Assert.assertEquals(cnt.get(), c);
@@ -120,10 +118,10 @@ public class TestInterval {
 	@Test public void manyChildrenScheduled() {
 		final int c = 1024;
 		final AtomicInteger cnt = new AtomicInteger();
-		Intervals.inline(new VoidInlineTask() {
-			public void run(IntervalImpl _) {
+		Intervals.inline(new AbstractTask() {
+			public void run(Interval current) {
 				for(int i = 0; i < c; i++) {
-					new IncTask(Intervals.child(), "c"+i, cnt).schedule();
+					current.newAsyncChild(new IncTask("c"+i, cnt)).schedule();
 				}
 			}
 			
@@ -138,11 +136,11 @@ public class TestInterval {
 	@Test public void manyDuring() {
 		final int c = 1024;
 		final AtomicInteger cnt = new AtomicInteger();
-		Intervals.inline(new VoidInlineTask() {
-			public void run(IntervalImpl _) {
-				IntervalImpl future = new EmptyInterval(Intervals.child(), "during");
+		Intervals.inline(new AbstractTask() {
+			public void run(Interval current) {
+				Interval future = current.newAsyncChild(new EmptyTask("during"));
 				for(int i = 0; i < c; i++)
-					new IncTask(future, "c"+i, cnt);
+					future.newAsyncChild(new IncTask("c"+i, cnt));
 			}
 			
 		});
@@ -159,23 +157,23 @@ public class TestInterval {
 		 *                               s
 		 */
 		final AtomicInteger successful = new AtomicInteger();
-		Intervals.inline(new VoidInlineTask() {
-			public void run(IntervalImpl subinterval) {
-				IntervalImpl worker = new EmptyInterval(subinterval, "worker");
-				IntervalImpl d = new EmptyInterval(worker, "d");
-				IntervalImpl k = new EmptyInterval(d, "k");
-				IntervalImpl n = new EmptyInterval(d, "n");
-				IntervalImpl a = new EmptyInterval(worker, "a");
-				IntervalImpl m = new EmptyInterval(a, "m");
-				IntervalImpl t = new EmptyInterval(a, "t");
-				IntervalImpl s = new EmptyInterval(t, "s");
+		Intervals.inline(new AbstractTask() {
+			public void run(Interval subinterval) {
+				Interval worker = subinterval.newAsyncChild(new EmptyTask("worker"));
+				Interval d = worker.newAsyncChild(new EmptyTask("d"));
+				Interval k = d.newAsyncChild(new EmptyTask("k"));
+				Interval n = d.newAsyncChild(new EmptyTask("n"));
+				Interval a = worker.newAsyncChild(new EmptyTask("a"));
+				Interval m = a.newAsyncChild(new EmptyTask("m"));
+				Interval t = a.newAsyncChild(new EmptyTask("t"));
+				Interval s = t.newAsyncChild(new EmptyTask("s"));
 				
-				Assert.assertEquals(d.end, d.end.mutualBound(d.end));
-				Assert.assertEquals(d.end, k.end.mutualBound(n.end));
-				Assert.assertEquals(worker.end, k.end.mutualBound(s.end));
-				Assert.assertEquals(worker.end, s.end.mutualBound(k.end));
-				Assert.assertEquals(a.end, m.end.mutualBound(s.end));
-				Assert.assertEquals(a.end, s.end.mutualBound(m.end));
+				Assert.assertEquals(d.getEnd(), d.getEnd().mutualBound(d.getEnd()));
+				Assert.assertEquals(d.getEnd(), k.getEnd().mutualBound(n.getEnd()));
+				Assert.assertEquals(worker.getEnd(), k.getEnd().mutualBound(s.getEnd()));
+				Assert.assertEquals(worker.getEnd(), s.getEnd().mutualBound(k.getEnd()));
+				Assert.assertEquals(a.getEnd(), m.getEnd().mutualBound(s.getEnd()));
+				Assert.assertEquals(a.getEnd(), s.getEnd().mutualBound(m.getEnd()));
 				
 				successful.addAndGet(1); 
 			}
