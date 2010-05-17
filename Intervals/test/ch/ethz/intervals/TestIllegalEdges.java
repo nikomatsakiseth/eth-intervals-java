@@ -5,122 +5,125 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Assert;
 import org.junit.Test;
 
-import ch.ethz.intervals.impl.IntervalImpl;
 import ch.ethz.intervals.impl.PointImpl;
+import ch.ethz.intervals.mirror.Interval;
+import ch.ethz.intervals.mirror.Point;
+import ch.ethz.intervals.task.AbstractTask;
+import ch.ethz.intervals.task.EmptyTask;
 
 public class TestIllegalEdges {
 
-	private void addIllegalEdge(PointImpl from, PointImpl to, Class<? extends IntervalException> err) {
+	private void addIllegalEdge(Point from, Point to, Class<? extends IntervalException> err) {
 		try {
 			Intervals.addHb(from, to);
 			Assert.fail("No error");
 		} catch (IntervalException e) {
-			Assert.assertTrue("Wrong class: "+e, err.isInstance(e));
+			Assert.assertEquals("Wrong class", err, e.getClass());
 		}
 	}
 	
-	private void addLegalEdge(PointImpl from, PointImpl to) {
+	private void addLegalEdge(Point from, Point to) {
 		Intervals.addHb(from, to);
 	}
 	
 	@Test public void testCE() {
-		Intervals.inline(new VoidInlineTask() {			
+		Intervals.inline(new AbstractTask("a") {			
 			@Override public String toString() { return "a"; }
-			@Override public void run(IntervalImpl a) {
-				IntervalImpl a1 = new EmptyInterval(a, "a1"); 
-				IntervalImpl a12 = new EmptyInterval(a1, "a12"); 
-				addIllegalEdge(a12.end, a1.start, CycleException.class);
+			@Override public void run(Interval a) {
+				Interval a1 = a.newAsyncChild(new EmptyTask("a1"));
+				Interval a12 = a1.newAsyncChild(new EmptyTask("a1")); 
+				addIllegalEdge(a12.getEnd(), a1.getStart(), CycleException.class);
 			}
 		});
 	}
 	
 	@Test public void testMBBB() {
-		Intervals.inline(new VoidInlineTask() {			
+		Intervals.inline(new AbstractTask("a") {			
 			@Override public String toString() { return "a"; }
-			@Override public void run(IntervalImpl a) {
-				IntervalImpl a1 = new EmptyInterval(a, "a1"); 
-				IntervalImpl a12 = new EmptyInterval(a1, "a12"); 
-				IntervalImpl a2 = new EmptyInterval(a, "a2"); 
-				IntervalImpl b = new EmptyInterval(Intervals.root(), "a");
+			@Override public void run(Interval root) {
+				Interval a = root.newAsyncChild(new EmptyTask("a")); 
+				Interval a1 = a.newAsyncChild(new EmptyTask("a1")); 
+				Interval a12 = a1.newAsyncChild(new EmptyTask("a12")); 
+				Interval a2 = a.newAsyncChild(new EmptyTask("a2")); 
+				Interval b = root.newAsyncChild(new EmptyTask("b"));
 				
 				// Permitted because it is a duplicate:
-				addIllegalEdge(a12.end, a1.end, MustBeBoundedByException.class);
+				addIllegalEdge(a12.getEnd(), a1.getEnd(), MustBeBoundedByException.class);
 				
-				addLegalEdge(a1.end, a2.start);
-				addLegalEdge(a1.end, a2.end);
+				addLegalEdge(a1.getEnd(), a2.getStart());
+				addLegalEdge(a1.getEnd(), a2.getEnd());
 				
-				addLegalEdge(b.start, a2.end);
-				addLegalEdge(b.start, a12.end);
-				addLegalEdge(b.start, a1.end);
+				addLegalEdge(b.getStart(), a2.getEnd());
+				addLegalEdge(b.getStart(), a12.getEnd());
+				addLegalEdge(b.getStart(), a1.getEnd());
 				
-				addLegalEdge(b.end, a2.end);
-				addLegalEdge(b.end, a12.end);
-				addLegalEdge(b.end, a1.end);
+				addLegalEdge(b.getEnd(), a2.getEnd());
+				addLegalEdge(b.getEnd(), a12.getEnd());
+				addLegalEdge(b.getEnd(), a1.getEnd());
 				
-				addIllegalEdge(a12.start, a2.end, MustBeBoundedByException.class);				
-				addIllegalEdge(a12.end, a2.end, MustBeBoundedByException.class);				
-				addIllegalEdge(a12.start, a2.start, MustBeBoundedByException.class);				
-				addIllegalEdge(a12.end, a2.start, MustBeBoundedByException.class);			
+				addIllegalEdge(a12.getStart(), a2.getEnd(), MustBeBoundedByException.class);				
+				addIllegalEdge(a12.getEnd(), a2.getEnd(), MustBeBoundedByException.class);				
+				addIllegalEdge(a12.getStart(), a2.getStart(), MustBeBoundedByException.class);				
+				addIllegalEdge(a12.getEnd(), a2.getStart(), MustBeBoundedByException.class);			
 				
-				addIllegalEdge(a12.start, b.start, MustBeBoundedByException.class);
-				addIllegalEdge(a12.end, b.start, MustBeBoundedByException.class);
-				addIllegalEdge(a12.start, b.end, MustBeBoundedByException.class);
-				addIllegalEdge(a12.end, b.end, MustBeBoundedByException.class);
+				addIllegalEdge(a12.getStart(), b.getStart(), MustBeBoundedByException.class);
+				addIllegalEdge(a12.getEnd(), b.getStart(), MustBeBoundedByException.class);
+				addIllegalEdge(a12.getStart(), b.getEnd(), MustBeBoundedByException.class);
+				addIllegalEdge(a12.getEnd(), b.getEnd(), MustBeBoundedByException.class);
 			}
 
 		});
 	}
 	
 	@Test public void testMBBBWithSub() {
-		Intervals.inline(new VoidInlineTask() {			
-			@Override public String toString() { return "a"; }
-			@Override public void run(IntervalImpl a) {
-				class Helper {
-					IntervalImpl a1, a12, a2, b;
-				}
-				final Helper h = new Helper();
-				
-				Intervals.inline(new VoidInlineTask() {					
-					@Override public String toString() { return "a1"; }
-					@Override public void run(IntervalImpl a1) {
-						h.a1 = a1;
-						Intervals.inline(new VoidInlineTask() {							
-							@Override public String toString() { return "a12"; }
-							@Override public void run(IntervalImpl a12) {
-								h.a12 = a12;
+		Intervals.inline(new AbstractTask("root") {			
+			@Override public void run(final Interval root) {
+				Intervals.inline(new AbstractTask("a") {
+					@Override public void run(final Interval a) {
+						class Helper {
+							Interval a12, a2, b;
+						}
+						final Helper h = new Helper();
+						
+						Intervals.inline(new AbstractTask("a1") {
+							@Override public void run(Interval a1) {
+								Intervals.inline(new AbstractTask("a12") {							
+									@Override public void run(Interval a12) {
+										h.a12 = a12;
+									}
+								});
 							}
-						});
+						});				
+						h.a2 = a.newAsyncChild(new EmptyTask("a2"));
+						h.b = root.newAsyncChild(new EmptyTask("b"));
+		
+						addIllegalEdge(h.a12.getStart(), h.a2.getEnd(), MustBeBoundedByException.class);				
+						addIllegalEdge(h.a12.getEnd(), h.a2.getEnd(), MustBeBoundedByException.class);				
+						addIllegalEdge(h.a12.getStart(), h.a2.getStart(), MustBeBoundedByException.class);				
+						addIllegalEdge(h.a12.getEnd(), h.a2.getStart(), MustBeBoundedByException.class);				
+						
+						addIllegalEdge(h.a12.getStart(), h.b.getStart(), MustBeBoundedByException.class);
+						addIllegalEdge(h.a12.getEnd(), h.b.getStart(), MustBeBoundedByException.class);
+						addIllegalEdge(h.a12.getStart(), h.b.getEnd(), MustBeBoundedByException.class);
+						addIllegalEdge(h.a12.getEnd(), h.b.getEnd(), MustBeBoundedByException.class);
 					}
-				});				
-				h.a2 = new EmptyInterval(a, "a2"); 
-				h.b = new EmptyInterval(Intervals.root(), "a");
-
-				addIllegalEdge(h.a12.start, h.a2.end, MustBeBoundedByException.class);				
-				addIllegalEdge(h.a12.end, h.a2.end, MustBeBoundedByException.class);				
-				addIllegalEdge(h.a12.start, h.a2.start, MustBeBoundedByException.class);				
-				addIllegalEdge(h.a12.end, h.a2.start, MustBeBoundedByException.class);				
-				
-				addIllegalEdge(h.a12.start, h.b.start, MustBeBoundedByException.class);
-				addIllegalEdge(h.a12.end, h.b.start, MustBeBoundedByException.class);
-				addIllegalEdge(h.a12.start, h.b.end, MustBeBoundedByException.class);
-				addIllegalEdge(h.a12.end, h.b.end, MustBeBoundedByException.class);
+				});
 			}
-
 		});
 	}
 
 	@Test public void testIllegalToCreateChildEvenWithEdgeToEnd() {
 		final AtomicInteger integer = new AtomicInteger();
 		try {
-			Intervals.inline(new VoidInlineTask() {			
-				@Override public void run(IntervalImpl subinterval) {
-					final IntervalImpl a = new TestInterval.IncTask(subinterval, "a", integer);
+			Intervals.inline(new AbstractTask("a") {			
+				@Override public void run(Interval subinterval) {
+					final Interval a = subinterval.newAsyncChild(new TestInterval.IncTask("a", integer));
 					
-					new IntervalImpl(subinterval, "b") {
-						@Override protected void run() {
-							new TestInterval.IncTask(a, "a1", integer, 10);
-						}
-					};
+					subinterval.newAsyncChild(new AbstractTask("b") {
+						@Override public void run(Interval current) {
+							a.newAsyncChild(new TestInterval.IncTask("a1", integer, 10));
+						}						
+					});
 				}
 			});
 			Assert.fail();
