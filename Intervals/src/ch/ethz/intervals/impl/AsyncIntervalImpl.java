@@ -10,7 +10,7 @@ extends IntervalImpl
 implements AsyncInterval {
 
 	AsyncIntervalImpl(IntervalImpl parent, Task task) {
-		super(parent, task, PointImpl.NO_FLAGS);
+		super(parent, task);
 	}
 
 	/**
@@ -23,6 +23,11 @@ implements AsyncInterval {
 	public void schedule() throws IntervalException.AlreadyScheduled {
 		Current current = Current.get();
 		current.schedule(this);
+	}
+
+	@Override
+	public boolean isSynchronous() {
+		return false;
 	}
 
 }

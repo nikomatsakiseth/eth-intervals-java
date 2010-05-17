@@ -115,11 +115,6 @@ implements Guard, Interval
 	}
 
 	@Override
-	public boolean isSynchronous() {
-		return start.isSynchronous();
-	}
-
-	@Override
 	public IntervalImpl getParent() {
 		return parent;
 	}
@@ -196,14 +191,14 @@ implements Guard, Interval
 		/** If true, a child added during this state will later be signalled
 		 *  when it is time to start.  If false, they may start immediately. 
 		 *  Always false if {@link #permitsNewChildren} is false. */
-		public final boolean willSignalChild;
+		public final boolean willSignalAsyncChild;
 		
 		/** True if children creates in this state should be CANCELLED */
 		public final boolean childrenCancelled;
 
 		private State(int flags) {			
 			this.permitsNewChildren = (flags & PERMITS_CHILDREN) != 0;
-			this.willSignalChild = (flags & WILL_SIGNAL_CHILDREN) != 0;
+			this.willSignalAsyncChild = (flags & WILL_SIGNAL_CHILDREN) != 0;
 			this.childrenCancelled = (flags & CHILDREN_CANCELLED) != 0;
 		}
 	}
@@ -277,8 +272,7 @@ implements Guard, Interval
 	
 	IntervalImpl(
 			IntervalImpl parent, 
-			Task task, 
-			int pntFlags
+			Task task
 	) {
 		// Careful: invoke before adding interval to any
 		// tables, so if it fails we have no cleanup.
@@ -301,12 +295,18 @@ implements Guard, Interval
 		if(parent != null)
 			current.checkCanAddChild(parent);
 		
+		boolean isInline = isSynchronous();
+		
+		int pntFlags = (isInline ? PointImpl.FLAG_SYNCHRONOUS : PointImpl.NO_FLAGS);
+		int startWaitCount = 2; // parent, sched
+		int endWaitCount = 2; // start, task
+
 		this.name = taskName;
 		this.parent = parent;
 		this.task = task;
-		end = new PointImpl(name, pntFlags | PointImpl.FLAG_END, parentEnd, 2, this);
-		start = new PointImpl(name, pntFlags, end, 2, this);		
-
+		end = new PointImpl(name, pntFlags | PointImpl.FLAG_END, parentEnd, endWaitCount, this);
+		start = new PointImpl(name, pntFlags, end, startWaitCount, this);	
+		
 		State parentState;
 		if(parent != null)
 			parentState = parent.addChildInterval(this);
@@ -315,8 +315,10 @@ implements Guard, Interval
 		
 		if(!parentState.permitsNewChildren)
 			throw new IntervalException.ParPhaseCompleted(parent);			
-		if(!parentState.willSignalChild)
+		
+		if(isInline || !parentState.willSignalAsyncChild)
 			start.addWaitCountUnsync(-1);
+		
 		if(parentState.childrenCancelled)
 			state = State.CANCEL_WAIT;
 		else 
@@ -326,8 +328,6 @@ implements Guard, Interval
 		current.addUnscheduled(this);
 				
 		ExecutionLog.logNewInterval(null, start, end);
-		
-		task.attachedTo(this);
 	}
 	
 	/** Moves to a new state. */
@@ -339,18 +339,19 @@ implements Guard, Interval
 	
 	private State addChildInterval(IntervalImpl inter) {
 		State state;
+		boolean isInline = inter.isSynchronous();
 		
 		// Atomically read current state and add 'inter' to our linked
 		// list of pending child intervals if appropriate: 
 		synchronized(this) {
 			state = this.state;
-			if(state.willSignalChild)
+			if(!isInline && state.willSignalAsyncChild)
 				pendingChildIntervals = ChunkList.add(pendingChildIntervals, inter, ChunkList.NO_FLAGS);
 		}
 		
-		// Add to end's wait count if we are in a valid state to accept children:
+		// If we accept the new child, then wait for it to end
 		if(state.permitsNewChildren)
-			end.addWaitCount();
+			end.addWaitCountUnsync(1);
 		
 		return state;
 	}

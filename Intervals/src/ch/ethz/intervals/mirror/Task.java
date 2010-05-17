@@ -10,8 +10,6 @@ public interface Task {
 	/** Returns the name of this task. */
 	public String getName();
 	
-	public void attachedTo(Interval current);
-	
 	/**
 	 * Defines the behavior of the interval.  Must be
 	 * overridden. Non-blocking child intervals of only 

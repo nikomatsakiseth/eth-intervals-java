@@ -14,7 +14,7 @@ implements InlineInterval
 	private PSet<Throwable> capturedErrors = null;
 	
 	InlineIntervalImpl(IntervalImpl parent, Task task) {
-		super(parent, task, PointImpl.FLAG_SYNCHRONOUS);
+		super(parent, task);
 	}
 	
 	@Override
@@ -33,6 +33,11 @@ implements InlineInterval
 		
 		if(capturedErrors != null)
 			throw new RethrownException(capturedErrors);
+	}
+
+	@Override
+	public boolean isSynchronous() {
+		return true;
 	}
 
 }
