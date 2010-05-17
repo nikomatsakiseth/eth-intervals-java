@@ -8,7 +8,9 @@ import org.junit.Test;
 
 import ch.ethz.intervals.impl.IntervalImpl;
 import ch.ethz.intervals.impl.LockImpl;
+import ch.ethz.intervals.mirror.Interval;
 import ch.ethz.intervals.quals.DefinesGhost;
+import ch.ethz.intervals.task.AbstractTask;
 
 @DefinesGhost
 @interface HOHList {
@@ -66,25 +68,28 @@ public class TestHOH {
 	interface Transform {
 		void transform(Link l);
 	}
+	
+	Interval mapWalk(Interval parent, Link link, Transform transform) {
+		Interval inter = parent.newAsyncChild(new MapWalk(link, transform));
+		inter.addLock(link.lockImpl);
+		return inter;
+	}
 
-	class MapWalk extends IntervalImpl {
+	class MapWalk extends AbstractTask {
 	    final Link link;
 	    final Transform transform;
 
-		public MapWalk(@ParentForNew("Parent") Dependency dep, Link link, Transform transform) {
-			super(dep);
+		public MapWalk(Link link, Transform transform) {
 			this.link = link;
 			this.transform = transform;
-			
-        	Intervals.addExclusiveLock(this, link.lockImpl, null);
 		}
 		
 		@Override
-	    public void run() {
+	    public void run(Interval current) {
 	        transform.transform(link);
 	        if(link.next != null) {
-	        	IntervalImpl next = new MapWalk(parent, link.next, transform);
-	        	Intervals.addHb(next.start, end);
+	        	Interval next = mapWalk(current.getParent(), link.next, transform);
+	        	Intervals.addHb(next.getStart(), current.getEnd());
             }
 	    } 
 		
@@ -109,9 +114,9 @@ public class TestHOH {
 	
 	public @Test void testDouble() {
 		final Link list = buildList(5, 10, 25);
-		inline(new VoidInlineTask() {
-			public void run(IntervalImpl subinterval) {
-				new MapWalk(subinterval, list, new DoubleTransform());		
+		inline(new AbstractTask() {
+			public void run(Interval subinterval) {
+				mapWalk(subinterval, list, new DoubleTransform());		
 			}
 		});
 		Link expList = buildList(10, 20, 50);
