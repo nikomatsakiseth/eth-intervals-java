@@ -6,6 +6,14 @@ import ch.ethz.intervals.mirror.Interval;
 public abstract class ResultTask<R> extends AbstractTask {
 	
 	private R result;
+	
+	public ResultTask() {
+		super();
+	}
+
+	public ResultTask(String name) {
+		super(name);
+	}
 
 	@Override
 	public final void run(Interval current) throws Exception {
