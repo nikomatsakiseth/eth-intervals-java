@@ -36,11 +36,9 @@ package jgfmt.section2.crypt;
 import java.util.Random;
 
 import jgfmt.jgfutil.JGFInstrumentor;
-import ch.ethz.intervals.Dependency;
 import ch.ethz.intervals.Intervals;
-import ch.ethz.intervals.ParentForNew;
-import ch.ethz.intervals.VoidInlineTask;
-import ch.ethz.intervals.impl.IntervalImpl;
+import ch.ethz.intervals.mirror.Interval;
+import ch.ethz.intervals.task.AbstractTask;
 import ch.ethz.intervals.task.IndexedTask;
 
 class IDEATest {
@@ -67,15 +65,15 @@ class IDEATest {
 		
 		// Encrypt plain1.
 		if(JGFCryptBench.nthreads == -1) {
-			Intervals.inline(new VoidInlineTask() {
-				@Override public void run(IntervalImpl subinterval) {
-					new IDEARunnerTask(subinterval, plain1.length / 8, plain1, crypt1, Z);
+			Intervals.inline(new AbstractTask() {
+				@Override public void run(Interval subinterval) {
+					subinterval.newAsyncChild(new IDEARunnerTask(plain1.length / 8, plain1, crypt1, Z));
 				}
 			});
 			
-			Intervals.inline(new VoidInlineTask() {
-				@Override public void run(IntervalImpl subinterval) {
-					new IDEARunnerTask(subinterval, crypt1.length / 8, crypt1, plain2, DK);
+			Intervals.inline(new AbstractTask() {
+				@Override public void run(Interval subinterval) {
+					subinterval.newAsyncChild(new IDEARunnerTask(crypt1.length / 8, crypt1, plain2, DK));
 				}
 			});
 		} else {
@@ -673,13 +671,13 @@ class IDEARunner implements Runnable {
 class IDEARunnerTask extends IndexedTask {
 	public final IDEARunner runner;
 	
-	public IDEARunnerTask(@ParentForNew("Parent") Dependency dep, int size, byte[] text1, byte[] text2, int[] key) {
-		super(dep, size);
+	public IDEARunnerTask(int size, byte[] text1, byte[] text2, int[] key) {
+		super(size);
 		runner = new IDEARunner(-1, text1, text2, key);
 	}
 
 	@Override
-	public void run(int fromIndex, int toIndex) {
+	public void run(Interval _, int fromIndex, int toIndex) {
 		runner.run(fromIndex, toIndex);
 	}	
 	
