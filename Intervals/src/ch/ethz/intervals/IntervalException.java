@@ -10,6 +10,24 @@ import ch.ethz.intervals.impl.PointImpl;
 @SuppressWarnings("serial")
 public abstract class IntervalException extends RuntimeException {
 
+	public static class NotExecutedFromParent extends IntervalException {
+		
+		public final Interval executedFrom;
+		public final InlineInterval inter;
+		
+		public NotExecutedFromParent(Interval executedFrom, InlineInterval inter) {
+			this.executedFrom = executedFrom;
+			this.inter = inter;
+		}
+		
+		public String toString() {
+			return String.format(
+					"Inline interval %s was executed from %s, not from its parent %s",
+					inter, executedFrom, inter.getParent());
+		}
+
+	}
+
 	public IntervalException() {
 	}
 
@@ -23,6 +41,20 @@ public abstract class IntervalException extends RuntimeException {
 
 	public IntervalException(String arg0, Throwable arg1) {
 		super(arg0, arg1);
+	}
+	
+	public static class InlineIntervalNeverExecuted extends IntervalException {
+		public final InlineInterval inter;
+		
+		public InlineIntervalNeverExecuted(InlineInterval inter) {
+			this.inter = inter;
+		}
+		
+		public String toString() {
+			return String.format(
+					"Inline interval %s was never scheduled",
+					inter);
+		}
 	}
 	
 	/** Indicates that the user's action would have created a cycle in the
@@ -197,10 +229,22 @@ public abstract class IntervalException extends RuntimeException {
 		}
 	}
 
-	public static class AlreadyScheduled extends IntervalException {
-		public final Interval inter;
+	public static class AlreadyExecuted extends IntervalException {
+		public final InlineInterval inter;
 
-		public AlreadyScheduled(IntervalImpl inter) {
+		public AlreadyExecuted(InlineInterval inter) {
+			this.inter = inter;
+		}
+		
+		@Override public String toString() {
+			return inter + " already executed";
+		}
+	}
+
+	public static class AlreadyScheduled extends IntervalException {
+		public final AsyncInterval inter;
+
+		public AlreadyScheduled(AsyncInterval inter) {
 			this.inter = inter;
 		}
 		

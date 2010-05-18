@@ -71,36 +71,36 @@ public class Current
 			while(p != null && p.nextUnscheduled != intervalImpl)
 				p = p.nextUnscheduled;
 			
-			if(p == null)
-				throw new IntervalException.AlreadyScheduled(intervalImpl);
+			assert p != null;
 			
 			p.nextUnscheduled = intervalImpl.nextUnscheduled;
 		}
 		
 		intervalImpl.nextUnscheduled = null;
-		scheduleUnchecked(intervalImpl);
+		scheduleUnchecked(intervalImpl, true);
 	}
 
 	void schedule() {
 		IntervalImpl p = unscheduled;
 		while(p != null) {
-			scheduleUnchecked(p);
-			
 			IntervalImpl n = p.nextUnscheduled;
 			p.nextUnscheduled = null;
+			
+			scheduleUnchecked(p, false);
+
 			p = n;
 		}
 		unscheduled = null;
 	}
 
-	private void scheduleUnchecked(IntervalImpl p) {
+	private void scheduleUnchecked(IntervalImpl p, boolean explicit) {
 		assert p.isUnscheduled(this);
 		
 		if(Debug.ENABLED)
 			Debug.schedule(p, inter);
 		ExecutionLog.logScheduleInterval(p);
 		
-		p.clearUnscheduled();
+		p.didSchedule(explicit);
 		p.start.arrive(1);
 	}
 

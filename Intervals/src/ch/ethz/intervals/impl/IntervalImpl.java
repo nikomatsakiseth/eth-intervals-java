@@ -247,7 +247,7 @@ implements Guard, Interval
 	 *  <ul>
 	 *  <li> Only modified by ourselves or our children.
 	 *  <li> During states {@link State#LOCK} and {@link State#RUN}
-	 *       this is modified without locks (using {@link #addVertExceptionUnsyc(Throwable)})_, 
+	 *       this is modified without locks (using {@link #addVertExceptionUnsync(Throwable)})_, 
 	 *       because no children are active.
 	 *  <li> During state {@link State#PAR}, only modified by children with a lock (using
 	 *       {@link #addVertExceptionSync(Throwable)}.
@@ -360,7 +360,6 @@ implements Guard, Interval
 	}
 	
 	synchronized void cancel(PointImpl pnt) {
-		// See declaration for state field for a discussion of why no lock is needed here.
 		if(pnt == start) {
 			switch(state) {
 			case WAIT:
@@ -375,17 +374,27 @@ implements Guard, Interval
 			endCanceled = true;
 		}
 	}
-
-	void addVertExceptionUnsyc(Throwable thr) {
+	
+	void addVertExceptionUnsync(Throwable thr) {
 		if(vertExceptions == null) 
 			vertExceptions = Empty.set();
-		vertExceptions = vertExceptions.plus(thr);
+		
+		if(thr instanceof RethrownException) {
+			RethrownException rethr = (RethrownException) thr;
+			vertExceptions = vertExceptions.plusAll(rethr.allErrors());
+		} else {
+			vertExceptions = vertExceptions.plus(thr);
+		}
 		
 		if(Debug.ENABLED)
 			Debug.addVertException(this, thr, vertExceptions);
 	}
 	
-	void addVertExceptionsUnsyc(PSet<Throwable> errors) {
+	synchronized void addVertExceptionSync(Throwable thr) {
+		addVertExceptionUnsync(thr);
+	}
+	
+	private synchronized void addVertExceptionsSync(PSet<Throwable> errors) {
 		if(vertExceptions == null) 
 			vertExceptions = errors;
 		else 
@@ -393,14 +402,6 @@ implements Guard, Interval
 		
 		if(Debug.ENABLED)
 			Debug.addVertException(this, null, vertExceptions);
-	}
-	
-	synchronized void addVertExceptionSync(Throwable thr) {
-		addVertExceptionUnsyc(thr);
-	}
-	
-	private synchronized void addVertExceptionsSync(PSet<Throwable> errors) {
-		addVertExceptionsUnsyc(errors);
 	}
 
 	void setRevLocksUnsync(LockList locks) {
@@ -499,10 +500,14 @@ implements Guard, Interval
 		if(errors == null)
 			return null;
 		
-		try { // Execute catchErrors():
+		try { 
+			// Execute catchErrors() from task.  If it itself
+			// fails, tack those new errors onto the old ones.
 			return makePSet(task.catchErrors(errors), errors);
+		} catch(RethrownException rethr) {
+			return errors.plusAll(rethr.allErrors());
 		} catch(Throwable t) {
-			return errors.plus(t); // keep previous errors, what the heck.
+			return errors.plus(t); 
 		}
 	}
 
@@ -542,7 +547,7 @@ implements Guard, Interval
 		// create a data race:		
 		Throwable err = (ll.guard == null ? null : ll.guard.checkLockable(this, ll.lockImpl));
 		if(err != null)
-			addVertExceptionUnsyc(err);
+			addVertExceptionUnsync(err);
 		
 		acquireNextUnacquiredLock();
 	}
@@ -624,11 +629,16 @@ implements Guard, Interval
 		Current cur = Current.push(this);
 		try {
 			try {
+				// Execute the task and add any uncaught
+				// exceptions to vertExceptions:
 				try {
 					task.run(this);
 				} catch(Throwable t) {
-					addVertExceptionUnsyc(t);
+					addVertExceptionUnsync(t);
 				}
+				
+				// Schedule any unscheduled subintervals.  
+				// n.b.: This may add to vertExceptions!
 				cur.schedule();				
 				
 				finishSequentialPortion((vertExceptions == null ? State.PAR : State.CATCH_PAR));
@@ -677,7 +687,17 @@ implements Guard, Interval
 		return (unscheduled == current);
 	}
 
-	void clearUnscheduled() {
+	/** 
+	 * Invoked by {@link Current} when the interval is scheduled.
+	 * 
+	 * Overridden by {@link InlineIntervalImpl#didSchedule(boolean)} to 
+	 * check that inline intervals are never implicitly scheduled.
+	 * 
+	 * @param explicit true if the interval was explicitly scheduled
+	 * by the user, false if it is being scheduled implicitly at
+	 * the end of the creator.
+	 */
+	void didSchedule(boolean explicit) {
 		// Only invoked by our scheduler:
 		unscheduled = null;
 	}

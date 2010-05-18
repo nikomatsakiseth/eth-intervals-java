@@ -6,10 +6,40 @@ import ch.ethz.intervals.AsyncInterval;
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.Point;
+import ch.ethz.intervals.RethrownException;
 import ch.ethz.intervals.task.EmptyTask;
 import ch.ethz.intervals.task.ResultTask;
 
 public class Util {
+	
+	public void assertThrew(
+			RethrownException err,
+			Class<?>... classes) 
+	{
+		Assert.assertEquals(classes.length, err.allErrors().size());
+		
+		boolean[] matched = new boolean[classes.length];
+		for(Throwable thr : err.allErrors()) {
+			int i;
+			
+			for(i = 0; i < classes.length; i++) {
+				if(!matched[i] && classes[i].isInstance(thr)) {
+					matched[i] = true;
+					break;
+				}
+			}
+			
+			if(i == classes.length) {
+				Assert.fail(String.format(
+						"Unexpected error %s: %s", thr.getClass().getName(), thr));
+			}
+		}
+		for(int i = 0; i < matched.length; i++) {
+			Assert.assertTrue(
+					String.format("Class %s was not thrown", classes[i]),
+					matched[i]);
+		}
+	}
 
 	public abstract class ExpectedErrorTask extends ResultTask<Boolean> {
 		

@@ -24,7 +24,11 @@ implements AsyncInterval {
 	 */
 	public void schedule() throws IntervalException.AlreadyScheduled {
 		Current current = Current.get();
-		current.schedule(this);
+		if(isUnscheduled(current)) {
+			current.schedule(this);
+		} else {
+			throw new IntervalException.AlreadyScheduled(this);			
+		}
 	}
 
 	@Override

@@ -36,13 +36,13 @@ implements Point
 		AtomicIntegerFieldUpdater.newUpdater(PointImpl.class, "waitCount");
 
 	final String name;							/** Possibly null */
-	final PointImpl bound;						  	/** if a start point, the paired end point.  otherwise, null. */
+	final PointImpl bound;						/** if a start point, the paired end point.  otherwise, null. */
 	final int flags;                            /** various flags */
 	final int depth;							/** depth of bound + 1 */
 	
-	private ChunkList<PointImpl> outEdges;          /** Linked list of outgoing edges from this point. */
+	private ChunkList<PointImpl> outEdges;      /** Linked list of outgoing edges from this point. */
 	private volatile int waitCount;           	/** Number of preceding points that have not arrived. */	                                              	
-	private IntervalImpl intervalImpl;            	  	/** Interval which owns this point.  Set to {@code null} when the point occurs. */
+	private IntervalImpl intervalImpl;          /** Interval which owns this point.  Set to {@code null} when the point occurs. */
 
 	PointImpl(String name, int flags, PointImpl bound, int waitCount, IntervalImpl intervalImpl) {
 		this.name = name;
