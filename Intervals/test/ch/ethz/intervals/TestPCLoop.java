@@ -1,7 +1,6 @@
 package ch.ethz.intervals;
 
 import static ch.ethz.intervals.Intervals.inline;
-import static ch.ethz.intervals.Intervals.child;
 import static org.junit.Assert.assertEquals;
 
 import java.util.ArrayList;
@@ -10,8 +9,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.Test;
 
-import ch.ethz.intervals.impl.IntervalImpl;
-import ch.ethz.intervals.impl.PointImpl;
+import ch.ethz.intervals.mirror.Interval;
+import ch.ethz.intervals.task.AbstractTask;
 
 /**
  * Simple Producer-Consumer Example 
@@ -31,28 +30,27 @@ public class TestPCLoop {
 	
 	List<Integer> consumed = new ArrayList<Integer>();
 	
-	class Consumer extends IntervalImpl {
+	class Consumer extends AbstractTask {
 		public Integer i;
 		
-		public Consumer(@ParentForNew("Parent") Dependency dep, PointImpl endOfPrevConsumer, Integer i) {			
-			super(dep);
-			if(endOfPrevConsumer != null)
-				Intervals.addHb(endOfPrevConsumer, start);
+		public Consumer(Integer i) {			
 			this.i = i;
 		}
 
-		public void run() {
+		public void run(Interval _) {
 			consumed.add(i);
 		}
 	}
 	
 	@Test public void test() {
 		final int MAX = 100;
-		inline(new VoidInlineTask() {
-			public void run(IntervalImpl subinterval) {
-				PointImpl endOfPrevConsumer = null;
+		inline(new AbstractTask() {
+			public void run(Interval subinterval) {
+				Interval prevConsumer = null;
 				for(int i = 0; i < MAX; i++) {
-					endOfPrevConsumer = new Consumer(child(), endOfPrevConsumer, i).end;
+					Interval consumer = subinterval.newAsyncChild(new Consumer(i));
+					Intervals.addHbIfNotNull(prevConsumer, consumer);
+					prevConsumer = consumer;
 				}
 			}
 		});
