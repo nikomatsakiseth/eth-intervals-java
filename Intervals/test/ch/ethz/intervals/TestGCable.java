@@ -7,8 +7,11 @@ import java.util.List;
 import org.junit.Assert;
 import org.junit.Test;
 
-import ch.ethz.intervals.impl.IntervalImpl;
-import ch.ethz.intervals.impl.PointImpl;
+import ch.ethz.intervals.mirror.AsyncInterval;
+import ch.ethz.intervals.mirror.Interval;
+import ch.ethz.intervals.mirror.Point;
+import ch.ethz.intervals.task.AbstractTask;
+import ch.ethz.intervals.task.EmptyTask;
 
 /**
  * Tests which show that subintervals are gc-able, even if you hold
@@ -17,19 +20,19 @@ import ch.ethz.intervals.impl.PointImpl;
 public class TestGCable {
 
 	@Test public void subintervalsGcable() {		
-		final List<WeakReference<IntervalImpl>> list = 
-			new ArrayList<WeakReference<IntervalImpl>>();
+		final List<WeakReference<Interval>> list = 
+			new ArrayList<WeakReference<Interval>>();
 		
 		for(int i = 0; i < 10; i++)
-			Intervals.inline(new VoidInlineTask() {			
-				@Override public void run(IntervalImpl subinterval) {
-					list.add(new WeakReference<IntervalImpl>(subinterval));
+			Intervals.inline(new AbstractTask() {			
+				@Override public void run(Interval subinterval) {
+					list.add(new WeakReference<Interval>(subinterval));
 				}
 			});
 		
 		runGc();
 		
-		for(WeakReference<IntervalImpl> weakRef : list)
+		for(WeakReference<Interval> weakRef : list)
 			Assert.assertTrue(weakRef.get() == null);
 	}
 
@@ -39,37 +42,37 @@ public class TestGCable {
 	}
 	
 	@Test public void asyncIntervalsGcable() {		
-		final List<IntervalImpl> realRefs = new ArrayList<IntervalImpl>();
-		final List<PointImpl> allPoints = new ArrayList<PointImpl>();
+		final List<Interval> realRefs = new ArrayList<Interval>();
+		final List<Point> allPoints = new ArrayList<Point>();
 		
-		final List<WeakReference<IntervalImpl>> list = 
-			new ArrayList<WeakReference<IntervalImpl>>();
+		final List<WeakReference<Interval>> list = 
+			new ArrayList<WeakReference<Interval>>();
 		
 		for(int i = 0; i < 10; i++)
 			// Note: the subintervals stay live, but not the async intervals contained
 			// within!
-			Intervals.inline(new VoidInlineTask() {			
-				@Override public void run(IntervalImpl subinterval) {					
-					allPoints.add(subinterval.start);
-					allPoints.add(subinterval.end);
+			Intervals.inline(new AbstractTask() {			
+				@Override public void run(Interval subinterval) {					
+					allPoints.add(subinterval.getStart());
+					allPoints.add(subinterval.getEnd());
 					
 					realRefs.add(subinterval);
-					list.add(new WeakReference<IntervalImpl>(subinterval));
+					list.add(new WeakReference<Interval>(subinterval));
 					
 					for(int j = 0; j < 10; j++) {
-						IntervalImpl inter = new EmptyInterval(subinterval, "Empty:"+j);
-						allPoints.add(inter.start);
-						allPoints.add(inter.end);
+						AsyncInterval inter = subinterval.newAsyncChild(new EmptyTask("Empty:"+j));
+						allPoints.add(inter.getStart());
+						allPoints.add(inter.getEnd());
 						
 						inter.schedule();
-						list.add(new WeakReference<IntervalImpl>(inter));
+						list.add(new WeakReference<Interval>(inter));
 					}
 				}
 			});
 		
 		runGc();
 		
-		for(WeakReference<IntervalImpl> weakRef : list)
+		for(WeakReference<Interval> weakRef : list)
 			Assert.assertTrue(weakRef.get() == null || realRefs.contains(weakRef.get()));
 	}
 	
