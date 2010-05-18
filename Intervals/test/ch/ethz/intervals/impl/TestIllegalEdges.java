@@ -5,14 +5,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Assert;
 import org.junit.Test;
 
-import ch.ethz.intervals.CycleException;
-import ch.ethz.intervals.EdgeNeededException;
 import ch.ethz.intervals.IntervalException;
 import ch.ethz.intervals.Intervals;
-import ch.ethz.intervals.MustBeBoundedByException;
 import ch.ethz.intervals.RethrownException;
-import ch.ethz.intervals.impl.PointImpl;
-import ch.ethz.intervals.impl.TestInterval.IncTask;
 import ch.ethz.intervals.mirror.Interval;
 import ch.ethz.intervals.mirror.Point;
 import ch.ethz.intervals.task.AbstractTask;
@@ -39,7 +34,7 @@ public class TestIllegalEdges {
 			@Override public void run(Interval a) {
 				Interval a1 = a.newAsyncChild(new EmptyTask("a1"));
 				Interval a12 = a1.newAsyncChild(new EmptyTask("a1")); 
-				addIllegalEdge(a12.getEnd(), a1.getStart(), CycleException.class);
+				addIllegalEdge(a12.getEnd(), a1.getStart(), IntervalException.Cycle.class);
 			}
 		});
 	}
@@ -55,7 +50,7 @@ public class TestIllegalEdges {
 				Interval b = root.newAsyncChild(new EmptyTask("b"));
 				
 				// Permitted because it is a duplicate:
-				addIllegalEdge(a12.getEnd(), a1.getEnd(), MustBeBoundedByException.class);
+				addIllegalEdge(a12.getEnd(), a1.getEnd(), IntervalException.MustBeBoundedBy.class);
 				
 				addLegalEdge(a1.getEnd(), a2.getStart());
 				addLegalEdge(a1.getEnd(), a2.getEnd());
@@ -68,15 +63,15 @@ public class TestIllegalEdges {
 				addLegalEdge(b.getEnd(), a12.getEnd());
 				addLegalEdge(b.getEnd(), a1.getEnd());
 				
-				addIllegalEdge(a12.getStart(), a2.getEnd(), MustBeBoundedByException.class);				
-				addIllegalEdge(a12.getEnd(), a2.getEnd(), MustBeBoundedByException.class);				
-				addIllegalEdge(a12.getStart(), a2.getStart(), MustBeBoundedByException.class);				
-				addIllegalEdge(a12.getEnd(), a2.getStart(), MustBeBoundedByException.class);			
+				addIllegalEdge(a12.getStart(), a2.getEnd(), IntervalException.MustBeBoundedBy.class);				
+				addIllegalEdge(a12.getEnd(), a2.getEnd(), IntervalException.MustBeBoundedBy.class);				
+				addIllegalEdge(a12.getStart(), a2.getStart(), IntervalException.MustBeBoundedBy.class);				
+				addIllegalEdge(a12.getEnd(), a2.getStart(), IntervalException.MustBeBoundedBy.class);			
 				
-				addIllegalEdge(a12.getStart(), b.getStart(), MustBeBoundedByException.class);
-				addIllegalEdge(a12.getEnd(), b.getStart(), MustBeBoundedByException.class);
-				addIllegalEdge(a12.getStart(), b.getEnd(), MustBeBoundedByException.class);
-				addIllegalEdge(a12.getEnd(), b.getEnd(), MustBeBoundedByException.class);
+				addIllegalEdge(a12.getStart(), b.getStart(), IntervalException.MustBeBoundedBy.class);
+				addIllegalEdge(a12.getEnd(), b.getStart(), IntervalException.MustBeBoundedBy.class);
+				addIllegalEdge(a12.getStart(), b.getEnd(), IntervalException.MustBeBoundedBy.class);
+				addIllegalEdge(a12.getEnd(), b.getEnd(), IntervalException.MustBeBoundedBy.class);
 			}
 
 		});
@@ -104,15 +99,15 @@ public class TestIllegalEdges {
 						h.a2 = a.newAsyncChild(new EmptyTask("a2"));
 						h.b = root.newAsyncChild(new EmptyTask("b"));
 		
-						addIllegalEdge(h.a12.getStart(), h.a2.getEnd(), MustBeBoundedByException.class);				
-						addIllegalEdge(h.a12.getEnd(), h.a2.getEnd(), MustBeBoundedByException.class);				
-						addIllegalEdge(h.a12.getStart(), h.a2.getStart(), MustBeBoundedByException.class);				
-						addIllegalEdge(h.a12.getEnd(), h.a2.getStart(), MustBeBoundedByException.class);				
+						addIllegalEdge(h.a12.getStart(), h.a2.getEnd(), IntervalException.MustBeBoundedBy.class);				
+						addIllegalEdge(h.a12.getEnd(), h.a2.getEnd(), IntervalException.MustBeBoundedBy.class);				
+						addIllegalEdge(h.a12.getStart(), h.a2.getStart(), IntervalException.MustBeBoundedBy.class);				
+						addIllegalEdge(h.a12.getEnd(), h.a2.getStart(), IntervalException.MustBeBoundedBy.class);				
 						
-						addIllegalEdge(h.a12.getStart(), h.b.getStart(), MustBeBoundedByException.class);
-						addIllegalEdge(h.a12.getEnd(), h.b.getStart(), MustBeBoundedByException.class);
-						addIllegalEdge(h.a12.getStart(), h.b.getEnd(), MustBeBoundedByException.class);
-						addIllegalEdge(h.a12.getEnd(), h.b.getEnd(), MustBeBoundedByException.class);
+						addIllegalEdge(h.a12.getStart(), h.b.getStart(), IntervalException.MustBeBoundedBy.class);
+						addIllegalEdge(h.a12.getEnd(), h.b.getStart(), IntervalException.MustBeBoundedBy.class);
+						addIllegalEdge(h.a12.getStart(), h.b.getEnd(), IntervalException.MustBeBoundedBy.class);
+						addIllegalEdge(h.a12.getEnd(), h.b.getEnd(), IntervalException.MustBeBoundedBy.class);
 					}
 				});
 			}
@@ -135,7 +130,7 @@ public class TestIllegalEdges {
 			});
 			Assert.fail();
 		} catch (RethrownException e) {
-			Assert.assertTrue(e.getCause() instanceof EdgeNeededException);
+			Assert.assertTrue(e.getCause() instanceof IntervalException.MustHappenBefore);
 		}
 		Assert.assertEquals(1, integer.get()); // a should execute
 	}

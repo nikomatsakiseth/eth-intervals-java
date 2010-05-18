@@ -1,7 +1,6 @@
 package ch.ethz.intervals.impl;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -10,8 +9,6 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import ch.ethz.intervals.Intervals;
-import ch.ethz.intervals.impl.IntervalImpl;
-import ch.ethz.intervals.impl.LockImpl;
 import ch.ethz.intervals.mirror.Interval;
 import ch.ethz.intervals.task.AbstractTask;
 

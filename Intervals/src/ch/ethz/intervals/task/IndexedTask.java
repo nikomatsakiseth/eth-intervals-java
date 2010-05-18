@@ -1,7 +1,6 @@
 package ch.ethz.intervals.task;
 
 import ch.ethz.intervals.Intervals;
-import ch.ethz.intervals.impl.ContextImpl;
 import ch.ethz.intervals.mirror.Interval;
 
 /**
@@ -19,12 +18,12 @@ public abstract class IndexedTask extends AbstractTask {
 	private final int lo0, hi0;
 	private final int threshold;
 
-	/** {@link #run(int, int)} will be invoked from all indices i where {@code 0 <= i < count} */
+	/** {@link #run(Interval, int, int)} will be invoked from all indices i where {@code 0 <= i < count} */
 	public IndexedTask(int count) {
 		this(0, count);
 	}
 	
-	/** {@link #run(int, int)} will be invoked from all indices i where {@code lo <= i < hi} */
+	/** {@link #run(Interval, int, int)} will be invoked from all indices i where {@code lo <= i < hi} */
 	public IndexedTask(int lo, int hi) {
 		this.lo0 = lo;
 		this.hi0 = hi;

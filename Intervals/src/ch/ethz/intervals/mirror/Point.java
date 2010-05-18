@@ -1,7 +1,6 @@
 package ch.ethz.intervals.mirror;
 
-import ch.ethz.intervals.CycleException;
-import ch.ethz.intervals.EdgeNeededException;
+import ch.ethz.intervals.IntervalException;
 import ch.ethz.intervals.guard.Guard;
 import ch.ethz.intervals.impl.PointImpl;
 
@@ -46,13 +45,13 @@ public interface Point {
 	 * <li>The end of the current interval <em>happens before</em> {@code to}.
 	 * </ul>
 	 * If none of the above conditions are met, then 
-	 * the method throws a {@link EdgeNeededException}.
+	 * the method throws a {@link IntervalException.MustHappenBefore}.
 	 * 
 	 * Furthermore, if {@code to} already <em>happens before</em> {@code from},
-	 * then a {@link CycleException} is thrown.
+	 * then {@link IntervalException.Cycle} is thrown.
 	 * 
-	 * @throws EdgeNeededException see above.
-	 * @throws CycleException see above. */
+	 * @throws IntervalException.MustHappenBefore see above.
+	 * @throws IntervalException.Cycle see above. */
 	public void addHb(Point to);
 	
 }

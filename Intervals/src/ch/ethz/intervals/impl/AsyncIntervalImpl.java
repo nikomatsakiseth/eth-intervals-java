@@ -1,7 +1,6 @@
 package ch.ethz.intervals.impl;
 
 import ch.ethz.intervals.IntervalException;
-import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.mirror.AsyncInterval;
 import ch.ethz.intervals.mirror.Task;
 
@@ -17,9 +16,9 @@ implements AsyncInterval {
 	}
 
 	/**
-	 * Schedules {@code this} for execution.  You can also
-	 * schedule all pending intervals using {@link Intervals#schedule()},
-	 * or simply wait until the creating interval ends. 
+	 * Schedules {@code this} for execution.  If this method is not
+	 * invoked manually, the interval will be automatically scheduled when the
+	 * current interval ends. 
 	 * 
 	 * @throws IntervalException.AlreadyScheduled if already scheduled
 	 */

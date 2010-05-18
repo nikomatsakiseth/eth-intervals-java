@@ -1,8 +1,6 @@
 package ch.ethz.intervals.impl;
 
 import ch.ethz.intervals.IntervalException;
-import ch.ethz.intervals.IntervalException.CannotBeLockedBy;
-import ch.ethz.intervals.IntervalException.LockNotHeld;
 import ch.ethz.intervals.guard.Guard;
 import ch.ethz.intervals.mirror.Interval;
 import ch.ethz.intervals.mirror.Lock;

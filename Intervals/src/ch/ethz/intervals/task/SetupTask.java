@@ -1,12 +1,10 @@
 package ch.ethz.intervals.task;
 
-import ch.ethz.intervals.Intervals;
-import ch.ethz.intervals.impl.IntervalImpl;
-import ch.ethz.intervals.impl.PointImpl;
+import ch.ethz.intervals.mirror.AsyncInterval;
 import ch.ethz.intervals.mirror.Interval;
 
 /** Base class for tasks with an extended setup period.  
- *  @see #setup(PointImpl, IntervalImpl)  */
+ *  @see #setup(Interval, Interval)  */
 public abstract class SetupTask extends AbstractTask {
 	
 	public SetupTask() {
@@ -24,7 +22,7 @@ public abstract class SetupTask extends AbstractTask {
 	 * {@code worker} that will not run until this method returns.
 	 * 
 	 * Normally, however, this guarantee can be obtained in a more straight-forward
-	 * fashion by any task simply by not invoking {@link Intervals#schedule()}
+	 * fashion by any task simply by not invoking {@link AsyncInterval#schedule()}
 	 * until all setup is done (or allowing the runtime to invoke it automatically
 	 * for you).
 	 */

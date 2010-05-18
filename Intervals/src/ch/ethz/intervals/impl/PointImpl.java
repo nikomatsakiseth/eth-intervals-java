@@ -11,7 +11,7 @@ import java.util.LinkedList;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
-import ch.ethz.intervals.CycleException;
+import ch.ethz.intervals.IntervalException;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.impl.ThreadPool.Worker;
 import ch.ethz.intervals.mirror.Point;
@@ -310,8 +310,7 @@ implements Point
 			didReachWaitCountZero();
 	}
 
-	/** Invoked by {@link #arrive(int)} when wait count reaches zero,
-	 *  but also from {@link Intervals#inline(InlineTask)} */
+	/** Invoked by {@link #arrive(int)} when wait count reaches zero. */
 	void didReachWaitCountZero() {
 		intervalImpl.didReachWaitCountZero(this);
 	}
@@ -632,7 +631,7 @@ implements Point
 	{
 		if(to.hbOrSpec(this)) {
 			recoverFromCycle(to);
-			throw new CycleException(this, to);
+			throw new IntervalException.Cycle(this, to);
 		} else {
 			confirmEdgeAndAdjust(to, NORMAL);
 		}

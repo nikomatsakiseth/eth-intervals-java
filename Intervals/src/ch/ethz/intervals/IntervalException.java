@@ -3,6 +3,7 @@ package ch.ethz.intervals;
 import ch.ethz.intervals.guard.ReadTrackingDynamicGuard;
 import ch.ethz.intervals.guard.Guard;
 import ch.ethz.intervals.impl.IntervalImpl;
+import ch.ethz.intervals.impl.PointImpl;
 import ch.ethz.intervals.mirror.Interval;
 import ch.ethz.intervals.mirror.Lock;
 import ch.ethz.intervals.mirror.Point;
@@ -27,6 +28,42 @@ public abstract class IntervalException extends RuntimeException {
 		super(arg0, arg1);
 	}
 	
+	/** Indicates that the user's action would have created a cycle in the
+	 *  scheduler graph. */
+	public static class Cycle extends IntervalException {
+		private static final long serialVersionUID = 2242825867497429060L;
+		public final Point from, to;
+
+		public Cycle(Point from, Point to) {
+			this.from = from;
+			this.to = to;
+		}
+		
+		public String toString() {
+			return String.format(
+					"Adding an edge from %s to %s would create a cycle",
+					from, to);
+		}		
+		
+	}
+	
+	public static class MustBeBoundedBy extends IntervalException {
+		private static final long serialVersionUID = -3545763123904421907L;
+		
+		public final Point bound;
+		public final Point point;
+		
+		public MustBeBoundedBy(Point bound, Point point) {
+			this.bound = bound;
+			this.point = point;
+		}
+		
+		public String toString() {
+			return point + " must be bounded by " + bound;
+		}
+		
+	}
+	
 	public static class MustBeCurrent extends IntervalException {
 		public final Interval inter;
 		
@@ -42,6 +79,17 @@ public abstract class IntervalException extends RuntimeException {
 		
 	}
 
+	/**
+	 * Indicates that the given method cannot be called from the root interval.
+	 */
+	public static class NotInRootInterval extends RuntimeException {
+		private static final long serialVersionUID = 6938307942423182780L;
+		
+		public String toString() {
+			return "this operation cannot be performed in the root interval";
+		}	
+	}
+	
 	public static class NotSubinterval extends IntervalException {
 		public final Interval current;
 		public final Interval reqdParent;

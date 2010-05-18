@@ -1,12 +1,8 @@
 package ch.ethz.intervals.impl;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
 import pcollections.PSet;
-
 import ch.ethz.intervals.impl.IntervalImpl.State;
 import ch.ethz.intervals.impl.ThreadPool.WorkItem;
 import ch.ethz.intervals.impl.ThreadPool.Worker;

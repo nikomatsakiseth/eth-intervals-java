@@ -1,12 +1,7 @@
 package ch.ethz.intervals.impl;
 
 import static ch.ethz.intervals.Intervals.SAFETY_CHECKS;
-import ch.ethz.intervals.CycleException;
-import ch.ethz.intervals.EdgeNeededException;
 import ch.ethz.intervals.IntervalException;
-import ch.ethz.intervals.MustBeBoundedByException;
-import ch.ethz.intervals.NotInRootIntervalException;
-import ch.ethz.intervals.IntervalException.AlreadyScheduled;
 
 public class Current
 {
@@ -119,12 +114,12 @@ public class Current
 			if(isUnscheduled(parent.start))
 				return;
 			if(inter == null)
-				throw new NotInRootIntervalException();
+				throw new IntervalException.NotInRootInterval();
 			if(inter.end.isBoundedByOrEqualTo(parent.end))
 				return;
 			if(inter.end.hbeq(parent.start))
 				return;
-			throw new EdgeNeededException(inter.end, parent.start);
+			throw new IntervalException.MustHappenBefore(inter.end, parent.start);
 		}
 	}
 
@@ -134,7 +129,7 @@ public class Current
 				return;
 			if(inter != null && inter.end.hbeq(to))
 				return;
-			throw new EdgeNeededException((inter != null ? inter.end : null), to);
+			throw new IntervalException.MustHappenBefore((inter != null ? inter.end : null), to);
 		}		
 	}
 	
@@ -147,7 +142,7 @@ public class Current
 		if(interBound == null || to.isBoundedBy(interBound))
 			return;
 		
-		throw new MustBeBoundedByException(from.bound, to);
+		throw new IntervalException.MustBeBoundedBy(from.bound, to);
 	}
 
 	void checkCanAddHb(PointImpl from, PointImpl to) {
@@ -161,7 +156,7 @@ public class Current
 	void checkCycle(PointImpl from, PointImpl to) {
 		if(SAFETY_CHECKS) {
 			if(from != null && to.hb(from))
-				throw new CycleException(from, to);
+				throw new IntervalException.Cycle(from, to);
 		}
 	}
 

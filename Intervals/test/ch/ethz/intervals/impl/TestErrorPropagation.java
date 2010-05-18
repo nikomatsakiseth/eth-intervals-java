@@ -10,8 +10,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Assert;
 import org.junit.Test;
 
-import ch.ethz.intervals.CycleException;
-import ch.ethz.intervals.EdgeNeededException;
 import ch.ethz.intervals.IntervalException;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.RethrownException;
@@ -366,7 +364,7 @@ public class TestErrorPropagation extends Util {
 	
 	@Test 
 	public void raceConditionInBeforeGeneratesError1() {
-		expect(new ExpectedErrorTask(EdgeNeededException.class) {
+		expect(new ExpectedErrorTask(IntervalException.MustHappenBefore.class) {
 			@Override protected void tryIt(Interval current) {
 				final AsyncInterval a = current.newAsyncChild(new EmptyTask("a"));
 				a.schedule();
@@ -378,7 +376,7 @@ public class TestErrorPropagation extends Util {
 	
 	@Test
 	public void raceConditionInBeforeGeneratesError2() {
-		expect(new ExpectedErrorTask(EdgeNeededException.class) {
+		expect(new ExpectedErrorTask(IntervalException.MustHappenBefore.class) {
 			@Override protected void tryIt(Interval current) {
 				final AsyncInterval a = current.newAsyncChild(new EmptyTask("a"));
 				a.schedule();
@@ -390,7 +388,7 @@ public class TestErrorPropagation extends Util {
 	
 	@Test
 	public void simpleCycleGeneratesError() {
-		Assert.assertTrue(Intervals.inline(new ExpectedErrorTask(CycleException.class) {
+		Assert.assertTrue(Intervals.inline(new ExpectedErrorTask(IntervalException.Cycle.class) {
 			@Override protected void tryIt(Interval current) {
 				final Interval a = current.newAsyncChild(new EmptyTask("a"));
 				final Interval b = current.newAsyncChild(new EmptyTask("b"));
@@ -402,7 +400,7 @@ public class TestErrorPropagation extends Util {
 	
 	@Test
 	public void boundToStartGeneratesError() {
-		expect(new ExpectedErrorTask(CycleException.class) {
+		expect(new ExpectedErrorTask(IntervalException.Cycle.class) {
 			@Override protected void tryIt(Interval current) {
 				final Interval a = current.newAsyncChild(new EmptyTask("a"));
 				final Interval b = a.newAsyncChild(new EmptyTask("b"));
@@ -413,7 +411,7 @@ public class TestErrorPropagation extends Util {
 	
 	@Test 
 	public void boundToEndGeneratesError() {
-		expect(new ExpectedErrorTask(CycleException.class) {
+		expect(new ExpectedErrorTask(IntervalException.Cycle.class) {
 			@Override protected void tryIt(Interval current) {
 				final Interval a = current.newAsyncChild(new EmptyTask("a"));
 				final Interval b = a.newAsyncChild(new EmptyTask("b"));
@@ -483,7 +481,7 @@ public class TestErrorPropagation extends Util {
 				try {
 					Intervals.addHb(c.getEnd(), d.getStart());
 					Assert.fail("No cycle exception");
-				} catch(CycleException e) {					
+				} catch(IntervalException.Cycle e) {					
 				}
 				impl(b.getEnd()).checkForCycleAndRecover(impl(a.getStart()));
 				Assert.assertTrue("hb not observed after final", b.getEnd().hb(a.getStart()));
@@ -516,7 +514,7 @@ public class TestErrorPropagation extends Util {
 						try {
 							Intervals.addHb(c.getEnd(), d.getStart());
 							Assert.fail("No cycle exception");
-						} catch(CycleException e) {					
+						} catch(IntervalException.Cycle e) {					
 						}
 
 						b.schedule();

@@ -1,13 +1,12 @@
 package ch.ethz.intervals.impl;
 
 import static ch.ethz.intervals.util.ChunkList.NORMAL;
-import ch.ethz.intervals.NotInRootIntervalException;
+import ch.ethz.intervals.IntervalException;
 import ch.ethz.intervals.RethrownException;
 import ch.ethz.intervals.guard.Guard;
 import ch.ethz.intervals.mirror.Context;
 import ch.ethz.intervals.mirror.Lock;
 import ch.ethz.intervals.mirror.Task;
-import ch.ethz.intervals.task.ResultTask;
 
 public class ContextImpl implements Context {
 	
@@ -35,7 +34,7 @@ public class ContextImpl implements Context {
 	public boolean checkReadable(Guard guard) {
 		Current current = Current.get();
 		if(current.inter == null)
-			throw new NotInRootIntervalException(); // later we could allow this maybe
+			throw new IntervalException.NotInRootInterval(); // later we could allow this maybe
 		RuntimeException err = guard.checkReadable(current.mr, current.inter);
 		if(err != null) throw err;
 		return true;
@@ -49,7 +48,7 @@ public class ContextImpl implements Context {
 	public boolean checkWritable(Guard guard) {
 		Current current = Current.get();
 		if(current.inter == null)
-			throw new NotInRootIntervalException(); // later we could allow this maybe
+			throw new IntervalException.NotInRootInterval(); // later we could allow this maybe
 		RuntimeException err = guard.checkWritable(current.mr, current.inter);
 		if(err != null) throw err;
 		return true;
