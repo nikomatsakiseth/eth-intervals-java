@@ -3,6 +3,7 @@ package ch.ethz.intervals.impl;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 import ch.ethz.intervals.impl.IntervalImpl.State;
 import ch.ethz.intervals.impl.ThreadPool.WorkItem;
@@ -12,36 +13,73 @@ import ch.ethz.intervals.util.ChunkList;
 public class Debug {
 	
 	public static final boolean ENABLED = false;
+	public static final int BUFFER_SIZE = 100000; // If 0, dump immediately.
 	public static final boolean DUMP_IMMEDIATELY = true;
 	
-	public static final boolean ENABLED_LOCK = true;         /** Debug statements related to locks. */
-	public static final boolean ENABLED_WAIT_COUNTS = true;	 /** Debug statements related to wait counts. */
+	public static final boolean ENABLED_LOCK = false;        /** Debug statements related to locks. */
+	public static final boolean ENABLED_WAIT_COUNTS = false; /** Debug statements related to wait counts. */
+	public static final boolean ENABLED_ARRIVE = true; 		 /** \-> Arrive statements in particular. */
+	public static final boolean ENABLED_ADD_WC = true; 		 /** \-> Add Wait Count statements in particular. */
 	public static final boolean ENABLED_INTER = false;       /** Debug statements related to higher-level interval control-flow */
 	public static final boolean ENABLED_WORK_STEAL = false;  /** Debug statements related to the work-stealing queue */
 	
-	public static List<Event> events = Collections.synchronizedList(new ArrayList<Event>());
+	private static Event[] events = new Event[BUFFER_SIZE];
+	private static AtomicLong pos = new AtomicLong(0);
 	
 	public static void addEvent(Event e) {
 		assert ENABLED; // all debug actions should be protected by if(ENABLED)
 		if(ENABLED) { // just in case.
-			if(DUMP_IMMEDIATELY) {
+			boolean dumpImmediately = (BUFFER_SIZE == 0);
+			if(dumpImmediately) {
 				synchronized(events) {
 					System.err.println(e.toString());
 				}
-			} else
-				events.add(e);
+			} else {
+				e.index = pos.getAndIncrement();
+				int actualIndex = (int)(e.index % BUFFER_SIZE);
+				events[actualIndex] = e;
+			}
 		}
+	}
+	
+	public static void dumpAfter(final long millis) {
+		new Thread() {
+			@Override
+			public void run() {
+				super.run();
+				try {
+					Thread.sleep(millis);
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+				dump();
+			}
+		}.start();
 	}
 	
 	public static void dump() {
 		synchronized(events) {
-			for(Event e : events)
-				System.err.println(e.toString());
-			events.clear();
+			long longMax = pos.get();
+			int intMax = (int)(longMax % BUFFER_SIZE);
+			System.err.printf("Dumping from event %s in REVERSE ORDER\n", longMax);
+			for(int i = intMax - 1; i >= 0; i--) {
+				Event e = events[i];
+				if(e != null && e.index < longMax) {
+					System.err.printf("%6d: %s\n", e.index, e);
+				} else break;
+			}
+			for(int i = events.length - 1; i >= intMax; i--) {
+				Event e = events[i];
+				if(e != null && e.index < longMax) {
+					System.err.printf("%6d: %s\n", e.index, e);
+				} else break;
+			}
 		}
 	}
 
-	static abstract class Event {}
+	static abstract class Event {
+		public long index;
+	}
 
 	static class ArriveEvent extends Event {
 		public final PointImpl pointImpl;
@@ -60,7 +98,7 @@ public class Debug {
 	}
 	
 	public static void arrive(PointImpl pointImpl, int count, int newCount) {
-		if(ENABLED_WAIT_COUNTS)
+		if(ENABLED_WAIT_COUNTS || ENABLED_ARRIVE)
 			addEvent(new ArriveEvent(pointImpl, count, newCount));
 	}
 	
@@ -168,22 +206,24 @@ public class Debug {
 	}
 
 	static class AddWaitCountEvent extends Event {
-		public final PointImpl pointImpl;		
+		public final PointImpl pointImpl;
+		public final PointImpl fromImpl;
 		public final int newCount;
 		
-		public AddWaitCountEvent(PointImpl pointImpl, int newCount) {
+		public AddWaitCountEvent(PointImpl pointImpl, PointImpl fromImpl, int newCount) {
 			this.pointImpl = pointImpl;
+			this.fromImpl = fromImpl;
 			this.newCount = newCount;
 		}
 		
 		public String toString() {
-			return String.format("ADD_WAIT_COUNT %s newCount=%d", pointImpl, newCount);
+			return String.format("ADD_WAIT_COUNT %s from=%s newCount=%d", pointImpl, fromImpl, newCount);
 		}
 	}
 	
-	public static void addWaitCount(PointImpl pointImpl, int newCount) {
-		if(ENABLED_WAIT_COUNTS)
-			addEvent(new AddWaitCountEvent(pointImpl, newCount));
+	public static void addWaitCount(PointImpl pointImpl, PointImpl fromImpl, int newCount) {
+		if(ENABLED_WAIT_COUNTS || ENABLED_ADD_WC)
+			addEvent(new AddWaitCountEvent(pointImpl, fromImpl, newCount));
 	}
 	
 	static class AwakenIdleEvent extends Event {

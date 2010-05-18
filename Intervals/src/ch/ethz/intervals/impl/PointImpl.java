@@ -385,11 +385,11 @@ implements Point
 	/** Adds to the wait count.  Only safe when the caller is
 	 *  one of the people we are waiting for.  
 	 *  <b>Does not acquire a lock on this.</b> */
-	protected void addWaitCount() {
+	protected void addWaitCount(PointImpl from) {
 		int newCount = waitCountUpdater.incrementAndGet(this);
 		assert newCount > 1;
 		if(Debug.ENABLED)
-			Debug.addWaitCount(this, newCount);		
+			Debug.addWaitCount(this, from, newCount);		
 	}
 
 	protected void addWaitCountUnsync(int cnt) {
@@ -478,7 +478,7 @@ implements Point
 		synchronized(this) {			
 			if(!didOccur()) {
 				primAddOutEdge(toImpl, flags | ChunkList.WAITING); 
-				toImpl.addWaitCount();
+				toImpl.addWaitCount(this);
 				return;
 			} else {
 				primAddOutEdge(toImpl, flags);
@@ -513,7 +513,7 @@ implements Point
 		
 		synchronized(this) {
 			if(!didOccur()) {
-				toImpl.addWaitCount();
+				toImpl.addWaitCount(this);
 				ChunkList.removeSpeculativeFlagAndAdd(outEdges, toImpl, WAITING);
 				return;
 			} else {

@@ -12,6 +12,7 @@ import junit.framework.Assert;
 
 import org.junit.Test;
 
+import ch.ethz.intervals.impl.Debug;
 import ch.ethz.intervals.impl.PointImpl;
 import ch.ethz.intervals.mirror.AsyncInterval;
 import ch.ethz.intervals.mirror.Interval;
@@ -559,7 +560,7 @@ public class TestGameOfLife {
 			public final int gen;
 			
 			public TileTask(Tile tile, int gen) {
-				super("Tile"+tile);
+				super("Tile"+tile+"#"+gen);
 				this.tile = tile;
 				this.gen = gen;
 			}
@@ -1184,6 +1185,7 @@ public class TestGameOfLife {
 	 * of the Queen Bee pattern.
 	 */
 	@Test public void fgGliderGun() {
+		Debug.dumpAfter(5000);
 		compareFactories(
 				new SerialEngine(), 
 				new FineGrainedIntervalEngine(),

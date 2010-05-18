@@ -354,7 +354,7 @@ implements Guard, Interval
 		
 		// If we accept the new child, then wait for it to end
 		if(state.permitsNewChildren)
-			end.addWaitCountUnsync(1);
+			end.addWaitCount(inter.end);
 		
 		return state;
 	}
