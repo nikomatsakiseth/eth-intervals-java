@@ -36,8 +36,8 @@ package jgfmt.section2.crypt;
 import java.util.Random;
 
 import jgfmt.jgfutil.JGFInstrumentor;
+import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
-import ch.ethz.intervals.mirror.Interval;
 import ch.ethz.intervals.task.AbstractTask;
 import ch.ethz.intervals.task.IndexedTask;
 

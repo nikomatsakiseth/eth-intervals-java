@@ -22,10 +22,10 @@
 package jgfmt.section2.sor;
 
 import jgfmt.jgfutil.JGFInstrumentor;
+import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
+import ch.ethz.intervals.Point;
 import ch.ethz.intervals.impl.IntervalImpl;
-import ch.ethz.intervals.mirror.Interval;
-import ch.ethz.intervals.mirror.Point;
 import ch.ethz.intervals.task.AbstractTask;
 
 //class RowRecord {

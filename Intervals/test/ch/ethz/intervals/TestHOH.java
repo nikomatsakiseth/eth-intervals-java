@@ -8,7 +8,6 @@ import org.junit.Test;
 
 import ch.ethz.intervals.impl.IntervalImpl;
 import ch.ethz.intervals.impl.LockImpl;
-import ch.ethz.intervals.mirror.Interval;
 import ch.ethz.intervals.quals.DefinesGhost;
 import ch.ethz.intervals.task.AbstractTask;
 

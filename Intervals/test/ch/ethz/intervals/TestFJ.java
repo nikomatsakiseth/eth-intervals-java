@@ -12,7 +12,6 @@ import junit.framework.Assert;
 
 import org.junit.Test;
 
-import ch.ethz.intervals.mirror.Interval;
 import ch.ethz.intervals.task.AbstractTask;
 
 public class TestFJ {

@@ -5,7 +5,6 @@ import org.junit.Test;
 import ch.ethz.intervals.impl.IntervalImpl;
 import ch.ethz.intervals.impl.LockImpl;
 import ch.ethz.intervals.impl.PointImpl;
-import ch.ethz.intervals.mirror.Interval;
 import ch.ethz.intervals.task.AbstractTask;
 import ch.ethz.intervals.task.SetupTask;
 

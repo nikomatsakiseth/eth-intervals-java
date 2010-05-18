@@ -5,17 +5,17 @@ import java.util.Set;
 import pcollections.Empty;
 import pcollections.HashTreePSet;
 import pcollections.PSet;
+import ch.ethz.intervals.AsyncInterval;
+import ch.ethz.intervals.InlineInterval;
+import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.IntervalException;
 import ch.ethz.intervals.Intervals;
+import ch.ethz.intervals.Lock;
+import ch.ethz.intervals.Point;
 import ch.ethz.intervals.RethrownException;
+import ch.ethz.intervals.Task;
 import ch.ethz.intervals.guard.Guard;
 import ch.ethz.intervals.impl.ThreadPool.Worker;
-import ch.ethz.intervals.mirror.AsyncInterval;
-import ch.ethz.intervals.mirror.InlineInterval;
-import ch.ethz.intervals.mirror.Interval;
-import ch.ethz.intervals.mirror.Lock;
-import ch.ethz.intervals.mirror.Point;
-import ch.ethz.intervals.mirror.Task;
 import ch.ethz.intervals.util.ChunkList;
 
 public abstract class IntervalImpl 

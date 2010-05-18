@@ -5,9 +5,9 @@ import java.util.Arrays;
 import org.junit.Assert;
 import org.junit.Test;
 
+import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
-import ch.ethz.intervals.mirror.Interval;
-import ch.ethz.intervals.mirror.Point;
+import ch.ethz.intervals.Point;
 import ch.ethz.intervals.task.AbstractTask;
 
 public class TestHB extends Util {

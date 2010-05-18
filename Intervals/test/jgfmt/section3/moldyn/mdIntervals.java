@@ -26,10 +26,10 @@
 package jgfmt.section3.moldyn;
 
 import jgfmt.jgfutil.JGFInstrumentor;
+import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.impl.DoubleReduction;
 import ch.ethz.intervals.impl.IntReduction;
-import ch.ethz.intervals.mirror.Interval;
 import ch.ethz.intervals.task.AbstractTask;
 import ch.ethz.intervals.task.IndexedTask;
 

@@ -39,9 +39,9 @@
 package jgfmt.section2.series;
 
 import jgfmt.jgfutil.JGFInstrumentor;
+import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.impl.IntervalImpl;
-import ch.ethz.intervals.mirror.Interval;
 import ch.ethz.intervals.task.AbstractTask;
 
 public class SeriesTestInterval {

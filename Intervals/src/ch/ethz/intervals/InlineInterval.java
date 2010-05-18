@@ -1,4 +1,4 @@
-package ch.ethz.intervals.mirror;
+package ch.ethz.intervals;
 
 public interface InlineInterval extends Interval {
 	public void execute();

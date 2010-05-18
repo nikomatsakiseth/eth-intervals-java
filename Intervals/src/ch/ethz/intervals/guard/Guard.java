@@ -1,11 +1,11 @@
 package ch.ethz.intervals.guard;
 
+import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
+import ch.ethz.intervals.Lock;
+import ch.ethz.intervals.Point;
 import ch.ethz.intervals.impl.IntervalImpl;
 import ch.ethz.intervals.impl.LockImpl;
-import ch.ethz.intervals.mirror.Interval;
-import ch.ethz.intervals.mirror.Lock;
-import ch.ethz.intervals.mirror.Point;
 import ch.ethz.intervals.quals.Creator;
 import ch.ethz.intervals.quals.GuardedBy;
 

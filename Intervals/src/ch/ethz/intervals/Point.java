@@ -1,6 +1,5 @@
-package ch.ethz.intervals.mirror;
+package ch.ethz.intervals;
 
-import ch.ethz.intervals.IntervalException;
 import ch.ethz.intervals.guard.Guard;
 import ch.ethz.intervals.impl.PointImpl;
 

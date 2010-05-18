@@ -1,8 +1,8 @@
 package ch.ethz.intervals.impl;
 
+import ch.ethz.intervals.AsyncInterval;
 import ch.ethz.intervals.IntervalException;
-import ch.ethz.intervals.mirror.AsyncInterval;
-import ch.ethz.intervals.mirror.Task;
+import ch.ethz.intervals.Task;
 
 public class AsyncIntervalImpl 
 extends IntervalImpl 

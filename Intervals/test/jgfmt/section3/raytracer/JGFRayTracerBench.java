@@ -63,12 +63,12 @@ public class JGFRayTracerBench extends RayTracer implements JGFSection3 {
 			JGFInstrumentor.startTimer("Section3:RayTracer:Run");
 			Intervals.inline(new AbstractTask() {				
 				@Override
-				public void run(ch.ethz.intervals.mirror.Interval subinterval) {
+				public void run(ch.ethz.intervals.Interval subinterval) {
 					subinterval.newAsyncChild(
 						new IndexedTask(interval.height) {						
 							@Override
 							public void run(
-									ch.ethz.intervals.mirror.Interval current,
+									ch.ethz.intervals.Interval current,
 									int fromIndex, 
 									int toIndex) 
 							{

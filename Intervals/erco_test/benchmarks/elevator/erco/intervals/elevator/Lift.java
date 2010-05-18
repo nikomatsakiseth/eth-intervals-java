@@ -10,11 +10,11 @@ package erco.intervals.elevator;
 import java.util.Enumeration;
 import java.util.Vector;
 
+import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
+import ch.ethz.intervals.Lock;
 import ch.ethz.intervals.impl.IntervalImpl;
 import ch.ethz.intervals.impl.LockImpl;
-import ch.ethz.intervals.mirror.Interval;
-import ch.ethz.intervals.mirror.Lock;
 import ch.ethz.intervals.quals.Creator;
 import ch.ethz.intervals.task.AbstractTask;
 

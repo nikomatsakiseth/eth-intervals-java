@@ -2,10 +2,10 @@ package erco.intervals.tsp;
 
 import java.util.PriorityQueue;
 
+import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.impl.IntervalImpl;
 import ch.ethz.intervals.impl.LockImpl;
-import ch.ethz.intervals.mirror.Interval;
 import ch.ethz.intervals.quals.Creator;
 import ch.ethz.intervals.quals.GuardedBy;
 import ch.ethz.intervals.task.AbstractTask;

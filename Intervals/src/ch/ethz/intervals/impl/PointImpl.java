@@ -13,8 +13,8 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
 import ch.ethz.intervals.IntervalException;
 import ch.ethz.intervals.Intervals;
+import ch.ethz.intervals.Point;
 import ch.ethz.intervals.impl.ThreadPool.Worker;
-import ch.ethz.intervals.mirror.Point;
 import ch.ethz.intervals.util.ChunkList;
 
 public final class PointImpl 

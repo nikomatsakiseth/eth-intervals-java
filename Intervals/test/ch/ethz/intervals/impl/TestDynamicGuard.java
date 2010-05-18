@@ -11,15 +11,15 @@ import java.util.Map;
 import org.junit.Assert;
 import org.junit.Test;
 
+import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.IntervalException;
 import ch.ethz.intervals.Intervals;
+import ch.ethz.intervals.Point;
 import ch.ethz.intervals.RethrownException;
 import ch.ethz.intervals.IntervalException.DataRace;
 import ch.ethz.intervals.guard.Guard;
 import ch.ethz.intervals.guard.ReadSummarizingDynamicGuard;
 import ch.ethz.intervals.guard.ReadTrackingDynamicGuard;
-import ch.ethz.intervals.mirror.Interval;
-import ch.ethz.intervals.mirror.Point;
 import ch.ethz.intervals.task.AbstractTask;
 import ch.ethz.intervals.util.ChunkList;
 

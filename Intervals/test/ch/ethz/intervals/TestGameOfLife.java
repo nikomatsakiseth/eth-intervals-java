@@ -14,9 +14,6 @@ import org.junit.Test;
 
 import ch.ethz.intervals.impl.Debug;
 import ch.ethz.intervals.impl.PointImpl;
-import ch.ethz.intervals.mirror.AsyncInterval;
-import ch.ethz.intervals.mirror.Interval;
-import ch.ethz.intervals.mirror.Point;
 import ch.ethz.intervals.task.AbstractTask;
 import ch.ethz.intervals.task.EmptyTask;
 import ch.ethz.intervals.task.IndexedTask;

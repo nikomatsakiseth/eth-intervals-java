@@ -4,9 +4,6 @@ import ch.ethz.intervals.guard.ReadTrackingDynamicGuard;
 import ch.ethz.intervals.guard.Guard;
 import ch.ethz.intervals.impl.IntervalImpl;
 import ch.ethz.intervals.impl.PointImpl;
-import ch.ethz.intervals.mirror.Interval;
-import ch.ethz.intervals.mirror.Lock;
-import ch.ethz.intervals.mirror.Point;
 
 
 /** Base class for all exceptions thrown by the interval runtime. */

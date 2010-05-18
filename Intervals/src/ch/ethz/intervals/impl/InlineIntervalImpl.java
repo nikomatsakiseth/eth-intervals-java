@@ -1,9 +1,9 @@
 package ch.ethz.intervals.impl;
 
 import pcollections.PSet;
+import ch.ethz.intervals.InlineInterval;
 import ch.ethz.intervals.RethrownException;
-import ch.ethz.intervals.mirror.InlineInterval;
-import ch.ethz.intervals.mirror.Task;
+import ch.ethz.intervals.Task;
 
 
 public class InlineIntervalImpl

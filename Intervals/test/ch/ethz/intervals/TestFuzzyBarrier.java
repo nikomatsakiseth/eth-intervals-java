@@ -10,7 +10,6 @@ import java.util.Set;
 import org.junit.Assert;
 import org.junit.Test;
 
-import ch.ethz.intervals.mirror.Interval;
 import ch.ethz.intervals.task.AbstractTask;
 import ch.ethz.intervals.task.EmptyTask;
 import ch.ethz.intervals.task.ResultTask;

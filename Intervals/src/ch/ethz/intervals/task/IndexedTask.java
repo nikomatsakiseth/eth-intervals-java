@@ -1,7 +1,7 @@
 package ch.ethz.intervals.task;
 
+import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
-import ch.ethz.intervals.mirror.Interval;
 
 /**
  * A more efficient way of creating {@code count} distinct

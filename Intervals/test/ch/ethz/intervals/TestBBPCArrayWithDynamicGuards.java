@@ -9,7 +9,6 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import ch.ethz.intervals.guard.ReadTrackingDynamicGuard;
-import ch.ethz.intervals.mirror.Interval;
 import ch.ethz.intervals.task.AbstractTask;
 
 /**

@@ -2,10 +2,10 @@ package ch.ethz.intervals.impl;
 
 import org.junit.Assert;
 
+import ch.ethz.intervals.AsyncInterval;
+import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
-import ch.ethz.intervals.mirror.AsyncInterval;
-import ch.ethz.intervals.mirror.Interval;
-import ch.ethz.intervals.mirror.Point;
+import ch.ethz.intervals.Point;
 import ch.ethz.intervals.task.EmptyTask;
 import ch.ethz.intervals.task.ResultTask;
 

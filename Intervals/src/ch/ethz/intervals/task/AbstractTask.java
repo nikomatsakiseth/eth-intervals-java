@@ -2,8 +2,8 @@ package ch.ethz.intervals.task;
 
 import java.util.Set;
 
-import ch.ethz.intervals.mirror.Interval;
-import ch.ethz.intervals.mirror.Task;
+import ch.ethz.intervals.Interval;
+import ch.ethz.intervals.Task;
 
 public abstract class AbstractTask implements Task {
 	

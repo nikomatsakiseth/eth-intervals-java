@@ -1,4 +1,4 @@
-package ch.ethz.intervals.mirror;
+package ch.ethz.intervals;
 
 public interface AsyncInterval extends Interval {
 	public void schedule();

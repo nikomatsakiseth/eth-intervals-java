@@ -7,9 +7,6 @@ import java.util.List;
 import org.junit.Assert;
 import org.junit.Test;
 
-import ch.ethz.intervals.mirror.AsyncInterval;
-import ch.ethz.intervals.mirror.Interval;
-import ch.ethz.intervals.mirror.Point;
 import ch.ethz.intervals.task.AbstractTask;
 import ch.ethz.intervals.task.EmptyTask;
 

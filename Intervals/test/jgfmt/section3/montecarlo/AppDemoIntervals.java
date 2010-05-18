@@ -25,8 +25,8 @@ import static jgfmt.section3.montecarlo.AppDemo.JGFavgExpectedReturnRateMC;
 
 import java.util.Vector;
 
+import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
-import ch.ethz.intervals.mirror.Interval;
 import ch.ethz.intervals.task.AbstractTask;
 
 

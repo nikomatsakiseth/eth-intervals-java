@@ -1,12 +1,11 @@
 package ch.ethz.intervals.impl;
 
 import static ch.ethz.intervals.util.ChunkList.NORMAL;
+import ch.ethz.intervals.Context;
 import ch.ethz.intervals.IntervalException;
-import ch.ethz.intervals.RethrownException;
+import ch.ethz.intervals.Lock;
+import ch.ethz.intervals.Task;
 import ch.ethz.intervals.guard.Guard;
-import ch.ethz.intervals.mirror.Context;
-import ch.ethz.intervals.mirror.Lock;
-import ch.ethz.intervals.mirror.Task;
 
 public class ContextImpl implements Context {
 	
@@ -24,14 +23,8 @@ public class ContextImpl implements Context {
 		return null;
 	}
 	
-	/**
-	 * Convenience method for asserting that the current interval is readable.
-	 * Intended to be used like: {@code assert checkReadable(guard);}
-	 * 
-	 * @param guard the guard to check for readability
-	 * @returns true if {@code guard} is readable, and throws an exception otherwise.
-	 */
-	public boolean checkReadable(Guard guard) {
+	public boolean checkReadable(Guard guard) 
+	{
 		Current current = Current.get();
 		if(current.inter == null)
 			throw new IntervalException.NotInRootInterval(); // later we could allow this maybe
@@ -40,12 +33,8 @@ public class ContextImpl implements Context {
 		return true;
 	}
 	
-	/**
-	 * Convenience method for asserting that the current interval is writable.
-	 * 
-	 * @see #checkReadable(Guard)
-	 */
-	public boolean checkWritable(Guard guard) {
+	public boolean checkWritable(Guard guard) 
+	{
 		Current current = Current.get();
 		if(current.inter == null)
 			throw new IntervalException.NotInRootInterval(); // later we could allow this maybe
@@ -54,14 +43,6 @@ public class ContextImpl implements Context {
 		return true;
 	}
 	
-	/**
-	 * Creates a new interval which executes during the current interval.
-	 * This interval will execute {@code task}.  This function does not
-	 * return until the new interval has completed.
-	 * 
-	 * <b>Note:</b> Exceptions that occur in {@code task} are 
-	 * wrapped in {@link RethrownException} and rethrown immediately.
-	 * Exceptions never propagate to the current interval. */
 	public void inline(final Task task)
 	{		
 		Current current = Current.get();

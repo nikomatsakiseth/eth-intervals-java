@@ -3,10 +3,10 @@ package ch.ethz.intervals.impl;
 import java.util.concurrent.atomic.AtomicLong;
 
 import pcollections.PSet;
+import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.impl.IntervalImpl.State;
 import ch.ethz.intervals.impl.ThreadPool.WorkItem;
 import ch.ethz.intervals.impl.ThreadPool.Worker;
-import ch.ethz.intervals.mirror.Interval;
 import ch.ethz.intervals.util.ChunkList;
 
 public class Debug {

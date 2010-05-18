@@ -2,15 +2,11 @@ package ch.ethz.intervals;
 
 import ch.ethz.intervals.guard.Guard;
 import ch.ethz.intervals.impl.ContextImpl;
-import ch.ethz.intervals.impl.IntervalImpl;
-import ch.ethz.intervals.impl.PointImpl;
-import ch.ethz.intervals.mirror.Context;
-import ch.ethz.intervals.mirror.Interval;
-import ch.ethz.intervals.mirror.Point;
-import ch.ethz.intervals.mirror.Task;
 import ch.ethz.intervals.task.ResultTask;
 
-/** Static methods for creating and manipulating intervals. */
+/** 
+ * Static convenience methods.  Also provides a means to
+ * access the current context for a given piece of code. */
 public class Intervals {
 	
 	/**
@@ -20,10 +16,20 @@ public class Intervals {
 	public static final boolean SAFETY_CHECKS = true;	
 
 	/** 
-	 * Returns the current context for the current thread. */
+	 * Returns the current context for the current thread. 
+	 * If the current thread is not running in an interval,
+	 * will return a default context object. */
 	public static Context context() {
-		// XXX This is broken.
+		// XXX Move to some thread-local system.
 		return ContextImpl.intervals;
+	}
+	
+	/** 
+	 * Creates a new lock in the current context.
+	 * 
+	 * @see Context#lock() */
+	public static Lock lock() {
+		return context().lock();
 	}
 	
 	/** 
@@ -124,14 +130,14 @@ public class Intervals {
 	
 	/** 
 	 * Invokes {@link Context#checkWritable(Guard)} on the
-	 * current context. */
+	 * current context.  Intended to be used in asserts. */
 	public static boolean checkWritable(Guard guard) {
 		return context().checkWritable(guard);
 	}
 
 	/** 
 	 * Invokes {@link Context#checkReadable(Guard)} on the
-	 * current context. */
+	 * current context.  Intended to be used in asserts. */
 	public static boolean checkReadable(Guard guard) {
 		return context().checkReadable(guard);
 	}

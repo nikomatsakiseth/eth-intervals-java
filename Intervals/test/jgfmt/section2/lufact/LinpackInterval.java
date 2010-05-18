@@ -20,8 +20,8 @@
 
 package jgfmt.section2.lufact;
 
+import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
-import ch.ethz.intervals.mirror.Interval;
 import ch.ethz.intervals.task.AbstractTask;
 import ch.ethz.intervals.task.IndexedTask;
 

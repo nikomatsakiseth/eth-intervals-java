@@ -13,9 +13,9 @@ import java.io.IOException;
 import java.io.StreamTokenizer;
 import java.util.Vector;
 
+import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.impl.IntervalImpl;
-import ch.ethz.intervals.mirror.Interval;
 import ch.ethz.intervals.task.AbstractTask;
 
 public class Elevator {

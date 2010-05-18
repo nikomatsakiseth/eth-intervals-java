@@ -1,6 +1,6 @@
 package ch.ethz.intervals.task;
 
-import ch.ethz.intervals.mirror.Interval;
+import ch.ethz.intervals.Interval;
 
 public class EmptyTask extends AbstractTask {
 	

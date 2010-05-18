@@ -2,8 +2,8 @@ package erco.intervals.tsp;
 
 import java.util.BitSet;
 
+import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
-import ch.ethz.intervals.mirror.Interval;
 import ch.ethz.intervals.quals.Constructor;
 import ch.ethz.intervals.quals.Creator;
 import ch.ethz.intervals.quals.GuardedBy;

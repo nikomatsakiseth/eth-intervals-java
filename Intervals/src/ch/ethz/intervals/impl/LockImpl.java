@@ -1,10 +1,10 @@
 package ch.ethz.intervals.impl;
 
+import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.IntervalException;
+import ch.ethz.intervals.Lock;
+import ch.ethz.intervals.Point;
 import ch.ethz.intervals.guard.Guard;
-import ch.ethz.intervals.mirror.Interval;
-import ch.ethz.intervals.mirror.Lock;
-import ch.ethz.intervals.mirror.Point;
 
 
 public class LockImpl

@@ -1,7 +1,7 @@
 package ch.ethz.intervals.task;
 
-import ch.ethz.intervals.mirror.AsyncInterval;
-import ch.ethz.intervals.mirror.Interval;
+import ch.ethz.intervals.AsyncInterval;
+import ch.ethz.intervals.Interval;
 
 /** Base class for tasks with an extended setup period.  
  *  @see #setup(Interval, Interval)  */
