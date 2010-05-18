@@ -1,4 +1,4 @@
-package ch.ethz.intervals;
+package ch.ethz.intervals.impl;
 
 import java.util.Random;
 
@@ -6,6 +6,8 @@ import junit.framework.Assert;
 
 import org.junit.Test;
 
+import ch.ethz.intervals.Interval;
+import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.task.AbstractTask;
 
 /**

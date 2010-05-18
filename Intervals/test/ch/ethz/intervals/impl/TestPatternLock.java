@@ -1,7 +1,9 @@
-package ch.ethz.intervals;
+package ch.ethz.intervals.impl;
 
 import org.junit.Test;
 
+import ch.ethz.intervals.Interval;
+import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.impl.IntervalImpl;
 import ch.ethz.intervals.impl.LockImpl;
 import ch.ethz.intervals.impl.PointImpl;

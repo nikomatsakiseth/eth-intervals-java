@@ -1,4 +1,4 @@
-package ch.ethz.intervals;
+package ch.ethz.intervals.impl;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
@@ -7,6 +7,10 @@ import java.util.List;
 import org.junit.Assert;
 import org.junit.Test;
 
+import ch.ethz.intervals.AsyncInterval;
+import ch.ethz.intervals.Interval;
+import ch.ethz.intervals.Intervals;
+import ch.ethz.intervals.Point;
 import ch.ethz.intervals.task.AbstractTask;
 import ch.ethz.intervals.task.EmptyTask;
 

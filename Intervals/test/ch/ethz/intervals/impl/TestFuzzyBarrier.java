@@ -1,4 +1,4 @@
-package ch.ethz.intervals;
+package ch.ethz.intervals.impl;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -10,6 +10,8 @@ import java.util.Set;
 import org.junit.Assert;
 import org.junit.Test;
 
+import ch.ethz.intervals.Interval;
+import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.task.AbstractTask;
 import ch.ethz.intervals.task.EmptyTask;
 import ch.ethz.intervals.task.ResultTask;

@@ -1,4 +1,4 @@
-package ch.ethz.intervals;
+package ch.ethz.intervals.impl;
 
 import static java.lang.Integer.valueOf;
 
@@ -12,6 +12,8 @@ import junit.framework.Assert;
 
 import org.junit.Test;
 
+import ch.ethz.intervals.Interval;
+import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.task.AbstractTask;
 
 public class TestFJ {

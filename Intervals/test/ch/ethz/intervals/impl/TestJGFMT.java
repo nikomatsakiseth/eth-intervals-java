@@ -1,4 +1,4 @@
-package ch.ethz.intervals;
+package ch.ethz.intervals.impl;
 
 import static org.junit.Assert.assertFalse;
 import jgfmt.section2.crypt.JGFCryptBench;

@@ -1,4 +1,4 @@
-package ch.ethz.intervals;
+package ch.ethz.intervals.impl;
 
 import static ch.ethz.intervals.Intervals.inline;
 import static java.lang.String.format;
@@ -6,6 +6,8 @@ import static java.lang.String.format;
 import org.junit.Assert;
 import org.junit.Test;
 
+import ch.ethz.intervals.Interval;
+import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.impl.IntervalImpl;
 import ch.ethz.intervals.impl.LockImpl;
 import ch.ethz.intervals.quals.DefinesGhost;

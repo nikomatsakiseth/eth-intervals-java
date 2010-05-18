@@ -1,4 +1,4 @@
-package ch.ethz.intervals;
+package ch.ethz.intervals.impl;
 
 import static ch.ethz.intervals.Intervals.addHb;
 import static ch.ethz.intervals.Intervals.inline;
@@ -8,13 +8,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Assert;
 import org.junit.Test;
 
-import ch.ethz.intervals.guard.ReadTrackingDynamicGuard;
+import ch.ethz.intervals.Interval;
+import ch.ethz.intervals.impl.IntervalImpl;
 import ch.ethz.intervals.task.AbstractTask;
 
 /**
  * Bounded-Buffer Producer Consumer example using arrays.
  */
-public class TestBBPCArrayWithDynamicGuards {
+public class TestBBPCArray {
 
 	public final int N = 3;
 	public final int M = 100;
@@ -27,43 +28,27 @@ public class TestBBPCArrayWithDynamicGuards {
 
 	int[] consumed = new int[M];
 	int[] produced = new int[M];
-	
-	public class BoxedInterval {
-		private final ReadTrackingDynamicGuard dg = new ReadTrackingDynamicGuard();
-		private Interval intervalImpl;
-		
-		public Interval get() {
-			Intervals.checkReadable(dg);
-			return intervalImpl;
-		}
-		
-		public void set(Interval intervalImpl) {
-			Intervals.checkWritable(dg);
-			this.intervalImpl = intervalImpl;
-		}
-	}
 
 	public class BBPC extends AbstractTask {
 
 		public BBPC() {
 			super("BBPC");
-			
-			for(int i = 0; i < N; i++) {
-				producers[i] = new BoxedInterval();
-				consumers[i] = new BoxedInterval();
-			}
 		}
 
 		final int N = 3;
-		final BoxedInterval[] producers = new BoxedInterval[N];
-		final BoxedInterval[] consumers = new BoxedInterval[N];
-		
+		final Interval[] producers = new IntervalImpl[N];
+		final Interval[] consumers = new IntervalImpl[N];
+
 		public Interval newProducer(Interval parent, int index) {
-			Interval inter = parent.newAsyncChild(new Producer(index));
+			Interval inter = parent.newAsyncChild(new Producer(index)); 
 			
-			// after the consumer N indices before:
+			// comes after the previous producer:
+			if (index > 0)
+				addHb(producers[(index - 1) % N], inter);
+			
+			// and the consumer N indices before:
 			if (index >= N)
-				addHb(consumers[(index - N) % N].get(), inter);
+				addHb(consumers[(index - N) % N], inter);
 			
 			return inter;
 		}
@@ -75,26 +60,29 @@ public class TestBBPCArrayWithDynamicGuards {
 				super("p"+index);
 				this.index = index;
 			}
-
-			@Override
+			
 			public void run(Interval current) {
 				produced[index] = (index * 2);
 				if(index + 1 < M)
-					producers[(index + 1) % N].set(newProducer(current.getParent(), index + 1));
+					producers[(index + 1) % N] = newProducer(current.getParent(), index + 1);
 				else
-					producers[(index + 1) % N].set(null);
+					producers[(index + 1) % N] = null;
 			}
 		}
 
 		public Interval newConsumer(Interval parent, int index) {
 			Interval inter = parent.newAsyncChild(new Consumer(index));
-
+			
 			// comes after the producer:
-			addHb(producers[index % N].get(), inter);
+			addHb(producers[index % N], inter);
+			
+			// and after the previous consumer:
+			if (index > 0)
+				addHb(consumers[(index - 1) % N], inter);
 			
 			return inter;
 		}
-
+		
 		class Consumer extends AbstractTask {
 			final int index;
 			
@@ -103,21 +91,16 @@ public class TestBBPCArrayWithDynamicGuards {
 				this.index = index;
 			}
 			
-			public String toString() {
-				return "Consumer["+index+"]";
-			}
-
-			@Override
 			public void run(Interval current) {
 				consumed[index] = produced[index];
-				if(producers[(index + 1) % N].get() != null)
-					consumers[(index + 1) % N].set(newConsumer(current.getParent(), index + 1));
+				if(producers[(index + 1) % N] != null)
+					consumers[(index + 1) % N] = newConsumer(current.getParent(), index + 1);
 			}
 		}
 
 		public void run(Interval current) {
-			producers[0].set(newProducer(current, 0));
-			consumers[0].set(newConsumer(current, 0));
+			producers[0] = newProducer(current, 0);
+			consumers[0] = newConsumer(current, 0);
 		}
 
 	}
@@ -125,7 +108,8 @@ public class TestBBPCArrayWithDynamicGuards {
 	@Test
 	public void test() {
 		inline(new AbstractTask() {
-			@Override public void run(final Interval subinterval) {
+			@Override
+			public void run(Interval subinterval) {
 				subinterval.newAsyncChild(new BBPC());
 			}
 		});

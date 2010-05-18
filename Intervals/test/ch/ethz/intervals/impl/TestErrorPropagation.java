@@ -43,6 +43,65 @@ public class TestErrorPropagation extends Util {
 		
 	}
 	
+	@Test public void attachedToMethodThrowsUncaughtException() {
+		final AtomicInteger i = new AtomicInteger(0);
+		try {
+			Intervals.inline(new AbstractTask() {
+				public void run(Interval subinterval) {
+					subinterval.newAsyncChild(
+							new AbstractTask("attachedToFails") {
+								@Override public void attachedTo(Interval inter) {
+									super.attachedTo(inter);
+									
+									throw new TestException();
+								}
+
+								@Override public void run(Interval current) throws Exception {
+									// This should not run:
+									i.incrementAndGet();
+								}
+							}
+					);
+				}
+			});
+			
+			Assert.fail("No exception thrown!");
+		} catch (RethrownException e) {
+			Assert.assertTrue("Not subtype: "+e.getCause(), e.getCause() instanceof TestException);
+			Assert.assertEquals("run method executed", 0, i.get());
+		}				
+	}
+	
+	@Test public void attachedToMethodThrowsCaughtException() {
+		final AtomicInteger i = new AtomicInteger(0);
+		Intervals.inline(new AbstractTask() {
+			public void run(Interval subinterval) {
+				try {
+					subinterval.newAsyncChild(
+							new AbstractTask("attachedToFails") {
+								@Override public void attachedTo(Interval inter) {
+									super.attachedTo(inter);
+									
+									throw new TestException();
+								}
+
+								@Override public void run(Interval current) throws Exception {
+									// This will run, as the exception in attachedTo() is
+									// caught.  Is this correct?  I don't know, but it
+									// seems reasonable.
+									i.incrementAndGet();
+								}
+							}
+					);
+					Assert.fail("No exception thrown!");
+				} catch (TestException e) {
+					i.addAndGet(10); // "handle" exception
+				}
+			}
+		});
+		Assert.assertEquals(11, i.get());
+	}
+	
 	/**
 	 * Tests that uncaught exceptions propagate up to the parent, etc.
 	 */
@@ -442,7 +501,6 @@ public class TestErrorPropagation extends Util {
 			new TestHarness().test(length);
 		}
 	}	
-		
 
 	@Test
 	public void parentIntervalsWithUnexecutedChildrenCancelSafely() {
