@@ -14,8 +14,9 @@ import java.io.StreamTokenizer;
 import java.util.Vector;
 
 import ch.ethz.intervals.Intervals;
-import ch.ethz.intervals.VoidInlineTask;
 import ch.ethz.intervals.impl.IntervalImpl;
+import ch.ethz.intervals.mirror.Interval;
+import ch.ethz.intervals.task.AbstractTask;
 
 public class Elevator {
 
@@ -62,17 +63,17 @@ public class Elevator {
 
 	// Press the buttons at the correct time
 	private void begin() {
-		Intervals.inline(new VoidInlineTask() {			
-			@Override public void run(final IntervalImpl intervalImpl) {
+		Intervals.inline(new AbstractTask() {			
+			@Override public void run(final Interval inter) {
 				// Create the elevators
 				for (int i = 0; i < numLifts; i++) {
 					Lift lift = new Lift(numFloors, controls);
-					lift.start(intervalImpl);
+					lift.start(inter);
 				}
 				
 				// Create interval which will press the buttons:
-				new IntervalImpl(intervalImpl) {					
-					@Override protected void run() {						
+				inter.newAsyncChild(new AbstractTask("press") {
+					@Override public void run(Interval current) throws Exception {
 						// First tick is 1
 						int time = 1;
 
@@ -99,7 +100,7 @@ public class Elevator {
 						
 						controls.setTerminated();
 					}
-				};
+				});
 			}
 		});
 	}

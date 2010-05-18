@@ -43,7 +43,7 @@ public abstract class IndexedTask extends AbstractTask {
 
 	@Override
 	public void run(Interval parent) {
-		parent.newAsyncChild(new Subtask(lo0, hi0));
+		new Subtask(lo0, hi0).run(parent);
 	}
 	
 	final class Subtask extends AbstractTask {

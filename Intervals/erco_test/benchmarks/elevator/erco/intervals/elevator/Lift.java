@@ -10,11 +10,13 @@ package erco.intervals.elevator;
 import java.util.Enumeration;
 import java.util.Vector;
 
-import ch.ethz.intervals.Dependency;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.impl.IntervalImpl;
 import ch.ethz.intervals.impl.LockImpl;
+import ch.ethz.intervals.mirror.Interval;
+import ch.ethz.intervals.mirror.Lock;
 import ch.ethz.intervals.quals.Creator;
+import ch.ethz.intervals.task.AbstractTask;
 
 @Creator("this.lock")
 class Lift {
@@ -29,7 +31,7 @@ class Lift {
 	/** The lock is acquired by all intervals pertaining to this lift. 
 	 *  It shouldn't really be necessary as (at the moment, anyway) there
 	 *  can only be one of those at a time. */
-	private final LockImpl lockImpl;
+	private final Lock lockImpl;
 	
 	private final String name;
 	
@@ -68,22 +70,27 @@ class Lift {
 		}
 	}
 	
-	public void start(IntervalImpl parent) {		
+	public void start(Interval parent) {		
 		nextLiftInterval(parent);		
 	}
 	
 	// IDLE
 	// First check to see if there is an up or down call on what ever floor
 	// the elevator is idle on. If there isn't one, then check the other floors.
-	private final class LiftIdleInterval extends IntervalImpl {
+	private final class LiftIdleInterval extends AbstractTask {
 
-		public LiftIdleInterval(Dependency dep) {
-			super(dep, name + "-IDLE");
-			Intervals.addExclusiveLock(this, lockImpl);
+		public LiftIdleInterval() {
+			super(name + "-IDLE");
+		}
+		
+		@Override
+		public void attachedTo(Interval inter) {
+			super.attachedTo(inter);
+			inter.addLock(lockImpl);
 		}
 
 		@Override
-		protected void run() {
+		public void run(Interval inter) {
 			boolean foundFloor = false;
 			int targetFloor = -1;
 
@@ -131,7 +138,7 @@ class Lift {
 			}
 			
 			if(foundFloor || !controls.terminated())
-				nextLiftInterval(parent);
+				nextLiftInterval(inter.getParent());
 		}
 		
 	}
@@ -140,15 +147,20 @@ class Lift {
 	// First change floor (up or down as appropriate)
 	// Drop off passengers if we have to
 	// Then pick up passengers if we have to
-	private final class LiftMovingInterval extends IntervalImpl {
+	private final class LiftMovingInterval extends AbstractTask {
 		
-		public LiftMovingInterval(Dependency dep) {
-			super(dep, name + "-MOVING");
-			Intervals.addExclusiveLock(this, lockImpl);
+		public LiftMovingInterval() {
+			super(name + "-MOVING");
+		}
+		
+		@Override
+		public void attachedTo(Interval inter) {
+			super.attachedTo(inter);
+			inter.addLock(lockImpl);
 		}
 
 		@Override
-		protected void run() {
+		public void run(Interval inter) {
 			currentFloor += (travelDir == UP) ? 1 : -1;
 			int oldDir = travelDir;
 	
@@ -232,19 +244,19 @@ class Lift {
 					System.out.println(" changing to DOWN");
 			}
 			
-			nextLiftInterval(parent);
+			nextLiftInterval(inter.getParent());
 		}
 	}
 
 	// Body of the thread. If the elevator is idle, it checks for calls
 	// every tenth of a second. If it is moving, it takes 1 second to
 	// move between floors.
-	private void nextLiftInterval(IntervalImpl parent) {
+	private void nextLiftInterval(Interval parent) {
 		while (true) {
 			if (travelDir == IDLE) {
-				new /*@ch.ethz.intervals.Parent("parent")*/ LiftIdleInterval(parent);
+				parent.newAsyncChild(new LiftIdleInterval());
 			} else {
-				new /*@ch.ethz.intervals.Parent("parent")*/ LiftMovingInterval(parent);
+				parent.newAsyncChild(new LiftMovingInterval());
 			}
 		}
 	}

@@ -7,15 +7,12 @@ package erco.intervals.sor;
  * @author Florian Schneider
  */
 
-import static ch.ethz.intervals.Intervals.successor;
-
 import java.util.Date;
 
-import ch.ethz.intervals.Dependency;
 import ch.ethz.intervals.Intervals;
-import ch.ethz.intervals.ParentForNew;
-import ch.ethz.intervals.VoidInlineTask;
 import ch.ethz.intervals.impl.IntervalImpl;
+import ch.ethz.intervals.mirror.Interval;
+import ch.ethz.intervals.task.AbstractTask;
 import ch.ethz.intervals.task.IndexedTask;
 
 public class Sor {
@@ -31,8 +28,8 @@ public class Sor {
 
 		final int roundsRemaining;
 
-		public RowIntervalBase(@ParentForNew("Parent") Dependency dep, int rr) {
-			super(dep, 1, M+1);
+		public RowIntervalBase(int rr) {
+			super(1, M+1);
 			roundsRemaining = rr;
 		}
 		
@@ -60,19 +57,22 @@ public class Sor {
 	
 	static class BlackFromRed extends RowIntervalBase {
 		
-		public BlackFromRed(@ParentForNew("Parent") Dependency dep, int rr) {
-			super(dep, rr);
+		public BlackFromRed(int rr) {
+			super(rr);
 		}
 		
 		@Override
-		public void run() {
-			super.run();
+		public void run(Interval current) {
+			super.run(current);
 			
-			new RedFromBlack(successor(), roundsRemaining);
+			Interval inter = current.getParent().newAsyncChild(
+					new RedFromBlack(roundsRemaining)
+			);
+			current.getEnd().addHb(inter.getStart());
 		}
 
 		@Override
-		public void run(int fromRow, int toRow) {
+		public void run(Interval _, int fromRow, int toRow) {
 			int row = fromRow;
 			
 			if((row % 2) == 1) // first row (fromRow) odd
@@ -91,20 +91,24 @@ public class Sor {
 
 	static class RedFromBlack extends RowIntervalBase {
 		
-		public RedFromBlack(@ParentForNew("Parent") Dependency dep, int rr) {
-			super(dep, rr);
+		public RedFromBlack(int rr) {
+			super(rr);
 		}
 
 		@Override
-		public void run() {
-			super.run();
+		public void run(Interval current) {
+			super.run(current);
 			
-			if(roundsRemaining > 0)
-				new BlackFromRed(successor(), roundsRemaining - 1);
+			if(roundsRemaining > 0) {
+				Interval inter = current.getParent().newAsyncChild(
+						new BlackFromRed(roundsRemaining - 1)
+				);
+				current.getEnd().addHb(inter.getStart());
+			}
 		}
 
 		@Override
-		public void run(int fromRow, int toRow) {
+		public void run(Interval _, int fromRow, int toRow) {
 			int row = fromRow;
 			
 			if((row % 2) == 1) // first row (fromRow) odd
@@ -172,9 +176,11 @@ public class Sor {
 		long a = new Date().getTime();
 		
 		if (!nop) {
-			Intervals.inline(new VoidInlineTask() {
-				@Override public void run(IntervalImpl subinterval) {
-					new BlackFromRed(subinterval, iterations-1);
+			Intervals.inline(new AbstractTask() {
+				@Override public void run(Interval subinterval) {
+					subinterval.newAsyncChild(
+							new BlackFromRed(iterations-1)
+					);
 				}			
 			});
 		}
