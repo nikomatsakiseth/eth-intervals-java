@@ -5,23 +5,27 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
+import pcollections.PSet;
+
 import ch.ethz.intervals.impl.IntervalImpl.State;
 import ch.ethz.intervals.impl.ThreadPool.WorkItem;
 import ch.ethz.intervals.impl.ThreadPool.Worker;
+import ch.ethz.intervals.mirror.Interval;
 import ch.ethz.intervals.util.ChunkList;
 
 public class Debug {
 	
-	public static final boolean ENABLED = false;
-	public static final int BUFFER_SIZE = 100000; // If 0, dump immediately.
+	public static final boolean ENABLED = true;
+	public static final int BUFFER_SIZE = 0; // If 0, dump immediately.
 	public static final boolean DUMP_IMMEDIATELY = true;
 	
 	public static final boolean ENABLED_LOCK = false;        /** Debug statements related to locks. */
 	public static final boolean ENABLED_WAIT_COUNTS = false; /** Debug statements related to wait counts. */
-	public static final boolean ENABLED_ARRIVE = true; 		 /** \-> Arrive statements in particular. */
-	public static final boolean ENABLED_ADD_WC = true; 		 /** \-> Add Wait Count statements in particular. */
+	public static final boolean ENABLED_ARRIVE = false; 		 /** \-> Arrive statements in particular. */
+	public static final boolean ENABLED_ADD_WC = false; 		 /** \-> Add Wait Count statements in particular. */
 	public static final boolean ENABLED_INTER = false;       /** Debug statements related to higher-level interval control-flow */
 	public static final boolean ENABLED_WORK_STEAL = false;  /** Debug statements related to the work-stealing queue */
+	public static final boolean ENABLED_EXC = true;       	 /** Debug statements related to exceptions */
 	
 	private static Event[] events = new Event[BUFFER_SIZE];
 	private static AtomicLong pos = new AtomicLong(0);
@@ -502,6 +506,32 @@ public class Debug {
 	public static void transition(IntervalImpl inter, State oldState, State newState) {
 		if(ENABLED_WAIT_COUNTS)
 			addEvent(new TransitionEvent(inter, oldState, newState));
+	}
+	
+	static class VertExceptionEvent extends Event {
+		final Interval interval;
+		final Throwable thr;
+		final int size;
+		
+		VertExceptionEvent(Interval interval, Throwable thr, int size) {
+			this.interval = interval;
+			this.thr = thr;
+			this.size = size;
+		}
+	
+		public String toString() {
+			return String.format("ADD_VERT_EXCEPTION(S) %s thr=%s size=%s",
+					interval, thr, size);
+		}		
+	}
+
+	public static void addVertException(
+			Interval intervalImpl,
+			Throwable thr, 
+			PSet<Throwable> vertExceptions) 
+	{
+		if(ENABLED_EXC)
+			addEvent(new VertExceptionEvent(intervalImpl, thr, vertExceptions.size()));
 	}
 	
 }

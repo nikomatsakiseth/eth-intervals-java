@@ -38,13 +38,11 @@
 
 package jgfmt.section2.series;
 
-import static jgfmt.section2.series.SeriesTest.array_rows;
 import jgfmt.jgfutil.JGFInstrumentor;
-import ch.ethz.intervals.Dependency;
 import ch.ethz.intervals.Intervals;
-import ch.ethz.intervals.ParentForNew;
-import ch.ethz.intervals.VoidInlineTask;
 import ch.ethz.intervals.impl.IntervalImpl;
+import ch.ethz.intervals.mirror.Interval;
+import ch.ethz.intervals.task.AbstractTask;
 
 public class SeriesTestInterval {
 
@@ -70,10 +68,10 @@ public class SeriesTestInterval {
 		
 		//Thread debugThread = Debug.dumpDebugStateAfterTimeElapsed(8);
 
-		Intervals.inline(new VoidInlineTask() {
-			@Override public void run(IntervalImpl subinterval) {
-				for (int i = 0; i < array_rows; i++)
-					new SeriesRunnerInterval(subinterval, i);
+		Intervals.inline(new AbstractTask() {
+			@Override public void run(Interval subinterval) {
+				for (int i = 0; i < SeriesTest.array_rows; i++)
+					subinterval.newAsyncChild(new SeriesRunnerInterval(i));
 				//Intervals.forkJoinIndexed(array_rows, new SeriesRunnerInterval());				
 			}			
 		});
@@ -93,16 +91,16 @@ public class SeriesTestInterval {
 
 // This is the Thread
 
-class SeriesRunnerInterval extends IntervalImpl {
+class SeriesRunnerInterval extends AbstractTask {
 	
 	final int id;
 	
-	public SeriesRunnerInterval(@ParentForNew("Parent") Dependency dep, int id) {
-		super(dep);
+	public SeriesRunnerInterval(int id) {
+		super();
 		this.id = id;
 	}
 
-	public void run() {
+	public void run(Interval current) {
 
 		// int array_rows=SeriesTest.array_rows;
 

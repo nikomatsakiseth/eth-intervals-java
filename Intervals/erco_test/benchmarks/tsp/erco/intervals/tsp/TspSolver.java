@@ -2,17 +2,16 @@ package erco.intervals.tsp;
 
 import java.util.BitSet;
 
-import ch.ethz.intervals.Dependency;
-import ch.ethz.intervals.InlineTask;
 import ch.ethz.intervals.Intervals;
-import ch.ethz.intervals.ParentForNew;
-import ch.ethz.intervals.impl.IntervalImpl;
+import ch.ethz.intervals.mirror.Interval;
 import ch.ethz.intervals.quals.Constructor;
 import ch.ethz.intervals.quals.Creator;
 import ch.ethz.intervals.quals.GuardedBy;
 import ch.ethz.intervals.quals.Requires;
+import ch.ethz.intervals.task.AbstractTask;
+import ch.ethz.intervals.task.ResultTask;
 
-public class TspSolver extends IntervalImpl {
+public class TspSolver extends AbstractTask {
 	
 	final @Creator("readableBy parent") Config config;
 	
@@ -22,26 +21,24 @@ public class TspSolver extends IntervalImpl {
 	@GuardedBy("this") BitSet visited;
 
 	public TspSolver(
-			@ParentForNew("Parent") Dependency dep,
 			@Creator("readableBy parent") Config config
 	) {
-		super(dep);
 		this.config = config;
 	}
 
 	@Override
-	@Requires("method suspends this")
-	protected void run() {
+	@Requires("method suspends current")
+	public void run(Interval inter) {
 		TourElement curr = config.getTour();
 		
 		if (curr.length < (config.numNodes - config.nodesFromEnd - 1))
-			splitTour(curr); /* Solve in parallel. */
+			splitTour(inter.getParent(), curr); /* Solve in parallel. */
 		else
 			solveTour(curr); /* Solve sequentially */
 		
 	}
 
-	private void splitTour(final TourElement curr) {
+	private void splitTour(Interval parent, final TourElement curr) {
 		/*
 		 * Create a tour and add it to the priority Q for each possible path
 		 * that can be derived from the current path by adding a single node
@@ -60,8 +57,8 @@ public class TspSolver extends IntervalImpl {
 			boolean t3 = (curr.lowerBound + wt) <= config.minTourLength;
 			if (t1 && t2 && t3) {					
 				final int newNode = i;
-				TourElement newTour = Intervals.inline(new InlineTask<TourElement>() {
-					@Override public TourElement run(IntervalImpl subinterval) {
+				TourElement newTour = Intervals.inline(new ResultTask<TourElement>() {
+					@Override public TourElement compute(Interval subinterval) {
 						@Constructor("initNewTour") TourElement newTour = 
 							new /*@Constructor("initNewTour")*/ TourElement(newNode);
 						newTour.previous = curr;
@@ -75,7 +72,7 @@ public class TspSolver extends IntervalImpl {
 				
 				if(newTour != null) {
 					config.enqueue(newTour);
-					new TspSolver(parent, config);
+					parent.newAsyncChild(new TspSolver(config));
 				}					
 			}
 		}

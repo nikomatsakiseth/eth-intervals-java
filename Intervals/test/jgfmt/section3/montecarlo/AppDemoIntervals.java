@@ -26,8 +26,8 @@ import static jgfmt.section3.montecarlo.AppDemo.JGFavgExpectedReturnRateMC;
 import java.util.Vector;
 
 import ch.ethz.intervals.Intervals;
-import ch.ethz.intervals.VoidInlineTask;
-import ch.ethz.intervals.impl.IntervalImpl;
+import ch.ethz.intervals.mirror.Interval;
+import ch.ethz.intervals.task.AbstractTask;
 
 
 /**
@@ -155,27 +155,38 @@ public class AppDemoIntervals extends Universal implements AppDemoInterface {
 			System.exit(-1);
 		}
 	}
+	
+	class MontecarloTask extends AbstractTask
+	{
+		final int i;
+
+		MontecarloTask(int i) {
+			super("run"+i);
+			this.i = i;
+		}
+		
+		@Override public void run(Interval _) {
+			final PriceStock ps = new PriceStock();
+			ps.setInitAllTasks(AppDemoIntervals.initAllTasks);
+			ps.setTask(tasks.elementAt(i));
+			ps.run();
+			results.addElement(ps.getResult());							
+		}
+		
+	}
 
 	public void runThread() {
 		results = new Vector<Object>(nRunsMC);
 		
-		Intervals.inline(new VoidInlineTask() {			
-			@Override public void run(IntervalImpl subinterval) {
+		Intervals.inline(new AbstractTask("outer") {
+			@Override
+			public void run(Interval subinterval) {
 				for (int i = 0; i < nRunsMC; i++) {
-					final int iRun = i;
-					new IntervalImpl(subinterval) {
-						public void run() {							
-							final PriceStock ps = new PriceStock();
-							ps.setInitAllTasks(AppDemoIntervals.initAllTasks);
-							ps.setTask(tasks.elementAt(iRun));
-							ps.run();
-							results.addElement(ps.getResult());							
-						}					
-					};
+					subinterval.newAsyncChild(new MontecarloTask(i));
 				}
-			}			
+			}
 		});
-
+		
 	}
 
 	public void processSerial() {

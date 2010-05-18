@@ -22,12 +22,11 @@
 package jgfmt.section2.sor;
 
 import jgfmt.jgfutil.JGFInstrumentor;
-import ch.ethz.intervals.Dependency;
 import ch.ethz.intervals.Intervals;
-import ch.ethz.intervals.ParentForNew;
-import ch.ethz.intervals.VoidInlineTask;
 import ch.ethz.intervals.impl.IntervalImpl;
-import ch.ethz.intervals.impl.PointImpl;
+import ch.ethz.intervals.mirror.Interval;
+import ch.ethz.intervals.mirror.Point;
+import ch.ethz.intervals.task.AbstractTask;
 
 //class RowRecord {
 //	private final static boolean DEBUG = false;
@@ -128,11 +127,11 @@ public class SORIntervals {
 				
 		JGFInstrumentor.startTimer("Section2:SOR:Kernel");
 		
-		Intervals.inline(new VoidInlineTask() {			
-			@Override public void run(IntervalImpl subinterval) {
+		Intervals.inline(new AbstractTask() {			
+			@Override public void run(Interval subinterval) {
 				// Intervals from previous iteration:
 				//   (note that null just means "no wait")
-				final PointImpl[][] intervals = new PointImpl[2][M/2+2];
+				final Interval[][] intervals = new Interval[2][M/2+2];
 
 				// Schedule the various iterations:
 				for (int p = 0; p < 2 * num_iterations; p++) {
@@ -142,37 +141,37 @@ public class SORIntervals {
 					int prevBit = (bit + 1) % 2;
 					
 					int i = 1 + (p % 2);
-					IntervalImpl inter = new Row(subinterval, i);
-					intervals[bit][1] = inter.end;
+					Interval inter = subinterval.newAsyncChild(new Row(i));
+					intervals[bit][1] = inter;
 					if(intervals[prevBit][1] != null)
-						Intervals.addHbIfNotNull(intervals[prevBit][1], inter.start);
+						Intervals.addHbIfNotNull(intervals[prevBit][1], inter);
 					if(intervals[prevBit][2] != null)
-						Intervals.addHbIfNotNull(intervals[prevBit][2], inter.start);
+						Intervals.addHbIfNotNull(intervals[prevBit][2], inter);
 					
 					i += 2;
 					for(int j = 2; i < M; i += 2, j++) {
-						inter = new Row(subinterval, i);
-						intervals[bit][j] = inter.end;
-						Intervals.addHbIfNotNull(intervals[prevBit][j-2], inter.start);
-						Intervals.addHbIfNotNull(intervals[prevBit][j-1], inter.start);
-						Intervals.addHbIfNotNull(intervals[prevBit][j-0], inter.start);
-						Intervals.addHbIfNotNull(intervals[prevBit][j+1], inter.start);
+						inter = subinterval.newAsyncChild(new Row(i));
+						intervals[bit][j] = inter;
+						Intervals.addHbIfNotNull(intervals[prevBit][j-2], inter);
+						Intervals.addHbIfNotNull(intervals[prevBit][j-1], inter);
+						Intervals.addHbIfNotNull(intervals[prevBit][j-0], inter);
+						Intervals.addHbIfNotNull(intervals[prevBit][j+1], inter);
 					}
 				}
 				
 				//System.err.println("Created all intervals");
 			}	
 			
-			class Row extends IntervalImpl {
+			class Row extends AbstractTask {
 				
 				final int i;
 
-				public Row(@ParentForNew("Parent") Dependency dep, int _i) {
-					super(dep);
-					i = _i;
+				public Row(int i) {
+					super("row["+i+"]");
+					this.i = i;
 				}
 
-				@Override public void run() {
+				@Override public void run(Interval _) {
 					double[] Gi = G[i];
 					double[] Gim1 = G[i - 1];
 					

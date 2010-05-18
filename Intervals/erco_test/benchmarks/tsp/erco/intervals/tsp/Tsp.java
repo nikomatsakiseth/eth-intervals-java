@@ -6,9 +6,9 @@ import java.io.IOException;
 import java.util.StringTokenizer;
 
 import ch.ethz.intervals.Intervals;
-import ch.ethz.intervals.VoidInlineTask;
-import ch.ethz.intervals.impl.IntervalImpl;
+import ch.ethz.intervals.mirror.Interval;
 import ch.ethz.intervals.quals.Constructor;
+import ch.ethz.intervals.task.AbstractTask;
 
 public class Tsp {
 	
@@ -32,9 +32,9 @@ public class Tsp {
 		final Config config = loadConfig(fname);
 		TourElement first = new TourElement(config.startNode);
 		config.enqueue(first);
-		Intervals.inline(new VoidInlineTask() {
-			@Override public void run(IntervalImpl subinterval) {
-				new /*@ch.ethz.intervals.Parent("subinterval")*/ TspSolver(subinterval, config);
+		Intervals.inline(new AbstractTask() {
+			@Override public void run(Interval subinterval) {
+				subinterval.newAsyncChild(new TspSolver(config));
 			}
 		});		
 		return config.minTour;

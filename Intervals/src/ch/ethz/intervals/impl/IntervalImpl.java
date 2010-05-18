@@ -380,6 +380,9 @@ implements Guard, Interval
 		if(vertExceptions == null) 
 			vertExceptions = Empty.set();
 		vertExceptions = vertExceptions.plus(thr);
+		
+		if(Debug.ENABLED)
+			Debug.addVertException(this, thr, vertExceptions);
 	}
 	
 	void addVertExceptionsUnsyc(PSet<Throwable> errors) {
@@ -387,6 +390,9 @@ implements Guard, Interval
 			vertExceptions = errors;
 		else 
 			vertExceptions = vertExceptions.plusAll(errors);
+		
+		if(Debug.ENABLED)
+			Debug.addVertException(this, null, vertExceptions);
 	}
 	
 	synchronized void addVertExceptionSync(Throwable thr) {

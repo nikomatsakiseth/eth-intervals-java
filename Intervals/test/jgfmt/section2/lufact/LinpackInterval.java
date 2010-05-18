@@ -21,9 +21,8 @@
 package jgfmt.section2.lufact;
 
 import ch.ethz.intervals.Intervals;
-import ch.ethz.intervals.VoidInlineTask;
-import ch.ethz.intervals.impl.IntervalImpl;
-import ch.ethz.intervals.impl.PointImpl;
+import ch.ethz.intervals.mirror.Interval;
+import ch.ethz.intervals.task.AbstractTask;
 import ch.ethz.intervals.task.IndexedTask;
 
 class LinpackInterval {
@@ -113,24 +112,26 @@ class LinpackInterval {
 
 					// row elimination with column indexing
 					final int k0 = k;
-					Intervals.inline(new VoidInlineTask() {						
-						@Override public void run(IntervalImpl subinterval) {
-							new IndexedTask(subinterval, kp1, n) {						
-								@Override
-								public void run(int fromIndex, int toIndex) {
-									for(int j = fromIndex; j < toIndex; j++) {
-										double[] col_j = a[j];
-										double t = col_j[l];
-			
-										if (l != k0) {
-											col_j[l] = col_j[k0];
-											col_j[k0] = t;
+					Intervals.inline(new AbstractTask() {						
+						@Override public void run(Interval subinterval) {
+							subinterval.newAsyncChild(
+								new IndexedTask(kp1, n) {						
+									@Override
+									public void run(Interval _, int fromIndex, int toIndex) {
+										for(int j = fromIndex; j < toIndex; j++) {
+											double[] col_j = a[j];
+											double t = col_j[l];
+				
+											if (l != k0) {
+												col_j[l] = col_j[k0];
+												col_j[k0] = t;
+											}
+				
+											daxpy(n - (kp1), t, col_k, kp1, 1, col_j, kp1, 1);
 										}
-			
-										daxpy(n - (kp1), t, col_k, kp1, 1, col_j, kp1, 1);
 									}
 								}
-							};
+							);
 						}
 					});
 				} 

@@ -26,12 +26,11 @@
 package jgfmt.section3.moldyn;
 
 import jgfmt.jgfutil.JGFInstrumentor;
-import ch.ethz.intervals.IntReduction;
 import ch.ethz.intervals.Intervals;
-import ch.ethz.intervals.VoidInlineTask;
 import ch.ethz.intervals.impl.DoubleReduction;
-import ch.ethz.intervals.impl.IntervalImpl;
-import ch.ethz.intervals.impl.PointImpl;
+import ch.ethz.intervals.impl.IntReduction;
+import ch.ethz.intervals.mirror.Interval;
+import ch.ethz.intervals.task.AbstractTask;
 import ch.ethz.intervals.task.IndexedTask;
 
 public class mdIntervals extends mdBase {
@@ -221,14 +220,16 @@ public class mdIntervals extends mdBase {
 			/* move the particles and update velocities */
 			
 			// use accumulate shared force to update position of all particles
-			Intervals.inline(new VoidInlineTask() {				
-				@Override public void run(IntervalImpl subinterval) {
-					new IndexedTask(subinterval, mdsize) {
-						public void run(int start, int stop) {
-							for(int i = start; i < stop; i++)
-								one[i].domove(side, i);
-						}				
-					};
+			Intervals.inline(new AbstractTask() {				
+				@Override public void run(Interval subinterval) {
+					subinterval.newAsyncChild(
+						new IndexedTask(mdsize) {
+							public void run(Interval _, int start, int stop) {
+								for(int i = start; i < stop; i++)
+									one[i].domove(side, i);
+							}				
+						}
+					);
 				}
 			});
 
@@ -245,14 +246,16 @@ public class mdIntervals extends mdBase {
 			interacts.resetAccumulators();
 
 			/* compute forces */
-			Intervals.inline(new VoidInlineTask() {				
-				@Override public void run(IntervalImpl subinterval) {
-					new IndexedTask(subinterval, mdsize) {
-						public void run(int start, int stop) {
-							for(int i = start; i < stop; i++)
-								one[i].force(side, rcoff, mdsize, i);
-						}				
-					};
+			Intervals.inline(new AbstractTask("compute-forces") {				
+				@Override public void run(Interval subinterval) {
+					subinterval.newAsyncChild(
+						new IndexedTask(mdsize) {
+							public void run(Interval _, int start, int stop) {
+								for(int i = start; i < stop; i++)
+									one[i].force(side, rcoff, mdsize, i);
+							}				
+						}
+					);
 				}
 			});
 

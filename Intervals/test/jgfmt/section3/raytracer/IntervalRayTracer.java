@@ -23,9 +23,7 @@
 
 package jgfmt.section3.raytracer;
 
-import ch.ethz.intervals.Dependency;
-import ch.ethz.intervals.LongReduction;
-import ch.ethz.intervals.ParentForNew;
+import ch.ethz.intervals.impl.LongReduction;
 
 public class IntervalRayTracer {
 	
@@ -64,7 +62,7 @@ public class IntervalRayTracer {
 	
 	final Interval interval;
 	
-	public IntervalRayTracer(@ParentForNew("Parent") Dependency dep, LongReduction checksum, Scene scene, Interval interval) {
+	public IntervalRayTracer(LongReduction checksum, Scene scene, Interval interval) {
 		this.checksum = checksum;
 		this.scene = scene;
 		
