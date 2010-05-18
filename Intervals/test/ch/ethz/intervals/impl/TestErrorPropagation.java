@@ -21,11 +21,6 @@ import ch.ethz.intervals.task.EmptyTask;
 
 public class TestErrorPropagation extends Util {
 	
-	@SuppressWarnings("serial")
-	static class TestException extends RuntimeException { 
-		
-	}
-	
 	class ThrowExceptionTask extends AbstractTask {
 		
 		ThrowExceptionTask() {

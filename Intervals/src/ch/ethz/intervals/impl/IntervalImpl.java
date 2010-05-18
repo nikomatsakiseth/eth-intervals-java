@@ -631,15 +631,18 @@ implements Guard, Interval
 			try {
 				// Execute the task and add any uncaught
 				// exceptions to vertExceptions:
+				boolean endedNormally;
 				try {
 					task.run(this);
+					endedNormally = true;
 				} catch(Throwable t) {
 					addVertExceptionUnsync(t);
+					endedNormally = false;
 				}
 				
 				// Schedule any unscheduled subintervals.  
 				// n.b.: This may add to vertExceptions!
-				cur.schedule();				
+				cur.schedule(endedNormally);
 				
 				finishSequentialPortion((vertExceptions == null ? State.PAR : State.CATCH_PAR));
 			} catch(Throwable e) {
@@ -696,8 +699,12 @@ implements Guard, Interval
 	 * @param explicit true if the interval was explicitly scheduled
 	 * by the user, false if it is being scheduled implicitly at
 	 * the end of the creator.
+	 * 
+	 * @param parentEndedNormally true if the parent interval ended
+	 * normally, false if the parent interval ended with an error.
+	 * Not relevant if explicit is true.
 	 */
-	void didSchedule(boolean explicit) {
+	void didSchedule(boolean explicit, boolean parentEndedNormally) {
 		// Only invoked by our scheduler:
 		unscheduled = null;
 	}

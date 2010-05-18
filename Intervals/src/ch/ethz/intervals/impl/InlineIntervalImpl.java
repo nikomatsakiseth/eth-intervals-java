@@ -50,18 +50,20 @@ implements InlineInterval
 	}
 	
 	@Override
-	void didSchedule(boolean explicit) 
+	void didSchedule(boolean explicit, boolean parentEndedNormally) 
 	{
-		super.didSchedule(explicit);
+		super.didSchedule(explicit, parentEndedNormally);
 		
 		// Inline intervals cannot be implicitly scheduled.
 		// If the parent failed to execute us, it is an
 		// error in the parent, so add to their exception
 		// list.  This will also cancel async subintervals.
 		if(!explicit) {
-			parent.addVertExceptionSync(
-					new IntervalException.InlineIntervalNeverExecuted(this)
-			);
+			if(parentEndedNormally) {
+				parent.addVertExceptionSync(
+						new IntervalException.InlineIntervalNeverExecuted(this)
+				);
+			}
 			
 			// We have to cancel ourselves because we are not in the
 			// parent's list of async children, and so would not

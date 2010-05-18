@@ -31,6 +31,31 @@ public class TestInlineInterval extends Util {
 		});
 		Assert.assertEquals(1, i.get());
 	}
+	
+	@Test public void errorInAttachedTo() {
+		final AtomicInteger i = new AtomicInteger(0);
+		try {
+			Intervals.inline(new AbstractTask("outer") {
+				public void run(Interval subinterval) {
+					InlineInterval inter = subinterval.newInlineChild(new AbstractTask("inner") {
+						@Override public void attachedTo(Interval current) {
+							throw new TestException();
+						}
+						
+						@Override public void run(Interval current) {
+							i.incrementAndGet();
+						}
+					});
+					
+					inter.execute();
+				}
+			});
+		} catch (RethrownException err) {
+			assertThrew(err, TestException.class);
+		}
+	
+		Assert.assertEquals(0, i.get());
+	}
 
 	@Test public void inlineIntervalExecutedTwice() {
 		final AtomicInteger i = new AtomicInteger(0);
@@ -131,7 +156,6 @@ public class TestInlineInterval extends Util {
 			Assert.fail("No exception thrown.");
 		} catch (RethrownException err) {
 			assertThrew(err, 
-					IntervalException.InlineIntervalNeverExecuted.class, 
 					IntervalException.NotExecutedFromParent.class);
 		}
 		

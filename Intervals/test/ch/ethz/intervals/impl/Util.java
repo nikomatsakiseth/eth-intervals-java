@@ -63,6 +63,12 @@ public class Util {
 		
 	}
 	
+	@SuppressWarnings("serial")
+		protected
+		static class TestException extends RuntimeException { 
+			
+		}
+
 	public AsyncInterval emptyInterval(Interval parent, String name) {
 		return parent.newAsyncChild(new EmptyTask(name));
 	}

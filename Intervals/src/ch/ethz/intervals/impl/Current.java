@@ -77,30 +77,34 @@ public class Current
 		}
 		
 		intervalImpl.nextUnscheduled = null;
-		scheduleUnchecked(intervalImpl, true);
+		scheduleUnchecked(intervalImpl, true, true);
 	}
 
-	void schedule() {
+	void schedule(boolean parentEndedNormally) {
 		IntervalImpl p = unscheduled;
 		while(p != null) {
 			IntervalImpl n = p.nextUnscheduled;
 			p.nextUnscheduled = null;
 			
-			scheduleUnchecked(p, false);
+			scheduleUnchecked(p, false, parentEndedNormally);
 
 			p = n;
 		}
 		unscheduled = null;
 	}
 
-	private void scheduleUnchecked(IntervalImpl p, boolean explicit) {
+	private void scheduleUnchecked(
+			IntervalImpl p, 
+			boolean explicit,
+			boolean parentEndedNormally
+	) {
 		assert p.isUnscheduled(this);
 		
 		if(Debug.ENABLED)
 			Debug.schedule(p, inter);
 		ExecutionLog.logScheduleInterval(p);
 		
-		p.didSchedule(explicit);
+		p.didSchedule(explicit, parentEndedNormally);
 		p.start.arrive(1);
 	}
 
