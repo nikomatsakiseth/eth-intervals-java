@@ -52,7 +52,7 @@ class ClassFromSource(
     // the supertypes of this class (if any).  Those dependencies are added
     // during the header pass (see `ResolveHeader`).
 
-    val header: Interval = master.subinterval(
+    val header: AsyncInterval = master.subinterval(
         name = "%s.Header".format(name),
         // Hold off on scheduling header until class def'n is complete:
         schedule = false 
@@ -60,16 +60,16 @@ class ClassFromSource(
         _ => ResolveHeader(global, compUnit).resolveClassHeader(this, parseCdecl)                        
     }
     
-    val body: Interval = master.subinterval(
+    val body: AsyncInterval = master.subinterval(
         name = "%s.Body".format(name),
-        after = List(header.end)
+        after = List(header.getEnd)
     ) { 
         _ => ResolveBody(global, compUnit).resolveClassBody(this, parseCdecl)
     }
 
-    val lower: Interval = master.subinterval(
+    val lower: AsyncInterval = master.subinterval(
         name = "%s.Lower".format(name),
-        after = List(body.end),
+        after = List(body.getEnd),
         // Scheduled explicitly so we can add
         // create/members/merge within
         schedule = false 
@@ -77,39 +77,39 @@ class ClassFromSource(
         _ => () // Lower is really just a placeholder.
     }
     
-    val create: Interval = master.subinterval(
+    val create: AsyncInterval = master.subinterval(
         name = "%s.Create".format(name),
         during = List(lower)
     ) {
         _ => Create(global).createMemberIntervals(this)
     }
     
-    val members: Interval = master.subinterval(
+    val members: AsyncInterval = master.subinterval(
         name = "%s.Members".format(name),
         during = List(lower), 
-        after = List(create.end)
+        after = List(create.getEnd)
     ) { 
         _ => ()
     }
     
-    val merge: Interval = master.subinterval(
+    val merge: AsyncInterval = master.subinterval(
         name = "%s.Merge".format(name),
         during = List(lower), 
-        after = List(members.end)
+        after = List(members.getEnd)
     ) { 
         _ => Merge(global).mergeMemberIntervals(this)
     }
     
-    val gather: Interval = master.subinterval(
+    val gather: AsyncInterval = master.subinterval(
         name = "%s.Gather".format(name),
-        after = List(lower.end)
+        after = List(lower.getEnd)
     ) {
         _ => Gather(global).forSym(this)
     }
 
-    val byteCode: Interval = master.subinterval(
+    val byteCode: AsyncInterval = master.subinterval(
         name = "%s.ByteCode".format(name),
-        after = List(gather.end)
+        after = List(gather.getEnd)
     ) { 
         _ => if(!global.reporter.hasErrors) ByteCode(global).writeClassSymbol(this)
     }

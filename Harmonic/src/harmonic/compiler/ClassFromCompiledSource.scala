@@ -55,7 +55,7 @@ abstract class ClassFromCompiledSource extends ClassSymbol
     // the overrides for all of our method symbols.
     
     private[this] lazy val intervals = {
-        val header: Interval = master.subinterval(
+        val header: AsyncInterval = master.subinterval(
             name = "%s.Header".format(name)
         ) { _ =>
             debug("Load data for %s", name)
@@ -66,16 +66,16 @@ abstract class ClassFromCompiledSource extends ClassSymbol
             debug("Loaded")
         }
 
-        val body: Interval = master.subinterval(
+        val body: AsyncInterval = master.subinterval(
             name = "%s.Body".format(name),
-            after = List(header.end)
+            after = List(header.getEnd)
         ) { 
             _ => ()
         }
 
-        val lower: Interval = master.subinterval(
+        val lower: AsyncInterval = master.subinterval(
             name = "%s.Lower".format(name),
-            after = List(body.end),
+            after = List(body.getEnd),
             // Scheduled explicitly so we can add
             // create/members/merge within
             schedule = false 
@@ -83,39 +83,39 @@ abstract class ClassFromCompiledSource extends ClassSymbol
             _ => ()
         }
 
-        val create: Interval = master.subinterval(
+        val create: AsyncInterval = master.subinterval(
             name = "%s.Create".format(name),
             during = List(lower)
         ) {
             _ => ()
         }
 
-        val members: Interval = master.subinterval(
+        val members: AsyncInterval = master.subinterval(
             name = "%s.Members".format(name),
             during = List(lower), 
-            after = List(create.end)
+            after = List(create.getEnd)
         ) { 
             _ => ()
         }
 
-        val merge: Interval = master.subinterval(
+        val merge: AsyncInterval = master.subinterval(
             name = "%s.Merge".format(name),
             during = List(lower), 
-            after = List(members.end)
+            after = List(members.getEnd)
         ) { 
             _ => ()
         }
 
-        val gather: Interval = master.subinterval(
+        val gather: AsyncInterval = master.subinterval(
             name = "%s.Gather".format(name),
-            after = List(lower.end)
+            after = List(lower.getEnd)
         ) {
             _ => GatherOverrides(global).forSym(this)
         }
 
-        val byteCode: Interval = master.subinterval(
+        val byteCode: AsyncInterval = master.subinterval(
             name = "%s.ByteCode".format(name),
-            after = List(gather.end)
+            after = List(gather.getEnd)
         ) { 
             _ => ()
         }
@@ -134,14 +134,14 @@ abstract class ClassFromCompiledSource extends ClassSymbol
         )
     }
     
-    def header: Interval = intervals("header")
-    def body: Interval = intervals("body")
-    def lower: Interval = intervals("lower")
-    def create: Interval = intervals("create")
-    def members: Interval = intervals("members")
-    def merge: Interval = intervals("merge")
-    def gather: Interval = intervals("gather")
-    def byteCode: Interval = intervals("byteCode")
+    def header: AsyncInterval = intervals("header")
+    def body: AsyncInterval = intervals("body")
+    def lower: AsyncInterval = intervals("lower")
+    def create: AsyncInterval = intervals("create")
+    def members: AsyncInterval = intervals("members")
+    def merge: AsyncInterval = intervals("merge")
+    def gather: AsyncInterval = intervals("gather")
+    def byteCode: AsyncInterval = intervals("byteCode")
     
 }
 

@@ -62,22 +62,17 @@ object Harmonize {
                 }
                 
                 val app = ctor.newInstance().asInstanceOf[Application]
-                Intervals.inline(
-                    new VoidInlineTask() {
-                        override def toString = "%s.main()".format(appClassName)
-                        override def run(root: Interval) {
-                            val ctx = new harmonic.lang.ApplicationContext() {
-                                val getIn = System.in
-                                val getOut = System.out
-                                val getErr = System.err
-                                val getArgs = appArgs.toArray
-                                val getRoot = root
-                            }
-                            val res = app.main(ctx)
-                            if(res != null) out.printf("%s\n", res)                            
-                        }
+                inlineInterval("%s.main()".format(appClassName)) { root =>
+                    val ctx = new harmonic.lang.ApplicationContext() {
+                        val getIn = System.in
+                        val getOut = System.out
+                        val getErr = System.err
+                        val getArgs = appArgs.toArray
+                        val getRoot = root
                     }
-                )
+                    val res = app.main(ctx)
+                    if(res != null) out.printf("%s\n", res)                     
+                }
             } catch {
                 case UsageError(msg) => {
                     err.printf("The Harmonic Language, version %s\n", version)

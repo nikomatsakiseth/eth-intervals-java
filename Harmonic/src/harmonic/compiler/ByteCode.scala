@@ -52,11 +52,14 @@ case class ByteCode(global: Global) {
     val asmObjectType = asm.Type.getType(classOf[java.lang.Object])
     val asmVoidClassType = asm.Type.getType(classOf[java.lang.Void])
     val asmBooleanType = asm.Type.getType(classOf[java.lang.Boolean])
-    val asmDependencyType = asm.Type.getType(classOf[ch.ethz.intervals.Dependency])
     val asmStringType = asm.Type.getType(classOf[java.lang.String])
     val asmIntervalsType = asm.Type.getType(classOf[ch.ethz.intervals.Intervals])
     val asmIntervalType = asm.Type.getType(classOf[ch.ethz.intervals.Interval])
+    val asmAsyncIntervalType = asm.Type.getType(classOf[ch.ethz.intervals.AsyncInterval])
+    val asmInlineIntervalType = asm.Type.getType(classOf[ch.ethz.intervals.InlineInterval])
     val asmPointType = asm.Type.getType(classOf[ch.ethz.intervals.Point])
+    val asmTaskType = asm.Type.getType(classOf[ch.ethz.intervals.Task])
+    val asmHelperType = asm.Type.getType(classOf[harmonic.runtime.Helper])
     
     case class BoxInfo(
         boxType: asm.Type,  // i.e., java.lang.Integer
@@ -1290,61 +1293,61 @@ case class ByteCode(global: Global) {
             derivedAccessMap
         }
         
-        /** Creates a new subclass of Interval whose `run()` method
-          * executes the given declaration. */
-        def pushIntervalSubclass(
-            decl: in.IntervalDecl
+        /** Creates a new HarmonicTask subclass whose `run(Interval)` method
+          * executes the given declaration. 
+          * 
+          * Stack: ... => ..., task */
+        def pushIntervalTask(
+            taskName: String,     // name of interval
+            body: in.Body         // statements to execute
         ) {
-            val name = freshClassName(accessMap.context, decl)
-            val interwr = new ClassWriter(name, noSuffix, decl.pos)
+            val name = freshClassName(accessMap.context, body)
+            val interwr = new ClassWriter(name, noSuffix, body.pos)
             
             interwr.cvis.visit(
                 O.V1_5,
                 O.ACC_PUBLIC,
                 name.internalName,
-                null, // FIXME Signature
-                Name.IntervalClass.internalName,
+                null,
+                Name.HarmonicTaskClass.internalName,
                 null
             )
 
             // In the creating class, create an instance of the interval class
             // and give it access to the this pointer:
-            val interCtorDesc = getMethodDescriptor(asm.Type.VOID_TYPE, Array(asmDependencyType))
             mvis.visitTypeInsn(O.NEW, name.internalName)
             mvis.visitInsn(O.DUP)
-            pushExprValue(decl.parent)
             mvis.visitMethodInsn(
                 O.INVOKESPECIAL,
                 name.internalName,
                 Name.InitMethod.javaName,
-                interCtorDesc // note: constructor is generated below
+                "()V"
             )
             
             // Derive the access map that will be used in the run method.
             // This may emits statement into the current method.
-            val interAccessMap = deriveAccessMap(name, interwr.cvis, decl.body.stmts)
+            val interAccessMap = deriveAccessMap(name, interwr.cvis, body.stmts)
 
             // Interval constructor always looks like:
-            //    OurClass(Dependency parent) {
-            //       super(parent, "our name");
+            //    OurClass() {
+            //       super("our name");
             //    }
             def writeIntervalCtor = {
                 val ctormvis = interwr.cvis.visitMethod(
                     O.ACC_PUBLIC,
                     Name.InitMethod.javaName,
-                    interCtorDesc,
+                    "()V",
                     null, // generic signature
                     null  // thrown exceptions
                 )
                 ctormvis.visitCode
                 ctormvis.visitVarInsn(O.ALOAD, 0)
-                ctormvis.visitVarInsn(O.ALOAD, 1)
-                ctormvis.visitLdcInsn(decl.name.toString)
+                ctormvis.visitLdcInsn(taskName)
                 ctormvis.visitMethodInsn(
                     O.INVOKESPECIAL,
-                    Name.IntervalClass.internalName,
+                    Name.HarmonicTaskClass.internalName,
                     Name.InitMethod.javaName,
-                    getMethodDescriptor(asm.Type.VOID_TYPE, Array(asmDependencyType, asmStringType))
+                    getMethodDescriptor(asm.Type.VOID_TYPE, Array(asmStringType))
                 )
                 ctormvis.visitInsn(O.RETURN)
                 ctormvis.complete
@@ -1352,7 +1355,7 @@ case class ByteCode(global: Global) {
             writeIntervalCtor
 
             // Interval body:
-            //  void run() { 
+            //  void run() {
             //      try { 
             //          <stmts>;
             //          return;
@@ -1366,7 +1369,7 @@ case class ByteCode(global: Global) {
                 val runmvis = interwr.cvis.visitMethod(
                     O.ACC_PROTECTED,
                     "run",
-                    getMethodDescriptor(asm.Type.VOID_TYPE, Array()),
+                    "()V",
                     null, // generic signature
                     null  // thrown exceptions
                 )
@@ -1375,10 +1378,9 @@ case class ByteCode(global: Global) {
                 val startLabel = new asm.Label()
                 runmvis.visitLabel(startLabel)
 
-                val stmts = decl.body.stmts
-                addSymbolsDeclaredIn(interAccessMap, stmts, runmvis)
+                addSymbolsDeclaredIn(interAccessMap, body.stmts, runmvis)
                 val interStmtVisitor = new StatementVisitor(0, interAccessMap, IntConstant(0), runmvis)
-                interStmtVisitor.execStatements(stmts)
+                interStmtVisitor.execStatements(body.stmts)
                 runmvis.visitInsn(O.RETURN)
                 val endLabel = new asm.Label()
                 runmvis.visitLabel(endLabel)
@@ -1400,6 +1402,19 @@ case class ByteCode(global: Global) {
             writeIntervalRun
             
             interwr.end
+        }
+        
+        def pushAsyncInterval(
+            decl: in.IntervalDecl
+        ) {
+            pushExprValue(decl.parent)
+            pushIntervalTask(decl.name.toString, decl.body)
+            mvis.visitMethodInsn(
+                O.INVOKEINTERFACE,
+                Name.IntervalClass.internalName,
+                "newAsyncChild",
+                getMethodDescriptor(asmAsyncIntervalType, Array(asmTaskType))
+            )
         }
         
         /** Creates a new class representing the statements
@@ -1720,7 +1735,7 @@ case class ByteCode(global: Global) {
                     val stmtVisitor = new StatementVisitor(0, accessMap, IntConstant(0), mvis)
                     
                     accessMap.pushSym(thisSym, mvis)
-                    stmtVisitor.pushIntervalSubclass(decl)
+                    stmtVisitor.pushAsyncInterval(decl)
                     mvis.setHarmonicField(fsym)
                 }
 
@@ -1742,7 +1757,7 @@ case class ByteCode(global: Global) {
                     stmtVisitor.pushExprValue(to)
                     mvis.visitMethodInsn(
                         O.INVOKESTATIC,
-                        asmIntervalsType.getInternalName,
+                        asmHelperType.getInternalName,
                         "addHb",
                         getMethodDescriptor(asm.Type.VOID_TYPE, Array(from.ty.toAsmType, to.ty.toAsmType))
                     )
@@ -2142,8 +2157,8 @@ case class ByteCode(global: Global) {
                 val interPath = csym.loweredSource.thisSym.toTypedPath / fsym
                 stmtVisitor.pushPathValue(interPath)
                 mvis.visitMethodInsn(
-                    O.INVOKEVIRTUAL,
-                    asmIntervalType.getInternalName,
+                    O.INVOKEINTERFACE,
+                    asmAsyncIntervalType.getInternalName,
                     "schedule",
                     "()V"
                 )                

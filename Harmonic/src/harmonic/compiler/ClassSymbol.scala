@@ -2,7 +2,7 @@ package harmonic.compiler
 
 import scala.collection.mutable
 import scala.util.parsing.input.Position
-import ch.ethz.intervals.Interval
+import ch.ethz.intervals._
 import Util._
 
 abstract class ClassSymbol extends Symbol {
@@ -16,14 +16,14 @@ abstract class ClassSymbol extends Symbol {
     // may not actually do any work to speak of.  Note that the intervals
     // may be created lazily.
     
-    def header: Interval
-    def body: Interval
-    def lower: Interval
-    def create: Interval
-    def members: Interval
-    def merge: Interval
-    def gather: Interval
-    def byteCode: Interval
+    def header: AsyncInterval
+    def body: AsyncInterval
+    def lower: AsyncInterval
+    def create: AsyncInterval
+    def members: AsyncInterval
+    def merge: AsyncInterval
+    def gather: AsyncInterval
+    def byteCode: AsyncInterval
     
     // ___ Invokable at any time ____________________________________________
     

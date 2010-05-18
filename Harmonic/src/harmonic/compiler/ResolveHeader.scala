@@ -25,12 +25,12 @@ object ResolveHeader {
             
             debug("Adding edges %s -> %s", superCsym, csym)
             try {
-                Intervals.addHb(superCsym.header.end, csym.header.end)
-                Intervals.addHb(superCsym.lower.end, csym.lower.end)
-                Intervals.addHb(superCsym.gather.end, csym.gather.start)
+                Intervals.addHb(superCsym.header.getEnd, csym.header.getEnd)
+                Intervals.addHb(superCsym.lower.getEnd, csym.lower.getEnd)
+                Intervals.addHb(superCsym.gather.getEnd, csym.gather.getStart)
                 Some(superName)
             } catch {
-                case _: CycleException => {
+                case _: IntervalException.Cycle => {
                     Error.CircularInheritance(csym.name, superName).report(global, csym.pos)
                     None
                 }

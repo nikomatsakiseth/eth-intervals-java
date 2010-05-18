@@ -4,6 +4,8 @@ import scala.util.parsing.input.Positional
 import scala.util.parsing.input.Position
 
 import ch.ethz.intervals._
+import ch.ethz.intervals.task.AbstractTask
+import ch.ethz.intervals.task.ResultTask
 
 import scala.collection.Set
 
@@ -164,14 +166,14 @@ object Util {
             schedule: Boolean = true
         )(
             func: (Interval => Unit)
-        ): Interval = {
-            val result = new Interval(inter, name) {
-                override def run() = func(this)
-            }
-            after.foreach(pnt => Intervals.addHb(pnt, result.start))
-            before.foreach(pnt => Intervals.addHb(result.end, pnt))
-            during.foreach(inter => Intervals.addHb(inter.start, result.start))
-            during.foreach(inter => Intervals.addHb(result.end, inter.end))
+        ): AsyncInterval = {
+            val result = inter.newAsyncChild(new AbstractTask() {
+                override def run(current: Interval): Unit = func(current)
+            })
+            after.foreach(pnt => Intervals.addHb(pnt, result.getStart))
+            before.foreach(pnt => Intervals.addHb(result.getEnd, pnt))
+            during.foreach(inter => Intervals.addHb(inter.getStart, result.getStart))
+            during.foreach(inter => Intervals.addHb(result.getEnd, inter.getEnd))
             if(schedule) result.schedule()
             
             result
@@ -179,11 +181,11 @@ object Util {
         
         def join() = {
             try {
-                Intervals.inline(new InlineTask[Unit]() {
+                Intervals.inline(new AbstractTask() {
                     override def toString = 
                         "join(%s)".format(inter)
-                    override def init(inlineInterval: Interval) = 
-                        Intervals.addHb(inter.end, inlineInterval.start)
+                    override def attachedTo(inlineInterval: Interval) = 
+                        Intervals.addHb(inter.getEnd, inlineInterval.getStart)
                     override def run(inlineInterval: Interval) = 
                         ()
                 })                       
@@ -197,9 +199,9 @@ object Util {
     }
     implicit def extendedInterval(inter: Interval) = ExtendedInterval(inter)
     
-    def inlineInterval[R](func: (Interval => R)):R = {
-        Intervals.inline(new InlineTask[R] {
-            def run(subinterval: Interval) = {
+    def inlineInterval[R](name: String)(func: (Interval => R)): R = {
+        Intervals.inline(new ResultTask[R](name) {
+            def compute(subinterval: Interval) = {
                 func(subinterval)
             }
         })

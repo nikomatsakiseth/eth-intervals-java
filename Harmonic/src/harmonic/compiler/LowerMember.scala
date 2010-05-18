@@ -102,7 +102,7 @@ class LowerMember(
                         (inDecl, outDecl.params, outDecl.returnTref)
                     })
                 } catch {
-                    case _: CycleException => {
+                    case _: IntervalException.Cycle => {
                         global.reporter.report(inDecl.returnTref.pos, 
                             "explicit.type.required.due.to.cycle",
                             MthdName.toString
@@ -173,7 +173,7 @@ class LowerMember(
                         (inDecl.annotations, outDecl.tref)
                     })
                 } catch {
-                    case _: CycleException => {
+                    case _: IntervalException.Cycle => {
                         global.reporter.report(inDecl.tref.pos, 
                             "explicit.type.required.due.to.cycle",
                             MemName.toString
@@ -185,7 +185,7 @@ class LowerMember(
             
             case inDecl @ in.IntervalDecl(_, Ast.MemberName(MemName), _, _) => {
                 Some(createSymbolOnce {
-                    (inDecl.annotations, out.TypeRef(Type.Interval))
+                    (inDecl.annotations, out.TypeRef(Type.AsyncInterval))
                 })
             }
             

@@ -159,6 +159,10 @@ object Name {
     val ObjectClass = Class(classOf[java.lang.Object])
 
     val IntervalClass = Class(classOf[ch.ethz.intervals.Interval])
+    val AsyncIntervalClass = Class(classOf[ch.ethz.intervals.AsyncInterval])
+    val InlineIntervalClass = Class(classOf[ch.ethz.intervals.InlineInterval])
+
+    val HarmonicTaskClass = Class(classOf[harmonic.runtime.HarmonicTask])
 
     val ArrayClass = Class(classOf[harmonic.lang.Array[_]])
     val ArrayElem = Member(ArrayClass, "E")

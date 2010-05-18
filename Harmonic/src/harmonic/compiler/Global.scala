@@ -15,7 +15,7 @@ class Global(
     var master: Interval = null
     
     def compile() = {
-        inlineInterval { inter =>
+        inlineInterval("master") { inter =>
             master = inter
             
             Intrinsic(this).add()
