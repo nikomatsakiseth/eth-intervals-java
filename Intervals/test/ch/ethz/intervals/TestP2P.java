@@ -12,6 +12,12 @@ import org.junit.Test;
 
 import ch.ethz.intervals.impl.IntervalImpl;
 import ch.ethz.intervals.impl.PointImpl;
+import ch.ethz.intervals.mirror.AsyncInterval;
+import ch.ethz.intervals.mirror.Interval;
+import ch.ethz.intervals.mirror.Point;
+import ch.ethz.intervals.task.AbstractTask;
+import ch.ethz.intervals.task.ResultTask;
+import ch.ethz.intervals.task.SetupTask;
 
 public class TestP2P {
 	
@@ -22,45 +28,41 @@ public class TestP2P {
 		return n | (m << 16);
 	}
 	
-	class P2P extends SetupInterval {
+	class P2P extends SetupTask {
 		final List<Integer> list = Collections.synchronizedList(new ArrayList<Integer>());
 		
-		public P2P(@ParentForNew("Parent") Dependency dep) {
-			super(dep);
-		}
-		
 	    @Override
-		public void setup(PointImpl _, IntervalImpl parent) {        
-	        PointImpl[][] intervals = new PointImpl[2][M+2];
+		public void setup(Interval _, Interval parent) {        
+	        Point[][] intervals = new Point[2][M+2];
 	        
 	        for(int n = 0; n < N; n++) {
 	            int bit = n % 2, prevBit = 1 - bit;
 	            for(int m = 1; m < M+1; m++) {
-	            	IntervalImpl i = new AddTask(parent, n, m-1);
-	                intervals[bit][m] = i.end; 
+	            	AsyncInterval i = parent.newAsyncChild(new AddTask(n, m-1));
+	                intervals[bit][m] = i.getEnd(); 
 	                if(intervals[prevBit][m-1] != null)
-	                	Intervals.addHb(intervals[prevBit][m-1], i.start);
+	                	Intervals.addHb(intervals[prevBit][m-1], i.getStart());
 	                if(intervals[prevBit][m] != null)
-	                	Intervals.addHb(intervals[prevBit][m], i.start);
+	                	Intervals.addHb(intervals[prevBit][m], i.getStart());
 	                if(intervals[prevBit][m+1] != null)
-	                	Intervals.addHb(intervals[prevBit][m+1], i.start);
-	                Intervals.schedule();
+	                	Intervals.addHb(intervals[prevBit][m+1], i.getStart());
+	                i.schedule();
 	            }
 	        }   
 	    }
 
-		class AddTask extends IntervalImpl {
+		class AddTask extends AbstractTask {
 			
 			final int n, m;
 			
-			public AddTask(@ParentForNew("Parent") Dependency dep, int n, int m) {
-				super(dep);
+			public AddTask(int n, int m) {
+				super("Add("+n+","+m+")");
 				this.n = n;
 				this.m = m;
 			}
 
 			@Override
-			public void run() {
+			public void run(Interval _) {
 				list.add(c(n, m));
 			}
 			
@@ -70,9 +72,11 @@ public class TestP2P {
 	}
 	
 	@Test public void testP2P() {
-		P2P p2p = Intervals.inline(new InlineTask<P2P>() {
-			public P2P run(IntervalImpl subinterval) {
-				return new P2P(subinterval);
+		P2P p2p = Intervals.inline(new ResultTask<P2P>() {
+			public P2P compute(Interval subinterval) {
+				P2P res = new P2P();
+				subinterval.newAsyncChild(res);
+				return res;
 			}
 		});
 		
