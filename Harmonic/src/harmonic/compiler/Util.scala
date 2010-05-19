@@ -192,7 +192,12 @@ object Util {
             } catch {
                 // Rethrow wrapped exceptions (if there is exactly one):
                 case r: RethrownException if r.allErrors.size == 1 => {
+                    debug("rethrown exc w/ %d errors", r.allErrors.size)
                     throw r.allErrors.iterator.next;
+                }
+                case r: RethrownException => {
+                    debug("rethrown exc w/ %d errors", r.allErrors.size)
+                    throw r;
                 }
             }
         }
