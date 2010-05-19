@@ -10,7 +10,7 @@ public interface Interval extends Guard {
 	public Interval getParent();
 
 	/** True if this is an inline interval */
-	public boolean isSynchronous();
+	public boolean isInline();
 
 	/** Returns the start point */
 	public Point getStart();
@@ -39,4 +39,25 @@ public interface Interval extends Guard {
 	
 	/** Creates a new inline interval child of this. */
 	public InlineInterval newInlineChild(Task task);
+	
+	/**
+	 * Cancels the scheduling or execution of this interval.
+	 * Assuming it has not already been scheduled or executed,
+	 * the interval will never be executed and no error will
+	 * be generated when its parent terminates. 
+	 * 
+	 * @param unconditionally if false, then no error occurs
+	 * if the interval has already been scheduled or executed. 
+	 * 
+	 * @throws IntervalException.AlreadyScheduled if
+	 * <ul>
+	 * <li> {@code unconditionally} is true and the interval has already been 
+	 *      canceled, scheduled, or executed; or,
+	 * <li> the current interval is not the interval which created {@code this}.
+	 * <ul> 
+	 * 
+	 * @see AsyncInterval#schedule() 
+	 * @see InlineInterval#execute() */
+	public void cancel(boolean unconditionally);
+	
 }

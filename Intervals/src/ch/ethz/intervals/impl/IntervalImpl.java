@@ -40,7 +40,7 @@ implements Guard, Interval
 	}
 	
 	private boolean isWritableBy(Interval inter) {
-		while(inter != this && inter.isSynchronous())
+		while(inter != this && inter.isInline())
 			inter = inter.getParent();
 		return (inter == this);
 	}
@@ -77,7 +77,7 @@ implements Guard, Interval
 		if(holdsLockItself(lock))
 			return true;
 		
-		if(isSynchronous() && parent != null)
+		if(isInline() && parent != null)
 			return parent.locks(lock);
 		
 		return false;
@@ -138,6 +138,11 @@ implements Guard, Interval
 
 	// =====================================================================================
 	// Package or private interface:
+	//
+	// Note: I have tried to aggressively label methods as final or private unless
+	// they are overridden in a subclass or used outside of this class.  This is not
+	// necessarily indicative of a *design constraint* so much as intended for 
+	// documentation of where a function is used.
 	
 	final IntervalImpl parent;
 	final PointImpl start;
@@ -295,9 +300,9 @@ implements Guard, Interval
 		if(parent != null)
 			current.checkCanAddChild(parent);
 		
-		boolean isInline = isSynchronous();
+		boolean isInline = isInline();
 		
-		int pntFlags = (isInline ? PointImpl.FLAG_SYNCHRONOUS : PointImpl.NO_FLAGS);
+		int pntFlags = (isInline ? PointImpl.FLAG_INLINE : PointImpl.NO_FLAGS);
 		int startWaitCount = 2; // parent, sched
 		int endWaitCount = 2; // start, task
 
@@ -329,8 +334,7 @@ implements Guard, Interval
 				
 		ExecutionLog.logNewInterval(null, start, end);
 		
-		// Note: do this last, as it could fail!
-		task.attachedTo(this);
+		// Note: task.attachedTo() is invoked in the subclasses.
 	}
 	
 	/** Moves to a new state. */
@@ -342,7 +346,7 @@ implements Guard, Interval
 	
 	private State addChildInterval(IntervalImpl inter) {
 		State state;
-		boolean isInline = inter.isSynchronous();
+		boolean isInline = inter.isInline();
 		
 		// Atomically read current state and add 'inter' to our linked
 		// list of pending child intervals if appropriate: 
@@ -359,7 +363,7 @@ implements Guard, Interval
 		return state;
 	}
 	
-	synchronized void cancel(PointImpl pnt) {
+	synchronized final void cancel(PointImpl pnt) {
 		if(pnt == start) {
 			switch(state) {
 			case WAIT:
@@ -375,7 +379,7 @@ implements Guard, Interval
 		}
 	}
 	
-	void addVertExceptionUnsync(Throwable thr) {
+	final void addVertExceptionUnsync(Throwable thr) {
 		if(vertExceptions == null) 
 			vertExceptions = Empty.set();
 		
@@ -390,7 +394,7 @@ implements Guard, Interval
 			Debug.addVertException(this, thr, vertExceptions);
 	}
 	
-	synchronized void addVertExceptionSync(Throwable thr) {
+	synchronized final void addVertExceptionSync(Throwable thr) {
 		addVertExceptionUnsync(thr);
 	}
 	
@@ -404,12 +408,12 @@ implements Guard, Interval
 			Debug.addVertException(this, null, vertExceptions);
 	}
 
-	void setRevLocksUnsync(LockList locks) {
+	final void setRevLocksUnsync(LockList locks) {
 		revLocks = locks;
 	}
 	
 	/** Note: Safety checks apply!  See {@link Current#checkCanAddDep(PointImpl)} */ 
-	void addExclusiveLock(LockImpl lockImpl, Guard guard) {
+	final void addExclusiveLock(LockImpl lockImpl, Guard guard) {
 		LockList list = new LockList(this, lockImpl, guard, null);
 		synchronized(this) {
 			list.next = revLocks;			
@@ -417,7 +421,7 @@ implements Guard, Interval
 		}
 	}
 	
-	synchronized LockList revLocksSync() {
+	final synchronized LockList revLocksSync() {
 		return revLocks;
 	}
 	
@@ -437,7 +441,7 @@ implements Guard, Interval
 	
 	/** Invoked by {@code point} when its wait count reaches zero. 
 	 *  Should eventually invoke {@link PointImpl#occur(boolean)} */
-	void didReachWaitCountZero(PointImpl pointImpl) {
+	final void didReachWaitCountZero(PointImpl pointImpl) {
 		switch(state) {
 		case WAIT:
 			assert pointImpl == start;
@@ -515,7 +519,7 @@ implements Guard, Interval
 	 *  when complete.  If some lock cannot be immediately acquired,
 	 *  then it returns and waits for a callback when the lock has
 	 *  been acquired. */
-	void acquireNextUnacquiredLock() {
+	final void acquireNextUnacquiredLock() {
 		assert state == State.LOCK;
 		
 		// Find the last lock which has not yet been acquired.
@@ -540,7 +544,7 @@ implements Guard, Interval
 	
 	/** Invoked by {@code ll} when it has acquired a lock.  Checks for data 
 	 *  race errors and then tries to acquire the next lock. */
-	void didAcquireLock(LockList ll) {
+	final void didAcquireLock(LockList ll) {
 		assert ll.acquiredLock != null;
 		
 		// Check that acquiring this lock did not
@@ -616,7 +620,7 @@ implements Guard, Interval
 	 * Simply invokes {@link #exec()}.
 	 */
 	@Override
-	void exec(Worker worker) {
+	final void exec(Worker worker) {
 		exec();
 	}
 	
@@ -640,9 +644,12 @@ implements Guard, Interval
 					endedNormally = false;
 				}
 				
-				// Schedule any unscheduled subintervals.  
+				// Schedule/cancel any unscheduled subintervals.  
 				// n.b.: This may add to vertExceptions!
-				cur.schedule(endedNormally);
+				if(endedNormally)
+					cur.scheduleAll();
+				else
+					cur.cancelAll();
 				
 				finishSequentialPortion((vertExceptions == null ? State.PAR : State.CATCH_PAR));
 			} catch(Throwable e) {
@@ -683,7 +690,7 @@ implements Guard, Interval
 	 * Returns true if this interval is due to be scheduled by
 	 * {@cure current}.
 	 */
-	boolean isUnscheduled(Current current) {
+	final boolean isUnscheduled(Current current) {
 		// No need to worry about race conditions: if our field == current,
 		// then current is the only thread that will ever change it.
 		// Otherwise, going to return false anyhow.
@@ -699,14 +706,16 @@ implements Guard, Interval
 	 * @param explicit true if the interval was explicitly scheduled
 	 * by the user, false if it is being scheduled implicitly at
 	 * the end of the creator.
-	 * 
-	 * @param parentEndedNormally true if the parent interval ended
-	 * normally, false if the parent interval ended with an error.
-	 * Not relevant if explicit is true.
 	 */
-	void didSchedule(boolean explicit, boolean parentEndedNormally) {
+	void didSchedule(boolean explicit) {
 		// Only invoked by our scheduler:
 		unscheduled = null;
 	}
+
+	/** Given that this interval is currently
+	 *  executing, returns the lowest-depth interval
+	 *  which must also still be executing, because
+	 *  {@code this} is an inline subinterval of it. */
+	abstract IntervalImpl inlineBound();
 	
 }

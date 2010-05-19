@@ -1,6 +1,5 @@
 package ch.ethz.intervals.impl;
 
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.Assert;
@@ -11,10 +10,9 @@ import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.IntervalException;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.RethrownException;
-import ch.ethz.intervals.IntervalException.AlreadyExecuted;
 import ch.ethz.intervals.task.AbstractTask;
 
-public class TestInlineInterval extends Util {
+public class TestInlineInterval extends TestUtil {
 	
 	@Test public void separatedCreationAndExecutionOfInlineInterval() {
 		final AtomicInteger i = new AtomicInteger(0);
@@ -57,6 +55,32 @@ public class TestInlineInterval extends Util {
 		Assert.assertEquals(0, i.get());
 	}
 
+	@Test public void errorCaughtInAttachedTo() {
+		final AtomicInteger i = new AtomicInteger(0);
+		Intervals.inline(new AbstractTask("outer") {
+			public void run(Interval subinterval) {
+				try {
+					Intervals.inline(new AbstractTask("inner") {
+						@Override public void attachedTo(Interval current) {
+							throw new TestException();
+						}
+						
+						@Override public void run(Interval current) {
+							i.incrementAndGet();
+						}
+					});
+				} catch (TestException e) {
+					// By catching the error, we allow outer to complete
+					// normally.  At some point, this caused an error because
+					// inner was never executed even though outer completed
+					// normally.  But since inner never completed construction,
+					// it could not have been executed.
+				}
+			}
+		});
+		Assert.assertEquals(0, i.get());
+	}
+
 	@Test public void inlineIntervalExecutedTwice() {
 		final AtomicInteger i = new AtomicInteger(0);
 		
@@ -75,7 +99,7 @@ public class TestInlineInterval extends Util {
 			});
 			Assert.fail("No exception thrown.");
 		} catch (RethrownException err) {
-			assertThrew(err, IntervalException.AlreadyExecuted.class);
+			assertThrew(err, IntervalException.AlreadyScheduled.class);
 		}
 		
 		Assert.assertEquals(1, i.get());
@@ -156,10 +180,10 @@ public class TestInlineInterval extends Util {
 			Assert.fail("No exception thrown.");
 		} catch (RethrownException err) {
 			assertThrew(err, 
-					IntervalException.NotExecutedFromParent.class);
+					IntervalException.AlreadyScheduled.class);
 		}
 		
 		Assert.assertEquals(0, i.get());
 	}
-	
+
 }

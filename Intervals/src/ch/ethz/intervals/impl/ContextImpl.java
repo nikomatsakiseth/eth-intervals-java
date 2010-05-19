@@ -49,17 +49,20 @@ public class ContextImpl implements Context {
 		
 		InlineIntervalImpl subinterval = 
 			new InlineIntervalImpl(current.inter, task);
-		
-		if(current.mr != null && current.mr != current.start())
-			current.mr.addEdgeAfterOccurredWithoutException(
-					subinterval.start, 
-					NORMAL
-			);
-		
-		if(Debug.ENABLED)
-			Debug.subInterval(subinterval, task.toString());
-		
-		subinterval.execute();		
+		try {
+			if(current.mr != null && current.mr != current.start())
+				current.mr.addEdgeAfterOccurredWithoutException(
+						subinterval.start, 
+						NORMAL
+				);
+			
+			if(Debug.ENABLED)
+				Debug.subInterval(subinterval, task.toString());
+			
+			subinterval.execute();		
+		} finally {
+			subinterval.cancel(false);
+		}
 	}
 
 	@Override

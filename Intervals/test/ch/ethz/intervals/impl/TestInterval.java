@@ -14,7 +14,7 @@ import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.task.AbstractTask;
 import ch.ethz.intervals.task.EmptyTask;
 
-public class TestInterval {
+public class TestInterval extends TestUtil {
 	
 	/** many tests are not guaranteed to fail, so we repeat them 
 	 *  many times to stress the scheduler... not the best solution! */
@@ -22,26 +22,6 @@ public class TestInterval {
 	
 	protected static void debug(String fmt, Object... args) {
 		//System.err.println(String.format(fmt, args));
-	}
-	
-	public static class IncTask extends AbstractTask {
-		public final AtomicInteger i;
-		public final int amnt;
-
-		public IncTask(String name, AtomicInteger i) {
-			this(name, i, 1);
-		}
-
-		public IncTask(String name, AtomicInteger i, int amnt) {
-			super(name);
-			this.i = i;
-			this.amnt = amnt;
-		}
-
-		@Override
-		public void run(Interval current) {
-			i.addAndGet(amnt);
-		}
 	}
 	
 	class AddTask extends AbstractTask {

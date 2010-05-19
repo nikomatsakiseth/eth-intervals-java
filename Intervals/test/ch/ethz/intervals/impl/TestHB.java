@@ -10,7 +10,7 @@ import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.Point;
 import ch.ethz.intervals.task.AbstractTask;
 
-public class TestHB extends Util {
+public class TestHB extends TestUtil {
 	
 	private void assertHb(Point from, Point to) {
 		Assert.assertTrue(from.hb(to));

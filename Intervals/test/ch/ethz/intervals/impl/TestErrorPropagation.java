@@ -15,11 +15,10 @@ import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.IntervalException;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.RethrownException;
-import ch.ethz.intervals.impl.TestInterval.IncTask;
 import ch.ethz.intervals.task.AbstractTask;
 import ch.ethz.intervals.task.EmptyTask;
 
-public class TestErrorPropagation extends Util {
+public class TestErrorPropagation extends TestUtil {
 	
 	class ThrowExceptionTask extends AbstractTask {
 		
@@ -36,6 +35,38 @@ public class TestErrorPropagation extends Util {
 			throw new TestException();
 		}
 		
+	}
+	
+	@Test public void unscheduledIntervalsAreCancelled() {
+		final AtomicInteger cnt = new AtomicInteger(0);
+		Intervals.inline(new AbstractTask("outer") {
+			@Override public void run(Interval outer) {
+				
+				final AsyncInterval par = outer.newAsyncChild(new EmptyTask("par"));
+				
+				// This inline interval creates three children of par, but 
+				// fails before scheduling them.  These children should never 
+				// execute.
+				try {
+					Intervals.inline(new AbstractTask("creator") {
+						@Override public void run(Interval creator) {
+							par.newAsyncChild(new IncTask("a", cnt));
+							par.newAsyncChild(new IncTask("b", cnt));
+							par.newAsyncChild(new IncTask("c", cnt));
+							throw new TestException();
+						}
+					});
+					Assert.fail("no error");
+				} catch (RethrownException err) {
+					assertThrew(err, TestException.class);
+				}
+				
+				// This child of par, however, runs just fine.
+				par.newAsyncChild(new IncTask("d", cnt, 10));
+			}
+		});
+		
+		Assert.assertEquals(10, cnt.get());
 	}
 	
 	@Test public void attachedToMethodThrowsUncaughtException() {

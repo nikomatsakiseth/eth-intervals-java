@@ -77,16 +77,16 @@ public class Current
 		}
 		
 		intervalImpl.nextUnscheduled = null;
-		scheduleUnchecked(intervalImpl, true, true);
+		scheduleUnchecked(intervalImpl, true);
 	}
 
-	void schedule(boolean parentEndedNormally) {
+	void scheduleAll() {
 		IntervalImpl p = unscheduled;
 		while(p != null) {
 			IntervalImpl n = p.nextUnscheduled;
 			p.nextUnscheduled = null;
 			
-			scheduleUnchecked(p, false, parentEndedNormally);
+			scheduleUnchecked(p, false);
 
 			p = n;
 		}
@@ -95,8 +95,7 @@ public class Current
 
 	private void scheduleUnchecked(
 			IntervalImpl p, 
-			boolean explicit,
-			boolean parentEndedNormally
+			boolean explicit
 	) {
 		assert p.isUnscheduled(this);
 		
@@ -104,8 +103,20 @@ public class Current
 			Debug.schedule(p, inter);
 		ExecutionLog.logScheduleInterval(p);
 		
-		p.didSchedule(explicit, parentEndedNormally);
+		p.didSchedule(explicit);
 		p.start.arrive(1);
+	}
+	
+	void cancelAll() {
+		while(unscheduled != null) {
+			assert unscheduled.isUnscheduled(this);
+			
+//			if(Debug.ENABLED)
+//				Debug.cancel(unscheduled);
+//			ExecutionLog.logCancelInterval(unscheduled);
+			
+			unscheduled.cancel(true);
+		}
 	}
 
 	void pop() {
@@ -115,12 +126,19 @@ public class Current
 
 	void checkCanAddChild(IntervalImpl parent) {
 		if(SAFETY_CHECKS) {
+			// We created parent and have not scheduled it yet:
 			if(isUnscheduled(parent.start))
 				return;
+			// We are root interval:
 			if(inter == null)
 				throw new IntervalException.NotInRootInterval();
+			// Child of ourselves or some ancestor:
 			if(inter.end.isBoundedByOrEqualTo(parent.end))
 				return;
+			// Child of an asynchronous subinterval of ourselves or some "inline ancestor":
+			if(!parent.isInline() && parent.end.isBoundedBy(inter.inlineBound().end))
+				return;
+			// Our end happens before start of parent:
 			if(inter.end.hbeq(parent.start))
 				return;
 			throw new IntervalException.MustHappenBefore(inter.end, parent.start);

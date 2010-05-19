@@ -22,10 +22,8 @@ implements Point
 {
 	public static final int NO_FLAGS = 0;
 	public static final int FLAG_END = 1;		  /** is end point? */
-	public static final int FLAG_SYNCHRONOUS = 2; /** is point of a sync. interval? */
+	public static final int FLAG_INLINE = 2; /** is point of a sync. interval? */
 	
-	public static final int FLAGS_SYNCHRONOUS_END = FLAG_END | FLAG_SYNCHRONOUS;	
-
 	/** Value of {@link #waitCount} if we have occurred without any errors. */
 	public static final int OCCURRED_WITHOUT_ERROR = -1;
 	
@@ -61,8 +59,8 @@ implements Point
 		return (flags & FLAG_END) == FLAG_END;
 	}
 	
-	final boolean isSynchronous() {
-		return (flags & FLAG_SYNCHRONOUS) == FLAG_SYNCHRONOUS;
+	final boolean isInline() {
+		return (flags & FLAG_INLINE) == FLAG_INLINE;
 	}
 
 	final synchronized ChunkList<PointImpl> outEdgesSync() {
