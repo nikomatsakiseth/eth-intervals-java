@@ -149,7 +149,7 @@ case class ByteCode(global: Global) {
 
     sealed case class ExtendedMethodVisitor(mvis: asm.MethodVisitor) {
         def complete {
-            mvis.visitMaxs(0, 0)
+            mvis.visitMaxs(99, 99)
             mvis.visitEnd
         }
         
@@ -1245,7 +1245,6 @@ case class ByteCode(global: Global) {
         }
         
         def execStatements(stmts: List[in.Stmt]) {
-            stmts.foreach(preExecStatement)
             stmts.foreach(execStatement)
         }
         
@@ -1476,11 +1475,17 @@ case class ByteCode(global: Global) {
             
             symPath.pushLvalue(mvis)
             
+            mvis.visitMethodInsn(
+                O.INVOKESTATIC, 
+                asmIntervalsType.getInternalName, 
+                "context", 
+                getMethodDescriptor(asmContextType, Array())
+            )
+            
             mvis.visitTypeInsn(O.NEW, taskClassName.internalName)
             mvis.visitInsn(O.DUP)
             mvis.visitMethodInsn(O.INVOKESPECIAL, taskClassName.internalName, ctor, "()V")
             
-            mvis.visitMethodInsn(O.INVOKESTATIC, asmIntervalsType.getInternalName, "context", "()V")
             mvis.visitMethodInsn(
                 O.INVOKEINTERFACE, 
                 asmContextType.getInternalName, 
