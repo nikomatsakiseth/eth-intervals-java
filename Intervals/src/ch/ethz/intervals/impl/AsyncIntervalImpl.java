@@ -42,9 +42,4 @@ implements AsyncInterval {
 		return false;
 	}
 
-	@Override
-	IntervalImpl inlineBound() {
-		return this;
-	}
-
 }

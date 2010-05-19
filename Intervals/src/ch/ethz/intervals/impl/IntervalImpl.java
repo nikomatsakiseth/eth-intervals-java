@@ -124,18 +124,6 @@ implements Guard, Interval
 		return new AsyncIntervalImpl(this, task);
 	}
 
-	@Override
-	public InlineInterval newInlineChild(Task task) {
-		// Warning: there is code in FactoryImpl that
-		// creates new InlineIntervalImpl's directly, 
-		// bypassing these safety checks (because it
-		// knows they will pass).
-
-		if(Intervals.SAFETY_CHECKS && Current.get().inter != this)
-			throw new IntervalException.MustBeCurrent(this);
-		return new InlineIntervalImpl(this, task);
-	}
-
 	// =====================================================================================
 	// Package or private interface:
 	//
@@ -711,11 +699,5 @@ implements Guard, Interval
 		// Only invoked by our scheduler:
 		unscheduled = null;
 	}
-
-	/** Given that this interval is currently
-	 *  executing, returns the lowest-depth interval
-	 *  which must also still be executing, because
-	 *  {@code this} is an inline subinterval of it. */
-	abstract IntervalImpl inlineBound();
 	
 }

@@ -63,6 +63,14 @@ implements Point
 		return (flags & FLAG_INLINE) == FLAG_INLINE;
 	}
 
+	final boolean isAsync() {
+		return !isInline();
+	}
+
+	final boolean isInlineEnd() {
+		return (flags & (FLAG_INLINE|FLAG_END)) == (FLAG_INLINE|FLAG_END);
+	}
+
 	final synchronized ChunkList<PointImpl> outEdgesSync() {
 		return outEdges;
 	}
@@ -162,7 +170,7 @@ implements Point
 
 	/** Returns true if {@code this} <i>happens before</i> {@code p} */
 	@Override public final boolean hb(final Point p) {
-		return hb(p, SPECULATIVE|TEST_EDGE);
+		return hb((PointImpl) p, SPECULATIVE|TEST_EDGE);
 	}
 	
 	/** Returns true if {@code this == p} or {@code this} <i>happens before</i> {@code p} */
@@ -172,14 +180,14 @@ implements Point
 	
 	/** Returns true if {@code this} <i>happens before</i> {@code p},
 	 *  including speculative edges. */
-	boolean hbOrSpec(final Point p) {
+	boolean hbOrSpec(final PointImpl p) {
 		return hb(p, TEST_EDGE);
 	}
 	
 	/** true if {@code this} -> {@code p}.
 	 * @param tar another point
 	 * @param skipFlags Skips edges which have any of the flags in here. */
-	private boolean hb(final Point tar, final int skipFlags) {
+	private boolean hb(final PointImpl tar, final int skipFlags) {
 		assert tar != null;
 		
 		// XXX We currently access the list of outgoing edges with
@@ -207,7 +215,7 @@ implements Point
 		
 		// Efficiently check whether a point bounds tar or not:
 		class BoundHelper {
-			final PointImpl[] tarBounds = (PointImpl[]) tar.getBounds();
+			final PointImpl[] tarBounds = tar.getBounds();
 			
 			boolean boundsTar(PointImpl p) {
 				return p.depth < tarBounds.length && tarBounds[p.depth] == p;
@@ -217,6 +225,39 @@ implements Point
 			boolean userCouldLegallyAddHbToTarFrom(PointImpl src) {
 				PointImpl srcInterBound = src.interBound();
 				return srcInterBound == null || boundsTar(srcInterBound);
+			}
+			
+			boolean isPrecedingInlineSibOfTar(PointImpl p) {
+				// Check for this subtle scenario:
+				//
+				//       p           p.bound  
+				// >-->--<-...........<
+				//         :         :
+				//         :   ...   :
+				//         :         :
+				//         :  >---<  :
+				//         : tar     :
+				//         +.........+
+				//
+				// Here, p is an inline interval.  Note that p.parent.end
+				// does not HB tar, but p.end does, because inline
+				// intervals always execute before their async. siblings.
+				//
+				// In fact, this same condition holds for inline subintervals
+				// of p, but as they are bounded by p, they will eventually
+				// reach this point.
+				
+				if(!p.isInlineEnd() || p.bound == null) 
+					return false;
+				
+				if(p.bound == tar)
+					return true;
+				
+				if(!boundsTar(p.bound))
+					return false;
+				
+				int depthp1 = p.bound.depth + 1;
+				return tarBounds[depthp1].isAsync();
 			}
 		}
 		final BoundHelper bh = new BoundHelper();
@@ -228,12 +269,17 @@ implements Point
 		while(!bh.userCouldLegallyAddHbToTarFrom(src))
 			src = src.interBound();
 		
-		// If src has no outgoing edges, then it can only HB tar if its bound HB tar:
-		while(src.outEdgesSync() == null) {
+		// If src is asnyc w/ no outgoing edges, then it can only HB tar if its bound HB tar:
+		//   (This is just a micro optimization to avoid doing BFS)
+		while(src.outEdgesSync() == null && !src.isInline()) {
 			src = src.bound;
-			if(src == null) return false;
-			if(bh.boundsTar(src)) return false;
+			if(src == null) 
+				return false;
 		}
+		
+		// If src bounds tar, then tar hb src, so src cannot hb tar: 
+		if(bh.boundsTar(src))
+			return false;
 		
 		// At this point, we just have to bite the bullet and do a BFS to see
 		// whether src can reach tar.  
@@ -248,10 +294,13 @@ implements Point
 			
 			boolean tryEnqueue(PointImpl pnt) {
 				if(pnt != null) {		
-					if((pnt == tar) // found tar
-						|| 
-						(pnt.isStartPoint() && bh.boundsTar(pnt.bound))) // found start point of an ancestor of p
-					{
+					if(
+							// found tar
+							(pnt == tar)
+							
+							// found start point of an ancestor of tar
+							|| (pnt.isStartPoint() && bh.boundsTar(pnt.bound))
+					) {
 						foundIt = true;
 						return true; // found it
 					}
@@ -267,6 +316,10 @@ implements Point
 		
 		do {
 			PointImpl q = sh.queue.remove();
+			
+			assert !bh.boundsTar(q);
+			if(bh.isPrecedingInlineSibOfTar(q)) 
+				return true;
 			
 			if(sh.tryEnqueue(q.bound))
 				return true;

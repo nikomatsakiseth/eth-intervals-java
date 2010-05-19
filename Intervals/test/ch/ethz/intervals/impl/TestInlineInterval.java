@@ -1,5 +1,7 @@
 package ch.ethz.intervals.impl;
 
+import static ch.ethz.intervals.Intervals.context;
+
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.Assert;
@@ -18,7 +20,7 @@ public class TestInlineInterval extends TestUtil {
 		final AtomicInteger i = new AtomicInteger(0);
 		Intervals.inline(new AbstractTask("outer") {
 			public void run(Interval subinterval) {
-				InlineInterval inter = subinterval.newInlineChild(new AbstractTask("inner") {
+				InlineInterval inter = context().unexecutedInline(new AbstractTask("inner") {
 					@Override public void run(Interval current) throws Exception {
 						i.incrementAndGet();
 					}
@@ -35,7 +37,7 @@ public class TestInlineInterval extends TestUtil {
 		try {
 			Intervals.inline(new AbstractTask("outer") {
 				public void run(Interval subinterval) {
-					InlineInterval inter = subinterval.newInlineChild(new AbstractTask("inner") {
+					InlineInterval inter = context().unexecutedInline(new AbstractTask("inner") {
 						@Override public void attachedTo(Interval current) {
 							throw new TestException();
 						}
@@ -87,7 +89,7 @@ public class TestInlineInterval extends TestUtil {
 		try {
 			Intervals.inline(new AbstractTask("outer") {
 				public void run(Interval subinterval) {
-					InlineInterval inter = subinterval.newInlineChild(new AbstractTask("inner") {
+					InlineInterval inter = context().unexecutedInline(new AbstractTask("inner") {
 						@Override public void run(Interval current) throws Exception {
 							i.incrementAndGet();
 						}
@@ -111,7 +113,7 @@ public class TestInlineInterval extends TestUtil {
 		try {
 			Intervals.inline(new AbstractTask("outer") {
 				public void run(Interval subinterval) {
-					subinterval.newInlineChild(new AbstractTask("inner") {
+					context().unexecutedInline(new AbstractTask("inner") {
 						@Override public void run(Interval current) throws Exception {
 							i.incrementAndGet();
 						}
@@ -133,13 +135,13 @@ public class TestInlineInterval extends TestUtil {
 		try {
 			Intervals.inline(new AbstractTask("outer") {
 				public void run(Interval subinterval) {
-					subinterval.newInlineChild(new AbstractTask("inner1") {
+					context().unexecutedInline(new AbstractTask("inner1") {
 						@Override public void run(Interval current) throws Exception {
 							i.addAndGet(1);
 						}
 					});
 					
-					subinterval.newInlineChild(new AbstractTask("inner2") {
+					context().unexecutedInline(new AbstractTask("inner2") {
 						@Override public void run(Interval current) throws Exception {
 							i.addAndGet(10);
 						}
@@ -162,7 +164,7 @@ public class TestInlineInterval extends TestUtil {
 		try {
 			Intervals.inline(new AbstractTask("outer") {
 				public void run(Interval subinterval) {
-					final InlineInterval inter = subinterval.newInlineChild(new AbstractTask("inner") {
+					final InlineInterval inter = context().unexecutedInline(new AbstractTask("inner") {
 						@Override public void run(Interval current) throws Exception {
 							i.incrementAndGet();
 						}

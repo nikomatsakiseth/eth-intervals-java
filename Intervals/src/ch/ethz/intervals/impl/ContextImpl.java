@@ -42,27 +42,11 @@ public class ContextImpl implements Context {
 		if(err != null) throw err;
 		return true;
 	}
-	
-	public void inline(final Task task)
+
+	public InlineIntervalImpl unexecutedInline(final Task task)
 	{		
 		Current current = Current.get();
-		
-		InlineIntervalImpl subinterval = 
-			new InlineIntervalImpl(current.inter, task);
-		try {
-			if(current.mr != null && current.mr != current.start())
-				current.mr.addEdgeAfterOccurredWithoutException(
-						subinterval.start, 
-						NORMAL
-				);
-			
-			if(Debug.ENABLED)
-				Debug.subInterval(subinterval, task.toString());
-			
-			subinterval.execute();		
-		} finally {
-			subinterval.cancel(false);
-		}
+		return new InlineIntervalImpl(current.inter, task);
 	}
 
 	@Override

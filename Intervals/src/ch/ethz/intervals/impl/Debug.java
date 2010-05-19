@@ -169,21 +169,19 @@ public class Debug {
 
 	static class SubIntervalEvent extends Event {
 		public final IntervalImpl inter;
-		public final String description;
 
-		public SubIntervalEvent(IntervalImpl inter, String description) {
+		public SubIntervalEvent(IntervalImpl inter) {
 			this.inter = inter;
-			this.description = description;
 		}
 		
 		public String toString() {
-			return String.format("SUB %s-%s desc=%s", inter.start, inter.end, description);
+			return String.format("SUB %s-%s", inter.start, inter.end);
 		}
 	}
 	
-	public static void subInterval(IntervalImpl inter, String description) {
+	public static void subInterval(IntervalImpl inter) {
 		if(ENABLED_INTER)
-			addEvent(new SubIntervalEvent(inter, description));
+			addEvent(new SubIntervalEvent(inter));
 	}
 
 	static class NewIntervalEvent extends Event {

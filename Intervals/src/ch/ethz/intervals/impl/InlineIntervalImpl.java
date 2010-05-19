@@ -1,5 +1,6 @@
 package ch.ethz.intervals.impl;
 
+import static ch.ethz.intervals.util.ChunkList.NORMAL;
 import pcollections.PSet;
 import ch.ethz.intervals.InlineInterval;
 import ch.ethz.intervals.IntervalException;
@@ -43,6 +44,14 @@ implements InlineInterval
 		Current current = Current.get();
 		
 		if(isUnscheduled(current)) {
+
+			// Add an edge from end of previous inline interval to start of this:
+			if(current.mr != null && current.mr != current.start())
+				current.mr.addEdgeAfterOccurredWithoutException(start, NORMAL);
+			
+			if(Debug.ENABLED)
+				Debug.subInterval(this);
+			
 			current.schedule(this);
 			end.join();
 			current.updateMostRecent(end);
@@ -94,13 +103,6 @@ implements InlineInterval
 	public boolean isInline() 
 	{
 		return true;
-	}
-
-	@Override
-	IntervalImpl inlineBound() {
-		if(parent != null)
-			return parent.inlineBound();
-		return this;
 	}
 
 }

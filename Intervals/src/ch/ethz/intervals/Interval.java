@@ -37,9 +37,6 @@ public interface Interval extends Guard {
 	/** Creates a new asynchronous interval child of this. */
 	public AsyncInterval newAsyncChild(Task task);
 	
-	/** Creates a new inline interval child of this. */
-	public InlineInterval newInlineChild(Task task);
-	
 	/**
 	 * Cancels the scheduling or execution of this interval.
 	 * Assuming it has not already been scheduled or executed,

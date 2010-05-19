@@ -135,10 +135,14 @@ public class Current
 			// Child of ourselves or some ancestor:
 			if(inter.end.isBoundedByOrEqualTo(parent.end))
 				return;
-			// Child of an asynchronous subinterval of ourselves or some "inline ancestor":
-			if(!parent.isInline() && parent.end.isBoundedBy(inter.inlineBound().end))
-				return;
 			// Our end happens before start of parent:
+			//
+			//   Subtle: You might expect this to be inter.end.hbeq(parent.*end*).
+			//   It is not because of exception handling: otherwise, we would not
+			//   know when it is safe to start the "catch" phase, since the end 
+			//   point occurs after the catch phase, but until end point occurs new
+			//   children could be added which result in errors that would need to
+			//   be caught.
 			if(inter.end.hbeq(parent.start))
 				return;
 			throw new IntervalException.MustHappenBefore(inter.end, parent.start);

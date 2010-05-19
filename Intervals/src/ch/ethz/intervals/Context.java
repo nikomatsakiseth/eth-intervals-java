@@ -36,15 +36,17 @@ public interface Context {
 	 * 
 	 * @see #checkReadable(Guard) */
 	public boolean checkWritable(Guard guard);
-		
+
 	/**
-	 * Creates a new interval which executes during the current interval.
-	 * This interval will execute {@code task}.  This function does not
-	 * return until the new interval has completed.
+	 * Creates and returns a new, unexected inline subinterval
+	 * of the current interval.  The user is responsible for
+	 * invoking {@link InlineInterval#execute()} (or
+	 * {@link Interval#cancel(boolean)}) before the end of the
+	 * current interval. 
 	 * 
-	 * <b>Note:</b> Exceptions that occur in {@code task} are 
-	 * wrapped in {@link RethrownException} and rethrown immediately.
-	 * Exceptions never propagate to the current interval. */
-	public void inline(Task task);
-	
+	 * @param task the task to be executed by the inline subinterval
+	 *  
+	 * @return the newly created inline subinterval */
+	public InlineInterval unexecutedInline(Task task);
+
 }

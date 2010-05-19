@@ -117,17 +117,23 @@ public class Intervals {
 	}	
 	
 	/**
-	 * Invokes {@link Context#inline(Task)} on the
-	 * current context. */
+	 * Creates a new interval which executes during the current interval.
+	 * This interval will execute {@code task}.  This function does not
+	 * return until the new interval has completed.
+	 * 
+	 * <b>Note:</b> Exceptions that occur in {@code task} are 
+	 * wrapped in {@link RethrownException} and rethrown immediately.
+	 * Exceptions never propagate to the current interval. */
 	public static void inline(final Task task) {
-		context().inline(task);
+		InlineInterval inter = context().unexecutedInline(task);
+		inter.execute();
 	}
 	
 	/** 
 	 * Like {@link #inline(Task)} but returns the result of the
 	 * task afterwards. */
 	public static <R> R inline(final ResultTask<R> task) {
-		context().inline(task);
+		inline((Task)task);
 		return task.getResult();
 	}
 	
