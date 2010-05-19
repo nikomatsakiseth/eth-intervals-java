@@ -68,6 +68,11 @@ implements Guard, Interval
 		return null;
 	}
 	
+	@Override
+	public final Task getTask() {
+		return task;
+	}
+	
 	/**
 	 * True if {@code this} will hold the lock {@code lock}
 	 * when it executes, or it is a blocking subinterval of

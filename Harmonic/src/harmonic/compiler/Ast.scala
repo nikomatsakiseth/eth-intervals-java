@@ -194,7 +194,7 @@ abstract class Ast {
         name: MND,
         parent: PathNode,
         body: Body
-    ) extends MemberDecl with LowerStmt {
+    ) extends MemberDecl {
         def ty = voidTy
         override def toString = "[interval %s(%s)]".format(name, parent)
         
@@ -738,7 +738,11 @@ abstract class Ast {
         override def toString = "<this>"
     }
    
-    case class InlineInterval(name: LocalName, body: Body) extends LowerStmt {
+    case class InlineInterval(
+        name: LocalName, 
+        body: Body,
+        vsym: LVSym
+    ) extends LowerStmt {
         def ty = voidTy
         override def toString = "interval %s {...}".format(name)
         

@@ -1,0 +1,25 @@
+package test.bytecode;
+
+class BytecodeInline extends Application {
+    
+    @Override main(ctx: ApplicationContext): Void {
+        
+        out = ctx.getOut()
+        
+        out.println("Before");
+        
+        interval foo {
+            out.println("During");            
+        }
+        
+        out.println("After");
+    }
+    
+}
+// COMPILE
+// --dump-resolved-trees
+// --dump-lowered-trees
+// EXECUTE
+// Before
+// During
+// After

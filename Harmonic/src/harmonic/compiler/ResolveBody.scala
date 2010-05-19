@@ -576,9 +576,11 @@ extends Resolve(global, compUnit)
                 outStmt :: resolveStmts(stmts)
             }
             
-            case (stmt @ in.InlineInterval(name, body)) :: stmts => {
-                val outStmt = withPosOf(stmt, out.InlineInterval(name, resolveBody(body)))
-                outStmt :: resolveStmts(stmts)
+            case (stmt @ in.InlineInterval(name, body, ())) :: stmts => {
+                val scopeWithInline = addEntry(SymTab.LocalVar(name.name))
+                val outBody = scopeWithInline.resolveBody(body)
+                val outStmt = withPosOf(stmt, out.InlineInterval(name, outBody, ()))
+                outStmt :: scopeWithInline.resolveStmts(stmts)
             }
         }
 

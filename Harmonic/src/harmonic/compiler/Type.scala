@@ -39,6 +39,7 @@ object Type {
     val Void = Type.Class(Name.VoidClass, List())
     val Interval = Type.Class(Name.IntervalClass, List())
     val AsyncInterval = Type.Class(Name.AsyncIntervalClass, List())
+    val InlineInterval = Type.Class(Name.InlineIntervalClass, List())
 
     // Use Type.Top when you want the most general
     // type you can get, of which all others are a subtype.

@@ -38,7 +38,11 @@ case class ByteCode(global: Global) {
     
     // ___ Generating fresh, unique class names _____________________________
     
-    def freshClassName(context: Name.Class, node: Ast.Node) = {
+    // Creates a name for the class which will be generated for node `node`
+    // in the context `context`.  This name should be unique but "repeatable",
+    // meaning that invoking this method twice with the same argument yields
+    // the same results.
+    def genClassName(context: Name.Class, node: Ast.Node) = {
         context.withSuffix("$%s$%s".format(node.pos.line, node.pos.column))
     }
     
@@ -48,6 +52,7 @@ case class ByteCode(global: Global) {
     
     // ___ Types and Asm Types ______________________________________________
     
+    val ctor = Name.InitMethod.javaName
     val asmObjectArrayType = asm.Type.getType("[Ljava/lang/Object;")
     val asmObjectType = asm.Type.getType(classOf[java.lang.Object])
     val asmVoidClassType = asm.Type.getType(classOf[java.lang.Void])
@@ -59,7 +64,9 @@ case class ByteCode(global: Global) {
     val asmInlineIntervalType = asm.Type.getType(classOf[ch.ethz.intervals.InlineInterval])
     val asmPointType = asm.Type.getType(classOf[ch.ethz.intervals.Point])
     val asmTaskType = asm.Type.getType(classOf[ch.ethz.intervals.Task])
+    val asmContextType = asm.Type.getType(classOf[ch.ethz.intervals.Context])
     val asmHelperType = asm.Type.getType(classOf[harmonic.runtime.Helper])
+    val asmThrowableType = asm.Type.getType(classOf[java.lang.Throwable])
     
     case class BoxInfo(
         boxType: asm.Type,  // i.e., java.lang.Integer
@@ -674,11 +681,10 @@ case class ByteCode(global: Global) {
             case expr: in.Expr => 
                 summarizeSymbolsInExpr(summary, expr)
             
-            case in.InlineInterval(_, in.Body(stmts)) =>
-                stmts.foldLeft(summary)(summarizeSymbolsInStmt)
-            
-            case in.IntervalDecl(_, _, parent, in.Body(stmts)) =>
-                stmts.foldLeft(summary)(summarizeSymbolsInStmt)
+            case in.InlineInterval(_, in.Body(stmts), sym) => {
+                val withSym = summary.copy(declaredSyms = summary.declaredSyms + sym)
+                stmts.foldLeft(withSym)(summarizeSymbolsInStmt)                
+            }
             
             case in.MethodReturn(expr) => 
                 summarizeSymbolsInExpr(summary, expr)
@@ -1122,7 +1128,7 @@ case class ByteCode(global: Global) {
                     mvis.visitMethodInsn(
                         O.INVOKESPECIAL,
                         internalImplName,
-                        Name.InitMethod.javaName,
+                        ctor,
                         getMethodDescriptor(
                             asm.Type.VOID_TYPE,
                             msym.msig.parameterPatterns.flatMap(_.varTys).map(_.toAsmType).toArray
@@ -1136,20 +1142,33 @@ case class ByteCode(global: Global) {
             }
         }
         
+        /** When executing a block of statements, we first do a
+          * pre-phase that creates the inline intervals before
+          * the body proper begins execution.  This way they can
+          * be referenced before they have actually executed,
+          * which is useful for adding dependencies. */
+        private[this] def preExecStatement(stmt: in.Stmt) {
+            stmt match {
+                case decl: in.InlineInterval => 
+                    initInlineInterval(decl)
+                    
+                case _ =>
+                    ()
+            }
+        }
+        
         /** Executes `stmt` and discards the result.
           *
-          * Stack: ... => ...
-          */
-        def execStatement(stmt: in.Stmt) {
+          * Stack: ... => ... */
+        private[this] def execStatement(stmt: in.Stmt) {
             stmt match {
                 case expr: in.Expr => {
                     pushExprValue(expr)
                     mvis.visitInsn(O.POP)
                 }
 
-                case in.InlineInterval(name, in.Body(stmts)) => {
-                    stmts.foreach(execStatement) // FIXME Not really right.
-                }
+                case decl: in.InlineInterval =>
+                    execInlineInterval(decl)
                 
                 case in.MethodReturn(path) if inBlock => {
                     // Emit "throw new Return(<path>)" if in a block
@@ -1159,7 +1178,7 @@ case class ByteCode(global: Global) {
                     mvis.visitMethodInsn(
                         O.INVOKESPECIAL,
                         Name.ReturnClass.internalName,
-                        Name.InitMethod.javaName,
+                        ctor,
                         getMethodDescriptor(
                             asm.Type.VOID_TYPE,
                             Array(asmObjectType)
@@ -1180,9 +1199,20 @@ case class ByteCode(global: Global) {
             }
         }
 
-        /** Executes `stmt` and pushes the result 
-          * onto the stack. */
-        def pushStatement(stmt: in.Stmt) {
+        /** If an exception is thrown while executing the body, we need
+          * to cancel inline intervals and perform other cleanup ops. */
+        private[this] def cleanupStatement(stmt: in.Stmt) {
+            stmt match {
+                case decl: in.InlineInterval => 
+                    cancelInlineInterval(decl)
+                    
+                case _ =>
+                    ()
+            }
+        }
+        
+        /** Executes `stmt` and pushes the result onto the stack. */
+        private[this] def pushStatement(stmt: in.Stmt) {
             stmt match {
                 case expr: in.Expr => {
                     pushExprValue(expr)
@@ -1211,11 +1241,46 @@ case class ByteCode(global: Global) {
         
         def returnResultOfStatements(stmts: List[in.Stmt]) {
             pushResultOfStatements(stmts)
-            mvis.visitInsn(O.ARETURN)                
+            mvis.visitInsn(O.ARETURN)
         }
         
         def execStatements(stmts: List[in.Stmt]) {
+            stmts.foreach(preExecStatement)
             stmts.foreach(execStatement)
+        }
+        
+        /** Emits wrapper code like:
+          *     <pre-stmts>
+          *     try {
+          *         <doBody>
+          *     } catch (Throwable t) {
+          *         <cleanup-stmts>
+          *         throw t;
+          *     }
+          *
+          * This is used to create the inline interval
+          * objects and to cancel them should an 
+          * unexpected error occur.  The code emitted
+          * when doBody is evaluated must not fallthrough! */
+        def generatePreAndPostCode(stmts: List[in.Stmt])(doBody: => Unit) {
+            stmts.foreach(preExecStatement)
+            
+            val tryLabel = new asm.Label()
+            mvis.visitLabel(tryLabel)
+            
+            doBody // this code must return or otherwise not fall through
+            
+            val endLabel = new asm.Label()
+            mvis.visitLabel(endLabel)
+            
+            mvis.visitTryCatchBlock(
+                tryLabel, 
+                endLabel, 
+                endLabel, 
+                asmThrowableType.getInternalName
+            )
+            stmts.foreach(cleanupStatement)
+            mvis.visitInsn(O.ATHROW)
         }
         
         /** Returns an access map for a method-local class with
@@ -1296,37 +1361,26 @@ case class ByteCode(global: Global) {
         /** Creates a new HarmonicTask subclass whose `run(Interval)` method
           * executes the given declaration. 
           * 
-          * Stack: ... => ..., task */
-        def pushIntervalTask(
-            taskName: String,     // name of interval
-            body: in.Body         // statements to execute
+          * Stack: ..., task => ..., task */
+        def deriveIntervalTask(
+            taskClassName: Name.Class,  // name of task class
+            taskName: String,           // user given name of interval
+            body: in.Body               // statements to execute
         ) {
-            val name = freshClassName(accessMap.context, body)
-            val interwr = new ClassWriter(name, noSuffix, body.pos)
+            val interwr = new ClassWriter(taskClassName, noSuffix, body.pos)
             
             interwr.cvis.visit(
                 O.V1_5,
                 O.ACC_PUBLIC,
-                name.internalName,
+                taskClassName.internalName,
                 null,
                 Name.HarmonicTaskClass.internalName,
                 null
             )
 
-            // In the creating class, create an instance of the interval class
-            // and give it access to the this pointer:
-            mvis.visitTypeInsn(O.NEW, name.internalName)
-            mvis.visitInsn(O.DUP)
-            mvis.visitMethodInsn(
-                O.INVOKESPECIAL,
-                name.internalName,
-                Name.InitMethod.javaName,
-                "()V"
-            )
-            
             // Derive the access map that will be used in the run method.
             // This may emits statement into the current method.
-            val interAccessMap = deriveAccessMap(name, interwr.cvis, body.stmts)
+            val interAccessMap = deriveAccessMap(taskClassName, interwr.cvis, body.stmts)
 
             // Interval constructor always looks like:
             //    OurClass() {
@@ -1335,7 +1389,7 @@ case class ByteCode(global: Global) {
             def writeIntervalCtor = {
                 val ctormvis = interwr.cvis.visitMethod(
                     O.ACC_PUBLIC,
-                    Name.InitMethod.javaName,
+                    ctor,
                     "()V",
                     null, // generic signature
                     null  // thrown exceptions
@@ -1346,7 +1400,7 @@ case class ByteCode(global: Global) {
                 ctormvis.visitMethodInsn(
                     O.INVOKESPECIAL,
                     Name.HarmonicTaskClass.internalName,
-                    Name.InitMethod.javaName,
+                    ctor,
                     getMethodDescriptor(asm.Type.VOID_TYPE, Array(asmStringType))
                 )
                 ctormvis.visitInsn(O.RETURN)
@@ -1375,27 +1429,29 @@ case class ByteCode(global: Global) {
                 )
                 runmvis.visitCode
 
-                val startLabel = new asm.Label()
-                runmvis.visitLabel(startLabel)
-
                 addSymbolsDeclaredIn(interAccessMap, body.stmts, runmvis)
                 val interStmtVisitor = new StatementVisitor(0, interAccessMap, IntConstant(0), runmvis)
-                interStmtVisitor.execStatements(body.stmts)
-                runmvis.visitInsn(O.RETURN)
-                val endLabel = new asm.Label()
-                runmvis.visitLabel(endLabel)
+                
+                interStmtVisitor.generatePreAndPostCode(body.stmts) {
+                    val startLabel = new asm.Label()
+                    runmvis.visitLabel(startLabel)
 
-                val catchLabel = new asm.Label()
-                runmvis.visitLabel(catchLabel)
-                runmvis.visitInsn(O.POP)
-                runmvis.visitInsn(O.RETURN)
+                    interStmtVisitor.execStatements(body.stmts)
+                    runmvis.visitInsn(O.RETURN)
+                    
+                    val endLabel = new asm.Label()
+                    runmvis.visitLabel(endLabel)
 
-                runmvis.visitTryCatchBlock(
-                    startLabel, 
-                    endLabel, 
-                    catchLabel, 
-                    Name.ReturnClass.internalName
-                )
+                    runmvis.visitInsn(O.POP)
+                    runmvis.visitInsn(O.RETURN)
+
+                    runmvis.visitTryCatchBlock(
+                        startLabel, 
+                        endLabel, 
+                        endLabel, 
+                        Name.ReturnClass.internalName
+                    )                    
+                }
 
                 runmvis.complete
             }
@@ -1404,11 +1460,117 @@ case class ByteCode(global: Global) {
             interwr.end
         }
         
+        /** Here we emit code like:
+          *      t = new FooTask()
+          *      inter = Intervals.context().unexecutedInline(t)
+          * 
+          * Note that we do not fully initialize the task,
+          * nor do we generate the contents of the FooTask class here.
+          * Those things are done by `execInlineInterval()` below. */
+        def initInlineInterval(
+            decl: in.InlineInterval
+        ) {
+            val taskClassName = genClassName(accessMap.context, decl)
+            
+            val symPath = accessMap.syms(decl.vsym)
+            
+            symPath.pushLvalue(mvis)
+            
+            mvis.visitTypeInsn(O.NEW, taskClassName.internalName)
+            mvis.visitInsn(O.DUP)
+            mvis.visitMethodInsn(O.INVOKESPECIAL, taskClassName.internalName, ctor, "()V")
+            
+            mvis.visitMethodInsn(O.INVOKESTATIC, asmIntervalsType.getInternalName, "context", "()V")
+            mvis.visitMethodInsn(
+                O.INVOKEINTERFACE, 
+                asmContextType.getInternalName, 
+                "unexecutedInline", 
+                getMethodDescriptor(asmInlineIntervalType, Array(asmTaskType))
+            )
+            
+            symPath.storeLvalue(mvis)
+        }
+        
+        /** Here we emit code like: 
+          *     t = (FooTask) inter.getTask()
+          *     <initialize fields of t>
+          *     inter.execute()
+          * 
+          * We also generate the FooTask class using `deriveIntervalTask`. */
+        def execInlineInterval(
+            decl: in.InlineInterval
+        ) {
+            val taskClassName = genClassName(accessMap.context, decl)
+            
+            accessMap.pushSym(decl.vsym, mvis)
+            
+            mvis.visitInsn(O.DUP)
+            mvis.visitMethodInsn(
+                O.INVOKEINTERFACE, 
+                asmIntervalType.getInternalName, 
+                "getTask", 
+                getMethodDescriptor(asmTaskType, Array())
+            )
+            mvis.visitTypeInsn(
+                O.CHECKCAST,
+                taskClassName.internalName
+            )
+            deriveIntervalTask(taskClassName, decl.name.toString, decl.body)
+            mvis.visitInsn(O.POP)
+            
+            mvis.visitMethodInsn(
+                O.INVOKEINTERFACE, 
+                asmInlineIntervalType.getInternalName, 
+                "execute", 
+                getMethodDescriptor(asm.Type.VOID_TYPE, Array())
+            )
+        }
+        
+        /** Here we emit code like: 
+          *     inter.cancel(false)
+          * 
+          * This code executes in the case that an exception was thrown
+          * in the method body, in which case the inline interval might
+          * not have been executed and thus must be conditionally cancelled. */
+        def cancelInlineInterval(
+            decl: in.InlineInterval
+        ) {
+            accessMap.pushSym(decl.vsym, mvis)
+            mvis.pushIntegerConstant(0)
+            mvis.visitMethodInsn(
+                O.INVOKEINTERFACE, 
+                asmIntervalType.getInternalName, 
+                "cancel", 
+                getMethodDescriptor(asm.Type.VOID_TYPE, Array(asm.Type.BOOLEAN_TYPE))
+            )
+        }
+        
+        /** Here we emit code like:
+          *     p = <eval parent>
+          *     t = new FooTask()
+          *     <initialize fields of t>
+          *     p.newAsyncChild(t)
+          *
+          * We also define the class `FooTask` using `deriveIntervalTask()`
+          */
         def pushAsyncInterval(
             decl: in.IntervalDecl
         ) {
+            val taskClassName = genClassName(accessMap.context, decl)
+            
             pushExprValue(decl.parent)
-            pushIntervalTask(decl.name.toString, decl.body)
+            
+            mvis.visitTypeInsn(O.NEW, taskClassName.internalName)
+            mvis.visitInsn(O.DUP)
+            mvis.visitMethodInsn(
+                O.INVOKESPECIAL,
+                taskClassName.internalName,
+                ctor,
+                "()V"
+            )
+            
+            deriveIntervalTask(taskClassName, decl.name.toString, decl.body)
+            
             mvis.visitMethodInsn(
                 O.INVOKEINTERFACE,
                 Name.IntervalClass.internalName,
@@ -1425,32 +1587,32 @@ case class ByteCode(global: Global) {
         def pushAnonymousBlock(
             tmpl: in.Block
         ) {
-            val name = freshClassName(accessMap.context, tmpl)
-            val blockTy = Type.Class(name, List())
-            val tmplwr = new ClassWriter(name, noSuffix, tmpl.pos)
+            val blockClassName = genClassName(accessMap.context, tmpl)
+            val blockTy = Type.Class(blockClassName, List())
+            val tmplwr = new ClassWriter(blockClassName, noSuffix, tmpl.pos)
 
             tmplwr.cvis.visit(
                 O.V1_5,
                 O.ACC_PUBLIC,
-                name.internalName,
+                blockClassName.internalName,
                 null, // FIXME Signature
                 "java/lang/Object",
                 Array(tmpl.className.internalName)
             )
             
-            writeEmptyCtor(name, Name.ObjectClass, tmplwr.cvis)
+            writeEmptyCtor(blockClassName, Name.ObjectClass, tmplwr.cvis)
 
             // Create the new object and copy over values for
             // any local variables which it references:
-            mvis.visitTypeInsn(O.NEW, name.internalName)
+            mvis.visitTypeInsn(O.NEW, blockClassName.internalName)
             mvis.visitInsn(O.DUP)
             mvis.visitMethodInsn(
                 O.INVOKESPECIAL,
-                name.internalName,
-                Name.InitMethod.javaName,
+                blockClassName.internalName,
+                ctor,
                 "()V"
             )
-            val derivedAccessMap = deriveAccessMap(name, tmplwr.cvis, tmpl.stmts)
+            val derivedAccessMap = deriveAccessMap(blockClassName, tmplwr.cvis, tmpl.stmts)
             
             val methodSig = MethodSignature(
                 tmpl.returnTref.ty,
@@ -1496,7 +1658,7 @@ case class ByteCode(global: Global) {
                 List(Pattern.Var(Name.LocalVar("arg"), Type.Object))
             )
             writeForwardingMethodIfNeeded(
-                className     = name, 
+                className     = blockClassName, 
                 cvis          = tmplwr.cvis,
                 methodName    = Name.ValueMethod,
                 withMroIndex  = false,
@@ -1798,38 +1960,33 @@ case class ByteCode(global: Global) {
 
             // Emit statements:
             val stmtVisitor = new StatementVisitor(0, accessMap, nextMro, mvis)
-            val startLabel = new asm.Label()
-            mvis.visitLabel(startLabel)
-            stmtVisitor.execStatements(body.stmts)
-            val endLabel = new asm.Label()
-            mvis.visitLabel(endLabel)
+            stmtVisitor.generatePreAndPostCode(body.stmts) {
+                val startLabel = new asm.Label()
+                mvis.visitLabel(startLabel)
+                stmtVisitor.execStatements(body.stmts)
+                mvis.visitInsn(O.ACONST_NULL) // In case user did not have an ...
+                mvis.visitInsn(O.ARETURN)     // ...explicit return.  
+                val endLabel = new asm.Label()
+                mvis.visitLabel(endLabel)
 
-            // For now, just emit a "return null"
-            // in case user did not have an explicit
-            // return.  Later we should always add
-            // an explicit return.
-            mvis.visitInsn(O.ACONST_NULL)
-            mvis.visitInsn(O.ARETURN)
-            
-            // Emit try-catch region to catch Return exceptions:
-            // > catch (Return e) { return e.value; }
-            val returnLabel = new asm.Label()
-            mvis.visitLabel(returnLabel)
-            mvis.visitFieldInsn(
-                O.GETFIELD, 
-                Name.ReturnClass.internalName, 
-                "value", 
-                asmObjectType.getDescriptor
-            )
-            mvis.convert(msym.msig.returnTy.toAsmType, asmObjectType)
-            mvis.visitInsn(O.ARETURN)
-            
-            mvis.visitTryCatchBlock(
-                startLabel, 
-                endLabel, 
-                returnLabel, 
-                Name.ReturnClass.internalName
-            )
+                // Emit try-catch region to catch Return exceptions:
+                // > catch (Return e) { return e.value; }
+                mvis.visitFieldInsn(
+                    O.GETFIELD, 
+                    Name.ReturnClass.internalName, 
+                    "value", 
+                    asmObjectType.getDescriptor
+                )
+                mvis.convert(msym.msig.returnTy.toAsmType, asmObjectType)
+                mvis.visitInsn(O.ARETURN)
+
+                mvis.visitTryCatchBlock(
+                    startLabel, 
+                    endLabel, 
+                    endLabel, 
+                    Name.ReturnClass.internalName
+                )
+            }
             
             mvis.complete
         }
@@ -2032,7 +2189,7 @@ case class ByteCode(global: Global) {
     ) {
         val mvis = cvis.visitMethod(
             O.ACC_PUBLIC,
-            Name.InitMethod.javaName,
+            ctor,
             "()V",
             null, // generic signature
             null  // thrown exceptions
@@ -2042,7 +2199,7 @@ case class ByteCode(global: Global) {
         mvis.visitMethodInsn(
             O.INVOKESPECIAL,
             superName.internalName,
-            Name.InitMethod.javaName,
+            ctor,
             "()V"
         )
         mvis.visitInsn(O.RETURN)
@@ -2085,7 +2242,7 @@ case class ByteCode(global: Global) {
         val paramAsmTys = msym.msig.parameterPatterns.flatMap(_.varTys).map(_.toAsmType)
         val mvis = cvis.visitMethod(
             O.ACC_PUBLIC,
-            Name.InitMethod.javaName,
+            ctor,
             getMethodDescriptor(asm.Type.VOID_TYPE, paramAsmTys.toArray),
             null, // generic signature
             null  // thrown exceptions
@@ -2103,7 +2260,7 @@ case class ByteCode(global: Global) {
         mvis.visitMethodInsn(
             O.INVOKESPECIAL,
             Name.ObjectClass.internalName,
-            Name.InitMethod.javaName,
+            ctor,
             "()V"
         )
 

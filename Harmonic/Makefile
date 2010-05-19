@@ -37,4 +37,4 @@ compile: ${GENERATEDJAVA}
 test: compile
 	rm -rf bin-test/*
 	time python test.py --preserve $$(find test -name '*.harm')
-	#python test.py --preserve test/lower/LowerRecursiveMethod.harm
+	python test.py --preserve test/bytecode/BytecodeInline.harm

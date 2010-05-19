@@ -704,9 +704,11 @@ case class Lower(global: Global) {
                     ll.env
                 }
                 
-                case in.InlineInterval(name, body) => {
+                case in.InlineInterval(name, body, ()) => {
+                    // TODO Inline intervals should be in scope from the beginning of the method!
+                    val sym = new VarSymbol.Local(stmt.pos, Modifier.Set.empty, name.name, Type.InlineInterval)
                     optStmts.foreach(_ += withPosOf(stmt, 
-                        out.InlineInterval(name, lowerBody(env, body))
+                        out.InlineInterval(name, lowerBody(env, body), sym)
                     ))
                     env
                 }

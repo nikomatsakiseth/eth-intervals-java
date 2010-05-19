@@ -6,6 +6,9 @@ import ch.ethz.intervals.guard.Guard;
  * Mirror class representing intervals.
  */
 public interface Interval extends Guard {
+	/** Returns the task that this interval will execute. */
+	public Task getTask();
+	
 	/** Returns the parent interval */
 	public Interval getParent();
 
