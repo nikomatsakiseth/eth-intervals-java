@@ -41,6 +41,10 @@ case class Lower(global: Global) {
         )
     }
     
+    def staticMethods(className: Name.Class, methodName: Name.Method) = {
+        global.csym(className).methodsNamed(methodName).filter(_.modifiers.isStatic)            
+    }
+    
     def lowerMemberDecl(
         csym: ClassFromSource, 
         mem: in.MemberDecl
@@ -355,6 +359,29 @@ case class Lower(global: Global) {
                 val sym = VarSymbol.errorLocal(Name.LocalVar(name), None)
                 Path.TypedBase(sym)
             }
+            
+            def callData(
+                msyms: List[MethodSymbol], 
+                rcvrRy: Type.Ref, 
+                inRcvr: in.Rcvr, 
+                inArgs: List[in.PathNode],
+                outArgs: List[Path.Typed]
+            ) = {
+                val argTys = outArgs.map(_.ty)
+                val optData = msyms match {
+                    case List() => {
+                        Error.NoSuchMethod(rcvrTy, name).report(global, pos)
+                        None
+                    }
+                    
+                    case msyms => {
+                        def createSubst(msym: MethodSymbol) = mthdSubst(msym, inRcvr, inArgs)
+                        resolveOverloading(pos, createSubst, msyms, argTys) map { case (msym, msig) =>
+                            flattenAssignment(msym.msig.parameterPatterns, args)                            
+                        }
+                    }
+                }
+            }
 
             path match {
                 case in.PathErr(name) =>
@@ -384,7 +411,7 @@ case class Lower(global: Global) {
                     }
                 }
 
-                case in.PathDot(owner, name, (), ()) => {
+                case in.PathDot(owner, name, ()) => {
                     val ownerTypedPath = typedPathForPath(owner)
                     env.lookupField(ownerTypedPath.ty, name.name) match {
                         case Left(err) => {
@@ -401,6 +428,28 @@ case class Lower(global: Global) {
                             Path.TypedField(ownerTypedPath, fsym)
                         }
                     }
+                }
+                
+                case in.PathBaseCall(className, methodName, inArgs, ()) => {
+                    val outArgs = args.map(typedPathForPath)
+                    callData(msyms, Type.Class(className, List()), in.Static(className), inArgs) match {
+                        case Some((msym, msig)) =>
+                            Path.TypedBaseCall(className, msym, msig, outArgs)
+                        case None => 
+                            errorPath(path.toString)
+                    }
+                }
+                
+                case in.PathCall(inRcvr, methodName, inArgs, ()) => {
+                    val outRcvr = typedPathForPath(receiverPath)
+                    val outArgs = args.map(typedPathForPath)
+                    val msyms = env.lookupInstanceMethods(outRcvr.ty, methodName)
+                    callData(msyms, outRcvr.ty, inRcvr, inArgs) match {
+                        case Some((msym, msig)) =>
+                            out.MethodCall(rcvr, mcall.name, args, (msym, msig))
+                        case None =>
+                            errorPath(path.toString)
+                    }                    
                 }
             }
         }
@@ -427,7 +476,7 @@ case class Lower(global: Global) {
                             Type.Null
                         }
                         case Right(memberVar) => {
-                            Type.Var(typedPath.toPath, memberVar)                            
+                            Type.Member(typedPath.toPath, memberVar)                            
                         }
                     }
                 }
@@ -865,9 +914,8 @@ case class Lower(global: Global) {
             // Find all potential methods:
             val (rcvr, rcvrTy, msyms) = lowerRcvr(mcall.rcvr, mcall.name) match {
                 case rcvr @ out.Static(className) => {
-                    val csym = global.csym(className)
-                    val msyms = csym.methodsNamed(mcall.name).filter(_.modifiers.isStatic)
-                    (rcvr, csym.toType, msyms)
+                    val msyms = staticMethods(className, mcall.name)
+                    (rcvr, global.csym(className).toType, msyms)
                 }
                 
                 case rcvr @ out.Super(ty) => {

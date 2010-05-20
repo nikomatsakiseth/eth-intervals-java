@@ -111,11 +111,11 @@ class ClassFromReflection(
             ty.getGenericDeclaration match {
                 case cls: java.lang.Class[_] => {
                     val name = Name.Class(cls)
-                    Type.Var(Path.This, Name.Member(name, ty.getName))    
+                    Type.Member(Path.This, Name.Member(name, ty.getName))    
                 }                                
                 case _ => {
                     // TODO Method type variables... how can we do it?                    
-                    Type.Var(Path.This, Name.Member(Name.ObjectClass, ty.getName))                                    
+                    Type.Member(Path.This, Name.Member(Name.ObjectClass, ty.getName))                                    
                 }
             }
         }

@@ -362,7 +362,7 @@ extends Resolve(global, compUnit)
                 out.PathDot(
                     out.PathBase(Ast.LocalName(Name.ThisLocal), ()),
                     Ast.MemberName(memberName),
-                    (), ()
+                    ()
                 )
             }
             path match {
@@ -406,7 +406,7 @@ extends Resolve(global, compUnit)
                         ResolvedToPath(out.PathBase(memberName, ()))
                 }
                 
-                case in.PathDot(base, relBase @ in.RelBase(text), (), ()) => {
+                case in.PathDot(base, relBase @ in.RelBase(text), ()) => {
                     resolvePathToAny(base) match {
                         case ResolvedToList(names) => 
                             ResolvePathResult(text :: names)
@@ -425,15 +425,36 @@ extends Resolve(global, compUnit)
                             
                         case ResolvedToPath(outBase) => {
                             val classlessName = Name.ClasslessMember(text)
-                            ResolvedToPath(out.PathDot(outBase, Ast.ClasslessMemberName(classlessName), (), ()))
+                            ResolvedToPath(out.PathDot(outBase, Ast.ClasslessMemberName(classlessName), ()))
                         }
                     }
                 }
                 
-                case in.PathDot(base, memberName: in.RelDot, (), ()) => {
+                case in.PathDot(base, memberName: in.RelDot, ()) => {
                     val outBase = resolvePathToPath(base)
-                    ResolvedToPath(out.PathDot(outBase, resolveMemberName(memberName), (), ()))
+                    ResolvedToPath(out.PathDot(outBase, resolveMemberName(memberName), ()))
                 }
+                
+                case in.PathBaseCall(className, methodName, args, ()) => {
+                    ResolvedToPath(out.PathBaseCall(className, methodName, args.map(resolvePathToPath)))
+                }
+                
+                case in.PathCall(receiver, methodName, args, ()) => {
+                    val pathArgs = args.map(resolvePathToPath)
+                    
+                    ResolvedToPath(
+                        resolvePathToFinal(receiver) match {
+                            case ResolvedToClass(className) => {
+                                out.PathBaseCall(className, methodName, pathArgs, ())                            
+                            }
+
+                            case ResolvedToPath(path) => {
+                                out.PathCall(path, methodName, pathArgs, ())
+                            }
+                        }
+                    )
+                }
+                
             }
         })
         
@@ -495,7 +516,7 @@ extends Resolve(global, compUnit)
             case in.TupleType(trefs) => out.TupleType(trefs.map(resolveTypeRef))
             
             // `a.b.c` could be path or class type:
-            case in.PathType(in.PathDot(base, in.RelBase(name), (), ())) => {
+            case in.PathType(in.PathDot(base, in.RelBase(name), ())) => {
                 resolvePathToAny(base) match {
                     case ResolvedToList(names) => {
                         val className = resolveToClassOrObject(tref.pos, name :: names)
@@ -518,7 +539,7 @@ extends Resolve(global, compUnit)
             }
             
             // `a.b.(foo.Bar.T)` must be path type:
-            case in.PathType(in.PathDot(base, relDot: in.RelDot, (), ())) => {
+            case in.PathType(in.PathDot(base, relDot: in.RelDot, ())) => {
                 val memberName = resolveDottedMemberName(relDot)
                 val outBase = resolvePathToPath(base)
                 out.TypeVar(outBase, memberName)                        

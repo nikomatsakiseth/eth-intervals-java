@@ -32,7 +32,7 @@ case class Env(
     pathRels: List[(Path.Ref, PcRel, Path.Ref)],
     
     /** Tuples describing relations between type variables and other types. */
-    typeRels: List[(Type.Var, TcRel, Type.Ref)]
+    typeRels: List[(Type.Member, TcRel, Type.Ref)]
 ) {
     // ___ Transitive Closure Utility _______________________________________
     
@@ -72,9 +72,9 @@ case class Env(
 
     def plusPathRels(rels: List[(Path.Ref, PcRel, Path.Ref)]) = rels.foldLeft(this)(_ plusPathRel _)
 
-    def plusTypeRel(rel: (Type.Var, TcRel, Type.Ref)) = copy(typeRels = rel :: typeRels)
+    def plusTypeRel(rel: (Type.Member, TcRel, Type.Ref)) = copy(typeRels = rel :: typeRels)
     
-    def plusTypeRels(rels: List[(Type.Var, TcRel, Type.Ref)]) = rels.foldLeft(this)(_ plusTypeRel _)
+    def plusTypeRels(rels: List[(Type.Member, TcRel, Type.Ref)]) = rels.foldLeft(this)(_ plusTypeRel _)
     
     // ___ Querying the relations ___________________________________________
     
@@ -337,13 +337,13 @@ case class Env(
     
     class Bounder(Rel: TcRel) extends TransitiveCloser[Type.Ref] {
         protected[this] def successors(ty: Type.Ref) = ty match {
-            case tyVar: Type.Var => typeVarBounds(tyVar)
+            case tyVar: Type.Member => typeVarBounds(tyVar)
             case Type.Tuple(List()) => List(Type.Void)   // () equivalent to Void  [Does this make sense?]
             case Type.Tuple(List(ty)) => List(ty)        // (ty) equivalent to ty
             case _ => Nil
         }
 
-        private[this] def typeVarBounds(tyVar: Type.Var) = {
+        private[this] def typeVarBounds(tyVar: Type.Member) = {
             val TyVarName = tyVar.typeVar
             
             def boundsFromClassType(tyClass: Type.Class) = {
@@ -360,7 +360,7 @@ case class Env(
             
             typeOfPath(tyVar.path) match {
                 case tyClass: Type.Class => boundsFromClassType(tyClass)
-                case tyVar: Type.Var => {
+                case tyVar: Type.Member => {
                     compute(tyVar).toList.flatMap {
                         case tyClass: Type.Class => boundsFromClassType(tyClass)
                         case _ => Nil
@@ -447,7 +447,7 @@ case class Env(
         })
     }
     
-    private[this] def mutualUpperBoundVar(varTy: Type.Var, otherTy: Type.Ref) = {
+    private[this] def mutualUpperBoundVar(varTy: Type.Member, otherTy: Type.Ref) = {
         val ub = minimalUpperBoundType(varTy)
         if(ub.contains(otherTy)) otherTy
         else ub.firstSome({
@@ -502,9 +502,9 @@ case class Env(
                 
             // ___ type variables ___________________________________________________
 
-            case (varTy: Type.Var, otherTy) => mutualUpperBoundVar(varTy, otherTy)
+            case (varTy: Type.Member, otherTy) => mutualUpperBoundVar(varTy, otherTy)
 
-            case (otherTy, varTy: Type.Var) => mutualUpperBoundVar(varTy, otherTy)
+            case (otherTy, varTy: Type.Member) => mutualUpperBoundVar(varTy, otherTy)
 
             // ___ class types ______________________________________________________
             
@@ -542,7 +542,7 @@ case class Env(
                 sym_val.isSubclass(sym_pat)
             }
             
-            case (Type.Var(path_val, tvar_val), Type.Var(path_pat, tvar_pat)) if tvar_val == tvar_pat =>
+            case (Type.Member(path_val, tvar_val), Type.Member(path_pat, tvar_pat)) if tvar_val == tvar_pat =>
                 pathsAreEquatable(path_val, path_pat)
                 
             case (Type.Tuple(tys_val), Type.Tuple(tys_pat)) if sameLength(tys_val, tys_pat) =>
@@ -686,7 +686,7 @@ case class Env(
     
 //    def isSubclass(ty_sub: Type.Ref, ty_sup: Type.Ref): Boolean = {
 //        (ty_sub, ty_sup) match {
-//            case (Type.Var(path_sub, var_sub), Type.Var(path_sup, var_sup)) => false // FIXME
+//            case (Type.Member(path_sub, var_sub), Type.Member(path_sup, var_sup)) => false // FIXME
 //            
 //            case (Type.Class(name_sub, args_sub), Type.Class(name_sup, arg_sup)) => false // FIXME
 //                

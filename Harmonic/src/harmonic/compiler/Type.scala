@@ -6,7 +6,7 @@ import scala.collection.mutable.Queue
 object Type {
     
     sealed abstract class Ref
-    case class Var(path: Path.Ref, typeVar: Name.Member) extends Ref {
+    case class Member(path: Path.Ref, typeVar: Name.Member) extends Ref {
         override def toString = "%s.%s".format(path, typeVar)
     }
     case class Class(name: Name.Class, typeArgs: List[Type.Arg]) extends Ref {

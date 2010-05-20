@@ -208,7 +208,7 @@ case class Intrinsic(global: Global) {
         )
         
         // (Iterable<T>) forEach { (T i) -> ... }
-        val typeT = Type.Var(Path.This, Name.Member(iterableTy.name, "T"))
+        val typeT = Type.Member(Path.This, Name.Member(iterableTy.name, "T"))
         global.addIntrinsic(
             new MethodSymbol(
                 pos = InterPosition.forClass(classOf[Intrinsic]),

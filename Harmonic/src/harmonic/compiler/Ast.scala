@@ -543,11 +543,28 @@ abstract class Ast {
         def ty = vsymTy(sym)
     }
     
-    case class PathDot(owner: PathNode, name: MN, sym: FSym, ty: Ty) extends ParsePath {
-        override def toString = owner + "." + name
+    case class PathBaseCall(className: Name.Class, name: Name.Method, args: List[PathNode], ty: Ty) extends ParsePath {
+        override def toString = {
+            className.toString + "." + name.parts.zip(args).map({ case (name, arg) =>
+                "%s(%s)".format(name, arg)
+            }).mkString(" ")
+        }
     }
     
-    case class TypedPath(path: Path.Typed) extends TypedNode with LowerTlExpr with LowerRcvr {
+    case class PathDot(owner: PathNode, name: MN, ty: Ty) extends ParsePath {
+        override def toString = owner + "." + name
+    }
+
+    // Could be a static or instance call.
+    case class PathCall(owner: PathNode, name: Name.Method, args: List[PathNode], ty: Ty) extends ParsePath {
+        override def toString = {
+            owner.toString + "." + name.parts.zip(args).map({ case (name, arg) =>
+                "%s(%s)".format(name, arg)
+            }).mkString(" ")
+        }
+    }
+    
+    case class TypedPath(path: Path.Typed) extends TypedNode with LowerTlExpr {
         override def toString = path.toString
         def ty = toTy(path.ty)
     }
@@ -582,7 +599,6 @@ abstract class Ast {
     sealed abstract trait ResolveOwner extends ParseOwner with ResolveRcvr
     sealed abstract trait ResolveTlExpr extends ParseTlExpr with ResolveOwner with ResolveStmt
     
-    sealed abstract trait LowerRcvr extends ResolveRcvr
     sealed abstract trait LowerTlExpr extends ResolveTlExpr with LowerStmt
 
     case class Tuple(exprs: List[Expr]) extends ResolveTlExpr {
@@ -665,17 +681,16 @@ abstract class Ast {
         }
     }
     
-    case class Super(ty: Ty) extends LowerRcvr {
+    case class Super(ty: Ty) extends ResolveRcvr {
         override def toString = "super"
     }
     
-    case class Static(name: Name.Class) extends ResolveOwner with LowerRcvr {
+    case class Static(name: Name.Class) extends ResolveOwner with ResolveRcvr {
         override def toString = name.toString
     }
     
-    // Note: 
-    // - Before lowering, there is one arg per name component.
-    // - After lowering, there is one arg per named value in the method symbol.
+    // Note: after lowering, the only valid Rcvr is Super.
+    // All other method calls are represented as paths.
     case class MethodCall(rcvr: Rcvr, name: Name.Method, args: List[NE], data: MCallData)
     extends LowerTlExpr {
         def ty = returnTy(data)
@@ -689,27 +704,14 @@ abstract class Ast {
         override def print(out: PrettyPrinter) {
             var first = true
             rcvr.printdot(out)
-            data match {
-                // Pre-lowering, not yet linked to a symbol:
-                case () => { 
-                    name.parts.zip(args).foreach { case (p, a) =>
-                        if(!first) out.write(" ")
-                        first = false
+            name.parts.zip(args).foreach { case (p, a) =>
+                if(!first) out.write(" ")
+                first = false
 
-                        out.write(p)
-                        out.write(" ")
-                        a.print(out)
-                    }                                    
-                }
-                
-                // Post-lowering:
-                case _ => {
-                    out.write(name.javaName)
-                    out.write("(")
-                    printSep(out, args, ", ")
-                    out.write(")")                    
-                }
-            }
+                out.write(p)
+                out.write(" ")
+                a.print(out)
+            }                                    
         }        
     }
     
@@ -931,7 +933,7 @@ object Ast {
         type Stmt = LowerStmt
         type Expr = LowerTlExpr
         type PathNode = TypedPath
-        type Rcvr = LowerRcvr
+        type Rcvr = Super
         type Owner = ResolveOwner // No longer relevant.
         type CSym = ClassSymbol
         type VSym = VarSymbol.Any

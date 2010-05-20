@@ -636,9 +636,11 @@ case class ByteCode(global: Global) {
         path match {
             case Path.TypedBase(sym: VarSymbol.Local) => summary.copy(readSyms = summary.readSyms + sym)
             case Path.TypedBase(sym: VarSymbol.Field) => summary // static fields don't count
+            case Path.TypedBaseCall(_, _, _, args) => args.foldLeft(summary)(summarizeSymbolsInPath)
             case Path.TypedCast(_, path) => summarizeSymbolsInPath(summary, path)
             case Path.TypedConstant(_) => summary
             case Path.TypedField(path, _) => summarizeSymbolsInPath(summary, path)
+            case Path.TypedCall(rcvr, _, _, args) => (rcvr :: args).foldLeft(summary)(summarizeSymbolsInPath)
             case Path.TypedIndex(array, index) => List(array, index).foldLeft(summary)(summarizeSymbolsInPath)            
             case Path.TypedTuple(paths) => paths.foldLeft(summary)(summarizeSymbolsInPath)
         }
@@ -648,14 +650,6 @@ case class ByteCode(global: Global) {
         summarizeSymbolsInPath(summary, node.path)        
     }
 
-    def summarizeSymbolsInRcvr(summary: SymbolSummary, rcvr: in.Rcvr): SymbolSummary = {
-        rcvr match {
-            case in.Static(_) => summary
-            case in.Super(_) => summary
-            case in.TypedPath(path) => summarizeSymbolsInPath(summary, path)
-        }
-    }
-    
     def summarizeSymbolsInExpr(summary: SymbolSummary, expr: in.Expr): SymbolSummary = {
         expr match {
             case tmpl: in.Block => {
@@ -667,9 +661,8 @@ case class ByteCode(global: Global) {
                 )
             }
             case in.TypedPath(path) => summarizeSymbolsInPath(summary, path)
-            case in.MethodCall(receiver, _, args, _) => {
-                val receiverSummary = summarizeSymbolsInRcvr(summary, receiver)
-                args.foldLeft(receiverSummary)(summarizeSymbolsInPathNode)
+            case in.MethodCall(in.Super(_), _, args, _) => {
+                args.foldLeft(summary)(summarizeSymbolsInPathNode)
             }
             case in.NewCtor(_, args, _, _) => args.foldLeft(summary)(summarizeSymbolsInPathNode)
             case in.Null(_) => summary

@@ -8,6 +8,10 @@ object Path {
     case class Base(v: Name.Var) extends Ref {
         override def toString = v.toString
     }
+    /** Static call */
+    case class BaseCall(className: Name.Class, methodName: Name.Method, args: List[Path.Ref]) extends Ref {
+        override def toString = "%s.%s(%s)".format(className, methodName.javaName, args.mkString(", "))
+    }
     case class Cast(ty: Type.Ref, path: Ref) extends Ref {
         override def toString = "(%s)%s".format(ty, path)
     }
@@ -20,6 +24,10 @@ object Path {
     /** Instance fields */
     case class Field(base: Path.Ref, f: Name.Member) extends Ref {
         override def toString = base.toString + "." + f.toString
+    }
+    /** Virtual call, parameters flatened */
+    case class Call(receiver: Path.Ref, methodName: Name.Method, args: List[Path.Ref]) extends Ref {
+        override def toString = "%s.%s(%s)".format(base, methodName.javaName, args.mkString(", "))
     }
     case class Index(array: Path.Ref, index: Path.Ref) extends Ref {
         override def toString = "%s[%s]".format(array, index)
@@ -40,6 +48,14 @@ object Path {
         def toPath = Path.Base(sym.name)
         def ty = sym.ty
         override def toString = toPath.toString
+    }
+    case class TypedBaseCall(
+        className: Name.Class, 
+        msym: MethodSymbol,
+        msig: MethodSignature,
+        args: List[Path.Typed]
+    ) extends Ref {
+        override def toString = "%s.%s(%s)".format(className, methodName.javaName, args.mkString(", "))
     }
     case class TypedCast(ty: Type.Ref, path: Typed) extends Typed {
         def toPath = Path.Cast(ty, path.toPath)
@@ -63,10 +79,19 @@ object Path {
         }
         override def toString = toPath.toString
     }
+    case class TypedCall(
+        receiver: Path.Typed, 
+        msym: MethodSymbol, 
+        msig: MethodSignature, 
+        args: List[Path.Typed]
+    ) extends Ref {
+        def toPath = Path.Call(receiver.toPath, msym.name, args.map(_.toPath))
+        override def toString = toPath.toString
+    }
     case class TypedIndex(array: Path.Typed, index: Path.Typed) extends Typed {
         def toPath = Index(array.toPath, index.toPath)
         lazy val ty = {
-            Type.Var(array.toPath, Name.ArrayElem)
+            Type.Member(array.toPath, Name.ArrayElem)
         }
         override def toString = toPath.toString
     }

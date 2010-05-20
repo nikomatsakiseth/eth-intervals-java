@@ -310,7 +310,7 @@ class Parse extends StdTokenParsers with PackratParsers {
     
     lazy val path = positioned(
         varName~rep("."~>memberName) ^^ {
-            case v~fs => fs.foldLeft[out.PathNode](out.PathBase(v, ()))(out.PathDot(_, _, (), ()))
+            case v~fs => fs.foldLeft[out.PathNode](out.PathBase(v, ()))(out.PathDot(_, _, ()))
         }
     )
     
@@ -318,7 +318,7 @@ class Parse extends StdTokenParsers with PackratParsers {
     
     lazy val pathAsExpr = positioned(
         varName~notArg~rep("."~>memberName<~notArg) ^^ {
-            case v~_~fs => fs.foldLeft[out.PathNode](out.PathBase(v, ()))(out.PathDot(_, _, (), ()))
+            case v~_~fs => fs.foldLeft[out.PathNode](out.PathBase(v, ()))(out.PathDot(_, _, ()))
         }
     )
     

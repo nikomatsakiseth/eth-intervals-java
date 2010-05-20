@@ -7,7 +7,7 @@ object MethodSymbol {
     
     def error(name: Name.Method, clsName: Name.Class) = {
         val parameterPatterns = name.parts.zipWithIndex.map { case (_, i) => 
-            Pattern.Var(Name.LocalVar("arg%d".format(i)), Type.Null)
+            Pattern.Var(Name.LocalVar("arg%d".format(i)), Type.Object)
         }
         new MethodSymbol(
             pos       = InterPosition.forClassNamed(clsName),
