@@ -439,7 +439,7 @@ case class Lower(global: Global) {
                     val msyms = staticMethods(className, methodName)
                     callData(methodName, msyms, classTy, inRcvr, inArgs, outArgNodes) match {
                         case Some((flatArgs, msym, msig)) =>
-                            Path.TypedBaseCall(className, msym, msig, flatArgs)
+                            Path.TypedBaseCall(msym, msig, flatArgs)
                         case None => 
                             errorPath(path.toString)
                     }
@@ -920,61 +920,53 @@ case class Lower(global: Global) {
                 identifyBestMethod(mcall.pos, msyms, mcall.name, rcvrTy, mcall.rcvr, mcall.args)
             
             val optRes = mcall.rcvr match {
-                case rcvr @ in.Static(className) => {
+                case in.Static(className) => {
                     val msyms = staticMethods(className, mcall.name)
-                    identifyBestFromMcall(msyms, Type.Class(className, Nil)).map {
+                    identifyBestFromMcall(msyms, className.toType).map {
                         case (flatArgs, msym, msig) => {
                             out.TypedPath(
                                 Path.TypedBaseCall(
-                                    className, mcall.name, msym, msig, 
+                                    msym, msig, 
                                     flatArgs.map(_.path)
                                 )
-                            )                            
+                            )
                         }
                     }
                 }
                 
                 case inRcvr: in.Expr => {
                     val outRcvr = lowerToTypedPath(None)(inRcvr)
-                    val msyms = staticMethods(className, mcall.name)
+                    val msyms = env.lookupInstanceMethods(outRcvr.ty, mcall.name)
                     identifyBestFromMcall(msyms, outRcvr.ty).map {
-                        case (flatArgs, msym, msig) => {
+                        case (flatArgNodes, msym, msig) => {
                             out.TypedPath(
                                 Path.TypedCall(
-                                    outRcvr, mcall.name, msym, msig, 
-                                    flatArgs.map(_.path)
+                                    outRcvr, msym, msig, 
+                                    flatArgNodes.map(_.path)
                                 )
-                            )                            
-                        }
-                    }
-                    (rcvr, rcvr.ty, env.lookupInstanceMethods(rcvr.ty, mcall.name))                    
-                }
-                
-                case rcvr @ out.Super(ty) => {
-                    val msyms = env.lookupInstanceMethods(ty, mcall.name)
-                    identifyBestFromMcall(msyms, ty).map {
-                        case (flatArgs, msym, msig) => {
-                            out.MethodCall(rcvr, 
                             )
                         }
                     }
-                        case Some(())
-                    }
-                    identifyBestMethod(
-                        mcall.pos, msyms, mcall.name, 
-                        ty, mcall.rcvr, mcall.args
-                    )
-                    (rcvr, ty, )
                 }
                 
+                case in.Super(()) => {
+                    val ty = firstSuperClassOfferingMethod(mcall.rcvr.pos, mcall.name)
+                    val msyms = env.lookupInstanceMethods(ty, mcall.name)
+                    identifyBestFromMcall(msyms, ty).map {
+                        case (flatArgNodes, msym, msig) => {
+                            out.MethodCall(
+                                out.Super(ty),
+                                mcall.name,
+                                flatArgNodes,
+                                (msym, msig)
+                            )
+                        }
+                    }
+                }
             }
-            val best = identifyBestMethod(
-                mcall.pos, msyms, mcall.name, 
-                rcvrTy, mcall.rcvr, mcall.args)
-            best match {
-                case Some((args, (msym, msig))) =>
-                    out.MethodCall(rcvr, mcall.name, args, (msym, msig))
-                case None =>
+            
+            optRes.getOrElse {
+                out.Null(optExpTy.getOrElse(Type.Null))
             }
         })
         
@@ -989,7 +981,7 @@ case class Lower(global: Global) {
                         expr.pos, msyms, Name.InitMethod,
                         ty, rcvr, expr.args)
                     best match {
-                        case Some((args, (msym, msig))) => {
+                        case Some((args, msym, msig)) => {
                             out.NewCtor(
                                 tref = lowerTypeRef(expr.tref),
                                 args = args,
@@ -1085,33 +1077,26 @@ case class Lower(global: Global) {
             ).toNode
         })
     
-        def lowerRcvr(rcvr: in.Rcvr, mthdName: Name.Method): out.Rcvr = withPosOf(rcvr, rcvr match {
-            case in.Static(className) => out.Static(className)
-            case expr: in.Expr => lowerToTypedPathNode(None)(expr)
-            case in.Super(()) => {
-                // Find the next supertype in MRO that implements the method
-                // `mthdName` (if any):
-                val mro = MethodResolutionOrder(global).forSym(env.thisCsym)
-                val optTy = mro.firstSome { 
-                    case csym if !csym.methodsNamed(mthdName).isEmpty => 
-                        Some(csym.toType)
-                    
-                    case csym => 
-                        None
-                }
-                optTy match {
-                    case Some(ty) => out.Super(ty)
-                    case None => {
-                        global.reporter.report(
-                            rcvr.pos,
-                            "no.super.class.implements",
-                            mthdName.toString
-                        )
-                        out.Super(Type.Top)
-                    }
-                }
+        def firstSuperClassOfferingMethod(pos: Position, mthdName: Name.Method): Type.Ref = {
+            // Find the next supertype in MRO that implements the method
+            // `mthdName` (if any):
+            val mro = MethodResolutionOrder(global).forSym(env.thisCsym)
+            val optTy = mro.firstSome { 
+                case csym if !csym.methodsNamed(mthdName).isEmpty => 
+                    Some(csym.toType)
+                
+                case csym => 
+                    None
             }
-        })
+            optTy.getOrElse {
+                global.reporter.report(
+                    pos,
+                    "no.super.class.implements",
+                    mthdName.toString
+                )
+                Type.Top
+            }
+        }
         
         def lowerExpr(optExpTy: Option[Type.Ref])(expr: in.Expr): out.Expr = expr match {
             case in.TypedPath(path) => out.TypedPath(path) // TODO Refine types further to elim this case

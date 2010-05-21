@@ -636,7 +636,7 @@ case class ByteCode(global: Global) {
         path match {
             case Path.TypedBase(sym: VarSymbol.Local) => summary.copy(readSyms = summary.readSyms + sym)
             case Path.TypedBase(sym: VarSymbol.Field) => summary // static fields don't count
-            case Path.TypedBaseCall(_, _, _, args) => args.foldLeft(summary)(summarizeSymbolsInPath)
+            case Path.TypedBaseCall(_, _, args) => args.foldLeft(summary)(summarizeSymbolsInPath)
             case Path.TypedCast(_, path) => summarizeSymbolsInPath(summary, path)
             case Path.TypedConstant(_) => summary
             case Path.TypedField(path, _) => summarizeSymbolsInPath(summary, path)
@@ -997,7 +997,7 @@ case class ByteCode(global: Global) {
                     }
                 }
                 
-                case Path.TypedBaseCall(className, msym, msig, args) => {
+                case Path.TypedBaseCall(msym, msig, args) => {
                     msym.kind match {
                         case MethodKind.Java(
                             MethodKind.JavaStatic, 

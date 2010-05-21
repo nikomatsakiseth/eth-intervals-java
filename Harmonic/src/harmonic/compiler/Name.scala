@@ -45,6 +45,8 @@ object Name {
         
         def asClassName = Some(this)
         
+        def toType = Type.Class(this, Nil)
+        
         /** Relative path leading to the `.class` file for this class, but without 
           * any extension. `String` == `java/lang/String` */
         def relPath: String = internalName

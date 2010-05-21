@@ -8,13 +8,24 @@ class Subst(private val map: Map[Path.Ref, Path.Ref]) {
     def +(p: Pair[Path.Ref, Path.Ref]) = new Subst(map + p)
     
     def path(p: Path.Ref): Path.Ref = (map.get(p), p) match {
-        case (Some(q), _) => q
-        case (None, Path.Base(v)) => Path.Base(v)
-        case (None, Path.Field(owner, f)) => Path.Field(path(owner), f)
-        case (None, Path.Constant(obj)) => p
-        case (None, Path.Cast(ty, base)) => Path.Cast(ty, path(base))
-        case (None, Path.Index(array, index)) => Path.Index(path(array), path(index))
-        case (None, Path.Tuple(paths)) => Path.Tuple(paths.map(path))
+        case (Some(q), _) => 
+            q
+        case (None, Path.Base(v)) => 
+            Path.Base(v)
+        case (None, Path.Field(owner, f)) => 
+            Path.Field(path(owner), f)
+        case (None, Path.Constant(obj)) => 
+            p
+        case (None, Path.Cast(ty, base)) => 
+            Path.Cast(ty, path(base))
+        case (None, Path.Index(array, index)) => 
+            Path.Index(path(array), path(index))
+        case (None, Path.Tuple(paths)) => 
+            Path.Tuple(paths.map(path))
+        case (None, Path.BaseCall(className, methodName, args)) => 
+            Path.BaseCall(className, methodName, args.map(path))
+        case (None, Path.Call(receiver, methodName, args)) => 
+            Path.Call(path(receiver), methodName, args.map(path))
     }
     
     def pattern(p: Pattern.Anon): Pattern.Anon = p match {

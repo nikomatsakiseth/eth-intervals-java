@@ -100,7 +100,7 @@ class ClassFromReflection(
         case ty: Class[_] => {
             val name = Name.Class(ty)
             global.requireLoadedOrLoadable(pos, name)
-            Type.Class(name, List())
+            name.toType
         }
         case ty: reflect.GenericArrayType => {
             val targ = typeArg(Name.ArrayElem, ty.getGenericComponentType).get

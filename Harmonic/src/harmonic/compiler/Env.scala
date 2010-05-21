@@ -255,6 +255,14 @@ case class Env(
         case Path.Tuple(paths) => {
             Path.TypedTuple(paths.map(typedPath))
         }
+        
+        case Path.BaseCall(_, _, _) => {
+            throw new RuntimeException("TODO")
+        }
+        
+        case Path.Call(_, _, _) => {
+            throw new RuntimeException("TODO")
+        }
     }
     
     def typeOfPath(path: Path.Ref) = typedPath(path).ty
@@ -302,7 +310,13 @@ case class Env(
                     crossAll(paths).map(Path.Tuple)
                 }
                 
-                case Path.Base(_) | Path.Constant(_) => {
+                case Path.Call(receiver, methodName, args) => {
+                    (compute(receiver) cross crossAll(args)).map { case (r, a) =>
+                        Path.Call(r, methodName, a)
+                    }
+                }
+                
+                case Path.Base(_) | Path.Constant(_) | Path.BaseCall(_, _, _)=> {
                     Set()
                 }
             }

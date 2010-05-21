@@ -436,7 +436,7 @@ extends Resolve(global, compUnit)
                 }
                 
                 case in.PathBaseCall(className, methodName, args, ()) => {
-                    ResolvedToPath(out.PathBaseCall(className, methodName, args.map(resolvePathToPath)))
+                    ResolvedToPath(out.PathBaseCall(className, methodName, args.map(resolvePathToPath), ()))
                 }
                 
                 case in.PathCall(receiver, methodName, args, ()) => {
@@ -509,8 +509,6 @@ extends Resolve(global, compUnit)
         }
         
         def resolveTypeRef(tref: in.ParseTypeRef): out.ResolveTypeRef = withPosOf(tref, tref match {
-            case in.PathType(in.PathErr(_)) => out.NullType() // TODO Refine types further to elim this case
-            
             case in.NullType() => out.NullType()
             
             case in.TupleType(trefs) => out.TupleType(trefs.map(resolveTypeRef))
@@ -557,6 +555,18 @@ extends Resolve(global, compUnit)
                 val outTypeArgs = typeArgs.map(resolveTypeArg)
                 out.ClassType(Ast.ClassName(className), outTypeArgs)
             }
+            
+            case in.PathType(in.PathErr(_)) => {
+                out.NullType() // TODO Refine types further to elim this case
+            }
+            
+            // `a.b.c()` cannot be a type. 
+            // TODO Can the parse produce this here?
+            case in.PathType(in.PathBaseCall(_, _, _, _)) | in.PathType(in.PathCall(_, _, _, _)) => {
+                Error.ExpClassName(tref.toString).report(global, tref.pos)
+                out.NullType()
+            }
+            
         })
 
         def resolveTypeArg(targ: in.TypeArg): out.TypeArg = withPosOf(targ, targ match {

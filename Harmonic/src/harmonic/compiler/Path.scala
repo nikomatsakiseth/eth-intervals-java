@@ -27,7 +27,7 @@ object Path {
     }
     /** Virtual call, parameters flatened */
     case class Call(receiver: Path.Ref, methodName: Name.Method, args: List[Path.Ref]) extends Ref {
-        override def toString = "%s.%s(%s)".format(base, methodName.javaName, args.mkString(", "))
+        override def toString = "%s.%s(%s)".format(receiver, methodName.javaName, args.mkString(", "))
     }
     case class Index(array: Path.Ref, index: Path.Ref) extends Ref {
         override def toString = "%s[%s]".format(array, index)
@@ -50,12 +50,13 @@ object Path {
         override def toString = toPath.toString
     }
     case class TypedBaseCall(
-        className: Name.Class, 
         msym: MethodSymbol,
         msig: MethodSignature[Pattern.Anon],
         args: List[Path.Typed]
     ) extends Typed {
-        override def toString = "%s.%s(%s)".format(className, methodName.javaName, args.mkString(", "))
+        def ty = msig.returnTy
+        def toPath = Path.BaseCall(msym.clsName, msym.name, args.map(_.toPath))
+        override def toString = toPath.toString
     }
     case class TypedCast(ty: Type.Ref, path: Typed) extends Typed {
         def toPath = Path.Cast(ty, path.toPath)
@@ -85,6 +86,7 @@ object Path {
         msig: MethodSignature[Pattern.Anon], 
         args: List[Path.Typed]
     ) extends Typed {
+        def ty = msig.returnTy
         def toPath = Path.Call(receiver.toPath, msym.name, args.map(_.toPath))
         override def toString = toPath.toString
     }

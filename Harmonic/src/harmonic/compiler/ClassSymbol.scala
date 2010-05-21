@@ -43,7 +43,7 @@ abstract class ClassSymbol extends Symbol {
     )
     
     /** Creates a `Type.Class` for the class defined by this symbol. */
-    def toType: Type.Class = Type.Class(name, List())
+    def toType: Type.Class = name.toType
     
     // ___ Invokable once header is resolved ________________________________
     
