@@ -870,12 +870,12 @@ case class ByteCode(global: Global) {
             rcvr: Int,
             
             /** Argument expressions */
-            args: List[in.Expr]
+            args: List[Path.Typed]
         ) {
             def pushConvertingTo(asmTypes: Array[asm.Type]) {
-                asmTypes.zip(args).foreach { case (asmType, expr) =>
-                    pushExprValue(expr)
-                    mvis.convert(asmType, expr.ty.toAsmType)
+                asmTypes.zip(args).foreach { case (asmType, arg) =>
+                    pushPathValue(arg)
+                    mvis.convert(asmType, arg.ty.toAsmType)
                 }
             }
 
@@ -893,7 +893,7 @@ case class ByteCode(global: Global) {
                 case _ => {
                     val tys = msig.parameterPatterns.flatMap(_.varTys)
                     tys.zip(args).foreach { case (ty, arg) =>
-                        pushExprValueDowncastingTo(ty, arg)
+                        pushPathValueDowncastingTo(ty, arg)
                     }
                 }
             }
@@ -997,6 +997,76 @@ case class ByteCode(global: Global) {
                     }
                 }
                 
+                case Path.TypedBaseCall(className, msym, msig, args) => {
+                    msym.kind match {
+                        case MethodKind.Java(
+                            MethodKind.JavaStatic, 
+                            ownerClass, 
+                            mthdName, 
+                            argumentClasses, 
+                            resultClass
+                        ) => {
+                            val resultAsmTy = asm.Type.getType(resultClass)
+                            val argAsmTys = argumentClasses.map(asm.Type.getType)
+                            pushMethodArgs(msym, msig, 0, args.map(_.path))
+                            mvis.visitMethodInsn(
+                                O.INVOKESTATIC,
+                                asm.Type.getType(ownerClass).getInternalName,
+                                mthdName,
+                                getMethodDescriptor(resultAsmTy, argAsmTys)
+                            )
+                            mvis.convert(msig.returnTy.toAsmType, resultAsmTy)
+                        }
+
+                        case _ => {
+                            throw new RuntimeException("Static call to method of unexp. kind: %s".format(msym.kind))
+                        }
+                    }                    
+                }
+                
+                case Path.TypedCall(receiver, msym, msig, args) => {
+                    msym.kind match {
+                        case harm: MethodKind.Harmonic => {
+                            pushPathValue(receiver)
+                            pushMethodArgs(msym, msig, 1, args)
+                            val owner = msig.receiverTy.toAsmType.getInternalName
+                            val desc = plainMethodDescFromSig(msym.msig)
+                            mvis.visitMethodInsn(harm.op, owner, msym.name.javaName, desc)
+                        }
+
+                        case MethodKind.Java(op, ownerClass, mthdName, argumentClasses, resultClass) => {
+                            val ownerAsmTy = asm.Type.getType(ownerClass)
+                            val resultAsmTy = asm.Type.getType(resultClass)
+                            val argAsmTys = argumentClasses.map(asm.Type.getType)
+
+                            // Push Receiver (first argument if static):
+                            op match {
+                                case MethodKind.JavaStatic => 
+                                    pushPathValueDowncastingTo(argAsmTys(0), receiver)
+                                case _ =>
+                                    pushPathValueDowncastingTo(ownerAsmTy, receiver)
+                            }
+
+                            // Push Method Arguments:
+                            pushMethodArgs(msym, msig, 1, args)
+
+                            mvis.visitMethodInsn(
+                                op.op,
+                                ownerAsmTy.getInternalName,
+                                mthdName,
+                                getMethodDescriptor(resultAsmTy, argAsmTys)
+                            )
+
+                            mvis.convert(msig.returnTy.toAsmType, resultAsmTy)
+                        }
+
+                        case MethodKind.JavaDummyCtor 
+                        |   MethodKind.ErrorMethod => {
+                            throw new RuntimeException("Call to method of unexp. kind: %s".format(msym.kind))
+                        }
+                    }
+                }
+                
                 case Path.TypedIndex(arrayPath, indexPath) => {
                     pushPathValue(arrayPath)
                     pushPathValue(indexPath)
@@ -1031,37 +1101,10 @@ case class ByteCode(global: Global) {
                     pushAnonymousBlock(tmpl)
                 }
 
-                case in.MethodCall(in.Static(_), name, args, (msym, msig)) => {
-                    msym.kind match {
-                        case MethodKind.Java(
-                            MethodKind.JavaStatic, 
-                            ownerClass, 
-                            mthdName, 
-                            argumentClasses, 
-                            resultClass
-                        ) => {
-                            val resultAsmTy = asm.Type.getType(resultClass)
-                            val argAsmTys = argumentClasses.map(asm.Type.getType)
-                            pushMethodArgs(msym, msig, 0, args)
-                            mvis.visitMethodInsn(
-                                O.INVOKESTATIC,
-                                asm.Type.getType(ownerClass).getInternalName,
-                                mthdName,
-                                getMethodDescriptor(resultAsmTy, argAsmTys)
-                            )
-                            mvis.convert(msig.returnTy.toAsmType, resultAsmTy)
-                        }
-                        
-                        case _ => {
-                            throw new RuntimeException("Static call to method of unexp. kind: %s".format(msym.kind))
-                        }
-                    }                    
-                }
-                
                 case in.MethodCall(in.Super(_), name, args, (msym, msig)) => {
                     mvis.visitVarInsn(O.ALOAD, 0)   // load this ptr
                     nextMro.push(mvis)              // load next index in MRO
-                    pushMethodArgs(msym, msig, 1, args)
+                    pushMethodArgs(msym, msig, 1, args.map(_.path))
                     mvis.visitMethodInsn(
                         O.INVOKEINTERFACE,
                         msym.clsName.internalName,
@@ -1070,54 +1113,11 @@ case class ByteCode(global: Global) {
                     )
                 }
                 
-                case in.MethodCall(receiver: in.TypedPath, name, args, (msym, msig)) => {
-                    msym.kind match {
-                        case harm: MethodKind.Harmonic => {
-                            pushExprValue(receiver)
-                            pushMethodArgs(msym, msig, 1, args)
-                            val owner = msig.receiverTy.toAsmType.getInternalName
-                            val desc = plainMethodDescFromSig(msym.msig)
-                            mvis.visitMethodInsn(harm.op, owner, msym.name.javaName, desc)
-                        }
-                        
-                        case MethodKind.Java(op, ownerClass, mthdName, argumentClasses, resultClass) => {
-                            val ownerAsmTy = asm.Type.getType(ownerClass)
-                            val resultAsmTy = asm.Type.getType(resultClass)
-                            val argAsmTys = argumentClasses.map(asm.Type.getType)
-                            
-                            // Push Receiver (first argument if static):
-                            op match {
-                                case MethodKind.JavaStatic => 
-                                    pushExprValueDowncastingTo(argAsmTys(0), receiver)
-                                case _ =>
-                                    pushExprValueDowncastingTo(ownerAsmTy, receiver)
-                            }
-                            
-                            // Push Method Arguments:
-                            pushMethodArgs(msym, msig, 1, args)
-                            
-                            mvis.visitMethodInsn(
-                                op.op,
-                                ownerAsmTy.getInternalName,
-                                mthdName,
-                                getMethodDescriptor(resultAsmTy, argAsmTys)
-                            )
-                            
-                            mvis.convert(msig.returnTy.toAsmType, resultAsmTy)
-                        }
-                        
-                        case MethodKind.JavaDummyCtor 
-                        |   MethodKind.ErrorMethod => {
-                            throw new RuntimeException("Call to method of unexp. kind: %s".format(msym.kind))
-                        }
-                    }
-                }
-                
                 case in.NewCtor(tref, args, (msym, msig), Type.Class(name, _)) => {
                     val internalImplName = global.csym(name).internalImplName
                     mvis.visitTypeInsn(O.NEW, internalImplName)
                     mvis.visitInsn(O.DUP)
-                    pushMethodArgs(msym, msig, 1, args)
+                    pushMethodArgs(msym, msig, 1, args.map(_.path))
                     mvis.visitMethodInsn(
                         O.INVOKESPECIAL,
                         internalImplName,

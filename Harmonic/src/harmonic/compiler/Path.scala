@@ -52,9 +52,9 @@ object Path {
     case class TypedBaseCall(
         className: Name.Class, 
         msym: MethodSymbol,
-        msig: MethodSignature,
+        msig: MethodSignature[Pattern.Anon],
         args: List[Path.Typed]
-    ) extends Ref {
+    ) extends Typed {
         override def toString = "%s.%s(%s)".format(className, methodName.javaName, args.mkString(", "))
     }
     case class TypedCast(ty: Type.Ref, path: Typed) extends Typed {
@@ -82,9 +82,9 @@ object Path {
     case class TypedCall(
         receiver: Path.Typed, 
         msym: MethodSymbol, 
-        msig: MethodSignature, 
+        msig: MethodSignature[Pattern.Anon], 
         args: List[Path.Typed]
-    ) extends Ref {
+    ) extends Typed {
         def toPath = Path.Call(receiver.toPath, msym.name, args.map(_.toPath))
         override def toString = toPath.toString
     }

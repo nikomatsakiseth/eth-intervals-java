@@ -361,23 +361,25 @@ case class Lower(global: Global) {
             }
             
             def callData(
+                name: Name.Method,
                 msyms: List[MethodSymbol], 
-                rcvrRy: Type.Ref, 
+                rcvrTy: Type.Ref, 
                 inRcvr: in.Rcvr, 
                 inArgs: List[in.PathNode],
-                outArgs: List[Path.Typed]
-            ) = {
-                val argTys = outArgs.map(_.ty)
-                val optData = msyms match {
+                outArgNodes: List[out.TypedPath]
+            ): Option[(List[Path.Typed], MethodSymbol, MethodSignature[Pattern.Anon])] = {
+                val argTys = outArgNodes.map(_.ty)
+                msyms match {
                     case List() => {
-                        Error.NoSuchMethod(rcvrTy, name).report(global, pos)
+                        Error.NoSuchMethod(rcvrTy, name).report(global, path.pos)
                         None
                     }
                     
                     case msyms => {
                         def createSubst(msym: MethodSymbol) = mthdSubst(msym, inRcvr, inArgs)
-                        resolveOverloading(pos, createSubst, msyms, argTys) map { case (msym, msig) =>
-                            flattenAssignment(msym.msig.parameterPatterns, args)                            
+                        resolveOverloading(path.pos, createSubst, msyms, argTys) map { case (msym, msig) =>
+                            val flatArgNodes = flattenAssignment(msym.msig.parameterPatterns, outArgNodes)
+                            (flatArgNodes.map(_.path), msym, msig)
                         }
                     }
                 }
@@ -431,22 +433,25 @@ case class Lower(global: Global) {
                 }
                 
                 case in.PathBaseCall(className, methodName, inArgs, ()) => {
-                    val outArgs = args.map(typedPathForPath)
-                    callData(msyms, Type.Class(className, List()), in.Static(className), inArgs) match {
-                        case Some((msym, msig)) =>
-                            Path.TypedBaseCall(className, msym, msig, outArgs)
+                    val inRcvr = in.Static(className)
+                    val outArgNodes = inArgs.map(lowerPath)
+                    val classTy = Type.Class(className, List())
+                    val msyms = staticMethods(className, methodName)
+                    callData(methodName, msyms, classTy, inRcvr, inArgs, outArgNodes) match {
+                        case Some((flatArgs, msym, msig)) =>
+                            Path.TypedBaseCall(className, msym, msig, flatArgs)
                         case None => 
                             errorPath(path.toString)
                     }
                 }
                 
                 case in.PathCall(inRcvr, methodName, inArgs, ()) => {
-                    val outRcvr = typedPathForPath(receiverPath)
-                    val outArgs = args.map(typedPathForPath)
+                    val outRcvr = typedPathForPath(inRcvr)
+                    val outArgNodes = inArgs.map(lowerPath)
                     val msyms = env.lookupInstanceMethods(outRcvr.ty, methodName)
-                    callData(msyms, outRcvr.ty, inRcvr, inArgs) match {
-                        case Some((msym, msig)) =>
-                            out.MethodCall(rcvr, mcall.name, args, (msym, msig))
+                    callData(methodName, msyms, outRcvr.ty, inRcvr, inArgs, outArgNodes) match {
+                        case Some((flatArgs, msym, msig)) =>
+                            Path.TypedCall(outRcvr, msym, msig, flatArgs)
                         case None =>
                             errorPath(path.toString)
                     }                    
@@ -892,7 +897,7 @@ case class Lower(global: Global) {
                     val outArgs = optExpTys.zip(inArgs).map { case (t,a) => lowerToTypedPathNode(t)(a) }
                     val flatArgs = flattenAssignment(msym.msig.parameterPatterns, outArgs)
                     val msig = subst.methodSignature(msym.msig)
-                    Some((flatArgs, (msym, msig)))
+                    Some((flatArgs, msym, msig))
                 }
                 
                 // Multiple matches: have to type the arguments without hints.
@@ -904,27 +909,64 @@ case class Lower(global: Global) {
                     def createSubst(msym: MethodSymbol) = mthdSubst(msym, inRcvr, inArgs)
                     resolveOverloading(pos, createSubst, msyms, argTys).map { case (msym, msig) => 
                         val flatArgs = flattenAssignment(msym.msig.parameterPatterns, outArgs)
-                        (flatArgs, (msym, msig))
+                        (flatArgs, msym, msig)
                     }
                 }
             }            
         }
         
         def lowerMethodCall(optExpTy: Option[Type.Ref])(mcall: in.MethodCall) = withPosOf(mcall, {
-            // Find all potential methods:
-            val (rcvr, rcvrTy, msyms) = lowerRcvr(mcall.rcvr, mcall.name) match {
-                case rcvr @ out.Static(className) => {
+            def identifyBestFromMcall(msyms: List[MethodSymbol], rcvrTy: Type.Ref) =
+                identifyBestMethod(mcall.pos, msyms, mcall.name, rcvrTy, mcall.rcvr, mcall.args)
+            
+            val optRes = mcall.rcvr match {
+                case rcvr @ in.Static(className) => {
                     val msyms = staticMethods(className, mcall.name)
-                    (rcvr, global.csym(className).toType, msyms)
+                    identifyBestFromMcall(msyms, Type.Class(className, Nil)).map {
+                        case (flatArgs, msym, msig) => {
+                            out.TypedPath(
+                                Path.TypedBaseCall(
+                                    className, mcall.name, msym, msig, 
+                                    flatArgs.map(_.path)
+                                )
+                            )                            
+                        }
+                    }
+                }
+                
+                case inRcvr: in.Expr => {
+                    val outRcvr = lowerToTypedPath(None)(inRcvr)
+                    val msyms = staticMethods(className, mcall.name)
+                    identifyBestFromMcall(msyms, outRcvr.ty).map {
+                        case (flatArgs, msym, msig) => {
+                            out.TypedPath(
+                                Path.TypedCall(
+                                    outRcvr, mcall.name, msym, msig, 
+                                    flatArgs.map(_.path)
+                                )
+                            )                            
+                        }
+                    }
+                    (rcvr, rcvr.ty, env.lookupInstanceMethods(rcvr.ty, mcall.name))                    
                 }
                 
                 case rcvr @ out.Super(ty) => {
-                    (rcvr, ty, env.lookupInstanceMethods(ty, mcall.name))
+                    val msyms = env.lookupInstanceMethods(ty, mcall.name)
+                    identifyBestFromMcall(msyms, ty).map {
+                        case (flatArgs, msym, msig) => {
+                            out.MethodCall(rcvr, 
+                            )
+                        }
+                    }
+                        case Some(())
+                    }
+                    identifyBestMethod(
+                        mcall.pos, msyms, mcall.name, 
+                        ty, mcall.rcvr, mcall.args
+                    )
+                    (rcvr, ty, )
                 }
                 
-                case rcvr @ out.TypedPath(_) => {
-                    (rcvr, rcvr.ty, env.lookupInstanceMethods(rcvr.ty, mcall.name))                    
-                }
             }
             val best = identifyBestMethod(
                 mcall.pos, msyms, mcall.name, 
@@ -933,7 +975,6 @@ case class Lower(global: Global) {
                 case Some((args, (msym, msig))) =>
                     out.MethodCall(rcvr, mcall.name, args, (msym, msig))
                 case None =>
-                    out.Null(optExpTy.getOrElse(Type.Null))
             }
         })
         
