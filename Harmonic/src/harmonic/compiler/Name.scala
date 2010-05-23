@@ -36,6 +36,8 @@ object Name {
         base: Qual,
         name: String
     ) extends Qual {
+        def is(name: Name.Class) = (this == name)
+        
         def toInternalPrefix = internalName + "$"
         
         /** Tag used in generated fields etc: `String` == `$Harmonic$java$lang$String$` */
@@ -104,6 +106,8 @@ object Name {
     final case class Method(
         parts: List[String]
     ) {
+        def is(name: Name.Method) = (this == name)
+        
         def javaName = parts.mkString("$")
         
         override def toString = parts.mkString("", "()", "()")
@@ -124,6 +128,8 @@ object Name {
         className: Name.Class,
         text: String
     ) extends Var with UnloweredMember {
+        def is(name: Name.Member) = (this == name)
+        
         override def toString = "(%s.%s)".format(className, text)
         
         def matches(unlowerName: UnloweredMember) = unlowerName match {
@@ -138,6 +144,8 @@ object Name {
     final case class LocalVar(
         text: String
     ) extends Var {
+        def is(name: Name.LocalVar) = (this == name)
+        
         override def toString = text
     }
     

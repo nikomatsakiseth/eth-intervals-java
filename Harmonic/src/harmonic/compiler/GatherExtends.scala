@@ -36,7 +36,7 @@ case class GatherExtends(global: Global) {
         def addExtendsDecl(
             env: Env, 
             fromClass: Name.Class,
-            subst: TypedSubst
+            subst: Subst
         )(
             extendsDecl: in.ExtendsDecl
         ): Unit = debugIndent("addExtendsDecl(%s, %s)", fromClass, extendsDecl){
@@ -73,7 +73,7 @@ case class GatherExtends(global: Global) {
                     //    To do so, must create subst from ctor params of `csym` to the arguments.
                     val thisSym = csym.loweredSource.thisSym
                     val fieldSyms = csym.loweredSource.pattern.symbols
-                    val nextSubst = fieldSyms.zip(args).foldLeft(TypedSubst.empty) { case (s, (fsym, arg)) =>
+                    val nextSubst = fieldSyms.zip(args).foldLeft(Subst.empty) { case (s, (fsym, arg)) =>
                         s plusField ((thisSym, fsym) -> arg)
                     }
                     addFor(nextSubst)(csym)
@@ -86,7 +86,7 @@ case class GatherExtends(global: Global) {
             }
         }
     
-        def addFor(subst: TypedSubst)(csym: ClassFromSource): Unit = debugIndent("addFor(%s)", csym) {
+        def addFor(subst: Subst)(csym: ClassFromSource): Unit = debugIndent("addFor(%s)", csym) {
             val env = csym.classEnv
             csym.loweredSource.extendsDecls.foreach(addExtendsDecl(env, csym.name, subst))                    
         }
@@ -95,7 +95,7 @@ case class GatherExtends(global: Global) {
     
     def forSym(csym: ClassFromSource) = {
         val data = new Data(csym.pos)
-        data.addFor(TypedSubst.empty)(csym)
+        data.addFor(Subst.empty)(csym)
         csym.ExtendedClasses.v = MethodResolutionOrder(global).forSym(csym).tail.reverse.flatMap { 
             case mroCsym: ClassFromSource => {
                 val (_, decl, args) = data.result(mroCsym.name) 

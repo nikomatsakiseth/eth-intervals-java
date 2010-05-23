@@ -16,7 +16,7 @@ class MethodGroup(
     val methodName: Name.Method,
     
     /** A representative method signature */
-    val msig: MethodSignature[Pattern.Ref]
+    val msig: MethodSignature[Pattern.Method]
 ) {
     /** List of method symbols implementing this method, in MRO order. 
       * Note that some classes may define the same method more than once

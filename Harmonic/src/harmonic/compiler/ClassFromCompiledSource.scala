@@ -12,7 +12,7 @@ abstract class ClassFromCompiledSource extends ClassSymbol
     def pos = InterPosition.forClassNamed(name)
     
     def setMethodGroups(groups: List[MethodGroup]) {}
-
+    
     // ___ Class Data _______________________________________________________
     //
     // What all ClassFromCompiledSource instances have in common is that they

@@ -10,9 +10,13 @@ object Pattern {
     }
     
     /** Base type for patterns that include variable names. */
-    sealed abstract trait Ref extends Anon {
-        def varNames: List[Name.LocalVar]
+    sealed abstract trait Ref[S <: VarSymbol] extends Anon {
+        def symbols: List[S]
     }
+    
+    type Any = Ref[VarSymbol.Any]
+    type Method = Ref[VarSymbol.Local]
+    type Class = Ref[VarSymbol.Field]
     
     /** An anonymous reference to a variable. */
     sealed trait AnonVar extends Anon {
@@ -37,15 +41,17 @@ object Pattern {
     
     case class SubstdTuple(patterns: List[Pattern.Anon]) extends AnonTuple
     
-    case class Var(
-        name: Name.LocalVar,
-        ty: Type.Ref
-    ) extends AnonVar with Ref {
-        def varNames = List(name)
+    case class Var[+S <: VarSymbol.Any](
+        sym: S
+    ) extends AnonVar with Ref[S] {
+        def ty = sym.ty
+        def symbols = List(name)
     }
     
-    case class Tuple(patterns: List[Pattern.Ref]) extends AnonTuple with Ref {
-        def varNames = patterns.flatMap(_.varNames)
+    case class Tuple[+S <: VarSymbol.Any](
+        patterns: List[Pattern.Ref[S]]
+    ) extends AnonTuple with Ref[S] {
+        def symbols = patterns.flatMap(_.varNames)
     }
     
     private case object NoMatch extends Exception

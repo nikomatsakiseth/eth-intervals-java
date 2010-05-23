@@ -955,14 +955,23 @@ object Ast {
         def returnTy(data: MCallData) = data._2.returnTy
         
         object Extensions {
-            case class ExtendedParam(pat: Param[VSym]) {
-                def toPatternRef: Pattern.Ref = pat match {
+            case class ExtendedLParam(pat: Param[VarSymbol.Local]) {
+                def toPatternRef: Pattern.Method = pat match {
                     case TupleParam(params) => Pattern.Tuple(params.map(_.toPatternRef))
-                    case VarParam(_, _, Ast.LocalName(name), sym) => Pattern.Var(name, sym.ty)
+                    case VarParam(_, _, _, sym) => Pattern.Var(sym)
                 }
             }
-            implicit def extendedParam(pat: Param[VSym]): ExtendedParam = 
-                ExtendedParam(pat)
+            implicit def extendedLParam(pat: Param[VarSymbol.Local]): ExtendedLParam = 
+                ExtendedLParam(pat)
+            
+            case class ExtendedFParam(pat: Param[VarSymbol.Field]) {
+                def toPatternRef: Pattern.Class = pat match {
+                    case TupleParam(params) => Pattern.Tuple(params.map(_.toPatternRef))
+                    case VarParam(_, _, _, sym) => Pattern.Var(sym)
+                }
+            }
+            implicit def extendedFParam(pat: Param[VarSymbol.Field]): ExtendedFParam = 
+                ExtendedFParam(pat)
             
             case class ExtendedPatternAnon(pat: AstPattern[VarSymbol.Any]) {
                 def toPatternAnon: Pattern.Anon = pat match {

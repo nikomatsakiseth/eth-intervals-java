@@ -29,7 +29,7 @@ class MethodSymbol(
     val kind: MethodKind,            /** Intrinsic, harmonic, java, etc. */
     val clsName: Name.Class,         /** Class in which the method is defined. */
     val name: Name.Method,           /** Name of the method. */
-    val msig: MethodSignature[Pattern.Ref]
+    val msig: MethodSignature[Pattern.Method]
 ) extends Symbol {
     override def toString = "MethodSymbol(%s, %x)".format(name, System.identityHashCode(this))
     
