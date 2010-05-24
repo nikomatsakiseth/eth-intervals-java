@@ -35,6 +35,7 @@ case class Lower(global: Global) {
             name      = Name.InitMethod,
             MethodSignature(
                 returnTy = Type.Void,
+                receiverTy = csym.toType,
                 parameterPatterns = List(csym.classParam.toPatternRef)
             )
         )
@@ -43,6 +44,16 @@ case class Lower(global: Global) {
     def staticMethods(className: Name.Class, methodName: Name.Method) = {
         global.csym(className).methodsNamed(methodName).filter(_.modifiers.isStatic)            
     }
+    
+    def lowerMemberDecl(
+        csym: ClassFromSource, 
+        mem: in.MemberDecl
+    ): out.MemberDecl = withPosOf(mem, mem match {
+        case decl: in.IntervalDecl => lowerIntervalDecl(csym, decl)
+        case decl: in.MethodDecl => lowerMethodDecl(csym, decl)
+        case decl: in.FieldDecl => lowerFieldDecl(csym, decl)
+        case decl: in.RelDecl => lowerRelDecl(csym, decl)
+    })
     
     def lowerRelDecl(
         csym: ClassFromSource, 
@@ -153,7 +164,7 @@ case class Lower(global: Global) {
     }
     
     // Method parameters always have a specified type.  
-    def lowerMethodParams(classEnv: Env, inParams: List[in.Param[Unit]]): List[Pattern.Method] = {
+    def lowerMethodParams(classEnv: Env, inParams: List[in.Param[Unit]]) = {
         def newSym(pos: Position, modifiers: Modifier.Set, name: Name.LocalVar, ty: Type.Ref) = 
             new VarSymbol.Local(pos, modifiers, name, ty)
         def addSym(env: Env, sym: VarSymbol.Local) = env.plusLocalVar(sym)
@@ -161,7 +172,7 @@ case class Lower(global: Global) {
     }
     
     // The type of block parameters can be inferred from context.
-    def lowerBlockParam(env: Env, expTy: Type.Ref, inParam: in.Param[Unit]): Pattern.Method = {
+    def lowerBlockParam(env: Env, expTy: Type.Ref, inParam: in.Param[Unit]) = {
         def newSym(pos: Position, modifiers: Modifier.Set, name: Name.LocalVar, ty: Type.Ref) = 
             new VarSymbol.Local(pos, modifiers, name, ty)
         def addSym(env: Env, sym: VarSymbol.Local) = env.plusLocalVar(sym)
@@ -175,22 +186,22 @@ case class Lower(global: Global) {
     )(
         env0: Env, 
         inputs: List[(Type.Ref, in.Param[Unit])]
-    ): (List[Pattern.Ref[S]], Env) = {
+    ): (List[out.Param[S]], Env) = {
         var env = env0
         
         def lowerParam(
             expTy: Type.Ref, 
             param: in.Param[Unit]
-        ): Pattern.Ref[S] = withPosOf(param, {
+        ): out.Param[S] = withPosOf(param, {
             (expTy, param) match {
                 // Unpack singleton tuples:
-                case (ty, in.TupleParam(List(p))) => Pattern.Tuple(List(lowerParam(ty, p)))
+                case (ty, in.TupleParam(List(p))) => out.TupleParam(List(lowerParam(ty, p)))
                 case (Type.Tuple(List(ty)), p) => lowerParam(ty, p)
                 
                 // Unpack matching tuples:
                 case (Type.Tuple(tys), in.TupleParam(params)) if sameLength(tys, params) => {
                     val outParams = tys.zip(params).map { case (t, l) => lowerParam(t, l) }
-                    Pattern.Tuple(outParams)
+                    out.TupleParam(outParams)
                 }
                 
                 // If not matching, try to find a bounding type, or just infer Object:
@@ -203,12 +214,12 @@ case class Lower(global: Global) {
                     optTy match {
                         case Some(Type.Tuple(tys)) => { // Found one.
                             val outParams = tys.zip(params).map { case (t, l) => lowerParam(t, l) }
-                            Pattern.Tuple(outParams)                            
+                            out.TupleParam(outParams)                            
                         }
                         
                         case _ => { // No match, just infer Object.
                             val outParams = params.map(lowerParam(Type.Top, _))
-                            Pattern.Tuple(outParams)
+                            out.TupleParam(outParams)
                         }
                     }
                 }
@@ -223,7 +234,7 @@ case class Lower(global: Global) {
                     val modifiers = Modifier.forLoweredAnnotations(outAnnotations)
                     val sym = newSym(name.pos, modifiers, name.name, ty)
                     env = addSym(env, sym)
-                    Pattern.Var(sym)
+                    out.VarParam(outAnnotations, out.TypeRef(ty), name, sym)
                 }
             }
         })
@@ -233,7 +244,7 @@ case class Lower(global: Global) {
     
     // ___ Substitutions ____________________________________________________
     
-    def addPatPathToSubst(subst: Subst, pair: (Pattern.Ref, Path.Typed)): Subst = {
+    def addPatPathToSubst(subst: Subst, pair: (Pattern.Ref, Path.Ref)): Subst = {
         pair match {
             case (Pattern.Tuple(List(pat)), path) => 
                 addPatPathToSubst(subst, (pat, path))
@@ -289,10 +300,8 @@ case class Lower(global: Global) {
         rcvr match {
             case in.Static(_) | in.Super(_) => 
                 substFromPatExprs(msig.parameterPatterns, args)
-            case rcvr: in.Expr => {
-                // TODO -- extract thisPattern from msym
-                substFromPatExprs(msig.thisPattern :: msig.parameterPatterns, rcvr :: args)                
-            }
+            case rcvr: in.Expr =>
+                substFromPatExprs(msig.thisPattern :: msig.parameterPatterns, rcvr :: args)
         }
     }
     
@@ -307,19 +316,19 @@ case class Lower(global: Global) {
                     flattenPair(pos)((pat, path))
                 }
                 
-                case (pat, Path.Tuple(List(path))) => {
+                case (pat, Path.TypedTuple(List(path))) => {
                     flattenPair(pos)((pat, path))
                 }
                 
-                case (Pattern.AnonTuple(pats), Path.Tuple(paths)) if sameLength(pats, paths) => {
+                case (Pattern.AnonTuple(pats), Path.TypedTuple(paths)) if sameLength(pats, paths) => {
                     pats.zip(paths).flatMap(flattenPair(pos))
                 }
                     
                 case (Pattern.AnonTuple(pats), path) => {
                     pats.indices.map({ idx =>
-                        Path.Index(
+                        Path.TypedIndex(
                             path,
-                            Path.Constant.integer(idx)
+                            Path.TypedConstant.integer(idx)
                         ).toNodeWithPosOf(pos)
                     }).toList
                 }
@@ -348,7 +357,7 @@ case class Lower(global: Global) {
         def typedPathForPath(path: in.PathNode): Path.Typed = {
             def errorPath(name: String) = {
                 val sym = VarSymbol.errorLocal(Name.LocalVar(name), None)
-                Path.Base(sym)
+                Path.TypedBase(sym)
             }
             
             def callData(
@@ -382,7 +391,7 @@ case class Lower(global: Global) {
 
                 case in.PathBase(Ast.LocalName(localName), ()) => {
                     val sym = env.locals(localName)
-                    Path.Base(sym)
+                    Path.TypedBase(sym)
                 }
 
                 case in.PathBase(name @ Ast.MemberName(memberVar), ()) => {
@@ -399,7 +408,7 @@ case class Lower(global: Global) {
                         }
 
                         case Some(fsym) => {
-                            Path.Base(fsym)
+                            Path.TypedBase(fsym)
                         }
                     }
                 }
@@ -414,11 +423,11 @@ case class Lower(global: Global) {
                         
                         case Right(fsym) if fsym.modifiers.isStatic => {
                             global.reporter.report(path.pos, "qualified.static", fsym.name.toString)
-                            Path.Base(fsym)
+                            Path.TypedBase(fsym)
                         }
                         
                         case Right(fsym) => {
-                            Path.Field(ownerTypedPath, fsym)
+                            Path.TypedField(ownerTypedPath, fsym)
                         }
                     }
                 }
@@ -430,7 +439,7 @@ case class Lower(global: Global) {
                     val msyms = staticMethods(className, methodName)
                     callData(methodName, msyms, classTy, inRcvr, inArgs, outArgNodes) match {
                         case Some((flatArgs, msym, msig)) =>
-                            Path.BaseCall(msym, msig, flatArgs)
+                            Path.TypedBaseCall(msym, msig, flatArgs)
                         case None => 
                             errorPath(path.toString)
                     }
@@ -442,12 +451,16 @@ case class Lower(global: Global) {
                     val msyms = env.lookupInstanceMethods(outRcvr.ty, methodName)
                     callData(methodName, msyms, outRcvr.ty, inRcvr, inArgs, outArgNodes) match {
                         case Some((flatArgs, msym, msig)) =>
-                            Path.Call(outRcvr, msym, msig, flatArgs)
+                            Path.TypedCall(outRcvr, msym, msig, flatArgs)
                         case None =>
                             errorPath(path.toString)
                     }                    
                 }
             }
+        }
+        
+        def pathForPath(path: in.PathNode): Path.Ref = {
+            typedPathForPath(path).toPath
         }
         
         def lowerPath(path: in.PathNode): out.TypedPath = {
@@ -468,7 +481,7 @@ case class Lower(global: Global) {
                             Type.Null
                         }
                         case Right(memberVar) => {
-                            Type.Member(typedPath, memberVar)                            
+                            Type.Member(typedPath.toPath, memberVar)                            
                         }
                     }
                 }
@@ -485,7 +498,7 @@ case class Lower(global: Global) {
                 case in.PathTypeArg(name, rel, inPath) => {
                     env.lookupEntry(csym, name.name) match {
                         case Right(entry) if entry.isConstrainableInPathArg =>
-                            Some(Type.PathArg(entry.name, rel, typedPathForPath(inPath)))                                
+                            Some(Type.PathArg(entry.name, rel, pathForPath(inPath)))                                
                             
                         case Right(entry) => {
                             global.reporter.report(name.pos, "not.in.path.arg", entry.name.toString)
@@ -539,7 +552,7 @@ case class Lower(global: Global) {
                 case in.PathExtendsArg(path) => lowerPath(path)
                 case in.TupleExtendsArg(args) => {
                     val paths = args.map(n => lowerExtendsArg(n).path)
-                    Path.Tuple(paths).toNode
+                    Path.TypedTuple(paths).toNode
                 }
             }
         })
@@ -832,7 +845,7 @@ case class Lower(global: Global) {
                             VarSymbol.errorField(memberVar, optExpTy)
                         }
                     }
-                    Path.Base(fsym).toNode
+                    Path.TypedBase(fsym).toNode
                 }
                 
                 // Instance field ref like foo.bar:
@@ -852,13 +865,13 @@ case class Lower(global: Global) {
                             VarSymbol.errorField(memberVar, optExpTy)
                         }
                     }
-                    Path.Field(ownerPath, fsym).toNode
+                    Path.TypedField(ownerPath, fsym).toNode
                 }              
             }
         })
         
         def lowerLiteralExpr(expr: in.Literal) = withPosOf(expr, {
-            Path.Constant(expr.obj).toNode
+            Path.TypedConstant(expr.obj).toNode
         })
         
         def identifyBestMethod(
@@ -912,7 +925,7 @@ case class Lower(global: Global) {
                     identifyBestFromMcall(msyms, className.toType).map {
                         case (flatArgs, msym, msig) => {
                             out.TypedPath(
-                                Path.BaseCall(
+                                Path.TypedBaseCall(
                                     msym, msig, 
                                     flatArgs.map(_.path)
                                 )
@@ -927,7 +940,7 @@ case class Lower(global: Global) {
                     identifyBestFromMcall(msyms, outRcvr.ty).map {
                         case (flatArgNodes, msym, msig) => {
                             out.TypedPath(
-                                Path.Call(
+                                Path.TypedCall(
                                     outRcvr, msym, msig, 
                                     flatArgNodes.map(_.path)
                                 )
@@ -1009,7 +1022,7 @@ case class Lower(global: Global) {
                     tuple.exprs.map(lowerToTypedPath(None))
                 }
             }
-            Path.Tuple(paths).toNode
+            Path.TypedTuple(paths).toNode
         })
         
         def optTypeArg(TypeVarName: Name.Var, optExpTy: Option[Type.Ref]) = optExpTy match {
@@ -1054,11 +1067,11 @@ case class Lower(global: Global) {
         })
         
         def lowerImpThis(expr: in.Expr) = withPosOf(expr, {
-            Path.Base(env.lookupThis).toNode
+            Path.TypedBase(env.lookupThis).toNode
         })
         
         def lowerCast(expr: in.Cast) = withPosOf(expr, {
-            Path.Cast(
+            Path.TypedCast(
                 toTypeRef(expr.typeRef),
                 lowerToTypedPath(None)(expr.expr)
             ).toNode
@@ -1129,15 +1142,15 @@ case class Lower(global: Global) {
                         )
                     )
                     optStmts.foreach(_ += assign)
-                    Path.Base(sym)
+                    Path.TypedBase(sym)
                 }
             }
         }
         
         def isAtomicPath(path: Path.Typed) = path match {
-            case Path.Base(_: VarSymbol.Local) => true
-            case Path.Tuple(_) => true
-            case Path.Constant(_) => true
+            case Path.TypedBase(_: VarSymbol.Local) => true
+            case Path.TypedTuple(_) => true
+            case Path.TypedConstant(_) => true
             case _ => false
         }
         

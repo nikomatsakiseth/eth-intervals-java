@@ -634,15 +634,15 @@ case class ByteCode(global: Global) {
     
     def summarizeSymbolsInPath(summary: SymbolSummary, path: Path.Typed): SymbolSummary = {
         path match {
-            case Path.Base(sym: VarSymbol.Local) => summary.copy(readSyms = summary.readSyms + sym)
-            case Path.Base(sym: VarSymbol.Field) => summary // static fields don't count
-            case Path.BaseCall(_, _, args) => args.foldLeft(summary)(summarizeSymbolsInPath)
-            case Path.Cast(_, path) => summarizeSymbolsInPath(summary, path)
-            case Path.Constant(_) => summary
-            case Path.Field(path, _) => summarizeSymbolsInPath(summary, path)
-            case Path.Call(rcvr, _, _, args) => (rcvr :: args).foldLeft(summary)(summarizeSymbolsInPath)
-            case Path.Index(array, index) => List(array, index).foldLeft(summary)(summarizeSymbolsInPath)            
-            case Path.Tuple(paths) => paths.foldLeft(summary)(summarizeSymbolsInPath)
+            case Path.TypedBase(sym: VarSymbol.Local) => summary.copy(readSyms = summary.readSyms + sym)
+            case Path.TypedBase(sym: VarSymbol.Field) => summary // static fields don't count
+            case Path.TypedBaseCall(_, _, args) => args.foldLeft(summary)(summarizeSymbolsInPath)
+            case Path.TypedCast(_, path) => summarizeSymbolsInPath(summary, path)
+            case Path.TypedConstant(_) => summary
+            case Path.TypedField(path, _) => summarizeSymbolsInPath(summary, path)
+            case Path.TypedCall(rcvr, _, _, args) => (rcvr :: args).foldLeft(summary)(summarizeSymbolsInPath)
+            case Path.TypedIndex(array, index) => List(array, index).foldLeft(summary)(summarizeSymbolsInPath)            
+            case Path.TypedTuple(paths) => paths.foldLeft(summary)(summarizeSymbolsInPath)
         }
     }
     
@@ -772,10 +772,10 @@ case class ByteCode(global: Global) {
                 case (Pattern.AnonTuple(List(l)), _) =>
                     pushPathRvalues(l, rvalue, asmTypes)
                     
-                case (_, Path.Tuple(List(r))) =>
+                case (_, Path.TypedTuple(List(r))) =>
                     pushPathRvalues(lvalue, r, asmTypes)
                 
-                case (Pattern.AnonTuple(ls), Path.Tuple(rs)) if sameLength(ls, rs) =>
+                case (Pattern.AnonTuple(ls), Path.TypedTuple(rs)) if sameLength(ls, rs) =>
                     ls.zip(rs).foldLeft(asmTypes) {
                         case (aT, (l, r)) => pushPathRvalues(l, r, aT)
                     }
@@ -807,10 +807,10 @@ case class ByteCode(global: Global) {
                 case (in.TupleLvalue(List(l)), _) =>
                     popPathRvalues(l, rvalue)
                     
-                case (_, Path.Tuple(List(r))) =>
+                case (_, Path.TypedTuple(List(r))) =>
                     popPathRvalues(lvalue, r)
                     
-                case (in.TupleLvalue(ls), Path.Tuple(rs)) if sameLength(ls, rs) =>
+                case (in.TupleLvalue(ls), Path.TypedTuple(rs)) if sameLength(ls, rs) =>
                     ls.zip(rs).reverse.foreach { case (l, r) => popPathRvalues(l, r) }
                     
                 case _ =>
@@ -910,15 +910,15 @@ case class ByteCode(global: Global) {
 
         def pushPathValue(path: Path.Typed) {
             path match {
-                case Path.Tuple(List()) => {
+                case Path.TypedTuple(List()) => {
                     mvis.visitInsn(O.ACONST_NULL)
                 }
                 
-                case Path.Tuple(List(path)) => {
+                case Path.TypedTuple(List(path)) => {
                     pushPathValue(path)
                 }
                 
-                case Path.Tuple(paths) => {
+                case Path.TypedTuple(paths) => {
                     mvis.pushIntegerConstant(paths.length)
                     mvis.visitTypeInsn(O.ANEWARRAY, asmObjectType.getInternalName)
                     paths.zipWithIndex.foreach { case (path, index) =>
@@ -929,11 +929,11 @@ case class ByteCode(global: Global) {
                     }
                 }
                 
-                case Path.Base(lvsym: VarSymbol.Local) => {
+                case Path.TypedBase(lvsym: VarSymbol.Local) => {
                     accessMap.pushSym(lvsym, mvis)
                 }
                 
-                case Path.Base(fsym: VarSymbol.Field) => {
+                case Path.TypedBase(fsym: VarSymbol.Field) => {
                     fsym.kind match {
                         case FieldKind.Java(owner, name, cls) => {
                             mvis.visitFieldInsn(
@@ -948,16 +948,16 @@ case class ByteCode(global: Global) {
                     }
                 }
                 
-                case Path.Cast(ty, subpath) => {
+                case Path.TypedCast(ty, subpath) => {
                     pushPathValue(subpath)
                     mvis.convert(ty, subpath.ty)
                 }
                 
-                case Path.Constant(obj: java.lang.String) => {
+                case Path.TypedConstant(obj: java.lang.String) => {
                     mvis.visitLdcInsn(obj)
                 }
                 
-                case Path.Constant(java.lang.Boolean.TRUE) => {
+                case Path.TypedConstant(java.lang.Boolean.TRUE) => {
                     mvis.visitFieldInsn(
                         O.GETSTATIC, 
                         asmBooleanType.getInternalName,
@@ -966,7 +966,7 @@ case class ByteCode(global: Global) {
                     )
                 }
                 
-                case Path.Constant(java.lang.Boolean.FALSE) => {
+                case Path.TypedConstant(java.lang.Boolean.FALSE) => {
                     mvis.visitFieldInsn(
                         O.GETSTATIC, 
                         asmBooleanType.getInternalName,
@@ -975,12 +975,12 @@ case class ByteCode(global: Global) {
                     )                    
                 }
                 
-                case Path.Constant(obj) => {
+                case Path.TypedConstant(obj) => {
                     mvis.visitLdcInsn(obj)
                     mvis.box(boxInfoForBoxType(asm.Type.getType(obj.getClass)))
                 }
                 
-                case Path.Field(ownerPath, fsym) => {
+                case Path.TypedField(ownerPath, fsym) => {
                     pushPathValue(ownerPath)
                     fsym.kind match {
                         case FieldKind.Java(owner, name, cls) => {
@@ -997,7 +997,7 @@ case class ByteCode(global: Global) {
                     }
                 }
                 
-                case Path.BaseCall(msym, msig, args) => {
+                case Path.TypedBaseCall(msym, msig, args) => {
                     msym.kind match {
                         case MethodKind.Java(
                             MethodKind.JavaStatic, 
@@ -1024,12 +1024,12 @@ case class ByteCode(global: Global) {
                     }                    
                 }
                 
-                case Path.Call(receiver, msym, msig, args) => {
+                case Path.TypedCall(receiver, msym, msig, args) => {
                     msym.kind match {
                         case harm: MethodKind.Harmonic => {
                             pushPathValue(receiver)
                             pushMethodArgs(msym, msig, 1, args)
-                            val owner = msym.clsName.internalName
+                            val owner = msig.receiverTy.toAsmType.getInternalName
                             val desc = plainMethodDescFromSig(msym.msig)
                             mvis.visitMethodInsn(harm.op, owner, msym.name.javaName, desc)
                         }
@@ -1067,7 +1067,7 @@ case class ByteCode(global: Global) {
                     }
                 }
                 
-                case Path.Index(arrayPath, indexPath) => {
+                case Path.TypedIndex(arrayPath, indexPath) => {
                     pushPathValue(arrayPath)
                     pushPathValue(indexPath)
                     mvis.visitInsn(O.AALOAD)
@@ -1614,6 +1614,7 @@ case class ByteCode(global: Global) {
             
             val methodSig = MethodSignature(
                 tmpl.returnTref.ty,
+                blockTy,
                 List(tmpl.param.toPatternRef)
             )
 
@@ -1651,7 +1652,8 @@ case class ByteCode(global: Global) {
             // Emit a forwarding method from the interface version:
             val interfaceMethodSig = MethodSignature(
                 Type.Object,
-                List(Pattern.SubstdVar(Type.Object))
+                blockTy,
+                List(Pattern.Var(Name.LocalVar("arg"), Type.Object))
             )
             writeForwardingMethodIfNeeded(
                 className     = blockClassName, 
@@ -1700,7 +1702,7 @@ case class ByteCode(global: Global) {
     
     class ParameterAdapter(
         accessMap: AccessMap,
-        srcPatterns: List[Pattern.Anon]
+        srcPatterns: List[Pattern.Ref]
     ) {
         // Construct expressions mirroring the patterns of the source method.
         // Also create symbols for each of the src params and add them to `accessMap`.
@@ -1708,23 +1710,19 @@ case class ByteCode(global: Global) {
         // So if the source patterns were `(a: A, b: B)` and `(c: C)`, we would:
         // (a) Create three symbols `a`, `b`, and `c`
         // (b) Return the expressions `(a, b)` and `c`.
-        var counter = 0
-        def constructPathFromPattern(pattern: Pattern.Anon): Path.Typed = pattern match {
+        def constructPathFromPattern(pattern: Pattern.Ref): Path.Typed = pattern match {
             case Pattern.Tuple(subpatterns) => 
-                Path.Tuple(subpatterns.map(constructPathFromPattern))
+                Path.TypedTuple(subpatterns.map(constructPathFromPattern))
                 
-            case Pattern.AnonVar(ty) => {
-                val index = counter
-                counter += 1
-                val name = Name.LocalVar("arg%d".format(index))
+            case Pattern.Var(name, ty) => {
                 val sym = new VarSymbol.Local(NoPosition, Modifier.Set.empty, name, ty)
                 accessMap.addUnboxedSym(sym)
-                Path.Base(sym)
+                Path.TypedBase(sym)
             }
         }
         val rvalues = srcPatterns.map(constructPathFromPattern)
         
-        def adaptTo(tarPatterns: List[Pattern.Anon], stmtVisitor: StatementVisitor) {
+        def adaptTo(tarPatterns: List[Pattern.Ref], stmtVisitor: StatementVisitor) {
             // Push the values from each of the `rvalues` expressions onto the
             // stack.  We may have to cast the rvalue to the target type, because
             // the types of the source parameters may be supertypes of the target types.
@@ -1733,7 +1731,7 @@ case class ByteCode(global: Global) {
                 val casted = {
                     if(convertNeeded(tarPattern.ty, rvalue.ty)) {
                         debug("  adding cast")
-                        Path.Cast(tarPattern.ty, rvalue)
+                        Path.TypedCast(tarPattern.ty, rvalue)
                     } else 
                         rvalue                    
                 }
@@ -1754,8 +1752,8 @@ case class ByteCode(global: Global) {
         cvis: asm.ClassVisitor, 
         methodName: Name.Method,
         withMroIndex: Boolean,
-        masterSig: MethodSignature[Pattern.Anon],
-        overriddenSig: MethodSignature[Pattern.Anon],
+        masterSig: MethodSignature[Pattern.Ref],
+        overriddenSig: MethodSignature[Pattern.Ref],
         invokeOp: Int
     ) {
         val descFunc = if(withMroIndex) mroMethodDescFromSig _ else plainMethodDescFromSig _
@@ -1998,7 +1996,7 @@ case class ByteCode(global: Global) {
         csym: ClassFromSource, 
         cvis: asm.ClassVisitor, 
         methodName: Name.Method,
-        msig: MethodSignature[Pattern.Anon],
+        msig: MethodSignature[Pattern.Ref],
         opts: Int
     ) = {
         val mvis = cvis.visitMethod(
@@ -2020,7 +2018,7 @@ case class ByteCode(global: Global) {
         csym: ClassFromSource, 
         cvis: asm.ClassVisitor, 
         methodName: Name.Method,
-        msig: MethodSignature[Pattern.Anon],
+        msig: MethodSignature[Pattern.Ref],
         opts: Int
     ) = {
         val mvis = cvis.visitMethod(

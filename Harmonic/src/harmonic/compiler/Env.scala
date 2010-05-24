@@ -29,7 +29,7 @@ case class Env(
     locals: Map[Name.LocalVar, VarSymbol.Local],
     
     /** Tuples describing relations between paths. */
-    pathRels: List[(Path.Typed, PcRel, Path.Typed)],
+    pathRels: List[(Path.Ref, PcRel, Path.Ref)],
     
     /** Tuples describing relations between type variables and other types. */
     typeRels: List[(Type.Member, TcRel, Type.Ref)]
@@ -68,9 +68,9 @@ case class Env(
 
     def plusThis(thisTy: Type.Class, sym: VarSymbol.Local) = plusLocalVar(sym).copy(thisTy = thisTy)
     
-    def plusPathRel(rel: (Path.Typed, PcRel, Path.Typed)) = copy(pathRels = rel :: pathRels)
+    def plusPathRel(rel: (Path.Ref, PcRel, Path.Ref)) = copy(pathRels = rel :: pathRels)
 
-    def plusPathRels(rels: List[(Path.Typed, PcRel, Path.Typed)]) = rels.foldLeft(this)(_ plusPathRel _)
+    def plusPathRels(rels: List[(Path.Ref, PcRel, Path.Ref)]) = rels.foldLeft(this)(_ plusPathRel _)
 
     def plusTypeRel(rel: (Type.Member, TcRel, Type.Ref)) = copy(typeRels = rel :: typeRels)
     
@@ -78,17 +78,17 @@ case class Env(
     
     // ___ Querying the relations ___________________________________________
     
-    private[this] def pathsRelatedBy(Rel: PcRel): List[(Path.Typed, Path.Typed)] = pathRels.flatMap { 
+    private[this] def pathsRelatedBy(Rel: PcRel): List[(Path.Ref, Path.Ref)] = pathRels.flatMap { 
         case (p1, Rel, p2) => Some((p1, p2))
         case _ => None
     }
     
-    private[this] def pathsRelatedBy(Rel: PcRel, P2: Path.Typed): List[Path.Typed] = pathRels.flatMap { 
+    private[this] def pathsRelatedBy(Rel: PcRel, P2: Path.Ref): List[Path.Ref] = pathRels.flatMap { 
         case (p1, Rel, P2) => Some(p1)
         case _ => None
     }
     
-    private[this] def pathsRelatedBy(P1: Path.Typed, Rel: PcRel): List[Path.Typed] = pathRels.flatMap { 
+    private[this] def pathsRelatedBy(P1: Path.Ref, Rel: PcRel): List[Path.Ref] = pathRels.flatMap { 
         case (P1, Rel, p2) => Some(p2)
         case _ => None
     }
@@ -216,6 +216,57 @@ case class Env(
         }).getOrElse(List())
     }
     
+    // ___ Typed Paths ______________________________________________________   
+    //
+    // A Typed Path is simply a path where the symbols and type have been
+    // determined.  A typed path may include error symbols if fields or local
+    // variables found within are not defined.
+    
+    def typedPath(path: Path.Ref): Path.Typed = path match {
+        case Path.Base(name: Name.LocalVar) => {
+            val lvsym = locals.get(name).getOrElse(VarSymbol.errorLocal(name, None))
+            Path.TypedBase(lvsym)
+        }
+        
+        case Path.Base(name: Name.Member) => {
+            val csym = global.csym(name.className)
+            val fsym = lookupFieldOrError(csym.toType, name, None)
+            Path.TypedBase(fsym)
+        }
+        
+        case Path.Field(base, name) => {
+            val typedBase = typedPath(base)
+            val sym = lookupFieldOrError(typedBase.ty, name, None)
+            Path.TypedField(typedBase, sym)
+        }
+        
+        case Path.Cast(ty, base) => {
+            Path.TypedCast(ty, typedPath(base))
+        }
+        
+        case Path.Constant(obj) => {
+            Path.TypedConstant(obj)
+        }
+        
+        case Path.Index(array, index) => {
+            Path.TypedIndex(typedPath(array), typedPath(index))
+        }
+        
+        case Path.Tuple(paths) => {
+            Path.TypedTuple(paths.map(typedPath))
+        }
+        
+        case Path.BaseCall(_, _, _) => {
+            throw new RuntimeException("TODO")
+        }
+        
+        case Path.Call(_, _, _) => {
+            throw new RuntimeException("TODO")
+        }
+    }
+    
+    def typeOfPath(path: Path.Ref) = typedPath(path).ty
+    
     // ___ Equating Paths ___________________________________________________   
     //
     // Two paths are equatable if they will always refer to equal objects
@@ -223,8 +274,8 @@ case class Env(
     // pointer-equal or if they are value objects with the same
     // constituents.  
     
-    class Equater extends TransitiveCloser[Path.Typed] {
-        private[this] def crossAll(paths: List[Path.Typed]): List[List[Path.Typed]] = {
+    class Equater extends TransitiveCloser[Path.Ref] {
+        private[this] def crossAll(paths: List[Path.Ref]): List[List[Path.Ref]] = {
             paths match {
                 case path :: tl => {
                     val crossedTls = crossAll(tl)
@@ -239,10 +290,10 @@ case class Env(
             }
         }
         
-        protected[this] def successors(P1: Path.Typed): Iterable[Path.Typed] = {
+        protected[this] def successors(P1: Path.Ref): Iterable[Path.Ref] = {
             val byInduction = P1 match {
-                case Path.Field(base, fsym) => {
-                    compute(base).map(Path.Field(_, fsym))
+                case Path.Field(base, name) => {
+                    compute(base).map(Path.Field(_, name))
                 }
                 
                 case Path.Cast(_, base) => {
@@ -259,9 +310,9 @@ case class Env(
                     crossAll(paths).map(Path.Tuple)
                 }
                 
-                case Path.Call(receiver, msym, msig, args) => {
+                case Path.Call(receiver, methodName, args) => {
                     (compute(receiver) cross crossAll(args)).map { case (r, a) =>
-                        Path.Call(r, msym, msig, a)
+                        Path.Call(r, methodName, a)
                     }
                 }
                 
@@ -293,8 +344,8 @@ case class Env(
         }
     }
     
-    def equatable(path: Path.Typed) = debugIndent("equatable(%s)", path) { new Equater().compute(path) }
-    def pathsAreEquatable(path1: Path.Typed, path2: Path.Typed) = equatable(path1) contains path2
+    def equatable(path: Path.Ref) = debugIndent("equatable(%s)", path) { new Equater().compute(path) }
+    def pathsAreEquatable(path1: Path.Ref, path2: Path.Ref) = equatable(path1) contains path2
     
     // ___ Bounding Type Variables __________________________________________
     
@@ -321,7 +372,7 @@ case class Env(
                 }
             }
             
-            tyVar.path.ty match {
+            typeOfPath(tyVar.path) match {
                 case tyClass: Type.Class => boundsFromClassType(tyClass)
                 case tyVar: Type.Member => {
                     compute(tyVar).toList.flatMap {

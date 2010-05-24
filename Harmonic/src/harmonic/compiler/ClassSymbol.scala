@@ -43,13 +43,7 @@ abstract class ClassSymbol extends Symbol {
     )
     
     /** Creates a `Type.Class` for the class defined by this symbol. */
-    val toType = name.toType
-    
-    /** Symbol for the receiver which is used in method, field definitions */
-    val thisSym = new VarSymbol.Local(pos, Modifier.Set.empty, Name.ThisLocal, toType)
-    
-    /** Path for the receiver */
-    val thisPath = Path.Base(thisSym)
+    def toType: Type.Class = name.toType
     
     // ___ Invokable once header is resolved ________________________________
     

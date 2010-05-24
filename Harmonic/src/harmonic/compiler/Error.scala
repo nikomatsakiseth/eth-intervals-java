@@ -12,22 +12,6 @@ abstract class Error {
 }
 
 object Error {
-    case class CircularMethodType(className: Name, methodName: Name.Method) extends Error {
-        def report(global: Global, pos: Position) {
-            global.reporter.report(pos, 
-                "circular.method.type", className.toString, methodName.toString
-            )
-        }                
-    }
-    
-    case class CircularMemberType(memberName: Name.Member) extends Error {
-        def report(global: Global, pos: Position) {
-            global.reporter.report(pos, 
-                "circular.member.type", memberName.toString
-            )
-        }                
-    }
-    
     case class NotOverride(className: Name.Class, methodName: Name.Method) extends Error {
         def report(global: Global, pos: Position) {
             global.reporter.report(pos, 
@@ -80,6 +64,7 @@ object Error {
             )
         }
     }
+
 
     case class AmbiguousInheritance(
         className: Name.Class,

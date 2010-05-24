@@ -50,7 +50,7 @@ class ClassFromReflection(
                         kind      = MethodKind.JavaDummyCtor,
                         clsName   = name,
                         name      = Name.InitMethod,
-                        MethodSignature(Type.Void, List())
+                        MethodSignature(Type.Void, toType, List())
                     )
                 )
             }            
@@ -111,11 +111,11 @@ class ClassFromReflection(
             ty.getGenericDeclaration match {
                 case cls: java.lang.Class[_] => {
                     val name = Name.Class(cls)
-                    Type.Member(thisPath, Name.Member(name, ty.getName))    
+                    Type.Member(Path.This, Name.Member(name, ty.getName))    
                 }                                
                 case _ => {
                     // TODO Method type variables... how can we do it?                    
-                    Type.Member(thisPath, Name.Member(Name.ObjectClass, ty.getName))                                    
+                    Type.Member(Path.This, Name.Member(Name.ObjectClass, ty.getName))                                    
                 }
             }
         }
@@ -140,10 +140,10 @@ class ClassFromReflection(
     }
     
     private[this] def paramPattern(pair: (reflect.Type, Int)) = {
-        val (tref, index) = pair
-        val name = Name.LocalVar("arg"+index)
-        val sym = new VarSymbol.Local(pos, Modifier.Set.empty, name, typeRef(tref))
-        Pattern.Var(sym)
+        Pattern.Var(
+            name = Name.LocalVar("arg"+pair._2),
+            ty   = typeRef(pair._1)
+        )
     }
     
     private[this] def ctorSymbol(mthd: reflect.Constructor[_]) = {
@@ -161,6 +161,7 @@ class ClassFromReflection(
             name      = Name.InitMethod,
             MethodSignature(
                 returnTy          = Type.Void,
+                receiverTy        = toType,
                 parameterPatterns = List(Pattern.Tuple(
                     mthd.getGenericParameterTypes.toList.zipWithIndex.map(paramPattern)))
             )
@@ -190,6 +191,7 @@ class ClassFromReflection(
             name      = Name.Method(List(mthd.getName)),
             MethodSignature(
                 returnTy          = typeRef(mthd.getGenericReturnType),
+                receiverTy        = toType,
                 parameterPatterns = List(Pattern.Tuple(
                     mthd.getGenericParameterTypes.toList.zipWithIndex.map(paramPattern)))
             )
@@ -244,7 +246,7 @@ class ClassFromReflection(
     // If there is a java method foo(int) and another foo(Integer), just
     // drop the foo(int) version.  
     private[this] def elimPrimitiveConflicts(msyms: List[MethodSymbol]) = debugIndent("elimPrimitiveConflicts(%s)", cls) {
-        val methodMap = new mutable.HashMap[(Name.Method, List[Pattern.Anon]), MethodSymbol]()
+        val methodMap = new mutable.HashMap[(Name.Method, List[Pattern.Ref]), MethodSymbol]()
         
         // Safe because we only ever generate symbols with a kind of MethodKind.Java:
         def argClasses(msym: MethodSymbol) =

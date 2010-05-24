@@ -59,6 +59,7 @@ case class Intrinsic(global: Global) {
                         name = interName, 
                         MethodSignature(
                             returnTy = returnTy,
+                            receiverTy = leftTy,
                             parameterPatterns = List(Pattern.Var(Name.LocalVar("arg"), rightTy))
                         )
                     )
@@ -130,6 +131,7 @@ case class Intrinsic(global: Global) {
                 name = Name.Method(List("if")),
                 MethodSignature(
                     returnTy = voidTy,
+                    receiverTy = booleanTy,
                     parameterPatterns = List(
                         Pattern.Var(Name.LocalVar("ifTmpl"), templateTy(voidTy, voidTy))
                     )
@@ -151,6 +153,7 @@ case class Intrinsic(global: Global) {
                 name = Name.Method(List("ifNull")),
                 MethodSignature(
                     returnTy = voidTy,
+                    receiverTy = objectTy,
                     parameterPatterns = List(
                         Pattern.Var(Name.LocalVar("ifTmpl"), templateTy(voidTy, voidTy))
                     )
@@ -172,6 +175,7 @@ case class Intrinsic(global: Global) {
                 name = Name.Method(List("if", "else")),
                 MethodSignature(
                     returnTy = voidTy, /* ΧΧΧ Generic Method */
+                    receiverTy = booleanTy,
                     parameterPatterns = List(
                         Pattern.Var(Name.LocalVar("ifTmpl"), templateTy(voidTy, voidTy)),
                         Pattern.Var(Name.LocalVar("elseTmpl"), templateTy(voidTy, voidTy))
@@ -194,6 +198,7 @@ case class Intrinsic(global: Global) {
                 name = Name.Method(List("ifNull", "else")),
                 MethodSignature(
                     returnTy = voidTy, /* ΧΧΧ Generic Method */
+                    receiverTy = objectTy,
                     parameterPatterns = List(
                         Pattern.Var(Name.LocalVar("ifTmpl"), templateTy(voidTy, voidTy)),
                         Pattern.Var(Name.LocalVar("elseTmpl"), templateTy(voidTy, voidTy))
@@ -217,6 +222,7 @@ case class Intrinsic(global: Global) {
                 name = Name.Method(List("forEach")),
                 MethodSignature(
                     returnTy = voidTy,
+                    receiverTy = iterableTy,
                     parameterPatterns = List(
                         Pattern.Var(
                             Name.LocalVar("eachTmpl"), 
@@ -241,6 +247,7 @@ case class Intrinsic(global: Global) {
                 name = Name.Method(List("while")),
                 MethodSignature(
                     returnTy = voidTy, 
+                    receiverTy = templateTy(booleanTy, voidTy),
                     parameterPatterns = List(
                         Pattern.Var(Name.LocalVar("bodyTmpl"), templateTy(voidTy, voidTy))
                     )
