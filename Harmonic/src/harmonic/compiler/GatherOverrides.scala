@@ -44,7 +44,7 @@ case class GatherOverrides(global: Global) {
         }
         
         private[this] def isCompatibleWith(
-            msig: MethodSignature[Pattern.Ref]
+            msig: MethodSignature[Pattern.Method]
         )(
             group: MethodGroup
         ) = {
@@ -101,7 +101,7 @@ case class GatherOverrides(global: Global) {
                     if(msym.overrides.isEmpty && msym.modifiers.isOverride) {
                         Error.NotOverride(csym.name, msym.name).report(global, msym.pos)
                     } else if (!msym.overrides.isEmpty && !msym.modifiers.isOverride) {
-                        val classNames = msym.overrides.map(_.clsName).toList
+                        val classNames = msym.overrides.map(_.className).toList
                         Error.NotMarkedOverride(msym.name, classNames).report(global, msym.pos)
                     }                    
                 }
@@ -137,7 +137,7 @@ case class GatherOverrides(global: Global) {
                         if(reported.add((msym1, msym2)) && reported.add((msym2, msym1))) {
                             Error.MustResolveAmbiguousInheritance(
                                 csym.name, group.methodName, 
-                                msym1.clsName, msym2.clsName
+                                msym1.className, msym2.className
                             ).report(global, csym.pos)
                         }
                     }

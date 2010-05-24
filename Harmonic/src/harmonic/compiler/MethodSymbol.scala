@@ -5,15 +5,15 @@ import scala.collection.mutable
 
 object MethodSymbol {
     
-    def error(name: Name.Method, clsName: Name.Class) = {
+    def error(name: Name.Method, className: Name.Class) = {
         val parameterPatterns = name.parts.zipWithIndex.map { case (_, i) => 
             Pattern.Var(Name.LocalVar("arg%d".format(i)), Type.Object)
         }
         new MethodSymbol(
-            pos       = InterPosition.forClassNamed(clsName),
+            pos       = InterPosition.forClassNamed(className),
             modifiers = Modifier.Set.empty,
             kind      = MethodKind.ErrorMethod, 
-            clsName   = clsName, 
+            className   = className, 
             name      = name, 
             MethodSignature(Type.Null, Type.Null, parameterPatterns)
         ) {
@@ -27,13 +27,13 @@ class MethodSymbol(
     val pos: Position,
     val modifiers: Modifier.Set,
     val kind: MethodKind,            /** Intrinsic, harmonic, java, etc. */
-    val clsName: Name.Class,         /** Class in which the method is defined. */
+    val className: Name.Class,         /** Class in which the method is defined. */
     val name: Name.Method,           /** Name of the method. */
     val msig: MethodSignature[Pattern.Method]
 ) extends Symbol {
     override def toString = "MethodSymbol(%s, %x)".format(name, System.identityHashCode(this))
     
-    def isFromClassNamed(aName: Name.Qual) = (clsName == aName)
+    def isFromClassNamed(aName: Name.Qual) = (className == aName)
     def isNamed(aName: Name.Method) = (name == aName)
     
     def substForFlatArgs(flatArgs: List[Path.Typed]) = {

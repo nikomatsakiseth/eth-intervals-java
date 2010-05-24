@@ -1,9 +1,26 @@
 package harmonic.compiler
 
+import scala.util.parsing.input.Positional
+import scala.util.parsing.input.Position
+import scala.util.parsing.input.NoPosition
+
 case class Intrinsic(global: Global) {
     
-    def ensureLoadable(cls: Class[_]) {
-        global.requireLoadedOrLoadable(InterPosition.forClass(cls), Name.Class(cls))
+    def requireLoadedOrLoadable(cls: Class[_]) = {
+        val className = Name.Class(cls)
+        global.requireLoadedOrLoadable(InterPosition.forClass(cls), className)
+        global.csym(className)
+    }
+    
+    def argPats(types: Type.Ref*) = {
+        types.zipWithIndex.toList.map { case (ty, idx) =>
+            Pattern.Var(new VarSymbol.Local(
+                NoPosition, 
+                Modifier.Set.empty,
+                Name.LocalVar("arg%d".format(idx)),
+                ty
+            ))
+        }
     }
     
     // ___ IntrinsicMath ____________________________________________________
@@ -31,7 +48,7 @@ case class Intrinsic(global: Global) {
     
     private[this] def addMathTo() = {
         
-        numericTypes.foreach(ensureLoadable)
+        numericTypes.foreach(requireLoadedOrLoadable)
         
         for(leftClass <- numericTypes; rightClass <- numericTypes) {
             val returnIndex = (
@@ -55,12 +72,9 @@ case class Intrinsic(global: Global) {
                             Array(leftClass, rightClass),
                             returnClass
                         ),
-                        clsName = leftTy.name,
+                        className = leftTy.name,
                         name = interName, 
-                        MethodSignature(
-                            returnTy = returnTy,
-                            parameterPatterns = List(Pattern.Var(Name.LocalVar("arg"), rightTy))
-                        )
+                        MethodSignature(returnTy, argPats(rightTy))
                     )
                 )
             }
@@ -76,13 +90,13 @@ case class Intrinsic(global: Global) {
         val voidClass = classOf[java.lang.Void]
         val objectClass = classOf[java.lang.Object]
         val iterableClass = classOf[java.lang.Iterable[_]]
-        val templateClass = classOf[harmonic.lang.Block[_, _]]
+        val blockClass = classOf[harmonic.lang.Block[_, _]]
         
-        ensureLoadable(booleanClass)
-        ensureLoadable(voidClass)
-        ensureLoadable(objectClass)
-        ensureLoadable(iterableClass)
-        ensureLoadable(templateClass)
+        val booleanSym = requireLoadedOrLoadable(booleanClass)
+        val voidSym = requireLoadedOrLoadable(voidClass)
+        val objectSym = requireLoadedOrLoadable(objectClass)
+        val iterableSym = requireLoadedOrLoadable(iterableClass)
+        val blockSym = requireLoadedOrLoadable(blockClass)
         
         val booleanTy = Type.Class(booleanClass)
         val voidTy = Type.Class(voidClass)
@@ -103,12 +117,12 @@ case class Intrinsic(global: Global) {
             )
         }
         
-        def templateTy(
+        def blockTy(
             returnTy: Type.Ref,
             argumentTy: Type.Ref
         ) = {
             Type.Class(
-                Name.Class(templateClass),
+                Name.Class(blockClass),
                 List(
                     Type.TypeArg(Name.BlockR, TcEq, returnTy),
                     Type.TypeArg(Name.BlockA, TcEq, argumentTy)
@@ -123,17 +137,12 @@ case class Intrinsic(global: Global) {
                 modifiers = Modifier.Set.empty,
                 kind = controlFlow(
                     "if_",
-                    Array(booleanClass, templateClass),
+                    Array(booleanClass, blockClass),
                     voidClass
                 ),
-                clsName = booleanTy.name,
+                className = booleanTy.name,
                 name = Name.Method(List("if")),
-                MethodSignature(
-                    returnTy = voidTy,
-                    parameterPatterns = List(
-                        Pattern.Var(Name.LocalVar("ifTmpl"), templateTy(voidTy, voidTy))
-                    )
-                )
+                MethodSignature(voidTy, argPats(blockTy(voidTy, voidTy)))
             )
         )
         
@@ -144,17 +153,12 @@ case class Intrinsic(global: Global) {
                 modifiers = Modifier.Set.empty,
                 kind = controlFlow(
                     "ifNull",
-                    Array(objectClass, templateClass),
+                    Array(objectClass, blockClass),
                     voidClass
                 ),
-                clsName = objectTy.name,
+                className = objectTy.name,
                 name = Name.Method(List("ifNull")),
-                MethodSignature(
-                    returnTy = voidTy,
-                    parameterPatterns = List(
-                        Pattern.Var(Name.LocalVar("ifTmpl"), templateTy(voidTy, voidTy))
-                    )
-                )
+                MethodSignature(voidTy, argPats(blockTy(voidTy, voidTy)))
             )
         )
 
@@ -165,16 +169,16 @@ case class Intrinsic(global: Global) {
                 modifiers = Modifier.Set.empty,
                 kind = controlFlow(
                     "ifElse",
-                    Array(booleanClass, templateClass, templateClass),
+                    Array(booleanClass, blockClass, blockClass),
                     objectClass
                 ),
-                clsName = booleanTy.name,
+                className = booleanTy.name,
                 name = Name.Method(List("if", "else")),
                 MethodSignature(
                     returnTy = voidTy, /* ΧΧΧ Generic Method */
-                    parameterPatterns = List(
-                        Pattern.Var(Name.LocalVar("ifTmpl"), templateTy(voidTy, voidTy)),
-                        Pattern.Var(Name.LocalVar("elseTmpl"), templateTy(voidTy, voidTy))
+                    parameterPatterns = argPats(
+                        blockTy(voidTy, voidTy),
+                        blockTy(voidTy, voidTy)
                     )
                 )
             )
@@ -187,41 +191,38 @@ case class Intrinsic(global: Global) {
                 modifiers = Modifier.Set.empty,
                 kind = controlFlow(
                     "ifNullElse",
-                    Array(objectClass, templateClass, templateClass),
+                    Array(objectClass, blockClass, blockClass),
                     objectClass
                 ),
-                clsName = objectTy.name,
+                className = objectTy.name,
                 name = Name.Method(List("ifNull", "else")),
                 MethodSignature(
                     returnTy = voidTy, /* ΧΧΧ Generic Method */
-                    parameterPatterns = List(
-                        Pattern.Var(Name.LocalVar("ifTmpl"), templateTy(voidTy, voidTy)),
-                        Pattern.Var(Name.LocalVar("elseTmpl"), templateTy(voidTy, voidTy))
+                    parameterPatterns = argPats(
+                        blockTy(voidTy, voidTy), 
+                        blockTy(voidTy, voidTy)
                     )
                 )
             )
         )
         
         // (Iterable<T>) forEach { (T i) -> ... }
-        val typeT = Type.Member(Path.This, Name.Member(iterableTy.name, "T"))
+        val typeT = Type.Member(iterableSym.thisSym.toPath, Name.Member(iterableTy.name, "T"))
         global.addIntrinsic(
             new MethodSymbol(
                 pos = InterPosition.forClass(classOf[Intrinsic]),
                 modifiers = Modifier.Set.empty,
                 kind = controlFlow(
                     "forEach",
-                    Array(iterableClass, templateClass),
+                    Array(iterableClass, blockClass),
                     voidClass
                 ),
-                clsName = iterableTy.name,
+                className = iterableTy.name,
                 name = Name.Method(List("forEach")),
                 MethodSignature(
                     returnTy = voidTy,
-                    parameterPatterns = List(
-                        Pattern.Var(
-                            Name.LocalVar("eachTmpl"), 
-                            templateTy(voidTy, typeT)
-                        )
+                    parameterPatterns = argPats(
+                        blockTy(voidTy, typeT)
                     )
                 )
             )
@@ -234,15 +235,15 @@ case class Intrinsic(global: Global) {
                 modifiers = Modifier.Set.empty,
                 kind = controlFlow(
                     "while_",
-                    Array(templateClass, templateClass),
+                    Array(blockClass, blockClass),
                     objectClass
                 ),
-                clsName = Name.Class(templateClass),
+                className = Name.Class(blockClass),
                 name = Name.Method(List("while")),
                 MethodSignature(
                     returnTy = voidTy, 
-                    parameterPatterns = List(
-                        Pattern.Var(Name.LocalVar("bodyTmpl"), templateTy(voidTy, voidTy))
+                    parameterPatterns = argPats(
+                        blockTy(voidTy, voidTy)
                     )
                 )
             )

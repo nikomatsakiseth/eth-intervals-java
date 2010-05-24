@@ -12,7 +12,7 @@ abstract class Error {
 }
 
 object Error {
-    case class CircularMethodType(className: Name, methodName: Name.Method) extends Error {
+    case class CircularMethodType(className: Name.Class, methodName: Name.Method) extends Error {
         def report(global: Global, pos: Position) {
             global.reporter.report(pos, 
                 "circular.method.type", className.toString, methodName.toString

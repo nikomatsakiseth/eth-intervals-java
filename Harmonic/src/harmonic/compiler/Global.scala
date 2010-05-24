@@ -56,7 +56,7 @@ class Global(
     val intrinsics = new mutable.HashMap[(Name.Qual, Name.Method), List[MethodSymbol]]()
     
     def addIntrinsic(msym: MethodSymbol) {
-        val key = (msym.clsName, msym.name)
+        val key = (msym.className, msym.name)
         intrinsics(key) = msym :: intrinsics.get(key).getOrElse(Nil)
     }
     

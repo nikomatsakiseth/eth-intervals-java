@@ -18,7 +18,7 @@ object Path {
     ) extends Typed {
         def ty = msig.returnTy
         override def toString = "%s.%s(%s)".format(
-            msym.clsName, msym.name.javaName, args.mkString(", ")
+            msym.className, msym.name.javaName, args.mkString(", ")
         )
     }
     case class Cast(ty: Type.Ref, path: Typed) extends Typed {
@@ -33,7 +33,7 @@ object Path {
         override def toString = obj.toString
     }
     object Constant {
-        def integer(idx: Int) = TypedConstant(java.lang.Integer.valueOf(idx))
+        def integer(idx: Int) = Constant(java.lang.Integer.valueOf(idx))
     }
     case class Field(base: Path.Typed, fsym: VarSymbol.Field) extends Typed {
         lazy val ty = {
