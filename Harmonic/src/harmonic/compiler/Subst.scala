@@ -22,10 +22,10 @@ class Subst(private val map: Map[Path.Ref, Path.Ref]) {
             Path.Index(path(array), path(index))
         case (None, Path.Tuple(paths)) => 
             Path.Tuple(paths.map(path))
-        case (None, Path.BaseCall(className, methodName, args)) => 
-            Path.BaseCall(className, methodName, args.map(path))
-        case (None, Path.Call(receiver, methodName, args)) => 
-            Path.Call(path(receiver), methodName, args.map(path))
+        case (None, Path.BaseCall(methodId, args)) => 
+            Path.BaseCall(methodId, args.map(path))
+        case (None, Path.Call(receiver, methodId, args)) => 
+            Path.Call(path(receiver), methodId, args.map(path))
     }
     
     def pattern(p: Pattern.Anon): Pattern.Anon = p match {
@@ -48,7 +48,6 @@ class Subst(private val map: Map[Path.Ref, Path.Ref]) {
     def methodSignature(msig: MethodSignature[Pattern.Anon]) = {
         MethodSignature(
             returnTy = ty(msig.returnTy),
-            receiverTy = ty(msig.receiverTy),
             parameterPatterns = msig.parameterPatterns.map(pattern)
         )
     }

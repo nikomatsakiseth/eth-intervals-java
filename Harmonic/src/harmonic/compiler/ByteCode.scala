@@ -1029,7 +1029,7 @@ case class ByteCode(global: Global) {
                         case harm: MethodKind.Harmonic => {
                             pushPathValue(receiver)
                             pushMethodArgs(msym, msig, 1, args)
-                            val owner = msig.receiverTy.toAsmType.getInternalName
+                            val owner = receiver.ty.toAsmType.getInternalName
                             val desc = plainMethodDescFromSig(msym.msig)
                             mvis.visitMethodInsn(harm.op, owner, msym.name.javaName, desc)
                         }
@@ -1614,7 +1614,6 @@ case class ByteCode(global: Global) {
             
             val methodSig = MethodSignature(
                 tmpl.returnTref.ty,
-                blockTy,
                 List(tmpl.param.toPatternRef)
             )
 
@@ -1652,7 +1651,6 @@ case class ByteCode(global: Global) {
             // Emit a forwarding method from the interface version:
             val interfaceMethodSig = MethodSignature(
                 Type.Object,
-                blockTy,
                 List(Pattern.Var(Name.LocalVar("arg"), Type.Object))
             )
             writeForwardingMethodIfNeeded(

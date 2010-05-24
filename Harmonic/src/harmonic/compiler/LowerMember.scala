@@ -56,7 +56,6 @@ class LowerMember(
                             name      = MthdName,
                             MethodSignature(
                                 returnTy          = outReturnTref.ty,
-                                receiverTy        = csym.toType,
                                 parameterPatterns = outParams.map(_.toPatternRef)
                             )                        
                         )

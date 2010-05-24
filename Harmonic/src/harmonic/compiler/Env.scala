@@ -256,7 +256,7 @@ case class Env(
             Path.TypedTuple(paths.map(typedPath))
         }
         
-        case Path.BaseCall(_, _, _) => {
+        case Path.BaseCall(_, _) => {
             throw new RuntimeException("TODO")
         }
         
@@ -316,7 +316,7 @@ case class Env(
                     }
                 }
                 
-                case Path.Base(_) | Path.Constant(_) | Path.BaseCall(_, _, _)=> {
+                case Path.Base(_) | Path.Constant(_) | Path.BaseCall(_, _)=> {
                     Set()
                 }
             }

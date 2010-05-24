@@ -3,14 +3,17 @@ package harmonic.compiler
 import scala.collection.immutable.Set
 
 object Path {
+    
+    // ___ Untyped Paths ____________________________________________________
+    
     sealed abstract class Ref
     /** Local variable or static field */
     case class Base(v: Name.Var) extends Ref {
         override def toString = v.toString
     }
     /** Static call */
-    case class BaseCall(className: Name.Class, methodName: Name.Method, args: List[Path.Ref]) extends Ref {
-        override def toString = "%s.%s(%s)".format(className, methodName.javaName, args.mkString(", "))
+    case class BaseCall(methodId: MethodId, args: List[Path.Ref]) extends Ref {
+        override def toString = "%s(%s)".format(methodId, args.mkString(", "))
     }
     case class Cast(ty: Type.Ref, path: Ref) extends Ref {
         override def toString = "(%s)%s".format(ty, path)
@@ -26,8 +29,8 @@ object Path {
         override def toString = base.toString + "." + f.toString
     }
     /** Virtual call, parameters flatened */
-    case class Call(receiver: Path.Ref, methodName: Name.Method, args: List[Path.Ref]) extends Ref {
-        override def toString = "%s.%s(%s)".format(receiver, methodName.javaName, args.mkString(", "))
+    case class Call(receiver: Path.Ref, methodId: MethodId, args: List[Path.Ref]) extends Ref {
+        override def toString = "%s.%s(%s)".format(receiver, methodId, args.mkString(", "))
     }
     case class Index(array: Path.Ref, index: Path.Ref) extends Ref {
         override def toString = "%s[%s]".format(array, index)
@@ -38,6 +41,8 @@ object Path {
     
     val This = Path.Base(Name.ThisLocal)    
     val Method = Path.Base(Name.MethodLocal)
+    
+    // ___ Typed Paths ______________________________________________________
     
     sealed abstract class Typed {
         def ty: Type.Ref
@@ -55,7 +60,7 @@ object Path {
         args: List[Path.Typed]
     ) extends Typed {
         def ty = msig.returnTy
-        def toPath = Path.BaseCall(msym.clsName, msym.name, args.map(_.toPath))
+        def toPath = Path.BaseCall(msym.id, args.map(_.toPath))
         override def toString = toPath.toString
     }
     case class TypedCast(ty: Type.Ref, path: Typed) extends Typed {
@@ -87,7 +92,7 @@ object Path {
         args: List[Path.Typed]
     ) extends Typed {
         def ty = msig.returnTy
-        def toPath = Path.Call(receiver.toPath, msym.name, args.map(_.toPath))
+        def toPath = Path.Call(receiver.toPath, msym.id, args.map(_.toPath))
         override def toString = toPath.toString
     }
     case class TypedIndex(array: Path.Typed, index: Path.Typed) extends Typed {

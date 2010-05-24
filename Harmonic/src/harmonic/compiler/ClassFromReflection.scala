@@ -50,7 +50,7 @@ class ClassFromReflection(
                         kind      = MethodKind.JavaDummyCtor,
                         clsName   = name,
                         name      = Name.InitMethod,
-                        MethodSignature(Type.Void, toType, List())
+                        MethodSignature(Type.Void, List())
                     )
                 )
             }            
@@ -161,7 +161,6 @@ class ClassFromReflection(
             name      = Name.InitMethod,
             MethodSignature(
                 returnTy          = Type.Void,
-                receiverTy        = toType,
                 parameterPatterns = List(Pattern.Tuple(
                     mthd.getGenericParameterTypes.toList.zipWithIndex.map(paramPattern)))
             )
@@ -191,7 +190,6 @@ class ClassFromReflection(
             name      = Name.Method(List(mthd.getName)),
             MethodSignature(
                 returnTy          = typeRef(mthd.getGenericReturnType),
-                receiverTy        = toType,
                 parameterPatterns = List(Pattern.Tuple(
                     mthd.getGenericParameterTypes.toList.zipWithIndex.map(paramPattern)))
             )

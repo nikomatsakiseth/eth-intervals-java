@@ -15,7 +15,7 @@ object MethodSymbol {
             kind      = MethodKind.ErrorMethod, 
             clsName   = clsName, 
             name      = name, 
-            MethodSignature(Type.Null, Type.Null, parameterPatterns)
+            MethodSignature(Type.Null, parameterPatterns)
         ) {
             override def isError = true
         }
@@ -32,6 +32,8 @@ class MethodSymbol(
     val msig: MethodSignature[Pattern.Ref]
 ) extends Symbol {
     override def toString = "MethodSymbol(%s, %x)".format(name, System.identityHashCode(this))
+    
+    def id = MethodId(clsName, name, msig)
     
     def isFromClassNamed(aName: Name.Qual) = (clsName == aName)
     def isNamed(aName: Name.Method) = (name == aName)

@@ -35,7 +35,6 @@ case class Lower(global: Global) {
             name      = Name.InitMethod,
             MethodSignature(
                 returnTy = Type.Void,
-                receiverTy = csym.toType,
                 parameterPatterns = List(csym.classParam.toPatternRef)
             )
         )
@@ -280,8 +279,6 @@ case class Lower(global: Global) {
                 val path = expr match {
                     case in.PathBase(Ast.LocalName(name), ()) =>
                         Path.Base(name)
-                    case in.Field(in.Static(className), name, _) => 
-                        Path.Base(name.name.inDefaultClass(className))
                     case _ => 
                         Path.Base(Name.LocalVar(tmpVarName(expr)))
                 }
@@ -301,7 +298,10 @@ case class Lower(global: Global) {
             case in.Static(_) | in.Super(_) => 
                 substFromPatExprs(msig.parameterPatterns, args)
             case rcvr: in.Expr =>
-                substFromPatExprs(msig.thisPattern :: msig.parameterPatterns, rcvr :: args)
+                substFromPatExprs(
+                    Pattern.Var(Name.ThisLocal, msym.clsName.toType) :: msig.parameterPatterns, 
+                    rcvr :: args
+                )
         }
     }
     
