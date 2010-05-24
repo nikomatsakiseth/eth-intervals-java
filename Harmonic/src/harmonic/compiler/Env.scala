@@ -3,7 +3,6 @@ package harmonic.compiler
 import scala.collection.immutable.Set
 import scala.collection.immutable.Queue
 import scala.collection.mutable
-import scala.util.parsing.input.NoPosition
 
 import Util._
 import Error.CanFail
@@ -586,14 +585,13 @@ case class Env(
     /** Adds mappings to fresh names for each variable defined in `pat` */
     private[this] def addFresh(
         subst: Subst,
-        pat: Pattern.Method
+        pat: Pattern.Ref
     ): Subst = {
         pat match {
             case Pattern.Tuple(pats) => pats.foldLeft(subst)(addFresh)
-            case Pattern.Var(sym) => {
+            case Pattern.Var(name, _) => {
                 val freshName = Name.LocalVar("(env-%s)".format(global.freshInteger()))
-                val freshSym = new VarSymbol.Local(NoPosition, Modifier.Set.empty, freshName, sym.ty)
-                subst + (sym -> freshSym.toPath)
+                subst + (name.toPath -> freshName.toPath)
             }
         }
     }
@@ -611,7 +609,7 @@ case class Env(
       */
     private[this] def addOverrideSubst(
         subst: Subst,
-        pair: (Pattern.Method, Pattern.Method)
+        pair: (Pattern.Ref, Pattern.Ref)
     ): Subst = {
         pair match {
             case (Pattern.Tuple(List(pat_sub)), pat_sup) =>
@@ -620,8 +618,8 @@ case class Env(
             case (pat_sub, Pattern.Tuple(List(pat_sup))) =>
                 addOverrideSubst(subst, (pat_sub, pat_sup))
             
-            case (Pattern.Var(sym_sub), Pattern.Var(sym_sup)) =>
-                subst + (sym_sub -> sym_sup.toPath)
+            case (Pattern.Var(name_sub, _), Pattern.Var(name_sup, _)) =>
+                subst + (name_sub.toPath -> name_sup.toPath)
                 
             case (Pattern.Tuple(pats_sub), Pattern.Tuple(pats_sup)) if sameLength(pats_sub, pats_sup) =>
                 pats_sub.zip(pats_sup).foldLeft(subst)(addOverrideSubst)
@@ -638,8 +636,8 @@ case class Env(
       * The "current class" means the one whose relations are to
       * be found in the environment. */
     def overrides(
-        msig_sub: MethodSignature[Pattern.Method], 
-        msig_sup: MethodSignature[Pattern.Method]
+        msig_sub: MethodSignature[Pattern.Ref], 
+        msig_sup: MethodSignature[Pattern.Ref]
     ) = {
         val pps_sub = msig_sub.parameterPatterns
         val pps_sup = msig_sup.parameterPatterns

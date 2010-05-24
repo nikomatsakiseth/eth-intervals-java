@@ -18,9 +18,11 @@ case class Lower(global: Global) {
     
     def classParamAndEnv(csym: ClassFromSource): (out.Param[VarSymbol.Field], Env) = {
         val thisTy = Type.Class(csym.name, List())
-        val env0 = emptyEnv.plusThis(thisTy, csym.thisSym)
+        val thisSym = new VarSymbol.Local(csym.pos, Modifier.Set.empty, Name.ThisLocal, thisTy)
+        val env0 = emptyEnv.plusThis(thisTy, thisSym)
         val cdecl = csym.resolvedSource
-        lowerClassParam(csym, env0, cdecl.pattern)
+        val (outParam, env) = lowerClassParam(csym, env0, cdecl.pattern)
+        (outParam, env)
     }
     
     def createSymbolForConstructor(csym: ClassFromSource) = {
@@ -29,7 +31,7 @@ case class Lower(global: Global) {
             pos       = cdecl.pattern.pos,
             modifiers = Modifier.Set.empty,
             kind      = MethodKind.HarmonicCtor,
-            className   = csym.name,
+            clsName   = csym.name,
             name      = Name.InitMethod,
             MethodSignature(
                 returnTy = Type.Void,
@@ -89,10 +91,9 @@ case class Lower(global: Global) {
     
     def lowerMethodDecl(
         csym: ClassFromSource, 
-        mdecl: in.MethodDecl,
-        outParams: List[out.Param[VarSymbol.Local]],
-        env: Env
+        mdecl: in.MethodDecl
     ): out.MethodDecl = {
+        val (outParams, env) = lowerMethodParams(csym.classEnv, mdecl.params)
         val optBody = mdecl.optBody.map(lowerBody(env, _))
 
         val returnTy = (mdecl.returnTref, optBody) match {
@@ -152,7 +153,7 @@ case class Lower(global: Global) {
     }
     
     // Method parameters always have a specified type.  
-    def lowerMethodParams(classEnv: Env, inParams: List[in.Param[Unit]]): (List[Pattern.Method], Env) = {
+    def lowerMethodParams(classEnv: Env, inParams: List[in.Param[Unit]]): List[Pattern.Method] = {
         def newSym(pos: Position, modifiers: Modifier.Set, name: Name.LocalVar, ty: Type.Ref) = 
             new VarSymbol.Local(pos, modifiers, name, ty)
         def addSym(env: Env, sym: VarSymbol.Local) = env.plusLocalVar(sym)
@@ -160,7 +161,7 @@ case class Lower(global: Global) {
     }
     
     // The type of block parameters can be inferred from context.
-    def lowerBlockParam(env: Env, expTy: Type.Ref, inParam: in.Param[Unit]): (Pattern.Method, Env) = {
+    def lowerBlockParam(env: Env, expTy: Type.Ref, inParam: in.Param[Unit]): Pattern.Method = {
         def newSym(pos: Position, modifiers: Modifier.Set, name: Name.LocalVar, ty: Type.Ref) = 
             new VarSymbol.Local(pos, modifiers, name, ty)
         def addSym(env: Env, sym: VarSymbol.Local) = env.plusLocalVar(sym)
@@ -232,7 +233,7 @@ case class Lower(global: Global) {
     
     // ___ Substitutions ____________________________________________________
     
-    def addPatPathToSubst(subst: Subst, pair: (Pattern.Method, Path.Typed)): Subst = {
+    def addPatPathToSubst(subst: Subst, pair: (Pattern.Ref, Path.Typed)): Subst = {
         pair match {
             case (Pattern.Tuple(List(pat)), path) => 
                 addPatPathToSubst(subst, (pat, path))
@@ -248,12 +249,12 @@ case class Lower(global: Global) {
                     addPatPathToSubst(s, (pat, Path.Index(array, Path.Constant.integer(idx))))
                 }
             
-            case (Pattern.Var(sym), path) =>
-                subst + (sym.toPath -> path)
+            case (Pattern.Var(name, _), path) =>
+                subst + (name.toPath -> path)
         }
     }
     
-    def addPatExprToSubst(subst: Subst, pair: (Pattern.Method, in.Expr)): Subst = {
+    def addPatExprToSubst(subst: Subst, pair: (Pattern.Ref, in.Expr)): Subst = {
         pair match {
             case (pat, in.Tuple(List(expr))) =>
                 addPatExprToSubst(subst, (pat, expr))

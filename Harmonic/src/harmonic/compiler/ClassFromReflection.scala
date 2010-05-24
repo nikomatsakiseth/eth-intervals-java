@@ -48,7 +48,7 @@ class ClassFromReflection(
                         pos       = pos, 
                         modifiers = Modifier.Set.empty,
                         kind      = MethodKind.JavaDummyCtor,
-                        className   = name,
+                        clsName   = name,
                         name      = Name.InitMethod,
                         MethodSignature(Type.Void, List())
                     )
@@ -157,7 +157,7 @@ class ClassFromReflection(
                 mthd.getParameterTypes,
                 classOf[Unit]
             ),
-            className   = name,
+            clsName   = name,
             name      = Name.InitMethod,
             MethodSignature(
                 returnTy          = Type.Void,
@@ -186,7 +186,7 @@ class ClassFromReflection(
                 mthd.getParameterTypes,
                 mthd.getReturnType
             ),
-            className   = name,
+            clsName   = name,
             name      = Name.Method(List(mthd.getName)),
             MethodSignature(
                 returnTy          = typeRef(mthd.getGenericReturnType),

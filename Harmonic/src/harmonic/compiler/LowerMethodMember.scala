@@ -44,7 +44,7 @@ class LowerMethodMember(
                     pos       = inMethodDecl.pos,
                     modifiers = Modifier.forResolvedAnnotations(inMethodDecl.annotations),
                     kind      = MethodKind.HarmonicVirtual,
-                    className   = csym.name,
+                    clsName   = csym.name,
                     name      = inMethodDecl.name,
                     MethodSignature(
                         returnTy          = returnTy,

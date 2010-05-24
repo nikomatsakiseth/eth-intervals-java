@@ -135,14 +135,14 @@ case class ByteCode(global: Global) {
     
     def staticPlainMethodDescFromSym(msym: MethodSymbol): String = {
         val ret = msym.msig.returnTy.toAsmType
-        val rcvr = asm.Type.getObjectType(msym.className.internalName)
+        val rcvr = asm.Type.getObjectType(msym.clsName.internalName)
         val params = msym.msig.parameterPatterns.flatMap(_.varTys).map(_.toAsmType)
         getMethodDescriptor(ret, (rcvr :: params).toArray)
     }
     
     def staticMroMethodDescFromSym(msym: MethodSymbol): String = {
         val ret = msym.msig.returnTy.toAsmType
-        val rcvr = asm.Type.getObjectType(msym.className.internalName)
+        val rcvr = asm.Type.getObjectType(msym.clsName.internalName)
         val params = msym.msig.parameterPatterns.flatMap(_.varTys).map(_.toAsmType)
         getMethodDescriptor(ret, (rcvr :: asm.Type.INT_TYPE :: params).toArray)
     }
@@ -1029,7 +1029,7 @@ case class ByteCode(global: Global) {
                         case harm: MethodKind.Harmonic => {
                             pushPathValue(receiver)
                             pushMethodArgs(msym, msig, 1, args)
-                            val owner = msym.className.internalName
+                            val owner = msym.clsName.internalName
                             val desc = plainMethodDescFromSig(msym.msig)
                             mvis.visitMethodInsn(harm.op, owner, msym.name.javaName, desc)
                         }
@@ -1107,7 +1107,7 @@ case class ByteCode(global: Global) {
                     pushMethodArgs(msym, msig, 1, args.map(_.path))
                     mvis.visitMethodInsn(
                         O.INVOKEINTERFACE,
-                        msym.className.internalName,
+                        msym.clsName.internalName,
                         msym.name.javaName,
                         mroMethodDescFromSig(msig)
                     )
@@ -1871,7 +1871,7 @@ case class ByteCode(global: Global) {
         val mvis = cvis.visitMethod(
             O.ACC_PUBLIC + O.ACC_STATIC,
             harmonicInit,
-            harmonicInitDesc(msym.className),
+            harmonicInitDesc(msym.clsName),
             null, // generic signature
             null  // thrown exceptions
         )
@@ -2160,7 +2160,7 @@ case class ByteCode(global: Global) {
                 adapter.adaptTo(verMsym.msig.parameterPatterns, stmtVisitor) // push args
                 mvis.visitMethodInsn(
                     O.INVOKESTATIC,
-                    verMsym.className.internalName + staticSuffix,
+                    verMsym.clsName.internalName + staticSuffix,
                     verMsym.name.javaName,
                     staticMroMethodDescFromSym(verMsym)
                 ) // invoke appropriate static implementation
@@ -2272,7 +2272,7 @@ case class ByteCode(global: Global) {
             mvis.setHarmonicField(fsym)
         }
         csym.extendedClasses.foreach { case (in.ExtendsDecl(_, args, (msym, _)), paths) =>
-            global.csym(msym.className) match {
+            global.csym(msym.clsName) match {
                 case superCsym: ClassFromSource => {
                     superCsym.classParam.symbols.zip(paths).zip(args).foreach { 
                         case ((fsym, path), arg) => {
@@ -2292,9 +2292,9 @@ case class ByteCode(global: Global) {
             thisPath.push(mvis)
             mvis.visitMethodInsn(
                 O.INVOKESTATIC,
-                msym.className.internalName + staticSuffix,
+                msym.clsName.internalName + staticSuffix,
                 harmonicInit,
-                harmonicInitDesc(msym.className)
+                harmonicInitDesc(msym.clsName)
             )
         }
         
@@ -2304,14 +2304,14 @@ case class ByteCode(global: Global) {
             O.INVOKESTATIC,
             csym.name.internalName + staticSuffix,
             harmonicInit,
-            harmonicInitDesc(csym.constructor.className)
+            harmonicInitDesc(csym.constructor.clsName)
         )
         
         // Finally, schedule all intervals created in the method body:
         MethodResolutionOrder(global).forSym(csym).flatMap(_.allIntervalSymbols).foreach { fsym =>
             if(fsym.modifiers.isNotUnscheduled) {
                 mvis.setPosition(fsym.pos)
-                val interPath = csym.loweredSource.thisSym.toPath / fsym
+                val interPath = csym.loweredSource.thisSym.toTypedPath / fsym
                 stmtVisitor.pushPathValue(interPath)
                 mvis.visitMethodInsn(
                     O.INVOKEINTERFACE,

@@ -30,7 +30,7 @@ case class GatherExtends(global: Global) {
         // pos is the position of the item in the left which caused an error.
         def notEquatable(env: Env)(pair: (Path.Typed, Path.Typed)): Boolean = debugIndent("notEquatable(%s)", pair) {
             val (left, right) = pair
-            !env.pathsAreEquatable(left, right)
+            !env.pathsAreEquatable(left.toPath, right.toPath)
         }
         
         def addExtendsDecl(
@@ -41,7 +41,7 @@ case class GatherExtends(global: Global) {
             extendsDecl: in.ExtendsDecl
         ): Unit = debugIndent("addExtendsDecl(%s, %s)", fromClass, extendsDecl){
             val className = extendsDecl.className.name
-            val args = extendsDecl.args.map(n => subst.path(n.path))
+            val args = extendsDecl.args.map(n => subst.typedPath(n.path))
 
             debug("args = (%s)", args.mkString(", "))
             
