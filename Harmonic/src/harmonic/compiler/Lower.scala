@@ -230,110 +230,6 @@ case class Lower(global: Global) {
         (inputs.map { case (e, p) => lowerParam(e, p) }, env)
     }
     
-    // ___ Substitutions ____________________________________________________
-    
-    def addPatPathToSubst(subst: Subst, pair: (Pattern.Method, Path.Typed)): Subst = {
-        pair match {
-            case (Pattern.Tuple(List(pat)), path) => 
-                addPatPathToSubst(subst, (pat, path))
-                
-            case (pat, Path.Tuple(List(path))) => 
-                addPatPathToSubst(subst, (pat, path))
-                
-            case (Pattern.Tuple(pats), Path.Tuple(paths)) if sameLength(paths, paths) => 
-                pats.zip(paths).foldLeft(subst)(addPatPathToSubst)
-                
-            case (Pattern.Tuple(pats), array) =>
-                pats.zipWithIndex.foldLeft(subst) { case (s, (pat, idx)) =>
-                    addPatPathToSubst(s, (pat, Path.Index(array, Path.Constant.integer(idx))))
-                }
-            
-            case (Pattern.Var(sym), path) =>
-                subst + (sym.toPath -> path)
-        }
-    }
-    
-    def addPatExprToSubst(subst: Subst, pair: (Pattern.Method, in.Expr)): Subst = {
-        pair match {
-            case (pat, in.Tuple(List(expr))) =>
-                addPatExprToSubst(subst, (pat, expr))
-                
-            case (Pattern.Tuple(List(pat)), expr) =>
-                addPatExprToSubst(subst, (pat, expr))
-                
-            case (Pattern.Tuple(pats), in.Tuple(exprs)) if sameLength(pats, exprs) =>
-                pats.zip(exprs).foldLeft(subst)(addPatExprToSubst)
-            
-            case (pat, expr) => {
-                val path = expr match {
-                    case in.PathBase(Ast.LocalName(name), ()) =>
-                        Path.Base(name)
-                    case in.Field(in.Static(className), name, _) => 
-                        Path.Base(name.name.inDefaultClass(className))
-                    case _ => 
-                        Path.Base(Name.LocalVar(tmpVarName(expr)))
-                }
-                addPatPathToSubst(subst, (pat, path))
-            }
-        }
-    }
-    
-    def substFromPatExprs(pats: List[Pattern.Ref], asts: List[in.Expr]): Subst = {
-        assert(pats.length == asts.length) // Guaranteed syntactically.
-        pats.zip(asts).foldLeft(Subst.empty)(addPatExprToSubst)
-    }
-    
-    def mthdSubst(msym: MethodSymbol, rcvr: in.Rcvr, args: List[in.Expr]) = {
-        val msig = msym.msig
-        rcvr match {
-            case in.Static(_) | in.Super(_) => 
-                substFromPatExprs(msig.parameterPatterns, args)
-            case rcvr: in.Expr => {
-                // TODO -- extract thisPattern from msym
-                substFromPatExprs(msig.thisPattern :: msig.parameterPatterns, rcvr :: args)                
-            }
-        }
-    }
-    
-    // Flattens the method arguments into a list of final paths:
-    def flattenAssignment(
-        lvalues: List[Pattern.Anon], 
-        rvalues: List[out.TypedPath]
-    ): List[out.PathNode] = {
-        def flattenPair(pos: out.TypedPath)(pair: (Pattern.Anon, Path.Typed)): List[out.TypedPath] = {
-            pair match {
-                case (Pattern.AnonTuple(List(pat)), path) => {
-                    flattenPair(pos)((pat, path))
-                }
-                
-                case (pat, Path.Tuple(List(path))) => {
-                    flattenPair(pos)((pat, path))
-                }
-                
-                case (Pattern.AnonTuple(pats), Path.Tuple(paths)) if sameLength(pats, paths) => {
-                    pats.zip(paths).flatMap(flattenPair(pos))
-                }
-                    
-                case (Pattern.AnonTuple(pats), path) => {
-                    pats.indices.map({ idx =>
-                        Path.Index(
-                            path,
-                            Path.Constant.integer(idx)
-                        ).toNodeWithPosOf(pos)
-                    }).toList
-                }
-                
-                case (Pattern.AnonVar(_), path) => {
-                    List(path.toNodeWithPosOf(pos))
-                }
-            }
-        }
-        
-        lvalues.zip(rvalues).flatMap {
-            case (l, r) => flattenPair(r)(l, r.path)
-        }
-    }
-    
     // ___ Paths, Types _____________________________________________________
     
     object InEnv {
@@ -342,6 +238,108 @@ case class Lower(global: Global) {
     
     class InEnv(env: Env) {
         
+        // ___ Substitutions ____________________________________________________
+
+        def addPatPathToSubst(subst: Subst, pair: (Pattern.Method, Path.Typed)): Subst = {
+            pair match {
+                case (Pattern.Tuple(List(pat)), path) => 
+                    addPatPathToSubst(subst, (pat, path))
+
+                case (pat, Path.Tuple(List(path))) => 
+                    addPatPathToSubst(subst, (pat, path))
+
+                case (Pattern.Tuple(pats), Path.Tuple(paths)) if sameLength(paths, paths) => 
+                    pats.zip(paths).foldLeft(subst)(addPatPathToSubst)
+
+                case (Pattern.Tuple(pats), array) =>
+                    pats.zipWithIndex.foldLeft(subst) { case (s, (pat, idx)) =>
+                        addPatPathToSubst(s, (pat, Path.Index(array, Path.Constant.integer(idx))))
+                    }
+
+                case (Pattern.Var(sym), path) =>
+                    subst + (sym -> path)
+            }
+        }
+
+        def addPatExprToSubst(subst: Subst, pair: (Pattern.Method, in.Expr)): Subst = {
+            pair match {
+                case (pat, in.Tuple(List(expr))) =>
+                    addPatExprToSubst(subst, (pat, expr))
+
+                case (Pattern.Tuple(List(pat)), expr) =>
+                    addPatExprToSubst(subst, (pat, expr))
+
+                case (Pattern.Tuple(pats), in.Tuple(exprs)) if sameLength(pats, exprs) =>
+                    pats.zip(exprs).foldLeft(subst)(addPatExprToSubst)
+
+                case (pat, expr) => {
+                    val path = expr match {
+                        case in.PathBase(Ast.LocalName(name), ()) if env.localIsDefined(name) =>
+                            Path.Base(env.locals(name))
+                        case _ =>
+                            Path.Base(Name.LocalVar(tmpVarName(expr)))                            
+                    }
+                    addPatPathToSubst(subst, (pat, path))
+                }
+            }
+        }
+
+        def substFromPatExprs(pats: List[Pattern.Ref], asts: List[in.Expr]): Subst = {
+            assert(pats.length == asts.length) // Guaranteed syntactically.
+            pats.zip(asts).foldLeft(Subst.empty)(addPatExprToSubst)
+        }
+
+        def mthdSubst(msym: MethodSymbol, rcvr: in.Rcvr, args: List[in.Expr]) = {
+            val msig = msym.msig
+            rcvr match {
+                case in.Static(_) | in.Super(_) => 
+                    substFromPatExprs(msig.parameterPatterns, args)
+                case rcvr: in.Expr => {
+                    // TODO -- extract thisPattern from msym
+                    substFromPatExprs(msig.thisPattern :: msig.parameterPatterns, rcvr :: args)                
+                }
+            }
+        }
+
+        // Flattens the method arguments into a list of final paths:
+        def flattenAssignment(
+            lvalues: List[Pattern.Anon], 
+            rvalues: List[out.TypedPath]
+        ): List[out.PathNode] = {
+            def flattenPair(pos: out.TypedPath)(pair: (Pattern.Anon, Path.Typed)): List[out.TypedPath] = {
+                pair match {
+                    case (Pattern.AnonTuple(List(pat)), path) => {
+                        flattenPair(pos)((pat, path))
+                    }
+
+                    case (pat, Path.Tuple(List(path))) => {
+                        flattenPair(pos)((pat, path))
+                    }
+
+                    case (Pattern.AnonTuple(pats), Path.Tuple(paths)) if sameLength(pats, paths) => {
+                        pats.zip(paths).flatMap(flattenPair(pos))
+                    }
+
+                    case (Pattern.AnonTuple(pats), path) => {
+                        pats.indices.map({ idx =>
+                            Path.Index(
+                                path,
+                                Path.Constant.integer(idx)
+                            ).toNodeWithPosOf(pos)
+                        }).toList
+                    }
+
+                    case (Pattern.AnonVar(_), path) => {
+                        List(path.toNodeWithPosOf(pos))
+                    }
+                }
+            }
+
+            lvalues.zip(rvalues).flatMap {
+                case (l, r) => flattenPair(r)(l, r.path)
+            }
+        }
+
         // ___ Paths ____________________________________________________________
         
         def typedPathForPath(path: in.PathNode): Path.Typed = {
