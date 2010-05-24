@@ -223,18 +223,18 @@ case class Env(
     // variables found within are not defined.
     
     def typedPath(path: Path.Ref): Path.Typed = path match {
-        case Path.Base(name: Name.LocalVar) => {
+        case Path.Local(name: Name.LocalVar) => {
             val lvsym = locals.get(name).getOrElse(VarSymbol.errorLocal(name, None))
-            Path.TypedBase(lvsym)
+            Path.TypedLocal(lvsym)
         }
         
-        case Path.Base(name: Name.Member) => {
+        case Path.Field(Path.Static, name) => {
             val csym = global.csym(name.className)
             val fsym = lookupFieldOrError(csym.toType, name, None)
-            Path.TypedBase(fsym)
+            Path.TypedField(Path.Static, fsym)
         }
         
-        case Path.Field(base, name) => {
+        case Path.Field(base: Path.Ref, name) => {
             val typedBase = typedPath(base)
             val sym = lookupFieldOrError(typedBase.ty, name, None)
             Path.TypedField(typedBase, sym)
@@ -254,10 +254,6 @@ case class Env(
         
         case Path.Tuple(paths) => {
             Path.TypedTuple(paths.map(typedPath))
-        }
-        
-        case Path.BaseCall(_, _) => {
-            throw new RuntimeException("TODO")
         }
         
         case Path.Call(_, _, _) => {
@@ -292,7 +288,7 @@ case class Env(
         
         protected[this] def successors(P1: Path.Ref): Iterable[Path.Ref] = {
             val byInduction = P1 match {
-                case Path.Field(base, name) => {
+                case Path.Field(base: Path.Ref, name) => {
                     compute(base).map(Path.Field(_, name))
                 }
                 
@@ -310,14 +306,17 @@ case class Env(
                     crossAll(paths).map(Path.Tuple)
                 }
                 
-                case Path.Call(receiver, methodName, args) => {
+                case Path.Call(receiver: Path.Ref, methodName, args) => {
                     (compute(receiver) cross crossAll(args)).map { case (r, a) =>
                         Path.Call(r, methodName, a)
                     }
                 }
                 
-                case Path.Base(_) | Path.Constant(_) | Path.BaseCall(_, _)=> {
-                    Set()
+                case Path.Field(Path.Static, _) 
+                |   Path.Call(Path.Static, _, _)
+                |   Path.Local(_)
+                |   Path.Constant(_) => {
+                    Set()                    
                 }
             }
             

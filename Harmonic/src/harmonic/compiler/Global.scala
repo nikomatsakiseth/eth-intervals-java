@@ -181,6 +181,10 @@ class Global(
         }                
     }
     
+    def staticMethods(className: Name.Class, methodName: Name.Method) = {
+        csym(className).methodsNamed(methodName).filter(_.modifiers.isStatic)            
+    }
+    
     // ___ Freshness ________________________________________________________
     
     private[this] var freshCounter = 0

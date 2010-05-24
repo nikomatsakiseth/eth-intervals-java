@@ -10,15 +10,6 @@ class TypedSubst(
     fmap: Map[(VarSymbol.Local, VarSymbol.Field), Path.Typed]
 ) {
     
-    private[this] lazy val untypedSubst = {
-        val subst = lvmap.foldLeft(Subst.empty) { case (s, (l, t)) =>
-            s + (l.toPath -> t.toPath)
-        }
-        fmap.foldLeft(subst) { case (s, ((l, f), t)) =>
-            s + (Path.Field(l.toPath, f.name) -> t.toPath)
-        }
-    }
-    
     def +(p: Pair[VarSymbol.Local, Path.Typed]): TypedSubst = {
         new TypedSubst(lvmap + p, fmap)
     }
@@ -27,36 +18,34 @@ class TypedSubst(
         new TypedSubst(lvmap, fmap + p)        
     }
     
-    def methodSignature(msig: MethodSignature[Pattern.Anon]) = {
-        untypedSubst.methodSignature(msig)
+    def typedOwner(owner: Path.TypedOwner): Path.TypedOwner = {
+        owner match {
+            case Path.Static => Path.Static
+            case owner: Path.Typed => typedPath(owner)
+        }
     }
     
     def typedPath(path: Path.Typed): Path.Typed = {
         path match {
             // Perform substitutions:
             
-            case Path.TypedBase(vsym: VarSymbol.Local) 
-            if lvmap.isDefinedAt(vsym) =>
+            case Path.TypedLocal(vsym) if lvmap.isDefinedAt(vsym) =>
                 lvmap(vsym)
         
-            case Path.TypedField(Path.TypedBase(vsym: VarSymbol.Local), fsym) 
-            if fmap.isDefinedAt((vsym, fsym)) => 
+            case Path.TypedField(Path.TypedLocal(vsym), fsym) if fmap.isDefinedAt((vsym, fsym)) => 
                 fmap((vsym, fsym))
-                
-            case Path.TypedBaseCall(msym, msig, args) =>
-                Path.TypedBaseCall(msym, methodSignature(msig), args.map(typedPath))
-                
-            case Path.TypedCall(receiver, msym, msig, args) =>
-                Path.TypedCall(typedPath(receiver), msym, methodSignature(msig), args.map(typedPath))
                 
             // Pass through:
             
-            case Path.TypedBase(_) | Path.TypedConstant(_) =>
+            case Path.TypedLocal(_) | Path.TypedConstant(_) =>
                 path
 
             case Path.TypedField(base, fsym) => 
-                Path.TypedField(typedPath(base), fsym)
+                Path.TypedField(typedOwner(base), fsym)
                 
+            case Path.TypedCall(receiver, msym, args) =>
+                Path.TypedCall(typedOwner(receiver), msym, args.map(typedPath))
+
             case Path.TypedCast(ty, path) =>
                 Path.TypedCast(ty, typedPath(path))
             

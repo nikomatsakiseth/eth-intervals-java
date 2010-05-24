@@ -40,10 +40,6 @@ case class Lower(global: Global) {
         )
     }
     
-    def staticMethods(className: Name.Class, methodName: Name.Method) = {
-        global.csym(className).methodsNamed(methodName).filter(_.modifiers.isStatic)            
-    }
-    
     def lowerMemberDecl(
         csym: ClassFromSource, 
         mem: in.MemberDecl
@@ -278,9 +274,9 @@ case class Lower(global: Global) {
             case (pat, expr) => {
                 val path = expr match {
                     case in.PathBase(Ast.LocalName(name), ()) =>
-                        Path.Base(name)
+                        Path.Local(name)
                     case _ => 
-                        Path.Base(Name.LocalVar(tmpVarName(expr)))
+                        Path.Local(Name.LocalVar(tmpVarName(expr)))
                 }
                 addPatPathToSubst(subst, (pat, path))
             }
@@ -357,7 +353,7 @@ case class Lower(global: Global) {
         def typedPathForPath(path: in.PathNode): Path.Typed = {
             def errorPath(name: String) = {
                 val sym = VarSymbol.errorLocal(Name.LocalVar(name), None)
-                Path.TypedBase(sym)
+                Path.TypedLocal(sym)
             }
             
             def callData(
@@ -367,7 +363,7 @@ case class Lower(global: Global) {
                 inRcvr: in.Rcvr, 
                 inArgs: List[in.PathNode],
                 outArgNodes: List[out.TypedPath]
-            ): Option[(List[Path.Typed], MethodSymbol, MethodSignature[Pattern.Anon])] = {
+            ): Option[(List[Path.Typed], MethodSymbol)] = {
                 val argTys = outArgNodes.map(_.ty)
                 msyms match {
                     case List() => {
@@ -379,7 +375,7 @@ case class Lower(global: Global) {
                         def createSubst(msym: MethodSymbol) = mthdSubst(msym, inRcvr, inArgs)
                         resolveOverloading(path.pos, createSubst, msyms, argTys) map { case (msym, msig) =>
                             val flatArgNodes = flattenAssignment(msym.msig.parameterPatterns, outArgNodes)
-                            (flatArgNodes.map(_.path), msym, msig)
+                            (flatArgNodes.map(_.path), msym)
                         }
                     }
                 }
@@ -391,7 +387,7 @@ case class Lower(global: Global) {
 
                 case in.PathBase(Ast.LocalName(localName), ()) => {
                     val sym = env.locals(localName)
-                    Path.TypedBase(sym)
+                    Path.TypedLocal(sym)
                 }
 
                 case in.PathBase(name @ Ast.MemberName(memberVar), ()) => {
@@ -408,7 +404,7 @@ case class Lower(global: Global) {
                         }
 
                         case Some(fsym) => {
-                            Path.TypedBase(fsym)
+                            Path.TypedField(Path.Static, fsym)
                         }
                     }
                 }
@@ -423,7 +419,7 @@ case class Lower(global: Global) {
                         
                         case Right(fsym) if fsym.modifiers.isStatic => {
                             global.reporter.report(path.pos, "qualified.static", fsym.name.toString)
-                            Path.TypedBase(fsym)
+                            Path.TypedField(Path.Static, fsym)
                         }
                         
                         case Right(fsym) => {
@@ -436,10 +432,10 @@ case class Lower(global: Global) {
                     val inRcvr = in.Static(className)
                     val outArgNodes = inArgs.map(lowerPath)
                     val classTy = Type.Class(className, List())
-                    val msyms = staticMethods(className, methodName)
+                    val msyms = global.staticMethods(className, methodName)
                     callData(methodName, msyms, classTy, inRcvr, inArgs, outArgNodes) match {
-                        case Some((flatArgs, msym, msig)) =>
-                            Path.TypedBaseCall(msym, msig, flatArgs)
+                        case Some((flatArgs, msym)) =>
+                            Path.TypedCall(Path.Static, msym, flatArgs)
                         case None => 
                             errorPath(path.toString)
                     }
@@ -450,8 +446,8 @@ case class Lower(global: Global) {
                     val outArgNodes = inArgs.map(lowerPath)
                     val msyms = env.lookupInstanceMethods(outRcvr.ty, methodName)
                     callData(methodName, msyms, outRcvr.ty, inRcvr, inArgs, outArgNodes) match {
-                        case Some((flatArgs, msym, msig)) =>
-                            Path.TypedCall(outRcvr, msym, msig, flatArgs)
+                        case Some((flatArgs, msym)) =>
+                            Path.TypedCall(outRcvr, msym, flatArgs)
                         case None =>
                             errorPath(path.toString)
                     }                    
@@ -845,7 +841,7 @@ case class Lower(global: Global) {
                             VarSymbol.errorField(memberVar, optExpTy)
                         }
                     }
-                    Path.TypedBase(fsym).toNode
+                    Path.TypedField(Path.Static, fsym).toNode
                 }
                 
                 // Instance field ref like foo.bar:
@@ -921,14 +917,12 @@ case class Lower(global: Global) {
             
             val optRes = mcall.rcvr match {
                 case in.Static(className) => {
-                    val msyms = staticMethods(className, mcall.name)
+                    val msyms = global.staticMethods(className, mcall.name)
                     identifyBestFromMcall(msyms, className.toType).map {
                         case (flatArgs, msym, msig) => {
+                            val flatPaths = flatArgs.map(_.path)
                             out.TypedPath(
-                                Path.TypedBaseCall(
-                                    msym, msig, 
-                                    flatArgs.map(_.path)
-                                )
+                                Path.TypedCall(Path.Static, msym, flatPaths)
                             )
                         }
                     }
@@ -938,10 +932,10 @@ case class Lower(global: Global) {
                     val outRcvr = lowerToTypedPath(None)(inRcvr)
                     val msyms = env.lookupInstanceMethods(outRcvr.ty, mcall.name)
                     identifyBestFromMcall(msyms, outRcvr.ty).map {
-                        case (flatArgNodes, msym, msig) => {
+                        case (flatArgNodes, msym, _) => {
                             out.TypedPath(
                                 Path.TypedCall(
-                                    outRcvr, msym, msig, 
+                                    outRcvr, msym,
                                     flatArgNodes.map(_.path)
                                 )
                             )
@@ -1067,7 +1061,7 @@ case class Lower(global: Global) {
         })
         
         def lowerImpThis(expr: in.Expr) = withPosOf(expr, {
-            Path.TypedBase(env.lookupThis).toNode
+            Path.TypedLocal(env.lookupThis).toNode
         })
         
         def lowerCast(expr: in.Cast) = withPosOf(expr, {
@@ -1142,13 +1136,14 @@ case class Lower(global: Global) {
                         )
                     )
                     optStmts.foreach(_ += assign)
-                    Path.TypedBase(sym)
+                    Path.TypedLocal(sym)
                 }
             }
         }
         
+        // TODO: Refactor type system to prove that atomic paths are composed only of atomic comp.
         def isAtomicPath(path: Path.Typed) = path match {
-            case Path.TypedBase(_: VarSymbol.Local) => true
+            case Path.TypedLocal(_) => true
             case Path.TypedTuple(_) => true
             case Path.TypedConstant(_) => true
             case _ => false

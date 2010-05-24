@@ -27,8 +27,8 @@ object VarSymbol {
         val name: Name.LocalVar,
         val ty: Type.Ref
     ) extends VarSymbol[Name.LocalVar] {
-        def toPath = Path.Base(name)
-        def toTypedPath = Path.TypedBase(this)
+        def toPath = Path.Local(name)
+        def toTypedPath = Path.TypedLocal(this)
     }
     
     def errorLocal(name: Name.LocalVar, optExpTy: Option[Type.Ref]) = {

@@ -115,8 +115,6 @@ object Name {
         // to this variable.  For example, a field "foo"
         // in a class "Bar" would return "foo".
         def text: String
-        
-        def toPath = Path.Base(this)
     }
     
     /** Fully specified names of members (except for methods) */
@@ -138,6 +136,7 @@ object Name {
     final case class LocalVar(
         text: String
     ) extends Var {
+        def toPath = Path.Local(this)
         override def toString = text
     }
     

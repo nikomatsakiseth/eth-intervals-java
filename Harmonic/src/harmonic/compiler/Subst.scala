@@ -7,25 +7,28 @@ class Subst(private val map: Map[Path.Ref, Path.Ref]) {
     def +(s: Subst) = new Subst(map ++ s.map)
     def +(p: Pair[Path.Ref, Path.Ref]) = new Subst(map + p)
     
+    def owner(owner: Path.UntypedOwner): Path.UntypedOwner = owner match {
+        case Path.Static => Path.Static
+        case owner: Path.Ref => path(owner)
+    }
+    
     def path(p: Path.Ref): Path.Ref = (map.get(p), p) match {
         case (Some(q), _) => 
             q
-        case (None, Path.Base(v)) => 
-            Path.Base(v)
-        case (None, Path.Field(owner, f)) => 
-            Path.Field(path(owner), f)
+        case (None, Path.Local(v)) => 
+            p
         case (None, Path.Constant(obj)) => 
             p
+        case (None, Path.Field(o, f)) => 
+            Path.Field(owner(o), f)
         case (None, Path.Cast(ty, base)) => 
             Path.Cast(ty, path(base))
         case (None, Path.Index(array, index)) => 
             Path.Index(path(array), path(index))
         case (None, Path.Tuple(paths)) => 
             Path.Tuple(paths.map(path))
-        case (None, Path.BaseCall(methodId, args)) => 
-            Path.BaseCall(methodId, args.map(path))
         case (None, Path.Call(receiver, methodId, args)) => 
-            Path.Call(path(receiver), methodId, args.map(path))
+            Path.Call(owner(receiver), methodId, args.map(path))
     }
     
     def pattern(p: Pattern.Anon): Pattern.Anon = p match {
@@ -56,6 +59,18 @@ class Subst(private val map: Map[Path.Ref, Path.Ref]) {
 
 object Subst {
     val empty = new Subst(Map())
+
+    def apply(pairs: (Path.Ref, Path.Ref)*): Subst = {
+        new Subst(Map(pairs: _*))
+    }
     
-    def apply(pairs: (Path.Ref, Path.Ref)*) = new Subst(Map(pairs: _*))
+    def vp(lists: (List[Name.LocalVar], List[Path.Ref])) = {
+        val (vars, paths) = lists
+        new Subst(Map(vars.map(_.toPath).zip(paths): _*))
+    }
+    
+    def vt(lists: (List[Name.LocalVar], List[Path.Typed])) = {
+        val (vars, paths) = lists
+        vp(vars -> paths.map(_.toPath))
+    }
 }

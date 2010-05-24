@@ -634,13 +634,13 @@ case class ByteCode(global: Global) {
     
     def summarizeSymbolsInPath(summary: SymbolSummary, path: Path.Typed): SymbolSummary = {
         path match {
-            case Path.TypedBase(sym: VarSymbol.Local) => summary.copy(readSyms = summary.readSyms + sym)
-            case Path.TypedBase(sym: VarSymbol.Field) => summary // static fields don't count
-            case Path.TypedBaseCall(_, _, args) => args.foldLeft(summary)(summarizeSymbolsInPath)
+            case Path.TypedLocal(sym) => summary.copy(readSyms = summary.readSyms + sym)
             case Path.TypedCast(_, path) => summarizeSymbolsInPath(summary, path)
             case Path.TypedConstant(_) => summary
-            case Path.TypedField(path, _) => summarizeSymbolsInPath(summary, path)
-            case Path.TypedCall(rcvr, _, _, args) => (rcvr :: args).foldLeft(summary)(summarizeSymbolsInPath)
+            case Path.TypedField(Path.Static, sym) => summary
+            case Path.TypedField(path: Path.Typed, _) => summarizeSymbolsInPath(summary, path)
+            case Path.TypedCall(Path.Static, _, args) => args.foldLeft(summary)(summarizeSymbolsInPath)
+            case Path.TypedCall(rcvr: Path.Typed, _, args) => (rcvr :: args).foldLeft(summary)(summarizeSymbolsInPath)
             case Path.TypedIndex(array, index) => List(array, index).foldLeft(summary)(summarizeSymbolsInPath)            
             case Path.TypedTuple(paths) => paths.foldLeft(summary)(summarizeSymbolsInPath)
         }
@@ -929,23 +929,8 @@ case class ByteCode(global: Global) {
                     }
                 }
                 
-                case Path.TypedBase(lvsym: VarSymbol.Local) => {
+                case Path.TypedLocal(lvsym) => {
                     accessMap.pushSym(lvsym, mvis)
-                }
-                
-                case Path.TypedBase(fsym: VarSymbol.Field) => {
-                    fsym.kind match {
-                        case FieldKind.Java(owner, name, cls) => {
-                            mvis.visitFieldInsn(
-                                O.GETSTATIC, 
-                                asm.Type.getType(owner).getInternalName, 
-                                name, 
-                                asm.Type.getType(cls).getDescriptor
-                            )                            
-                        }
-                        case FieldKind.Harmonic => 
-                            throw new RuntimeException("No static harmonic fields")
-                    }
                 }
                 
                 case Path.TypedCast(ty, subpath) => {
@@ -980,7 +965,22 @@ case class ByteCode(global: Global) {
                     mvis.box(boxInfoForBoxType(asm.Type.getType(obj.getClass)))
                 }
                 
-                case Path.TypedField(ownerPath, fsym) => {
+                case Path.TypedField(Path.Static, fsym) => {
+                    fsym.kind match {
+                        case FieldKind.Java(owner, name, cls) => {
+                            mvis.visitFieldInsn(
+                                O.GETSTATIC, 
+                                asm.Type.getType(owner).getInternalName, 
+                                name, 
+                                asm.Type.getType(cls).getDescriptor
+                            )                            
+                        }
+                        case FieldKind.Harmonic => 
+                            throw new RuntimeException("No static harmonic fields")
+                    }
+                }
+                
+                case Path.TypedField(ownerPath: Path.Typed, fsym) => {
                     pushPathValue(ownerPath)
                     fsym.kind match {
                         case FieldKind.Java(owner, name, cls) => {
@@ -997,7 +997,8 @@ case class ByteCode(global: Global) {
                     }
                 }
                 
-                case Path.TypedBaseCall(msym, msig, args) => {
+                case path @ Path.TypedCall(Path.Static, msym, args) => {
+                    val msig = path.msig
                     msym.kind match {
                         case MethodKind.Java(
                             MethodKind.JavaStatic, 
@@ -1024,7 +1025,8 @@ case class ByteCode(global: Global) {
                     }                    
                 }
                 
-                case Path.TypedCall(receiver, msym, msig, args) => {
+                case path @ Path.TypedCall(receiver: Path.Typed, msym, args) => {
+                    val msig = path.msig
                     msym.kind match {
                         case harm: MethodKind.Harmonic => {
                             pushPathValue(receiver)
@@ -1715,7 +1717,7 @@ case class ByteCode(global: Global) {
             case Pattern.Var(name, ty) => {
                 val sym = new VarSymbol.Local(NoPosition, Modifier.Set.empty, name, ty)
                 accessMap.addUnboxedSym(sym)
-                Path.TypedBase(sym)
+                Path.TypedLocal(sym)
             }
         }
         val rvalues = srcPatterns.map(constructPathFromPattern)
