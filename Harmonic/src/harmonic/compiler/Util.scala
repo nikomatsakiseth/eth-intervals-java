@@ -212,4 +212,13 @@ object Util {
         })
     }
     
+    // ___ AnyOf3 ___________________________________________________________
+    //
+    // Like Either, but with three choices.
+    
+    abstract trait AnyOf3[+A, +B, +C]
+    case class OneOf3[+A, +B, +C](value: A) extends AnyOf3[A, B, C]
+    case class TwoOf3[+A, +B, +C](value: B) extends AnyOf3[A, B, C]
+    case class ThreeOf3[+A, +B, +C](value: C) extends AnyOf3[A, B, C]
+    
 }

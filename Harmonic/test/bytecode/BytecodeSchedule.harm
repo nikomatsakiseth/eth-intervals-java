@@ -7,7 +7,7 @@ class BytecodeSchedule1(
     root = ctx.getRoot();
     
     interval a(root) {
-        ctx.getOut().println("Hi from a.");
+        ctx.out.println("Hi from a.");
     }
     
 }
@@ -20,7 +20,7 @@ class BytecodeSchedule2(
     root = ctx.getRoot();
     
     interval b(root) {
-        ctx.getOut().println("Hi from b.");
+        ctx.out.println("Hi from b.");
     }
     
     // This should fail! sched1.a should

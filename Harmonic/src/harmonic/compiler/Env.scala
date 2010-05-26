@@ -162,7 +162,7 @@ case class Env(
         }
     }
 
-    def lookupField(
+    private[this] def lookupField(
         ownerTy: Type.Ref, 
         uName: Name.UnloweredMember
     ): CanFail[VarSymbol.Field] = {
@@ -178,7 +178,28 @@ case class Env(
         }
     }
     
-    def lookupFieldOrError(
+    def lookupBean(
+        ownerTy: Type.Ref, 
+        uName: Name.UnloweredMember
+    ): CanFail[Either[VarSymbol.Field, MethodSymbol]] = {
+        (lookupField(ownerTy, uName), uName) match {
+            // If no field `foo` is found, try to find a method `getFoo`.
+            case (Left(err @ Error.NoSuchMember(_, _)), Name.ClasslessMember(text)) => {
+                val prop = "get%c%s".format(text.charAt(0).toUpper, text.substring(1))
+                val methodName = Name.Method(List(prop))
+                lookupInstanceMethods(ownerTy, methodName) match {
+                    case Nil => Left(err)
+                    case msym :: _ => Right(Right(msym))
+                }
+            }
+            
+            case (Left(err), _) => Left(err)
+            
+            case (Right(fld), _) => Right(Left(fld))
+        }
+    }
+        
+    private[this] def lookupFieldOrError(
         ownerTy: Type.Ref,  
         name: Name.UnloweredMember,
         optExpTy: Option[Type.Ref]

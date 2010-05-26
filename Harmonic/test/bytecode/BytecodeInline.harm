@@ -4,15 +4,13 @@ class BytecodeInline extends Application {
     
     @Override main(ctx: ApplicationContext): Void {
         
-        out = ctx.getOut();
-        
-        out.println("Before");
+        ctx.out.println("Before");
         
         interval foo {
-            out.println("During");            
+            ctx.out.println("During");            
         };
         
-        out.println("After");
+        ctx.out.println("After");
     }
     
 }

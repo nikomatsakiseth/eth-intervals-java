@@ -2,14 +2,12 @@ package test.bytecode;
 
 class BytecodeIntervals1(ctx: ApplicationContext) {
     
-    root = ctx.getRoot();
-    
-    interval a(root) {
-        ctx.getOut().println("Hi from a.");
+    interval a(ctx.root) {
+        ctx.out.println("Hi from a.");
     }
 
-    interval b(root) {
-        ctx.getOut().println("Hi from b.");
+    interval b(ctx.root) {
+        ctx.out.println("Hi from b.");
     }
     
     a -> b;

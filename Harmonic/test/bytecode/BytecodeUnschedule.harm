@@ -7,7 +7,7 @@ class BytecodeUnschedule1(
     root = ctx.getRoot();
     
     @Unscheduled interval a(root) {
-        ctx.getOut().println("Hi from a.");
+        ctx.out.println("Hi from a.");
     }
     
 }
@@ -20,7 +20,7 @@ class BytecodeUnschedule2(
     root = ctx.getRoot();
     
     interval b(root) {
-        ctx.getOut().println("Hi from b.");
+        ctx.out.println("Hi from b.");
     }
     
     b -> sched1.a;

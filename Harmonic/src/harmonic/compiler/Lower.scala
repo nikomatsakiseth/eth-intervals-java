@@ -411,19 +411,23 @@ case class Lower(global: Global) {
 
                 case in.PathDot(owner, name, ()) => {
                     val ownerTypedPath = typedPathForPath(owner)
-                    env.lookupField(ownerTypedPath.ty, name.name) match {
+                    env.lookupBean(ownerTypedPath.ty, name.name) match {
                         case Left(err) => {
                             err.report(global, name.pos)
                             errorPath(path.toString)
                         }
                         
-                        case Right(fsym) if fsym.modifiers.isStatic => {
+                        case Right(Left(fsym)) if fsym.modifiers.isStatic => {
                             global.reporter.report(path.pos, "qualified.static", fsym.name.toString)
                             Path.TypedField(Path.Static, fsym)
                         }
                         
-                        case Right(fsym) => {
+                        case Right(Left(fsym)) => {
                             Path.TypedField(ownerTypedPath, fsym)
+                        }
+                        
+                        case Right(Right(msym)) => {
+                            Path.TypedCall(ownerTypedPath, msym, List())
                         }
                     }
                 }
@@ -847,21 +851,24 @@ case class Lower(global: Global) {
                 // Instance field ref like foo.bar:
                 case ownerExpr: in.Expr => {
                     val ownerPath = lowerToTypedPath(None)(ownerExpr)
-                    val fsym = env.lookupField(ownerPath.ty, expr.name.name) match {
-                        case Right(fsym) if !fsym.modifiers.isStatic => {
-                            fsym
-                        }
-                        case Right(fsym) /* Static */ => {
-                            Error.QualStatic(fsym.name).report(global, expr.name.pos)
-                            fsym
-                        }
+                    env.lookupBean(ownerPath.ty, expr.name.name) match {
                         case Left(err) => {
                             err.report(global, expr.name.pos)
                             val memberVar = expr.name.name.inDefaultClass(Name.ObjectClass)
-                            VarSymbol.errorField(memberVar, optExpTy)
+                            val fsym = VarSymbol.errorField(memberVar, optExpTy)
+                            Path.TypedField(ownerPath, fsym).toNode
+                        }
+                        case Right(Left(fsym)) if fsym.modifiers.isStatic => {
+                            Error.QualStatic(fsym.name).report(global, expr.name.pos)
+                            Path.TypedField(ownerPath, fsym).toNode
+                        }
+                        case Right(Left(fsym)) => {
+                            Path.TypedField(ownerPath, fsym).toNode
+                        }
+                        case Right(Right(msym)) => {
+                            Path.TypedCall(ownerPath, msym, List()).toNode
                         }
                     }
-                    Path.TypedField(ownerPath, fsym).toNode
                 }              
             }
         })
