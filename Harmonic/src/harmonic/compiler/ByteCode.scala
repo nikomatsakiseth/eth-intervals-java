@@ -46,8 +46,26 @@ case class ByteCode(global: Global) {
         context.withSuffix("$%s$%s".format(node.pos.line, node.pos.column))
     }
     
+    def escape(str: String) = {
+        def notLegal(c: Char) = !Character.isJavaIdentifierPart(c)
+        str.count(notLegal) match {
+            case 0 => str
+            case n => {
+                val result = new StringBuilder(str.length + n * 2)
+                str.foreach { c =>
+                    if(notLegal(c)) {
+                        result.append("$%02x".format(Integer.valueOf(c)))
+                    } else {
+                        result.append(c)
+                    }                
+                }
+                result.toString
+            }
+        }
+    }
+    
     def freshVarName(base: Option[Name.Var]) = {
-        Name.LocalVar("$%s$%s".format(base.getOrElse(""), global.freshInteger()))
+        Name.LocalVar(escape("$%s$%s".format(base.getOrElse(""), global.freshInteger())))
     }
     
     // ___ Types and Asm Types ______________________________________________
