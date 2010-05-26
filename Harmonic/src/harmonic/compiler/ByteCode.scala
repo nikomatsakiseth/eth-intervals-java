@@ -693,8 +693,16 @@ case class ByteCode(global: Global) {
                 summarizeSymbolsInExpr(summary, expr)
             
             case in.InlineInterval(_, in.Body(stmts), sym) => {
-                val withSym = summary.copy(declaredSyms = summary.declaredSyms + sym)
-                stmts.foldLeft(withSym)(summarizeSymbolsInStmt)                
+                val declaredSyms = summary.declaredSyms + sym
+                val stmtsSummary = stmts.foldLeft(SymbolSummary.empty)(summarizeSymbolsInStmt)
+                stmtsSummary.copy(
+                    declaredSyms = declaredSyms,
+                    readSyms = summary.readSyms ++ stmtsSummary.readSyms,
+                    writeSyms = summary.readSyms ++ stmtsSummary.writeSyms,
+                    sharedSyms = summary.sharedSyms 
+                        ++ stmtsSummary.writeSyms.filter(declaredSyms) 
+                        ++ stmtsSummary.readSyms.filter(declaredSyms)
+                )
             }
             
             case in.MethodReturn(expr) => 
