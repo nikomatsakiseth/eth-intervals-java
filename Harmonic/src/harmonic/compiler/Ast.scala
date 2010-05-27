@@ -45,10 +45,10 @@ abstract class Ast {
     
     type Stmt <: ParseStmt  
     type Expr <: ParseTlExpr
-    type PathNode <: TypedNode
+    type PathNode <: Node
     
-    type NE <: TypedNode
-    type EA <: TypedNode
+    type NE <: Node
+    type EA <: Node
     type Rcvr <: Node
     type Owner <: Node
     
@@ -315,16 +315,13 @@ abstract class Ast {
     // ExtendsArgs are not used until lowering to represent
     // the arguments of a class constructor.  Note that only
     // paths are permitted.
-    sealed abstract class ExtendsArg extends TypedNode {
-        def ty: Ty
-    }
+    sealed abstract class ExtendsArg extends Node
     case class TupleExtendsArg(args: List[ExtendsArg]) extends ExtendsArg {
         override def toString = "(%s)".format(args.mkString(", "))
-        def ty: TyTuple = tupleTy(args.map(_.ty))
+        //def ty: TyTuple = tupleTy(args.map(_.ty))
     }
     case class PathExtendsArg(path: PathNode) extends ExtendsArg {
         override def toString = path.toString
-        def ty = path.ty
     }
         
     // ___ Params and Lvalues _______________________________________________
@@ -580,7 +577,7 @@ abstract class Ast {
         }
     }
     
-    sealed abstract trait ParseStmt extends TypedNode {
+    sealed abstract trait ParseStmt extends Node {
         def printsemiln(out: PrettyPrinter) {
             print(out)
             out.writeln(";")
@@ -589,7 +586,7 @@ abstract class Ast {
     
     sealed abstract trait ResolveStmt extends ParseStmt
     
-    sealed abstract trait LowerStmt extends ResolveStmt
+    sealed abstract trait LowerStmt extends ResolveStmt with TypedNode
 
     sealed abstract trait ParseRcvr extends Node
     sealed abstract trait ParseOwner extends ParseRcvr
@@ -599,12 +596,10 @@ abstract class Ast {
     sealed abstract trait ResolveOwner extends ParseOwner with ResolveRcvr
     sealed abstract trait ResolveTlExpr extends ParseTlExpr with ResolveOwner with ResolveStmt
     
-    sealed abstract trait LowerTlExpr extends ResolveTlExpr with LowerStmt
+    sealed abstract trait LowerTlExpr extends ResolveTlExpr with LowerStmt with TypedNode
 
     case class Tuple(exprs: List[Expr]) extends ResolveTlExpr {
         override def toString = "(%s)".format(exprs.mkString(", "))
-        
-        def ty = tupleTy(exprs.map(_.ty))
         
         override def print(out: PrettyPrinter) {
             out.write("(")
@@ -661,7 +656,7 @@ abstract class Ast {
     }
     
     case class Assign(lvalue: Lvalue, rvalue: Expr) extends LowerStmt {
-        def ty = rvalue.ty
+        def ty = voidTy
         override def toString = "%s = %s".format(lvalue, rvalue)
         
         override def print(out: PrettyPrinter) {
