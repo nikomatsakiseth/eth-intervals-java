@@ -3,6 +3,7 @@ package harmonic.lang;
 import java.io.PrintStream;
 import java.io.InputStream;
 import ch.ethz.intervals.Interval;
+import java.util.List;
 
 /** The context provided to an Application instance. */
 public interface ApplicationContext {
@@ -17,7 +18,7 @@ public interface ApplicationContext {
     PrintStream getErr();
     
     /** Arguments from the command line */
-    String[] getArgs();
+    List<String> getArgs();
     
     /** Root interval for this application */
     Interval getRoot();

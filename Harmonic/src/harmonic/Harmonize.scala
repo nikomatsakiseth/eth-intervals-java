@@ -7,6 +7,8 @@ import harmonic.compiler.ByteCode.implSuffix
 import java.io
 import harmonic.compiler.Util._
 import ch.ethz.intervals._
+import java.util.Collections
+import java.util.Arrays
 
 object Harmonize {
     
@@ -62,12 +64,13 @@ object Harmonize {
                 }
                 
                 val app = ctor.newInstance().asInstanceOf[Application]
+                val appArgsList: java.util.List[String] = Collections.unmodifiableList(Arrays.asList(appArgs.toArray: _*))
                 inlineInterval("%s.main()".format(appClassName)) { root =>
                     val ctx = new harmonic.lang.ApplicationContext() {
                         val getIn = System.in
                         val getOut = System.out
                         val getErr = System.err
-                        val getArgs = appArgs.toArray
+                        val getArgs = appArgsList
                         val getRoot = root
                     }
                     val res = app.main(ctx)
