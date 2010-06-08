@@ -24,12 +24,28 @@ import ch.ethz.intervals.task.AbstractTask;
  */
 public class TestPCLoop {
 	
+	final int MAX = 100;
+
 	static AtomicInteger stamp = new AtomicInteger(1);
 	public int stamp() {
 		return stamp.getAndIncrement();
 	}
 	
 	List<Integer> consumed = new ArrayList<Integer>();
+	
+	class Producer extends AbstractTask {
+		
+		@Override
+		public void run(Interval subinterval) {
+			Interval prevConsumer = null;
+			for(int i = 0; i < MAX; i++) {
+				Interval consumer = subinterval.newAsyncChild(new Consumer(i));
+				Intervals.addHbIfNotNull(prevConsumer, consumer);
+				prevConsumer = consumer;
+			}
+		}
+		
+	}
 	
 	class Consumer extends AbstractTask {
 		public Integer i;
@@ -44,15 +60,9 @@ public class TestPCLoop {
 	}
 	
 	@Test public void test() {
-		final int MAX = 100;
 		inline(new AbstractTask() {
-			public void run(Interval subinterval) {
-				Interval prevConsumer = null;
-				for(int i = 0; i < MAX; i++) {
-					Interval consumer = subinterval.newAsyncChild(new Consumer(i));
-					Intervals.addHbIfNotNull(prevConsumer, consumer);
-					prevConsumer = consumer;
-				}
+			@Override public void run(Interval current) throws Exception {
+				current.newAsyncChild(new Producer());
 			}
 		});
 		for(int i = 0; i < MAX; i++)

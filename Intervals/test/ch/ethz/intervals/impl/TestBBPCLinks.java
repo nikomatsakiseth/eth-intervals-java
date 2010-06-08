@@ -18,9 +18,7 @@ import ch.ethz.intervals.task.AbstractTask;
 
 /**
  * Bounded-buffer Producer Consumer example
- * using linked lists.  Includes annotations
- * for our static type system that provide it
- * is free of data races..
+ * using linked lists.  
  */
 public class TestBBPCLinks {
 
