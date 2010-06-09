@@ -151,7 +151,7 @@ extends Resolve(global, compUnit)
         def outParam = outParams.head
     }
     
-    class ResolveLvalue(var scope: InScope, inLvalue: in.Lvalue) {
+    class ResolveLvalues(var scope: InScope, inLvalues: List[in.Lvalue]) {
         def resolveLvalue(lvalue: in.Lvalue): out.Lvalue = withPosOf(lvalue, lvalue match {
             case in.TupleLvalue(lvalues) => {
                 val outLvalues = lvalues.map(resolveLvalue)
@@ -228,7 +228,7 @@ extends Resolve(global, compUnit)
             out.FieldLvalue(resolveDottedMemberName(name), ())
         })
         
-        val outLvalue = resolveLvalue(inLvalue)
+        val outLvalues = inLvalues.map(resolveLvalue)
     }
 
     def resolveDottedMemberName(relDot: in.RelDot) = withPosOf(relDot, {
@@ -594,11 +594,11 @@ extends Resolve(global, compUnit)
             case (expr: in.Expr) :: stmts => 
                 resolveExpr(expr) :: resolveStmts(stmts)
                 
-            case (stmt @ in.Assign(lv, rv)) :: stmts => {
-                val outRv = resolveExpr(rv)
-                val resolveLocal = new ResolveLvalue(this, lv)
-                val outAssign = withPosOf(stmt, out.Assign(resolveLocal.outLvalue, outRv))
-                val outStmts = resolveLocal.scope.resolveStmts(stmts)
+            case (stmt @ in.Assign(lvs, rvs)) :: stmts => {
+                val outRvs = rvs.map(resolveExpr)
+                val resolveLvs = new ResolveLvalues(this, lvs)
+                val outAssign = withPosOf(stmt, out.Assign(resolveLvs.outLvalues, outRvs))
+                val outStmts = resolveLvs.scope.resolveStmts(stmts)
                 outAssign :: outStmts
             }
             

@@ -201,7 +201,7 @@ case class Lower(global: Global) {
                 
                 // If not matching, try to find a bounding type, or just infer Object:
                 case (_, in.TupleParam(params)) => {
-                    val optTy = env.upperBoundType(expTy).firstSome {
+                    val optTy = env.upperBoundVars(expTy).firstSome {
                         case ty @ Type.Tuple(tys) if sameLength(tys, params) => Some(ty)
                         case _ => None
                     }
@@ -684,62 +684,6 @@ case class Lower(global: Global) {
         result.toList
     }
     
-    /** Lowers an Lvalue, using hints from the type of the RHS `rvalueTy`. */
-    class LvalueLower(
-        var env: Env
-    ) {
-        def lowerLvalue(rvalueTy: Type.Ref, lvalue: in.Lvalue): out.Lvalue = withPosOf(lvalue, {
-            (rvalueTy, lvalue) match {
-                // Unpack singleton tuples:
-                case (ty, in.TupleLvalue(List(lv))) => lowerLvalue(ty, lv)
-                case (Type.Tuple(List(ty)), lv) => lowerLvalue(ty, lv)
-
-                // Unpack matching tuples:
-                case (Type.Tuple(tys), in.TupleLvalue(lvalues)) if sameLength(tys, lvalues) => {
-                    val outLvalues = tys.zip(lvalues).map { case (t, l) => lowerLvalue(t, l) }
-                    out.TupleLvalue(outLvalues)
-                }
-
-                // If tuple sizes don't match, just infer NullType:
-                case (_, in.TupleLvalue(lvalues)) => {
-                    val outLvalues = lvalues.map(lowerLvalue(Type.Null, _))
-                    out.TupleLvalue(outLvalues)
-                }
-                
-                // New variable declaration, use type from rhs if none provided:
-                case (rhsTy, in.DeclareVarLvalue(anns, tref, name, ())) => {
-                    val outAnnotations = anns.map(InEnv(env).lowerAnnotation)
-                    val mod = Modifier.forLoweredAnnotations(outAnnotations)
-                    val ty = tref match {
-                        case in.InferredTypeRef() => rhsTy
-                        case inTref: in.ResolveTypeRef => InEnv(env).toTypeRef(inTref)
-                    }
-                    val sym = new VarSymbol.Local(name.pos, mod, name.name, ty)
-                    env = env.plusLocalVar(sym)
-                    out.DeclareVarLvalue(outAnnotations, out.TypeRef(ty), name, sym)
-                }
-                
-                // Reassign local variable:
-                case (_, in.ReassignVarLvalue(localName @ Ast.LocalName(name), ())) => {
-                    out.ReassignVarLvalue(localName, env.locals(name))
-                }
-                
-                // Reassign field:
-                case (_, in.FieldLvalue(memberName @ Ast.MemberName(name), ())) => {
-                    val csym = global.csym(name.className)
-                    val fsym = csym.fieldNamed(name) match {
-                        case Some(fsym) => fsym
-                        case None => {
-                            Error.NoSuchMember(csym.toType, name).report(global, memberName.pos)
-                            VarSymbol.errorField(name, None)
-                        }
-                    }
-                    out.FieldLvalue(memberName, fsym)
-                }
-            }
-        })
-    }
-    
     object InEnvStmt {
         def apply(env: Env, optStmts: Option[mutable.ListBuffer[out.Stmt]]) = {
             new InEnvStmt(env, optStmts)            
@@ -749,13 +693,8 @@ case class Lower(global: Global) {
     class InEnvStmt(env: Env, optStmts: Option[mutable.ListBuffer[out.Stmt]]) extends InEnv(env) {
         def appendLoweredStmt(stmt: in.Stmt): Env = {
             stmt match {
-                case in.Assign(lvalue, rvalue) => {
-                    val optExpTy = optTypeFromLocal(env, lvalue)
-                    val outRvalue = lowerExpr(optExpTy)(rvalue)
-                    val ll = new LvalueLower(env)
-                    val outLvalue = ll.lowerLvalue(outRvalue.ty, lvalue)
-                    optStmts.foreach(_ += withPosOf(stmt, out.Assign(outLvalue, outRvalue)))
-                    ll.env
+                case stmt: in.Assign => {
+                    appendAssign(stmt)
                 }
                 
                 case in.InlineInterval(name, body, ()) => {
@@ -815,7 +754,137 @@ case class Lower(global: Global) {
                 case FailedException() => None
             }
         }
-    
+        
+        /** Helper for lowering assignment. Uses explicit or otherwise available types 
+          * from the LHS as hints for lowering the RHS. Implicit types on the LHS are
+          * derived from the RHS. Generates as a result a flattened set of symbols 
+          * being assigned to and expressions being assigned from. */
+        def appendAssign(inAssign: in.Assign): Env = {
+            var outEnv = env
+            val outLvalues = new mutable.ListBuffer[out.ElemLvalue]()
+            val outExprs = new mutable.ListBuffer[out.Expr]()
+
+            def fieldSymbol(memberName: Ast.MemberName) = {
+                val name = memberName.name
+                val csym = global.csym(name.className)
+                csym.fieldNamed(name) match {
+                    case Some(fsym) => fsym
+                    case None => {
+                        Error.NoSuchMember(csym.toType, name).report(global, memberName.pos)
+                        VarSymbol.errorField(name, None)
+                    }
+                }                
+            }
+            
+            def lowerDeclaredVar(lv: in.DeclareVarLvalue, ty: Type.Ref, rv: out.Expr) = {
+                val in.DeclareVarLvalue(anns, _, name, ()) = lv
+                val outAnnotations = anns.map(InEnv(outEnv).lowerAnnotation)
+                val mod = Modifier.forLoweredAnnotations(outAnnotations)
+                val sym = new VarSymbol.Local(name.pos, mod, name.name, ty)
+                outEnv = outEnv.plusLocalVar(sym)
+
+                outLvalues += withPosOf(lv, 
+                    out.DeclareVarLvalue(outAnnotations, out.TypeRef(ty), name, sym)
+                )
+                
+                outExprs += rv
+            }
+            
+            def lowerReassignedVar(localName: Ast.LocalName, sym: VarSymbol.Local, rv: out.Expr) = {
+                outLvalues += withPosOf(localName,
+                    out.ReassignVarLvalue(localName, sym)
+                )
+                outExprs += rv
+            }
+            
+            def lowerReassignedField(memberName: Ast.MemberName, fsym: VarSymbol.Field, rv: out.Expr) = {
+                outLvalues += withPosOf(memberName,
+                    out.FieldLvalue(memberName, fsym)
+                )
+                outExprs += rv                
+            }
+            
+            def lowerFromOutExpr(pair: (in.Lvalue, out.Expr)): Unit = {
+                pair match {
+                    case (in.TupleLvalue(sublvs), rv) => {
+                        val path = typedPathForExpr(rv)
+                        val outRvs = sublvs.indices.map { idx =>
+                            Path.TypedIndex(path, Path.TypedConstant.integer(idx)).toNodeWithPosOf(rv)
+                        }
+                        sublvs.zip(outRvs).foreach(lowerFromOutExpr)
+                    }
+                    
+                    case (lv @ in.DeclareVarLvalue(_, inTref: in.ResolveTypeRef, _, _), rv) => {
+                        val ty = InEnv(outEnv).toTypeRef(inTref)
+                        lowerDeclaredVar(lv, ty, rv)
+                    }
+                    
+                    case (lv @ in.DeclareVarLvalue(_, in.InferredTypeRef(), _, _), rv) => {
+                        lowerDeclaredVar(lv, rv.ty, rv)
+                    }
+                    
+                    case (lv @ in.ReassignVarLvalue(localName, ()), rv) => {
+                        val sym = env.locals(localName.name)
+                        lowerReassignedVar(localName, sym, rv)
+                    }
+                    
+                    case (lv @ in.FieldLvalue(memberName, ()), rv) => {
+                        val fsym = fieldSymbol(memberName)
+                        lowerReassignedField(memberName, fsym, rv)
+                    }
+                }
+            }
+
+            def lowerFromInExpr(pair: (in.Lvalue, in.Expr)): Unit = {
+                (pair) match {
+                    case (in.TupleLvalue(List(lv)), rv) => lowerFromInExpr(lv, rv)
+                    case (lv, in.Tuple(List(rv))) => lowerFromInExpr(lv, rv)
+
+                    case (in.TupleLvalue(lvs), in.Tuple(rvs)) if sameLength(lvs, rvs) => 
+                        lvs.zip(rvs).foreach(lowerFromInExpr)
+
+                    case (lv @ in.TupleLvalue(_), rv) => {
+                        val expTy = optTypeFromLocal(env, lv)
+                        val outRv = lowerExpr(expTy)(rv)
+                        lowerFromOutExpr((lv, outRv))
+                    }
+
+                    case (lv @ in.DeclareVarLvalue(_, inTref: in.ResolveTypeRef, _, _), rv) => {
+                        val ty = InEnv(outEnv).toTypeRef(inTref)
+                        val outRv = lowerExpr(Some(ty))(rv)
+                        lowerDeclaredVar(lv, ty, outRv)
+                    }
+
+                    case (lv @ in.DeclareVarLvalue(_, in.InferredTypeRef(), _, _), rv) => {
+                        val path = lowerToTypedPathNode(None)(rv)
+                        lowerDeclaredVar(lv, path.ty, path)
+                    }
+
+                    case (lv @ in.ReassignVarLvalue(localName, ()), rv) => {
+                        val sym = env.locals(localName.name)
+                        val outRv = lowerExpr(Some(sym.ty))(rv)
+                        lowerReassignedVar(localName, sym, outRv)
+                    }
+
+                    case (lv @ in.FieldLvalue(memberName, ()), rv) => {
+                        val fsym = fieldSymbol(memberName)
+                        val outRv = lowerExpr(Some(fsym.ty))(rv)
+                        lowerReassignedField(memberName, fsym, outRv)
+                    }
+                }
+            }
+
+            lowerFromInExpr((inAssign.lvalue, inAssign.rvalue))
+            
+            val outAssign = withPosOf(inAssign,
+                out.Assign(outLvalues.toList, outExprs.toList)
+            )
+            
+            optStmts.foreach(_ += outAssign)
+            
+            outEnv
+        }
+
         def lowerField(optExpTy: Option[Type.Ref])(expr: in.Field) = withPosOf(expr, {
             expr.owner match {
                 // Static field ref. like System.out:
@@ -1133,13 +1202,15 @@ case class Lower(global: Global) {
                     val sym = new VarSymbol.Local(outExpr.pos, Modifier.Set.empty, name, outExpr.ty)
                     val assign = withPosOf(outExpr, 
                         out.Assign(
-                            out.DeclareVarLvalue(
-                                List(), 
-                                out.TypeRef(outExpr.ty), 
-                                Ast.LocalName(name), 
-                                sym
-                            ), 
-                            outExpr
+                            List(
+                                out.DeclareVarLvalue(
+                                    List(), 
+                                    out.TypeRef(outExpr.ty), 
+                                    Ast.LocalName(name), 
+                                    sym
+                                )
+                            ),
+                            List(outExpr)
                         )
                     )
                     optStmts.foreach(_ += assign)

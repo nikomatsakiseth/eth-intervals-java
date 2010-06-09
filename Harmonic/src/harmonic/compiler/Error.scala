@@ -12,6 +12,21 @@ abstract class Error {
 }
 
 object Error {
+    
+    case class NoReturnHere() extends Error {
+        def report(global: Global, pos: Position) {
+            global.reporter.report(pos, "no.return.here")
+        }                
+    }
+    
+    case class MustHaveType(path: Path.Typed, ty: Type.Ref) extends Error {
+        def report(global: Global, pos: Position) {
+            global.reporter.report(pos, 
+                "must.have.type", path.toString, ty.toString
+            )
+        }        
+    }
+    
     case class NotOverride(className: Name.Class, methodName: Name.Method) extends Error {
         def report(global: Global, pos: Position) {
             global.reporter.report(pos, 

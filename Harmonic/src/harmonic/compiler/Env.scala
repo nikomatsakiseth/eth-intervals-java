@@ -11,6 +11,8 @@ object Env {
     def empty(global: Global) = Env(
         global   = global,
         thisTy   = Type.Top,
+        currentInter = Name.MethodLocal, // TODO Is this sensible?
+        optReturnTy = None,
         locals   = Map(),
         pathRels = Nil,
         typeRels = Nil
@@ -24,6 +26,13 @@ case class Env(
     
     /** Type of the this pointer */
     thisTy: Type.Class,
+    
+    /** Name of the current interval */
+    currentInter: Name.LocalVar,
+    
+    /** Return type at current point, or 
+      * None if returns not currently allowed */
+    optReturnTy: Option[Type.Ref],
     
     /** In-scope local variables. */
     locals: Map[Name.LocalVar, VarSymbol.Local],
@@ -75,6 +84,8 @@ case class Env(
     def plusTypeRel(rel: (Type.Member, TcRel, Type.Ref)) = copy(typeRels = rel :: typeRels)
     
     def plusTypeRels(rels: List[(Type.Member, TcRel, Type.Ref)]) = rels.foldLeft(this)(_ plusTypeRel _)
+    
+    def withOptReturnTy(optReturnTy: Option[Type.Ref]) = copy(optReturnTy = optReturnTy)
     
     // ___ Querying the relations ___________________________________________
     
@@ -366,26 +377,51 @@ case class Env(
     
     def equatable(path: Path.Ref) = debugIndent("equatable(%s)", path) { new Equater().compute(path) }
     def pathsAreEquatable(path1: Path.Ref, path2: Path.Ref) = equatable(path1) contains path2
+
+    // ___ Relating Paths ___________________________________________________
+
+    def pathsAreRelatable(rel: PcRel)(path1: Path.Ref, path2: Path.Ref): Boolean = {
+        // TODO: Add code for handling permitsWr, permitsRd, and other derived relations!
+        rel match {
+            case PcEq => pathsAreEquatable(path1, path2)
+            case _ => {
+                val equatablePath1 = equatable(path1)
+                val equatablePath2 = equatable(path2)
+                pathRels.exists { case (p1, r, p2) =>
+                    (r == rel) && equatablePath1(p1) && equatablePath2(p2)
+                }
+            }
+        }
+    }
     
     // ___ Bounding Type Variables __________________________________________
     
     class Bounder(Rel: TcRel) extends TransitiveCloser[Type.Ref] {
         protected[this] def successors(ty: Type.Ref) = ty match {
-            case tyVar: Type.Member => typeVarBounds(tyVar)
+            case tyVar: Type.Member => equatableTypeVars(tyVar) ++ typeVarBounds(tyVar)
             case Type.Tuple(List()) => List(Type.Void)   // () equivalent to Void  [Does this make sense?]
             case Type.Tuple(List(ty)) => List(ty)        // (ty) equivalent to ty
             case _ => Nil
         }
+        
+        // A type `p.v` is equatable with all types `q.v` where `p eq q`
+        private[this] def equatableTypeVars(tyVar: Type.Member) = {
+            equatable(tyVar.path).map { case q =>
+                Type.Member(q, tyVar.typeVar)
+            }
+        }
 
+        // A type `p.v` obtains bounds based on the type of `p`:
         private[this] def typeVarBounds(tyVar: Type.Member) = {
             val TyVarName = tyVar.typeVar
             
-            def boundsFromClassType(tyClass: Type.Class) = {
-                // Add bounds from class:
+            // p has class type `pathTy` == `c[args]`:
+            def boundsFromClassType(pathTy: Type.Class) = {
+                // Add bounds declared in the class `c`:
                 val classBounds = List[Type.Ref]() // FIXME
                 
-                // Add bounds from type arguments in tyClass:
-                tyClass.typeArgs.foldLeft(classBounds) { 
+                // Add bounds from type arguments `args` in `pathTy`:
+                pathTy.typeArgs.foldLeft(classBounds) { 
                     case (l, Type.TypeArg(TyVarName, TcEq, ty)) => ty :: l
                     case (l, Type.TypeArg(TyVarName, Rel, ty)) => ty :: l
                     case (l, _) => l
@@ -393,9 +429,9 @@ case class Env(
             }
             
             typeOfPath(tyVar.path) match {
-                case tyClass: Type.Class => boundsFromClassType(tyClass)
-                case tyVar: Type.Member => {
-                    compute(tyVar).toList.flatMap {
+                case pathTy: Type.Class => boundsFromClassType(pathTy)
+                case pathTy: Type.Member => {
+                    compute(pathTy).toList.flatMap {
                         case tyClass: Type.Class => boundsFromClassType(tyClass)
                         case _ => Nil
                     }
@@ -407,24 +443,24 @@ case class Env(
     }
     
     /** Returns a set of types that are exactly equivalent to `ty`. */
-    def equalType(ty: Type.Ref) = new Bounder(TcEq).compute(ty)
+    def equateVars(ty: Type.Ref) = new Bounder(TcEq).compute(ty)
 
     /** Returns a set of types that are upper bounds for `ty` 
       * (i.e., supertypes of `ty`).  This function is intended to expand
       * type variables.  It does not return supertypes of class types. */
-    def upperBoundType(ty: Type.Ref) = new Bounder(TcSub).compute(ty)
+    def upperBoundVars(ty: Type.Ref) = new Bounder(TcSub).compute(ty)
     
     /** Returns a set of types that are lower bounds for `ty` 
       * (i.e., subtypes of `ty`). This function is intended to expand
       * type variables.  It does not return supertypes of class types. */
-    def lowerBoundType(ty: Type.Ref) = new Bounder(TcSup).compute(ty)
+    def lowerBoundVars(ty: Type.Ref) = new Bounder(TcSup).compute(ty)
     
     /** Returns a minimal set of upper-bounds for `ty`. "Minimal"
       * means that we remove redundant class types; i.e., if 
       * references to classes C and D are both in the list, and
       * C extends D, then D will be removed. */
     def minimalUpperBoundType(ty: Type.Ref) = {
-        val bnds = upperBoundType(ty)
+        val bnds = upperBoundVars(ty)
         bnds.foldLeft(bnds) { 
             case (b, classTy: Type.Class) => {
                 val mro = MethodResolutionOrder(global).forClassType(classTy)
@@ -597,7 +633,7 @@ case class Env(
     }
     
     def isSuitableArgument(ty_val: Type.Ref, ty_pat: Type.Ref): Boolean = {
-        (upperBoundType(ty_val) cross lowerBoundType(ty_pat)).exists {
+        (upperBoundVars(ty_val) cross lowerBoundVars(ty_pat)).exists {
             case (u, l) => isSuitableArgumentBounded(u, l)
         }
     }
@@ -644,7 +680,11 @@ case class Env(
     }
     
     def typesAreEquatable(ty1: Type.Ref, ty2: Type.Ref): Boolean = {
-        (ty1 == ty2) || (equalType(ty1) cross equalType(ty2)).exists(typesAreEquatable1)
+        (ty1 == ty2) || (equateVars(ty1) cross equateVars(ty2)).exists(typesAreEquatable1)
+    }
+    
+    private[this] def typeEquatableWith(ty1: Type.Ref)(ty2: Type.Ref): Boolean = {
+        typesAreEquatable(ty1, ty2)
     }
     
     // ___ Method Override Checking _________________________________________
@@ -748,5 +788,40 @@ case class Env(
 //            case _ => false
 //        }
 //    }
+
+    // ___ Path has type ____________________________________________________
+    //
+    // This is the Harmonic equivalent to a subtype check.
+    
+    def isSatisfiedForPath(path: Path.Typed)(arg: Type.Arg): Boolean = {
+        arg match {
+            case Type.PathArg(name, rel, path2) => {
+                val extPath = Path.Field(path.toPath, name)
+                pathsAreRelatable(rel)(extPath, path2)
+            }
+            case Type.TypeArg(name, rel, ty) => {
+                val extTy = Type.Member(path.toPath, name)
+                new Bounder(rel).compute(extTy).exists(
+                    typeEquatableWith(ty)
+                )
+            }
+        }
+    }
+    
+    def pathHasType(path: Path.Typed, ty: Type.Ref): Boolean = {
+        val ubSubTys = upperBoundVars(path.ty)
+        val lbSuperTys = lowerBoundVars(ty)
+        (ubSubTys cross lbSuperTys).exists {
+            case (Type.Member(path1, v1), Type.Member(path2, v2)) => {
+                (v1 == v2) && pathsAreEquatable(path1, path2)
+            }
+            
+            case (Type.Class(subName, _), Type.Class(supName, supArgs)) => {
+                val subCsym = global.csym(subName)
+                val supCsym = global.csym(supName)
+                subCsym.isSubclass(supCsym) && supArgs.forall(isSatisfiedForPath(path))
+            }
+        }
+    }
   
 }

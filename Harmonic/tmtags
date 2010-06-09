@@ -454,7 +454,7 @@ env	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/GatherOverride
 env	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^            val env = emptyEnv.plusSyms(receiverSym :: parameterSyms)$/;"	constants	line:243
 env	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        val env = ThisEnv(csym)$/;"	constants	line:286
 env	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        var env = env0$/;"	local variables	line:416
-equalType	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    def equalType(ty: Type.Ref) = new Bounder(TcEq).compute(ty)$/;"	methods	line:252
+equateVars	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    def equateVars(ty: Type.Ref) = new Bounder(TcEq).compute(ty)$/;"	methods	line:252
 equatable	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    def equatable(path: Path.Ref) = new Equater().compute(path)$/;"	methods	line:211
 err	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Main.scala	/^        val err = $/;"	constants	line:10
 error	/Users/niko/git/intervals-java/Harmonic/test.py	/^    def error(self, message):$/;"	member	line:452
@@ -610,7 +610,7 @@ lowerAnnotation	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lo
 lowerBlock	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def lowerBlock(optExpTy: Option[Type.Ref])(tmpl: in.Block) = introduceVar(tmpl, {$/;"	methods	line:875
 lowerBlockArgument	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def lowerBlockArgument(expArgumentTy: Type.Ref, local: in.Local): out.Param = {$/;"	methods	line:808
 lowerBody	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^    def lowerBody(env: Env, body: in.Body): out.Body = {$/;"	methods	line:411
-lowerBoundType	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    def lowerBoundType(ty: Type.Ref) = new Bounder(TcSup).compute(ty)$/;"	methods	line:254
+lowerBoundVars	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    def lowerBoundVars(ty: Type.Ref) = new Bounder(TcSup).compute(ty)$/;"	methods	line:254
 lowerCast	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def lowerCast(expr: in.Cast) = withPosOf(expr, {$/;"	methods	line:921
 lowerClassDecl	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^    def lowerClassDecl($/;"	methods	line:184
 lowerDeclPart	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def lowerDeclPart(part: in.DeclPart): out.DeclPart = withPosOf(part, out.DeclPart($/;"	methods	line:319
@@ -776,7 +776,7 @@ optSubst	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Pattern.s
 optSym	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^            val optSym = env.lookupField(owner.ty, expr.name.name)$/;"	constants	line:604
 optSym	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^            val optSym = env.lookupField(owner.ty, path.name.name)$/;"	constants	line:360
 optTupleParam	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Parse.scala	/^    lazy val optTupleParam = positioned($/;"	constants	line:121
-optTy	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^                    val optTy = env.upperBoundType(expArgumentTy).firstSome {$/;"	constants	line:825
+optTy	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^                    val optTy = env.upperBoundVars(expArgumentTy).firstSome {$/;"	constants	line:825
 optTypeArg	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def optTypeArg(TypeVarName: Name.Var, optExpTy: Option[Type.Ref]) = optExpTy match {$/;"	methods	line:797
 optTypeFromLocal	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def optTypeFromLocal(env: Env, local0: in.Local): Option[Type.Ref] = {$/;"	methods	line:457
 optTypeRef	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Parse.scala	/^    lazy val optTypeRef = reqTypeRef | infTypeRef$/;"	constants	line:229
@@ -1306,7 +1306,7 @@ unapply	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Pattern.sc
 unapply	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Pattern.scala	/^        def unapply(anon: AnonVar) = Some(anon.ty)$/;"	methods	line:21
 undent	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/PrettyPrinter.scala	/^        override def undent() {$/;"	methods	line:27
 undent	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/PrettyPrinter.scala	/^    def undent(): Unit$/;"	methods	line:5
-upperBoundType	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    def upperBoundType(ty: Type.Ref) = new Bounder(TcSub).compute(ty)$/;"	methods	line:253
+upperBoundVars	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    def upperBoundVars(ty: Type.Ref) = new Bounder(TcSub).compute(ty)$/;"	methods	line:253
 usage	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Config.scala	/^    private[this] def usage(err: PrintStream) {$/;"	methods	line:24
 useReflection	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Config.scala	/^    var useReflection = true$/;"	local variables	line:21
 value	/Users/niko/git/intervals-java/Harmonic/src/harmonic/lang/AsyncBlock.java	/^    public R value(A argument);$/;"	method	line:6

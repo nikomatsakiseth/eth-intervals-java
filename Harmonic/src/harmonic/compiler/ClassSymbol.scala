@@ -50,19 +50,21 @@ abstract class ClassSymbol extends Symbol {
     /** Names of any superclasses */
     def superClassNames: List[Name.Class]
     
-    /** True if `this` is a subclass of `csym_sup` */
-    def isSubclass(superCsym: ClassSymbol) = {
-        (this == superCsym) || {
-            val queued = new mutable.Queue[ClassSymbol]()
-            val visited = new mutable.HashSet[ClassSymbol]()
-            queued += this
-            while(!queued.isEmpty && !visited(superCsym)) {
-                val nextCsym = queued.dequeue()
-                visited += nextCsym
-                queued ++= nextCsym.superClassNames.map(global.csym).filterNot(visited)
-            }
-            visited(superCsym)                
+    lazy val transitiveSuperClassSymbols: Set[ClassSymbol] = {
+        val queued = new mutable.Queue[ClassSymbol]()
+        val visited = new mutable.HashSet[ClassSymbol]()
+        queued += this
+        while(!queued.isEmpty) {
+            val nextCsym = queued.dequeue()
+            visited += nextCsym
+            queued ++= nextCsym.superClassNames.map(global.csym).filterNot(visited)
         }
+        visited.toSet                  
+    }
+    
+    /** True if `this` is a subclass of `csym_sup` */
+    def isSubclass(superCsym: ClassSymbol): Boolean = {
+        (this == superCsym) || transitiveSuperClassSymbols(superCsym)
     }
     
     /** List of all "variable" members and what kind they are. 

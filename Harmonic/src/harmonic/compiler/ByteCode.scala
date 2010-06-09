@@ -639,13 +639,11 @@ case class ByteCode(global: Global) {
     }
 
     def symbolsReassignedInLvalue(local: in.Lvalue): List[VarSymbol.Any] = local match {
-        case in.TupleLvalue(locals) => locals.flatMap(symbolsReassignedInLvalue)
         case in.ReassignVarLvalue(_, sym) => List(sym)
         case _ => Nil
     }
     
     def symbolsDeclaredInLvalue(local: in.Lvalue): List[VarSymbol.Any] = local match {
-        case in.TupleLvalue(locals) => locals.flatMap(symbolsDeclaredInLvalue)
         case in.DeclareVarLvalue(_, _, _, sym) => List(sym)
         case _ => Nil
     }
@@ -708,11 +706,11 @@ case class ByteCode(global: Global) {
             case in.MethodReturn(expr) => 
                 summarizeSymbolsInExpr(summary, expr)
             
-            case in.Assign(local, expr) => {
-                val summaryExpr = summarizeSymbolsInExpr(summary, expr)
-                summaryExpr.copy(
-                    declaredSyms = summaryExpr.declaredSyms ++ symbolsDeclaredInLvalue(local),
-                    writeSyms = summaryExpr.writeSyms ++ symbolsReassignedInLvalue(local)
+            case in.Assign(locals, exprs) => {
+                val summaryExprs = exprs.foldLeft(summary)(summarizeSymbolsInExpr)
+                summaryExprs.copy(
+                    declaredSyms = summaryExprs.declaredSyms ++ locals.flatMap(symbolsDeclaredInLvalue),
+                    writeSyms = summaryExprs.writeSyms ++ locals.flatMap(symbolsReassignedInLvalue)
                 )
             }
         }
@@ -735,64 +733,6 @@ case class ByteCode(global: Global) {
         
         def inBlock = (flags & IN_BLOCK) != 0
         
-        /** Generates the instructions to store to an lvalue, unpacking
-          * tuple values as needed.  
-          *
-          * Stack: ... => ...
-          */
-        def store(lvalue: in.Lvalue, rvalue: in.Expr) {
-            lvalue match {
-                case in.TupleLvalue(List(sublvalue)) => {
-                    store(sublvalue, rvalue)
-                }
-                
-                case varPat: in.VarAstPattern[VarSymbol.Any] => {
-                    // Micro-optimize generated code to avoid using stashSlot:
-                    val sym = varPat.sym
-                    val accessPath = accessMap.syms(sym)
-                    mvis.setPosition(lvalue.pos)
-                    accessPath.pushLvalue(mvis)
-                    pushExprValueDowncastingTo(lvalue.ty, rvalue)
-                    mvis.setPosition(lvalue.pos)
-                    accessPath.storeLvalue(mvis)
-                }
-                
-                case _ => {
-                    pushExprRvalues(lvalue.toPatternAnon, rvalue, Nil)
-                    popExprRvalues(lvalue, rvalue)
-                }
-            }
-        }
-
-        /** Evaluates `expr` to a form suitable for being stored
-          * into `lvalue`.  Values for each variable in lvalue 
-          * are pushed in pre-order. In other words, if `lvalue` were a 
-          * pattern like `((a, b), c)`, then the values for `a`, `b`, 
-          * and `c` would be pushed in that order.
-          *
-          * The `asmTypes` parameter is used when invoking Java methods.
-          * It contains optional Java types for the values being pushed.
-          * The first `asmTypes.length` values to be pushed will be further
-          * convert/unboxed into the types given (if there are more values
-          * to be pushed, they are unaffected).  When values are being
-          * passed between Harmonic methods, or stored into Harmonic fields,
-          * one can just pass the empty list for `asmTypes`.
-          */
-        def pushExprRvalues(lvalue: Pattern.Anon, rvalue: in.Expr, asmTypes: List[asm.Type]): List[asm.Type] = {
-            (lvalue, rvalue) match {
-                case (Pattern.AnonTuple(List(l)), _) =>
-                    pushExprRvalues(l, rvalue, asmTypes)
-                    
-                case (_, in.TypedPath(r)) =>
-                    pushPathRvalues(lvalue, r, asmTypes)
-                    
-                case _ => {
-                    pushExprValueDowncastingTo(lvalue.ty, rvalue)
-                    expand(lvalue, asmTypes)
-                }
-            }
-        }
-        
         def pushPathRvalues(lvalue: Pattern.Anon, rvalue: Path.Typed, asmTypes: List[asm.Type]): List[asm.Type] = {
             (lvalue, rvalue) match {
                 case (Pattern.AnonTuple(List(l)), _) =>
@@ -810,37 +750,6 @@ case class ByteCode(global: Global) {
                     pushPathValueDowncastingTo(lvalue.ty, rvalue)
                     expand(lvalue, asmTypes)
                 }
-            }
-        }
-        
-        /** Pops the rvalues which were pushed by `pushRvalues(lvalue)(rvalue)`,
-          * storing them into `lvalue`. */
-        def popExprRvalues(lvalue: in.Lvalue, rvalue: in.Expr) {
-            (lvalue, rvalue) match {
-                case (in.TupleLvalue(List(l)), _) =>
-                    popExprRvalues(l, rvalue)
-                    
-                case (_, in.TypedPath(r)) =>
-                    popPathRvalues(lvalue, r)
-                    
-                case _ =>
-                    contract(lvalue)                    
-            }
-        }
-        
-        def popPathRvalues(lvalue: in.Lvalue, rvalue: Path.Typed) {
-            (lvalue, rvalue) match {
-                case (in.TupleLvalue(List(l)), _) =>
-                    popPathRvalues(l, rvalue)
-                    
-                case (_, Path.TypedTuple(List(r))) =>
-                    popPathRvalues(lvalue, r)
-                    
-                case (in.TupleLvalue(ls), Path.TypedTuple(rs)) if sameLength(ls, rs) =>
-                    ls.zip(rs).reverse.foreach { case (l, r) => popPathRvalues(l, r) }
-                    
-                case _ =>
-                    contract(lvalue)                    
             }
         }
         
@@ -869,19 +778,6 @@ case class ByteCode(global: Global) {
                         }
                     }                    
                 }
-            }
-        }
-        
-        def contract(lvalue: in.Lvalue) {
-            def storeSym(sym: VarSymbol.Any) = {
-                mvis.setPosition(lvalue.pos)
-                accessMap.syms(sym).storeLvalueWithoutPush(mvis)                
-            }
-            lvalue match {
-                case in.TupleLvalue(sublvalues) => sublvalues.reverse.foreach(contract)
-                case in.DeclareVarLvalue(_, _, _, sym) => storeSym(sym)
-                case in.ReassignVarLvalue(_, sym) => storeSym(sym)
-                case in.FieldLvalue(_, sym) => storeSym(sym)
             }
         }
         
@@ -1214,8 +1110,20 @@ case class ByteCode(global: Global) {
                     mvis.visitInsn(O.ARETURN)
                 }
 
-                case in.Assign(lvalue, rvalue) => {
-                    store(lvalue, rvalue)
+                case in.Assign(lvalues, rvalues) => {
+                    // Push values to be stored:
+                    lvalues.zip(rvalues).foreach { case (lv, rv) =>
+                        val path = accessMap.syms(lv.sym)
+                        path.pushLvalue(mvis)
+                        pushExprValueDowncastingTo(lv.sym.ty, rv)
+                    }
+                    
+                    // Pop values to be stored:
+                    lvalues.reverse.foreach { case lv =>
+                        val path = accessMap.syms(lv.sym)
+                        mvis.setPosition(lv.pos)
+                        path.storeLvalue(mvis)
+                    }
                 }
             }
         }
