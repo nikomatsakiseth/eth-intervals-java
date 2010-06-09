@@ -11,9 +11,17 @@ import Util._
 case class TypeCheck(global: Global) {
     private[this] val emptyEnv = Env.empty(global)
     
-    case class InEnv(env: Env) {
+    object InEnv {
+        def apply(env: Env) = new InEnv(env)
+    }
+    
+    class InEnv(env: Env) {
         
-        case class At(node: Ast.Node) {
+        object At {
+            def apply(node: Ast.Node) = new At(node)
+        }
+
+        class At(node: Ast.Node) {
             
             def checkPathHasType(path: Path.Typed, ty: Type.Ref): Unit = {
                 if(!env.pathHasType(path, ty)) {
@@ -42,7 +50,7 @@ case class TypeCheck(global: Global) {
                     }
                     case Path.TypedConstant(_) => {
                     }
-                    case Path.TypedField(base: Path.Typed, sym) => {
+                    case Path.TypedField(base, sym) => {
                         checkOwner(base)
                         // TODO Check that guard is readable.
                     }

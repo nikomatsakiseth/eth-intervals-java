@@ -222,11 +222,12 @@ abstract class Ast {
         
         override def print(out: PrettyPrinter) {
             annotations.foreach(_.println(out))
-            returnTref.printsp(out)
             name.parts.zip(params).foreach { case (part, param) =>
                 out.write(part)
                 param.printsp(out)
             }
+            out.write(": ")
+            returnTref.print(out)
             out.writeln("")
             requirements.foreach(_.println(out))
             printOptBody(out, optBody)

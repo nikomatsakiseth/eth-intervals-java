@@ -812,6 +812,10 @@ case class Env(
         val ubSubTys = upperBoundVars(path.ty)
         val lbSuperTys = lowerBoundVars(ty)
         (ubSubTys cross lbSuperTys).exists {
+            case (Type.Null, _) => {
+                true
+            }
+            
             case (Type.Member(path1, v1), Type.Member(path2, v2)) => {
                 (v1 == v2) && pathsAreEquatable(path1, path2)
             }
@@ -820,6 +824,10 @@ case class Env(
                 val subCsym = global.csym(subName)
                 val supCsym = global.csym(supName)
                 subCsym.isSubclass(supCsym) && supArgs.forall(isSatisfiedForPath(path))
+            }
+            
+            case (_, _) => {
+                false
             }
         }
     }

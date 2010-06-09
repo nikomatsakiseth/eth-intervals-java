@@ -99,6 +99,9 @@ object Util {
     
     class DebugData(val threadId: Int) {
         var indent: Int = 0
+        
+        def addIndent { indent += 2}
+        def removeIndent { indent -= 2}
     }
     
     private[this] val local = new java.lang.ThreadLocal[DebugData]() {
@@ -115,11 +118,21 @@ object Util {
         val str = "%03x: ".format(data.threadId) + (" " * data.indent) + fmt.format(args: _*)
         Util.synchronized { println(str) }
     }
+    
+    def debugAddIndent {
+        val data = local.get
+        data.addIndent
+    }
+        
+    def debugRemoveIndent {
+        val data = local.get
+        data.removeIndent
+    }
         
     def debugIndent[R](fmt: String, args: Any*)(func: => R) = {
         val data = local.get
         debug(fmt, args: _*)
-        data.indent += 2
+        data.addIndent
         try {
             val result = func
             if(result != ())
@@ -129,7 +142,7 @@ object Util {
             debug("Error: %s", t)
             throw t
         } finally {
-            data.indent -= 2
+            data.removeIndent
         }
     }
     

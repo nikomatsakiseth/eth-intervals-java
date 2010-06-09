@@ -49,7 +49,7 @@ extends Resolve(global, compUnit)
         )
 
         if(global.config.dumpResolvedTrees) {
-            csym.resolvedSource.println(PrettyPrinter.stdout)
+            csym.resolvedSource.println(PrettyPrinter.debug)
         }
     }
     

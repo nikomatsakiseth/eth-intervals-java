@@ -41,4 +41,27 @@ object PrettyPrinter {
         }
     }
     
+    object debug extends PrettyPrinter {
+        val buffer = new StringBuilder()
+        override def indent() {
+            Util.debugAddIndent
+        }
+        override def undent() {
+            Util.debugRemoveIndent
+        }
+        override def write(fmt: String, args: Any*) {
+            buffer.append(fmt.format(args.map(_.toString): _*))
+            if(buffer.length > 0) {
+                if(buffer.charAt(buffer.length - 1) == '\n') {
+                    Util.debug("%s", buffer.toString)
+                    buffer.setLength(0)
+                }
+            }
+        }
+        override def writeln(fmt: String, args: Any*) {
+            write(fmt, args: _*)
+            write("\n")
+        }
+    }    
+    
 }

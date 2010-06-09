@@ -102,9 +102,19 @@ object Path {
     }
     case class TypedIndex(array: Path.Typed, index: Path.Typed) extends Typed {
         def toPath = Index(array.toPath, index.toPath)
+        
         lazy val ty = {
-            Type.Member(array.toPath, Name.ArrayElem)
+            // Special case: constant indices dereferencing a tuple have known
+            // type.  Otherwise, we use the type of the array.
+            (array.ty, index) match {
+                case (Type.Tuple(tys), Path.TypedConstant(idx: java.lang.Integer)) if idx.intValue < tys.length =>
+                    tys(idx.intValue)
+                
+                case _ => 
+                    Type.Member(array.toPath, Name.ArrayElem)
+            }
         }
+        
         override def toString = toPath.toString
     }
     case class TypedTuple(paths: List[Typed]) extends Typed {

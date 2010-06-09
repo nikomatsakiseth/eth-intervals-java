@@ -49,7 +49,7 @@ class Merge(global: Global) {
         )
 
         if(global.config.dumpLoweredTrees) {
-            csym.loweredSource.println(PrettyPrinter.stdout)
+            csym.loweredSource.println(PrettyPrinter.debug)
         }
     }
     
