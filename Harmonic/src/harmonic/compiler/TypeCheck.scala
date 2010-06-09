@@ -21,88 +21,104 @@ case class TypeCheck(global: Global) {
                 }
             }
             
+            def checkOwner(owner: Path.TypedOwner): Unit = {
+                owner match {
+                    case Path.Static =>
+                    case owner: Path.Typed => checkPath(owner)
+                }
+            }
+            
             def checkParamType(pair: (Pattern.Anon, Path.Typed)): Unit = {
-                val (pattern, path) = pair
-                checkPathHasType(path, pattern.ty)
+                checkPathHasType(pair._2, pair._1.ty)
             }
             
             def checkPath(path: Path.Typed): Unit = {
                 path match {
-                    case path @ Path.TypedLocal(sym) => {
-                        // TODO Check that guard is readable?
+                    case Path.TypedLocal(sym) => {
+                        // TODO Check that guard is readable.
                     }
-                    case path @ Path.TypedCast(ty, path) => {
-                        checkPath(path)
+                    case Path.TypedCast(_, castedPath) => {
+                        checkPath(castedPath)
                     }
-                    case path @ Path.TypedConstant(obj) => {
+                    case Path.TypedConstant(_) => {
                     }
-                    case path @ Path.TypedField(base, sym) => {
-                        checkPath(base)
-                        // TODO Check that guard is readable?
+                    case Path.TypedField(base: Path.Typed, sym) => {
+                        checkOwner(base)
+                        // TODO Check that guard is readable.
                     }
                     case path @ Path.TypedCall(rcvr, msym, args) => {
-                        checkPath(rcvr)
+                        checkOwner(rcvr)
                         args.foreach(checkPath)
                         path.msig.parameterPatterns.zip(args).foreach(checkParamType)
                     }
-                    case path @ Path.TypedIndex(array, index) => {
+                    case Path.TypedIndex(array, index) => {
                         checkPath(array)
                         checkPath(index)
                     }
-                    case path @ Path.TypedTuple(paths) => {
+                    case Path.TypedTuple(paths) => {
                         paths.foreach(checkPath)
                     }
                 }
             }
+            
+            def checkPathNode(path: in.TypedPath): Unit = {
+                At(path).checkPath(path.path)
+            }
 
-            def checkExpr(expr: in.LowerTlExpr): Type.Ref = {
-                expr match {
-                    case in.TypedPath(path) => {
-                        checkPath(path)
-                        path.ty
-                    }
-                    case in.MethodCall(in.Super, name, args, (msym, msig)) => {
-                        args.foreach(checkPath)
-                        msig.parameterPatterns.zip(args).foreach(checkParamType)
-                    }
-                    case in.NewCtor(_, args, (msym, msig), ty) => {
-                        args.foreach(checkPath)
-                        msig.parameterPatterns.zip(args).foreach(checkParamType)
-                    }
-                    case in.Null(ty) => {
-                        ty
-                    }
-                    case in.Block(async, in.TypeRef(returnTy), param, stmts, ty) => {
-                        // TODO Create a fresh interval
-                        //      Populate environment with appropriate relations
-                        //      Check stmts in that interval
-                        ty
-                    }
+        }
+        
+        def checkParam(pair: (Pattern.Anon, in.TypedPath)): Unit = {
+            val (pattern, path) = pair
+            At(path).checkPath(path.path)
+            At(path).checkPathHasType(path.path, pattern.ty)
+        }
+        
+        def checkExpr(expr: in.LowerTlExpr): Type.Ref = {
+            expr match {
+                case in.TypedPath(path) => {
+                    At(expr).checkPath(path)
+                    path.ty
+                }
+                case in.MethodCall(in.Super(_), name, args, (msym, msig)) => {
+                    msig.parameterPatterns.zip(args).foreach(checkParam)
+                    msig.returnTy
+                }
+                case in.NewCtor(_, args, (msym, msig), ty) => {
+                    msig.parameterPatterns.zip(args).foreach(checkParam)
+                    msig.returnTy
+                }
+                case in.Null(ty) => {
+                    ty
+                }
+                case in.Block(async, in.TypeRef(returnTy), param, stmts, ty) => {
+                    // TODO Create a fresh interval
+                    //      Populate environment with appropriate relations
+                    //      Check stmts in that interval
+                    ty
                 }
             }
-            
         }
         
     }
     
     def checkAssign(env: Env, pair: (in.Lvalue, in.Expr)): Env = {
         val (lv, rv) = pair
-        val ty = checkExpr(rv)
+        val ty = InEnv(env).checkExpr(rv)
         lv match {
             case in.DeclareVarLvalue(_, _, _, sym) => {
-                At(rv).checkPathHasType(Path.TypedLocal(sym), ty)
+                InEnv(env).At(rv).checkPathHasType(Path.TypedLocal(sym), ty)
                 env.plusLocalVar(sym)
             }
                 
             case in.ReassignVarLvalue(_, sym) => {
-                At(rv).checkPathHasType(Path.TypedLocal(sym), ty)
+                InEnv(env).At(rv).checkPathHasType(Path.TypedLocal(sym), ty)
                 env
             }
             
             case in.FieldLvalue(_, sym) => {
                 // TODO Check that dependent fields are assigned together.
-                val path = env.lookupThis / sym
-                At(rv).checkPathHasType(path, ty)
+                val path = env.lookupThis.toTypedPath / sym
+                InEnv(env).At(rv).checkPathHasType(path, ty)
                 env
             }
         }
@@ -111,7 +127,7 @@ case class TypeCheck(global: Global) {
     def checkStmt(env: Env, stmt: in.LowerStmt): Env = {
         stmt match {
             case stmt: in.LowerTlExpr => {
-                At(stmt).checkExpr(stmt)
+                InEnv(env).checkExpr(stmt)
                 env
             }
             
@@ -126,8 +142,12 @@ case class TypeCheck(global: Global) {
             
             case stmt @ in.MethodReturn(in.TypedPath(path)) => {
                 env.optReturnTy match {
-                    case Some(returnTy) => checkPathHasType(path, returnTy)
-                    case None => Error.NoReturnHere().report(global, stmt)
+                    case None => Error.NoReturnHere().report(global, stmt.pos)
+                    
+                    case Some(returnTy) => {
+                        InEnv(env).At(stmt).checkPath(path)
+                        InEnv(env).At(stmt).checkPathHasType(path, returnTy)
+                    }
                 }
                 env
             }

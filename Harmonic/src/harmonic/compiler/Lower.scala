@@ -874,7 +874,7 @@ case class Lower(global: Global) {
                 }
             }
 
-            lowerFromInExpr((inAssign.lvalue, inAssign.rvalue))
+            inAssign.lvalues.zip(inAssign.rvalues).foreach(lowerFromInExpr)
             
             val outAssign = withPosOf(inAssign,
                 out.Assign(outLvalues.toList, outExprs.toList)
