@@ -151,28 +151,50 @@ object Name {
         def inDefaultClass(className: Name.Class) = Member(className, text)        
     }
     
+    // The special variable `this` refers to the current receiver.
     val ThisLocal = Name.LocalVar("this")
     
+    // The special variable `method` refers to the interval for
+    // the current method activation.
     val MethodLocal = Name.LocalVar("method")
-    
+
+    // The special variable `final` refers to a guard
+    // that never permits writes.
+    val FinalLocal = Name.LocalVar("final")
+
+    // Object: base class of all objects!
+    //
+    // Implicitly defines the Wr ghost, conventionally used to control
+    // when an object is mutable.
+    val ObjectClass = Class(classOf[java.lang.Object])
+    val Wr = Member(ObjectClass, "Wr")     // ghost field "Wr" defined in all objects
+    val Init = Member(ObjectClass, "Init") // ghost field "Init" defined in all objects
+
+    // Void: an interface that is never implemented. 
+    // Treated specially in that blocks which have Void 
+    // type automatically return null.
     val VoidClass = Class(classOf[java.lang.Void])
     
-    val ObjectClass = Class(classOf[java.lang.Object])
-
+    // Interval, AsyncInterval, InlineInterval: from interval runtime
     val IntervalClass = Class(classOf[ch.ethz.intervals.Interval])
     val AsyncIntervalClass = Class(classOf[ch.ethz.intervals.AsyncInterval])
     val InlineIntervalClass = Class(classOf[ch.ethz.intervals.InlineInterval])
 
+    // HarmonicTask: convenience class used for our harmonic tasks
     val HarmonicTaskClass = Class(classOf[harmonic.runtime.HarmonicTask])
 
+    // Array: Class used to represent arrays of objects
     val ArrayClass = Class(classOf[harmonic.lang.Array[_]])
     val ArrayElem = Member(ArrayClass, "E")
     
+    // Abstract, Mutable, Override, Unscheduled: Java annotations significant
+    // to the compiler.
     val AbstractClass = Class(classOf[harmonic.lang.Abstract])
     val MutableClass = Class(classOf[harmonic.lang.Mutable])
     val OverrideClass = Class(classOf[java.lang.Override])
     val UnscheduledClass = Class(classOf[harmonic.lang.Unscheduled])
 
+    // Block, AsyncBlock: classes used to implement blocks in Harmonic
     val BlockClass = Class(classOf[harmonic.lang.Block[_, _]])
     val AsyncBlockClass = Class(classOf[harmonic.lang.AsyncBlock[_, _]])
     val BlockR = Member(BlockClass, "R")
@@ -180,8 +202,10 @@ object Name {
     val BlockParent = Member(BlockClass, "Parent")
     val ValueMethod = Method(List("value"))
     
+    // Return: the exception thrown internally to return out of a block
     val ReturnClass = Class(classOf[harmonic.runtime.Return])
 
+    // <init>: The name of the constructor in Java.
     val InitMethod = Method(List("<init>"))
        
 }

@@ -23,14 +23,14 @@ class ClassFromSource(
     //
     // For a class being loaded from source, this is the structure:
     //
-    // header -> body -> | lower --------------------- | ---> gather -> byteCode
-    //      ^             \                           /^   ^
-    //      |              create -> members -> (merge)|   |
-    //   header                     \        /         |   | 
-    //  (supers)                    (member0)      lower   |  
-    //                                 ...        (supers) |   
-    //                              (memberN)           gather         
-    //                                                 (supers)
+    // header -> body -> | lower --------------------- | ---> check ---> gather -> byteCode
+    //      ^             \                           /^    ^         ^
+    //      |              create -> members -> (merge)|    |         |
+    //   header                     \        /         |    |         | 
+    //  (supers)                    (member0)      lower    |         |  
+    //                                 ...        (supers)  |         |   
+    //                              (memberN)             check     gather         
+    //                                                   (supers)  (supers)
     // 
     // header: determines the list of members, names of superclasses.
     //
@@ -40,6 +40,8 @@ class ClassFromSource(
     // - create: creates intervals for each member and the merge interval
     // - members: summary interval for the intervals that lower each indiv. member
     // - merge: merges all the lowered members into a lowered class declaration.
+    //
+    // check: perform type and race checking
     // 
     // gather: checks the overrides between methods
     //
@@ -100,9 +102,16 @@ class ClassFromSource(
         _ => Merge(global).mergeMemberIntervals(this)
     }
     
+    val check: AsyncInterval = master.subinterval(
+        name = "%s.Check".format(name),
+        after = List(lower.getEnd)
+    ) {
+        _ => () // Check(global).classSymbol(this)
+    }
+    
     val gather: AsyncInterval = master.subinterval(
         name = "%s.Gather".format(name),
-        after = List(lower.getEnd)
+        after = List(check.getEnd)
     ) {
         _ => Gather(global).forSym(this)
     }
@@ -179,6 +188,11 @@ class ClassFromSource(
 
     val AllIntervalSymbols = new GuardedBy[List[VarSymbol.Field]](merge)
     def allIntervalSymbols = AllIntervalSymbols.v
+    
+    // ___ Computed by Pass.Check ___________________________________________
+
+    val CheckEnv = new GuardedBy[Env](merge)
+    def checkEnv = Env.empty(global) // CheckEnv.v
     
     // ___ Computed by Pass.Gather __________________________________________
     

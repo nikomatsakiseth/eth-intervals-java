@@ -27,6 +27,7 @@ object ResolveHeader {
             try {
                 Intervals.addHb(superCsym.header.getEnd, csym.header.getEnd)
                 Intervals.addHb(superCsym.lower.getEnd, csym.lower.getEnd)
+                Intervals.addHb(superCsym.check.getEnd, csym.check.getStart)
                 Intervals.addHb(superCsym.gather.getEnd, csym.gather.getStart)
                 Some(superName)
             } catch {

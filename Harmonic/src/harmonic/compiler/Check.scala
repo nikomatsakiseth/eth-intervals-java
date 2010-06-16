@@ -8,7 +8,7 @@ import Ast.{Lower => in}
 import Ast.Lower.Extensions._
 import Util._
 
-case class TypeCheck(global: Global) {
+case class Check(global: Global) {
     private[this] val emptyEnv = Env.empty(global)
     
     object InEnv {
@@ -161,5 +161,32 @@ case class TypeCheck(global: Global) {
             }
         }
     }
+    
+    //def classSymbol(csym: ClassFromSource) {
+    //    val classDecl = csym.loweredSource
+    //
+    //    inlineInterval(csym.name.toString) { inter =>
+    //        
+    //        classDecl.members.foreach { 
+    //            case decl: in.IntervalDecl => {
+    //                
+    //            }
+    //            
+    //            case decl: in.MethodDecl => {
+    //                
+    //            }
+    //            
+    //            case decl: in.FieldDecl => {
+    //                
+    //            }
+    //            
+    //            case decl: in.RelDecl => {
+    //                
+    //            }
+    //        }
+    //        
+    //    }
+    //}
+
     
 }

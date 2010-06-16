@@ -22,6 +22,7 @@ abstract class ClassSymbol extends Symbol {
     def create: AsyncInterval
     def members: AsyncInterval
     def merge: AsyncInterval
+    def check: AsyncInterval
     def gather: AsyncInterval
     def byteCode: AsyncInterval
     
@@ -88,6 +89,12 @@ abstract class ClassSymbol extends Symbol {
     /** Symbols for fields defined on this class (not superclasses)
       * with the given name.  May trigger lowering or other processing. */
     def fieldNamed(name: Name.Member): Option[VarSymbol.Field]
+    
+    // ___ Invokable once type checking is complete _________________________
+    //
+    // The environment used within the class body.
+    
+    def checkEnv: Env
     
     // ___ Invokable once lowered ___________________________________________
     

@@ -26,10 +26,17 @@ case object PcEq extends PcWcRel {
     override def toString = "="
 }
 
+/** Guard permits writes by interval */
 case object PcPermitsWr extends PcWcRel {
     override def toString = "permitsWr"
 }
 
+/** Guard permits reads by interval */
 case object PcPermitsRd extends PcWcRel {
     override def toString = "permitsRd"
+}
+
+/** Guard ensures final by interval */
+case object PcEnsuresFinal extends PcWcRel {
+    override def toString = "ensuresFinal"
 }

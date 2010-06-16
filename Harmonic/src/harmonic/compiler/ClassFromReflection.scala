@@ -64,7 +64,9 @@ class ClassFromReflection(
             cls.getDeclaredFields.filter(isSuitable).map(fieldSymbol).toList
         },
         
-        allIntervalSymbols = Nil
+        allIntervalSymbols = Nil,
+        
+        checkEnv = Env.empty(global)
     )
     
     private[this] def fieldSymTabEntry(fld: reflect.Field) = {

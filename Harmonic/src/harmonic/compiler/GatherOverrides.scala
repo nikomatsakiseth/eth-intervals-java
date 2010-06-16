@@ -26,7 +26,7 @@ case class GatherOverrides(global: Global) {
         //    This is assured by ResolveHeader which adds
         //    edges super.gather.end->gather.start.
         
-        var env = Env.empty(global) // TODO Enrich environment based on `csym`
+        var env = csym.checkEnv
         val methodGroups = gatherMethodGroups(csym, env)
         computeOverrides(csym, methodGroups)
         val allGroups = methodGroups.allGroups

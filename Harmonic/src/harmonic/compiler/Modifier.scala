@@ -28,6 +28,9 @@ object Modifier {
         def isStatic = contains(Static)
         def isNotStatic = !contains(Static)
         
+        def isMutable = contains(Mutable)
+        def isNotMutable = !contains(Mutable)
+        
         def isUnscheduled = contains(Unscheduled)
         def isNotUnscheduled = !contains(Unscheduled)
     }

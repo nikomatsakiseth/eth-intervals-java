@@ -30,7 +30,8 @@ abstract class ClassFromCompiledSource extends ClassSymbol
         constructors: List[MethodSymbol],
         allMethodSymbols: List[MethodSymbol],
         allFieldSymbols: List[VarSymbol.Field],
-        allIntervalSymbols: List[VarSymbol.Field]
+        allIntervalSymbols: List[VarSymbol.Field],
+        checkEnv: Env
     )
     
     protected[this] def loadData: Data
@@ -45,6 +46,7 @@ abstract class ClassFromCompiledSource extends ClassSymbol
     final def allIntervalSymbols: List[VarSymbol.Field] = LoadedData.join.allIntervalSymbols
     final def methodsNamed(name: Name.Method): List[MethodSymbol] = allMethodSymbols.filter(_.isNamed(name))
     final def fieldNamed(name: Name.Member): Option[VarSymbol.Field] = allFieldSymbols.find(_.isNamed(name))
+    final def checkEnv = LoadedData.join.checkEnv
     
     // ___ Interval Creation ________________________________________________
     //
@@ -105,10 +107,17 @@ abstract class ClassFromCompiledSource extends ClassSymbol
         ) { 
             _ => ()
         }
+        
+        val check: AsyncInterval = master.subinterval(
+            name = "%s.Check".format(name),
+            after = List(lower.getEnd)
+        ) {
+            _ => ()
+        }
 
         val gather: AsyncInterval = master.subinterval(
             name = "%s.Gather".format(name),
-            after = List(lower.getEnd)
+            after = List(check.getEnd)
         ) {
             _ => GatherOverrides(global).forSym(this)
         }
@@ -129,6 +138,7 @@ abstract class ClassFromCompiledSource extends ClassSymbol
             "create" -> create,
             "members" -> members,
             "merge" -> merge,
+            "check" -> check,
             "gather" -> gather,
             "byteCode" -> byteCode
         )
@@ -140,6 +150,7 @@ abstract class ClassFromCompiledSource extends ClassSymbol
     def create: AsyncInterval = intervals("create")
     def members: AsyncInterval = intervals("members")
     def merge: AsyncInterval = intervals("merge")
+    def check: AsyncInterval = intervals("check")
     def gather: AsyncInterval = intervals("gather")
     def byteCode: AsyncInterval = intervals("byteCode")
     

@@ -9,13 +9,12 @@ import Error.CanFail
 
 object Env {
     def empty(global: Global) = Env(
-        global   = global,
-        thisTy   = Type.Top,
-        currentInter = Name.MethodLocal, // TODO Is this sensible?
-        optReturnTy = None,
-        locals   = Map(),
-        pathRels = Nil,
-        typeRels = Nil
+        global       = global,
+        thisTy       = Type.Top,
+        optReturnTy  = None,
+        locals       = Map(),
+        pathRels     = Nil,
+        typeRels     = Nil
     )
 }
 
@@ -27,9 +26,6 @@ case class Env(
     /** Type of the this pointer */
     thisTy: Type.Class,
     
-    /** Name of the current interval */
-    currentInter: Name.LocalVar,
-    
     /** Return type at current point, or 
       * None if returns not currently allowed */
     optReturnTy: Option[Type.Ref],
@@ -38,10 +34,10 @@ case class Env(
     locals: Map[Name.LocalVar, VarSymbol.Local],
     
     /** Tuples describing relations between paths. */
-    pathRels: List[(Path.Ref, PcRel, Path.Ref)],
+    pathRels: List[Req.P],
     
     /** Tuples describing relations between type variables and other types. */
-    typeRels: List[(Type.Member, TcRel, Type.Ref)]
+    typeRels: List[Req.T]
 ) {
     // ___ Transitive Closure Utility _______________________________________
     
@@ -77,30 +73,30 @@ case class Env(
 
     def plusThis(thisTy: Type.Class, sym: VarSymbol.Local) = plusLocalVar(sym).copy(thisTy = thisTy)
     
-    def plusPathRel(rel: (Path.Ref, PcRel, Path.Ref)) = copy(pathRels = rel :: pathRels)
+    def plusPathRel(rel: Req.P) = copy(pathRels = rel :: pathRels)
 
-    def plusPathRels(rels: List[(Path.Ref, PcRel, Path.Ref)]) = rels.foldLeft(this)(_ plusPathRel _)
+    def plusPathRels(rels: List[Req.P]) = rels.foldLeft(this)(_ plusPathRel _)
 
-    def plusTypeRel(rel: (Type.Member, TcRel, Type.Ref)) = copy(typeRels = rel :: typeRels)
+    def plusTypeRel(rel: Req.T) = copy(typeRels = rel :: typeRels)
     
-    def plusTypeRels(rels: List[(Type.Member, TcRel, Type.Ref)]) = rels.foldLeft(this)(_ plusTypeRel _)
+    def plusTypeRels(rels: List[Req.T]) = rels.foldLeft(this)(_ plusTypeRel _)
     
     def withOptReturnTy(optReturnTy: Option[Type.Ref]) = copy(optReturnTy = optReturnTy)
     
     // ___ Querying the relations ___________________________________________
     
     private[this] def pathsRelatedBy(Rel: PcRel): List[(Path.Ref, Path.Ref)] = pathRels.flatMap { 
-        case (p1, Rel, p2) => Some((p1, p2))
+        case Req.P(p1, Rel, p2) => Some((p1, p2))
         case _ => None
     }
     
     private[this] def pathsRelatedBy(Rel: PcRel, P2: Path.Ref): List[Path.Ref] = pathRels.flatMap { 
-        case (p1, Rel, P2) => Some(p1)
+        case Req.P(p1, Rel, P2) => Some(p1)
         case _ => None
     }
     
     private[this] def pathsRelatedBy(P1: Path.Ref, Rel: PcRel): List[Path.Ref] = pathRels.flatMap { 
-        case (P1, Rel, p2) => Some(p2)
+        case Req.P(P1, Rel, p2) => Some(p2)
         case _ => None
     }
 
@@ -366,8 +362,8 @@ case class Env(
             }
             
             val byRel = pathRels.flatMap {
-                case (P1, PcEq, p2) => Some(p2)
-                case (p2, PcEq, P1) => Some(p2)
+                case Req.P(P1, PcEq, p2) => Some(p2)
+                case Req.P(p2, PcEq, P1) => Some(p2)
                 case _ => None
             }
             
@@ -387,12 +383,14 @@ case class Env(
             case _ => {
                 val equatablePath1 = equatable(path1)
                 val equatablePath2 = equatable(path2)
-                pathRels.exists { case (p1, r, p2) =>
+                pathRels.exists { case Req.P(p1, r, p2) =>
                     (r == rel) && equatablePath1(p1) && equatablePath2(p2)
                 }
             }
         }
     }
+    
+    def pathRelHolds(rel: Req.P): Boolean = pathsAreRelatable(rel.rel)(rel.left, rel.right)
     
     // ___ Bounding Type Variables __________________________________________
     
@@ -417,6 +415,8 @@ case class Env(
             
             // p has class type `pathTy` == `c[args]`:
             def boundsFromClassType(pathTy: Type.Class) = {
+                // FIXME Add bounds declared in the environment:
+                
                 // Add bounds declared in the class `c`:
                 val classBounds = List[Type.Ref]() // FIXME
                 
@@ -831,5 +831,91 @@ case class Env(
             }
         }
     }
+  
+    // ___ Path is final by _________________________________________________
+    //
+    // Determines whether a given path has reached its final value by
+    // the given interval.  The path `inter` is assumed to be final.
+    
+    def relIsFinalyBy(rel: Req.Any, inter: Path.Typed) = {
+        rel match {
+            case rel: Req.P => pathIsFinalBy(typedPath(rel.left), inter) && pathIsFinalBy(typedPath(rel.right), inter)
+            case rel: Req.T => typeIsFinalBy(rel.left, inter) && typeIsFinalBy(rel.right, inter)
+        }
+    }
+    
+    def typeIsFinalBy(ty: Type.Ref, inter: Path.Typed): Boolean = {
+        ty match {
+            case Type.Member(path, _) => pathIsFinalBy(typedPath(path), inter)
+            case Type.Class(_, args) => args.forall(typeArgIsFinalBy(_, inter))
+            case Type.Tuple(tys) => tys.forall(typeIsFinalBy(_, inter))
+            case Type.Null => true
+        }
+    }
+    
+    def typeArgIsFinalBy(targ: Type.Arg, inter: Path.Typed): Boolean = {
+        targ match {
+            case Type.PathArg(_, _, path) => pathIsFinalBy(typedPath(path), inter)
+            case Type.TypeArg(_, _, ty) => typeIsFinalBy(ty, inter)
+        }
+    }
+    
+    def ownerIsFinalBy(owner: Path.TypedOwner, inter: Path.Typed) = {
+        owner match {
+            case Path.Static => true
+            case owner: Path.Typed => pathIsFinalBy(owner, inter)
+        }        
+    }
+    
+    def pathIsFinalBy(path: Path.Typed, inter: Path.Typed): Boolean = {
+        def wr(path: Path.Ref) = Path.Field(path, Name.Wr)
+        
+        path match {
+            case Path.TypedTuple(paths) => {
+                paths.forall(pathIsFinalBy(_, inter))
+            }
+            
+            case Path.TypedLocal(sym) => {
+                if(sym.modifiers.isNotMutable) true
+                else {
+                    val guardPath = locals(Name.MethodLocal) // TODO: Configurable guard paths for locals
+                    pathsAreRelatable(PcEnsuresFinal)(guardPath.toPath, inter.toPath)
+                }
+            }
+                
+            case Path.TypedCast(_, castedPath) => {
+                pathIsFinalBy(castedPath, inter)
+            }
+            
+            case Path.TypedConstant(_) => {
+                true                
+            }
+                
+            case Path.TypedField(base, fsym) => {
+                ownerIsFinalBy(base, inter) && {                    
+                    val guardPath = locals(Name.FinalLocal) // TODO: Guard path for fields
+                    pathsAreRelatable(PcEnsuresFinal)(guardPath.toPath, inter.toPath)
+                }
+            }
+            
+            case Path.TypedCall(receiver, msym, args) => {
+                ownerIsFinalBy(receiver, inter) &&
+                args.forall(pathIsFinalBy(_, inter)) && {
+                    // TODO: Allow finalBy annotations in method signature
+                    false 
+                }
+            }
+            
+            case Path.TypedIndex(array, index) => {
+                pathIsFinalBy(array, inter) &&
+                pathIsFinalBy(index, inter) && {
+                    val guardPath = wr(array.toPath)
+                    pathsAreRelatable(PcEnsuresFinal)(guardPath, inter.toPath)
+                }
+            }
+            
+        }
+    }
+    
   
 }
