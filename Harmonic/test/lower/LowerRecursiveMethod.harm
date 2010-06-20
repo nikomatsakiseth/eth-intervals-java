@@ -8,7 +8,7 @@ class LowerRecursiveMethod {
     // Recursive method needs an explicit return type:
     //   (I left off the base case for simplicity :)
     impFactorial(n: Integer) { // ERROR explicit.type.required.due.to.cycle(impFactorial())
-        return impFactorial(n - 1) + impFactorial(n - 2);  // ERROR no.such.method(java.lang.Object, +())
+        return impFactorial(n - 1) + impFactorial(n - 2);  // ERROR no.such.method(Null, +())
     }
     
     // If we provide an explicit return type, the program compiles:

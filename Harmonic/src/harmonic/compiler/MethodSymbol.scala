@@ -5,20 +5,24 @@ import scala.collection.mutable
 
 object MethodSymbol {
     
-    def error(name: Name.Method, clsName: Name.Class) = {
-        val parameterPatterns = name.parts.zipWithIndex.map { case (_, i) => 
-            Pattern.Var(Name.LocalVar("arg%d".format(i)), Type.Object)
-        }
+    def error(name: Name.Method, clsName: Name.Class, patterns: List[Pattern.Ref]): MethodSymbol = {
         new MethodSymbol(
             pos       = InterPosition.forClassNamed(clsName),
             modifiers = Modifier.Set.empty,
             kind      = MethodKind.ErrorMethod, 
             clsName   = clsName, 
             name      = name, 
-            MethodSignature(Type.Null, parameterPatterns)
+            MethodSignature(Type.Null, patterns)
         ) {
             override def isError = true
         }
+    }
+
+    def error(name: Name.Method, clsName: Name.Class): MethodSymbol = {
+        val parameterPatterns = name.parts.zipWithIndex.map { case (_, i) => 
+            Pattern.Var(Name.LocalVar("arg%d".format(i)), Type.Top)
+        }
+        error(name, clsName, parameterPatterns)
     }
     
 }

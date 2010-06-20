@@ -180,7 +180,7 @@ object Util {
         )(
             func: (Interval => Unit)
         ): AsyncInterval = {
-            val result = inter.newAsyncChild(new AbstractTask() {
+            val result = inter.newAsyncChild(new AbstractTask(name) {
                 override def run(current: Interval): Unit = func(current)
             })
             after.foreach(pnt => Intervals.addHb(pnt, result.getStart))

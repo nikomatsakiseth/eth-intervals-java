@@ -3,11 +3,10 @@ package test.bytecode;
 class BytecodeInline extends Application {
     
     @Override main(ctx: ApplicationContext): Void {
-        
         ctx.out.println("Before");
         
         interval foo {
-            ctx.out.println("During");            
+            ctx.out.println("During");
         };
         
         ctx.out.println("After");

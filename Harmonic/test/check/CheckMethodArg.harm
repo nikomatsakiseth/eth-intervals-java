@@ -1,0 +1,14 @@
+package test.bytecode;
+
+class CheckMethodArg {
+    
+    double(i: Integer): Integer {
+        return i * 2;
+    }
+    
+    callWithBadType() {
+        return double("one"); // ERROR foo
+    }
+
+}
+// COMPILE

@@ -40,16 +40,6 @@ case class Lower(global: Global) {
         )
     }
     
-    def lowerMemberDecl(
-        csym: ClassFromSource, 
-        mem: in.MemberDecl
-    ): out.MemberDecl = withPosOf(mem, mem match {
-        case decl: in.IntervalDecl => lowerIntervalDecl(csym, decl)
-        case decl: in.MethodDecl => lowerMethodDecl(csym, decl)
-        case decl: in.FieldDecl => lowerFieldDecl(csym, decl)
-        case decl: in.RelDecl => lowerRelDecl(csym, decl)
-    })
-    
     def lowerRelDecl(
         csym: ClassFromSource, 
         decl: in.RelDecl        
@@ -97,16 +87,18 @@ case class Lower(global: Global) {
     
     def lowerMethodDecl(
         csym: ClassFromSource, 
-        mdecl: in.MethodDecl
+        mdecl: in.MethodDecl,
+        outParams: List[out.Param[VarSymbol.Local]],
+        env: Env
     ): out.MethodDecl = {
-        val (outParams, env) = lowerMethodParams(csym.classEnv, mdecl.params)
         val optBody = mdecl.optBody.map(lowerBody(env, _))
 
         val returnTy = (mdecl.returnTref, optBody) match {
             case (in.InferredTypeRef(), None) => {
-                // Error: Return type required if abstract,
-                // but we'll report it when the symbol is created,
-                // so don't report it here.
+                global.reporter.report(mdecl.returnTref.pos, 
+                    "explicit.type.required.if.abstract", 
+                    mdecl.name.toString
+                )
                 Type.Top
             }
 

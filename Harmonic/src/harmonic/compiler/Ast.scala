@@ -816,6 +816,8 @@ object Ast {
     
     sealed case class ClassName(name: Name.Class) extends QualName {
         override def toString = name.toString
+        
+        def is(otherName: Name.Class) = name.is(otherName)
     }
     
     sealed abstract trait VarName extends Name {
@@ -828,6 +830,8 @@ object Ast {
     }
     
     sealed case class MemberName(name: Name.Member) extends VarName with UnloweredMemberName {
+        def is(otherName: Name.Member) = name.is(otherName)
+        
         override def toString = name.toString
     }
     
