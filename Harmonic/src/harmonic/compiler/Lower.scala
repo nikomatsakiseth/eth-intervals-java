@@ -33,7 +33,9 @@ case class Lower(global: Global) {
             kind      = MethodKind.HarmonicCtor,
             clsName   = csym.name,
             name      = Name.InitMethod,
-            MethodSignature(
+            elaborate = csym.create,
+            gather    = csym.gather,
+            msig      = MethodSignature(
                 returnTy = Type.Void,
                 parameterPatterns = List(csym.classParam.toPatternRef)
             )

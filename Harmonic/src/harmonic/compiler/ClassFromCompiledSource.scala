@@ -34,7 +34,7 @@ abstract class ClassFromCompiledSource extends ClassSymbol
         checkEnv: Env
     )
     
-    protected[this] def loadData: Data
+    protected[this] def loadData(current: Interval): Data
     
     lazy val LoadedData = new GuardedBy[Data](header)
     final def modifiers: Modifier.Set = LoadedData.join.modifiers
@@ -56,12 +56,23 @@ abstract class ClassFromCompiledSource extends ClassSymbol
     // those of our superclass.  The `gather` interval still must compute
     // the overrides for all of our method symbols.
     
+    def header: AsyncInterval = intervals("header")
+    def body: AsyncInterval = intervals("body")
+    def lower: AsyncInterval = intervals("lower")
+    def create: AsyncInterval = intervals("create")
+    def members: AsyncInterval = intervals("members")
+    def merge: AsyncInterval = intervals("merge")
+    def check: AsyncInterval = intervals("check")
+    def gather: AsyncInterval = intervals("gather")
+    def byteCode: AsyncInterval = intervals("byteCode")
+    
     private[this] lazy val intervals = {
         val header: AsyncInterval = master.subinterval(
+            schedule = false,
             name = "%s.Header".format(name)
-        ) { _ =>
+        ) { current =>
             debug("Load data for %s", name)
-            val rawData = loadData
+            val rawData = loadData(current)
             LoadedData.v = rawData.copy(
                 superClassNames = ResolveHeader.cookRawSuperClasses(this, rawData.superClassNames)
             )
@@ -129,6 +140,7 @@ abstract class ClassFromCompiledSource extends ClassSymbol
             _ => ()
         }
         
+        header.schedule()
         lower.schedule()
         
         Map(
@@ -143,16 +155,6 @@ abstract class ClassFromCompiledSource extends ClassSymbol
             "byteCode" -> byteCode
         )
     }
-    
-    def header: AsyncInterval = intervals("header")
-    def body: AsyncInterval = intervals("body")
-    def lower: AsyncInterval = intervals("lower")
-    def create: AsyncInterval = intervals("create")
-    def members: AsyncInterval = intervals("members")
-    def merge: AsyncInterval = intervals("merge")
-    def check: AsyncInterval = intervals("check")
-    def gather: AsyncInterval = intervals("gather")
-    def byteCode: AsyncInterval = intervals("byteCode")
     
 }
 

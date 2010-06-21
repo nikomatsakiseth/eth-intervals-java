@@ -1,5 +1,8 @@
 package harmonic.compiler
 
+import ch.ethz.intervals._
+import Util._
+
 case class Intrinsic(global: Global) {
     
     def ensureLoadable(cls: Class[_]) {
@@ -29,7 +32,7 @@ case class Intrinsic(global: Global) {
         (Name.Method(List("*")), "times")
     )
     
-    private[this] def addMathTo() = {
+    private[this] def addMathTo(inter: Interval) = {
         
         numericTypes.foreach(ensureLoadable)
         
@@ -57,7 +60,9 @@ case class Intrinsic(global: Global) {
                         ),
                         clsName = leftTy.name,
                         name = interName, 
-                        MethodSignature(
+                        elaborate = inter,
+                        gather = inter,
+                        msig = MethodSignature(
                             returnTy = returnTy,
                             parameterPatterns = List(Pattern.Var(Name.LocalVar("arg"), rightTy))
                         )
@@ -70,7 +75,7 @@ case class Intrinsic(global: Global) {
     
     // ___ IntrinsicControlFlow _____________________________________________
     
-    private[this] def addControlFlow() = {
+    private[this] def addControlFlow(inter: Interval) = {
         
         val booleanClass = classOf[java.lang.Boolean]
         val voidClass = classOf[java.lang.Void]
@@ -128,7 +133,9 @@ case class Intrinsic(global: Global) {
                 ),
                 clsName = booleanTy.name,
                 name = Name.Method(List("if")),
-                MethodSignature(
+                elaborate = inter,
+                gather = inter,
+                msig = MethodSignature(
                     returnTy = voidTy,
                     parameterPatterns = List(
                         Pattern.Var(Name.LocalVar("ifTmpl"), templateTy(voidTy, voidTy))
@@ -149,7 +156,9 @@ case class Intrinsic(global: Global) {
                 ),
                 clsName = objectTy.name,
                 name = Name.Method(List("ifNull")),
-                MethodSignature(
+                elaborate = inter,
+                gather = inter,
+                msig = MethodSignature(
                     returnTy = voidTy,
                     parameterPatterns = List(
                         Pattern.Var(Name.LocalVar("ifTmpl"), templateTy(voidTy, voidTy))
@@ -170,7 +179,9 @@ case class Intrinsic(global: Global) {
                 ),
                 clsName = booleanTy.name,
                 name = Name.Method(List("if", "else")),
-                MethodSignature(
+                elaborate = inter,
+                gather = inter,
+                msig = MethodSignature(
                     returnTy = voidTy, /* ΧΧΧ Generic Method */
                     parameterPatterns = List(
                         Pattern.Var(Name.LocalVar("ifTmpl"), templateTy(voidTy, voidTy)),
@@ -192,7 +203,9 @@ case class Intrinsic(global: Global) {
                 ),
                 clsName = objectTy.name,
                 name = Name.Method(List("ifNull", "else")),
-                MethodSignature(
+                elaborate = inter,
+                gather = inter,
+                msig = MethodSignature(
                     returnTy = voidTy, /* ΧΧΧ Generic Method */
                     parameterPatterns = List(
                         Pattern.Var(Name.LocalVar("ifTmpl"), templateTy(voidTy, voidTy)),
@@ -215,7 +228,9 @@ case class Intrinsic(global: Global) {
                 ),
                 clsName = iterableTy.name,
                 name = Name.Method(List("forEach")),
-                MethodSignature(
+                elaborate = inter,
+                gather = inter,
+                msig = MethodSignature(
                     returnTy = voidTy,
                     parameterPatterns = List(
                         Pattern.Var(
@@ -239,7 +254,9 @@ case class Intrinsic(global: Global) {
                 ),
                 clsName = Name.Class(templateClass),
                 name = Name.Method(List("while")),
-                MethodSignature(
+                elaborate = inter,
+                gather = inter,
+                msig = MethodSignature(
                     returnTy = voidTy, 
                     parameterPatterns = List(
                         Pattern.Var(Name.LocalVar("bodyTmpl"), templateTy(voidTy, voidTy))
@@ -253,8 +270,10 @@ case class Intrinsic(global: Global) {
     // ___ General __________________________________________________________
     
     def add() = {
-        addMathTo()
-        addControlFlow()
+        inlineInterval("Intrinsic Creation") { inter =>
+            addMathTo(inter)
+            addControlFlow(inter)            
+        }
     }
 
 }

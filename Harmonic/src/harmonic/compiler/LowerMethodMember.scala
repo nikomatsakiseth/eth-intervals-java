@@ -64,7 +64,9 @@ class LowerMethodMember(
                 kind      = MethodKind.HarmonicVirtual,
                 clsName   = csym.name,
                 name      = inMethodDecl.name,
-                MethodSignature(
+                elaborate = symElaborate,
+                gather    = csym.gather,
+                msig      = MethodSignature(
                     returnTy          = outReturnTref.ty,
                     parameterPatterns = outParams.map(_.toPatternRef)
                 )
@@ -109,7 +111,8 @@ class LowerMethodMember(
             during = List(csym.members),
             after = List(symCreate.getEnd)
         ) { inter =>
-            
+            sym.v.Requirements.v = List()
+            sym.v.Ensures.v = List()
         }
     }
     

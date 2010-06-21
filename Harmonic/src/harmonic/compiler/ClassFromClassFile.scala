@@ -1,5 +1,6 @@
 package harmonic.compiler
 
+import ch.ethz.intervals._
 import Util._
 
 class ClassFromClassFile(
@@ -8,7 +9,7 @@ class ClassFromClassFile(
     file: java.io.File
 ) extends ClassFromCompiledSource {
     
-    protected[this] def loadData = {
+    protected[this] def loadData(inter: Interval) = {
         throw new RuntimeException("TODO-- Implement .class file loading!")        
     }
     

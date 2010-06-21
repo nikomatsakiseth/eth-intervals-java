@@ -1,5 +1,7 @@
 package harmonic.compiler
 
+import ch.ethz.intervals._
+
 import java.lang.reflect
 import java.lang.reflect.{Modifier => jModifier}
 
@@ -17,7 +19,7 @@ class ClassFromReflection(
     def isDeclaredByCls(member: reflect.Member) = (member.getDeclaringClass == cls)
     def isSuitable(member: reflect.Member) = isDeclaredByCls(member) && !isPrivate(member)
     
-    protected[this] def loadData = Data(
+    protected[this] def loadData(inter: Interval) = Data(
         modifiers = Modifier.forClass(cls),
         
         superClassNames = {
@@ -41,7 +43,7 @@ class ClassFromReflection(
         constructors = {
             val ctors = cls.getConstructors
             if(!ctors.isEmpty) {
-                ctors.map(ctorSymbol).toList            
+                ctors.map(ctorSymbol(inter)).toList            
             } else { // gin up an empty constructor for interfaces:
                 List(
                     new MethodSymbol(
@@ -50,14 +52,20 @@ class ClassFromReflection(
                         kind      = MethodKind.JavaDummyCtor,
                         clsName   = name,
                         name      = Name.InitMethod,
-                        MethodSignature(Type.Void, List())
+                        elaborate = inter,
+                        gather    = gather,
+                        msig      = MethodSignature(Type.Void, List())
                     )
                 )
             }            
         },
         
         allMethodSymbols = {
-            elimPrimitiveConflicts(elimCovariantReturns(cls.getDeclaredMethods).filter(isSuitable).map(methodSymbol))
+            elimPrimitiveConflicts(
+                elimCovariantReturns(cls.getDeclaredMethods)
+                .filter(isSuitable)
+                .map(methodSymbol(inter))
+            )
         },
         
         allFieldSymbols = {
@@ -148,7 +156,7 @@ class ClassFromReflection(
         )
     }
     
-    private[this] def ctorSymbol(mthd: reflect.Constructor[_]) = {
+    private[this] def ctorSymbol(inter: Interval)(mthd: reflect.Constructor[_]) = {
         new MethodSymbol(
             pos       = pos,
             modifiers = Modifier.forMember(mthd),
@@ -161,7 +169,9 @@ class ClassFromReflection(
             ),
             clsName   = name,
             name      = Name.InitMethod,
-            MethodSignature(
+            elaborate = inter,
+            gather    = gather,
+            msig      = MethodSignature(
                 returnTy          = Type.Void,
                 parameterPatterns = List(Pattern.Tuple(
                     mthd.getGenericParameterTypes.toList.zipWithIndex.map(paramPattern)))
@@ -169,7 +179,7 @@ class ClassFromReflection(
         )
     }
     
-    private[this] def methodSymbol(mthd: reflect.Method) = {
+    private[this] def methodSymbol(inter: Interval)(mthd: reflect.Method) = {
         val op = {
             if((mthd.getModifiers & reflect.Modifier.STATIC) != 0)
                 MethodKind.JavaStatic
@@ -190,7 +200,9 @@ class ClassFromReflection(
             ),
             clsName   = name,
             name      = Name.Method(List(mthd.getName)),
-            MethodSignature(
+            elaborate = inter,
+            gather    = gather,
+            msig      = MethodSignature(
                 returnTy          = typeRef(mthd.getGenericReturnType),
                 parameterPatterns = List(Pattern.Tuple(
                     mthd.getGenericParameterTypes.toList.zipWithIndex.map(paramPattern)))

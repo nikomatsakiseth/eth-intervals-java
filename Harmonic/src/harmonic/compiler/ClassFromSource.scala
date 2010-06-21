@@ -153,14 +153,11 @@ class ClassFromSource(
     /** Method symbol for constructor, once defined. */
     val Constructor = new GuardedBy[MethodSymbol](create)
     def constructor = Constructor.v
+    def constructors = List(Constructor.join)
     
     /** List of class members being lowered. */
     val LowerMembers = new GuardedBy[List[LowerMember]](create)
     def lowerMembers = LowerMembers.v
-    
-    def constructors = {
-        List(Constructor.join)
-    }
     
     def methodsNamed(mthdName: Name.Method) = {
         LowerMembers.join.flatMap(_.toOptMethodSymbol(mthdName))

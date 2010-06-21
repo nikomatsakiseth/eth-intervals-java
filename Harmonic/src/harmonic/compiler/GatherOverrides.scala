@@ -94,7 +94,7 @@ case class GatherOverrides(global: Global) {
     ): Unit = {
         csym.allMethodSymbols.foreach { msym =>
             val group = methodGroups.group(msym)
-            msym.overrides ++= group.msyms.dropWhile(_.isFromClassNamed(csym.name))
+            msym.Overrides.v = group.msyms.dropWhile(_.isFromClassNamed(csym.name))
             
             msym.kind match {
                 case _: MethodKind.Harmonic => {

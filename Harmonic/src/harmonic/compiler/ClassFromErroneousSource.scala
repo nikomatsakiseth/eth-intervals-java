@@ -1,10 +1,12 @@
 package harmonic.compiler
 
+import ch.ethz.intervals._
+
 class ClassFromErroroneousSource(
     val name: Name.Class,
     val global: Global
 ) extends ClassFromCompiledSource {
-    protected[this] def loadData = Data(
+    protected[this] def loadData(inter: Interval) = Data(
         modifiers = Modifier.Set.empty,
         superClassNames = List(Name.ObjectClass),
         constructors = Nil,
