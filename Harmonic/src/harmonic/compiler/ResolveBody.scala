@@ -298,21 +298,24 @@ extends Resolve(global, compUnit)
             val resolveParam = new ResolveMethodParams(this, decl.params)
             val mthdScope = resolveParam.scope
             out.MethodDecl(
-                annotations = decl.annotations.map(mthdScope.resolveAnnotation),
-                name = decl.name,
-                params = resolveParam.outParams,
-                returnTref = mthdScope.resolveOptionalTypeRef(decl.returnTref),
+                annotations  = decl.annotations.map(mthdScope.resolveAnnotation),
+                name         = decl.name,
+                params       = resolveParam.outParams,
+                returnTref   = mthdScope.resolveOptionalTypeRef(decl.returnTref),
                 requirements = decl.requirements.map(mthdScope.resolveRequirement),
-                optBody = decl.optBody.map(mthdScope.resolveBody)
+                ensures      = decl.ensures.map(mthdScope.resolveRequirement),
+                optBody      = decl.optBody.map(mthdScope.resolveBody)
             )
         })
 
-        def resolveRequirement(requirement: in.PathRequirement) = withPosOf(requirement, {
-            out.PathRequirement(
-                left = resolvePathToPath(requirement.left),
-                rel = requirement.rel,
-                right = resolvePathToPath(requirement.right)
-            )
+        def resolveRequirement(requirement: in.Requirement) = withPosOf(requirement, {
+            requirement match {
+                case in.PathRequirement(left, rel, right) =>
+                    out.PathRequirement(resolvePathToPath(left), rel, resolvePathToPath(right))
+                    
+                case in.TypeRequirement(left, rel, right) =>
+                    out.TypeRequirement(resolveTypeRef(left), rel, resolveTypeRef(right))
+            }
         })
 
         def resolveFieldDecl(className: Name.Class, decl: in.FieldDecl) = withPosOf(decl, {

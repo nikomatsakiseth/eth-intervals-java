@@ -73,9 +73,9 @@ class LowerMethodMember(
             )                    
         }
         
-        inMethodDecl match {
-            // Type is inferred:
-            case in.MethodDecl(_, _, _, in.InferredTypeRef(), _, _) => {
+        inMethodDecl.returnTref match {
+            // Return type is inferred:
+            case in.InferredTypeRef() => {
                 global.master.subinterval(
                     schedule = false,
                     name = "%s.%s.symCreate".format(csym.name, inMethodDecl.name),
@@ -86,8 +86,8 @@ class LowerMethodMember(
                 }                
             }
             
-            // Type is explicit:
-            case in.MethodDecl(annotations, mthdName, params, inReturnTref: in.ResolveTypeRef, _, _) => {
+            // Return type is explicit:
+            case inReturnTref: in.ResolveTypeRef => {
                 global.master.subinterval(
                     schedule = false,
                     name = "%s.%s.symCreate".format(csym.name, inMethodDecl.name),
@@ -109,10 +109,10 @@ class LowerMethodMember(
             schedule = false,
             name = "%s.%s.symElaborate".format(csym.name, inMethodDecl.name),
             during = List(csym.members),
-            after = List(symCreate.getEnd)
+            after = List(symCreate.getEnd, memberLower.getEnd)
         ) { inter =>
-            sym.v.Requirements.v = List()
-            sym.v.Ensures.v = List()
+            sym.v.Requirements.v = outMethodDecl.v.requirements.map(_.toReq)
+            sym.v.Ensures.v = outMethodDecl.v.ensures.map(_.toReq)
         }
     }
     

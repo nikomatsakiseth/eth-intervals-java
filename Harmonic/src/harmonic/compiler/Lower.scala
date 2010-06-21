@@ -119,6 +119,7 @@ case class Lower(global: Global) {
             params       = outParams,
             returnTref   = out.TypeRef(returnTy),
             requirements = mdecl.requirements.map(InEnv(env).lowerRequirement),
+            ensures      = mdecl.ensures.map(InEnv(env).lowerRequirement),
             optBody      = optBody                
         )
     }
@@ -531,11 +532,14 @@ case class Lower(global: Global) {
         
         // ___  _________________________________________________________________
         
-        def lowerRequirement(req: in.PathRequirement) = withPosOf(req, out.PathRequirement(
-            left = lowerPath(req.left),
-            rel = req.rel,
-            right = lowerPath(req.right)
-        ))
+        def lowerRequirement(req: in.Requirement) = withPosOf(req, 
+            req match {
+                case in.PathRequirement(left, rel, right) =>
+                    out.PathRequirement(lowerPath(left), rel, lowerPath(right))
+                case in.TypeRequirement(left, rel, right) => 
+                    out.TypeRequirement(lowerTypeRef(left), rel, lowerTypeRef(right))
+            }
+        )
 
         def lowerAnnotation(ann: in.Annotation) = withPosOf(ann,
             out.Annotation(name = ann.name)

@@ -57,7 +57,7 @@ class Parse extends StdTokenParsers with PackratParsers {
     )
     lexical.reserved += (
         "class", "extends", "import", "package", 
-        "interval", "requires", "locks", "new",
+        "interval", "requires", "ensures", "locks", "new",
         "type", "ghost", "true", "false", "this",
         "super", "null", "return", "break", "continue"
     )
@@ -169,19 +169,23 @@ class Parse extends StdTokenParsers with PackratParsers {
     )
     
     lazy val methodDecl = positioned(
-        annotations~rep1(declPart)~optTypeRef~rep(requirement)~optBody ^^ {
-            case ann~parts~ret~reqs~optBody => 
+        annotations~rep1(declPart)~optTypeRef~rep(requirement)~rep(ensures)~optBody ^^ {
+            case ann~parts~ret~reqs~ens~optBody => 
                 val name = Name.Method(parts.map(_._1))
                 val params = parts.map(_._2)
-                out.MethodDecl(ann, name, params, ret, reqs, optBody)
+                out.MethodDecl(ann, name, params, ret, reqs, ens, optBody)
         }
     )
     
     lazy val declPart = ident~tupleMthdParam ^^ { case i~p => (i, p) }
     
-    lazy val requirement = positioned(
-        "requires"~>path~pcRel~path ^^ { case l~p~r => out.PathRequirement(l, p, r) }
+    lazy val reqRelation = positioned(
+        typeRef~tcRel~typeRef   ^^ { case l~op~r => out.TypeRequirement(l, op, r) }
+    |   path~pcRel~path         ^^ { case l~op~r => out.PathRequirement(l, op, r) }
     )
+    
+    lazy val requirement = "requires"~>reqRelation
+    lazy val ensures = "ensures"~>reqRelation
     
     lazy val declOp = (
         "->"            ^^^ PcHb

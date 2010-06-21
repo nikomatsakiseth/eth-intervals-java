@@ -211,7 +211,8 @@ abstract class Ast {
         name: Name.Method,
         params: List[Param[LVSym]],
         returnTref: OTR,
-        requirements: List[PathRequirement],
+        requirements: List[Requirement],
+        ensures: List[Requirement],
         optBody: Option[Body]
     ) extends MemberDecl {
         override def toString = "[method %s]".format(name)
@@ -234,9 +235,23 @@ abstract class Ast {
         }
     }
     
+    abstract class Requirement extends Node
+    
+    case class TypeRequirement(
+        left: TR, rel: TcRel, right: TR
+    ) extends Requirement {
+        override def toString = "%s %s %s".format(left, rel, right)
+        
+        override def print(out: PrettyPrinter) {
+            left.printsp(out)
+            out.write("%s ", rel)
+            right.print(out)
+        }        
+    }
+    
     case class PathRequirement(
         left: PathNode, rel: PcRel, right: PathNode
-    ) extends Node {
+    ) extends Requirement {
         override def toString = "%s %s %s".format(left, rel, right)
         
         override def print(out: PrettyPrinter) {
@@ -983,6 +998,17 @@ object Ast {
             }
             implicit def extendedTypedPath(path: Path.Typed): ExtendedTypedPath = 
                 ExtendedTypedPath(path)
+                
+            case class ExtendedRequirement(req: Requirement) {
+                def toReq = req match {
+                    case TypeRequirement(TypeRef(l), rel, TypeRef(r)) => 
+                        Req.T(l, rel, r)
+                    case PathRequirement(TypedPath(l), rel, TypedPath(r)) => 
+                        Req.P(l.toPath, rel, r.toPath)                    
+                }
+            }
+            implicit def extendedRequirement(req: Requirement): ExtendedRequirement =
+                ExtendedRequirement(req)
         }
 
     }
