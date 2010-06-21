@@ -73,13 +73,9 @@ class MethodSymbol(
     
     // ___ Gather Phase _____________________________________________________
     //
-    // For methods whose source will be emitted, we compute the 
-    // overridden methods.  The ordering is significant,
-    // because when super is invoked it will proceed to the
-    // next implementation in the list.  For methods on
-    // reflected classes or classes loaded from .class files,
-    // this list is never assigned, and thus generates an 
-    // error when read.
+    // List of methods overridden by this method.  The ordering is 
+    // significant, because when super is invoked it will proceed to the
+    // next implementation in the list.
     
     val Overrides = new GuardedBy[List[MethodSymbol]](gather)
     def overrides = Overrides.v
