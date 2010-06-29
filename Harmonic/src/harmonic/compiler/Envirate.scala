@@ -26,10 +26,10 @@ case class Envirate(global: Global) {
     def addAstReq(env: Env, req: in.Requirement) = {
         req match {
             case in.PathRequirement(in.TypedPath(left), rel, in.TypedPath(right)) => {
-                env.plusPathRel(Req.P(left.toPath, rel, right.toPath))
+                env.plusRel(Req.P(left.toPath, rel, right.toPath))
             }
             case in.TypeRequirement(in.TypeRef(left), rel, in.TypeRef(right)) => {
-                env.plusTypeRel(Req.P(left.toPath, rel, right.toPath))                
+                env.plusRel(Req.T(left, rel, right))
             }
         }
     }
@@ -52,21 +52,23 @@ case class Envirate(global: Global) {
                 env = env.plusRels(ensures)
 
                 val supCsym = global.csym(name.name)
-                val fsubst = supCsym.typedSubstForFlatArgs(Path.This)(argPaths)
+                val fsubst = supCsym.substForFlatArgs(Path.This)(argPaths)
                 val substdRels = supCsym.checkEnv.allRels.map(fsubst.req)
                 val finalRels = substdRels.filter(env.relIsFinalBy(_, Path.ThisInit))
                 env = env.plusRels(finalRels)
             }
         }
         
+        val method = env.typedPath(Path.ThisInit)
+        
         // Add from class body:
         cdecl.members.foreach {
             case in.RelDecl(_, in.TypedPath(left), rel, in.TypedPath(right)) => {
                 if(
-                    env.pathIsFinalBy(left, Path.ThisInit) &&
-                    env.pathIsFinalBy(right, Path.ThisInit)
+                    env.pathIsFinalBy(left, method) && 
+                    env.pathIsFinalBy(right, method)
                 ) {
-                    env = env.plusRel(Rel.P(left.toPath, rel, right.toPath))
+                    env = env.plusRel(Req.P(left.toPath, rel, right.toPath))
                 }
             }
             case _ => ()

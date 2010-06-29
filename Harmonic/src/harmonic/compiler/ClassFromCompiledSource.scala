@@ -119,7 +119,7 @@ abstract class ClassFromCompiledSource extends ClassSymbol
             _ => ()
         }
         
-        val envirate: : AsyncInterval = master.subinterval(
+        val envirate: AsyncInterval = master.subinterval(
             name = "%s.Envirate".format(name),
             after = List(lower.getEnd)
         ) {
