@@ -46,7 +46,7 @@ class ClassFromReflection(
                 ctors.map(ctorSymbol(inter)).toList            
             } else { // gin up an empty constructor for interfaces:
                 List(
-                    new MethodSymbol(
+                    initReqs(new MethodSymbol(
                         pos       = pos, 
                         modifiers = Modifier.Set.empty,
                         kind      = MethodKind.JavaDummyCtor,
@@ -55,7 +55,7 @@ class ClassFromReflection(
                         elaborate = inter,
                         gather    = gather,
                         msig      = MethodSignature(Type.Void, List())
-                    )
+                    ))
                 )
             }            
         },
@@ -76,6 +76,13 @@ class ClassFromReflection(
         
         checkEnv = Env.empty(global)
     )
+    
+    private[this] def initReqs(msym: MethodSymbol) = {
+        // TODO Honor @Requires and @Ensures annotations
+        msym.Requirements.v = Nil
+        msym.Ensures.v = Nil
+        msym
+    }
     
     private[this] def fieldSymTabEntry(fld: reflect.Field) = {
         val memberName = Name.Member(name, fld.getName)
@@ -157,7 +164,7 @@ class ClassFromReflection(
     }
     
     private[this] def ctorSymbol(inter: Interval)(mthd: reflect.Constructor[_]) = {
-        new MethodSymbol(
+        initReqs(new MethodSymbol(
             pos       = pos,
             modifiers = Modifier.forMember(mthd),
             kind      = MethodKind.Java(
@@ -176,7 +183,7 @@ class ClassFromReflection(
                 parameterPatterns = List(Pattern.Tuple(
                     mthd.getGenericParameterTypes.toList.zipWithIndex.map(paramPattern)))
             )
-        )
+        ))
     }
     
     private[this] def methodSymbol(inter: Interval)(mthd: reflect.Method) = {
@@ -188,7 +195,7 @@ class ClassFromReflection(
             else
                 MethodKind.JavaVirtual            
         }
-        new MethodSymbol(
+        initReqs(new MethodSymbol(
             pos       = pos,
             modifiers = Modifier.forMember(mthd),
             kind      = MethodKind.Java(
@@ -207,7 +214,7 @@ class ClassFromReflection(
                 parameterPatterns = List(Pattern.Tuple(
                     mthd.getGenericParameterTypes.toList.zipWithIndex.map(paramPattern)))
             )
-        )
+        ))
     }
     
     // Unfortunately, if a class overrides a method with a covariant

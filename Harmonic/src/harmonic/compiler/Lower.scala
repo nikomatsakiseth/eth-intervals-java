@@ -27,7 +27,7 @@ case class Lower(global: Global) {
     
     def createSymbolForConstructor(csym: ClassFromSource) = {
         val cdecl = csym.resolvedSource
-        new MethodSymbol(
+        val msym = new MethodSymbol(
             pos       = cdecl.pattern.pos,
             modifiers = Modifier.Set.empty,
             kind      = MethodKind.HarmonicCtor,
@@ -40,6 +40,13 @@ case class Lower(global: Global) {
                 parameterPatterns = List(csym.classParam.toPatternRef)
             )
         )
+        
+        // TODO Add requirements and ensures from class
+        // TODO Add ensures that equate each argument x to a field this.x
+        msym.Requirements.v = Nil
+        msym.Ensures.v = Nil
+        
+        msym
     }
     
     def lowerRelDecl(

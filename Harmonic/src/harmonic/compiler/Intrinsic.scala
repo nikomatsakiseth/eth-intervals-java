@@ -5,6 +5,12 @@ import Util._
 
 case class Intrinsic(global: Global) {
     
+    private[this] def initReqs(msym: MethodSymbol) = {
+        msym.Requirements.v = Nil
+        msym.Ensures.v = Nil
+        msym
+    }
+    
     def ensureLoadable(cls: Class[_]) {
         global.requireLoadedOrLoadable(InterPosition.forClass(cls), Name.Class(cls))
     }
@@ -48,7 +54,7 @@ case class Intrinsic(global: Global) {
             val returnTy = Type.Class(returnClass)
             for((interName, javaName) <- mathOps) {
                 global.addIntrinsic(
-                    new MethodSymbol(
+                    initReqs(new MethodSymbol(
                         pos = InterPosition.forClass(classOf[Intrinsic]),
                         modifiers = Modifier.Set.empty,
                         kind = MethodKind.Java(
@@ -66,7 +72,7 @@ case class Intrinsic(global: Global) {
                             returnTy = returnTy,
                             parameterPatterns = List(Pattern.Var(Name.LocalVar("arg"), rightTy))
                         )
-                    )
+                    ))
                 )
             }
         }
@@ -123,7 +129,7 @@ case class Intrinsic(global: Global) {
         
         // (boolean) if {...}
         global.addIntrinsic(
-            new MethodSymbol(
+            initReqs(new MethodSymbol(
                 pos = InterPosition.forClass(classOf[Intrinsic]),
                 modifiers = Modifier.Set.empty,
                 kind = controlFlow(
@@ -141,12 +147,12 @@ case class Intrinsic(global: Global) {
                         Pattern.Var(Name.LocalVar("ifTmpl"), templateTy(voidTy, voidTy))
                     )
                 )
-            )
+            ))
         )
         
         // (Object) ifNull {...}
         global.addIntrinsic(
-            new MethodSymbol(
+            initReqs(new MethodSymbol(
                 pos = InterPosition.forClass(classOf[Intrinsic]),
                 modifiers = Modifier.Set.empty,
                 kind = controlFlow(
@@ -164,12 +170,12 @@ case class Intrinsic(global: Global) {
                         Pattern.Var(Name.LocalVar("ifTmpl"), templateTy(voidTy, voidTy))
                     )
                 )
-            )
+            ))
         )
 
         // (boolean) if {...} else {...}
         global.addIntrinsic(
-            new MethodSymbol(
+            initReqs(new MethodSymbol(
                 pos = InterPosition.forClass(classOf[Intrinsic]),
                 modifiers = Modifier.Set.empty,
                 kind = controlFlow(
@@ -188,12 +194,12 @@ case class Intrinsic(global: Global) {
                         Pattern.Var(Name.LocalVar("elseTmpl"), templateTy(voidTy, voidTy))
                     )
                 )
-            )
+            ))
         )
         
         // (Object) ifNull {...} else {...}
         global.addIntrinsic(
-            new MethodSymbol(
+            initReqs(new MethodSymbol(
                 pos = InterPosition.forClass(classOf[Intrinsic]),
                 modifiers = Modifier.Set.empty,
                 kind = controlFlow(
@@ -212,13 +218,13 @@ case class Intrinsic(global: Global) {
                         Pattern.Var(Name.LocalVar("elseTmpl"), templateTy(voidTy, voidTy))
                     )
                 )
-            )
+            ))
         )
         
         // (Iterable<T>) forEach { (T i) -> ... }
         val typeT = Type.Member(Path.This, Name.Member(iterableTy.name, "T"))
         global.addIntrinsic(
-            new MethodSymbol(
+            initReqs(new MethodSymbol(
                 pos = InterPosition.forClass(classOf[Intrinsic]),
                 modifiers = Modifier.Set.empty,
                 kind = controlFlow(
@@ -239,12 +245,12 @@ case class Intrinsic(global: Global) {
                         )
                     )
                 )
-            )
+            ))
         )
 
         // (Block<Boolean,_>) while { ... }
         global.addIntrinsic(
-            new MethodSymbol(
+            initReqs(new MethodSymbol(
                 pos = InterPosition.forClass(classOf[Intrinsic]),
                 modifiers = Modifier.Set.empty,
                 kind = controlFlow(
@@ -262,7 +268,7 @@ case class Intrinsic(global: Global) {
                         Pattern.Var(Name.LocalVar("bodyTmpl"), templateTy(voidTy, voidTy))
                     )
                 )
-            )
+            ))
         )    
 
     }

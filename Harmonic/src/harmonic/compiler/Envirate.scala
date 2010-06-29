@@ -42,24 +42,22 @@ case class Envirate(global: Global) {
         val classReqs: List[in.Requirement] = Nil // TODO
         var env = classReqs.foldLeft(Env.empty(global))(addAstReq)
 
+        val method = env.typedPath(Path.ThisInit)
+        
         // Add inherited environments from extends clauses:
         cdecl.extendsDecls.foreach { 
             case in.ExtendsDecl(name, args, (msym, msig)) => {
                 val argPaths = args.map(_.path)
 
                 val vsubst = msym.substForFlatArgs(argPaths)
-                val ensures = msym.ensures.map(vsubst.req)
-                env = env.plusRels(ensures)
+                val ensures = msym.ensures.view.map(vsubst.req)
+                val finalEnsures = ensures.filter(env.relIsFinalyBy(_, method))
+                env = env.plusRels(finalEnsures)
 
                 val supCsym = global.csym(name.name)
-                val fsubst = supCsym.substForFlatArgs(Path.This)(argPaths)
-                val substdRels = supCsym.checkEnv.allRels.map(fsubst.req)
-                val finalRels = substdRels.filter(env.relIsFinalBy(_, Path.ThisInit))
-                env = env.plusRels(finalRels)
+                env = env.plusRels(supCsym.checkEnv.allRels)
             }
         }
-        
-        val method = env.typedPath(Path.ThisInit)
         
         // Add from class body:
         cdecl.members.foreach {

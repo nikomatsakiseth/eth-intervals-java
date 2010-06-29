@@ -205,13 +205,6 @@ class ClassFromSource(
     /** Given values `p` for the class parameters `f`, 
       * returns a substituion including `thisPath.f1 -> p1`, 
       * `thisPath.f2 -> p2`, etc. */
-    def substForFlatArgs(thisPath: Path.Ref)(args: List[Path.Typed]): Subst = {
-        val fieldSyms = loweredSource.pattern.symbols
-        fieldSyms.zip(args).foldLeft(Subst.empty) { case (s, (fsym, arg)) =>
-            s + ((thisPath / fsym.name) -> arg.toPath)
-        }
-    }
-    
     def typedSubstForFlatArgs(args: List[Path.Typed]): TypedSubst = {
         val thisSym = loweredSource.thisSym
         val fieldSyms = loweredSource.pattern.symbols
@@ -220,7 +213,7 @@ class ClassFromSource(
         }
     }
 
-    val CheckEnv = new GuardedBy[Env](merge)
+    val CheckEnv = new GuardedBy[Env](envirate)
     def checkEnv = CheckEnv.v
     
     // ___ Computed by Pass.Gather __________________________________________

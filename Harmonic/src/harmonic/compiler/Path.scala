@@ -17,6 +17,7 @@ object Path {
     // ___ Untyped Paths ____________________________________________________
     
     sealed abstract class Ref extends UntypedOwner {
+        def is(r: Ref) = (this == r)
         def /(fname: Name.Member) = Field(this, fname)
     }
     case class Local(v: Name.LocalVar) extends Ref {
@@ -47,6 +48,7 @@ object Path {
     
     val This = Name.ThisLocal.toPath
     val Method = Name.MethodLocal.toPath
+    val Final = Name.FinalLocal.toPath
     val ThisInit = This / Name.Init
     
     // ___ Typed Paths ______________________________________________________

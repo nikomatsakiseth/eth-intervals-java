@@ -2,6 +2,7 @@ package harmonic.compiler
 
 import java.io.File
 import scala.util.parsing.input.Position
+import scala.util.parsing.input.NoPosition
 import scala.collection.mutable
 import ch.ethz.intervals.Interval
 import Util._
@@ -10,6 +11,15 @@ class Global(
     val config: Config,
     val reporter: Reporter
 ) {
+    // ___ The "final" interval _____________________________________________
+    
+    val finalSym = new VarSymbol.Local(
+        pos = NoPosition,
+        modifiers = Modifier.Set.empty,
+        name = Name.FinalLocal,
+        ty = Type.Interval        
+    )
+    
     // ___ Main Routine _____________________________________________________
     
     var master: Interval = null

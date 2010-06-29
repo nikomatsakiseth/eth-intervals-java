@@ -62,6 +62,7 @@ abstract class ClassFromCompiledSource extends ClassSymbol
     def create: AsyncInterval = intervals("create")
     def members: AsyncInterval = intervals("members")
     def merge: AsyncInterval = intervals("merge")
+    def envirate: AsyncInterval = intervals("envirate")
     def check: AsyncInterval = intervals("check")
     def gather: AsyncInterval = intervals("gather")
     def byteCode: AsyncInterval = intervals("byteCode")

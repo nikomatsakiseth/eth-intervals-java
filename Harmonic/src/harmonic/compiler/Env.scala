@@ -12,7 +12,9 @@ object Env {
         global       = global,
         thisTy       = Type.Top,
         optReturnTy  = None,
-        locals       = Map(),
+        locals       = Map(
+            Name.FinalLocal -> global.finalSym
+        ),
         pathRels     = Nil,
         typeRels     = Nil
     )
@@ -78,15 +80,15 @@ case class Env(
         case rel: Req.T => plusTypeRel(rel)
     }
     
-    def plusRels(rels: List[Req.Any]) = rels.foldLeft(this)(_ plusRel _)
+    def plusRels(rels: Iterable[Req.Any]) = rels.foldLeft(this)(_ plusRel _)
     
     def plusPathRel(rel: Req.P) = copy(pathRels = rel :: pathRels)
 
-    def plusPathRels(rels: List[Req.P]) = rels.foldLeft(this)(_ plusPathRel _)
+    def plusPathRels(rels: Iterable[Req.P]) = rels.foldLeft(this)(_ plusPathRel _)
 
     def plusTypeRel(rel: Req.T) = copy(typeRels = rel :: typeRels)
     
-    def plusTypeRels(rels: List[Req.T]) = rels.foldLeft(this)(_ plusTypeRel _)
+    def plusTypeRels(rels: Iterable[Req.T]) = rels.foldLeft(this)(_ plusTypeRel _)
     
     def withOptReturnTy(optReturnTy: Option[Type.Ref]) = copy(optReturnTy = optReturnTy)
     
@@ -387,15 +389,18 @@ case class Env(
 
     def pathsAreRelatable(rel: PcRel)(path1: Path.Ref, path2: Path.Ref): Boolean = {
         // TODO: Add code for handling permitsWr, permitsRd, and other derived relations!
+        def search() = {
+            val equatablePath1 = equatable(path1)
+            val equatablePath2 = equatable(path2)
+            pathRels.exists { case Req.P(p1, r, p2) =>
+                (r == rel) && equatablePath1(p1) && equatablePath2(p2)
+            }            
+        }
+        
         rel match {
             case PcEq => pathsAreEquatable(path1, path2)
-            case _ => {
-                val equatablePath1 = equatable(path1)
-                val equatablePath2 = equatable(path2)
-                pathRels.exists { case Req.P(p1, r, p2) =>
-                    (r == rel) && equatablePath1(p1) && equatablePath2(p2)
-                }
-            }
+            case PcEnsuresFinal if path1.is(Path.Final) => true
+            case _ => search()
         }
     }
     
