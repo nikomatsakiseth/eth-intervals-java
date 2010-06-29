@@ -22,6 +22,7 @@ abstract class ClassSymbol extends Symbol {
     def create: AsyncInterval
     def members: AsyncInterval
     def merge: AsyncInterval
+    def envirate: AsyncInterval
     def check: AsyncInterval
     def gather: AsyncInterval
     def byteCode: AsyncInterval

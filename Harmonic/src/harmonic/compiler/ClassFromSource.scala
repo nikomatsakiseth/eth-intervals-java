@@ -23,14 +23,21 @@ class ClassFromSource(
     //
     // For a class being loaded from source, this is the structure:
     //
-    // header -> body -> | lower --------------------- | ---> check ---> gather -> byteCode
-    //      ^             \                           /^    ^         ^
-    //      |              create -> members -> (merge)|    |         |
-    //   header                     \        /         |    |         | 
-    //  (supers)                    (member0)      lower    |         |  
-    //                                 ...        (supers)  |         |   
-    //                              (memberN)             check     gather         
-    //                                                   (supers)  (supers)
+    // header -> body -> | lower --------------------- | ----> envirate ...
+    //      ^             \                           /^     ^          
+    //      |              create -> members -> (merge)|     |          
+    //   header                     \        /         |     |          
+    //  (supers)                    (member0)      lower     |          
+    //                                 ...        (supers)   |          
+    //                              (memberN)            envirate       
+    //                                                   (supers)      
+    //
+    // ... ---> check -----> byteCode          
+    //     ---> gather --/
+    //       ^
+    //       |
+    //     gather         
+    //   (supers)
     // 
     // header: determines the list of members, names of superclasses.
     //
@@ -102,23 +109,30 @@ class ClassFromSource(
         _ => Merge(global).mergeMemberIntervals(this)
     }
     
+    val envirate: AsyncInterval = master.subinterval(
+        name = "%s.Envirate".format(name),
+        after = List(lower.getEnd)
+    ) {
+        _ => Envirate(global).forClassFromSource(this)
+    }
+    
     val check: AsyncInterval = master.subinterval(
         name = "%s.Check".format(name),
-        after = List(lower.getEnd)
+        after = List(envirate.getEnd)
     ) {
         _ => () // Check(global).classSymbol(this)
     }
     
     val gather: AsyncInterval = master.subinterval(
         name = "%s.Gather".format(name),
-        after = List(check.getEnd)
+        after = List(envirate.getEnd)
     ) {
         _ => Gather(global).forSym(this)
     }
 
     val byteCode: AsyncInterval = master.subinterval(
         name = "%s.ByteCode".format(name),
-        after = List(gather.getEnd)
+        after = List(check.getEnd, gather.getEnd)
     ) { 
         _ => if(!global.reporter.hasErrors) ByteCode(global).writeClassSymbol(this)
     }
@@ -186,10 +200,28 @@ class ClassFromSource(
     val AllIntervalSymbols = new GuardedBy[List[VarSymbol.Field]](merge)
     def allIntervalSymbols = AllIntervalSymbols.v
     
-    // ___ Computed by Pass.Check ___________________________________________
+    // ___ Computed by Pass.Envirate ________________________________________
+    
+    /** Given values `p` for the class parameters `f`, 
+      * returns a substituion including `thisPath.f1 -> p1`, 
+      * `thisPath.f2 -> p2`, etc. */
+    def substForFlatArgs(thisPath: Path.Ref)(args: List[Path.Typed]): Subst = {
+        val fieldSyms = loweredSource.pattern.symbols
+        fieldSyms.zip(args).foldLeft(Subst.empty) { case (s, (fsym, arg)) =>
+            s + ((thisPath / fsym.name) -> arg.toPath)
+        }
+    }
+    
+    def typedSubstForFlatArgs(args: List[Path.Typed]): TypedSubst = {
+        val thisSym = loweredSource.thisSym
+        val fieldSyms = loweredSource.pattern.symbols
+        fieldSyms.zip(args).foldLeft(TypedSubst.empty) { case (s, (fsym, arg)) =>
+            s plusField ((thisSym, fsym) -> arg)
+        }
+    }
 
     val CheckEnv = new GuardedBy[Env](merge)
-    def checkEnv = Env.empty(global) // CheckEnv.v
+    def checkEnv = CheckEnv.v
     
     // ___ Computed by Pass.Gather __________________________________________
     

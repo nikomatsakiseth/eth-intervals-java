@@ -73,6 +73,13 @@ case class Env(
 
     def plusThis(thisTy: Type.Class, sym: VarSymbol.Local) = plusLocalVar(sym).copy(thisTy = thisTy)
     
+    def plusRel(rel: Req.Any) = rel match {
+        case rel: Req.P => plusPathRel(rel)
+        case rel: Req.T => plusTypeRel(rel)
+    }
+    
+    def plusRels(rels: List[Req.Any]) = rels.foldLeft(this)(_ plusRel _)
+    
     def plusPathRel(rel: Req.P) = copy(pathRels = rel :: pathRels)
 
     def plusPathRels(rels: List[Req.P]) = rels.foldLeft(this)(_ plusPathRel _)
@@ -84,6 +91,8 @@ case class Env(
     def withOptReturnTy(optReturnTy: Option[Type.Ref]) = copy(optReturnTy = optReturnTy)
     
     // ___ Querying the relations ___________________________________________
+    
+    def allRels = pathRels.view ++ typeRels.view
     
     private[this] def pathsRelatedBy(Rel: PcRel): List[(Path.Ref, Path.Ref)] = pathRels.flatMap { 
         case Req.P(p1, Rel, p2) => Some((p1, p2))

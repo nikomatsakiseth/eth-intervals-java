@@ -31,11 +31,11 @@ class Subst(private val map: Map[Path.Ref, Path.Ref]) {
             Path.Call(owner(receiver), methodId, args.map(path))
     }
     
-    def pathRel(rel: Req.P) = Req.P(path(rel.left), rel.rel, path(rel.right))
-    def typeRel(rel: Req.T) = Req.T(ty(rel.left), rel.rel, ty(rel.right))
-    def anyRel(rel: Req.Any) = rel match {
-        case rel: Req.P => pathRel(rel)
-        case rel: Req.T => typeRel(rel)
+    def pathReq(r: Req.P) = Req.P(path(r.left), r.rel, path(r.right))
+    def typeReq(r: Req.T) = Req.T(ty(r.left), r.rel, ty(r.right))
+    def req(r: Req.Any) = r match {
+        case r: Req.P => pathReq(r)
+        case r: Req.T => typeReq(r)
     }
     
     def pattern(p: Pattern.Anon): Pattern.Anon = p match {

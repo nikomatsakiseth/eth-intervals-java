@@ -119,23 +119,30 @@ abstract class ClassFromCompiledSource extends ClassSymbol
             _ => ()
         }
         
+        val envirate: : AsyncInterval = master.subinterval(
+            name = "%s.Envirate".format(name),
+            after = List(lower.getEnd)
+        ) {
+            _ => ()
+        }
+        
         val check: AsyncInterval = master.subinterval(
             name = "%s.Check".format(name),
-            after = List(lower.getEnd)
+            after = List(envirate.getEnd)
         ) {
             _ => ()
         }
 
         val gather: AsyncInterval = master.subinterval(
             name = "%s.Gather".format(name),
-            after = List(check.getEnd)
+            after = List(envirate.getEnd)
         ) {
             _ => GatherOverrides(global).forSym(this)
         }
 
         val byteCode: AsyncInterval = master.subinterval(
             name = "%s.ByteCode".format(name),
-            after = List(gather.getEnd)
+            after = List(check.getEnd, gather.getEnd)
         ) { 
             _ => ()
         }
@@ -150,6 +157,7 @@ abstract class ClassFromCompiledSource extends ClassSymbol
             "create" -> create,
             "members" -> members,
             "merge" -> merge,
+            "envirate" -> envirate,
             "check" -> check,
             "gather" -> gather,
             "byteCode" -> byteCode

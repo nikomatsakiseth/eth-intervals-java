@@ -71,11 +71,7 @@ case class GatherExtends(global: Global) {
                     
                     // Recursively process each of the extends declarations from `csym`:
                     //    To do so, must create subst from ctor params of `csym` to the arguments.
-                    val thisSym = csym.loweredSource.thisSym
-                    val fieldSyms = csym.loweredSource.pattern.symbols
-                    val nextSubst = fieldSyms.zip(args).foldLeft(TypedSubst.empty) { case (s, (fsym, arg)) =>
-                        s plusField ((thisSym, fsym) -> arg)
-                    }
+                    val nextSubst = csym.substForFlatArgs(args)
                     addFor(nextSubst)(csym)
                 }
             
