@@ -182,6 +182,9 @@ object Name {
     // type automatically return null.
     val VoidClass = Class(classOf[java.lang.Void])
     
+    // Guard: interface for field and local variable guards
+    val GuardClass = Class(classOf[ch.ethz.intervals.guard.Guard])
+    
     // Interval, AsyncInterval, InlineInterval: from interval runtime
     val IntervalClass = Class(classOf[ch.ethz.intervals.Interval])
     val AsyncIntervalClass = Class(classOf[ch.ethz.intervals.AsyncInterval])

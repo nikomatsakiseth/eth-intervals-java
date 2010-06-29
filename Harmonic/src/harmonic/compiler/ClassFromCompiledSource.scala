@@ -72,12 +72,10 @@ abstract class ClassFromCompiledSource extends ClassSymbol
             schedule = false,
             name = "%s.Header".format(name)
         ) { current =>
-            debug("Load data for %s", name)
             val rawData = loadData(current)
             LoadedData.v = rawData.copy(
                 superClassNames = ResolveHeader.cookRawSuperClasses(this, rawData.superClassNames)
             )
-            debug("Loaded")
         }
 
         val body: AsyncInterval = master.subinterval(

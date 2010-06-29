@@ -11,17 +11,23 @@ import Util._
 case class Check(global: Global) {
     private[this] val emptyEnv = Env.empty(global)
     
-    object InEnv {
-        def apply(env: Env) = new InEnv(env)
+    object In {
+        def apply(env: Env, current: Path.Typed) = new In(env, current)
     }
     
-    class InEnv(env: Env) {
+    class In(env: Env, current: Path.Typed) {
         
         object At {
             def apply(node: Ast.Node) = new At(node)
         }
 
         class At(node: Ast.Node) {
+            
+            def checkTypeWf(ty: Type.Ref): Unit = {
+                if(!env.typeIsFinalBy(ty, current)) {
+                    Error.TypeNotFinal(ty).report(global, node.pos)
+                }
+            }
             
             def checkPathHasType(path: Path.Typed, ty: Type.Ref): Unit = {
                 if(!env.pathHasType(path, ty)) {
@@ -69,10 +75,33 @@ case class Check(global: Global) {
                 }
             }
             
-            def checkPathNode(path: in.TypedPath): Unit = {
-                At(path).checkPath(path.path)
+            def checkPathAndType(path: Path.Typed, ty: Type.Ref): Unit = {
+                checkPath(path)
+                checkPathHasType(path, ty)
             }
+            
+        }
+        
+        def checkPath(path: in.TypedPath): Unit = {
+            At(path).checkPath(path.path)
+        }
 
+        def checkPathAndType(path: in.TypedPath, ty: Type.Ref): Unit = {
+            At(path).checkPathAndType(path.path, ty)
+        }
+
+        def checkReq(req: in.Requirement) = {
+            req match {
+                case in.PathRequirement(left, PcEq, right) => {
+                    checkPath(left)
+                    checkPath(right)                    
+                }
+                
+                case in.PathRequirement(left, _, right) => {
+                    checkPathAndType(left, Type.Guard)
+                    checkPathAndType(right, Type.Interval)
+                }
+            }
         }
         
         def checkParam(pair: (Pattern.Anon, in.TypedPath)): Unit = {
@@ -109,43 +138,66 @@ case class Check(global: Global) {
         
     }
     
-    def checkAssign(env: Env, pair: (in.Lvalue, in.Expr)): Env = {
+    def checkAndAddReq(current: Path.Typed)(env: Env, req: in.Requirement) = {
+        In(env, current).checkReq(req)
+        
+        req match {
+            case in.PathRequirement(left, _, right) => {
+                // TODO Require an annotation to add between non-final paths?
+                if(
+                    env.pathIsFinalBy(left.path, current) &&
+                    env.pathIsFinalBy(right.path, current)
+                ) {
+                    env.plusRel(req.toReq)
+                } else {
+                    env
+                }
+            }
+            
+            case in.TypeRequirement(_, _, _) => {
+                env.plusRel(req.toReq)
+            }
+        }
+    }
+    
+    def checkAndAddAssign(current: Path.Typed)(env: Env, pair: (in.Lvalue, in.Expr)): Env = {
         val (lv, rv) = pair
-        val ty = InEnv(env).checkExpr(rv)
+        val ty = In(env, current).checkExpr(rv)
+        val chk = In(env, current).At(rv)
         lv match {
             case in.DeclareVarLvalue(_, _, _, sym) => {
-                InEnv(env).At(rv).checkPathHasType(Path.TypedLocal(sym), ty)
+                chk.checkPathHasType(Path.TypedLocal(sym), ty)
                 env.plusLocalVar(sym)
             }
                 
             case in.ReassignVarLvalue(_, sym) => {
-                InEnv(env).At(rv).checkPathHasType(Path.TypedLocal(sym), ty)
+                chk.checkPathHasType(Path.TypedLocal(sym), ty)
                 env
             }
             
             case in.FieldLvalue(_, sym) => {
                 // TODO Check that dependent fields are assigned together.
                 val path = env.lookupThis.toTypedPath / sym
-                InEnv(env).At(rv).checkPathHasType(path, ty)
+                chk.checkPathHasType(path, ty)
                 env
             }
         }
     }
         
-    def checkStmt(env: Env, stmt: in.LowerStmt): Env = {
+    def checkAndAddStmt(current: Path.Typed)(env: Env, stmt: in.LowerStmt): Env = {
         stmt match {
             case stmt: in.LowerTlExpr => {
-                InEnv(env).checkExpr(stmt)
+                In(env, current).checkExpr(stmt)
                 env
             }
             
             case stmt @ in.Assign(lvs, rvs) => {
-                lvs.zip(rvs).foldLeft(env)(checkAssign)
+                lvs.zip(rvs).foldLeft(env)(checkAndAddAssign(current))
             }
             
             case stmt @ in.InlineInterval(name, in.Body(stmts), vsym) => {
-                // Note: vsym is already in the environment:
-                stmts.foldLeft(env)(checkStmt)
+                // Note: vsym is already in the environment.
+                stmts.foldLeft(env)(checkAndAddStmt(vsym.toTypedPath))
             }
             
             case stmt @ in.MethodReturn(in.TypedPath(path)) => {
@@ -153,8 +205,7 @@ case class Check(global: Global) {
                     case None => Error.NoReturnHere().report(global, stmt.pos)
                     
                     case Some(returnTy) => {
-                        InEnv(env).At(stmt).checkPath(path)
-                        InEnv(env).At(stmt).checkPathHasType(path, returnTy)
+                        In(env, current).At(stmt).checkPathAndType(path, returnTy)
                     }
                 }
                 env
@@ -162,31 +213,110 @@ case class Check(global: Global) {
         }
     }
     
-    //def classSymbol(csym: ClassFromSource) {
-    //    val classDecl = csym.loweredSource
-    //
-    //    inlineInterval(csym.name.toString) { inter =>
-    //        
-    //        classDecl.members.foreach { 
-    //            case decl: in.IntervalDecl => {
-    //                
-    //            }
-    //            
-    //            case decl: in.MethodDecl => {
-    //                
-    //            }
-    //            
-    //            case decl: in.FieldDecl => {
-    //                
-    //            }
-    //            
-    //            case decl: in.RelDecl => {
-    //                
-    //            }
-    //        }
-    //        
-    //    }
-    //}
+    def checkStmts(current: Path.Typed, env: Env, stmts: List[in.LowerStmt]): Unit = {
+        stmts.foldLeft(env)(checkAndAddStmt(current))
+    }
+    
+    def checkIntervalDecl(
+        csym: ClassFromSource, 
+        fsym: VarSymbol.Field, 
+        decl: in.IntervalDecl
+    ) = {
+        val env = csym.checkEnv
+        val thisPath = csym.loweredSource.thisSym.toTypedPath
+        val initPath = env.typedPath(Path.ThisInit)
+        In(env, initPath).checkPathAndType(decl.parent, Type.Interval)
+        checkStmts(thisPath / fsym, csym.checkEnv, decl.body.stmts)
+    }
+    
+    def checkMethodDecl(
+        csym: ClassFromSource, 
+        msym: MethodSymbol,
+        decl: in.MethodDecl
+    ) = {
+        var env = csym.checkEnv
+        
+        // Create the "method" variable:
+        val methodSym = new VarSymbol.Local(
+            decl.pos,
+            Modifier.Set.empty,
+            Name.MethodLocal,
+            Type.Interval
+        )
+        env = env.plusLocalVar(methodSym)
+        val methodPath = methodSym.toTypedPath
+        
+        // Add in the requirements:
+        //     Note that these may reference parameters.
+        //     I put them in here so that they can be used to 
+        //     validate the types of the parameters.  Is this OK?
+        env = decl.requirements.foldLeft(env)(checkAndAddReq(methodPath))
+        
+        // Add in the parameters, check that types are WF: 
+        decl.params.flatMap(_.varParams).foreach { vp =>
+            In(env, methodPath).At(vp).checkTypeWf(vp.tref.ty)
+            env = env.plusLocalVar(vp.sym)
+        }
+        
+        // Check the statements in the body in the resulting environment:
+        decl.body match {
+            case in.Body(stmts) => {
+                checkStmts(methodPath, env, stmts)
+                
+                // Check that ensures clauses are met:
+                decl.ensures.foreach { reqNode =>
+                    val req = reqNode.toReq
+                    if(!env.relHolds(req)) {
+                        Error.DoesNotEnsure(req).report(global, reqNode.pos)
+                    }
+                }
+            }
+            case in.AbstractBody() =>
+        }
+    }
+    
+    def checkFieldDecl(
+        csym: ClassFromSource, 
+        fsym: VarSymbol.Field,
+        decl: in.FieldDecl
+    ) = {
+        
+    }
+    
+    def checkRelDecl(
+        csym: ClassFromSource, 
+        decl: in.RelDecl
+    ) = {
+        
+    }
+    
+    def classSymbol(csym: ClassFromSource) {
+        inlineInterval("%s.check.inline".format(csym.name)) { inter =>
+
+            csym.lowerMembers.foreach {
+                case mem: LowerIntervalMember => {
+                    checkIntervalDecl(csym, mem.sym, mem.memberDecl)
+                }
+                
+                case mem: LowerMethodMember => {
+                    checkMethodDecl(csym, mem.sym, mem.memberDecl)
+                }
+                
+                case mem: LowerFieldMember => {
+                    checkFieldDecl(csym, mem.sym, mem.memberDecl)
+                }
+                
+                case mem: LowerRelDecl => {
+                    checkRelDecl(csym, mem.memberDecl)
+                }
+                
+                case mem => {
+                    throw new RuntimeException("Unhandled member kind: %s".format(mem.memberDecl))
+                }
+            }
+            
+        }
+    }
 
     
 }

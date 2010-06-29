@@ -12,7 +12,7 @@ case class GatherOverrides(global: Global) {
     
     /** Populates `csym.methodGroups` as well as the `overrides` 
       * fields of all method symbols defined in `csym` */
-    def forSym(csym: ClassSymbol): Unit = debugIndent("GatherOverrides(%s)", csym) {
+    def forSym(csym: ClassSymbol): Unit = {
         
         // The full dependencies for GatherOverrides are:
         //
@@ -78,9 +78,6 @@ case class GatherOverrides(global: Global) {
         val mro = MethodResolutionOrder(global).forSym(csym)
         mro.foreach { mroCsym =>
             val msyms = mroCsym.allMethodSymbols
-            debugIndent("Adding Methods From %s", csym) {
-                msyms.foreach(msym => debug("msym %s msig = %s", msym, msym.msig))
-            }
             msyms.foreach(methodGroups.addMsym)
         }        
         methodGroups
@@ -149,9 +146,6 @@ case class GatherOverrides(global: Global) {
             }
             
             case msyms => {
-                debugIndent("Multiple Overrides in %s", csym) {
-                    msyms.foreach(msym => debug("msym %s msig = %s", msym, msym.msig))
-                }
                 Error.MultipleOverridesInSameClass(
                     csym.name, group.methodName, msyms.length
                 ).report(global, csym.pos)

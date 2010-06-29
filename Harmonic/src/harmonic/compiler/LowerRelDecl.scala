@@ -18,15 +18,13 @@ class LowerRelDecl(
             name = "%s.(%s).memberLower".format(csym.name, inRelDecl),
             during = List(csym.members)
         ) { inter =>
-            debugIndent("lowering %s", inRelDecl) {
-                outRelDecl.v = Lower(global).lowerRelDecl(csym, inRelDecl)
-            }
+            outRelDecl.v = Lower(global).lowerRelDecl(csym, inRelDecl)
         }
     }
     
     private[this] val outRelDecl = new GuardedBy[out.RelDecl](memberLower)
     
-    override def memberDecl = outRelDecl.v
+    override def memberDecl: out.RelDecl = outRelDecl.v
     
     memberLower.schedule
     

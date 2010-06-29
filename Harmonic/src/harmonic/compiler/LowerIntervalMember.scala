@@ -18,17 +18,15 @@ class LowerIntervalMember(
             name = "%s.%s.memberLower".format(csym.name, inIntervalDecl.name),
             during = List(csym.members)
         ) { inter =>
-            debugIndent("lowering %s", inIntervalDecl) {
-                outIntervalDecl.v = Lower(global).lowerIntervalDecl(csym, inIntervalDecl)
-            }
+            outIntervalDecl.v = Lower(global).lowerIntervalDecl(csym, inIntervalDecl)
         }
     }
     
     private[this] val outIntervalDecl = new GuardedBy[out.IntervalDecl](memberLower)
     
-    override def memberDecl: out.MemberDecl = outIntervalDecl.v
+    override def memberDecl: out.IntervalDecl = outIntervalDecl.v
     
-    private[this] val sym = {
+    val sym = {
         new VarSymbol.Field(
             pos       = inIntervalDecl.pos,
             modifiers = Modifier.forResolvedAnnotations(inIntervalDecl.annotations),

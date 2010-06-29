@@ -20,15 +20,13 @@ class LowerFieldMember(
             name = "%s.%s.memberLower".format(csym.name, inFieldDecl.name),
             during = List(csym.members)
         ) { inter =>
-            debugIndent("lowering %s", inFieldDecl) {
-                outFieldDecl.v = Lower(global).lowerFieldDecl(csym, inFieldDecl)                
-            }
+            outFieldDecl.v = Lower(global).lowerFieldDecl(csym, inFieldDecl)                
         }
     }
     
     private[this] val outFieldDecl = new GuardedBy[out.FieldDecl](memberLower)
 
-    override def memberDecl: out.MemberDecl = outFieldDecl.v
+    override def memberDecl: out.FieldDecl = outFieldDecl.v
     
     // ___ Creating and Elaborating the Symbol ______________________________
     //
@@ -54,7 +52,7 @@ class LowerFieldMember(
                     during = List(csym.members),
                     after = List(memberLower.getEnd)
                 ) { inter =>
-                    sym.v = createFieldSymbol(outFieldDecl.v.tref.ty)
+                    Sym.v = createFieldSymbol(outFieldDecl.v.tref.ty)
                 }
             }
             
@@ -65,12 +63,13 @@ class LowerFieldMember(
                     during = List(csym.members)
                 ) { inter =>
                     val outTref = Lower(global).InEnv(csym.classEnv).lowerTypeRef(inTref)
-                    sym.v = createFieldSymbol(outTref.ty)
+                    Sym.v = createFieldSymbol(outTref.ty)
                 }
             }
         }
     }
-    private[this] val sym = new GuardedBy[VarSymbol.Field](symCreate)
+    private[this] val Sym = new GuardedBy[VarSymbol.Field](symCreate)
+    def sym = Sym.v
     
     private[this] val symElaborate: AsyncInterval = {
         global.master.subinterval(
@@ -86,7 +85,7 @@ class LowerFieldMember(
     override def toOptFieldSymbol(memName: Name.Member): Option[VarSymbol.Field] = {
         if(inFieldDecl.name.is(memName)) {
             try {
-                Some(sym.join)                
+                Some(Sym.join)                
             } catch {
                 case _: IntervalException.Cycle => {
                     global.reporter.report(inFieldDecl.tref.pos, 

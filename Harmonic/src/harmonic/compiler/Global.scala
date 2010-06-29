@@ -197,12 +197,8 @@ class Global(
     
     // ___ Freshness ________________________________________________________
     
-    private[this] var freshCounter = 0
-    
-    def freshInteger() = {
-        val result = freshCounter
-        freshCounter += 1
-        result
-    }
+    private[this] val freshCounter = new java.util.concurrent.atomic.AtomicInteger()
+    def freshInteger = freshCounter.getAndIncrement
+    def freshLocalName = Name.LocalVar("<temp-%d>".format(freshInteger))
     
 }

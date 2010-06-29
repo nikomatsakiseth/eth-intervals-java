@@ -35,16 +35,14 @@ class LowerMethodMember(
             during = List(csym.members),
             after = List(paramLower.getEnd)
         ) { inter =>
-            debugIndent("lowering %s", inMemberDecl) {
-                val (outParams, env) = outSig.v
-                outMethodDecl.v = Lower(global).lowerMethodDecl(csym, inMethodDecl, outParams, env)                
-            }
+            val (outParams, env) = outSig.v
+            outMethodDecl.v = Lower(global).lowerMethodDecl(csym, inMethodDecl, outParams, env)                
         }
     }
     
     private[this] val outMethodDecl = new GuardedBy[out.MethodDecl](memberLower)
     
-    override def memberDecl = outMethodDecl.v
+    override def memberDecl: out.MethodDecl = outMethodDecl.v
 
     // ___ Creating and Elaborating the Symbol ______________________________
     //
@@ -82,7 +80,7 @@ class LowerMethodMember(
                     during = List(csym.members),
                     after = List(paramLower.getEnd, memberLower.getEnd)
                 ) { inter =>
-                    sym.v = createSymbol(outMethodDecl.v.params, outMethodDecl.v.returnTref)
+                    Sym.v = createSymbol(outMethodDecl.v.params, outMethodDecl.v.returnTref)
                 }                
             }
             
@@ -96,13 +94,14 @@ class LowerMethodMember(
                 ) { inter =>
                     val (outParams, env) = outSig.v
                     val outReturnTref = Lower(global).InEnv(env).lowerTypeRef(inReturnTref)
-                    sym.v = createSymbol(outParams, outReturnTref)
+                    Sym.v = createSymbol(outParams, outReturnTref)
                 }                
             }
         }
     }
         
-    private[this] val sym = new GuardedBy[MethodSymbol](symCreate)
+    private[this] val Sym = new GuardedBy[MethodSymbol](symCreate)
+    def sym = Sym.v
     
     private[this] val symElaborate: AsyncInterval = {
         global.master.subinterval(
@@ -111,15 +110,15 @@ class LowerMethodMember(
             during = List(csym.members),
             after = List(symCreate.getEnd, memberLower.getEnd)
         ) { inter =>
-            sym.v.Requirements.v = outMethodDecl.v.requirements.map(_.toReq)
-            sym.v.Ensures.v = outMethodDecl.v.ensures.map(_.toReq)
+            sym.Requirements.v = outMethodDecl.v.requirements.map(_.toReq)
+            sym.Ensures.v = outMethodDecl.v.ensures.map(_.toReq)
         }
     }
     
     override def toOptMethodSymbol(mthdName: Name.Method): Option[MethodSymbol] = {
         if(inMethodDecl.name.is(mthdName)) {
             try {
-                Some(sym.join)
+                Some(Sym.join)
             } catch {
                 case _: IntervalException.Cycle => {
                     global.reporter.report(

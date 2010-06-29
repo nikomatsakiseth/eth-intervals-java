@@ -51,7 +51,7 @@ case class Envirate(global: Global) {
 
                 val vsubst = msym.substForFlatArgs(argPaths)
                 val ensures = msym.ensures.view.map(vsubst.req)
-                val finalEnsures = ensures.filter(env.relIsFinalyBy(_, method))
+                val finalEnsures = ensures.filter(env.relIsFinalBy(_, method))
                 env = env.plusRels(finalEnsures)
 
                 val supCsym = global.csym(name.name)

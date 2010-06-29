@@ -1,5 +1,7 @@
 package harmonic.compiler
 
+import scala.util.parsing.input.NoPosition
+
 import scala.collection.immutable.Set
 import scala.collection.immutable.Queue
 import scala.collection.mutable
@@ -382,7 +384,7 @@ case class Env(
         }
     }
     
-    def equatable(path: Path.Ref) = debugIndent("equatable(%s)", path) { new Equater().compute(path) }
+    def equatable(path: Path.Ref) = new Equater().compute(path)
     def pathsAreEquatable(path1: Path.Ref, path2: Path.Ref) = equatable(path1) contains path2
 
     // ___ Relating Paths ___________________________________________________
@@ -403,8 +405,6 @@ case class Env(
             case _ => search()
         }
     }
-    
-    def pathRelHolds(rel: Req.P): Boolean = pathsAreRelatable(rel.rel)(rel.left, rel.right)
     
     // ___ Bounding Type Variables __________________________________________
     
@@ -552,7 +552,6 @@ case class Env(
             case tys => tys.reduceLeft { (a, b) => mutualUpperBound((a, b)) }
         }
     }
-    
     
     /** Given a pair of types, returns a new type that is a supertype
       * of both.  Tries to pick a precise type when possible. */
@@ -715,7 +714,7 @@ case class Env(
         pat match {
             case Pattern.Tuple(pats) => pats.foldLeft(subst)(addFresh)
             case Pattern.Var(name, _) => {
-                val freshName = Name.LocalVar("(env-%s)".format(global.freshInteger()))
+                val freshName = Name.LocalVar("(env-%s)".format(global.freshInteger))
                 subst + (name.toPath -> freshName.toPath)
             }
         }
@@ -845,13 +844,40 @@ case class Env(
             }
         }
     }
+    
+    def isSubtype(subTy: Type.Ref, supTy: Type.Ref): Boolean = {
+        val tempSym = new VarSymbol.Local(
+            NoPosition, 
+            Modifier.Set.empty, 
+            global.freshLocalName,
+            subTy
+        )
+        pathHasType(tempSym.toTypedPath, supTy)
+    }
   
+    // ___ Relations ________________________________________________________
+    
+    def pathRelHolds(rel: Req.P): Boolean = {
+        pathsAreRelatable(rel.rel)(rel.left, rel.right)
+    }
+
+    def typeRelHolds(rel: Req.T): Boolean = rel match {
+        case Req.T(l, TcEq, r) => typesAreEquatable(l, r)
+        case Req.T(l, TcSub, r) => isSubtype(l, r)
+        case Req.T(l, TcSup, r) => isSubtype(r, l)
+    }
+    
+    def relHolds(rel: Req.Any): Boolean = rel match {
+        case rel: Req.P => pathRelHolds(rel)
+        case rel: Req.T => typeRelHolds(rel)
+    }
+
     // ___ Path is final by _________________________________________________
     //
     // Determines whether a given path has reached its final value by
     // the given interval.  The path `inter` is assumed to be final.
     
-    def relIsFinalyBy(rel: Req.Any, inter: Path.Typed) = {
+    def relIsFinalBy(rel: Req.Any, inter: Path.Typed) = {
         rel match {
             case rel: Req.P => pathIsFinalBy(typedPath(rel.left), inter) && pathIsFinalBy(typedPath(rel.right), inter)
             case rel: Req.T => typeIsFinalBy(rel.left, inter) && typeIsFinalBy(rel.right, inter)

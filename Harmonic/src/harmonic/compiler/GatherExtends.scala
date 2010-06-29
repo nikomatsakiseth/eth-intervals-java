@@ -28,7 +28,7 @@ case class GatherExtends(global: Global) {
         
         // Returns None if pair are equivalent, else returns `Some(pos)` where
         // pos is the position of the item in the left which caused an error.
-        def notEquatable(env: Env)(pair: (Path.Typed, Path.Typed)): Boolean = debugIndent("notEquatable(%s)", pair) {
+        def notEquatable(env: Env)(pair: (Path.Typed, Path.Typed)): Boolean = {
             val (left, right) = pair
             !env.pathsAreEquatable(left.toPath, right.toPath)
         }
@@ -39,12 +39,10 @@ case class GatherExtends(global: Global) {
             subst: TypedSubst
         )(
             extendsDecl: in.ExtendsDecl
-        ): Unit = debugIndent("addExtendsDecl(%s, %s)", fromClass, extendsDecl){
+        ): Unit = {
             val className = extendsDecl.className.name
             val args = extendsDecl.args.map(n => subst.typedPath(n.path))
 
-            debug("args = (%s)", args.mkString(", "))
-            
             global.csym(className) match {
                 // Harmonic classes may be extended multiple times,
                 // but the constructor arguments in all cases must be
@@ -56,7 +54,6 @@ case class GatherExtends(global: Global) {
                         }
                     
                         case Some((rightClass, _, rightArgs)) => {
-                            debug("rightArgs = (%s)", rightArgs.mkString(", "))
                             args.zip(rightArgs).find(notEquatable(env)) match {
                                 case None => // All are equatable.
                                 case Some((left, right)) => {
@@ -82,7 +79,7 @@ case class GatherExtends(global: Global) {
             }
         }
     
-        def addFor(subst: TypedSubst)(csym: ClassFromSource): Unit = debugIndent("addFor(%s)", csym) {
+        def addFor(subst: TypedSubst)(csym: ClassFromSource): Unit = {
             val env = csym.classEnv
             csym.loweredSource.extendsDecls.foreach(addExtendsDecl(env, csym.name, subst))                    
         }

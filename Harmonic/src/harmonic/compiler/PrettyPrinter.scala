@@ -41,7 +41,7 @@ object PrettyPrinter {
         }
     }
     
-    object debug extends PrettyPrinter {
+    def debug: PrettyPrinter = new PrettyPrinter {
         val buffer = new StringBuilder()
         override def indent() {
             Util.debugAddIndent

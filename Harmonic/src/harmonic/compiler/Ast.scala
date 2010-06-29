@@ -408,12 +408,15 @@ abstract class Ast {
         def symbols: List[S] = List(sym)
     }
     
-    sealed abstract class Param[+S <: VSym] extends AstPattern[S]
+    sealed abstract class Param[+S <: VSym] extends AstPattern[S] {
+        def varParams: List[VarParam[S]]
+    }
     
     case class TupleParam[+S <: VSym](
         params: List[Param[S]]
     ) extends Param[S] with TupleAstPattern[S] {
         def subpatterns = params
+        def varParams = params.flatMap(_.varParams)
     }
     
     case class VarParam[+S <: VSym](
@@ -423,6 +426,8 @@ abstract class Ast {
         sym: S
     ) extends Param[S] with VarAstPattern[S] {
         override def toString = "%s %s: %s".format(annotations.mkString(" "), tref, name)
+        
+        def varParams = List(this)
         
         override def print(out: PrettyPrinter) {
             annotations.foreach(_.printsp(out))

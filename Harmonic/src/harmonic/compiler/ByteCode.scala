@@ -65,7 +65,7 @@ case class ByteCode(global: Global) {
     }
     
     def freshVarName(base: Option[Name.Var]) = {
-        Name.LocalVar(escape("$%s$%s".format(base.getOrElse(""), global.freshInteger())))
+        Name.LocalVar(escape("$%s$%s".format(base.getOrElse(""), global.freshInteger)))
     }
     
     // ___ Types and Asm Types ______________________________________________
@@ -189,11 +189,6 @@ case class ByteCode(global: Global) {
         }
         
         def setHarmonicField(fsym: VarSymbol.Field) = {
-            debug("setHarmonicField(%s): emitting call to %s%s", 
-                fsym, 
-                accessorName(fsym.name), 
-                accessorSetDesc(fsym.ty)
-            )
             mvis.visitMethodInsn(
                 O.INVOKEINTERFACE,
                 fsym.name.className.internalName,
@@ -1661,15 +1656,12 @@ case class ByteCode(global: Global) {
             // stack.  We may have to cast the rvalue to the target type, because
             // the types of the source parameters may be supertypes of the target types.
             tarPatterns.zip(rvalues).foreach { case (tarPattern, rvalue) =>
-                debug("adaptTo(%s, %s):", tarPattern.ty, rvalue.ty)
                 val casted = {
                     if(convertNeeded(tarPattern.ty, rvalue.ty)) {
-                        debug("  adding cast")
                         Path.TypedCast(tarPattern.ty, rvalue)
                     } else 
                         rvalue                    
                 }
-                debug("  casted=%s", casted)
                 stmtVisitor.pushPathRvalues(tarPattern, casted, Nil)
             }
         }
@@ -1871,7 +1863,7 @@ case class ByteCode(global: Global) {
         cvis: asm.ClassVisitor, 
         msym: MethodSymbol,
         decl: in.MethodDecl
-    ): Unit = debugIndent("writeStaticMethodImpl(%s, %s)", csym, msym) {
+    ): Unit = {
         decl.body match {
             // Only if non-abstract:
             case body: in.Body => {
@@ -2174,7 +2166,7 @@ case class ByteCode(global: Global) {
     def writeImplCtor(
         csym: ClassFromSource,
         cvis: asm.ClassVisitor
-    ): Unit = debugIndent("writeImplCtor(%s)", csym) {
+    ): Unit = {
         val msym = csym.constructor
         val paramAsmTys = msym.msig.parameterPatterns.flatMap(_.varTys).map(_.toAsmType)
         val mvis = cvis.visitMethod(
@@ -2203,7 +2195,6 @@ case class ByteCode(global: Global) {
 
         // Store class parameters and parameters for all superclasses:
         csym.classParam.symbols.zipWithIndex.foreach { case (fsym, i) =>
-            debug("classParam: %s", fsym)
             thisPath.push(mvis)
             paramPaths(i).push(mvis)
             mvis.setHarmonicField(fsym)
@@ -2213,7 +2204,6 @@ case class ByteCode(global: Global) {
                 case superCsym: ClassFromSource => {
                     superCsym.classParam.symbols.zip(paths).zip(args).foreach { 
                         case ((fsym, path), arg) => {
-                            debug("superParam: %s = %s", fsym, path)
                             mvis.setPosition(arg.pos)
                             thisPath.push(mvis)
                             stmtVisitor.pushPathValue(path)

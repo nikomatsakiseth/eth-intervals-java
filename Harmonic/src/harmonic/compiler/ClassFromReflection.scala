@@ -264,7 +264,7 @@ class ClassFromReflection(
     
     // If there is a java method foo(int) and another foo(Integer), just
     // drop the foo(int) version.  
-    private[this] def elimPrimitiveConflicts(msyms: List[MethodSymbol]) = debugIndent("elimPrimitiveConflicts(%s)", cls) {
+    private[this] def elimPrimitiveConflicts(msyms: List[MethodSymbol]) = {
         val methodMap = new mutable.HashMap[(Name.Method, List[Pattern.Ref]), MethodSymbol]()
         
         // Safe because we only ever generate symbols with a kind of MethodKind.Java:
@@ -275,17 +275,11 @@ class ClassFromReflection(
             val key = (msym.name, msym.msig.parameterPatterns)
             methodMap.get(key) match {
                 case None => {
-                    debug("key = %s (first, args = %s)", key, argClasses(msym).mkString("(", ",", ")"))
                     methodMap(key) = msym                    
                 }
                 case Some(prevMsym) => {
                     if(preferNew(argClasses(prevMsym), argClasses(msym))) {
-                        debug("key = %s (overwrite, prefer %s to %s)", 
-                            key, argClasses(msym).mkString("(", ",", ")"), argClasses(prevMsym).mkString("(", ",", ")"))
                         methodMap(key) = msym
-                    } else {
-                        debug("key = %s (keep, prefer %s to %s)", 
-                            key, argClasses(prevMsym).mkString("(", ",", ")"), argClasses(msym).mkString("(", ",", ")"))
                     }
                 }
             }

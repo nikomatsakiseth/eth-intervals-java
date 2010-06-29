@@ -13,6 +13,18 @@ abstract class Error {
 
 object Error {
     
+    case class TypeNotFinal(ty: Type.Ref) extends Error {
+        def report(global: Global, pos: Position) {
+            global.reporter.report(pos, "type.not.final", ty.toString)
+        }                
+    }
+    
+    case class DoesNotEnsure(req: Req.Any) extends Error {
+        def report(global: Global, pos: Position) {
+            global.reporter.report(pos, "does.not.ensure", req.toString)
+        }                
+    }
+    
     case class NoReturnHere() extends Error {
         def report(global: Global, pos: Position) {
             global.reporter.report(pos, "no.return.here")

@@ -23,7 +23,6 @@ object ResolveHeader {
         rawSuperClassNames.flatMap { superName =>
             val superCsym = global.csym(superName) 
             
-            debug("Adding edges %s -> %s", superCsym, csym)
             try {
                 Intervals.addHb(superCsym.header.getEnd, csym.header.getEnd)
                 Intervals.addHb(superCsym.lower.getEnd, csym.lower.getEnd)
@@ -53,7 +52,7 @@ extends Resolve(global, compUnit)
     def resolveClassHeader(
         csym: ClassFromSource,
         cdecl: in.ClassDecl
-    ): Unit = debugIndent("resolveClassHeader(%s)", csym) {
+    ): Unit = {
         // Resolve the names of all superclasses and add an edge
         // so that resolving our header does not complete until
         // their headers have been resolved.  
