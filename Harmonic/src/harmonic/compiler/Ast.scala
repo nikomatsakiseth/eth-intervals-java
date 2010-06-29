@@ -185,10 +185,40 @@ abstract class Ast {
         }
     }
     
-    private def printOptBody(out: PrettyPrinter, optBody: Option[Body]) = optBody match {
-        case Some(b) => b.print(out)
-        case None => out.write(";")
+    sealed trait ExecutableDecl[+B <: AnyBody] extends Node {
+        def annotations: List[Annotation]
+        def params: List[Param[LVSym]]
+        def returnTref: OTR
+        def requirements: List[Requirement]
+        def ensures: List[Requirement]
+        def body: B
     }
+    
+    //case class CtorDecl(
+    //    annotations: List[Annotation],
+    //    params: List[Param[LVSym]],
+    //    requirements: List[Requirement],
+    //    ensures: List[Requirement],
+    //    body: CtorBody
+    //) extends ExecutableDecl[CtorBody] {
+    //    override def toString = "[ctor %s]".format(name)
+    //    
+    //    def returnTref = voidTy
+    //    
+    //    override def print(out: PrettyPrinter) {
+    //        annotations.foreach(_.println(out))
+    //        name.parts.zip(params).foreach { case (part, param) =>
+    //            out.write(part)
+    //            param.printsp(out)
+    //        }
+    //        out.write(": ")
+    //        returnTref.print(out)
+    //        out.writeln("")
+    //        requirements.foreach(_.println(out))
+    //        ensures.foreach(_.println(out))
+    //        body.print(out)
+    //    }
+    //}
     
     case class IntervalDecl(
         annotations: List[Annotation],
@@ -213,9 +243,10 @@ abstract class Ast {
         returnTref: OTR,
         requirements: List[Requirement],
         ensures: List[Requirement],
-        optBody: Option[Body]
-    ) extends MemberDecl {
+        body: AbstractableBody
+    ) extends MemberDecl with ExecutableDecl[AbstractableBody] {
         override def toString = "[method %s]".format(name)
+        
         override def asMethodNamed(mthdName: Name.Method) = {
             if(mthdName == name) Some(this)
             else None
@@ -231,7 +262,8 @@ abstract class Ast {
             returnTref.print(out)
             out.writeln("")
             requirements.foreach(_.println(out))
-            printOptBody(out, optBody)
+            ensures.foreach(_.println(out))
+            body.print(out)
         }
     }
     
@@ -589,7 +621,18 @@ abstract class Ast {
     
     // ___ Statements and Expressions _______________________________________
     
-    case class Body(stmts: List[Stmt]) extends Node {
+    abstract class AnyBody extends Node
+    
+    abstract class AbstractableBody extends AnyBody
+    
+    case class AbstractBody() extends AbstractableBody {
+        override def toString = ";"
+        override def print(out: PrettyPrinter) {
+            out.writeln(";")
+        }        
+    }
+    
+    case class Body(stmts: List[Stmt]) extends AbstractableBody {
         override def toString = "{...}"
         override def print(out: PrettyPrinter) {
             out.indented("{", "}") {

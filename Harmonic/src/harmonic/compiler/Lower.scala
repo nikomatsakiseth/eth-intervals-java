@@ -87,16 +87,26 @@ case class Lower(global: Global) {
             env.mutualUpperBoundOfList(retTypes)
     }
     
+    def lowerAbstractableBody(
+        env: Env,
+        body: in.AbstractableBody
+    ) = withPosOf(body, {
+        body match {
+            case in.AbstractBody() => out.AbstractBody()
+            case body: in.Body => lowerBody(env, body)
+        }
+    })
+    
     def lowerMethodDecl(
         csym: ClassFromSource, 
         mdecl: in.MethodDecl,
         outParams: List[out.Param[VarSymbol.Local]],
         env: Env
     ): out.MethodDecl = {
-        val optBody = mdecl.optBody.map(lowerBody(env, _))
+        val absBody = lowerAbstractableBody(env, mdecl.body)
 
-        val returnTy = (mdecl.returnTref, optBody) match {
-            case (in.InferredTypeRef(), None) => {
+        val returnTy = (mdecl.returnTref, absBody) match {
+            case (in.InferredTypeRef(), out.AbstractBody()) => {
                 global.reporter.report(mdecl.returnTref.pos, 
                     "explicit.type.required.if.abstract", 
                     mdecl.name.toString
@@ -104,7 +114,7 @@ case class Lower(global: Global) {
                 Type.Top
             }
 
-            case (in.InferredTypeRef(), Some(out.Body(stmts))) => {
+            case (in.InferredTypeRef(), out.Body(stmts)) => {
                 inferredReturnType(env, stmts)
             }
 
@@ -120,7 +130,7 @@ case class Lower(global: Global) {
             returnTref   = out.TypeRef(returnTy),
             requirements = mdecl.requirements.map(InEnv(env).lowerRequirement),
             ensures      = mdecl.ensures.map(InEnv(env).lowerRequirement),
-            optBody      = optBody                
+            body         = absBody                
         )
     }
     

@@ -1293,7 +1293,7 @@ case class ByteCode(global: Global) {
         def deriveIntervalTask(
             taskClassName: Name.Class,  // name of task class
             taskName: String,           // user given name of interval
-            body: in.Body               // statements to execute
+            body: in.Body           // statements to execute
         ) {
             val interwr = new ClassWriter(taskClassName, noSuffix, body.pos)
             
@@ -1872,55 +1872,60 @@ case class ByteCode(global: Global) {
         msym: MethodSymbol,
         decl: in.MethodDecl
     ): Unit = debugIndent("writeStaticMethodImpl(%s, %s)", csym, msym) {
-        decl.optBody.foreach { body => // Only for non-abstract methods:
-            val mvis = cvis.visitMethod(
-                O.ACC_PUBLIC + O.ACC_STATIC,
-                decl.name.javaName,
-                staticMroMethodDescFromSym(msym),
-                null, // generic signature
-                null  // thrown exceptions
-            )
-            mvis.visitCode
-
-            // Construct access map:
-            val accessMap = new AccessMap(csym.name)
-            val thisPath = accessMap.addUnboxedSym(csym.loweredSource.thisSym)
-            val nextMro = accessMap.pathToFreshSlot(asm.Type.INT_TYPE)
-            decl.params.flatMap(_.symbols).foreach(accessMap.addUnboxedSym)
-            addSymbolsDeclaredIn(accessMap, body.stmts, mvis)
-            addInstanceFields(accessMap, thisPath, csym)
-
-            // Emit statements:
-            val stmtVisitor = new StatementVisitor(0, accessMap, nextMro, mvis)
-            stmtVisitor.generatePreAndPostCode(body.stmts) {
-                val startLabel = new asm.Label()
-                mvis.visitLabel(startLabel)
-                stmtVisitor.execStatements(body.stmts)
-                mvis.visitInsn(O.ACONST_NULL) // In case user did not have an ...
-                mvis.visitInsn(O.ARETURN)     // ...explicit return.  
-                val endLabel = new asm.Label()
-                mvis.visitLabel(endLabel)
-
-                // Emit try-catch region to catch Return exceptions:
-                // > catch (Return e) { return e.value; }
-                mvis.visitFieldInsn(
-                    O.GETFIELD, 
-                    Name.ReturnClass.internalName, 
-                    "value", 
-                    asmObjectType.getDescriptor
+        decl.body match {
+            // Only if non-abstract:
+            case body: in.Body => {
+                val mvis = cvis.visitMethod(
+                    O.ACC_PUBLIC + O.ACC_STATIC,
+                    decl.name.javaName,
+                    staticMroMethodDescFromSym(msym),
+                    null, // generic signature
+                    null  // thrown exceptions
                 )
-                mvis.convert(msym.msig.returnTy.toAsmType, asmObjectType)
-                mvis.visitInsn(O.ARETURN)
+                mvis.visitCode
 
-                mvis.visitTryCatchBlock(
-                    startLabel, 
-                    endLabel, 
-                    endLabel, 
-                    Name.ReturnClass.internalName
-                )
+                // Construct access map:
+                val accessMap = new AccessMap(csym.name)
+                val thisPath = accessMap.addUnboxedSym(csym.loweredSource.thisSym)
+                val nextMro = accessMap.pathToFreshSlot(asm.Type.INT_TYPE)
+                decl.params.flatMap(_.symbols).foreach(accessMap.addUnboxedSym)
+                addSymbolsDeclaredIn(accessMap, body.stmts, mvis)
+                addInstanceFields(accessMap, thisPath, csym)
+
+                // Emit statements:
+                val stmtVisitor = new StatementVisitor(0, accessMap, nextMro, mvis)
+                stmtVisitor.generatePreAndPostCode(body.stmts) {
+                    val startLabel = new asm.Label()
+                    mvis.visitLabel(startLabel)
+                    stmtVisitor.execStatements(body.stmts)
+                    mvis.visitInsn(O.ACONST_NULL) // In case user did not have an ...
+                    mvis.visitInsn(O.ARETURN)     // ...explicit return.  
+                    val endLabel = new asm.Label()
+                    mvis.visitLabel(endLabel)
+
+                    // Emit try-catch region to catch Return exceptions:
+                    // > catch (Return e) { return e.value; }
+                    mvis.visitFieldInsn(
+                        O.GETFIELD, 
+                        Name.ReturnClass.internalName, 
+                        "value", 
+                        asmObjectType.getDescriptor
+                    )
+                    mvis.convert(msym.msig.returnTy.toAsmType, asmObjectType)
+                    mvis.visitInsn(O.ARETURN)
+
+                    mvis.visitTryCatchBlock(
+                        startLabel, 
+                        endLabel, 
+                        endLabel, 
+                        Name.ReturnClass.internalName
+                    )
+                }
+
+                mvis.complete
             }
             
-            mvis.complete
+            case _ => ()
         }
     }
     

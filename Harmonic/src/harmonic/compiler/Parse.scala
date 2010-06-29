@@ -217,8 +217,8 @@ class Parse extends StdTokenParsers with PackratParsers {
     )
     
     lazy val optBody = (
-        body    ^^ { case b => Some(b) }
-    |   ";"     ^^^ None
+        body
+    |   ";"     ^^ { case _ => out.AbstractBody() }
     )
     
     lazy val fieldValue = positioned(

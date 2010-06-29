@@ -304,7 +304,7 @@ extends Resolve(global, compUnit)
                 returnTref   = mthdScope.resolveOptionalTypeRef(decl.returnTref),
                 requirements = decl.requirements.map(mthdScope.resolveRequirement),
                 ensures      = decl.ensures.map(mthdScope.resolveRequirement),
-                optBody      = decl.optBody.map(mthdScope.resolveBody)
+                body         = mthdScope.resolveAbstractableBody(decl.body)
             )
         })
 
@@ -696,6 +696,13 @@ extends Resolve(global, compUnit)
                 stmts = param.scope.resolveStmts(tmpl.stmts),
                 ty = ()
             )
+        })
+        
+        def resolveAbstractableBody(body: in.AbstractableBody) = withPosOf(body, {
+            body match {
+                case in.AbstractBody() => out.AbstractBody()
+                case body: in.Body => resolveBody(body)
+            }
         })
 
         def resolveBody(body: in.Body) = withPosOf(body, 
