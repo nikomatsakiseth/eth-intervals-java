@@ -37,10 +37,13 @@ case class Envirate(global: Global) {
     def forClassFromSource(csym: ClassFromSource) = {
         
         val cdecl = csym.loweredSource
-
+        
+        // Add the this variable:
+        var env = Env.empty(global).plusThis(csym.toType, cdecl.thisSym)
+        
         // Add requirements from primary ctor to env:
         val classReqs: List[in.Requirement] = Nil // TODO
-        var env = classReqs.foldLeft(Env.empty(global))(addAstReq)
+        env = classReqs.foldLeft(env)(addAstReq)
 
         val method = env.typedPath(Path.ThisInit)
         
