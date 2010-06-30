@@ -31,10 +31,10 @@ object Error {
         }                
     }
     
-    case class MustHaveType(path: Path.Typed, ty: Type.Ref) extends Error {
+    case class MustHaveType(path: Path.Typed, expTy: Type.Ref) extends Error {
         def report(global: Global, pos: Position) {
             global.reporter.report(pos, 
-                "must.have.type", path.toString, ty.toString
+                "must.have.type", path.toString, path.ty.toString, expTy.toString
             )
         }        
     }
