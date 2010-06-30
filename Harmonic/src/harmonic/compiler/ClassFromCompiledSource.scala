@@ -71,18 +71,21 @@ abstract class ClassFromCompiledSource extends ClassSymbol
         val header: AsyncInterval = master.subinterval(
             schedule = false,
             name = "%s.Header".format(name)
-        ) { current =>
-            val rawData = loadData(current)
-            LoadedData.v = rawData.copy(
-                superClassNames = ResolveHeader.cookRawSuperClasses(this, rawData.superClassNames)
-            )
+        ) { 
+            inter => Util.debugIndent("Entering %s", inter) {
+                val rawData = loadData(inter)
+                LoadedData.v = rawData.copy(
+                    superClassNames = ResolveHeader.cookRawSuperClasses(this, rawData.superClassNames)
+                )
+            }
         }
 
         val body: AsyncInterval = master.subinterval(
             name = "%s.Body".format(name),
             after = List(header.getEnd)
         ) { 
-            _ => ()
+            inter => Util.debugIndent("Entering %s", inter) {
+            }
         }
 
         val lower: AsyncInterval = master.subinterval(
@@ -99,7 +102,8 @@ abstract class ClassFromCompiledSource extends ClassSymbol
             name = "%s.Create".format(name),
             during = List(lower)
         ) {
-            _ => ()
+            inter => Util.debugIndent("Entering %s", inter) {
+            }
         }
 
         val members: AsyncInterval = master.subinterval(
@@ -107,7 +111,8 @@ abstract class ClassFromCompiledSource extends ClassSymbol
             during = List(lower), 
             after = List(create.getEnd)
         ) { 
-            _ => ()
+            inter => Util.debugIndent("Entering %s", inter) {
+            }
         }
 
         val merge: AsyncInterval = master.subinterval(
@@ -115,35 +120,41 @@ abstract class ClassFromCompiledSource extends ClassSymbol
             during = List(lower), 
             after = List(members.getEnd)
         ) { 
-            _ => ()
+            inter => Util.debugIndent("Entering %s", inter) {
+            }
         }
         
         val envirate: AsyncInterval = master.subinterval(
             name = "%s.Envirate".format(name),
             after = List(lower.getEnd)
         ) {
-            _ => ()
+            inter => Util.debugIndent("Entering %s", inter) {
+            }
         }
         
         val check: AsyncInterval = master.subinterval(
             name = "%s.Check".format(name),
             after = List(envirate.getEnd)
         ) {
-            _ => ()
+            inter => Util.debugIndent("Entering %s", inter) {
+            }
         }
 
         val gather: AsyncInterval = master.subinterval(
             name = "%s.Gather".format(name),
             after = List(envirate.getEnd)
         ) {
-            _ => GatherOverrides(global).forSym(this)
+            inter => Util.debugIndent("Entering %s", inter) {
+                GatherOverrides(global).forSym(this)
+            }
         }
 
         val byteCode: AsyncInterval = master.subinterval(
             name = "%s.ByteCode".format(name),
             after = List(check.getEnd, gather.getEnd)
         ) { 
-            _ => ()
+            inter => Util.debugIndent("Entering %s", inter) {
+            }
         }
         
         header.schedule()

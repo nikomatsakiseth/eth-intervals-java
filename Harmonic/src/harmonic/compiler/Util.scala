@@ -193,6 +193,7 @@ object Util {
         }
         
         def join() = {
+            Util.debug("Joining %s".format(inter))
             try {
                 Intervals.inline(new AbstractTask() {
                     override def toString = 

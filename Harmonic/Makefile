@@ -15,7 +15,7 @@ JPROFILEROPTS=-javaagent:${LIBDIR}/profile.jar -Dprofile.properties=${LIBDIR}/pr
 DEBUGLOGS=../debug-logs
 STDLIB=java_standard_library.jar
 
-all: test
+all: compile
 
 # ___ Clean ____________________________________________________________
 clean:

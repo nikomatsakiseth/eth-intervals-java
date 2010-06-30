@@ -42,8 +42,8 @@ case class Check(global: Global) {
                 }
             }
             
-            def checkParamType(pair: (Pattern.Anon, Path.Typed)): Unit = {
-                checkPathHasType(pair._2, pair._1.ty)
+            def checkParamType(pair: (Type.Ref, Path.Typed)): Unit = {
+                checkPathHasType(pair._2, pair._1)
             }
             
             def checkPath(path: Path.Typed): Unit = {
@@ -63,7 +63,7 @@ case class Check(global: Global) {
                     case path @ Path.TypedCall(rcvr, msym, args) => {
                         checkOwner(rcvr)
                         args.foreach(checkPath)
-                        path.msig.parameterPatterns.zip(args).foreach(checkParamType)
+                        path.msig.flatParamTypes.zip(args).foreach(checkParamType)
                     }
                     case Path.TypedIndex(array, index) => {
                         checkPath(array)
@@ -86,7 +86,7 @@ case class Check(global: Global) {
             At(path).checkPath(path.path)
         }
 
-        def checkPathAndType(path: in.TypedPath, ty: Type.Ref): Unit = {
+        def checkPathAndType(path: in.TypedPath, ty: Type.Ref): Unit = debugIndent("checkPathAndType(%s, %s)", path, ty) {
             At(path).checkPathAndType(path.path, ty)
         }
 
@@ -104,25 +104,25 @@ case class Check(global: Global) {
             }
         }
         
-        def checkParam(pair: (Pattern.Anon, in.TypedPath)): Unit = {
-            val (pattern, path) = pair
+        def checkParam(pair: (Type.Ref, in.TypedPath)): Unit = {
+            val (ty, path) = pair
             At(path).checkPath(path.path)
-            At(path).checkPathHasType(path.path, pattern.ty)
+            At(path).checkPathHasType(path.path, ty)
         }
         
-        def checkExpr(expr: in.LowerTlExpr): Type.Ref = {
+        def checkExpr(expr: in.LowerTlExpr): Type.Ref = debugIndent("checkExpr(%s)", expr) {
             expr match {
                 case in.TypedPath(path) => {
                     At(expr).checkPath(path)
                     path.ty
                 }
                 case in.MethodCall(in.Super(_), name, args, (msym, msig)) => {
-                    msig.parameterPatterns.zip(args).foreach(checkParam)
+                    msig.flatParamTypes.zip(args).foreach(checkParam)
                     msig.returnTy
                 }
                 case in.NewCtor(_, args, (msym, msig), ty) => {
-                    msig.parameterPatterns.zip(args).foreach(checkParam)
-                    msig.returnTy
+                    msig.flatParamTypes.zip(args).foreach(checkParam)
+                    ty
                 }
                 case in.Null(ty) => {
                     ty
@@ -184,7 +184,7 @@ case class Check(global: Global) {
         }
     }
         
-    def checkAndAddStmt(current: Path.Typed)(env: Env, stmt: in.LowerStmt): Env = {
+    def checkAndAddStmt(current: Path.Typed)(env: Env, stmt: in.LowerStmt): Env = debugIndent("checkAndAddStmt(%s)", stmt) {
         stmt match {
             case stmt: in.LowerTlExpr => {
                 In(env, current).checkExpr(stmt)
@@ -221,7 +221,7 @@ case class Check(global: Global) {
         csym: ClassFromSource, 
         fsym: VarSymbol.Field, 
         decl: in.IntervalDecl
-    ) = {
+    ) = debugIndent("checkIntervalDecl(%s)", fsym) {
         val env = csym.checkEnv
         val thisPath = csym.loweredSource.thisSym.toTypedPath
         val initPath = env.typedPath(Path.ThisInit)
@@ -233,7 +233,7 @@ case class Check(global: Global) {
         csym: ClassFromSource, 
         msym: MethodSymbol,
         decl: in.MethodDecl
-    ) = {
+    ) = debugIndent("checkMethodDecl(%s)", msym) {
         var env = csym.checkEnv
         
         // Create the "method" variable:
@@ -258,6 +258,9 @@ case class Check(global: Global) {
             env = env.plusLocalVar(vp.sym)
         }
         
+        // Add in the return type:
+        env = env.withOptReturnTy(Some(decl.returnTref.ty))
+        
         // Check the statements in the body in the resulting environment:
         decl.body match {
             case in.Body(stmts) => {
@@ -280,17 +283,17 @@ case class Check(global: Global) {
         fsym: VarSymbol.Field,
         decl: in.FieldDecl
     ) = {
-        
+        // TODO: Check that statements are valid etc
     }
     
     def checkRelDecl(
         csym: ClassFromSource, 
         decl: in.RelDecl
     ) = {
-        
+        // TODO: Check that paths are valid at least
     }
     
-    def classSymbol(csym: ClassFromSource) {
+    def classSymbol(csym: ClassFromSource): Unit = debugIndent("checkClass(%s)", csym) {
         inlineInterval("%s.check.inline".format(csym.name)) { inter =>
 
             csym.lowerMembers.foreach {

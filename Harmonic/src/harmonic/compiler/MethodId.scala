@@ -8,7 +8,7 @@ case class MethodId(
     msig: MethodSignature[Pattern.Anon]
 ) {
     override def toString = {
-        "%s.%s%s".format(
+        "(%s.%s)%s".format(
             className,
             methodName.javaName,
             msig

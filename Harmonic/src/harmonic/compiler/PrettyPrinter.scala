@@ -53,6 +53,7 @@ object PrettyPrinter {
             buffer.append(fmt.format(args.map(_.toString): _*))
             if(buffer.length > 0) {
                 if(buffer.charAt(buffer.length - 1) == '\n') {
+                    buffer.setLength(buffer.length - 1)
                     Util.debug("%s", buffer.toString)
                     buffer.setLength(0)
                 }

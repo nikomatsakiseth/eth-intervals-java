@@ -27,7 +27,10 @@ object Path {
         override def toString = "(%s)%s".format(ty, path)
     }
     case class Constant(obj: Object) extends Ref {
-        override def toString = obj.toString
+        override def toString = obj match {
+            case obj: String => '"' + obj.toString + '"'
+            case _ => obj.toString
+        }
     }
     case class Field(base: UntypedOwner, f: Name.Member) extends Ref {
         override def toString = base.toString + "." + f.toString

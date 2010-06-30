@@ -33,19 +33,25 @@ object Pattern {
         def unapply(anon: AnonTuple) = Some(anon.patterns)
     }
     
-    case class SubstdVar(ty: Type.Ref) extends AnonVar
+    case class SubstdVar(ty: Type.Ref) extends AnonVar {
+        override def toString = ty.toString
+    }
     
-    case class SubstdTuple(patterns: List[Pattern.Anon]) extends AnonTuple
+    case class SubstdTuple(patterns: List[Pattern.Anon]) extends AnonTuple {
+        override def toString = "(%s)".format(patterns.mkString(", "))        
+    }
     
     case class Var(
         name: Name.LocalVar,
         ty: Type.Ref
     ) extends AnonVar with Ref {
         def varNames = List(name)
+        override def toString = "%s: %s".format(name, ty)
     }
     
     case class Tuple(patterns: List[Pattern.Ref]) extends AnonTuple with Ref {
         def varNames = patterns.flatMap(_.varNames)
+        override def toString = "(%s)".format(patterns.mkString(", "))
     }
     
     private case object NoMatch extends Exception

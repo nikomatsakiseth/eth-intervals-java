@@ -786,12 +786,14 @@ abstract class Ast {
     
     /** Used to create new instances of classes. */
     case class NewCtor(tref: TR, args: List[NE], data: MCallData, ty: TyClass) extends LowerTlExpr {
-        override def toString = "new %s%s".format(tref, args.mkString("(", "", ")"))
+        override def toString = "new %s%s".format(tref, args.mkString("(", ", ", ")"))
         
         override def print(out: PrettyPrinter) {
             out.write("new ")
             tref.print(out)
-            args.foreach(_.print(out))
+            out.write("(")
+            printSep(out, args, ", ")
+            out.write(")")
         }        
     }
     

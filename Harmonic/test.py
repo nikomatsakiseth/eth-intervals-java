@@ -455,6 +455,10 @@ class Results(object):
         """ Adds an entry to log file, and prints to stdout """
         print text
         self.logfile.write(text+"\n")
+        
+    def flush_all(self):
+        """ Flushes log file """
+        self.logfile.flush()
 
     def remove_all(self):
         """ Closes and removes the log file and any other files;
@@ -574,55 +578,60 @@ def test_file(filenm):
 
     def _run_test(filenm, experrors):
         try:
-            # Analyze file:
-            (skip, compile_opts, execute_output) = extract_metadata(filenm)            
-        except InvalidMetaData, e:
-            res.error("Invalid metadata (%s)" % str(e))
-            return 1
+            try:
+                # Analyze file:
+                (skip, compile_opts, execute_output) = extract_metadata(filenm)            
+            except InvalidMetaData, e:
+                res.error("Invalid metadata (%s)" % str(e))
+                return 1
             
-        if skip:
-            res.log("Skipping test")
-            return 0
+            if skip:
+                res.log("Skipping test")
+                return 0
 
-        # It's user error if errors are expected, but there is also
-        # expected output.
-        if experrors and execute_output is not None:
-            res.error(
-                "Metadata says to execute the test, "+
-                "but compile errors are expected")
-            return 1
+            # It's user error if errors are expected, but there is also
+            # expected output.
+            if experrors and execute_output is not None:
+                res.error(
+                    "Metadata says to execute the test, "+
+                    "but compile errors are expected")
+                return 1
 
-        # Try to compile the file
-        res.set_compile_opts(compile_opts)
-        retcode, stdout, stderr = execute(res, COMPILE_CMD)
+            # Try to compile the file
+            res.set_compile_opts(compile_opts)
+            retcode, stdout, stderr = execute(res, COMPILE_CMD)
 
-        # If the compile failed...
-        #    (or if we don't TRUST_RETURN_CODEs and we expected it to fail)
-        if FAILED_EXECUTION(retcode, stdout, stderr):
+            # If the compile failed...
+            #    (or if we don't TRUST_RETURN_CODEs and we expected it to fail)
+            if FAILED_EXECUTION(retcode, stdout, stderr):
 
-            # Was this a test where compilation was expected to fail?
+                # Was this a test where compilation was expected to fail?
+                if experrors:
+                    return handle_negative_test(
+                        res, experrors, retcode, stdout, stderr)
+
+                # Otherwise, the test failed
+                res.error("Unexpected compilation failure.")
+                return 1
+
+            # Compilation succeeded: but we're errors expected?
             if experrors:
-                return handle_negative_test(
-                    res, experrors, retcode, stdout, stderr)
+                res.error("Compilation succeeded, but errors were expected")
+                res.diff(experrors, None)
+                return 1
 
-            # Otherwise, the test failed
-            res.error("Unexpected compilation failure.")
-            return 1
+            # If we are not supposed to execute, we are done
+            if execute_output is None:
+                return 0
 
-        # Compilation succeeded: but we're errors expected?
-        if experrors:
-            res.error("Compilation succeeded, but errors were expected")
-            res.diff(experrors, None)
-            return 1
-
-        # If we are not supposed to execute, we are done
-        if execute_output is None:
-            return 0
-
-        # Otherwise, try to execute it
-        retcode, stdout, stderr = execute(res, EXECUTE_CMD)
-        return handle_positive_test(
-            res, execute_output, retcode, stdout, stderr)
+            # Otherwise, try to execute it
+            retcode, stdout, stderr = execute(res, EXECUTE_CMD)
+            return handle_positive_test(
+                res, execute_output, retcode, stdout, stderr)
+        except:
+            res.log("  Interrupted!")
+            res.flush_all()
+            raise
 
     # Break the file into fragments.  If no fragments exists, this
     # still works due to fragtest API:

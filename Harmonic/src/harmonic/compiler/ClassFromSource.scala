@@ -66,14 +66,18 @@ class ClassFromSource(
         // Hold off on scheduling header until class def'n is complete:
         schedule = false 
     ) { 
-        _ => ResolveHeader(global, compUnit).resolveClassHeader(this, parseCdecl)                        
+        inter => Util.debugIndent("Entering %s", inter) {
+            ResolveHeader(global, compUnit).resolveClassHeader(this, parseCdecl)                        
+        }
     }
     
     val body: AsyncInterval = master.subinterval(
         name = "%s.Body".format(name),
         after = List(header.getEnd)
     ) { 
-        _ => ResolveBody(global, compUnit).resolveClassBody(this, parseCdecl)
+        inter => Util.debugIndent("Entering %s", inter) {
+            ResolveBody(global, compUnit).resolveClassBody(this, parseCdecl)
+        }
     }
 
     val lower: AsyncInterval = master.subinterval(
@@ -90,7 +94,9 @@ class ClassFromSource(
         name = "%s.Create".format(name),
         during = List(lower)
     ) {
-        _ => Create(global).createMemberIntervals(this)
+        inter => Util.debugIndent("Entering %s", inter) {
+            Create(global).createMemberIntervals(this)
+        }
     }
     
     val members: AsyncInterval = master.subinterval(
@@ -106,35 +112,45 @@ class ClassFromSource(
         during = List(lower), 
         after = List(members.getEnd)
     ) { 
-        _ => Merge(global).mergeMemberIntervals(this)
+        inter => Util.debugIndent("Entering %s", inter) {
+            Merge(global).mergeMemberIntervals(this)
+        }
     }
     
     val envirate: AsyncInterval = master.subinterval(
         name = "%s.Envirate".format(name),
         after = List(lower.getEnd)
     ) {
-        _ => Envirate(global).forClassFromSource(this)
+        inter => Util.debugIndent("Entering %s", inter) {
+            Envirate(global).forClassFromSource(this)
+        }
     }
     
     val check: AsyncInterval = master.subinterval(
         name = "%s.Check".format(name),
         after = List(envirate.getEnd)
     ) {
-        _ => () // Check(global).classSymbol(this)
+        inter => Util.debugIndent("Entering %s", inter) {
+            Check(global).classSymbol(this)
+        }
     }
     
     val gather: AsyncInterval = master.subinterval(
         name = "%s.Gather".format(name),
         after = List(envirate.getEnd)
     ) {
-        _ => Gather(global).forSym(this)
+        inter => Util.debugIndent("Entering %s", inter) {
+            Gather(global).forSym(this)
+        }
     }
 
     val byteCode: AsyncInterval = master.subinterval(
         name = "%s.ByteCode".format(name),
         after = List(check.getEnd, gather.getEnd)
     ) { 
-        _ => if(!global.reporter.hasErrors) ByteCode(global).writeClassSymbol(this)
+        inter => Util.debugIndent("Entering %s", inter) {
+            if(!global.reporter.hasErrors) ByteCode(global).writeClassSymbol(this)
+        }
     }
     
     // ___ Computed by Pass.Header __________________________________________
