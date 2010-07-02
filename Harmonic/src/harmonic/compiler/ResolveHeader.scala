@@ -33,7 +33,7 @@ object ResolveHeader {
                 Some(superName)
             } catch {
                 case _: IntervalException.Cycle => {
-                    Error.CircularInheritance(csym.name, superName).report(global, csym.pos)
+                    Error.CircularInheritance(csym.name, superName).report(global, log, csym.pos)
                     None
                 }
             }                                    

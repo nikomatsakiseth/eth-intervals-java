@@ -446,7 +446,7 @@ object Parse {
         val tokens = new parser.lexical.Scanner(reader)
         parser.phrase(parser.compUnit)(tokens) match {
             case n: parser.NoSuccess => {
-                global.reporter.report(n.next.pos, "parse.error", n.msg)
+                Error.ParseError(n.msg).report(global, log, n.next.pos)
                 None
             }
             case parser.Success(compUnit, _) => {

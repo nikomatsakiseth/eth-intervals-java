@@ -88,10 +88,7 @@ class LowerFieldMember(
                 Some(Sym.join)                
             } catch {
                 case _: IntervalException.Cycle => {
-                    global.reporter.report(inFieldDecl.tref.pos, 
-                        "explicit.type.required.due.to.cycle",
-                        memName.toString
-                    )
+                    Error.ExplicitTypeRequiredDueToCycle(memName).report(global, log, inFieldDecl.tref.pos)
                     Some(VarSymbol.errorField(memName, None))
                 }
             }

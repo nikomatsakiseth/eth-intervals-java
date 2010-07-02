@@ -160,7 +160,7 @@ class ClassFromSource(
     ) { 
         inter => {
             val log = debugServer.contextForInter(classPage, inter)
-            if(!global.reporter.hasErrors) ByteCode(global).writeClassSymbol(this)
+            if(!global.hasErrors) ByteCode(global).writeClassSymbol(this)
         }
     }
     

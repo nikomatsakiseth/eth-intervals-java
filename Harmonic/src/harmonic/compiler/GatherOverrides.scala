@@ -97,10 +97,10 @@ case class GatherOverrides(global: Global, log: Context) {
             msym.kind match {
                 case _: MethodKind.Harmonic => {
                     if(msym.overrides.isEmpty && msym.modifiers.isOverride) {
-                        Error.NotOverride(csym.name, msym.name).report(global, msym.pos)
+                        Error.NotOverride(csym.name, msym.name).report(global, log, msym.pos)
                     } else if (!msym.overrides.isEmpty && !msym.modifiers.isOverride) {
                         val classNames = msym.overrides.map(_.clsName).toList
-                        Error.NotMarkedOverride(msym.name, classNames).report(global, msym.pos)
+                        Error.NotMarkedOverride(msym.name, classNames).report(global, log, msym.pos)
                     }                    
                 }
                 
@@ -136,7 +136,7 @@ case class GatherOverrides(global: Global, log: Context) {
                             Error.MustResolveAmbiguousInheritance(
                                 csym.name, group.methodName, 
                                 msym1.clsName, msym2.clsName
-                            ).report(global, csym.pos)
+                            ).report(global, log, csym.pos)
                         }
                     }
                 }
@@ -149,7 +149,7 @@ case class GatherOverrides(global: Global, log: Context) {
             case msyms => {
                 Error.MultipleOverridesInSameClass(
                     csym.name, group.methodName, msyms.length
-                ).report(global, csym.pos)
+                ).report(global, log, csym.pos)
             }
             
         }

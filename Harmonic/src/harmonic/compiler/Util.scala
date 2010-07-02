@@ -116,12 +116,20 @@ object Util {
     // Extend the Lathos debugging library.
 
     class ExtendedServer(server: LathosServer) {
-        def pageForClass(name: Name.Class): Page = {
+        def topLevelPage(id: String, title: Object*) = {
             val context = server.context
-            val page = context.pushTopLevel(name.toString, "Class ", name)
+            val page = context.pushTopLevel(id, title: _*)
             context.pop(page)
             context.log("See ", page)
             page
+        }
+        
+        def pageForClass(name: Name.Class): Page = topLevelPage(name.toString, "Class ", name)
+        
+        def contextForPage(page: Page) = {
+            val context = server.context
+            context.push(page)
+            context
         }
         
         def contextForPageTitled(id: String, title: Object*) = {

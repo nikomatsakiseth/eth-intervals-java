@@ -1,5 +1,6 @@
 package harmonic.compiler
 
+import com.smallcultfollowing.lathos.model.Context
 import Ast.{Resolve => in}
 import Ast.{Lower => out}
 import Util._
@@ -8,13 +9,13 @@ object Create {
     def apply(global: Global) = new Create(global)
 }
 
-class Create(global: Global) {
+class Create(global: Global, log: Context) {
 
     def createMemberIntervals(csym: ClassFromSource) {
         val cdecl = csym.resolvedSource
         
         // Just lower the constructor now.
-        val (classParam, classEnv) = Lower(global).classParamAndEnv(csym)
+        val (classParam, classEnv) = Lower(global, log).classParamAndEnv(csym)
         csym.ClassParam.v = classParam
         csym.ClassEnv.v = classEnv
         csym.Constructor.v = Lower(global).createSymbolForConstructor(csym)

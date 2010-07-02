@@ -27,14 +27,14 @@ case class Check(global: Global, log: Context) {
             
             def checkTypeWf(ty: Type.Ref): Unit = {
                 if(!env.typeIsFinalBy(ty, current)) {
-                    Error.TypeNotFinal(ty).report(global, node.pos)
+                    Error.TypeNotFinal(ty).report(global, log, node.pos)
                 }
             }
             
             def checkPathHasType(path: Path.Typed, ty: Type.Ref): Unit = {
                 if(!env.pathHasType(path, ty)) {
                     Error.MustHaveType(path, ty
-                        ).report(global, node.pos)
+                        ).report(global, log, node.pos)
                 }
             }
             
@@ -208,7 +208,7 @@ case class Check(global: Global, log: Context) {
             
                 case stmt @ in.MethodReturn(in.TypedPath(path)) => {
                     env.optReturnTy match {
-                        case None => Error.NoReturnHere().report(global, stmt.pos)
+                        case None => Error.NoReturnHere().report(global, log, stmt.pos)
                     
                         case Some(returnTy) => {
                             In(env, current).At(stmt).checkPathAndType(path, returnTy)
@@ -276,7 +276,7 @@ case class Check(global: Global, log: Context) {
                 decl.ensures.foreach { reqNode =>
                     val req = reqNode.toReq
                     if(!env.relHolds(req)) {
-                        Error.DoesNotEnsure(req).report(global, reqNode.pos)
+                        Error.DoesNotEnsure(req).report(global, log, reqNode.pos)
                     }
                 }
             }

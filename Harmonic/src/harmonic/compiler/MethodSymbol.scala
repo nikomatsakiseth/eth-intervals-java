@@ -43,7 +43,7 @@ class MethodSymbol(
     val elaborate: Interval,
     val gather: Interval
 ) extends Symbol {
-    override def toString = "MethodSymbol(%s, %x)".format(name, System.identityHashCode(this))
+    override def toString = "MethodSymbol(%s.%s, %x)".format(clsName, name, System.identityHashCode(this))
     
     def id = MethodId(clsName, name, msig)
     

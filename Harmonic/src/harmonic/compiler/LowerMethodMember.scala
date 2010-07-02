@@ -121,11 +121,7 @@ class LowerMethodMember(
                 Some(Sym.join)
             } catch {
                 case _: IntervalException.Cycle => {
-                    global.reporter.report(
-                        inMethodDecl.returnTref.pos, 
-                        "explicit.type.required.due.to.cycle",
-                        mthdName.toString
-                    )
+                    Error.ExplicitTypeRequiredDueToCycle(mthdName).report(global, log, inMethodDecl.returnTref.pos)
                     Some(MethodSymbol.error(mthdName, csym.name))
                 }                
             }

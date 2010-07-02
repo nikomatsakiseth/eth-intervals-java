@@ -40,7 +40,7 @@ case class MethodResolutionOrder(global: Global) {
                 if(!superLists.isEmpty) {
                     Error.AmbiguousInheritance(
                         csym.name, superLists.map(_.head.name)
-                    ).report(global, csym.pos)
+                    ).report(global, log, csym.pos)
                 }
                 List()
             }
@@ -70,7 +70,7 @@ case class MethodResolutionOrder(global: Global) {
             //    val idx = stack.indexOf(csym)
             //    Error.CircularInheritance(
             //        csym.name, stack.take(idx).map(_.name).reverse
-            //    ).report(global, csym.pos)
+            //    ).report(global, log, csym.pos)
             //    data.mroCache(csym) = List(csym)
             //    List(csym)
             //}

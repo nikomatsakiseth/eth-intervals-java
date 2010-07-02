@@ -7,19 +7,32 @@ import scala.collection.mutable
 import ch.ethz.intervals.Interval
 import com.smallcultfollowing.lathos.none.NoneServer
 import com.smallcultfollowing.lathos.model.LathosServer
+import com.smallcultfollowing.lathos.model.Context
 import com.smallcultfollowing.lathos.http.JettyLathosServer
 import Util._
 
 class Global(
     val config: Config,
-    val reporter: Reporter
+    reporter: Reporter
 ) {
-    // ___ The "final" interval _____________________________________________
+    // ___ Debugging ________________________________________________________
 
     val debugServer = 
         if(config.debugPort != 0) JettyLathosServer.start(config.debugPort)
         else new NoneServer()
         
+    val errorsPage = debugServer.topLevelPage("Errors")
+        
+    // ___ Reporting Errors _________________________________________________
+    
+    def hasErrors = reporter.hasErrors
+    
+    def report(inLog: Context, pos: Position, msgKey: String, msgArgs: String*): Unit = {
+        val error = reporter.Error(pos, msgKey, msgArgs.toList)
+        val log = debugServer.contextForPage(errorsPage)
+        log.log("Error occurred: ", msgKey, "(", msgArgs, ")", " at ", inLog.topPage)
+    }
+    
     // ___ The "final" interval _____________________________________________
     
     val finalSym = new VarSymbol.Local(

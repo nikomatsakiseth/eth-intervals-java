@@ -3,6 +3,7 @@ package harmonic.compiler
 import scala.collection.immutable.Map
 import scala.collection.mutable
 import scala.util.parsing.input.Position
+import com.smallcultfollowing.lathos.model.Context
 
 import Ast.{Resolve => in}
 import Ast.{Lower => out}
@@ -13,7 +14,7 @@ import Util._
   * main functions:
   * - Fills in any inferred types.  (Note that we don't perform a full type check!)
   * - Removes nested expressions into intermediate variables. */
-case class Lower(global: Global) {
+case class Lower(global: Global, log: Context) {
     private[this] val emptyEnv = Env.empty(global)
     
     def classParamAndEnv(csym: ClassFromSource): (out.Param[VarSymbol.Field], Env) = {
@@ -114,10 +115,7 @@ case class Lower(global: Global) {
 
         val returnTy = (mdecl.returnTref, absBody) match {
             case (in.InferredTypeRef(), out.AbstractBody()) => {
-                global.reporter.report(mdecl.returnTref.pos, 
-                    "explicit.type.required.if.abstract", 
-                    mdecl.name.toString
-                )
+                Error.ExplicitTypeRequiredIfAbstract(mdecl.name).report(global, log, mdecl.returnTref.pos)
                 Type.Top
             }
 
@@ -379,7 +377,7 @@ case class Lower(global: Global) {
                 val argTys = outArgNodes.map(_.ty)
                 msyms match {
                     case List() => {
-                        Error.NoSuchMethod(rcvrTy, name).report(global, path.pos)
+                        Error.NoSuchMethod(rcvrTy, name).report(global, log, path.pos)
                         None
                     }
                     
@@ -406,12 +404,12 @@ case class Lower(global: Global) {
                     val csym = global.csym(memberVar.className)
                     csym.fieldNamed(memberVar) match {
                         case None => {
-                            Error.NoSuchMember(csym.toType, memberVar).report(global, name.pos)
+                            Error.NoSuchMember(csym.toType, memberVar).report(global, log, name.pos)
                             errorPath(path.toString)
                         }
 
                         case Some(fsym) if !fsym.modifiers.isStatic => {
-                            Error.ExpStatic(memberVar).report(global, path.pos)
+                            Error.ExpStatic(memberVar).report(global, log, path.pos)
                             errorPath(path.toString)               
                         }
 
@@ -425,12 +423,12 @@ case class Lower(global: Global) {
                     val ownerTypedPath = typedPathForPath(owner)
                     env.lookupBean(ownerTypedPath.ty, name.name) match {
                         case Left(err) => {
-                            err.report(global, name.pos)
+                            err.report(global, log, name.pos)
                             errorPath(path.toString)
                         }
                         
                         case Right(Left(fsym)) if fsym.modifiers.isStatic => {
-                            global.reporter.report(path.pos, "qualified.static", fsym.name.toString)
+                            Error.QualStatic(fsym.name).report(global, log, path.pos)
                             Path.TypedField(Path.Static, fsym)
                         }
                         
@@ -489,7 +487,7 @@ case class Lower(global: Global) {
                     val typedPath = typedPathForPath(path)
                     env.lookupTypeVar(typedPath.ty, typeVar.name) match {
                         case Left(err) => {
-                            err.report(global, typeVar.pos)
+                            err.report(global, log, typeVar.pos)
                             Type.Null
                         }
                         case Right(memberVar) => {
@@ -513,12 +511,12 @@ case class Lower(global: Global) {
                             Some(Type.PathArg(entry.name, rel, pathForPath(inPath)))                                
                             
                         case Right(entry) => {
-                            global.reporter.report(name.pos, "not.in.path.arg", entry.name.toString)
+                            Error.NotLegalInPathArg(entry.name).report(global, log, name.pos)
                             None                                
                         }
                             
                         case Left(err) => {
-                            err.report(global, name.pos)
+                            err.report(global, log, name.pos)
                             None
                         }
                     }
@@ -530,12 +528,12 @@ case class Lower(global: Global) {
                             Some(Type.TypeArg(entry.name, rel, toTypeRef(inTypeRef)))
                             
                         case Right(entry) => {
-                            global.reporter.report(name.pos, "not.in.type.arg", entry.name.toString)
+                            Error.NotLegalInTypeArg(entry.name).report(global, log, name.pos)
                             None                                
                         }
 
                         case Left(err) => {
-                            err.report(global, name.pos)
+                            err.report(global, log, name.pos)
                             None
                         }
                     }
@@ -657,20 +655,12 @@ case class Lower(global: Global) {
                 }
                 
                 case (List(), List()) => {
-                    global.reporter.report(
-                        pos,
-                        "no.applicable.methods",
-                        argTys.map(_.toString).mkString(", ")
-                    )
+                    Error.NoApplicableMethods(argTys).report(global, log, pos)
                     None
                 }
                 
                 case _ => {
-                    global.reporter.report(
-                        pos,
-                        "ambiguous.method.call",
-                        bestMsyms.length.toString
-                    )
+                    Error.AmbiguousMethodCall(bestMsyms.length).report(global, log, pos)
                     None
                 }
             }        
@@ -785,7 +775,7 @@ case class Lower(global: Global) {
                 csym.fieldNamed(name) match {
                     case Some(fsym) => fsym
                     case None => {
-                        Error.NoSuchMember(csym.toType, name).report(global, memberName.pos)
+                        Error.NoSuchMember(csym.toType, name).report(global, log, memberName.pos)
                         VarSymbol.errorField(name, None)
                     }
                 }                
@@ -910,7 +900,7 @@ case class Lower(global: Global) {
                             
                         case Name.Member(className1, text) => {
                             if(className != className1) {
-                                Error.DiffStaticClasses(className, className1).report(global, expr.name.pos)
+                                Error.DiffStaticClasses(className, className1).report(global, log, expr.name.pos)
                             }
                             Name.Member(className, text)
                         }
@@ -921,11 +911,11 @@ case class Lower(global: Global) {
                             fsym                            
                         }
                         case Some(fsym) /* !Static */ => {
-                            Error.ExpStatic(memberVar).report(global, expr.name.pos)
+                            Error.ExpStatic(memberVar).report(global, log, expr.name.pos)
                             VarSymbol.errorField(memberVar, optExpTy)
                         }
                         case None => {
-                            Error.NoSuchMember(csym.toType, expr.name.name).report(global, expr.name.pos)
+                            Error.NoSuchMember(csym.toType, expr.name.name).report(global, log, expr.name.pos)
                             VarSymbol.errorField(memberVar, optExpTy)
                         }
                     }
@@ -937,13 +927,13 @@ case class Lower(global: Global) {
                     val ownerPath = lowerToTypedPath(None)(ownerExpr)
                     env.lookupBean(ownerPath.ty, expr.name.name) match {
                         case Left(err) => {
-                            err.report(global, expr.name.pos)
+                            err.report(global, log, expr.name.pos)
                             val memberVar = expr.name.name.inDefaultClass(Name.ObjectClass)
                             val fsym = VarSymbol.errorField(memberVar, optExpTy)
                             Path.TypedField(ownerPath, fsym).toNode
                         }
                         case Right(Left(fsym)) if fsym.modifiers.isStatic => {
-                            Error.QualStatic(fsym.name).report(global, expr.name.pos)
+                            Error.QualStatic(fsym.name).report(global, log, expr.name.pos)
                             Path.TypedField(ownerPath, fsym).toNode
                         }
                         case Right(Left(fsym)) => {
@@ -972,7 +962,7 @@ case class Lower(global: Global) {
             // Identify the best method (if any):
             msyms match {
                 case List() => {
-                    Error.NoSuchMethod(rcvrTy, name).report(global, pos)
+                    Error.NoSuchMethod(rcvrTy, name).report(global, log, pos)
                     None
                 }
                 
@@ -1082,10 +1072,7 @@ case class Lower(global: Global) {
                 }
                 
                 case ty => {
-                    global.reporter.report(
-                        expr.pos, 
-                        "can.only.create.classes"
-                    )
+                    Error.CanOnlyCreateClasses(ty).report(global, log, expr.pos)
                     out.Null(ty)
                 }
             }
@@ -1174,11 +1161,7 @@ case class Lower(global: Global) {
                     None
             }
             optTy.getOrElse {
-                global.reporter.report(
-                    pos,
-                    "no.super.class.implements",
-                    mthdName.toString
-                )
+                Error.NoSuperClassImplements(mthdName).report(global, log, pos)
                 Type.Top
             }
         }

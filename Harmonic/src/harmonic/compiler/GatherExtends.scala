@@ -62,7 +62,7 @@ case class GatherExtends(global: Global, log: Context) {
                                     Error.ExtendsNotEquiv(
                                         csym.name,
                                         fromClass, left, 
-                                        rightClass, right).report(global, pos)
+                                        rightClass, right).report(global, log, pos)
                                 }
                             }
                         }

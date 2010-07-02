@@ -399,7 +399,7 @@ case class ByteCode(global: Global) {
                 out.close()
             } catch {
                 case err: java.io.IOError => {
-                    Error.IOError(err).report(global, InterPosition.forFile(clsFile))
+                    Error.IoError(err).report(global, log, InterPosition.forFile(clsFile))
                 }
             }
         }

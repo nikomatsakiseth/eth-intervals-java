@@ -107,7 +107,7 @@ abstract class Resolve(global: Global, compUnit: in.CompUnit) {
         val expansions = resolveRelList(relList)
         val result = expansions.firstSome(_.asClassName)
         if(!result.isDefined) {
-            Error.CannotResolve(relList.reverse.mkString(".")).report(global, pos)
+            Error.CannotResolve(relList.reverse.mkString(".")).report(global, log, pos)
         }
         result
     }
