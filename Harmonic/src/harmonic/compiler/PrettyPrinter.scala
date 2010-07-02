@@ -1,68 +1,54 @@
 package harmonic.compiler
 
+import com.smallcultfollowing.lathos.model.Context
+
 abstract class PrettyPrinter {
-    def indent(): Unit
-    def undent(): Unit
-    def write(fmt: String, args: Any*): Unit
-    def writeln(fmt: String, args: Any*): Unit
+    protected[this] var ind = 0
+    
+    def indent() {
+        ind += 2
+    }
+    
+    def undent() {
+        ind -= 2
+    }
+    
+    // Start a new line, printing fmt.format(args)
+    def newl(fmt: String, args: Any*): Unit
+    
+    // Continue previous line, printing fmt.format(args)
+    def addl(fmt: String, args: Any*): Unit
     
     def indented(start: String, end: String)(func: => Unit) {
-        write(start)
+        addl(start)
         indent()
-        writeln("")
         func
         undent()
-        write(end)
+        newl(end)
     }
 }
 
 object PrettyPrinter {
     
-    object stdout extends PrettyPrinter {
-        var ind = 0
-        var nl = false
-        override def indent() {
-            ind += 2
+    def stdout = new PrettyPrinter() {
+        override def newl(fmt: String, args: Any*) {
+            System.out.println("")
+            System.out.print(" " * ind)
+            addl(fmt, args: _*)
         }
-        override def undent() {
-            ind -= 2
-        }
-        override def write(fmt: String, args: Any*) {
-            if(nl) {
-                System.out.print(" " * ind)
-                nl = false
-            }
+        override def addl(fmt: String, args: Any*) {
             System.out.print(fmt.format(args.map(_.toString): _*))
-        }
-        override def writeln(fmt: String, args: Any*) {
-            if(nl) System.out.print(" " * ind)
-            System.out.println(fmt.format(args.map(_.toString): _*))
-            nl = true
         }
     }
     
-    def debug: PrettyPrinter = new PrettyPrinter {
-        val buffer = new StringBuilder()
-        override def indent() {
-            Util.debugAddIndent
+    def debug(log: Context) = new PrettyPrinter() {
+        override def newl(fmt: String, args: Any*) {
+            log.log(" " * ind)
+            log.append(fmt.format(args: _*))
         }
-        override def undent() {
-            Util.debugRemoveIndent
-        }
-        override def write(fmt: String, args: Any*) {
-            buffer.append(fmt.format(args.map(_.toString): _*))
-            if(buffer.length > 0) {
-                if(buffer.charAt(buffer.length - 1) == '\n') {
-                    buffer.setLength(buffer.length - 1)
-                    Util.debug("%s", buffer.toString)
-                    buffer.setLength(0)
-                }
-            }
-        }
-        override def writeln(fmt: String, args: Any*) {
-            write(fmt, args: _*)
-            write("\n")
-        }
-    }    
+        override def addl(fmt: String, args: Any*) {
+            log.append(fmt.format(args: _*))
+        }        
+    }
     
 }

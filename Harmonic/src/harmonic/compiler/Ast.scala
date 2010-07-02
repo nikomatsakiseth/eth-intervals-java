@@ -83,7 +83,7 @@ abstract class Ast {
     }
     
     private def printSep(out: PrettyPrinter, asts: List[Node], sep: String) {
-        printSepFunc(out, asts, () => out.write(sep))
+        printSepFunc(out, asts, () => out.addl(sep))
     }
     
     sealed abstract trait TypedNode extends Node {
@@ -129,9 +129,9 @@ abstract class Ast {
     ) extends Node {
         
         override def print(out: PrettyPrinter) {
-            out.writeln("package %s;", pkg)
-            imports.foreach(_.println(out))
-            printSepFunc(out, classes, () => out.writeln(""))
+            out.newl("package %s;", pkg)
+            imports.foreach(_.print(out))
+            printSepFunc(out, classes, () => out.newl(""))
         }
         
     }
@@ -172,15 +172,12 @@ abstract class Ast {
         )
         
         override def print(out: PrettyPrinter) {
-            annotations.foreach(_.println(out))
-            out.write("class %s", name)
-            pattern.println(out)
-            if(!extendsDecls.isEmpty) {
-                out.write("extends ")
-                printSep(out, extendsDecls, ", ")
-            }
+            annotations.foreach(_.print(out))
+            out.newl("class %s", name)
+            pattern.print(out)
+            extendsDecls.foreach(_.print(out))
             out.indented("{", "}") {
-                members.foreach(_.println(out))
+                members.foreach(_.print(out))
             }
         }
     }
@@ -213,7 +210,7 @@ abstract class Ast {
     //        }
     //        out.write(": ")
     //        returnTref.print(out)
-    //        out.writeln("")
+    //        out.newl("")
     //        requirements.foreach(_.println(out))
     //        ensures.foreach(_.println(out))
     //        body.print(out)
@@ -230,8 +227,8 @@ abstract class Ast {
         override def toString = "[interval %s(%s)]".format(name, parent)
         
         override def print(out: PrettyPrinter) {
-            annotations.foreach(_.println(out))
-            out.writeln("interval %s(%s)", name, parent)
+            annotations.foreach(_.print(out))
+            out.newl("interval %s(%s)", name, parent)
             body.print(out)
         }
     }
@@ -253,16 +250,16 @@ abstract class Ast {
         }
         
         override def print(out: PrettyPrinter) {
-            annotations.foreach(_.println(out))
+            annotations.foreach(_.print(out))
+            out.newl("")
             name.parts.zip(params).foreach { case (part, param) =>
-                out.write(part)
+                out.addl(part)
                 param.printsp(out)
             }
-            out.write(": ")
+            out.addl(": ")
             returnTref.print(out)
-            out.writeln("")
-            requirements.foreach(_.println(out))
-            ensures.foreach(_.println(out))
+            requirements.foreach(_.print(out))
+            ensures.foreach(_.print(out))
             body.print(out)
         }
     }
@@ -275,8 +272,9 @@ abstract class Ast {
         override def toString = "%s %s %s".format(left, rel, right)
         
         override def print(out: PrettyPrinter) {
+            out.newl("")
             left.printsp(out)
-            out.write("%s ", rel)
+            out.addl("%s ", rel)
             right.print(out)
         }        
     }
@@ -287,8 +285,9 @@ abstract class Ast {
         override def toString = "%s %s %s".format(left, rel, right)
         
         override def print(out: PrettyPrinter) {
+            out.newl("")
             left.printsp(out)
-            out.write("%s ", rel)
+            out.addl("%s ", rel)
             right.print(out)
         }
     }
@@ -305,12 +304,13 @@ abstract class Ast {
         }
         
         override def print(out: PrettyPrinter) {
-            annotations.foreach(_.println(out))
+            annotations.foreach(_.print(out))
+            out.newl("")
             tref.printsp(out)
             name.print(out)
-            out.write(" = ")
+            out.addl(" = ")
             body.print(out)
-            out.write(";")
+            out.addl(";")
         }
     }
     
@@ -322,11 +322,12 @@ abstract class Ast {
     ) extends MemberDecl {
         override def toString = "%s %s %s".format(left, kind, right)
         override def print(out: PrettyPrinter) {
-            annotations.foreach(_.println(out))
+            annotations.foreach(_.print(out))
+            out.newl("")
             left.print(out)
-            out.write(" %s ", kind)
+            out.addl(" %s ", kind)
             right.print(out)
-            out.write(";")
+            out.addl(";")
         }
     }
     
@@ -336,7 +337,7 @@ abstract class Ast {
         override def toString = "@%s".format(name)
         
         override def print(out: PrettyPrinter) {
-            out.write("@")
+            out.newl("@")
             name.print(out)
         }
     }
@@ -354,10 +355,11 @@ abstract class Ast {
         override def toString = "extends %s(%s)".format(className, args.mkString(", "))
         
         override def print(out: PrettyPrinter) {
+            out.newl("extends ")
             className.print(out)
-            out.write("(")
+            out.addl("(")
             args.foreach(_.print(out))
-            out.write(")")
+            out.addl(")")
         }
     }
     
@@ -396,9 +398,9 @@ abstract class Ast {
         override def toString = "(%s)".format(subpatterns.mkString(", "))
         
         override def print(out: PrettyPrinter) {
-            out.write("(")
+            out.addl("(")
             printSep(out, subpatterns, ", ")
-            out.write(")")
+            out.addl(")")
         }
     }
     sealed abstract trait VarAstPattern[+S <: VSym] extends AstPattern[S] {
@@ -430,9 +432,9 @@ abstract class Ast {
         def varParams = List(this)
         
         override def print(out: PrettyPrinter) {
-            annotations.foreach(_.printsp(out))
+            annotations.foreach(_.print(out))
             name.print(out)
-            out.write(": ")
+            out.addl(": ")
             tref.print(out)
         }        
     }
@@ -460,9 +462,9 @@ abstract class Ast {
         override def toString = "%s %s: %s".format(annotations.mkString(" "), tref, name)
         
         override def print(out: PrettyPrinter) {
-            annotations.foreach(_.printsp(out))
+            annotations.foreach(_.print(out))
             name.print(out)
-            out.write(": ")
+            out.addl(": ")
             tref.printsp(out)
         }        
     }
@@ -557,9 +559,9 @@ abstract class Ast {
         override def toString = "(%s)".format(types.mkString(", "))
         
         override def print(out: PrettyPrinter) {
-            out.write("(")
+            out.addl("(")
             printSep(out, types, ", ")
-            out.write(")")
+            out.addl(")")
         }
     }
 
@@ -633,7 +635,7 @@ abstract class Ast {
     case class AbstractBody() extends AbstractableBody {
         override def toString = ";"
         override def print(out: PrettyPrinter) {
-            out.writeln(";")
+            out.newl(";")
         }        
     }
     
@@ -641,15 +643,16 @@ abstract class Ast {
         override def toString = "{...}"
         override def print(out: PrettyPrinter) {
             out.indented("{", "}") {
-                stmts.foreach(_.printsemiln(out))
+                stmts.foreach(_.printalone(out))
             }            
         }
     }
     
     sealed abstract trait ParseStmt extends Node {
-        def printsemiln(out: PrettyPrinter) {
+        def printalone(out: PrettyPrinter) {
+            out.newl("")
             print(out)
-            out.writeln(";")
+            out.addl(";")
         }
     }
     
@@ -671,9 +674,9 @@ abstract class Ast {
         override def toString = "(%s)".format(exprs.mkString(", "))
         
         override def print(out: PrettyPrinter) {
-            out.write("(")
+            out.addl("(")
             printSep(out, exprs, ", ")
-            out.write(")")
+            out.addl(")")
         }        
     }
     
@@ -698,8 +701,8 @@ abstract class Ast {
             out.indented(l, r) { 
                 returnTref.printsp(out)
                 param.printsp(out)
-                out.writeln(" ->")
-                stmts.foreach(_.printsemiln(out)) 
+                out.addl(" ->")
+                stmts.foreach(_.printalone(out)) 
             }
         }
     }
@@ -710,12 +713,12 @@ abstract class Ast {
         override def toString = "(%s)(%s)".format(typeRef, expr)
         
         override def print(out: PrettyPrinter) {
-            out.write("(")
+            out.addl("(")
             typeRef.print(out)
-            out.write(")")
-            out.write("(")
+            out.addl(")")
+            out.addl("(")
             expr.print(out)
-            out.write(")")
+            out.addl(")")
         }
     }
     
@@ -730,13 +733,13 @@ abstract class Ast {
         override def toString = "(%s) = (%s)".format(lvalues.mkString(", "), rvalues.mkString(", "))
         
         override def print(out: PrettyPrinter) {
-            out.write("(")
+            out.addl("(")
             printSep(out, lvalues, ", ")
-            out.write(")")
-            out.write(" = ")
-            out.write("(")
+            out.addl(")")
+            out.addl(" = ")
+            out.addl("(")
             printSep(out, rvalues, ", ")
-            out.write(")")
+            out.addl(")")
         }        
     }
     
@@ -774,11 +777,11 @@ abstract class Ast {
             var first = true
             rcvr.printdot(out)
             name.parts.zip(args).foreach { case (p, a) =>
-                if(!first) out.write(" ")
+                if(!first) out.addl(" ")
                 first = false
 
-                out.write(p)
-                out.write(" ")
+                out.addl(p)
+                out.addl(" ")
                 a.print(out)
             }                                    
         }        
@@ -789,11 +792,11 @@ abstract class Ast {
         override def toString = "new %s%s".format(tref, args.mkString("(", ", ", ")"))
         
         override def print(out: PrettyPrinter) {
-            out.write("new ")
+            out.addl("new ")
             tref.print(out)
-            out.write("(")
+            out.addl("(")
             printSep(out, args, ", ")
-            out.write(")")
+            out.addl(")")
         }        
     }
     
@@ -820,7 +823,7 @@ abstract class Ast {
         override def toString = "interval %s {...}".format(name)
         
         override def print(out: PrettyPrinter) {
-            out.write("interval %s", name)
+            out.addl("interval %s", name)
             body.print(out)
         }
     }
@@ -831,9 +834,9 @@ abstract class Ast {
         override def toString = "return(%s)".format(value)
         
         override def print(out: PrettyPrinter) {
-            out.write("return(")
+            out.addl("return(")
             value.print(out)
-            out.write(")")
+            out.addl(")")
         }
     }
     
@@ -845,27 +848,22 @@ object Ast {
     
     sealed abstract class Node extends Positional with Product {
         def print(out: PrettyPrinter) {
-            out.write(toString)
+            out.addl(toString)
         }
         
         def printsp(out: PrettyPrinter) {
             print(out)
-            out.write(" ")
+            out.addl(" ")
         }
         
         def printdot(out: PrettyPrinter) {
             print(out)
-            out.write(".")
+            out.addl(".")
         }
         
         def printc(out: PrettyPrinter) {
             print(out)
-            out.write(", ")
-        }
-        
-        def println(out: PrettyPrinter) {
-            print(out)
-            out.writeln("")
+            out.addl(", ")
         }
     }
     

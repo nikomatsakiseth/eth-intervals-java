@@ -4,11 +4,13 @@ import scala.collection.immutable.Map
 import scala.collection.mutable
 import scala.util.parsing.input.Position
 
+import com.smallcultfollowing.lathos.model.Context
+
 import Ast.{Lower => in}
 import Ast.Lower.Extensions._
 import Util._
 
-case class Check(global: Global) {
+case class Check(global: Global, log: Context) {
     private[this] val emptyEnv = Env.empty(global)
     
     object In {
@@ -31,7 +33,8 @@ case class Check(global: Global) {
             
             def checkPathHasType(path: Path.Typed, ty: Type.Ref): Unit = {
                 if(!env.pathHasType(path, ty)) {
-                    Error.MustHaveType(path, ty).report(global, node.pos)
+                    Error.MustHaveType(path, ty
+                        ).report(global, node.pos)
                 }
             }
             
@@ -86,8 +89,10 @@ case class Check(global: Global) {
             At(path).checkPath(path.path)
         }
 
-        def checkPathAndType(path: in.TypedPath, ty: Type.Ref): Unit = debugIndent("checkPathAndType(%s, %s)", path, ty) {
-            At(path).checkPathAndType(path.path, ty)
+        def checkPathAndType(path: in.TypedPath, ty: Type.Ref): Unit = {
+            log.indent("checkPathAndType(", path, ", ", ty, ")") {
+                At(path).checkPathAndType(path.path, ty)
+            }
         }
 
         def checkReq(req: in.Requirement) = {
@@ -110,7 +115,7 @@ case class Check(global: Global) {
             At(path).checkPathHasType(path.path, ty)
         }
         
-        def checkExpr(expr: in.LowerTlExpr): Type.Ref = debugIndent("checkExpr(%s)", expr) {
+        def checkExpr(expr: in.LowerTlExpr): Type.Ref = log.indent("checkExpr(", expr, ")") {
             expr match {
                 case in.TypedPath(path) => {
                     At(expr).checkPath(path)
@@ -184,34 +189,35 @@ case class Check(global: Global) {
         }
     }
         
-    def checkAndAddStmt(current: Path.Typed)(env: Env, stmt: in.LowerStmt): Env = debugIndent("checkAndAddStmt(%s)", stmt) {
-        stmt match {
-            case stmt: in.LowerTlExpr => {
-                In(env, current).checkExpr(stmt)
-                env
-            }
-            
-            case stmt @ in.Assign(lvs, rvs) => {
-                lvs.zip(rvs).foldLeft(env)(checkAndAddAssign(current))
-            }
-            
-            case stmt @ in.InlineInterval(name, in.Body(stmts), vsym) => {
-                // Note: vsym is already in the environment.
-                stmts.foldLeft(env)(checkAndAddStmt(vsym.toTypedPath))
-            }
-            
-            case stmt @ in.MethodReturn(in.TypedPath(path)) => {
-                env.optReturnTy match {
-                    case None => Error.NoReturnHere().report(global, stmt.pos)
-                    
-                    case Some(returnTy) => {
-                        In(env, current).At(stmt).checkPathAndType(path, returnTy)
-                    }
+    def checkAndAddStmt(current: Path.Typed)(env: Env, stmt: in.LowerStmt): Env = 
+        log.indent("checkAndAddStmt(", stmt, ")") {
+            stmt match {
+                case stmt: in.LowerTlExpr => {
+                    In(env, current).checkExpr(stmt)
+                    env
                 }
-                env
+            
+                case stmt @ in.Assign(lvs, rvs) => {
+                    lvs.zip(rvs).foldLeft(env)(checkAndAddAssign(current))
+                }
+            
+                case stmt @ in.InlineInterval(name, in.Body(stmts), vsym) => {
+                    // Note: vsym is already in the environment.
+                    stmts.foldLeft(env)(checkAndAddStmt(vsym.toTypedPath))
+                }
+            
+                case stmt @ in.MethodReturn(in.TypedPath(path)) => {
+                    env.optReturnTy match {
+                        case None => Error.NoReturnHere().report(global, stmt.pos)
+                    
+                        case Some(returnTy) => {
+                            In(env, current).At(stmt).checkPathAndType(path, returnTy)
+                        }
+                    }
+                    env
+                }
             }
         }
-    }
     
     def checkStmts(current: Path.Typed, env: Env, stmts: List[in.LowerStmt]): Unit = {
         stmts.foldLeft(env)(checkAndAddStmt(current))
@@ -221,7 +227,7 @@ case class Check(global: Global) {
         csym: ClassFromSource, 
         fsym: VarSymbol.Field, 
         decl: in.IntervalDecl
-    ) = debugIndent("checkIntervalDecl(%s)", fsym) {
+    ) = log.indent("checkIntervalDecl(", fsym, ")") {
         val env = csym.checkEnv
         val thisPath = csym.loweredSource.thisSym.toTypedPath
         val initPath = env.typedPath(Path.ThisInit)
@@ -233,7 +239,7 @@ case class Check(global: Global) {
         csym: ClassFromSource, 
         msym: MethodSymbol,
         decl: in.MethodDecl
-    ) = debugIndent("checkMethodDecl(%s)", msym) {
+    ) = log.indent("checkMethodDecl(", msym, ")") {
         var env = csym.checkEnv
         
         // Create the "method" variable:
@@ -293,7 +299,7 @@ case class Check(global: Global) {
         // TODO: Check that paths are valid at least
     }
     
-    def classSymbol(csym: ClassFromSource): Unit = debugIndent("checkClass(%s)", csym) {
+    def classSymbol(csym: ClassFromSource): Unit = {
         inlineInterval("%s.check.inline".format(csym.name)) { inter =>
 
             csym.lowerMembers.foreach {

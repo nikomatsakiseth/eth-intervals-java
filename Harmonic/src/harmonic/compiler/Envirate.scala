@@ -4,13 +4,15 @@ import scala.collection.immutable.Map
 import scala.collection.mutable
 import scala.util.parsing.input.Position
 
+import com.smallcultfollowing.lathos.model.Context
+
 import Ast.{Lower => in}
 import Ast.Lower.Extensions._
 import Util._
 
 /** Computes the class environment that is then used by type checking
   * and other phases. */
-case class Envirate(global: Global) {
+case class Envirate(global: Global, log: Context) {
     
     // General plan:
     // - Add the requirements listed in the primary constructor to the

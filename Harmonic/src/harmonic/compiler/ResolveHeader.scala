@@ -6,6 +6,7 @@ import scala.collection.mutable.ListBuffer
 import scala.collection.immutable.Map
 
 import ch.ethz.intervals._
+import com.smallcultfollowing.lathos.model.Context
 
 import Ast.{Parse => in}
 import Ast.{Resolve => out}
@@ -45,7 +46,7 @@ object ResolveHeader {
   * rest of the body.  Before we can resolve a class body, we must first 
   * ensure that its headers and those of its superclasses (transitively) have 
   * been resolved. */
-case class ResolveHeader(global: Global, compUnit: in.CompUnit) 
+case class ResolveHeader(global: Global, compUnit: in.CompUnit, log: Context) 
 extends Resolve(global, compUnit) 
 {
     

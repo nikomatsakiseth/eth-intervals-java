@@ -23,6 +23,7 @@ class Config
     var useReflection = true
     var localize = false
     var emitDebugInfo = true
+    var debugPort = 0
     
     private[this] def usage(err: PrintStream) {
         err.printf("The Harmonic Language, version %s\n", version)
@@ -38,6 +39,7 @@ class Config
         err.printf("  --no-debug-info\n")
         err.printf("\n")
         err.printf("Debugging options:\n")
+        err.printf("  --debug-port <port>\n")
         err.printf("  --dump-parsed-trees\n")
         err.printf("  --dump-resolved-trees\n")
         err.printf("  --dump-lowered-trees\n")
@@ -87,6 +89,9 @@ class Config
                     i += 2
                 } else if(args(i) == "-d") {
                     outputDir = new File(args(i+1))
+                    i += 2
+                } else if(args(i) == "--debug-port") {
+                    debugPort = Integer.parseInt(args(i+1))
                     i += 2
                 } else if(args(i) == "--dump-parsed-trees") {
                     dumpParsedTrees = true

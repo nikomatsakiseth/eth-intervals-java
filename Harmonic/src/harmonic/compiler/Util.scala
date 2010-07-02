@@ -7,6 +7,11 @@ import ch.ethz.intervals._
 import ch.ethz.intervals.task.AbstractTask
 import ch.ethz.intervals.task.ResultTask
 
+import com.smallcultfollowing.lathos.model.Context
+import com.smallcultfollowing.lathos.model.Page
+import com.smallcultfollowing.lathos.model.LathosServer
+import com.smallcultfollowing.lathos.model.Output
+
 import scala.collection.Set
 
 import Error.CanFail
@@ -39,7 +44,22 @@ object Util {
     
     def sameLength(lst1: List[_], lst2: List[_]) = (lst1.length == lst2.length)
     
-    // ___ Extensions to Collection Classes _________________________________
+    // ___ Extensions to Collection Classes and Other Miscellany ____________
+    
+    class ExtendedAny(any: Any) {
+        def asObj = any.asInstanceOf[java.lang.Object]
+    }
+    implicit def extendedAny(any: Any) = new ExtendedAny(any)    
+
+    class ExtendedString[E](string: String) {
+        def afterLast(c: Char) = {
+            string.lastIndexOf(c) match {
+                case -1 => string
+                case i => string.substring(i+1)
+            }
+        }
+    }
+    implicit def extendedString[E](string: String) = new ExtendedString(string)
     
     class ExtendedIterable[E](iterable: Iterable[E]) {
         def firstSome[F](func: (E => Option[F])) = {
@@ -93,58 +113,98 @@ object Util {
     
     // ___ Debug ____________________________________________________________
     //
-    // The output of all threads gets mixed together. You can grep for a 
-    // particular thread id to sort it out. In TextMate, use 
-    // Command-Opt-R with "grep ^001:" or what have you.
-    
-    class DebugData(val threadId: Int) {
-        var indent: Int = 0
+    // Extend the Lathos debugging library.
+
+    class ExtendedServer(server: LathosServer) {
+        def pageForClass(name: Name.Class): Page = {
+            val context = server.context
+            val page = context.pushTopLevel(name.toString, "Class ", name)
+            context.pop(page)
+            context.log("See ", page)
+            page
+        }
         
-        def addIndent { indent += 2}
-        def removeIndent { indent -= 2}
-    }
-    
-    private[this] val local = new java.lang.ThreadLocal[DebugData]() {
-        private[this] var maxThreadId = 0
-        override def initialValue() = synchronized {
-            val threadId = maxThreadId
-            maxThreadId += 1
-            new DebugData(threadId)
+        def contextForPageTitled(id: String, title: Object*) = {
+            val context = server.context
+            val page = context.pushTopLevel(id, title: _*)
+            context.pop(page)
+            context.log("See ", page)
+            context.push(page)
+            context
+        }
+        
+        def contextForInter(classPage: Page, inter: Interval) = {
+            val context = server.context
+            val tag = inter.toString.afterLast('.')
+            context.push(classPage)
+            context.pushChild(tag, tag)
+            context
         }
     }
-    
-    def debug(fmt: String, args: Any*) = {
-        val data = local.get
-        val str = "%03x: ".format(data.threadId) + (" " * data.indent) + fmt.format(args: _*)
-        Util.synchronized { println(str) }
-    }
-    
-    def debugAddIndent {
-        val data = local.get
-        data.addIndent
-    }
-        
-    def debugRemoveIndent {
-        val data = local.get
-        data.removeIndent
-    }
-        
-    def debugIndent[R](fmt: String, args: Any*)(func: => R) = {
-        val data = local.get
-        debug(fmt, args: _*)
-        data.addIndent
-        try {
-            val result = func
-            if(result != ())
-                debug("Result: %s", result)
-            result
-        } catch { case t =>
-            debug("Error: %s", t)
-            throw t
-        } finally {
-            data.removeIndent
+    implicit def extendedServer(server: LathosServer): ExtendedServer = new ExtendedServer(server)
+
+    class ExtendedContext(context: Context) {
+        def indent[R](args: Object*)(func: => R) = {
+            val page = context.pushChild(null, args: _*)
+            try {
+                val result = func
+                if(result != ())
+                    context.log("Result: ", result.asInstanceOf[Object])
+                result
+            } catch { case t =>
+                context.log("Error: ", t)
+                throw t
+            } finally {
+                context.pop(page)
+            }
         }
     }
+    implicit def extendedContext(context: Context): ExtendedContext = new ExtendedContext(context)
+    
+    class ExtendedOutput(out: Output) {
+        
+        def row(objs: Object*) {
+            com.smallcultfollowing.lathos.model.Util.row(out, objs: _*)
+        }
+        
+        def subpage(title: String)(func: => Unit) {
+            out.startPage(null)
+            out.startBold
+            out.outputText(title)
+            out.endBold
+            func
+            out.endPage(null)
+        }
+        
+        def list(data: Iterable[Any]) {
+            out.startTable
+            
+            data.foreach { row =>
+                out.startRow
+                out.startColumn
+                out.outputText(row.toString)
+                out.endColumn
+                out.endRow
+            }
+            
+            out.endTable            
+        }
+        
+        def map(data: Iterable[(Any, Any)]) {
+            out.startTable
+            
+            data.foreach { case (col1, col2) =>
+                out.row(
+                    col1.asInstanceOf[Object], 
+                    col2.asInstanceOf[Object]
+                )
+            }
+            
+            out.endTable
+        }
+        
+    }
+    implicit def extendedOutput(output: Output): ExtendedOutput = new ExtendedOutput(output)
     
     // ___ Profiling ________________________________________________________
     
@@ -193,7 +253,6 @@ object Util {
         }
         
         def join() = {
-            Util.debug("Joining %s".format(inter))
             try {
                 Intervals.inline(new AbstractTask() {
                     override def toString = 
@@ -206,11 +265,9 @@ object Util {
             } catch {
                 // Rethrow wrapped exceptions (if there is exactly one):
                 case r: RethrownException if r.allErrors.size == 1 => {
-                    debug("rethrown exc w/ %d errors", r.allErrors.size)
                     throw r.allErrors.iterator.next;
                 }
                 case r: RethrownException => {
-                    debug("rethrown exc w/ %d errors", r.allErrors.size)
                     throw r;
                 }
             }

@@ -6,6 +6,11 @@ import scala.collection.immutable.Set
 import scala.collection.immutable.Queue
 import scala.collection.mutable
 
+import com.smallcultfollowing.lathos.model.Page
+import com.smallcultfollowing.lathos.model.PageContent
+import com.smallcultfollowing.lathos.model.Output
+import com.smallcultfollowing.lathos.model.{Util => LathosUtil}
+
 import Util._
 import Error.CanFail
 
@@ -42,7 +47,45 @@ case class Env(
     
     /** Tuples describing relations between type variables and other types. */
     typeRels: List[Req.T]
-) {
+) extends Page {
+    
+    // ___ Env ______________________________________________________________
+    
+    override def getId = "Env[%s]".format(System.identityHashCode(this))
+    
+    override def getParent = null
+    
+    override def addContent(content: PageContent) = throw new UnsupportedOperationException()
+    
+    override def renderInLine(out: Output): Unit = {
+        LathosUtil.renderInLine(this, out)
+    }
+    
+    override def renderInPage(out: Output): Unit = {
+        out.startPage(this)
+        
+        out.startTable
+        
+        out.row("thisTy", thisTy)
+        out.row("optReturnTy", optReturnTy)
+        
+        out.endTable
+        
+        out.subpage("Locals") {
+            out.map(locals)
+        }
+
+        out.subpage("Path Rels") {
+            out.list(pathRels)
+        }
+
+        out.subpage("Type Rels") {
+            out.list(typeRels)
+        }
+        
+        out.endPage(this)
+    }
+    
     // ___ Transitive Closure Utility _______________________________________
     
     /** Base class that captures the basic pattern of computing

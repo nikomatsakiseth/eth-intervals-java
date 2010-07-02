@@ -3,12 +3,13 @@ package harmonic.compiler
 import ch.ethz.intervals._
 import Ast.{Lower => out}
 import Util._
+import com.smallcultfollowing.lathos.model.Context
 
 object Merge {
-    def apply(global: Global) = new Merge(global)
+    def apply(global: Global, log: Context) = new Merge(global, log)
 }
 
-class Merge(global: Global) {
+class Merge(global: Global, log: Context) {
     
     def mergeMemberIntervals(csym: ClassFromSource) {
         val cdecl = csym.resolvedSource
@@ -49,7 +50,7 @@ class Merge(global: Global) {
         )
 
         if(global.config.dumpLoweredTrees) {
-            csym.loweredSource.println(PrettyPrinter.debug)
+            csym.loweredSource.print(PrettyPrinter.debug(log))
         }
     }
     

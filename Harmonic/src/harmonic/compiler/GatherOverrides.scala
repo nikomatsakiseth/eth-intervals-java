@@ -4,11 +4,12 @@ import scala.collection.immutable.Map
 import scala.collection.immutable.Set
 import scala.collection.mutable
 
+import com.smallcultfollowing.lathos.model.Context
 import Ast.{Lower => in}
 import Util._
 
 /** Determines which methods override one another. */
-case class GatherOverrides(global: Global) {
+case class GatherOverrides(global: Global, log: Context) {
     
     /** Populates `csym.methodGroups` as well as the `overrides` 
       * fields of all method symbols defined in `csym` */

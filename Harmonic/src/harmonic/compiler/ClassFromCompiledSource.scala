@@ -6,6 +6,9 @@ import Util._
 abstract class ClassFromCompiledSource extends ClassSymbol
 {
     import global.master
+    import global.debugServer
+    
+    private[this] val classPage = debugServer.pageForClass(name)
     
     def internalImplName = name.internalName
     
@@ -72,7 +75,8 @@ abstract class ClassFromCompiledSource extends ClassSymbol
             schedule = false,
             name = "%s.Header".format(name)
         ) { 
-            inter => Util.debugIndent("Entering %s", inter) {
+            inter => {
+                val log = debugServer.contextForInter(classPage, inter)
                 val rawData = loadData(inter)
                 LoadedData.v = rawData.copy(
                     superClassNames = ResolveHeader.cookRawSuperClasses(this, rawData.superClassNames)
@@ -84,7 +88,8 @@ abstract class ClassFromCompiledSource extends ClassSymbol
             name = "%s.Body".format(name),
             after = List(header.getEnd)
         ) { 
-            inter => Util.debugIndent("Entering %s", inter) {
+            inter => {
+                //val log = debugServer.contextForInter(classPage, inter)
             }
         }
 
@@ -95,14 +100,17 @@ abstract class ClassFromCompiledSource extends ClassSymbol
             // create/members/merge within
             schedule = false 
         ) { 
-            _ => ()
+            _ => {
+                //val log = debugServer.contextForInter(classPage, inter)
+            }
         }
 
         val create: AsyncInterval = master.subinterval(
             name = "%s.Create".format(name),
             during = List(lower)
         ) {
-            inter => Util.debugIndent("Entering %s", inter) {
+            inter => {
+                //val log = debugServer.contextForInter(classPage, inter)
             }
         }
 
@@ -111,7 +119,8 @@ abstract class ClassFromCompiledSource extends ClassSymbol
             during = List(lower), 
             after = List(create.getEnd)
         ) { 
-            inter => Util.debugIndent("Entering %s", inter) {
+            inter => {
+                //val log = debugServer.contextForInter(classPage, inter)
             }
         }
 
@@ -120,7 +129,8 @@ abstract class ClassFromCompiledSource extends ClassSymbol
             during = List(lower), 
             after = List(members.getEnd)
         ) { 
-            inter => Util.debugIndent("Entering %s", inter) {
+            inter => {
+                //val log = debugServer.contextForInter(classPage, inter)
             }
         }
         
@@ -128,7 +138,8 @@ abstract class ClassFromCompiledSource extends ClassSymbol
             name = "%s.Envirate".format(name),
             after = List(lower.getEnd)
         ) {
-            inter => Util.debugIndent("Entering %s", inter) {
+            inter => {
+                //val log = debugServer.contextForInter(classPage, inter)
             }
         }
         
@@ -136,7 +147,8 @@ abstract class ClassFromCompiledSource extends ClassSymbol
             name = "%s.Check".format(name),
             after = List(envirate.getEnd)
         ) {
-            inter => Util.debugIndent("Entering %s", inter) {
+            inter => {
+                //val log = debugServer.contextForInter(classPage, inter)
             }
         }
 
@@ -144,8 +156,9 @@ abstract class ClassFromCompiledSource extends ClassSymbol
             name = "%s.Gather".format(name),
             after = List(envirate.getEnd)
         ) {
-            inter => Util.debugIndent("Entering %s", inter) {
-                GatherOverrides(global).forSym(this)
+            inter => {
+                val log = debugServer.contextForInter(classPage, inter)
+                GatherOverrides(global, log).forSym(this)
             }
         }
 
@@ -153,7 +166,8 @@ abstract class ClassFromCompiledSource extends ClassSymbol
             name = "%s.ByteCode".format(name),
             after = List(check.getEnd, gather.getEnd)
         ) { 
-            inter => Util.debugIndent("Entering %s", inter) {
+            inter => {
+                //val log = debugServer.contextForInter(classPage, inter)
             }
         }
         

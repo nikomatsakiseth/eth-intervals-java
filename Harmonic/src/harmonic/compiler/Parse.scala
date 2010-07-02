@@ -12,6 +12,8 @@ import scala.util.parsing.combinator.lexical.StdLexical
 import scala.util.parsing.combinator.PackratParsers
 import scala.collection.immutable.PagedSeq
 
+import com.smallcultfollowing.lathos.model.Context
+
 import java.io.File
 
 import Ast.{Parse => out}
@@ -436,6 +438,7 @@ object Parse {
     }
 
     def apply(global: Global, interFile: File) = {
+        val log = global.debugServer.contextForPageTitled("Parse", interFile)
         val javaReader = Util.javaReaderFromFile(interFile)
         val parser = new Parse()
         
@@ -448,7 +451,7 @@ object Parse {
             }
             case parser.Success(compUnit, _) => {
                 if(global.config.dumpParsedTrees) {
-                    compUnit.println(PrettyPrinter.debug)
+                    compUnit.print(PrettyPrinter.debug(log))
                 }
                 
                 Some(compUnit)

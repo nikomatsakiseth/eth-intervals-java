@@ -5,12 +5,21 @@ import scala.util.parsing.input.Position
 import scala.util.parsing.input.NoPosition
 import scala.collection.mutable
 import ch.ethz.intervals.Interval
+import com.smallcultfollowing.lathos.none.NoneServer
+import com.smallcultfollowing.lathos.model.LathosServer
+import com.smallcultfollowing.lathos.http.JettyLathosServer
 import Util._
 
 class Global(
     val config: Config,
     val reporter: Reporter
 ) {
+    // ___ The "final" interval _____________________________________________
+
+    val debugServer = 
+        if(config.debugPort != 0) JettyLathosServer.start(config.debugPort)
+        else new NoneServer()
+        
     // ___ The "final" interval _____________________________________________
     
     val finalSym = new VarSymbol.Local(
@@ -25,6 +34,10 @@ class Global(
     var master: Interval = null
     
     def compile() = {
+        val log = debugServer.context
+        
+        log.log("Compilation started")
+        
         inlineInterval("master") { inter =>
             master = inter
             
@@ -40,6 +53,8 @@ class Global(
                 Parse(this, inputFile).foreach(createSymbols)
             }
         }
+        
+        debugServer.join
     }
     
     // ___ Private Data For Other Classes ___________________________________

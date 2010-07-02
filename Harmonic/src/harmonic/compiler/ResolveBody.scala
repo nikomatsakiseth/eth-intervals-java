@@ -7,6 +7,8 @@ import scala.collection.immutable.Map
 
 import scala.util.parsing.input.Position
 
+import com.smallcultfollowing.lathos.model.Context
+
 import Ast.{Parse => in}
 import Ast.{Resolve => out}
 import Util._
@@ -21,7 +23,7 @@ import Util._
   * 
   * The symbol tables are initially constructed using the member names
   * extracted during header resolution (see `ResolveHeader`). */
-case class ResolveBody(global: Global, compUnit: in.CompUnit) 
+case class ResolveBody(global: Global, compUnit: in.CompUnit, log: Context) 
 extends Resolve(global, compUnit) 
 {
     def resolveClassBody(csym: ClassFromSource, cdecl: in.ClassDecl) = {
@@ -49,7 +51,7 @@ extends Resolve(global, compUnit)
         )
 
         if(global.config.dumpResolvedTrees) {
-            csym.resolvedSource.println(PrettyPrinter.debug)
+            csym.resolvedSource.print(PrettyPrinter.debug(log))
         }
     }
     

@@ -12,6 +12,9 @@ class ClassFromSource(
     parseCdecl: Ast.Parse.ClassDecl
 ) extends ClassSymbol {
     import global.master
+    import global.debugServer
+    
+    private[this] val classPage = debugServer.pageForClass(name)
     
     def pos = parseCdecl.pos
 
@@ -66,8 +69,9 @@ class ClassFromSource(
         // Hold off on scheduling header until class def'n is complete:
         schedule = false 
     ) { 
-        inter => Util.debugIndent("Entering %s", inter) {
-            ResolveHeader(global, compUnit).resolveClassHeader(this, parseCdecl)                        
+        inter => {
+            val log = debugServer.contextForInter(classPage, inter)
+            ResolveHeader(global, compUnit, log).resolveClassHeader(this, parseCdecl)                        
         }
     }
     
@@ -75,8 +79,9 @@ class ClassFromSource(
         name = "%s.Body".format(name),
         after = List(header.getEnd)
     ) { 
-        inter => Util.debugIndent("Entering %s", inter) {
-            ResolveBody(global, compUnit).resolveClassBody(this, parseCdecl)
+        inter => {
+            val log = debugServer.contextForInter(classPage, inter)
+            ResolveBody(global, compUnit, log).resolveClassBody(this, parseCdecl)
         }
     }
 
@@ -94,7 +99,8 @@ class ClassFromSource(
         name = "%s.Create".format(name),
         during = List(lower)
     ) {
-        inter => Util.debugIndent("Entering %s", inter) {
+        inter => {
+            val log = debugServer.contextForInter(classPage, inter)
             Create(global).createMemberIntervals(this)
         }
     }
@@ -112,8 +118,9 @@ class ClassFromSource(
         during = List(lower), 
         after = List(members.getEnd)
     ) { 
-        inter => Util.debugIndent("Entering %s", inter) {
-            Merge(global).mergeMemberIntervals(this)
+        inter => {
+            val log = debugServer.contextForInter(classPage, inter)
+            Merge(global, log).mergeMemberIntervals(this)
         }
     }
     
@@ -121,8 +128,9 @@ class ClassFromSource(
         name = "%s.Envirate".format(name),
         after = List(lower.getEnd)
     ) {
-        inter => Util.debugIndent("Entering %s", inter) {
-            Envirate(global).forClassFromSource(this)
+        inter => {
+            val log = debugServer.contextForInter(classPage, inter)
+            Envirate(global, log).forClassFromSource(this)
         }
     }
     
@@ -130,8 +138,9 @@ class ClassFromSource(
         name = "%s.Check".format(name),
         after = List(envirate.getEnd)
     ) {
-        inter => Util.debugIndent("Entering %s", inter) {
-            Check(global).classSymbol(this)
+        inter => {
+            val log = debugServer.contextForInter(classPage, inter)
+            Check(global, log).classSymbol(this)
         }
     }
     
@@ -139,8 +148,9 @@ class ClassFromSource(
         name = "%s.Gather".format(name),
         after = List(envirate.getEnd)
     ) {
-        inter => Util.debugIndent("Entering %s", inter) {
-            Gather(global).forSym(this)
+        inter => {
+            val log = debugServer.contextForInter(classPage, inter)
+            Gather(global, log).forSym(this)
         }
     }
 
@@ -148,7 +158,8 @@ class ClassFromSource(
         name = "%s.ByteCode".format(name),
         after = List(check.getEnd, gather.getEnd)
     ) { 
-        inter => Util.debugIndent("Entering %s", inter) {
+        inter => {
+            val log = debugServer.contextForInter(classPage, inter)
             if(!global.reporter.hasErrors) ByteCode(global).writeClassSymbol(this)
         }
     }
