@@ -50,7 +50,11 @@ case class Env(
     typeRels: List[Req.T]
 ) extends Page {
     
-    // ___ Env ______________________________________________________________
+    private[this] def log = global.closestLog
+    
+    override def toString = getId
+    
+    // ___ Page interface ___________________________________________________
     
     override def getId = "Env[%s]".format(System.identityHashCode(this))
     
@@ -73,7 +77,11 @@ case class Env(
         out.endTable
         
         out.subpage("Locals") {
-            out.map(locals)
+            out.startTable
+            for((name, sym) <- locals){
+                out.row(name, sym, sym.ty)
+            }
+            out.endTable
         }
 
         out.subpage("Path Rels") {
@@ -851,40 +859,48 @@ case class Env(
     // This is the Harmonic equivalent to a subtype check.
     
     def isSatisfiedForPath(path: Path.Typed)(arg: Type.Arg): Boolean = {
-        arg match {
-            case Type.PathArg(name, rel, path2) => {
-                val extPath = Path.Field(path.toPath, name)
-                pathsAreRelatable(rel)(extPath, path2)
-            }
-            case Type.TypeArg(name, rel, ty) => {
-                val extTy = Type.Member(path.toPath, name)
-                new Bounder(rel).compute(extTy).exists(
-                    typeEquatableWith(ty)
-                )
-            }
+        log.indent(this, ".isSatisfiedForPath(", path, ")(", arg, ")") {
+            arg match {
+                case Type.PathArg(name, rel, path2) => {
+                    val extPath = Path.Field(path.toPath, name)
+                    pathsAreRelatable(rel)(extPath, path2)
+                }
+                case Type.TypeArg(name, rel, ty) => {
+                    val extTy = Type.Member(path.toPath, name)
+                    new Bounder(rel).compute(extTy).exists(
+                        typeEquatableWith(ty)
+                    )
+                }
+            }            
         }
     }
     
     def pathHasType(path: Path.Typed, ty: Type.Ref): Boolean = {
-        val ubSubTys = upperBoundVars(path.ty)
-        val lbSuperTys = lowerBoundVars(ty)
-        (ubSubTys cross lbSuperTys).exists {
-            case (Type.Null, _) => {
-                true
-            }
+        log.indent(this, ".pathHasType(", path, ", ", ty, ")") {
+            val ubSubTys = upperBoundVars(path.ty)
+            val lbSuperTys = lowerBoundVars(ty)
+            (ubSubTys cross lbSuperTys).exists {
+                case (Type.Null, _) => {
+                    true
+                }
             
-            case (Type.Member(path1, v1), Type.Member(path2, v2)) => {
-                (v1 == v2) && pathsAreEquatable(path1, path2)
-            }
+                case (t1 @ Type.Member(path1, v1), t2 @ Type.Member(path2, v2)) => {
+                    log.indent("Member types: ", t1, " and ", t2) {
+                        (v1 == v2) && pathsAreEquatable(path1, path2)                    
+                    }
+                }
             
-            case (Type.Class(subName, _), Type.Class(supName, supArgs)) => {
-                val subCsym = global.csym(subName)
-                val supCsym = global.csym(supName)
-                subCsym.isSubclass(supCsym) && supArgs.forall(isSatisfiedForPath(path))
-            }
+                case (t1 @ Type.Class(subName, _), t2 @ Type.Class(supName, supArgs)) => {
+                    log.indent("Class types: ", t1, " and ", t2) {
+                        val subCsym = global.csym(subName)
+                        val supCsym = global.csym(supName)
+                        subCsym.isSubclass(supCsym) && supArgs.forall(isSatisfiedForPath(path))
+                    }
+                }
             
-            case (_, _) => {
-                false
+                case (_, _) => {
+                    false
+                }
             }
         }
     }
@@ -896,7 +912,7 @@ case class Env(
             global.freshLocalName,
             subTy
         )
-        pathHasType(tempSym.toTypedPath, supTy)
+        plusLocalVar(tempSym).pathHasType(tempSym.toTypedPath, supTy)
     }
   
     // ___ Relations ________________________________________________________

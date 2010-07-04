@@ -121,6 +121,7 @@ object Util {
             val page = context.pushTopLevel(id, title: _*)
             context.pop(page)
             context.log("See ", page)
+            server.registerPage(page)
             page
         }
         

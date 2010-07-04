@@ -33,6 +33,7 @@ object Error {
     case class TypeNotFinal(ty: Type.Ref) extends ErrorProduct
     case class DoesNotEnsure(req: Req.Any) extends ErrorProduct
     case class NoReturnHere() extends ErrorProduct
+    case class MustBeSubtype(subTy: Type.Ref, supTy: Type.Ref) extends ErrorProduct
     case class MustHaveType(path: Path.Typed, expTy: Type.Ref) extends ErrorProduct {
         override def args = List(path.toString, path.ty.toString, expTy.toString)
     }

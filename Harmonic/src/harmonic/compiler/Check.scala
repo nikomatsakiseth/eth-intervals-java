@@ -32,10 +32,15 @@ case class Check(global: Global) {
                 }
             }
             
+            def checkIsSubtype(subTy: Type.Ref, supTy: Type.Ref): Unit = {
+                if(!env.isSubtype(subTy, supTy)) {
+                    Error.MustBeSubtype(subTy, supTy).report(global, node.pos)
+                }
+            }
+            
             def checkPathHasType(path: Path.Typed, ty: Type.Ref): Unit = {
                 if(!env.pathHasType(path, ty)) {
-                    Error.MustHaveType(path, ty
-                        ).report(global, node.pos)
+                    Error.MustHaveType(path, ty).report(global, node.pos)
                 }
             }
             
@@ -170,14 +175,15 @@ case class Check(global: Global) {
         val (lv, rv) = pair
         val ty = In(env, current).checkExpr(rv)
         val chk = In(env, current).At(rv)
+        log.log(lv, " <- ", ty)
         lv match {
             case in.DeclareVarLvalue(_, _, _, sym) => {
-                chk.checkPathHasType(Path.TypedLocal(sym), ty)
+                chk.checkIsSubtype(ty, sym.ty)
                 env.plusLocalVar(sym)
             }
                 
             case in.ReassignVarLvalue(_, sym) => {
-                chk.checkPathHasType(Path.TypedLocal(sym), ty)
+                chk.checkIsSubtype(ty, sym.ty)
                 env
             }
             

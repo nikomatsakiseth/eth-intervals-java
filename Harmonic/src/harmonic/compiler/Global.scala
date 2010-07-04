@@ -18,9 +18,11 @@ class Global(
     reporter: Reporter
 ) {
     // ___ Debugging ________________________________________________________
+    
+    def debugging = config.debugPort != 0
 
     val debugServer = 
-        if(config.debugPort != 0) JettyLathosServer.start(config.debugPort)
+        if(debugging) JettyLathosServer.start(config.debugPort)
         else new NoneServer()
         
     val errorsPage = debugServer.topLevelPage("Errors")

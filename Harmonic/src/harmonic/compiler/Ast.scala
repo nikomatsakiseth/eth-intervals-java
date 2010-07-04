@@ -5,6 +5,10 @@ import scala.collection.immutable.ListSet
 import scala.util.parsing.input.Positional
 import scala.util.parsing.input.Position
 import scala.util.parsing.input.NoPosition
+import com.smallcultfollowing.lathos.model.Page
+import com.smallcultfollowing.lathos.model.PageContent
+import com.smallcultfollowing.lathos.model.Output
+import com.smallcultfollowing.lathos.model.{Util => LathosUtil}
 import Util._
 
 abstract class Ast {
@@ -427,7 +431,7 @@ abstract class Ast {
         name: LocalName,
         sym: S
     ) extends Param[S] with VarAstPattern[S] {
-        override def toString = "%s %s: %s".format(annotations.mkString(" "), tref, name)
+        override def toString = "%s %s: %s".format(annotations.mkString(" "), name, tref)
         
         def varParams = List(this)
         
@@ -699,8 +703,9 @@ abstract class Ast {
         override def print(out: PrettyPrinter) {
             val (l, r) = sep
             out.indented(l, r) { 
-                returnTref.printsp(out)
                 param.printsp(out)
+                out.addl(": ")
+                returnTref.printsp(out)
                 out.addl(" ->")
                 stmts.foreach(_.printalone(out)) 
             }
@@ -846,7 +851,7 @@ object Ast {
     
     // ___ Invariant Parts __________________________________________________
     
-    sealed abstract class Node extends Positional with Product {
+    sealed abstract class Node extends Positional with Product with Page {
         def print(out: PrettyPrinter) {
             out.addl(toString)
         }
@@ -864,6 +869,76 @@ object Ast {
         def printc(out: PrettyPrinter) {
             print(out)
             out.addl(", ")
+        }
+
+        override def getId = "Node[%s]".format(System.identityHashCode(this))
+
+        override def getParent = null
+
+        override def addContent(content: PageContent) = throw new UnsupportedOperationException()
+
+        override def renderInLine(out: Output): Unit = {
+            LathosUtil.renderInLine(this, out)
+        }
+        
+        private[this] def render(out: Output, any: Any): Unit = any match {
+            case node: Node => {
+                node.renderInPage(out)
+            }
+            
+            case page: Page => {
+                out.startLink(page)
+                out.outputText(page.toString)
+                out.endLink(page)
+            }
+            
+            case list: List[_] => {
+                out.startTable
+                list.foreach { i =>
+                    out.startRow
+                    out.startColumn
+                    render(out, i)
+                    out.endColumn
+                    out.endRow
+                }
+                out.endTable
+            }
+            
+            case _ => {
+                out.outputText(any.toString)
+            }
+        }
+
+        override def renderInPage(out: Output): Unit = {
+            out.startPage(this)
+            
+            out.startPar
+            out.outputText(getClass.getSimpleName)
+            out.outputText("(")
+            out.endPar
+            
+            out.startTable
+            productIterator.zipWithIndex.toList.foreach { case (v, i) =>
+                out.startRow
+                
+                out.startColumn
+                out.outputText("%d".format(i))
+                out.endColumn
+                
+                out.startColumn
+                render(out, v)
+                out.endColumn
+                
+                out.endRow
+            }
+            out.endTable
+            
+            out.startPar
+            out.outputText(") at ")
+            out.outputText(pos.toString)
+            out.endPar
+            
+            out.endPage(this)
         }
     }
     

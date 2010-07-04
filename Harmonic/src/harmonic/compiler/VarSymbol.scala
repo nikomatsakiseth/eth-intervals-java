@@ -1,7 +1,12 @@
 package harmonic.compiler
 
+import com.smallcultfollowing.lathos.model._
+import com.smallcultfollowing.lathos.model.{Util => LathosUtil}
+
 import scala.util.parsing.input.Position
 import scala.util.parsing.input.NoPosition
+
+import Util._
 
 object VarSymbol {
     type Any = VarSymbol[Name.Var]
@@ -39,7 +44,7 @@ object VarSymbol {
     }
 }
 
-abstract class VarSymbol[+N <: Name.Var] extends Symbol {
+abstract class VarSymbol[+N <: Name.Var] extends Symbol with Page {
     val modifiers: Modifier.Set
     val name: N
     val ty: Type.Ref
@@ -51,4 +56,32 @@ abstract class VarSymbol[+N <: Name.Var] extends Symbol {
     )
     
     def isNamed(aName: Name.Var) = (name == aName)    
+    
+    // ___ Page interface ___________________________________________________
+    
+    override def getId = "VarSymbol[%s]".format(System.identityHashCode(this))
+    
+    override def getParent = null
+    
+    override def addContent(content: PageContent) = throw new UnsupportedOperationException()
+    
+    override def renderInLine(out: Output): Unit = {
+        LathosUtil.renderInLine(this, out)
+    }
+    
+    override def renderInPage(out: Output): Unit = {
+        out.startPage(this)
+        
+        out.startTable
+        
+        out.row("name", name)
+        out.row("class", getClass.getSimpleName)
+        out.row("ty", ty)
+        out.row("pos", pos)
+        
+        out.endTable
+        
+        out.endPage(this)
+    }
+    
 }

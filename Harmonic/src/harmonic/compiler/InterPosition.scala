@@ -5,6 +5,8 @@ import scala.util.parsing.input.Position
 trait InterPosition extends Position {
     def file: java.io.File
     
+    override def toString = "%s:%s:%s".format(file, line, column)
+    
     override def equals(obj: Any) = {
         obj match {
             case ip: InterPosition => 

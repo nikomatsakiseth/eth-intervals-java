@@ -1,6 +1,8 @@
 package harmonic.compiler
 
 import ch.ethz.intervals._
+import com.smallcultfollowing.lathos.model._
+import com.smallcultfollowing.lathos.model.{Util => LathosUtil}
 import scala.util.parsing.input.Position
 import scala.collection.mutable
 import Util._
@@ -42,7 +44,7 @@ class MethodSymbol(
     val msig: MethodSignature[Pattern.Ref],
     val elaborate: Interval,
     val gather: Interval
-) extends Symbol {
+) extends Symbol with Page {
     override def toString = "MethodSymbol(%s.%s, %x)".format(clsName, name, System.identityHashCode(this))
     
     def id = MethodId(clsName, name, msig)
@@ -79,4 +81,31 @@ class MethodSymbol(
     
     val Overrides = new GuardedBy[List[MethodSymbol]](gather)
     def overrides = Overrides.v
+    
+    // ___ Page interface ___________________________________________________
+    
+    override def getId = "MethodSymbol[%s]".format(System.identityHashCode(this))
+    
+    override def getParent = null
+    
+    override def addContent(content: PageContent) = throw new UnsupportedOperationException()
+    
+    override def renderInLine(out: Output): Unit = {
+        LathosUtil.renderInLine(this, out)
+    }
+    
+    override def renderInPage(out: Output): Unit = {
+        out.startPage(this)
+        
+        out.startTable
+        
+        out.row("name", name)
+        out.row("msig", msig)
+        out.row("pos", pos)
+        
+        out.endTable
+        
+        out.endPage(this)
+    }
+    
 }
