@@ -5,9 +5,11 @@ import scala.util.parsing.input.Position
 import scala.util.parsing.input.NoPosition
 import scala.collection.mutable
 import ch.ethz.intervals.Interval
+import ch.ethz.intervals.Intervals
 import com.smallcultfollowing.lathos.none.NoneServer
 import com.smallcultfollowing.lathos.model.LathosServer
 import com.smallcultfollowing.lathos.model.Context
+import com.smallcultfollowing.lathos.model.Page
 import com.smallcultfollowing.lathos.http.JettyLathosServer
 import Util._
 
@@ -22,15 +24,33 @@ class Global(
         else new NoneServer()
         
     val errorsPage = debugServer.topLevelPage("Errors")
+    
+    val logVar = Intervals.scopedVar[Context](null)
+    
+    def closestLog = logVar.get
         
+    def logForInter(classPage: Page, inter: Interval) = {
+        val context = debugServer.context
+        val tag = inter.toString.afterLast('.')
+        context.push(classPage)
+        context.pushChild(tag, tag)
+        logVar.set(inter, context)
+        context
+    }
+    
     // ___ Reporting Errors _________________________________________________
     
     def hasErrors = reporter.hasErrors
     
-    def report(inLog: Context, pos: Position, msgKey: String, msgArgs: String*): Unit = {
+    def report(pos: Position, msgKey: String, msgArgs: String*): Unit = {
         val error = reporter.Error(pos, msgKey, msgArgs.toList)
-        val log = debugServer.contextForPage(errorsPage)
-        log.log("Error occurred: ", msgKey, "(", msgArgs, ")", " at ", inLog.topPage)
+        reporter.report(error)
+        
+        // Add to appropriate logs, cross-referencing to the current page:
+        val errorLog = debugServer.contextForPage(errorsPage)
+        val msgArgsString = msgArgs.mkString(", ")
+        closestLog.log("Error ", msgKey, "(", msgArgsString, ")")
+        errorLog.log("Error ", msgKey, "(", msgArgsString, ")", " at ", closestLog.topPage)
     }
     
     // ___ The "final" interval _____________________________________________
@@ -131,7 +151,7 @@ class Global(
     def requireLoadedOrLoadable(pos: Position, className: Name.Class) = synchronized {
         val result = loadedOrLoadable(className)
         if(!result) {
-            reporter.report(pos, "cannot.find.class", className.toString)
+            report(pos, "cannot.find.class", className.toString)
             addCsym(new ClassFromErroroneousSource(className, this))
         }
         result
@@ -144,7 +164,7 @@ class Global(
         Ast.Parse.definedClasses(compUnit).foreach { case (className, cdecl) =>
             classMap.get(className) match {
                 case Some(_) => {
-                    reporter.report(cdecl.pos, "class.already.defined", className.toString)
+                    report(cdecl.pos, "class.already.defined", className.toString)
                 }
                 
                 case None => {
@@ -173,7 +193,7 @@ class Global(
                     // Check that we got (at least) the class we expected to find:
                     Ast.Parse.definedClasses(compUnit).find(_._1 == className) match {
                         case None => {
-                            reporter.report(
+                            report(
                                 InterPosition.forFile(file),
                                 "expected.to.find.class", 
                                 className.toString

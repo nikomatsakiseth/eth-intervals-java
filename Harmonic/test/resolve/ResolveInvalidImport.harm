@@ -7,8 +7,8 @@ import java.lang.Void -> void;
 
 class ResolveInvalidImport {
     a: int = null;
-    b: exist = null; // ERROR cannot.resolve(exist)
-    c: another = null; // ERROR cannot.resolve(another)
+    b: exist = null; // ERROR CannotResolve(exist)
+    c: another = null; // ERROR CannotResolve(another)
     d: void = null;
 }
 // COMPILE

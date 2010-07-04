@@ -14,7 +14,7 @@ class ClassFromSource(
     import global.master
     import global.debugServer
     
-    private[this] val classPage = debugServer.pageForClass(name)
+    val classPage = debugServer.pageForClass(name)
     
     def pos = parseCdecl.pos
 
@@ -26,14 +26,14 @@ class ClassFromSource(
     //
     // For a class being loaded from source, this is the structure:
     //
-    // header -> body -> | lower --------------------- | ----> envirate ...
-    //      ^             \                           /^     ^          
-    //      |              create -> members -> (merge)|     |          
-    //   header                     \        /         |     |          
-    //  (supers)                    (member0)      lower     |          
-    //                                 ...        (supers)   |          
-    //                              (memberN)            envirate       
-    //                                                   (supers)      
+    // header ---> body --> | lower --------------------- | ----> envirate ...
+    //      ^ ---> cmro --/ \                           /^     ^          
+    //      |   ^            create -> members -> (merge)|     |          
+    //   header |                     \        /         |     |          
+    //  (supers)|                     (member0)      lower     |          
+    //         mro                       ...        (supers)   |          
+    //      (supers)                  (memberN)            envirate       
+    //                                                     (supers)      
     //
     // ... ---> check -----> byteCode          
     //     ---> gather --/
@@ -43,6 +43,8 @@ class ClassFromSource(
     //   (supers)
     // 
     // header: determines the list of members, names of superclasses.
+    //
+    // cmro: computes the method resolution order
     //
     // body: resolves members in the body to absolute class names, etc.
     //
@@ -70,24 +72,34 @@ class ClassFromSource(
         schedule = false 
     ) { 
         inter => {
-            val log = debugServer.contextForInter(classPage, inter)
+            val log = global.logForInter(classPage, inter)
             ResolveHeader(global, compUnit, log).resolveClassHeader(this, parseCdecl)                        
         }
     }
     
+    val cmro: AsyncInterval = master.subinterval(
+        name = "%s.cmro".format(name),
+        after = List(header.getEnd)
+    ) {
+        inter => {
+            val log = global.logForInter(classPage, inter)
+            Mro.v = MethodResolutionOrder(global).computeForSym(this)
+        }
+    }
+
     val body: AsyncInterval = master.subinterval(
         name = "%s.Body".format(name),
         after = List(header.getEnd)
     ) { 
         inter => {
-            val log = debugServer.contextForInter(classPage, inter)
+            val log = global.logForInter(classPage, inter)
             ResolveBody(global, compUnit, log).resolveClassBody(this, parseCdecl)
         }
     }
 
     val lower: AsyncInterval = master.subinterval(
         name = "%s.Lower".format(name),
-        after = List(body.getEnd),
+        after = List(body.getEnd, cmro.getEnd),
         // Scheduled explicitly so we can add
         // create/members/merge within
         schedule = false 
@@ -100,7 +112,7 @@ class ClassFromSource(
         during = List(lower)
     ) {
         inter => {
-            val log = debugServer.contextForInter(classPage, inter)
+            val log = global.logForInter(classPage, inter)
             Create(global).createMemberIntervals(this)
         }
     }
@@ -119,8 +131,8 @@ class ClassFromSource(
         after = List(members.getEnd)
     ) { 
         inter => {
-            val log = debugServer.contextForInter(classPage, inter)
-            Merge(global, log).mergeMemberIntervals(this)
+            val log = global.logForInter(classPage, inter)
+            Merge(global).mergeMemberIntervals(this)
         }
     }
     
@@ -129,8 +141,8 @@ class ClassFromSource(
         after = List(lower.getEnd)
     ) {
         inter => {
-            val log = debugServer.contextForInter(classPage, inter)
-            Envirate(global, log).forClassFromSource(this)
+            val log = global.logForInter(classPage, inter)
+            Envirate(global).forClassFromSource(this)
         }
     }
     
@@ -139,8 +151,8 @@ class ClassFromSource(
         after = List(envirate.getEnd)
     ) {
         inter => {
-            val log = debugServer.contextForInter(classPage, inter)
-            Check(global, log).classSymbol(this)
+            val log = global.logForInter(classPage, inter)
+            Check(global).classSymbol(this)
         }
     }
     
@@ -149,8 +161,8 @@ class ClassFromSource(
         after = List(envirate.getEnd)
     ) {
         inter => {
-            val log = debugServer.contextForInter(classPage, inter)
-            Gather(global, log).forSym(this)
+            val log = global.logForInter(classPage, inter)
+            Gather(global).forSym(this)
         }
     }
 
@@ -159,7 +171,7 @@ class ClassFromSource(
         after = List(check.getEnd, gather.getEnd)
     ) { 
         inter => {
-            val log = debugServer.contextForInter(classPage, inter)
+            val log = global.logForInter(classPage, inter)
             if(!global.hasErrors) ByteCode(global).writeClassSymbol(this)
         }
     }
@@ -171,6 +183,11 @@ class ClassFromSource(
 
     val VarMembers = new GuardedBy[List[SymTab.Entry]](header)
     def varMembers = VarMembers.join
+    
+    // ___ Computed by MRO __________________________________________________
+    
+    val Mro = new GuardedBy[List[ClassSymbol]](cmro)
+    def mro = Mro.join
     
     // ___ Computed by Pass.Body ____________________________________________
     
@@ -200,11 +217,11 @@ class ClassFromSource(
     val LowerMembers = new GuardedBy[List[LowerMember]](create)
     def lowerMembers = LowerMembers.v
     
-    def methodsNamed(mthdName: Name.Method) = {
+    override def methodsNamed(mthdName: Name.Method) = {
         LowerMembers.join.flatMap(_.toOptMethodSymbol(mthdName))
     }
     
-    def fieldNamed(name: Name.Member) = {
+    override def fieldNamed(name: Name.Member) = {
         LowerMembers.join.firstSome(_.toOptFieldSymbol(name)).ifNone {
             val fsyms: List[VarSymbol.Field] = classParam.symbols
             fsyms.find(_.isNamed(name))

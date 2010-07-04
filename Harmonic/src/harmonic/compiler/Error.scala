@@ -9,18 +9,19 @@ import com.smallcultfollowing.lathos.model.Context
 // which is just a shallow wrapper around Either[Error, T].
 
 abstract class Error {
-    def report(global: Global, log: Context, pos: Position): Unit    
+    def report(global: Global, pos: Position): Unit    
 }
 
 object Error {
     
-    class ErrorProduct extends Error with Product {
-        override def report(global: Global, inLog: Context, pos: Position): Unit = {
-            val args = productElements.toList.map {
-                case l: List[_] => l.mkString(", ")
-                case o => o.toString
-            }
-            global.report(inLog, pos, getClass.getSimpleName, args: _*)
+    trait ErrorProduct extends Error with Product {
+        def args: List[String] = productIterator.toList.map {
+            case l: List[_] => l.mkString(", ")
+            case o => o.toString
+        }
+        
+        override def report(global: Global, pos: Position): Unit = {
+            global.report(pos, getClass.getSimpleName, args: _*)
         }
     }
     
@@ -32,7 +33,9 @@ object Error {
     case class TypeNotFinal(ty: Type.Ref) extends ErrorProduct
     case class DoesNotEnsure(req: Req.Any) extends ErrorProduct
     case class NoReturnHere() extends ErrorProduct
-    case class MustHaveType(path: Path.Typed, expTy: Type.Ref) extends ErrorProduct
+    case class MustHaveType(path: Path.Typed, expTy: Type.Ref) extends ErrorProduct {
+        override def args = List(path.toString, path.ty.toString, expTy.toString)
+    }
     case class NotOverride(className: Name.Class, methodName: Name.Method) extends ErrorProduct
     case class ParseError(msg: String) extends ErrorProduct
     case class ReturnWithAndWithoutValue() extends ErrorProduct

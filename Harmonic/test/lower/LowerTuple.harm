@@ -24,10 +24,10 @@ class LowerTuple {
     
     errors(): Void {
         (a, b, c, d) = tuple4();
-        a.badMethod(); // ERROR no.such.method(java.lang.Integer, badMethod())
-        b.badMethod(); // ERROR no.such.method(java.lang.String, badMethod())
-        c.badMethod(); // ERROR no.such.method(java.lang.String, badMethod())
-        d.badMethod(); // ERROR no.such.method(java.lang.Integer, badMethod())
+        a.badMethod(); // ERROR NoSuchMethod(java.lang.Integer, badMethod())
+        b.badMethod(); // ERROR NoSuchMethod(java.lang.String, badMethod())
+        c.badMethod(); // ERROR NoSuchMethod(java.lang.String, badMethod())
+        d.badMethod(); // ERROR NoSuchMethod(java.lang.Integer, badMethod())
     }
 
 }

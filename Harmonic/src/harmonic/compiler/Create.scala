@@ -9,13 +9,12 @@ object Create {
     def apply(global: Global) = new Create(global)
 }
 
-class Create(global: Global, log: Context) {
-
+class Create(global: Global) {
     def createMemberIntervals(csym: ClassFromSource) {
         val cdecl = csym.resolvedSource
         
         // Just lower the constructor now.
-        val (classParam, classEnv) = Lower(global, log).classParamAndEnv(csym)
+        val (classParam, classEnv) = Lower(global).classParamAndEnv(csym)
         csym.ClassParam.v = classParam
         csym.ClassEnv.v = classEnv
         csym.Constructor.v = Lower(global).createSymbolForConstructor(csym)

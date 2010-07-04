@@ -7,6 +7,7 @@ import scala.collection.immutable.Queue
 import scala.collection.mutable
 
 import com.smallcultfollowing.lathos.model.Page
+import com.smallcultfollowing.lathos.model.Context
 import com.smallcultfollowing.lathos.model.PageContent
 import com.smallcultfollowing.lathos.model.Output
 import com.smallcultfollowing.lathos.model.{Util => LathosUtil}
@@ -159,7 +160,7 @@ case class Env(
     // ___ Finding member names _____________________________________________
     
     def lookupEntry(csym: ClassSymbol, uName: Name.UnloweredMember): CanFail[SymTab.MemberEntry] = {
-        val mro = MethodResolutionOrder(global).forSym(csym)
+        val mro = csym.mro
 
         // Find all entries that could match `uName`:
         val allEntries = mro.flatMap { mrosym => 
@@ -289,7 +290,7 @@ case class Env(
     ): List[MethodSymbol] = {
         minimalUpperBoundType(rcvrTy).firstSome({ 
             case classTy: Type.Class => 
-                val mro = MethodResolutionOrder(global).forClassType(classTy)
+                val mro = global.csym(classTy.name).mro
                 mro.firstSome { csym =>
                     lookupInstanceMethodsDefinedOnClass(csym.name, methodName) match {
                         case List() => None
@@ -520,7 +521,7 @@ case class Env(
         val bnds = upperBoundVars(ty)
         bnds.foldLeft(bnds) { 
             case (b, classTy: Type.Class) => {
-                val mro = MethodResolutionOrder(global).forClassType(classTy)
+                val mro = global.csym(classTy.name).mro
                 val purgeNames = Set(mro.tail.map(_.name): _*)
                 b.filter {
                     case Type.Class(name, _) => !purgeNames(name)
@@ -640,7 +641,7 @@ case class Env(
                 //   search can't fail: if will find Object, if nothing else.
                 val leftCsym = global.csym(leftName)
                 val rightCsym = global.csym(rightName)
-                val leftMro = MethodResolutionOrder(global).forSym(leftCsym)
+                val leftMro = leftCsym.mro
                 val bestCsym = leftMro.find(rightCsym.isSubclass(_)).get 
                 
                 // Restrict the arguments to those defined on that class symbol:

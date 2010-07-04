@@ -12,7 +12,7 @@ import Util._
 
 /** Computes the class environment that is then used by type checking
   * and other phases. */
-case class Envirate(global: Global, log: Context) {
+case class Envirate(global: Global) {
     
     // General plan:
     // - Add the requirements listed in the primary constructor to the

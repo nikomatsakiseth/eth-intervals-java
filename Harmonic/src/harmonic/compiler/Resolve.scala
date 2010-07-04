@@ -8,6 +8,8 @@ import scala.util.parsing.input.Position
 import scala.collection.mutable.ListBuffer
 import scala.collection.immutable.Map
 
+import com.smallcultfollowing.lathos.model.Context
+
 import Ast.{Parse => in}
 import Ast.{Resolve => out}
 import Util._
@@ -17,7 +19,7 @@ import SymTab.extendedMap
   * Contains methods to resolve the shortened name of a class
   * (which may omit the package) to the full, absolute name 
   * including the package. */
-abstract class Resolve(global: Global, compUnit: in.CompUnit) {
+abstract class Resolve(global: Global, compUnit: in.CompUnit, log: Context) {
     
     protected[this] def resolveAgainstPackage(pkgName: Name.Package, nm: String): Name.Qual = {
         val className = Name.Class(pkgName, nm)
@@ -107,7 +109,7 @@ abstract class Resolve(global: Global, compUnit: in.CompUnit) {
         val expansions = resolveRelList(relList)
         val result = expansions.firstSome(_.asClassName)
         if(!result.isDefined) {
-            Error.CannotResolve(relList.reverse.mkString(".")).report(global, log, pos)
+            Error.CannotResolve(relList.reverse.mkString(".")).report(global, pos)
         }
         result
     }

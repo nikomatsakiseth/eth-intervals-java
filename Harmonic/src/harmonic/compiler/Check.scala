@@ -10,7 +10,8 @@ import Ast.{Lower => in}
 import Ast.Lower.Extensions._
 import Util._
 
-case class Check(global: Global, log: Context) {
+case class Check(global: Global) {
+    val log = global.closestLog
     private[this] val emptyEnv = Env.empty(global)
     
     object In {
@@ -27,14 +28,14 @@ case class Check(global: Global, log: Context) {
             
             def checkTypeWf(ty: Type.Ref): Unit = {
                 if(!env.typeIsFinalBy(ty, current)) {
-                    Error.TypeNotFinal(ty).report(global, log, node.pos)
+                    Error.TypeNotFinal(ty).report(global, node.pos)
                 }
             }
             
             def checkPathHasType(path: Path.Typed, ty: Type.Ref): Unit = {
                 if(!env.pathHasType(path, ty)) {
                     Error.MustHaveType(path, ty
-                        ).report(global, log, node.pos)
+                        ).report(global, node.pos)
                 }
             }
             
@@ -208,7 +209,7 @@ case class Check(global: Global, log: Context) {
             
                 case stmt @ in.MethodReturn(in.TypedPath(path)) => {
                     env.optReturnTy match {
-                        case None => Error.NoReturnHere().report(global, log, stmt.pos)
+                        case None => Error.NoReturnHere().report(global, stmt.pos)
                     
                         case Some(returnTy) => {
                             In(env, current).At(stmt).checkPathAndType(path, returnTy)
@@ -276,7 +277,7 @@ case class Check(global: Global, log: Context) {
                 decl.ensures.foreach { reqNode =>
                     val req = reqNode.toReq
                     if(!env.relHolds(req)) {
-                        Error.DoesNotEnsure(req).report(global, log, reqNode.pos)
+                        Error.DoesNotEnsure(req).report(global, reqNode.pos)
                     }
                 }
             }

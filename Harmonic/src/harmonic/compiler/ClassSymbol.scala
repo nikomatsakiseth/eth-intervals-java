@@ -3,6 +3,7 @@ package harmonic.compiler
 import scala.collection.mutable
 import scala.util.parsing.input.Position
 import ch.ethz.intervals._
+import com.smallcultfollowing.lathos.model.Context
 import Util._
 
 abstract class ClassSymbol extends Symbol {
@@ -17,6 +18,7 @@ abstract class ClassSymbol extends Symbol {
     // may be created lazily.
     
     def header: AsyncInterval
+    def cmro: AsyncInterval    // "compute MRO"
     def body: AsyncInterval
     def lower: AsyncInterval
     def create: AsyncInterval
@@ -47,7 +49,7 @@ abstract class ClassSymbol extends Symbol {
     /** Creates a `Type.Class` for the class defined by this symbol. */
     def toType: Type.Class = name.toType
     
-    // ___ Invokable once header is resolved ________________________________
+    // ___ Invoking causes header to be resolved ____________________________
     
     /** Names of any superclasses */
     def superClassNames: List[Name.Class]
@@ -74,6 +76,12 @@ abstract class ClassSymbol extends Symbol {
       * of this method are used to populate the symbol tables
       * during resolution. */
     def varMembers: List[SymTab.Entry]
+    
+    // ___ Invoking causes MRO to be resolved _______________________________
+
+    /** Method resolution order for this class.  First element in the
+      * list is always `this`. */
+    def mro: List[ClassSymbol]
     
     // ___ Invokable once body is resolved __________________________________
     //

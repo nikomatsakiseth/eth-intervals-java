@@ -9,6 +9,7 @@ import scala.util.parsing.input.Position
 import scala.util.parsing.input.NoPosition
 import asm.{Opcodes => O}
 
+import com.smallcultfollowing.lathos.model.Context
 import Ast.{Lower => in}
 import Ast.Lower.Extensions._
 import Util._
@@ -399,7 +400,7 @@ case class ByteCode(global: Global) {
                 out.close()
             } catch {
                 case err: java.io.IOError => {
-                    Error.IoError(err).report(global, log, InterPosition.forFile(clsFile))
+                    Error.IoError(err).report(global, InterPosition.forFile(clsFile))
                 }
             }
         }
@@ -1749,7 +1750,7 @@ case class ByteCode(global: Global) {
     // ___ Methods __________________________________________________________
 
     def allInheritedFieldSymbols(csym: ClassSymbol): Iterable[VarSymbol.Field] = {
-        MethodResolutionOrder(global).forSym(csym).view.flatMap(_.allFieldSymbols)
+        csym.mro.view.flatMap(_.allFieldSymbols)
     }
     
     def addInstanceFields(
@@ -1812,45 +1813,45 @@ case class ByteCode(global: Global) {
         }
         
         // next, "execute" the members in the body, if appropriate:
-        csym.lowerMembers.foreach { lowerMember =>
-            lowerMember.memberDecl match {
-                case decl @ in.IntervalDecl(_, Ast.MemberName(name), _, _) => {
-                    val fsym = lowerMember.toOptFieldSymbol(name).get
-                    
-                    val accessMap = newAccessMap(Nil)
-                    val stmtVisitor = new StatementVisitor(0, accessMap, IntConstant(0), mvis)
-                    
-                    accessMap.pushSym(thisSym, mvis)
-                    stmtVisitor.pushAsyncInterval(decl)
-                    mvis.setHarmonicField(fsym)
-                }
-
-                case in.FieldDecl(_, Ast.MemberName(name), _, in.Body(stmts)) => {
-                    val fsym = lowerMember.toOptFieldSymbol(name).get
-                    
-                    val accessMap = newAccessMap(stmts)
-                    val stmtVisitor = new StatementVisitor(0, accessMap, IntConstant(0), mvis)
-
-                    accessMap.pushSym(thisSym, mvis)
-                    stmtVisitor.pushResultOfStatements(stmts) 
-                    mvis.setHarmonicField(fsym)
-                }
-
-                case in.RelDecl(_, from, PcHb, to) => {
-                    val accessMap = newAccessMap(Nil)
-                    val stmtVisitor = new StatementVisitor(0, accessMap, IntConstant(0), mvis)
-                    stmtVisitor.pushExprValue(from)
-                    stmtVisitor.pushExprValue(to)
-                    mvis.visitMethodInsn(
-                        O.INVOKESTATIC,
-                        asmHelperType.getInternalName,
-                        "addHb",
-                        getMethodDescriptor(asm.Type.VOID_TYPE, Array(from.ty.toAsmType, to.ty.toAsmType))
-                    )
-                }
-
-                case _ => // Other kinds of decl's have no associated actions
+        csym.lowerMembers.foreach { 
+            case lowerMember: LowerIntervalMember => {
+                val fsym = lowerMember.sym
+                
+                val accessMap = newAccessMap(Nil)
+                val stmtVisitor = new StatementVisitor(0, accessMap, IntConstant(0), mvis)
+                
+                accessMap.pushSym(thisSym, mvis)
+                stmtVisitor.pushAsyncInterval(lowerMember.memberDecl)
+                mvis.setHarmonicField(fsym)                
             }
+            
+            case lowerMember: LowerFieldMember => {
+                val in.FieldDecl(_, Ast.MemberName(name), _, in.Body(stmts)) = lowerMember.memberDecl
+                val fsym = lowerMember.sym
+                
+                val accessMap = newAccessMap(stmts)
+                val stmtVisitor = new StatementVisitor(0, accessMap, IntConstant(0), mvis)
+
+                accessMap.pushSym(thisSym, mvis)
+                stmtVisitor.pushResultOfStatements(stmts) 
+                mvis.setHarmonicField(fsym)
+            }
+            
+            case lowerMember: LowerRelDecl => {
+                val in.RelDecl(_, from, PcHb, to) = lowerMember.memberDecl
+                val accessMap = newAccessMap(Nil)
+                val stmtVisitor = new StatementVisitor(0, accessMap, IntConstant(0), mvis)
+                stmtVisitor.pushExprValue(from)
+                stmtVisitor.pushExprValue(to)
+                mvis.visitMethodInsn(
+                    O.INVOKESTATIC,
+                    asmHelperType.getInternalName,
+                    "addHb",
+                    getMethodDescriptor(asm.Type.VOID_TYPE, Array(from.ty.toAsmType, to.ty.toAsmType))
+                )
+            }
+
+            case _ => {} // Other kinds of decl's have no associated actions
         }
         
         mvis.visitInsn(O.RETURN)
@@ -2069,7 +2070,7 @@ case class ByteCode(global: Global) {
         val adapter = new ParameterAdapter(accessMap, group.msig.parameterPatterns)
         
         // compute all versions, indexed by mro.
-        val msyms = computeVersions(group, MethodResolutionOrder(global).forSym(csym), group.msyms)
+        val msyms = computeVersions(group, csym.mro, group.msyms)
         
         // emit table switch
         val dfltLabel = new asm.Label()
@@ -2235,7 +2236,7 @@ case class ByteCode(global: Global) {
         )
         
         // Finally, schedule all intervals created in the method body:
-        MethodResolutionOrder(global).forSym(csym).flatMap(_.allIntervalSymbols).foreach { fsym =>
+        csym.mro.flatMap(_.allIntervalSymbols).foreach { fsym =>
             if(fsym.modifiers.isNotUnscheduled) {
                 mvis.setPosition(fsym.pos)
                 val interPath = csym.loweredSource.thisSym.toTypedPath / fsym

@@ -15,8 +15,7 @@ class Reporter(config: Config) {
     
     def hasErrors = !errors.isEmpty
     
-    def report(pos: Position, msgKey: String, msgArgs: String*) = synchronized {
-        val error = Error(pos, msgKey, msgArgs.toList)
+    def report(error: Error) = synchronized {
         if(!errors.contains(error))
             errors += error
     }
@@ -28,7 +27,7 @@ class Reporter(config: Config) {
         "%s:%s:%s".format(file, pos.line, pos.column)
     }
     
-    def print(out: PrintStream) = this.synchronized {
+    def print(out: PrintStream) = synchronized {
         val sorted = errors.toList.sortWith((e1, e2) => e1.pos < e2.pos)
         for(err <- sorted) {
             out.printf("%s: %s\n", posString(err.pos), err.msg)

@@ -24,7 +24,7 @@ import Util._
   * The symbol tables are initially constructed using the member names
   * extracted during header resolution (see `ResolveHeader`). */
 case class ResolveBody(global: Global, compUnit: in.CompUnit, log: Context) 
-extends Resolve(global, compUnit) 
+extends Resolve(global, compUnit, log) 
 {
     def resolveClassBody(csym: ClassFromSource, cdecl: in.ClassDecl) = {
         
@@ -127,7 +127,7 @@ extends Resolve(global, compUnit)
             scope.symTab.get(text) match {
                 case Some(_) => {
                     // TODO Decide when params on inner classes can shadow
-                    Error.ShadowedClassParam(text).report(global, log, pos)
+                    Error.ShadowedClassParam(text).report(global, pos)
                 }
                 case _ =>
             }
@@ -140,7 +140,7 @@ extends Resolve(global, compUnit)
         def addEntry(pos: Position, text: String) = {
             scope.symTab.get(text) match {
                 case Some(SymTab.LocalVar(_)) => {
-                    Error.ShadowedMethodParam(text).report(global, log, pos)
+                    Error.ShadowedMethodParam(text).report(global, pos)
                 }
                 case _ =>
             }
@@ -178,7 +178,7 @@ extends Resolve(global, compUnit)
             
             scope.symTab.get(name.name.text) match {
                 case Some(SymTab.LocalVar(_)) =>
-                    Error.ShadowedLocalVar(name.name.text).report(global, log, name.pos)
+                    Error.ShadowedLocalVar(name.name.text).report(global, name.pos)
                 case _ =>
             }
             
@@ -211,13 +211,13 @@ extends Resolve(global, compUnit)
                 
                 case Some(SymTab.Ghost(mname)) => {
                     // An error will be reported in Lower:
-                    // Error.NotField(name).report(global, log, name.pos)
+                    // Error.NotField(name).report(global, name.pos)
                     out.FieldLvalue(Ast.MemberName(mname), ())
                 }
                 
                 case Some(SymTab.Type(mname)) => {
                     // An error will be reported in Lower:
-                    // Error.NotField(name).report(global, log, name.pos)
+                    // Error.NotField(name).report(global, name.pos)
                     out.FieldLvalue(Ast.MemberName(mname), ())
                 }
             }
@@ -385,7 +385,7 @@ extends Resolve(global, compUnit)
                         }
 
                         case Some(SymTab.Type(mname)) => {
-                            Error.NotField(mname).report(global, log, path.pos)
+                            Error.NotField(mname).report(global, path.pos)
                             ResolvedToPath(out.PathErr(path.toString))
                         }
 
@@ -474,12 +474,12 @@ extends Resolve(global, compUnit)
         def resolvePathToPath(path: in.PathNode): out.PathNode = withPosOf(path, {
             resolvePathToAny(path) match {
                 case ResolvedToList(names) => {
-                    Error.NoSuchVar(names.last).report(global, log, path.pos)
+                    Error.NoSuchVar(names.last).report(global, path.pos)
                     out.PathErr(path.toString)
                 }
                 
                 case ResolvedToClass(className) => {
-                    Error.ExpPathNotClass(className).report(global, log, path.pos)
+                    Error.ExpPathNotClass(className).report(global, path.pos)
                     out.PathErr(path.toString)
                 }
                 
@@ -496,7 +496,7 @@ extends Resolve(global, compUnit)
                 }
                     
                 case ResolvedToPath(_) => {
-                    Error.ExpClassName(path.toString).report(global, log, path.pos)
+                    Error.ExpClassName(path.toString).report(global, path.pos)
                     Name.ObjectClass          
                 }
             }
@@ -568,7 +568,7 @@ extends Resolve(global, compUnit)
             // `a.b.c()` cannot be a type. 
             // TODO Can the parse produce this here?
             case in.PathType(in.PathBaseCall(_, _, _, _)) | in.PathType(in.PathCall(_, _, _, _)) => {
-                Error.ExpClassName(tref.toString).report(global, log, tref.pos)
+                Error.ExpClassName(tref.toString).report(global, tref.pos)
                 out.NullType()
             }
             

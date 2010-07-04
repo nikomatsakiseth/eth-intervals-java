@@ -12,8 +12,8 @@ class LowerParamsAreInScope {
         );
         
         add(
-            c,  // ERROR no.such.var(c)
-            d   // ERROR no.such.var(d)
+            c,  // ERROR NoSuchVar(c)
+            d   // ERROR NoSuchVar(d)
         );
     }
 }

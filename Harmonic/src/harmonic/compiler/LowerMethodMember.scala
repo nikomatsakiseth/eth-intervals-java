@@ -4,6 +4,7 @@ import ch.ethz.intervals._
 import Ast.{Resolve => in}
 import Ast.{Lower => out}
 import Ast.Lower.Extensions._
+import com.smallcultfollowing.lathos.model.Context
 import Util._
 
 class LowerMethodMember(
@@ -11,15 +12,17 @@ class LowerMethodMember(
     csym: ClassFromSource,
     inMethodDecl: in.MethodDecl
 ) extends LowerMember(global, csym, inMethodDecl) {
+    import global.debugServer
     
     // ___ Lowering the Parameters __________________________________________
 
     private[this] val paramLower: AsyncInterval = {
         global.master.subinterval(
             schedule = false,
-            name = "%s.%s.paramLower".format(csym.name, inMethodDecl.name),
+            name = "%s.%s:paramLower".format(csym.name, inMethodDecl.name),
             during = List(csym.members)
         ) { inter =>
+            val log = global.logForInter(csym.classPage, inter)
             outSig.v = Lower(global).lowerMethodParams(csym.classEnv, inMethodDecl.params)
         }
     }
@@ -31,10 +34,11 @@ class LowerMethodMember(
     private[this] val memberLower: AsyncInterval = {
         global.master.subinterval(
             schedule = false,
-            name = "%s.%s.memberLower".format(csym.name, inMethodDecl.name),
+            name = "%s.%s:memberLower".format(csym.name, inMethodDecl.name),
             during = List(csym.members),
             after = List(paramLower.getEnd)
         ) { inter =>
+            val log = global.logForInter(csym.classPage, inter)
             val (outParams, env) = outSig.v
             outMethodDecl.v = Lower(global).lowerMethodDecl(csym, inMethodDecl, outParams, env)                
         }
@@ -76,7 +80,7 @@ class LowerMethodMember(
             case in.InferredTypeRef() => {
                 global.master.subinterval(
                     schedule = false,
-                    name = "%s.%s.symCreate".format(csym.name, inMethodDecl.name),
+                    name = "%s.%s:symCreate".format(csym.name, inMethodDecl.name),
                     during = List(csym.members),
                     after = List(paramLower.getEnd, memberLower.getEnd)
                 ) { inter =>
@@ -88,10 +92,11 @@ class LowerMethodMember(
             case inReturnTref: in.ResolveTypeRef => {
                 global.master.subinterval(
                     schedule = false,
-                    name = "%s.%s.symCreate".format(csym.name, inMethodDecl.name),
+                    name = "%s.%s:symCreate".format(csym.name, inMethodDecl.name),
                     during = List(csym.members),
                     after = List(paramLower.getEnd)
                 ) { inter =>
+                    val log = global.logForInter(csym.classPage, inter)
                     val (outParams, env) = outSig.v
                     val outReturnTref = Lower(global).InEnv(env).lowerTypeRef(inReturnTref)
                     Sym.v = createSymbol(outParams, outReturnTref)
@@ -121,7 +126,7 @@ class LowerMethodMember(
                 Some(Sym.join)
             } catch {
                 case _: IntervalException.Cycle => {
-                    Error.ExplicitTypeRequiredDueToCycle(mthdName).report(global, log, inMethodDecl.returnTref.pos)
+                    Error.ExplicitTypeRequiredDueToCycle(mthdName.toString).report(global, inMethodDecl.returnTref.pos)
                     Some(MethodSymbol.error(mthdName, csym.name))
                 }                
             }

@@ -60,4 +60,23 @@ public interface Interval extends Guard {
 	 * @see InlineInterval#execute() */
 	public void cancel(boolean unconditionally);
 	
+	/**
+	 * Returns true if {@code this} is a (transitive) subinterval of {@code inter} or
+	 * if {@code inter == this}. 
+	 * 
+	 * @param inter the parent interval.  {@code null} is considered the root
+	 * interval, and therefore returns this method returns true if 
+	 * {@code inter == null}. 
+	 */
+	public boolean isSubintervalOf(Interval inter);
+
+	/**
+	 * Returns true if {@code this} is a (transitive) inline subinterval 
+	 * of {@code inter} or if {@code inter == this}.
+	 * 
+	 * @param inter the parent interval.  {@code null} is considered the root
+	 * interval.
+	 */
+	public boolean isInlineSubintervalOf(Interval inter);
+
 }

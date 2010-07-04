@@ -1,11 +1,11 @@
 package test.gather;
 
-class GatherMultiple1 { // ERROR multiple.overriding.methods.in.same.class(test.gather.GatherMultiple1, foo(), 2)
+class GatherMultiple1 { // ERROR MultipleOverridesInSameClass(test.gather.GatherMultiple1, foo(), 2)
     foo() { }
     foo() { }
 }
 
-class GatherMultiple2 { // ERROR multiple.overriding.methods.in.same.class(test.gather.GatherMultiple2, foo(), 2)
+class GatherMultiple2 { // ERROR MultipleOverridesInSameClass(test.gather.GatherMultiple2, foo(), 2)
     foo(s: String) { }
     foo(t: String) { }
 }
@@ -15,7 +15,7 @@ class GatherMultiple3 {
     foo(t: Integer) { }
 }
 
-class GatherMultiple4 { // ERROR multiple.overriding.methods.in.same.class(test.gather.GatherMultiple4, foo(), 2)
+class GatherMultiple4 { // ERROR MultipleOverridesInSameClass(test.gather.GatherMultiple4, foo(), 2)
     foo(s: (String)) { }
     foo(t: ((String))) { }
 }

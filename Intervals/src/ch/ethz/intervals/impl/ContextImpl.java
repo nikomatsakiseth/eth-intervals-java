@@ -3,6 +3,7 @@ package ch.ethz.intervals.impl;
 import static ch.ethz.intervals.util.ChunkList.NORMAL;
 import ch.ethz.intervals.Context;
 import ch.ethz.intervals.IntervalException;
+import ch.ethz.intervals.ScopedVar;
 import ch.ethz.intervals.Lock;
 import ch.ethz.intervals.Task;
 import ch.ethz.intervals.guard.Guard;
@@ -52,6 +53,11 @@ public class ContextImpl implements Context {
 	@Override
 	public int getNumWorkers() {
 		return POOL.numWorkers;
+	}
+
+	@Override
+	public <T> ScopedVar<T> scopedVar(T defaultValue) {
+		return new ScopedVarImpl<T>(defaultValue);
 	}
 
 	

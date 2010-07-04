@@ -9,7 +9,7 @@ import Ast.{Lower => in}
 import Util._
 
 /** Determines which methods override one another. */
-case class GatherOverrides(global: Global, log: Context) {
+case class GatherOverrides(global: Global) {
     
     /** Populates `csym.methodGroups` as well as the `overrides` 
       * fields of all method symbols defined in `csym` */
@@ -76,7 +76,7 @@ case class GatherOverrides(global: Global, log: Context) {
         env: Env
     ): MethodGroups = {
         val methodGroups = new MethodGroups(env)
-        val mro = MethodResolutionOrder(global).forSym(csym)
+        val mro = csym.mro
         mro.foreach { mroCsym =>
             val msyms = mroCsym.allMethodSymbols
             msyms.foreach(methodGroups.addMsym)
@@ -97,10 +97,10 @@ case class GatherOverrides(global: Global, log: Context) {
             msym.kind match {
                 case _: MethodKind.Harmonic => {
                     if(msym.overrides.isEmpty && msym.modifiers.isOverride) {
-                        Error.NotOverride(csym.name, msym.name).report(global, log, msym.pos)
+                        Error.NotOverride(csym.name, msym.name).report(global, msym.pos)
                     } else if (!msym.overrides.isEmpty && !msym.modifiers.isOverride) {
                         val classNames = msym.overrides.map(_.clsName).toList
-                        Error.NotMarkedOverride(msym.name, classNames).report(global, log, msym.pos)
+                        Error.NotMarkedOverride(msym.name, classNames).report(global, msym.pos)
                     }                    
                 }
                 
@@ -136,7 +136,7 @@ case class GatherOverrides(global: Global, log: Context) {
                             Error.MustResolveAmbiguousInheritance(
                                 csym.name, group.methodName, 
                                 msym1.clsName, msym2.clsName
-                            ).report(global, log, csym.pos)
+                            ).report(global, csym.pos)
                         }
                     }
                 }
@@ -149,7 +149,7 @@ case class GatherOverrides(global: Global, log: Context) {
             case msyms => {
                 Error.MultipleOverridesInSameClass(
                     csym.name, group.methodName, msyms.length
-                ).report(global, log, csym.pos)
+                ).report(global, csym.pos)
             }
             
         }

@@ -9,9 +9,9 @@ import com.smallcultfollowing.lathos.model.Context
 import Ast.{Lower => in}
 import Util._
 
-case class Gather(global: Global, log: Context) {
+case class Gather(global: Global) {
     def forSym(csym: ClassFromSource): Unit = {
-        GatherOverrides(global, log).forSym(csym)
-        GatherExtends(global, log).forSym(csym)
+        GatherOverrides(global).forSym(csym)
+        GatherExtends(global).forSym(csym)
     }
 }

@@ -35,6 +35,10 @@ public class Intervals {
 		return context().lock();
 	}
 	
+	public static <T> ScopedVar<T> scopedVar(T defaultValue) {
+		return context().scopedVar(defaultValue);
+	}
+	
 	/** 
 	 * Returns {@link Interval#getStart()} unless {@code i} is null, 
 	 * in which case just returns {@code null}. */

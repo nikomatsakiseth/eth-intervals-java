@@ -7,7 +7,7 @@ class CheckMethodArg {
     }
     
     callWithBadType() {
-        return double("one"); // ERROR must.have.type("one", java.lang.String, java.lang.Integer)
+        return double("one"); // ERROR MustHaveType("one", java.lang.String, java.lang.Integer)
     }
 
 }

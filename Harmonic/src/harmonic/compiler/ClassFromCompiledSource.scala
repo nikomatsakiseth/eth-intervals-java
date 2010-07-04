@@ -51,6 +51,9 @@ abstract class ClassFromCompiledSource extends ClassSymbol
     final def fieldNamed(name: Name.Member): Option[VarSymbol.Field] = allFieldSymbols.find(_.isNamed(name))
     final def checkEnv = LoadedData.join.checkEnv
     
+    lazy val Mro = new GuardedBy[List[ClassSymbol]](cmro)
+    final def mro: List[ClassSymbol] = Mro.join
+    
     // ___ Interval Creation ________________________________________________
     //
     // Most of these intervals do not have to do anything as this class has
@@ -60,6 +63,7 @@ abstract class ClassFromCompiledSource extends ClassSymbol
     // the overrides for all of our method symbols.
     
     def header: AsyncInterval = intervals("header")
+    def cmro: AsyncInterval = intervals("cmro")
     def body: AsyncInterval = intervals("body")
     def lower: AsyncInterval = intervals("lower")
     def create: AsyncInterval = intervals("create")
@@ -76,11 +80,21 @@ abstract class ClassFromCompiledSource extends ClassSymbol
             name = "%s.Header".format(name)
         ) { 
             inter => {
-                val log = debugServer.contextForInter(classPage, inter)
+                val log = global.logForInter(classPage, inter)
                 val rawData = loadData(inter)
                 LoadedData.v = rawData.copy(
-                    superClassNames = ResolveHeader.cookRawSuperClasses(this, rawData.superClassNames)
+                    superClassNames = ResolveHeader.cookRawSuperClasses(this, log, rawData.superClassNames)
                 )
+            }
+        }
+        
+        val cmro: AsyncInterval = master.subinterval(
+            name = "%s.cmro".format(name),
+            after = List(header.getEnd)
+        ) {
+            inter => {
+                val log = global.logForInter(classPage, inter)
+                Mro.v = MethodResolutionOrder(global).computeForSym(this)
             }
         }
 
@@ -89,19 +103,19 @@ abstract class ClassFromCompiledSource extends ClassSymbol
             after = List(header.getEnd)
         ) { 
             inter => {
-                //val log = debugServer.contextForInter(classPage, inter)
+                //val log = global.logForInter(classPage, inter)
             }
         }
 
         val lower: AsyncInterval = master.subinterval(
             name = "%s.Lower".format(name),
-            after = List(body.getEnd),
+            after = List(body.getEnd, cmro.getEnd),
             // Scheduled explicitly so we can add
             // create/members/merge within
             schedule = false 
         ) { 
             _ => {
-                //val log = debugServer.contextForInter(classPage, inter)
+                //val log = global.logForInter(classPage, inter)
             }
         }
 
@@ -110,7 +124,7 @@ abstract class ClassFromCompiledSource extends ClassSymbol
             during = List(lower)
         ) {
             inter => {
-                //val log = debugServer.contextForInter(classPage, inter)
+                //val log = global.logForInter(classPage, inter)
             }
         }
 
@@ -120,7 +134,7 @@ abstract class ClassFromCompiledSource extends ClassSymbol
             after = List(create.getEnd)
         ) { 
             inter => {
-                //val log = debugServer.contextForInter(classPage, inter)
+                //val log = global.logForInter(classPage, inter)
             }
         }
 
@@ -130,7 +144,7 @@ abstract class ClassFromCompiledSource extends ClassSymbol
             after = List(members.getEnd)
         ) { 
             inter => {
-                //val log = debugServer.contextForInter(classPage, inter)
+                //val log = global.logForInter(classPage, inter)
             }
         }
         
@@ -139,7 +153,7 @@ abstract class ClassFromCompiledSource extends ClassSymbol
             after = List(lower.getEnd)
         ) {
             inter => {
-                //val log = debugServer.contextForInter(classPage, inter)
+                //val log = global.logForInter(classPage, inter)
             }
         }
         
@@ -148,7 +162,7 @@ abstract class ClassFromCompiledSource extends ClassSymbol
             after = List(envirate.getEnd)
         ) {
             inter => {
-                //val log = debugServer.contextForInter(classPage, inter)
+                //val log = global.logForInter(classPage, inter)
             }
         }
 
@@ -157,8 +171,8 @@ abstract class ClassFromCompiledSource extends ClassSymbol
             after = List(envirate.getEnd)
         ) {
             inter => {
-                val log = debugServer.contextForInter(classPage, inter)
-                GatherOverrides(global, log).forSym(this)
+                val log = global.logForInter(classPage, inter)
+                GatherOverrides(global).forSym(this)
             }
         }
 
@@ -167,7 +181,7 @@ abstract class ClassFromCompiledSource extends ClassSymbol
             after = List(check.getEnd, gather.getEnd)
         ) { 
             inter => {
-                //val log = debugServer.contextForInter(classPage, inter)
+                //val log = global.logForInter(classPage, inter)
             }
         }
         
@@ -176,6 +190,7 @@ abstract class ClassFromCompiledSource extends ClassSymbol
         
         Map(
             "header" -> header,
+            "cmro" -> cmro,
             "body" -> body,
             "lower" -> lower,
             "create" -> create,

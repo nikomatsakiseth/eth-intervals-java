@@ -2,6 +2,6 @@ package test.resolve;
 
 @Abstract class ResolveInvalidImport {
     @Var a: Integer = 0;
-    @Foo d: Integer = 0; // ERROR cannot.resolve(Foo)
+    @Foo d: Integer = 0; // ERROR CannotResolve(Foo)
 }
 // COMPILE

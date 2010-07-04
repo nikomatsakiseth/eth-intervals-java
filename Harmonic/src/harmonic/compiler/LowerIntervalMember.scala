@@ -18,6 +18,7 @@ class LowerIntervalMember(
             name = "%s.%s.memberLower".format(csym.name, inIntervalDecl.name),
             during = List(csym.members)
         ) { inter =>
+            val log = global.logForInter(csym.classPage, inter)            
             outIntervalDecl.v = Lower(global).lowerIntervalDecl(csym, inIntervalDecl)
         }
     }

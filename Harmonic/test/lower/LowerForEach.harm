@@ -5,7 +5,7 @@ class LowerForEach {
     sumObjects(list: Iterable[T: Object]) {
         result = 0;
         list.forEach { value ->
-            result = result + value; // ERROR no.applicable.methods(list.(java.lang.Iterable.T))
+            result = result + value; // ERROR NoApplicableMethods(list.(java.lang.Iterable.T))
         };
         return result;
     }

@@ -2,7 +2,7 @@ package test.resolve;
 
 class Resolve1(parent: Interval) {
     
-    bad: IntervalX = null; // ERROR cannot.resolve(IntervalX)
+    bad: IntervalX = null; // ERROR CannotResolve(IntervalX)
     
     aRes: Integer = null;
     interval a(parent) {
@@ -16,7 +16,7 @@ class Resolve1(parent: Interval) {
     
     cRes: Integer = null;
     interval c(parent) {
-        cRes = process(aRes + bRes); // ERROR no.such.method(test.resolve.Resolve1, process())
+        cRes = process(aRes + bRes); // ERROR NoSuchMethod(test.resolve.Resolve1, process())
     }
 
     a -> c;

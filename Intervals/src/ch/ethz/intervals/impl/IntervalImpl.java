@@ -73,6 +73,34 @@ implements Guard, Interval
 		return task;
 	}
 	
+	@Override
+	public boolean isSubintervalOf(Interval inter) {
+		if(inter == this)
+			return true;
+		
+		if(inter == null)
+			return true;
+
+		if(parent == null)
+			return false;
+		
+		return parent.isSubintervalOf(inter);
+	}
+
+	@Override
+	public boolean isInlineSubintervalOf(Interval inter) {
+		if(inter == this)
+			return true;
+		
+		if(!isInline())
+			return false;
+		
+		if(parent == null)
+			return false;
+		
+		return parent.isInlineSubintervalOf(inter);
+	}
+
 	/**
 	 * True if {@code this} will hold the lock {@code lock}
 	 * when it executes, or it is a blocking subinterval of

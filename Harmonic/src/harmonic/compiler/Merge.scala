@@ -6,35 +6,30 @@ import Util._
 import com.smallcultfollowing.lathos.model.Context
 
 object Merge {
-    def apply(global: Global, log: Context) = new Merge(global, log)
+    def apply(global: Global) = new Merge(global)
 }
 
-class Merge(global: Global, log: Context) {
+class Merge(global: Global) {
+    val log = global.closestLog
     
     def mergeMemberIntervals(csym: ClassFromSource) {
         val cdecl = csym.resolvedSource
         val emptyEnv = Env.empty(global)
         
-        csym.LoweredMethods.v = csym.lowerMembers.flatMap { lmem =>
-            lmem.memberDecl match {
-                case decl: out.MethodDecl => lmem.toOptMethodSymbol(decl.name).map(s => (s, decl))
-                case _ => None
-            }
+        csym.LoweredMethods.v = csym.lowerMembers.flatMap { 
+            case lowerMember: LowerMethodMember => Some((lowerMember.sym, lowerMember.memberDecl))
+            case _ => None
         }
 
-        csym.AllFieldSymbols.v = csym.classParam.symbols ++ csym.lowerMembers.flatMap { lmem =>
-            lmem.memberDecl match {
-                case decl: out.FieldDecl => lmem.toOptFieldSymbol(decl.name.name)
-                case decl: out.IntervalDecl => lmem.toOptFieldSymbol(decl.name.name)
-                case _ => None
-            }
+        csym.AllFieldSymbols.v = csym.classParam.symbols ++ csym.lowerMembers.flatMap { 
+            case lowerMember: LowerFieldMember => Some(lowerMember.sym)
+            case lowerMember: LowerIntervalMember => Some(lowerMember.sym)
+            case _ => None
         }
         
-        csym.AllIntervalSymbols.v = csym.lowerMembers.flatMap { lmem =>
-            lmem.memberDecl match {
-                case decl: out.IntervalDecl => lmem.toOptFieldSymbol(decl.name.name)
-                case _ => None
-            }
+        csym.AllIntervalSymbols.v = csym.lowerMembers.flatMap { 
+            case lowerMember: LowerIntervalMember => Some(lowerMember.sym)
+            case _ => None
         }
         
         csym.LoweredSource.v = withPosOf(cdecl, 

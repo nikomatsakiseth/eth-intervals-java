@@ -3,13 +3,13 @@ package test.resolve;
 class Resolve2A() {
     refA: Resolve2A = null;
     refB: Resolve2B = null;
-    refC: Resolve2C = null; // ERROR cannot.resolve(Resolve2C)
+    refC: Resolve2C = null; // ERROR CannotResolve(Resolve2C)
 }
 
 class Resolve2B() {
     refA: Resolve2A = null;
     refB: Resolve2B = null;
-    refC: Resolve2C = null; // ERROR cannot.resolve(Resolve2C)
+    refC: Resolve2C = null; // ERROR CannotResolve(Resolve2C)
 }
 
 // COMPILE

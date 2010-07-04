@@ -8,11 +8,11 @@ class GatherTriangleB {
     foo() { }
 }
 
-class GatherTriangleAB // ERROR must.resolve.ambiguity(*GatherTriangleAB, foo(), *GatherTriangleA, *GatherTriangleB)
+class GatherTriangleAB // ERROR MustResolveAmbiguousInheritance(*GatherTriangleAB, foo(), *GatherTriangleA, *GatherTriangleB)
 extends GatherTriangleA, GatherTriangleB { 
 }
 
-class GatherTriangleBA // ERROR must.resolve.ambiguity(*GatherTriangleBA, foo(), *GatherTriangleB, *GatherTriangleA)
+class GatherTriangleBA // ERROR MustResolveAmbiguousInheritance(*GatherTriangleBA, foo(), *GatherTriangleB, *GatherTriangleA)
 extends GatherTriangleB, GatherTriangleA { 
 }
 

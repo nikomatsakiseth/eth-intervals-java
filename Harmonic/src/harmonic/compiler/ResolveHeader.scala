@@ -18,7 +18,7 @@ object ResolveHeader {
     /** Given a list of superclass names, adds edges from the superclass
       * intervals to our own where needed.  The returned list of superclass
       * names omits those that cause a cycle. */
-    def cookRawSuperClasses(csym: ClassSymbol, rawSuperClassNames: List[Name.Class]) = {
+    def cookRawSuperClasses(csym: ClassSymbol, log: Context, rawSuperClassNames: List[Name.Class]) = {
         import csym.global
         
         rawSuperClassNames.flatMap { superName =>
@@ -26,6 +26,7 @@ object ResolveHeader {
             
             try {
                 Intervals.addHb(superCsym.header.getEnd, csym.header.getEnd)
+                Intervals.addHb(superCsym.cmro.getEnd, csym.cmro.getStart)
                 Intervals.addHb(superCsym.lower.getEnd, csym.lower.getEnd)
                 Intervals.addHb(superCsym.envirate.getEnd, csym.envirate.getStart)
                 Intervals.addHb(superCsym.check.getEnd, csym.check.getStart)
@@ -33,7 +34,7 @@ object ResolveHeader {
                 Some(superName)
             } catch {
                 case _: IntervalException.Cycle => {
-                    Error.CircularInheritance(csym.name, superName).report(global, log, csym.pos)
+                    Error.CircularInheritance(csym.name, superName).report(global, csym.pos)
                     None
                 }
             }                                    
@@ -47,7 +48,7 @@ object ResolveHeader {
   * ensure that its headers and those of its superclasses (transitively) have 
   * been resolved. */
 case class ResolveHeader(global: Global, compUnit: in.CompUnit, log: Context) 
-extends Resolve(global, compUnit) 
+extends Resolve(global, compUnit, log) 
 {
     
     def resolveClassHeader(
@@ -60,7 +61,7 @@ extends Resolve(global, compUnit)
         val rawSuperClassNames = cdecl.extendsDecls.map { case in.ExtendsDecl(relName, _, ()) =>
             resolveName(relName).name
         }
-        csym.SuperClassNames.v = ResolveHeader.cookRawSuperClasses(csym, rawSuperClassNames)
+        csym.SuperClassNames.v = ResolveHeader.cookRawSuperClasses(csym, log, rawSuperClassNames)
         
         def addVarMembersFromMember(varMembers: List[SymTab.Entry], decl: in.MemberDecl): List[SymTab.Entry] = {
             decl match {

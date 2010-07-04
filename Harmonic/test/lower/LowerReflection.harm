@@ -10,8 +10,8 @@ class LowerReflection {
     }
     
     errors(obj: Object): Void {
-        invokeToString(obj).badMethod(); // ERROR no.such.method(java.lang.String, badMethod())
-        invokeHashCode(obj).badMethod(); // ERROR no.such.method(java.lang.Integer, badMethod())
+        invokeToString(obj).badMethod(); // ERROR NoSuchMethod(java.lang.String, badMethod())
+        invokeHashCode(obj).badMethod(); // ERROR NoSuchMethod(java.lang.Integer, badMethod())
     }
 
 }

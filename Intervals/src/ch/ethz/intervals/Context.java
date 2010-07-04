@@ -23,6 +23,10 @@ public interface Context {
 	public Lock lock();
 	
 	/**
+	 * Creates a new scoped variable. */
+	public <T> ScopedVar<T> scopedVar(T defaultValue);
+	
+	/**
 	 * Convenience method for asserting that the current interval is readable.
 	 * Intended to be used like: {@code assert checkReadable(guard);}
 	 * 
