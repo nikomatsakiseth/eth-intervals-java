@@ -4,41 +4,38 @@ sealed abstract class PcRel {
     def unapply(rel: PcRel) = (rel == this)
 }
 
+sealed trait PcTransRel extends PcRel
+
+sealed trait PcWcRel extends PcRel
+
 case object PcLocks extends PcRel {
     override def toString = "locks"
 }
 
-case object PcSubOf extends PcRel {
+case object PcSubOf extends PcTransRel {
     override def toString = "subOf"
 }
 
-case object PcInlineSubOf extends PcRel {
+case object PcInlineSubOf extends PcTransRel {
     override def toString = "inlineSubOf"
 }
-
-sealed abstract class PcTransRel extends PcRel
 
 case object PcHb extends PcTransRel {
     override def toString = "->"
 }
 
-sealed abstract class PcWcRel extends PcRel
-
-case object PcEq extends PcWcRel {
+case object PcEq extends PcWcRel with PcTransRel {
     override def toString = "="
 }
 
-/** Guard permits writes by interval */
 case object PcPermitsWr extends PcWcRel {
     override def toString = "permitsWr"
 }
 
-/** Guard permits reads by interval */
 case object PcPermitsRd extends PcWcRel {
     override def toString = "permitsRd"
 }
 
-/** Guard ensures final by interval */
 case object PcEnsuresFinal extends PcWcRel {
     override def toString = "ensuresFinal"
 }

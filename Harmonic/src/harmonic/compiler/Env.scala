@@ -3,6 +3,7 @@ package harmonic.compiler
 import scala.util.parsing.input.NoPosition
 
 import scala.collection.immutable.Set
+import scala.collection.immutable.ListSet
 import scala.collection.immutable.Queue
 import scala.collection.mutable
 
@@ -43,11 +44,8 @@ case class Env(
     /** In-scope local variables. */
     locals: Map[Name.LocalVar, VarSymbol.Local],
     
-    /** Tuples describing relations between paths. */
-    pathRels: List[Req.P],
-    
-    /** Tuples describing relations between type variables and other types. */
-    typeRels: List[Req.T]
+    /** */
+    baseFacts: Set[Fact.Ref]
 ) extends Page {
     
     private[this] def curLog = global.closestLog
@@ -94,56 +92,316 @@ case class Env(
         
         out.endPage(this)
     }
+
+    // ___ Queries __________________________________________________________
+    //
+    // Subtypes of `Query` abstractly represent the queries that can be 
+    // issued and evaluated by the environment.
     
-    // ___ Transitive Closure Utility _______________________________________
+    sealed abstract class Query[R] {
+        def evaluate(facts: Set[Fact]): R
+    }
     
-    /** Base class that captures the basic pattern of computing
-      * the transitive closure. The subtype need only override
-      * the `successors()` method. */
-    abstract class TransitiveCloser[T] {
-        private[this] var stack = List[T]()
+    case class SuccQuery(left: Path.Ref, rel: PcTransRel) extends Query[Set[Path.Ref]] {
         
-        def set(stack: List[T], item: T) = pairStream(stack, item).map(_._2).last
-        def stream(stack: List[T], item: T) = pairStream(stack, item).map(_._1)
+    }
+    
+    case class ClassQuery(left: Path.Ref, name: Name.Class) extends Query[Set[Type.Class]] {
         
-        def pairStream(stack: List[T], item: T) = {
-            if(stack.contains(item)) {
-                // Subtle: the internal `successors()` function
-                // might recursively invoke compute().  If a cycle
-                // should result from this, we "underapproximate"
-                // the result.  An example of where this might occur
-                // is eq "X eq Y" and "Y eq X" are both known facts.
-                Stream((item, Set(item)))
-            } else {
-                computePairStream(item :: stack, Queue(item), Set(item))
-            }
+    }
+    
+    case class BoundsQuery(left: Type.Ref, rel: TcRel) extends Query[Set[Type.Ref]] {
+        
+    }
+    
+    case class FactQuery(fact: Fact) extends Query[Boolean] {
+        
+    }
+    
+    // ___ High-level query evaluation ______________________________________
+    //
+    // Queries are evaluated at a high-level by instantiating and applying
+    // inference rules, represented as instances of Rule.  These inference
+    // rules are applied repeatedly until the set of facts reaches a fixed
+    // point. This is highly unoptimized at the moment.
+
+    /** Represents an instantiation of an inference rule with (partially)
+      * bound parameters.  To avoid infinite loops, two rules must be equal
+      * if they would perform the same computation steps. */
+    abstract trait Rule {
+        def deriveFacts(state: ProofState): Iterable[Fact]
+    }
+    
+    /** Rule templates instantiate rules that are likely to produce facts
+      * useful to answering `query`. */
+    abstract trait RuleTemplate {
+        def instantiate(state: ProofState)(query: Query): List[Rule]
+    }
+    
+    /** Records the current state of the computation (what facts are known,
+      * which rules are in the process of being evaluated, etc).  Right
+      * now we don't make much use of this object, but any recursive queries
+      * used during rule evaluation <b>must</b> use `state.answer()` rather
+      * than the `answer()` method offered on the environment. */
+    case class ProofState(
+        templates: List[RuleTemplate],
+        stack: List[Rule],
+        facts: Set[Fact]
+    ) {
+        private[this] def evaluateRule(rule: Rule) = {
+            rule.deriveFacts(copy(stack = rule :: stack))
         }
         
-        private[this] def computePairStream(
-            stack: List[T], 
-            queue0: Queue[T], 
-            result1: Set[T]
-        ): Stream[(T, Set[T])] = {
-            if(queue0.isEmpty) {
-                Stream.empty
+        def answer[R](query: Query[R]): R = {
+            
+            // Evaluation of the rules could be easily parallelized if it would be helpful:
+            val f = templates.foldLeft(facts) { (f, template) =>
+                val rules = template.instantiate(this)(query).filterNot(stack.contains)
+                rules.foldLeft(f) { (f, rule) => f ++ evaluateRule(rule) }
+            }
+            
+            // Did we learn any new facts?  If so, loop as we might yet learn more.
+            if(f.size != facts.size) {
+                copy(facts = f).answer(query)
             } else {
-                val (item, queue1) = queue0.dequeue
-                Stream.cons(
-                    (item, result1), 
-                    {
-                        val succs = successors(stack, item)
-                        val (queue2, result2) = succs.foldLeft((queue1, result1)) {
-                            case ((q, r), s) if r(s) => (q, r)
-                            case ((q, r), s) => (q.enqueue(s), r + s)
-                        }
-                        computePairStream(stack, queue2, result2)
+                query.evaluate(f)
+            } 
+            
+        }
+        
+        /** Convenience method for finding equatable paths of `p` */
+        def eq(p: Path.Ref): Iterable[Path.Ref] = answer(EqQuery(p))
+
+        /** Convenience method for finding equatable path lists of `ps`
+          * If `ps` is `(x, y, z)`, yields something like
+          * `((x0, y0, z0), (x1, y0, z0), ...)` where `x0 eq x` etc. */
+        def eqs(ps: List[Path.Ref]): List[List[Path.Ref]] = {
+            ps match {
+                case p :: tl => {
+                    val eqTls = eqs(tl)
+                    eq(p).toList.flatMap { hd =>
+                        eqTls.map(hd :: _)
                     }
-                )
+                }
+
+                case Nil => Nil
             }
         }
         
-        // Computes the successors of `item`.  
-        protected[this] def successors(stack: List[T], item: T): Iterable[T]
+        def upcast(p: Path.Ref, c: Name.Class): List[Type.Class] = {
+            answer(...)
+        }
+        
+    }
+    
+    def virginState = ProofState(ruleTemplates, Nil, baseFacts)
+    
+    // ___ Rule _____________________________________________________________
+
+    /*
+    --------------------
+    p == p
+    */
+    object PathEqReflexiveTemplate extends RuleTemplate {
+        
+        case class Instance(path: Path.Ref) extends Rule {
+            override def deriveFacts(state: ProofState) = {
+                Some(Fact.PathPath(path, PcEq, path))
+            }
+        }
+        
+        def instantiate(state: ProofState)(query: Query) = query match {
+            case SuccQuery(path, PcEq) => List(Instance(path))
+            case _ => Nil
+        }
+        
+    }
+    
+    /*
+    --------------------
+    (t) == t
+    etc
+    */
+    object PathSimplifyTemplate extends RuleTemplate {
+        
+        // Attempts to simplify a path into another path that will always
+        // be the same object (may yield the same path)
+        def simplify(ty: Path.Ref): Path.Ref = {
+            ty match {
+                case Type.Tuple(List(ty)) => ty     // (t) == t
+                case Type.Tuple(Nil) => Type.Void   // () == Void, not sure if this makes sense.
+                case ty => ty
+            }
+        }
+                
+        case class Instance(ty: Type.Ref) extends Rule {
+            override def deriveFacts(state: ProofState) = {
+                Some(Fact.TypeType(ty, TcEq, simplify(ty)))
+            }
+        }
+        
+        def instantiate(state: ProofState)(query: Query) = query match {
+            case SuccQuery(path, PcEq) => List(Instance(path))
+            case _ => Nil
+        }
+        
+    }
+    
+    /*
+    --------------------
+    (T)p == p
+    etc
+    */
+    object TypeSimplifyTemplate extends RuleTemplate {
+        
+        // Attempts to simplify a path into another path that will always
+        // be the same object (may yield the same path)
+        def simplify(path: Path.Ref): Path.Ref = {
+            path match {
+                case Path.Cast(_, base) => base
+                case Path.Tuple(List(path)) => simplify(path)
+                case Path.Index(
+                    Path.Tuple(paths), 
+                    Path.Constant(index: java.lang.Integer)
+                ) if index.intValue < paths.length => {
+                    simplify(paths(index.intValue))
+                }
+                case _ => path
+            }
+        }
+                
+        case class Instance(ty: Type.Ref) extends Rule {
+            
+            override def deriveFacts(state: ProofState) = {
+                Some(Fact.PathPath(path, PcEq, simplify(path)))
+            }
+            
+        }
+        
+        def instantiate(state: ProofState)(query: Query) = query match {
+            case BoundsQuery(ty, _) => List(Instance(ty))
+            case _ => Nil
+        }
+        
+    }          
+    
+    /*
+    p == q
+    --------------------
+    p.f == q.f
+    etc
+    */
+    object PathEqInductiveTemplate extends RuleTemplate {
+        
+        case class Instance(path: Path.Ref) extends Rule {
+            
+            override def deriveFacts(state: ProofState) = {
+                import state.eq
+                import state.eqs
+                
+                path match {
+                    case Path.Field(base: Path.Ref, name) => {
+                        eq(base).map(Path.Field(_, name))
+                    }
+                    
+                    case Path.Cast(t, base) => {
+                        eq(base).map(Path.Cast(t, _))
+                    }
+
+                    case Path.Index(array, index) => {
+                        (eq(array) cross eq(index)).map { case (a, i) =>
+                            Path.Index(a, i)
+                        }
+                    }
+
+                    case Path.Tuple(paths) => {
+                        eqs(paths).map(Path.Tuple)
+                    }
+
+                    case Path.Call(receiver: Path.Ref, methodName, args) => {
+                        (eq(receiver) cross eqs(args)).map { case (r, a) =>
+                            Path.Call(r, methodName, a)
+                        }
+                    }
+                    
+                    case Path.Call(Path.Static, methodName, args) => {
+                        eqs(args).map { a =>
+                            Path.Call(Path.Static, methodName, a)
+                        }
+                    }
+
+                    case Path.Field(Path.Static, _) 
+                    |   Path.Local(_)
+                    |   Path.Constant(_) => Set()
+                }
+            }
+            
+        }
+        
+        def instantiate(state: ProofState)(query: Query) = query match {
+            case SuccQuery(path, PcEq) => List(Instance(path))
+            case _ => Nil
+        }
+        
+    }
+    
+    /*
+    p == q
+    --------------------
+    p.X == q.X
+    where p/q are paths, X is a type variable
+    */
+    object MemberTypeInductiveTemplate extends RuleTemplate {
+        
+        case class Instance(ty0: Type.Member) extends Rule {
+            override def deriveFacts(state: ProofState) = {
+                state.eq(ty0.path).toList.map(Type.Member(_, ty.typeVar)).map { ty1 =>
+                    Fact.TypeType(ty0, TcEq, ty1)
+                }
+            }
+        }        
+        
+        def instantiate(state: ProofState)(query: Query) = query match {
+            case BoundsQuery(ty: Type.Member, TcEq) => List(Instance(ty))
+            case _ => Nil
+        }
+        
+    }
+    
+    /*
+    p : c[X rel T]
+    --------------------
+    p.X rel T
+    */
+    object MemberTypeBoundsTemplate extends RuleTemplate {
+        
+        case class Instance(path: Path.Ref, mem: Name.Member) extends Rule {
+            override def deriveFacts(state: ProofState) = {
+                state.upcast(path, mem.className).flatMap {
+                    case Type.Class(_, args) => {
+                        args.map {
+                            case Type.PathArg(name, rel, otherPath) => 
+                                Fact.PathPath(Path.Field(path, name), rel, otherPath)
+                                
+                            case Type.TypeArg(name, rel, otherType) => 
+                                Fact.PathType(Type.Member(path, name), rel, otherType)
+                        }
+                    }
+                }
+                
+                state.eq(ty0.path).toList.map(Type.Member(_, ty.typeVar)).map { ty1 =>
+                    Fact.TypeType(ty0, TcEq, ty1)
+                }
+            }
+        }
+        
+        def instantiate(state: ProofState)(query: Query) = query match {
+            // likely more:
+            case BoundsQuery(Type.Member(path, mem), _) => List(Instance(path, mem))
+            case SuccQuery(Path.Field(path, mem), _) => List(Instance(path, mem))
+            case _ => Nil
+        }
+
     }
     
     // ___ Extending the Environment ________________________________________
@@ -532,54 +790,6 @@ case class Env(
     }
     
     // ___ Bounding Type Variables __________________________________________
-    
-    class Bounder(rel: TcRel) extends TransitiveCloser[Type.Ref] {
-        protected[this] def successors(stack: List[Type.Ref], ty: Type.Ref) = {
-            // A type `p.v` is equatable with all types `q.v` where `p eq q`
-            def equatableTypeVars(tyVar: Type.Member) = {
-                Equatable.set(tyVar.path).map { case q =>
-                    Type.Member(q, tyVar.typeVar)
-                }
-            }
-            
-            // A type `p.v` obtains bounds based on the type of `p`:
-            def typeVarBounds(tyVar: Type.Member) = {
-                // p has class type `pathTy` == `c[args]`:
-                def boundsFromClassType(pathTy: Type.Class) = {
-                    // FIXME Add bounds declared in the environment:
-
-                    // Add bounds declared in the class `c`:
-                    val classBounds = List[Type.Ref]() // FIXME
-
-                    // Add bounds from type arguments `args` in `pathTy`:
-                    pathTy.typeArgs.foldLeft(classBounds) { 
-                        case (l, Type.TypeArg(tyVar.typeVar(), TcEq, ty)) => ty :: l
-                        case (l, Type.TypeArg(tyVar.typeVar(), rel(), ty)) => ty :: l
-                        case (l, _) => l
-                    }
-                }
-
-                typeOfPath(tyVar.path) match {
-                    case pathTy: Type.Class => boundsFromClassType(pathTy)
-                    case pathTy: Type.Member => {
-                        stream(stack, pathTy).toList.flatMap {
-                            case tyClass: Type.Class => boundsFromClassType(tyClass)
-                            case _ => Nil
-                        }
-                    }
-                    case Type.Tuple(_) => Nil
-                    case Type.Null => Nil
-                }
-            }
-            
-            ty match {
-                case tyVar: Type.Member => equatableTypeVars(tyVar) ++ typeVarBounds(tyVar)
-                case Type.Tuple(List()) => List(Type.Void)   // () equivalent to Void  [Does this make sense?]
-                case Type.Tuple(List(ty)) => List(ty)        // (ty) equivalent to ty
-                case _ => Nil
-            }
-        }
-    }
     
     /** Returns a set of types that are exactly equivalent to `ty`. */
     def equateVars(ty: Type.Ref) = new Bounder(TcEq).set(Nil, ty)
