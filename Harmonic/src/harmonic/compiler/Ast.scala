@@ -922,7 +922,7 @@ object Ast {
                 out.startRow
                 
                 out.startColumn
-                out.outputText("%d".format(i))
+                out.outputText("\u25B6")
                 out.endColumn
                 
                 out.startColumn

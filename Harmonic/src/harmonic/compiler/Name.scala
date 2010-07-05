@@ -4,7 +4,11 @@ import Util._
 
 object Name {
     
-    sealed abstract class Qual {
+    sealed abstract class Any {
+        def unapply(any: Any) = (this == any)
+    }
+    
+    sealed abstract class Qual extends Any {
         def toInternalPrefix: String
         def toTag: String
         def toPrefix: String
@@ -114,7 +118,7 @@ object Name {
     }
     
     /** Names of variables */
-    sealed abstract class Var {
+    sealed abstract class Var extends Any {
         // The shorthand form the user would use to refer
         // to this variable.  For example, a field "foo"
         // in a class "Bar" would return "foo".
@@ -149,7 +153,7 @@ object Name {
     
     /** A `Member` before lowering, at which point we may not yet
       * know the `className`. */
-    sealed abstract trait UnloweredMember {
+    sealed abstract trait UnloweredMember extends Any {
         def text: String
         
         def inDefaultClass(className: Name.Class): Member

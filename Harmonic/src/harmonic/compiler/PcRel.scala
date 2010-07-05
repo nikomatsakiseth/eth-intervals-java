@@ -1,6 +1,8 @@
 package harmonic.compiler
 
-sealed abstract class PcRel
+sealed abstract class PcRel {
+    def unapply(rel: PcRel) = (rel == this)
+}
 
 case object PcLocks extends PcRel {
     override def toString = "locks"

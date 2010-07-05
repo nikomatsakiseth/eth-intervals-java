@@ -19,6 +19,7 @@ object Path {
     sealed abstract class Ref extends UntypedOwner {
         def is(r: Ref) = (this == r)
         def /(fname: Name.Member) = Field(this, fname)
+        def unapply(r: Ref) = (this == r)
     }
     case class Local(v: Name.LocalVar) extends Ref {
         override def toString = v.toString

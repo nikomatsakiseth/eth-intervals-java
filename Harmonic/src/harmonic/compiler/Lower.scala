@@ -672,7 +672,7 @@ case class Lower(global: Global) {
     // ___ Lowering Statements ______________________________________________
     
     def tmpVarName(from: Ast.Node) = {
-        "(%s@%s)".format(from.getClass.getSimpleName, from.pos.toString)
+        "(%s@%s:%s)".format(from.getClass.getSimpleName, from.pos.line, from.pos.column)
     }
     
     def lowerBody(env: Env, body: in.Body): out.Body = {

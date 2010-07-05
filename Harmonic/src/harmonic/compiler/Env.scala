@@ -50,7 +50,7 @@ case class Env(
     typeRels: List[Req.T]
 ) extends Page {
     
-    private[this] def log = global.closestLog
+    private[this] def curLog = global.closestLog
     
     override def toString = getId
     
@@ -98,27 +98,52 @@ case class Env(
     // ___ Transitive Closure Utility _______________________________________
     
     /** Base class that captures the basic pattern of computing
-      * the transitive closure. */
+      * the transitive closure. The subtype need only override
+      * the `successors()` method. */
     abstract class TransitiveCloser[T] {
-        val visited = new mutable.HashSet[T]()
+        private[this] var stack = List[T]()
         
-        def compute(item: T) = expand(Queue(item), Set())
+        def set(stack: List[T], item: T) = pairStream(stack, item).map(_._2).last
+        def stream(stack: List[T], item: T) = pairStream(stack, item).map(_._1)
         
-        private[this] def expand(queue0: Queue[T], result: Set[T]): Set[T] = {
-            if(queue0.isEmpty) result
-            else {
-                val (item, queue1) = queue0.dequeue
-                val queue2 = 
-                    if(visited(item)) queue1
-                    else {
-                        visited += item
-                        successors(item).foldLeft(queue1)(_ enqueue _)
-                    }
-                expand(queue2, result + item)
+        def pairStream(stack: List[T], item: T) = {
+            if(stack.contains(item)) {
+                // Subtle: the internal `successors()` function
+                // might recursively invoke compute().  If a cycle
+                // should result from this, we "underapproximate"
+                // the result.  An example of where this might occur
+                // is eq "X eq Y" and "Y eq X" are both known facts.
+                Stream((item, Set(item)))
+            } else {
+                computePairStream(item :: stack, Queue(item), Set(item))
             }
         }
         
-        protected[this] def successors(item: T): Iterable[T]
+        private[this] def computePairStream(
+            stack: List[T], 
+            queue0: Queue[T], 
+            result1: Set[T]
+        ): Stream[(T, Set[T])] = {
+            if(queue0.isEmpty) {
+                Stream.empty
+            } else {
+                val (item, queue1) = queue0.dequeue
+                Stream.cons(
+                    (item, result1), 
+                    {
+                        val succs = successors(stack, item)
+                        val (queue2, result2) = succs.foldLeft((queue1, result1)) {
+                            case ((q, r), s) if r(s) => (q, r)
+                            case ((q, r), s) => (q.enqueue(s), r + s)
+                        }
+                        computePairStream(stack, queue2, result2)
+                    }
+                )
+            }
+        }
+        
+        // Computes the successors of `item`.  
+        protected[this] def successors(stack: List[T], item: T): Iterable[T]
     }
     
     // ___ Extending the Environment ________________________________________
@@ -363,49 +388,71 @@ case class Env(
     // pointer-equal or if they are value objects with the same
     // constituents.  
     
-    class Equater extends TransitiveCloser[Path.Ref] {
-        private[this] def crossAll(paths: List[Path.Ref]): List[List[Path.Ref]] = {
-            paths match {
-                case path :: tl => {
-                    val crossedTls = crossAll(tl)
-                    compute(path).toList.flatMap { hd =>
-                        crossedTls.map(hd :: _)
-                    }
+    object Equatable {
+        def stream(path: Path.Ref) = new Equatable().stream(Nil, path)
+        def set(path: Path.Ref) = new Equatable().set(Nil, path)
+
+        // Attempts to simplify a path into another path that will always
+        // be the same object (may yield the same path)
+        def simplify(path: Path.Ref): Path.Ref = {
+            path match {
+                case Path.Cast(_, base) => base
+                case Path.Tuple(List(path)) => simplify(path)
+                case Path.Index(
+                    Path.Tuple(paths), 
+                    Path.Constant(index: java.lang.Integer)
+                ) if index.intValue < paths.length => {
+                    simplify(paths(index.intValue))
                 }
-                
-                case List() => {
-                    List()
-                }
+                case _ => path
             }
         }
-        
-        protected[this] def successors(P1: Path.Ref): Iterable[Path.Ref] = {
-            val byInduction = P1 match {
-                case Path.Field(base: Path.Ref, name) => {
-                    compute(base).map(Path.Field(_, name))
+    }
+    
+    class Equatable extends TransitiveCloser[Path.Ref] {
+        protected[this] def successors(stack: List[Path.Ref], p1: Path.Ref): Iterable[Path.Ref] = {
+            def eq(path: Path.Ref) = set(stack, path)
+            
+            def eqs(paths: List[Path.Ref]): List[List[Path.Ref]] = {
+                paths match {
+                    case path :: tl => {
+                        val eqTls = eqs(tl)
+                        eq(path).toList.flatMap { hd =>
+                            eqTls.map(hd :: _)
+                        }
+                    }
+
+                    case List() => {
+                        List()
+                    }
                 }
-                
-                case Path.Cast(_, base) => {
-                    Set(base)
+            }
+            
+            val bySimplify = Equatable.simplify(p1)
+            
+            val byInduction = p1 match {
+                case Path.Field(base: Path.Ref, name) => {
+                    eq(base).map(Path.Field(_, name))
                 }
                 
                 case Path.Index(array, index) => {
-                    (compute(array) cross compute(index)).map { case (a, i) =>
+                    (eq(array) cross eq(index)).map { case (a, i) =>
                         Path.Index(a, i)
                     }
                 }
                 
                 case Path.Tuple(paths) => {
-                    crossAll(paths).map(Path.Tuple)
+                    eqs(paths).map(Path.Tuple)
                 }
                 
                 case Path.Call(receiver: Path.Ref, methodName, args) => {
-                    (compute(receiver) cross crossAll(args)).map { case (r, a) =>
+                    (eq(receiver) cross eqs(args)).map { case (r, a) =>
                         Path.Call(r, methodName, a)
                     }
                 }
                 
                 case Path.Field(Path.Static, _) 
+                |   Path.Cast(_, _)
                 |   Path.Call(Path.Static, _, _)
                 |   Path.Local(_)
                 |   Path.Constant(_) => {
@@ -413,113 +460,139 @@ case class Env(
                 }
             }
             
-            val bySimplify = P1 match {
-                case Path.Tuple(List(path)) => Some(path)
-                
-                case Path.Index(
-                    Path.Tuple(paths), 
-                    Path.Constant(index: java.lang.Integer)
-                ) if index.intValue < paths.length => {
-                    Some(paths(index.intValue))
-                }
-                
-                case _ => None
-            }
-            
             val byRel = pathRels.flatMap {
-                case Req.P(P1, PcEq, p2) => Some(p2)
-                case Req.P(p2, PcEq, P1) => Some(p2)
+                case Req.P(p1(), PcEq, p2) => Some(p2)
+                case Req.P(p2, PcEq, p1()) => Some(p2)
                 case _ => None
             }
             
-            byInduction ++ bySimplify ++ byRel
+            byInduction ++ Some(bySimplify) ++ byRel
         }
     }
-    
-    def equatable(path: Path.Ref) = new Equater().compute(path)
-    def pathsAreEquatable(path1: Path.Ref, path2: Path.Ref) = equatable(path1) contains path2
+
+    def pathsAreEquatable(path1: Path.Ref, path2: Path.Ref) = {
+        Equatable.stream(path1).contains(Equatable.simplify(path2))
+    }
 
     // ___ Relating Paths ___________________________________________________
-
-    def pathsAreRelatable(rel: PcRel)(path1: Path.Ref, path2: Path.Ref): Boolean = {
-        // TODO: Add code for handling permitsWr, permitsRd, and other derived relations!
-        def search() = {
-            val equatablePath1 = equatable(path1)
-            val equatablePath2 = equatable(path2)
+    
+    def pathsAreRelatable(rel: PcRel)(basePath1: Path.Ref, basePath2: Path.Ref): Boolean = {
+        
+        // The special variable "final" never permits writes and so always ensures final.
+        def tryFinal(
+            eqPath1: (Path.Ref => Boolean),
+            eqPath2: (Path.Ref => Boolean)
+        ) = {
+            (rel == PcEnsuresFinal) && eqPath1(Path.Final)
+        }
+        
+        // Search the relations found directly in the environment.
+        def trySearch(
+            eqPath1: (Path.Ref => Boolean), 
+            eqPath2: (Path.Ref => Boolean)
+        ) = {
             pathRels.exists { case Req.P(p1, r, p2) =>
-                (r == rel) && equatablePath1(p1) && equatablePath2(p2)
+                (r == rel) && eqPath1(p1) && eqPath2(p2)
             }            
         }
         
-        rel match {
-            case PcEq => pathsAreEquatable(path1, path2)
-            case PcEnsuresFinal if path1.is(Path.Final) => true
-            case _ => search()
+        // In a path like x.y, check whether x has a type like x[y rel path2]
+        def tryTypeArg(
+            eqPath1: Iterable[Path.Ref],
+            eqPath2: (Path.Ref => Boolean)
+        ) = {
+            eqPath1.exists { 
+                case Path.Field(base: Path.Ref, f) => {
+                    val typedBase = typedPath(base)
+                    minimalUpperBoundClassTys(typedBase.ty).exists { classTy =>
+                        classTy.typeArgs.exists {
+                            case Type.PathArg(f(), rel(), p2) if eqPath2(p2) => true
+                            case _ => false
+                        }
+                    }                
+                }
+                case _ => false
+            }
         }
+
+        curLog.indent(this, ".pathsAreRelatable(", rel, ")(", basePath1, ", ", basePath2, ")") {
+            rel match {
+                case PcEq => pathsAreEquatable(basePath1, basePath2)
+                case _ => {
+                    val eqPath1 = Equatable.set(basePath1)
+                    val eqPath2 = Equatable.set(basePath2)
+                    
+                    tryFinal(eqPath1, eqPath2) ||
+                    trySearch(eqPath1, eqPath2) ||
+                    tryTypeArg(eqPath1, eqPath2)
+                }
+            }
+        }
+        
     }
     
     // ___ Bounding Type Variables __________________________________________
     
-    class Bounder(Rel: TcRel) extends TransitiveCloser[Type.Ref] {
-        protected[this] def successors(ty: Type.Ref) = ty match {
-            case tyVar: Type.Member => equatableTypeVars(tyVar) ++ typeVarBounds(tyVar)
-            case Type.Tuple(List()) => List(Type.Void)   // () equivalent to Void  [Does this make sense?]
-            case Type.Tuple(List(ty)) => List(ty)        // (ty) equivalent to ty
-            case _ => Nil
-        }
-        
-        // A type `p.v` is equatable with all types `q.v` where `p eq q`
-        private[this] def equatableTypeVars(tyVar: Type.Member) = {
-            equatable(tyVar.path).map { case q =>
-                Type.Member(q, tyVar.typeVar)
-            }
-        }
-
-        // A type `p.v` obtains bounds based on the type of `p`:
-        private[this] def typeVarBounds(tyVar: Type.Member) = {
-            val TyVarName = tyVar.typeVar
-            
-            // p has class type `pathTy` == `c[args]`:
-            def boundsFromClassType(pathTy: Type.Class) = {
-                // FIXME Add bounds declared in the environment:
-                
-                // Add bounds declared in the class `c`:
-                val classBounds = List[Type.Ref]() // FIXME
-                
-                // Add bounds from type arguments `args` in `pathTy`:
-                pathTy.typeArgs.foldLeft(classBounds) { 
-                    case (l, Type.TypeArg(TyVarName, TcEq, ty)) => ty :: l
-                    case (l, Type.TypeArg(TyVarName, Rel, ty)) => ty :: l
-                    case (l, _) => l
+    class Bounder(rel: TcRel) extends TransitiveCloser[Type.Ref] {
+        protected[this] def successors(stack: List[Type.Ref], ty: Type.Ref) = {
+            // A type `p.v` is equatable with all types `q.v` where `p eq q`
+            def equatableTypeVars(tyVar: Type.Member) = {
+                Equatable.set(tyVar.path).map { case q =>
+                    Type.Member(q, tyVar.typeVar)
                 }
             }
             
-            typeOfPath(tyVar.path) match {
-                case pathTy: Type.Class => boundsFromClassType(pathTy)
-                case pathTy: Type.Member => {
-                    compute(pathTy).toList.flatMap {
-                        case tyClass: Type.Class => boundsFromClassType(tyClass)
-                        case _ => Nil
+            // A type `p.v` obtains bounds based on the type of `p`:
+            def typeVarBounds(tyVar: Type.Member) = {
+                // p has class type `pathTy` == `c[args]`:
+                def boundsFromClassType(pathTy: Type.Class) = {
+                    // FIXME Add bounds declared in the environment:
+
+                    // Add bounds declared in the class `c`:
+                    val classBounds = List[Type.Ref]() // FIXME
+
+                    // Add bounds from type arguments `args` in `pathTy`:
+                    pathTy.typeArgs.foldLeft(classBounds) { 
+                        case (l, Type.TypeArg(tyVar.typeVar(), TcEq, ty)) => ty :: l
+                        case (l, Type.TypeArg(tyVar.typeVar(), rel(), ty)) => ty :: l
+                        case (l, _) => l
                     }
                 }
-                case Type.Tuple(_) => Nil
-                case Type.Null => Nil
+
+                typeOfPath(tyVar.path) match {
+                    case pathTy: Type.Class => boundsFromClassType(pathTy)
+                    case pathTy: Type.Member => {
+                        stream(stack, pathTy).toList.flatMap {
+                            case tyClass: Type.Class => boundsFromClassType(tyClass)
+                            case _ => Nil
+                        }
+                    }
+                    case Type.Tuple(_) => Nil
+                    case Type.Null => Nil
+                }
+            }
+            
+            ty match {
+                case tyVar: Type.Member => equatableTypeVars(tyVar) ++ typeVarBounds(tyVar)
+                case Type.Tuple(List()) => List(Type.Void)   // () equivalent to Void  [Does this make sense?]
+                case Type.Tuple(List(ty)) => List(ty)        // (ty) equivalent to ty
+                case _ => Nil
             }
         }
     }
     
     /** Returns a set of types that are exactly equivalent to `ty`. */
-    def equateVars(ty: Type.Ref) = new Bounder(TcEq).compute(ty)
+    def equateVars(ty: Type.Ref) = new Bounder(TcEq).set(Nil, ty)
 
     /** Returns a set of types that are upper bounds for `ty` 
       * (i.e., supertypes of `ty`).  This function is intended to expand
       * type variables.  It does not return supertypes of class types. */
-    def upperBoundVars(ty: Type.Ref) = new Bounder(TcSub).compute(ty)
+    def upperBoundVars(ty: Type.Ref) = new Bounder(TcSub).set(Nil, ty)
     
     /** Returns a set of types that are lower bounds for `ty` 
       * (i.e., subtypes of `ty`). This function is intended to expand
       * type variables.  It does not return supertypes of class types. */
-    def lowerBoundVars(ty: Type.Ref) = new Bounder(TcSup).compute(ty)
+    def lowerBoundVars(ty: Type.Ref) = new Bounder(TcSup).set(Nil, ty)
     
     /** Returns a minimal set of upper-bounds for `ty`. "Minimal"
       * means that we remove redundant class types; i.e., if 
@@ -859,7 +932,7 @@ case class Env(
     // This is the Harmonic equivalent to a subtype check.
     
     def isSatisfiedForPath(path: Path.Typed)(arg: Type.Arg): Boolean = {
-        log.indent(this, ".isSatisfiedForPath(", path, ")(", arg, ")") {
+        curLog.indent(this, ".isSatisfiedForPath(", path, ")(", arg, ")") {
             arg match {
                 case Type.PathArg(name, rel, path2) => {
                     val extPath = Path.Field(path.toPath, name)
@@ -867,7 +940,7 @@ case class Env(
                 }
                 case Type.TypeArg(name, rel, ty) => {
                     val extTy = Type.Member(path.toPath, name)
-                    new Bounder(rel).compute(extTy).exists(
+                    new Bounder(rel).stream(Nil, extTy).exists(
                         typeEquatableWith(ty)
                     )
                 }
@@ -876,7 +949,7 @@ case class Env(
     }
     
     def pathHasType(path: Path.Typed, ty: Type.Ref): Boolean = {
-        log.indent(this, ".pathHasType(", path, ", ", ty, ")") {
+        curLog.indent(this, ".pathHasType(", path, ", ", ty, ")") {
             val ubSubTys = upperBoundVars(path.ty)
             val lbSuperTys = lowerBoundVars(ty)
             (ubSubTys cross lbSuperTys).exists {
@@ -885,13 +958,13 @@ case class Env(
                 }
             
                 case (t1 @ Type.Member(path1, v1), t2 @ Type.Member(path2, v2)) => {
-                    log.indent("Member types: ", t1, " and ", t2) {
+                    curLog.indent("Member types: ", t1, " and ", t2) {
                         (v1 == v2) && pathsAreEquatable(path1, path2)                    
                     }
                 }
             
                 case (t1 @ Type.Class(subName, _), t2 @ Type.Class(supName, supArgs)) => {
-                    log.indent("Class types: ", t1, " and ", t2) {
+                    curLog.indent("Class types: ", t1, " and ", t2) {
                         val subCsym = global.csym(subName)
                         val supCsym = global.csym(supName)
                         subCsym.isSubclass(supCsym) && supArgs.forall(isSatisfiedForPath(path))

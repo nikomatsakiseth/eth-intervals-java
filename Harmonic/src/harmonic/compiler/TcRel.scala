@@ -1,6 +1,8 @@
 package harmonic.compiler
 
-sealed abstract class TcRel
+sealed abstract class TcRel {
+    def unapply(rel: TcRel) = (rel == this)
+}
 
 case object TcEq extends TcRel {
     override def toString = ":"
