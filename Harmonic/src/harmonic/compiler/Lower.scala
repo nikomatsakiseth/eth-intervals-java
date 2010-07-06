@@ -212,7 +212,7 @@ case class Lower(global: Global) {
                 
                 // If not matching, try to find a bounding type, or just infer Object:
                 case (_, in.TupleParam(params)) => {
-                    val optTy = env.upperBoundVars(expTy).firstSome {
+                    val optTy = env.upperBounds(expTy).firstSome {
                         case ty @ Type.Tuple(tys) if sameLength(tys, params) => Some(ty)
                         case _ => None
                     }

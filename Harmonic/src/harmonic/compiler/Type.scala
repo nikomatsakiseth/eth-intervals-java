@@ -4,6 +4,7 @@ import scala.collection.mutable.HashSet
 import scala.collection.mutable.Queue
 
 sealed abstract class Type {
+    def is(ty: Type) = (this == ty)
     def unapply(ty: Type) = (this == ty)    
 }
 

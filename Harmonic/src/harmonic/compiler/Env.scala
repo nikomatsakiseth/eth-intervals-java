@@ -319,7 +319,7 @@ object Env {
                     // TODO --- report invalid method ids at the site of use.
                     Error.NoSuchField(name).report(
                         global, 
-                        InterPosition.forClassNamed(methodId.className)
+                        InterPosition.forClassNamed(name.className)
                     )
                     VarSymbol.errorField(name, None)
                 }
@@ -389,7 +389,7 @@ object Env {
         }
         
         def instantiate(state: ProofState)(query: Query[_]) = query match {
-            case Query.PR(Path.Field(p, f), _) => Some(TypeArgs(p, f.className))
+            case Query.PR(Path.Field(p: Path.Ref, f), _) => Some(TypeArgs(p, f.className))
             case _ => None
         }
     }
@@ -695,7 +695,7 @@ object Env {
                 csym.superClassNames.map { c2 =>
                     // TODO: Add in any applicable constraints defined in c1!!
                     // TODO: Filter out inapplicable arguments from ty (won't hurt though)
-                    Fact.TT(ty1, TcSub, Type.Class(c2, ty1.args))
+                    Fact.TT(ty1, TcSub, Type.Class(c2, ty1.typeArgs))
                 }
             }
         }        
@@ -724,7 +724,7 @@ object Env {
         }
         
         def instantiate(state: ProofState)(query: Query[_]) = query match {
-            case Query.TR(ty1: Type.Class, TcSub) => Some(Extends(ty1))
+            case Query.TR(ty1: Type.Class, TcSub) => Some(SubtypingTrans(ty1))
             case _ => None
         }
     }
@@ -744,7 +744,7 @@ object Env {
         }
         
         def instantiate(state: ProofState)(query: Query[_]) = query match {
-            case Query.TR(ty1: Type.Class, TcSub) => Some(Extends(ty1))
+            case Query.TR(ty1: Type.Class, TcSub) => Some(EqualityImpliesSubtyping(ty1))
             case _ => None
         }
     }    

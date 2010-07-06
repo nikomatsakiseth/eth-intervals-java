@@ -10,7 +10,7 @@ import Util._
 object MethodSymbol {
     
     def error(methodId: MethodId): MethodSymbol = {
-        error(methodId.name, methodId.className, methodId.msig.parameterPatterns)
+        error(methodId.methodName, methodId.className, methodId.msig.parameterPatterns)
     }
     
     def error(name: Name.Method, clsName: Name.Class, patterns: List[Pattern.Ref]): MethodSymbol = {

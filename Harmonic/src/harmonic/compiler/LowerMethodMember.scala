@@ -115,8 +115,8 @@ class LowerMethodMember(
             during = List(csym.members),
             after = List(symCreate.getEnd, memberLower.getEnd)
         ) { inter =>
-            sym.Requirements.v = outMethodDecl.v.requirements.map(_.toReq)
-            sym.Ensures.v = outMethodDecl.v.ensures.map(_.toReq)
+            sym.Requirements.v = outMethodDecl.v.requirements.map(_.toFact)
+            sym.Ensures.v = outMethodDecl.v.ensures.map(_.toFact)
         }
     }
     
