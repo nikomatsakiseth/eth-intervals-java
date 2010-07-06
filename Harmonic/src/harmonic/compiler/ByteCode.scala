@@ -106,7 +106,7 @@ case class ByteCode(global: Global) {
     def boxInfoForPrimitiveType(asmType: asm.Type) = boxes.find(_.primType == asmType).get
     def boxInfoForBoxType(asmType: asm.Type) = boxes.find(_.boxType == asmType).get
     
-    case class ExtendedTypeRef(ty: Type.Ref) 
+    case class ExtendedTypeRef(ty: Type) 
     {
         def toAsmType: asm.Type = ty match {
             case Type.Class(name, List()) => asm.Type.getObjectType(name.internalName)
@@ -116,9 +116,9 @@ case class ByteCode(global: Global) {
             case _ => asmObjectType            
         }
     }
-    implicit def extendedTypeRef(ty: Type.Ref): ExtendedTypeRef = ExtendedTypeRef(ty)
+    implicit def extendedTypeRef(ty: Type): ExtendedTypeRef = ExtendedTypeRef(ty)
 
-    def convertNeeded(toTy: Type.Ref, fromTy: Type.Ref): Boolean = {
+    def convertNeeded(toTy: Type, fromTy: Type): Boolean = {
         (toTy, fromTy) match {
             case (Type.Class(toName, _), Type.Class(fromName, _)) => {
                 val toSym = global.csym(toName)
@@ -307,7 +307,7 @@ case class ByteCode(global: Global) {
             }
         }
         
-        def convert(toTy: Type.Ref, fromTy: Type.Ref) {
+        def convert(toTy: Type, fromTy: Type) {
             if(convertNeeded(toTy, fromTy)) {
                 convert(toTy.toAsmType, fromTy.toAsmType)                
             }
@@ -330,11 +330,11 @@ case class ByteCode(global: Global) {
         memberName.className.toTag + memberName.text
     }
     
-    def accessorGetDesc(fieldTy: Type.Ref) = {
+    def accessorGetDesc(fieldTy: Type) = {
         getMethodDescriptor(fieldTy.toAsmType, Array())        
     }
     
-    def accessorSetDesc(fieldTy: Type.Ref) = {
+    def accessorSetDesc(fieldTy: Type) = {
         getMethodDescriptor(asm.Type.VOID_TYPE, Array(fieldTy.toAsmType))
     }
     
@@ -817,7 +817,7 @@ case class ByteCode(global: Global) {
             }
         }
         
-        def pushPathValueDowncastingTo(toTy: Type.Ref, path: Path.Typed) {
+        def pushPathValueDowncastingTo(toTy: Type, path: Path.Typed) {
             pushPathValueDowncastingTo(toTy.toAsmType, path)
         }
         
@@ -1001,7 +1001,7 @@ case class ByteCode(global: Global) {
             mvis.convert(toAsmTy, expr.ty.toAsmType)
         }
         
-        def pushExprValueDowncastingTo(toTy: Type.Ref, expr: in.Expr) {
+        def pushExprValueDowncastingTo(toTy: Type, expr: in.Expr) {
             pushExprValue(expr)
             mvis.convert(toTy, expr.ty)
         }
@@ -1985,7 +1985,7 @@ case class ByteCode(global: Global) {
         csym: ClassFromSource, 
         cvis: asm.ClassVisitor, 
         fsym: VarSymbol.Field,
-        desc: (Type.Ref => String)
+        desc: (Type => String)
     ) = {
         cvis.visitMethod(
             opts + O.ACC_PUBLIC,

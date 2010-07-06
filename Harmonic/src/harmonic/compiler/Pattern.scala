@@ -5,8 +5,8 @@ object Pattern {
     /** Base type for all patterns.  Contains no names
       * for the variables being assigned to. */
     sealed abstract trait Anon {
-        def ty: Type.Ref
-        def varTys: List[Type.Ref]
+        def ty: Type
+        def varTys: List[Type]
     }
     
     /** Base type for patterns that include variable names. */
@@ -33,7 +33,7 @@ object Pattern {
         def unapply(anon: AnonTuple) = Some(anon.patterns)
     }
     
-    case class SubstdVar(ty: Type.Ref) extends AnonVar {
+    case class SubstdVar(ty: Type) extends AnonVar {
         override def toString = ty.toString
     }
     
@@ -43,7 +43,7 @@ object Pattern {
     
     case class Var(
         name: Name.LocalVar,
-        ty: Type.Ref
+        ty: Type
     ) extends AnonVar with Ref {
         def varNames = List(name)
         override def toString = "%s: %s".format(name, ty)

@@ -115,8 +115,8 @@ case class Intrinsic(global: Global) {
         }
         
         def templateTy(
-            returnTy: Type.Ref,
-            argumentTy: Type.Ref
+            returnTy: Type,
+            argumentTy: Type
         ) = {
             Type.Class(
                 Name.Class(templateClass),

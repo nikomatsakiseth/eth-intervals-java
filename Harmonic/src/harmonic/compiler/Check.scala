@@ -26,19 +26,19 @@ case class Check(global: Global) {
 
         class At(node: Ast.Node) {
             
-            def checkTypeWf(ty: Type.Ref): Unit = {
+            def checkTypeWf(ty: Type): Unit = {
                 if(!env.typeIsFinalBy(ty, current)) {
                     Error.TypeNotFinal(ty).report(global, node.pos)
                 }
             }
             
-            def checkIsSubtype(subTy: Type.Ref, supTy: Type.Ref): Unit = {
+            def checkIsSubtype(subTy: Type, supTy: Type): Unit = {
                 if(!env.isSubtype(subTy, supTy)) {
                     Error.MustBeSubtype(subTy, supTy).report(global, node.pos)
                 }
             }
             
-            def checkPathHasType(path: Path.Typed, ty: Type.Ref): Unit = {
+            def checkPathHasType(path: Path.Typed, ty: Type): Unit = {
                 if(!env.pathHasType(path, ty)) {
                     Error.MustHaveType(path, ty).report(global, node.pos)
                 }
@@ -51,7 +51,7 @@ case class Check(global: Global) {
                 }
             }
             
-            def checkParamType(pair: (Type.Ref, Path.Typed)): Unit = {
+            def checkParamType(pair: (Type, Path.Typed)): Unit = {
                 checkPathHasType(pair._2, pair._1)
             }
             
@@ -84,7 +84,7 @@ case class Check(global: Global) {
                 }
             }
             
-            def checkPathAndType(path: Path.Typed, ty: Type.Ref): Unit = {
+            def checkPathAndType(path: Path.Typed, ty: Type): Unit = {
                 checkPath(path)
                 checkPathHasType(path, ty)
             }
@@ -95,7 +95,7 @@ case class Check(global: Global) {
             At(path).checkPath(path.path)
         }
 
-        def checkPathAndType(path: in.TypedPath, ty: Type.Ref): Unit = {
+        def checkPathAndType(path: in.TypedPath, ty: Type): Unit = {
             log.indent("checkPathAndType(", path, ", ", ty, ")") {
                 At(path).checkPathAndType(path.path, ty)
             }
@@ -115,13 +115,13 @@ case class Check(global: Global) {
             }
         }
         
-        def checkParam(pair: (Type.Ref, in.TypedPath)): Unit = {
+        def checkParam(pair: (Type, in.TypedPath)): Unit = {
             val (ty, path) = pair
             At(path).checkPath(path.path)
             At(path).checkPathHasType(path.path, ty)
         }
         
-        def checkExpr(expr: in.LowerTlExpr): Type.Ref = log.indent("checkExpr(", expr, ")") {
+        def checkExpr(expr: in.LowerTlExpr): Type = log.indent("checkExpr(", expr, ")") {
             expr match {
                 case in.TypedPath(path) => {
                     At(expr).checkPath(path)

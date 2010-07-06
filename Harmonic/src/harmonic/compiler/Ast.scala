@@ -71,7 +71,7 @@ abstract class Ast {
     
     def errTy: Ty
     def voidTy: Ty
-    def toTy(ty: Type.Ref): Ty
+    def toTy(ty: Type): Ty
     def vsymTy(vsym: VSym): Ty
     def trefTy(tref: TR): Ty
     def tupleTy(tys: List[Ty]): TyTuple
@@ -499,12 +499,12 @@ abstract class Ast {
     //
     // T.R. go through several phases.  After parsing they are basically
     // just a parse tree.  After resolution they have a bit more structure.
-    // After lowering they are just a wrapper around a `Type.Ref`.
+    // After lowering they are just a wrapper around a `Type`.
 
     // ______ Types after lowering __________________________________________
     
     /** Symbolic ref. to a type, used after lowering */
-    case class TypeRef(ty: Type.Ref) extends Node {
+    case class TypeRef(ty: Type) extends Node {
         override def toString = ty.toString
     }
     
@@ -1014,7 +1014,7 @@ object Ast {
         
         def errTy = ()
         def voidTy = ()
-        def toTy(ty: Type.Ref) = ()
+        def toTy(ty: Type) = ()
         def trefTy(tref: TR) = ()
         def vsymTy(unit: VSym) = ()
         def tupleTy(tys: List[Ty]) = ()
@@ -1055,7 +1055,7 @@ object Ast {
 
         def errTy = ()
         def voidTy = ()
-        def toTy(ty: Type.Ref) = ()
+        def toTy(ty: Type) = ()
         def trefTy(tref: TR) = ()
         def vsymTy(unit: VSym) = ()
         def tupleTy(tys: List[Ty]) = ()
@@ -1092,13 +1092,13 @@ object Ast {
         type FSym = VarSymbol.Field
         type MSym = MethodSymbol
         type MCallData = (MethodSymbol, MethodSignature[Pattern.Anon])
-        type Ty = Type.Ref
+        type Ty = Type
         type TyClass = Type.Class
         type TyTuple = Type.Tuple
 
         def errTy = Type.Top
         def voidTy = Type.Void
-        def toTy(ty: Type.Ref) = ty
+        def toTy(ty: Type) = ty
         def trefTy(tref: TR) = tref.ty
         def vsymTy(vsym: VSym) = vsym.ty
         def tupleTy(tys: List[Ty]) = Type.Tuple(tys)

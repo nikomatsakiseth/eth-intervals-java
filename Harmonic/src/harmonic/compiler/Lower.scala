@@ -162,7 +162,7 @@ case class Lower(global: Global) {
     
     // Method parameters always have a specified type.  
     def lowerClassParam(csym: ClassSymbol, classEnv: Env, inParam: in.Param[Unit]) = {
-        def newSym(pos: Position, modifiers: Modifier.Set, name: Name.LocalVar, ty: Type.Ref) = 
+        def newSym(pos: Position, modifiers: Modifier.Set, name: Name.LocalVar, ty: Type) = 
             new VarSymbol.Field(pos, modifiers, Name.Member(csym.name, name.text), ty, FieldKind.Harmonic)
         def addSym(env: Env, sym: VarSymbol.Field) = env
         val (List(outParam), env1) = lowerAnyParams(newSym, addSym)(classEnv, List((Type.Top, inParam)))
@@ -171,15 +171,15 @@ case class Lower(global: Global) {
     
     // Method parameters always have a specified type.  
     def lowerMethodParams(classEnv: Env, inParams: List[in.Param[Unit]]) = {
-        def newSym(pos: Position, modifiers: Modifier.Set, name: Name.LocalVar, ty: Type.Ref) = 
+        def newSym(pos: Position, modifiers: Modifier.Set, name: Name.LocalVar, ty: Type) = 
             new VarSymbol.Local(pos, modifiers, name, ty)
         def addSym(env: Env, sym: VarSymbol.Local) = env.plusLocalVar(sym)
         lowerAnyParams(newSym, addSym)(classEnv, inParams.map(p => (Type.Top, p)))
     }
     
     // The type of block parameters can be inferred from context.
-    def lowerBlockParam(env: Env, expTy: Type.Ref, inParam: in.Param[Unit]) = {
-        def newSym(pos: Position, modifiers: Modifier.Set, name: Name.LocalVar, ty: Type.Ref) = 
+    def lowerBlockParam(env: Env, expTy: Type, inParam: in.Param[Unit]) = {
+        def newSym(pos: Position, modifiers: Modifier.Set, name: Name.LocalVar, ty: Type) = 
             new VarSymbol.Local(pos, modifiers, name, ty)
         def addSym(env: Env, sym: VarSymbol.Local) = env.plusLocalVar(sym)
         val (List(outParam), env1) = lowerAnyParams(newSym, addSym)(env, List((expTy, inParam)))
@@ -187,16 +187,16 @@ case class Lower(global: Global) {
     }
     
     def lowerAnyParams[S <: VarSymbol.Any](
-        newSym: ((Position, Modifier.Set, Name.LocalVar, Type.Ref) => S),
+        newSym: ((Position, Modifier.Set, Name.LocalVar, Type) => S),
         addSym: ((Env, S) => Env)
     )(
         env0: Env, 
-        inputs: List[(Type.Ref, in.Param[Unit])]
+        inputs: List[(Type, in.Param[Unit])]
     ): (List[out.Param[S]], Env) = {
         var env = env0
         
         def lowerParam(
-            expTy: Type.Ref, 
+            expTy: Type, 
             param: in.Param[Unit]
         ): out.Param[S] = withPosOf(param, {
             (expTy, param) match {
@@ -370,7 +370,7 @@ case class Lower(global: Global) {
             def callData(
                 name: Name.Method,
                 msyms: List[MethodSymbol], 
-                rcvrTy: Type.Ref, 
+                rcvrTy: Type, 
                 inRcvr: in.Rcvr, 
                 inArgs: List[in.PathNode],
                 outArgNodes: List[out.TypedPath]
@@ -480,7 +480,7 @@ case class Lower(global: Global) {
 
         // ___ Types ____________________________________________________________
         
-        def toTypeRef(tref: in.ResolveTypeRef): Type.Ref = {
+        def toTypeRef(tref: in.ResolveTypeRef): Type = {
             tref match {
                 case in.TupleType(trefs) => Type.Tuple(trefs.map(toTypeRef))
                 case in.NullType() => Type.Null
@@ -612,7 +612,7 @@ case class Lower(global: Global) {
             pos: Position,
             createSubst: (MethodSymbol => Subst),
             msyms: List[MethodSymbol],
-            argTys: List[Type.Ref]
+            argTys: List[Type]
         ): Option[out.MCallData] = {
             // Find those symbols that are potentially applicable
             // to the arguments provided:
@@ -733,10 +733,10 @@ case class Lower(global: Global) {
           * the lvalue expects to be assigned to it.  This may
           * not be possible if the user has not fully specified
           * the type. In that case, None is returned. */
-        def optTypeFromLocal(env: Env, lvalue0: in.Lvalue): Option[Type.Ref] = {
+        def optTypeFromLocal(env: Env, lvalue0: in.Lvalue): Option[Type] = {
             case class FailedException() extends Exception
             
-            def theOldCollegeTry(lvalue: in.Lvalue): Type.Ref = lvalue match {
+            def theOldCollegeTry(lvalue: in.Lvalue): Type = lvalue match {
                 case in.TupleLvalue(lvalues) => 
                     Type.Tuple(lvalues.map(theOldCollegeTry))
                 case in.DeclareVarLvalue(_, in.InferredTypeRef(), _, ()) =>
@@ -782,7 +782,7 @@ case class Lower(global: Global) {
                 }                
             }
             
-            def lowerDeclaredVar(lv: in.DeclareVarLvalue, ty: Type.Ref, rv: out.Expr) = {
+            def lowerDeclaredVar(lv: in.DeclareVarLvalue, ty: Type, rv: out.Expr) = {
                 val in.DeclareVarLvalue(anns, _, name, ()) = lv
                 val outAnnotations = anns.map(InEnv(outEnv).lowerAnnotation)
                 val mod = Modifier.forLoweredAnnotations(outAnnotations)
@@ -891,7 +891,7 @@ case class Lower(global: Global) {
             outEnv
         }
 
-        def lowerField(optExpTy: Option[Type.Ref])(expr: in.Field) = withPosOf(expr, {
+        def lowerField(optExpTy: Option[Type])(expr: in.Field) = withPosOf(expr, {
             expr.owner match {
                 // Static field ref. like System.out:
                 case in.Static(className) => {
@@ -956,7 +956,7 @@ case class Lower(global: Global) {
             pos: Position,
             msyms: List[MethodSymbol],
             name: Name.Method,
-            rcvrTy: Type.Ref,
+            rcvrTy: Type,
             inRcvr: in.Rcvr,
             inArgs: List[in.Expr]
         ) = {
@@ -993,8 +993,8 @@ case class Lower(global: Global) {
             }            
         }
         
-        def lowerMethodCall(optExpTy: Option[Type.Ref])(mcall: in.MethodCall) = withPosOf(mcall, {
-            def identifyBestFromMcall(msyms: List[MethodSymbol], rcvrTy: Type.Ref) =
+        def lowerMethodCall(optExpTy: Option[Type])(mcall: in.MethodCall) = withPosOf(mcall, {
+            def identifyBestFromMcall(msyms: List[MethodSymbol], rcvrTy: Type) =
                 identifyBestMethod(mcall.pos, msyms, mcall.name, rcvrTy, mcall.rcvr, mcall.args)
             
             val optRes = mcall.rcvr match {
@@ -1079,12 +1079,12 @@ case class Lower(global: Global) {
             }
         })
         
-        def lowerNull(optExpTy: Option[Type.Ref])(expr: in.Null) = withPosOf(expr, {
+        def lowerNull(optExpTy: Option[Type])(expr: in.Null) = withPosOf(expr, {
             val ty = optExpTy.getOrElse(Type.Null)
             out.Null(ty)
         })
 
-        def lowerTuple(optExpTy: Option[Type.Ref])(tuple: in.Tuple) = withPosOf(tuple, {
+        def lowerTuple(optExpTy: Option[Type])(tuple: in.Tuple) = withPosOf(tuple, {
             val paths = optExpTy match {
                 case Some(Type.Tuple(tys)) if sameLength(tys, tuple.exprs) => {
                     tys.zip(tuple.exprs).map { case (t, e) => 
@@ -1098,7 +1098,7 @@ case class Lower(global: Global) {
             Path.TypedTuple(paths).toNode
         })
         
-        def optTypeArg(TypeVarName: Name.Var, optExpTy: Option[Type.Ref]) = optExpTy match {
+        def optTypeArg(TypeVarName: Name.Var, optExpTy: Option[Type]) = optExpTy match {
             case Some(Type.Class(_, typeArgs)) => {
                 typeArgs.firstSome {
                     case Type.TypeArg(TypeVarName, TcEq, ty) => Some(ty)
@@ -1109,7 +1109,7 @@ case class Lower(global: Global) {
             case _ => None
         }
                 
-        def lowerBlock(optExpTy: Option[Type.Ref])(tmpl: in.Block) = withPosOf(tmpl, {
+        def lowerBlock(optExpTy: Option[Type])(tmpl: in.Block) = withPosOf(tmpl, {
             val expArgumentTy = optTypeArg(Name.BlockA, optExpTy).getOrElse(Type.Void)
             val (outParam, subenv) = lowerBlockParam(env, expArgumentTy, tmpl.param)
             val outStmts0 = lowerStmts(subenv, tmpl.stmts)
@@ -1150,7 +1150,7 @@ case class Lower(global: Global) {
             ).toNode
         })
     
-        def firstSuperClassOfferingMethod(pos: Position, mthdName: Name.Method): Type.Ref = {
+        def firstSuperClassOfferingMethod(pos: Position, mthdName: Name.Method): Type = {
             // Find the next supertype in MRO that implements the method
             // `mthdName` (if any):
             val mro = env.thisCsym.mro
@@ -1167,7 +1167,7 @@ case class Lower(global: Global) {
             }
         }
         
-        def lowerExpr(optExpTy: Option[Type.Ref])(expr: in.Expr): out.Expr = expr match {
+        def lowerExpr(optExpTy: Option[Type])(expr: in.Expr): out.Expr = expr match {
             case in.TypedPath(path) => out.TypedPath(path) // TODO Refine types further to elim this case
             case e: in.Tuple => lowerTuple(optExpTy)(e)
             case e: in.Block => lowerBlock(optExpTy)(e)
@@ -1182,11 +1182,11 @@ case class Lower(global: Global) {
             case e: in.ImpThis => lowerImpThis(e)
         }
         
-        def lowerToTypedPath(optExpTy: Option[Type.Ref])(expr: in.Expr): Path.Typed = {
+        def lowerToTypedPath(optExpTy: Option[Type])(expr: in.Expr): Path.Typed = {
             typedPathForExpr(lowerExpr(optExpTy)(expr))
         }
         
-        def lowerToTypedPathNode(optExpTy: Option[Type.Ref])(expr: in.Expr): out.TypedPath = {
+        def lowerToTypedPathNode(optExpTy: Option[Type])(expr: in.Expr): out.TypedPath = {
             typedPathNodeForExpr(lowerExpr(optExpTy)(expr))
         }
 

@@ -44,7 +44,7 @@ BlockClass	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Name.sc
 BlockParent	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Name.scala	/^    val BlockParent = Member(BlockClass, "Parent")$/;"	constants	line:180
 BlockR	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Name.scala	/^    val BlockR = Member(BlockClass, "R")$/;"	constants	line:178
 Body	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^    case class Body(stmts: List[Stmt]) extends Node {$/;"	classes	line:577
-Bounder	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    class Bounder(Rel: TcRel) extends TransitiveCloser[Type.Ref] {$/;"	classes	line:399
+Bounder	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    class Bounder(Rel: TcRel) extends TransitiveCloser[Type] {$/;"	classes	line:399
 BoxInfo	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^    case class BoxInfo($/;"	classes	line:89
 BoxedArray	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^    class BoxedArray(accessMap: AccessMap)$/;"	classes	line:591
 ByteCode	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^case class ByteCode(global: Global) {$/;"	classes	line:33
@@ -65,7 +65,7 @@ CSym	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^ 
 Call	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Path.scala	/^    case class Call(receiver: UntypedOwner, methodId: MethodId, args: List[Path.Ref]) extends Ref {$/;"	classes	line:32
 CannotResolve	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Error.scala	/^    case class CannotResolve(name: String) extends Error {$/;"	classes	line:179
 Cast	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^    case class Cast(expr: NE, typeRef: TR) extends ResolveTlExpr {$/;"	classes	line:644
-Cast	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Path.scala	/^    case class Cast(ty: Type.Ref, path: Ref) extends Ref {$/;"	classes	line:23
+Cast	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Path.scala	/^    case class Cast(ty: Type, path: Ref) extends Ref {$/;"	classes	line:23
 Check	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Check.scala	/^case class Check(global: Global) {$/;"	classes	line:11
 CircularInheritance	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Error.scala	/^    case class CircularInheritance($/;"	classes	line:53
 Class	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Name.scala	/^    final case class Class($/;"	classes	line:35
@@ -117,7 +117,7 @@ ExtendedMap	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/SymTab
 ExtendedMethodVisitor	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^    sealed case class ExtendedMethodVisitor(mvis: asm.MethodVisitor) {$/;"	classes	line:168
 ExtendedOption	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Util.scala	/^    class ExtendedOption[E](option: Option[E]) {$/;"	classes	line:81
 ExtendedParam	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^            case class ExtendedParam(pat: Param[VSym]) {$/;"	classes	line:967
-ExtendedTypeRef	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^    case class ExtendedTypeRef(ty: Type.Ref) $/;"	classes	line:108
+ExtendedTypeRef	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^    case class ExtendedTypeRef(ty: Type) $/;"	classes	line:108
 ExtendedTypedPath	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^            case class ExtendedTypedPath(path: Path.Typed) {$/;"	classes	line:976
 ExtendsArg	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^    sealed abstract class ExtendsArg extends Node$/;"	classes	line:320
 ExtendsDecl	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^    case class ExtendsDecl($/;"	classes	line:302
@@ -1694,7 +1694,7 @@ MethodReturn	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.s
 MethodSignature	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/MethodSignature.scala	/^case class MethodSignature[+P <: Pattern.Anon]($/;"	classes	line:3
 Mod	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Modifier.scala	/^    abstract class Mod(val bit: Int, val jBit: Int, val name: Name.Class)$/;"	classes	line:7
 MultipleOverridesInSameClass	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Error.scala	/^    case class MultipleOverridesInSameClass($/;"	classes	line:114
-MustHaveType	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Error.scala	/^    case class MustHaveType(path: Path.Typed, ty: Type.Ref) extends Error {$/;"	classes	line:22
+MustHaveType	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Error.scala	/^    case class MustHaveType(path: Path.Typed, ty: Type) extends Error {$/;"	classes	line:22
 MustResolveAmbiguousInheritance	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Error.scala	/^    case class MustResolveAmbiguousInheritance($/;"	classes	line:97
 Mutable	/Users/niko/git/intervals-java/Harmonic/src/harmonic/lang/Mutable.java	/^public @interface Mutable {$/;"	interface	line:3
 MutableClass	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Name.scala	/^    val MutableClass = Class(classOf[harmonic.lang.Mutable])$/;"	constants	line:172
@@ -1704,8 +1704,8 @@ NE	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^   
 Name	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^    sealed abstract class Name extends Node$/;"	classes	line:809
 NewCtor	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^    case class NewCtor(tref: TR, args: List[NE], data: MCallData, ty: TyClass) extends LowerTlExpr {$/;"	classes	line:725
 NoReturnHere	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Error.scala	/^    case class NoReturnHere() extends Error {$/;"	classes	line:16
-NoSuchMember	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Error.scala	/^    case class NoSuchMember(ty: Type.Ref, uName: Name.UnloweredMember) extends Error {$/;"	classes	line:197
-NoSuchMethod	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Error.scala	/^    case class NoSuchMethod(ty: Type.Ref, name: Name.Method) extends Error {$/;"	classes	line:206
+NoSuchMember	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Error.scala	/^    case class NoSuchMember(ty: Type, uName: Name.UnloweredMember) extends Error {$/;"	classes	line:197
+NoSuchMethod	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Error.scala	/^    case class NoSuchMethod(ty: Type, name: Name.Method) extends Error {$/;"	classes	line:206
 NoSuchVar	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Error.scala	/^    case class NoSuchVar(localName: String) extends Error {$/;"	classes	line:230
 Node	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^    sealed abstract class Node extends Positional with Product {$/;"	classes	line:781
 NotExecutable	/Users/niko/git/intervals-java/Harmonic/test.py	/^class NotExecutable(Exception):$/;"	class	line:193
@@ -1813,7 +1813,7 @@ Stmt	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^ 
 Stmt	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^        type Stmt = ResolveStmt$/;"	types	line:898
 Subpackage	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Name.scala	/^    final case class Subpackage($/;"	classes	line:25
 SubstdTuple	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Pattern.scala	/^    case class SubstdTuple(patterns: List[Pattern.Anon]) extends AnonTuple$/;"	classes	line:38
-SubstdVar	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Pattern.scala	/^    case class SubstdVar(ty: Type.Ref) extends AnonVar$/;"	classes	line:36
+SubstdVar	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Pattern.scala	/^    case class SubstdVar(ty: Type) extends AnonVar$/;"	classes	line:36
 Super	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^    case class Super(ty: Ty) extends ResolveRcvr {$/;"	classes	line:690
 SuperClassNames	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ClassFromSource.scala	/^    val SuperClassNames = new GuardedBy[List[Name.Class]](header)$/;"	constants	line:128
 Symbol	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Symbol.scala	/^abstract class Symbol {$/;"	classes	line:8
@@ -1832,14 +1832,14 @@ TreeLvalue	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.sca
 Tuple	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^    case class Tuple(exprs: List[Expr]) extends ResolveTlExpr {$/;"	classes	line:607
 Tuple	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Path.scala	/^    case class Tuple(paths: List[Ref]) extends Ref {$/;"	classes	line:38
 Tuple	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Pattern.scala	/^    case class Tuple(patterns: List[Pattern.Ref]) extends AnonTuple with Ref {$/;"	classes	line:47
-Tuple	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Type.scala	/^    case class Tuple(typeRefs: List[Type.Ref]) extends Ref {$/;"	classes	line:17
+Tuple	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Type.scala	/^    case class Tuple(typeRefs: List[Type]) extends Ref {$/;"	classes	line:17
 TupleAstPattern	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^    sealed abstract trait TupleAstPattern[+S <: VSym] extends AstPattern[S] {$/;"	traits	line:343
 TupleExtendsArg	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^    case class TupleExtendsArg(args: List[ExtendsArg]) extends ExtendsArg {$/;"	classes	line:321
 TupleLvalue	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^    case class TupleLvalue($/;"	classes	line:390
 TupleParam	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^    case class TupleParam[+S <: VSym]($/;"	classes	line:366
 TupleType	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^    case class TupleType(types: List[TR]) extends ParseTypeRef with ResolveTypeRef {$/;"	classes	line:504
 TwoOf3	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Util.scala	/^    case class TwoOf3[+A, +B, +C](value: B) extends AnyOf3[A, B, C]$/;"	classes	line:234
-Ty	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^        type Ty = Type.Ref$/;"	types	line:953
+Ty	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^        type Ty = Type$/;"	types	line:953
 Ty	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^        type Ty = Unit$/;"	types	line:869
 Ty	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^        type Ty = Unit$/;"	types	line:910
 TyClass	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^        type TyClass = Type.Class$/;"	types	line:954
@@ -1851,13 +1851,13 @@ TyTuple	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	
 TyVarName	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^            val TyVarName = tyVar.typeVar$/;"	constants	line:416
 Type	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/SymTab.scala	/^    sealed case class Type(name: Name.Member) extends MemberEntry {$/;"	classes	line:23
 TypeArg	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^    sealed abstract class TypeArg extends Node {$/;"	classes	line:514
-TypeArg	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Type.scala	/^    case class TypeArg(name: Name.Member, rel: TcRel, ty: Type.Ref) extends Arg {$/;"	classes	line:30
-TypeRef	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^    case class TypeRef(ty: Type.Ref) extends Node {$/;"	classes	line:449
+TypeArg	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Type.scala	/^    case class TypeArg(name: Name.Member, rel: TcRel, ty: Type) extends Arg {$/;"	classes	line:30
+TypeRef	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^    case class TypeRef(ty: Type) extends Node {$/;"	classes	line:449
 TypeTypeArg	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^    case class TypeTypeArg(name: MN, rel: TcRel, typeRef: TR) extends TypeArg {$/;"	classes	line:519
 TypeVar	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^    case class TypeVar(path: PathNode, typeVar: MN) extends ResolveTypeRef {$/;"	classes	line:490
 Typed	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Path.scala	/^    sealed abstract class Typed extends TypedOwner {$/;"	classes	line:51
 TypedCall	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Path.scala	/^    case class TypedCall($/;"	classes	line:83
-TypedCast	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Path.scala	/^    case class TypedCast(ty: Type.Ref, path: Typed) extends Typed {$/;"	classes	line:62
+TypedCast	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Path.scala	/^    case class TypedCast(ty: Type, path: Typed) extends Typed {$/;"	classes	line:62
 TypedConstant	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Path.scala	/^    case class TypedConstant(obj: Object) extends Typed {$/;"	classes	line:66
 TypedField	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Path.scala	/^    case class TypedField(base: Path.TypedOwner, sym: VarSymbol.Field) extends Typed {$/;"	classes	line:73
 TypedIndex	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Path.scala	/^    case class TypedIndex(array: Path.Typed, index: Path.Typed) extends Typed {$/;"	classes	line:103
@@ -1904,9 +1904,9 @@ accessMap	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode
 accessMap	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^        val accessMap = new AccessMap(csym.name)$/;"	constants	line:2069
 accessMap	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^        val accessMap = new AccessMap(csym.name)$/;"	constants	line:2184
 accessSyms	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^        def accessSyms = readSyms ++ writeSyms$/;"	methods	line:633
-accessorGetDesc	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^    def accessorGetDesc(fieldTy: Type.Ref) = {$/;"	methods	line:337
+accessorGetDesc	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^    def accessorGetDesc(fieldTy: Type) = {$/;"	methods	line:337
 accessorName	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^    def accessorName(memberName: Name.Member) = {$/;"	methods	line:333
-accessorSetDesc	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^    def accessorSetDesc(fieldTy: Type.Ref) = {$/;"	methods	line:341
+accessorSetDesc	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^    def accessorSetDesc(fieldTy: Type) = {$/;"	methods	line:341
 adaptTo	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^        def adaptTo(tarPatterns: List[Pattern.Ref], stmtVisitor: StatementVisitor) {$/;"	methods	line:1659
 adapter	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^        val adapter = new ParameterAdapter(accessMap, group.msig.parameterPatterns)$/;"	constants	line:2016
 adapter	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^        val adapter = new ParameterAdapter(accessMap, group.msig.parameterPatterns)$/;"	constants	line:2072
@@ -2007,7 +2007,7 @@ argTys	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala
 args	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/GatherExtends.scala	/^            val args = extendsDecl.args.map(n => subst.typedPath(n.path))$/;"	constants	line:44
 args	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^            val args = extendsDecl.args.map(lowerExtendsArg)$/;"	constants	line:562
 args	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Parse.scala	/^    def args(cps: List[(String, out.Expr)]) = cps.map(_._2)$/;"	methods	line:360
-arrayExtends	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Type.scala	/^    def arrayExtends(ty: Type.Ref) = {$/;"	methods	line:49
+arrayExtends	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Type.scala	/^    def arrayExtends(ty: Type) = {$/;"	methods	line:49
 as	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ClassSymbol.scala	/^    \/** A position for reporting errors related to the class as a whole *\/$/;"	classes	line:34
 asClassName	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Name.scala	/^        def asClassName = None$/;"	methods	line:15
 asClassName	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Name.scala	/^        def asClassName = Some(this)$/;"	methods	line:46
@@ -2107,16 +2107,16 @@ check	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ClassSymbol.
 checkAssign	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Check.scala	/^    def checkAssign(env: Env, pair: (in.Lvalue, in.Expr)): Env = {$/;"	methods	line:112
 checkBytecode	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Config.scala	/^    var checkBytecode = true$/;"	local variables	line:21
 checkEnv	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ClassSymbol.scala	/^    def checkEnv: Env$/;"	methods	line:97
-checkExpr	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Check.scala	/^        def checkExpr(expr: in.LowerTlExpr): Type.Ref = {$/;"	methods	line:84
+checkExpr	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Check.scala	/^        def checkExpr(expr: in.LowerTlExpr): Type = {$/;"	methods	line:84
 checkOwner	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Check.scala	/^            def checkOwner(owner: Path.TypedOwner): Unit = {$/;"	methods	line:32
 checkParam	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Check.scala	/^        def checkParam(pair: (Pattern.Anon, in.TypedPath)): Unit = {$/;"	methods	line:78
 checkParamType	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Check.scala	/^            def checkParamType(pair: (Pattern.Anon, Path.Typed)): Unit = {$/;"	methods	line:39
 checkPath	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Check.scala	/^            def checkPath(path: Path.Typed): Unit = {$/;"	methods	line:43
-checkPathHasType	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Check.scala	/^            def checkPathHasType(path: Path.Typed, ty: Type.Ref): Unit = {$/;"	methods	line:26
+checkPathHasType	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Check.scala	/^            def checkPathHasType(path: Path.Typed, ty: Type): Unit = {$/;"	methods	line:26
 checkPathNode	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Check.scala	/^            def checkPathNode(path: in.TypedPath): Unit = {$/;"	methods	line:72
 checkStmt	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Check.scala	/^    def checkStmt(env: Env, stmt: in.LowerStmt): Env = {$/;"	methods	line:135
 checker	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^        val checker = check(writer)$/;"	constants	line:382
-classBounds	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^                val classBounds = List[Type.Ref]() \/\/ FIXME$/;"	constants	line:421
+classBounds	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^                val classBounds = List[Type]() \/\/ FIXME$/;"	constants	line:421
 classDecl	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Check.scala	/^        val classDecl = csym.loweredSource$/;"	constants	line:178
 classDecl	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Parse.scala	/^    lazy val classDecl = positioned($/;"	constants	line:156
 classEnv	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ClassFromSource.scala	/^    def classEnv = ClassEnv.v$/;"	methods	line:151
@@ -2185,8 +2185,8 @@ constructors	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Class
 contains	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Modifier.scala	/^        def contains(mod: Mod) = (mods & mod.bit) != 0$/;"	methods	line:18
 controlFlow	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Intrinsic.scala	/^        def controlFlow($/;"	methods	line:92
 convert	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^        def convert(toAsmTy: asm.Type, fromAsmTy: asm.Type) {$/;"	methods	line:232
-convert	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^        def convert(toTy: Type.Ref, fromTy: Type.Ref) {$/;"	methods	line:314
-convertNeeded	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^    def convertNeeded(toTy: Type.Ref, fromTy: Type.Ref): Boolean = {$/;"	methods	line:120
+convert	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^        def convert(toTy: Type, fromTy: Type) {$/;"	methods	line:314
+convertNeeded	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^    def convertNeeded(toTy: Type, fromTy: Type): Boolean = {$/;"	methods	line:120
 cookRawSuperClasses	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ResolveHeader.scala	/^    def cookRawSuperClasses(csym: ClassSymbol, rawSuperClassNames: List[Name.Class]) = {$/;"	methods	line:20
 cpu	/Users/niko/git/intervals-java/Harmonic/Makefile	/^HPROFOPTS=-agentlib:hprof=cpu=samples,depth=6$/;"	macro	line:13
 create	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ClassFromCompiledSource.scala	/^        val create: AsyncInterval = master.subinterval($/;"	constants	line:86
@@ -2535,7 +2535,7 @@ equatable	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scal
 equatablePath1	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^                val equatablePath1 = equatable(path1)$/;"	constants	line:388
 equatablePath2	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^                val equatablePath2 = equatable(path2)$/;"	constants	line:389
 equatableTypeVars	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^        private[this] def equatableTypeVars(tyVar: Type.Member) = {$/;"	methods	line:408
-equateVars	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    def equateVars(ty: Type.Ref) = new Bounder(TcEq).compute(ty)$/;"	methods	line:446
+equateVars	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    def equateVars(ty: Type) = new Bounder(TcEq).compute(ty)$/;"	methods	line:446
 err	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Main.scala	/^        val err = $/;"	constants	line:10
 errTy	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^        def errTy = ()$/;"	methods	line:873
 errTy	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^        def errTy = ()$/;"	methods	line:914
@@ -2544,8 +2544,8 @@ errTy	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^
 error	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/MethodSymbol.scala	/^    def error(name: Name.Method, clsName: Name.Class) = {$/;"	methods	line:8
 error	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Reporter.scala	/^        val error = Error(pos, msgKey, msgArgs.toList)$/;"	constants	line:19
 error	/Users/niko/git/intervals-java/Harmonic/test.py	/^    def error(self, message):$/;"	member	line:449
-errorField	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/VarSymbol.scala	/^    def errorField(name: Name.Member, optExpTy: Option[Type.Ref]) = {$/;"	methods	line:17
-errorLocal	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/VarSymbol.scala	/^    def errorLocal(name: Name.LocalVar, optExpTy: Option[Type.Ref]) = {$/;"	methods	line:34
+errorField	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/VarSymbol.scala	/^    def errorField(name: Name.Member, optExpTy: Option[Type]) = {$/;"	methods	line:17
+errorLocal	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/VarSymbol.scala	/^    def errorLocal(name: Name.LocalVar, optExpTy: Option[Type]) = {$/;"	methods	line:34
 errorPath	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^            def errorPath(name: String) = {$/;"	methods	line:354
 errorSym	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^                val errorSym = MethodSymbol.error(Name.InitMethod, targetCsym.name)$/;"	constants	line:577
 errors	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Reporter.scala	/^    private[this] val errors = new mutable.ListBuffer[Error]()$/;"	constants	line:14
@@ -2574,7 +2574,7 @@ extendedMap	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/SymTab
 extendedMethodVisitor	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^    implicit def extendedMethodVisitor(mvis: asm.MethodVisitor) = ExtendedMethodVisitor(mvis)$/;"	methods	line:329
 extendedOption	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Util.scala	/^    implicit def extendedOption[E](option: Option[E]): ExtendedOption[E] = new ExtendedOption(option)$/;"	methods	line:92
 extendedParam	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^            implicit def extendedParam(pat: Param[VSym]): ExtendedParam = $/;"	methods	line:973
-extendedTypeRef	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^    implicit def extendedTypeRef(ty: Type.Ref): ExtendedTypeRef = ExtendedTypeRef(ty)$/;"	methods	line:118
+extendedTypeRef	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^    implicit def extendedTypeRef(ty: Type): ExtendedTypeRef = ExtendedTypeRef(ty)$/;"	methods	line:118
 extendedTypedPath	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^            implicit def extendedTypedPath(path: Path.Typed): ExtendedTypedPath = $/;"	methods	line:980
 extendsArg	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Parse.scala	/^    lazy val extendsArg: PackratParser[out.ExtendsArg] = ($/;"	constants	line:118
 extendsDecl	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Parse.scala	/^    lazy val extendsDecl = positioned($/;"	constants	line:134
@@ -2607,7 +2607,7 @@ findSym	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	
 first	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^            var first = true$/;"	local variables	line:711
 firstRight	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Util.scala	/^        def firstRight[L,R](left0: L)(func: ((L, E) => Either[L,R])) = {$/;"	methods	line:52
 firstSome	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Util.scala	/^        def firstSome[F](func: (E => Option[F])) = {$/;"	methods	line:45
-firstSuperClassOfferingMethod	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def firstSuperClassOfferingMethod(pos: Position, mthdName: Name.Method): Type.Ref = {$/;"	methods	line:1150
+firstSuperClassOfferingMethod	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def firstSuperClassOfferingMethod(pos: Position, mthdName: Name.Method): Type = {$/;"	methods	line:1150
 flatArgNodes	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^                            val flatArgNodes = flattenAssignment(msym.msig.parameterPatterns, outArgNodes)$/;"	constants	line:377
 flatArgs	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^                        val flatArgs = flattenAssignment(msym.msig.parameterPatterns, outArgs)$/;"	constants	line:983
 flatArgs	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^                    val flatArgs = flattenAssignment(msym.msig.parameterPatterns, outArgs)$/;"	constants	line:970
@@ -2723,7 +2723,7 @@ here	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scal
 hprof	/Users/niko/git/intervals-java/Harmonic/Makefile	/^HPROFOPTS=-agentlib:hprof=cpu=samples,depth=6$/;"	macro	line:13
 i	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Config.scala	/^        var i = 0$/;"	local variables	line:77
 id	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/MethodSymbol.scala	/^    def id = MethodId(clsName, name, msig)$/;"	methods	line:36
-identifyBestFromMcall	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^            def identifyBestFromMcall(msyms: List[MethodSymbol], rcvrTy: Type.Ref) =$/;"	methods	line:991
+identifyBestFromMcall	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^            def identifyBestFromMcall(msyms: List[MethodSymbol], rcvrTy: Type) =$/;"	methods	line:991
 identifyBestMethod	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def identifyBestMethod($/;"	methods	line:949
 idx	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/MethodResolutionOrder.scala	/^            \/\/    val idx = stack.indexOf(csym)$/;"	constants	line:70
 ifElse	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/IntrinsicControlFlow.java	/^    public static <R> R ifElse($/;"	method	line:26
@@ -2812,10 +2812,10 @@ isPrivate	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ClassFro
 isSatisfiedForPath	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    def isSatisfiedForPath(path: Path.Typed)(arg: Type.Arg): Boolean = {$/;"	methods	line:796
 isStatic	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Modifier.scala	/^        def isStatic = contains(Static)$/;"	methods	line:28
 isSubclass	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ClassSymbol.scala	/^    def isSubclass(superCsym: ClassSymbol): Boolean = {$/;"	methods	line:67
-isSubclass	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^\/\/    def isSubclass(ty_sub: Type.Ref, ty_sup: Type.Ref): Boolean = {$/;"	methods	line:761
+isSubclass	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^\/\/    def isSubclass(ty_sub: Type, ty_sup: Type): Boolean = {$/;"	methods	line:761
 isSuitable	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ClassFromReflection.scala	/^    def isSuitable(member: reflect.Member) = isDeclaredByCls(member) && !isPrivate(member)$/;"	methods	line:18
-isSuitableArgument	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    def isSuitableArgument(ty_val: Type.Ref, ty_pat: Type.Ref): Boolean = {$/;"	methods	line:635
-isSuitableArgumentBounded	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    private[this] def isSuitableArgumentBounded(ty_val: Type.Ref, ty_pat: Type.Ref): Boolean = {$/;"	methods	line:607
+isSuitableArgument	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    def isSuitableArgument(ty_val: Type, ty_pat: Type): Boolean = {$/;"	methods	line:635
+isSuitableArgumentBounded	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    private[this] def isSuitableArgumentBounded(ty_val: Type, ty_pat: Type): Boolean = {$/;"	methods	line:607
 isUnscheduled	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Modifier.scala	/^        def isUnscheduled = contains(Unscheduled)$/;"	methods	line:31
 iterableClass	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Intrinsic.scala	/^        val iterableClass = classOf[java.lang.Iterable[_]]$/;"	constants	line:78
 iterableTy	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Intrinsic.scala	/^        val iterableTy = Type.Class(iterableClass)$/;"	constants	line:90
@@ -2883,17 +2883,17 @@ lower	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ClassFromSou
 lower	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ClassSymbol.scala	/^    def lower: AsyncInterval$/;"	methods	line:21
 lowerAnnotation	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def lowerAnnotation(ann: in.Annotation) = withPosOf(ann,$/;"	methods	line:546
 lowerAnyParams	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^    def lowerAnyParams[S <: VarSymbol.Any]($/;"	methods	line:178
-lowerBlock	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def lowerBlock(optExpTy: Option[Type.Ref])(tmpl: in.Block) = withPosOf(tmpl, {$/;"	methods	line:1109
-lowerBlockParam	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^    def lowerBlockParam(env: Env, expTy: Type.Ref, inParam: in.Param[Unit]) = {$/;"	methods	line:170
+lowerBlock	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def lowerBlock(optExpTy: Option[Type])(tmpl: in.Block) = withPosOf(tmpl, {$/;"	methods	line:1109
+lowerBlockParam	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^    def lowerBlockParam(env: Env, expTy: Type, inParam: in.Param[Unit]) = {$/;"	methods	line:170
 lowerBody	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^    def lowerBody(env: Env, body: in.Body): out.Body = {$/;"	methods	line:672
-lowerBoundVars	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    def lowerBoundVars(ty: Type.Ref) = new Bounder(TcSup).compute(ty)$/;"	methods	line:456
+lowerBoundVars	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    def lowerBoundVars(ty: Type) = new Bounder(TcSup).compute(ty)$/;"	methods	line:456
 lowerCast	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def lowerCast(expr: in.Cast) = withPosOf(expr, {$/;"	methods	line:1143
 lowerClassParam	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^    def lowerClassParam(csym: ClassSymbol, classEnv: Env, inParam: in.Param[Unit]) = {$/;"	methods	line:153
-lowerDeclaredVar	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^            def lowerDeclaredVar(lv: in.DeclareVarLvalue, ty: Type.Ref, rv: out.Expr) = {$/;"	methods	line:779
-lowerExpr	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def lowerExpr(optExpTy: Option[Type.Ref])(expr: in.Expr): out.Expr = expr match {$/;"	methods	line:1171
+lowerDeclaredVar	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^            def lowerDeclaredVar(lv: in.DeclareVarLvalue, ty: Type, rv: out.Expr) = {$/;"	methods	line:779
+lowerExpr	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def lowerExpr(optExpTy: Option[Type])(expr: in.Expr): out.Expr = expr match {$/;"	methods	line:1171
 lowerExtendsArg	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def lowerExtendsArg(arg: in.ExtendsArg): out.TypedPath = withPosOf(arg, {$/;"	methods	line:550
 lowerExtendsDecl	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def lowerExtendsDecl(extendsDecl: in.ExtendsDecl) = withPosOf(extendsDecl, {$/;"	methods	line:560
-lowerField	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def lowerField(optExpTy: Option[Type.Ref])(expr: in.Field) = withPosOf(expr, {$/;"	methods	line:888
+lowerField	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def lowerField(optExpTy: Option[Type])(expr: in.Field) = withPosOf(expr, {$/;"	methods	line:888
 lowerFieldDecl	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^    def lowerFieldDecl($/;"	methods	line:132
 lowerFromInExpr	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^            def lowerFromInExpr(pair: (in.Lvalue, in.Expr)): Unit = {$/;"	methods	line:838
 lowerFromOutExpr	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^            def lowerFromOutExpr(pair: (in.Lvalue, out.Expr)): Unit = {$/;"	methods	line:807
@@ -2902,11 +2902,11 @@ lowerIntervalDecl	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/
 lowerLiteralExpr	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def lowerLiteralExpr(expr: in.Literal) = withPosOf(expr, {$/;"	methods	line:945
 lowerMemberDecl	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^    def lowerMemberDecl($/;"	methods	line:43
 lowerMembers	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ClassFromSource.scala	/^    def lowerMembers = LowerMembers.v$/;"	methods	line:159
-lowerMethodCall	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def lowerMethodCall(optExpTy: Option[Type.Ref])(mcall: in.MethodCall) = withPosOf(mcall, {$/;"	methods	line:990
+lowerMethodCall	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def lowerMethodCall(optExpTy: Option[Type])(mcall: in.MethodCall) = withPosOf(mcall, {$/;"	methods	line:990
 lowerMethodDecl	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^    def lowerMethodDecl($/;"	methods	line:98
 lowerMethodParams	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^    def lowerMethodParams(classEnv: Env, inParams: List[in.Param[Unit]]) = {$/;"	methods	line:162
 lowerNewCtor	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def lowerNewCtor(expr: in.NewCtor) = withPosOf(expr, {$/;"	methods	line:1043
-lowerNull	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def lowerNull(optExpTy: Option[Type.Ref])(expr: in.Null) = withPosOf(expr, {$/;"	methods	line:1079
+lowerNull	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def lowerNull(optExpTy: Option[Type])(expr: in.Null) = withPosOf(expr, {$/;"	methods	line:1079
 lowerParam	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def lowerParam($/;"	methods	line:187
 lowerPath	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def lowerPath(path: in.PathNode): out.TypedPath = {$/;"	methods	line:466
 lowerReassignedField	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^            def lowerReassignedField(memberName: Ast.MemberName, fsym: VarSymbol.Field, rv: out.Expr) = {$/;"	methods	line:800
@@ -2914,9 +2914,9 @@ lowerReassignedVar	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler
 lowerRelDecl	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^    def lowerRelDecl($/;"	methods	line:53
 lowerRequirement	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def lowerRequirement(req: in.PathRequirement) = withPosOf(req, out.PathRequirement($/;"	methods	line:540
 lowerStmts	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^    def lowerStmts(env0: Env, stmts: List[in.Stmt]): List[out.Stmt] = {$/;"	methods	line:676
-lowerToTypedPath	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def lowerToTypedPath(optExpTy: Option[Type.Ref])(expr: in.Expr): Path.Typed = {$/;"	methods	line:1186
-lowerToTypedPathNode	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def lowerToTypedPathNode(optExpTy: Option[Type.Ref])(expr: in.Expr): out.TypedPath = {$/;"	methods	line:1190
-lowerTuple	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def lowerTuple(optExpTy: Option[Type.Ref])(tuple: in.Tuple) = withPosOf(tuple, {$/;"	methods	line:1084
+lowerToTypedPath	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def lowerToTypedPath(optExpTy: Option[Type])(expr: in.Expr): Path.Typed = {$/;"	methods	line:1186
+lowerToTypedPathNode	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def lowerToTypedPathNode(optExpTy: Option[Type])(expr: in.Expr): out.TypedPath = {$/;"	methods	line:1190
+lowerTuple	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def lowerTuple(optExpTy: Option[Type])(tuple: in.Tuple) = withPosOf(tuple, {$/;"	methods	line:1084
 lowerTypeRef	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def lowerTypeRef(tref: in.ResolveTypeRef): out.TypeRef = withPosOf(tref, {$/;"	methods	line:534
 loweredMethods	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ClassFromSource.scala	/^    def loweredMethods = LoweredMethods.v$/;"	methods	line:179
 loweredSource	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ClassFromSource.scala	/^    def loweredSource = LoweredSource.v$/;"	methods	line:182
@@ -2932,7 +2932,7 @@ mapContext	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Util.sc
 master	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Global.scala	/^    var master: Interval = null$/;"	local variables	line:15
 masterDesc	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^        val masterDesc = descFunc(masterSig)$/;"	constants	line:1694
 matches	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Name.scala	/^        def matches(unlowerName: UnloweredMember) = unlowerName match {$/;"	methods	line:127
-matchesByClass	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^\/\/    def matchesByClass(pattern: Pattern.Ref, ty: Type.Ref): Boolean = {$/;"	methods	line:776
+matchesByClass	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^\/\/    def matchesByClass(pattern: Pattern.Ref, ty: Type): Boolean = {$/;"	methods	line:776
 matching	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^                val matching = msyms.takeWhile(_.isFromClassNamed(csym.name))$/;"	constants	line:2045
 mathOps	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Intrinsic.scala	/^    val mathOps = List($/;"	constants	line:25
 maxIndex	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^        private[this] var maxIndex = 0$/;"	local variables	line:594
@@ -2976,8 +2976,8 @@ methodSymbol	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Class
 methodsNamed	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ClassFromCompiledSource.scala	/^    final def methodsNamed(name: Name.Method): List[MethodSymbol] = allMethodSymbols.filter(_.isNamed(name))$/;"	methods	line:46
 methodsNamed	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ClassFromSource.scala	/^    def methodsNamed(mthdName: Name.Method) = {$/;"	methods	line:165
 methodsNamed	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ClassSymbol.scala	/^    def methodsNamed(name: Name.Method): List[MethodSymbol]$/;"	methods	line:87
-minimalUpperBoundClassTys	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    def minimalUpperBoundClassTys(ty: Type.Ref) = {$/;"	methods	line:478
-minimalUpperBoundType	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    def minimalUpperBoundType(ty: Type.Ref) = {$/;"	methods	line:462
+minimalUpperBoundClassTys	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    def minimalUpperBoundClassTys(ty: Type) = {$/;"	methods	line:478
+minimalUpperBoundType	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    def minimalUpperBoundType(ty: Type) = {$/;"	methods	line:462
 minus	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/IntrinsicMathGen.java	/^    public static Double minus(Byte l, Double r) { return l - r; }$/;"	method	line:129
 minus	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/IntrinsicMathGen.java	/^    public static Double minus(Double l, Byte r) { return l - r; }$/;"	method	line:204
 minus	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/IntrinsicMathGen.java	/^    public static Double minus(Double l, Double r) { return l - r; }$/;"	method	line:219
@@ -3066,10 +3066,10 @@ mthdSym	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	
 mthdSym	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^    def mthdSym(data: MCallData): MSym$/;"	methods	line:74
 must	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^    \/\/ However, to fulfill the `Block` interface, the class must also $/;"	classes	line:1618
 must	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/GatherExtends.scala	/^  * given class must provide equivalent arguments$/;"	classes	line:14
-mutualUpperBound	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    def mutualUpperBound(pair: (Type.Ref, Type.Ref)): Type.Ref = {$/;"	methods	line:545
-mutualUpperBoundOfList	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    def mutualUpperBoundOfList(tys: List[Type.Ref]): Type.Ref = {$/;"	methods	line:534
-mutualUpperBoundUnmatchedTuple	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    private[this] def mutualUpperBoundUnmatchedTuple(tys: List[Type.Ref], otherTy: Type.Ref) = {$/;"	methods	line:529
-mutualUpperBoundVar	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    private[this] def mutualUpperBoundVar(varTy: Type.Member, otherTy: Type.Ref) = {$/;"	methods	line:520
+mutualUpperBound	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    def mutualUpperBound(pair: (Type, Type)): Type = {$/;"	methods	line:545
+mutualUpperBoundOfList	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    def mutualUpperBoundOfList(tys: List[Type]): Type = {$/;"	methods	line:534
+mutualUpperBoundUnmatchedTuple	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    private[this] def mutualUpperBoundUnmatchedTuple(tys: List[Type], otherTy: Type) = {$/;"	methods	line:529
+mutualUpperBoundVar	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    private[this] def mutualUpperBoundVar(varTy: Type.Member, otherTy: Type) = {$/;"	methods	line:520
 mvis	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^            val mvis = cvis.visitMethod($/;"	constants	line:1876
 mvis	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^        val mvis = cvis.visitMethod($/;"	constants	line:1700
 mvis	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^        val mvis = cvis.visitMethod($/;"	constants	line:1803
@@ -3112,9 +3112,9 @@ names	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ClassFromSou
 newAccessMap	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^        def newAccessMap(stmts: List[in.Stmt]) = {$/;"	methods	line:1814
 newExpr	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Parse.scala	/^    lazy val newExpr = positioned($/;"	constants	line:362
 newGroup	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/GatherOverrides.scala	/^        private[this] def newGroup(msym: MethodSymbol) = {$/;"	methods	line:40
-newSym	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def newSym(pos: Position, modifiers: Modifier.Set, name: Name.LocalVar, ty: Type.Ref) = $/;"	methods	line:154
-newSym	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def newSym(pos: Position, modifiers: Modifier.Set, name: Name.LocalVar, ty: Type.Ref) = $/;"	methods	line:163
-newSym	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def newSym(pos: Position, modifiers: Modifier.Set, name: Name.LocalVar, ty: Type.Ref) = $/;"	methods	line:171
+newSym	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def newSym(pos: Position, modifiers: Modifier.Set, name: Name.LocalVar, ty: Type) = $/;"	methods	line:154
+newSym	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def newSym(pos: Position, modifiers: Modifier.Set, name: Name.LocalVar, ty: Type) = $/;"	methods	line:163
+newSym	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def newSym(pos: Position, modifiers: Modifier.Set, name: Name.LocalVar, ty: Type) = $/;"	methods	line:171
 nextCsym	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ClassSymbol.scala	/^            val nextCsym = queued.dequeue()$/;"	constants	line:59
 nextMro	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^            val nextMro = accessMap.pathToFreshSlot(asm.Type.INT_TYPE)$/;"	constants	line:1888
 nextSubst	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/GatherExtends.scala	/^                    val nextSubst = fieldSyms.zip(args).foldLeft(TypedSubst.empty) { case (s, (fsym, arg)) =>$/;"	constants	line:76
@@ -3148,8 +3148,8 @@ optRes	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala
 optSubst	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Pattern.scala	/^    def optSubst(pats_from: List[Pattern.Ref], pats_to: List[Pattern.Ref]) = {$/;"	methods	line:81
 optTy	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^                    val optTy = env.upperBoundVars(expTy).firstSome {$/;"	constants	line:204
 optTy	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^            val optTy = mro.firstSome { $/;"	constants	line:1154
-optTypeArg	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def optTypeArg(TypeVarName: Name.Var, optExpTy: Option[Type.Ref]) = optExpTy match {$/;"	methods	line:1098
-optTypeFromLocal	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def optTypeFromLocal(env: Env, lvalue0: in.Lvalue): Option[Type.Ref] = {$/;"	methods	line:730
+optTypeArg	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def optTypeArg(TypeVarName: Name.Var, optExpTy: Option[Type]) = optExpTy match {$/;"	methods	line:1098
+optTypeFromLocal	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def optTypeFromLocal(env: Env, lvalue0: in.Lvalue): Option[Type] = {$/;"	methods	line:730
 optTypeRef	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Parse.scala	/^    lazy val optTypeRef: PackratParser[out.OTR] = reqTypeRef | infTypeRef$/;"	constants	line:273
 optl	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Parse.scala	/^    def optl[A](p: PackratParser[List[A]]) = opt(p) ^^ { _.getOrElse(List()) }$/;"	methods	line:67
 or	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ClassFromSource.scala	/^      * whether they are defined in this class or in a superclass. Populated $/;"	classes	line:195
@@ -3245,7 +3245,7 @@ pathArgs	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ResolveBo
 pathAsExpr	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Parse.scala	/^    lazy val pathAsExpr = positioned($/;"	constants	line:319
 pathExtendsArg	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Parse.scala	/^    lazy val pathExtendsArg = positioned($/;"	constants	line:126
 pathForPath	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def pathForPath(path: in.PathNode): Path.Ref = {$/;"	methods	line:462
-pathHasType	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    def pathHasType(path: Path.Typed, ty: Type.Ref): Boolean = {$/;"	methods	line:811
+pathHasType	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    def pathHasType(path: Path.Typed, ty: Type): Boolean = {$/;"	methods	line:811
 pathIsFinalBy	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    def pathIsFinalBy(path: Path.Typed, inter: Path.Typed): Boolean = {$/;"	methods	line:840
 pathToFreshSlot	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^        def pathToFreshSlot(asmTy: asm.Type) = {$/;"	methods	line:564
 pathType	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Parse.scala	/^    lazy val pathType = positioned($/;"	constants	line:287
@@ -3304,8 +3304,8 @@ plusLocalVars	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.
 plusPathRel	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    def plusPathRel(rel: (Path.Ref, PcRel, Path.Ref)) = copy(pathRels = rel :: pathRels)$/;"	methods	line:80
 plusPathRels	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    def plusPathRels(rels: List[(Path.Ref, PcRel, Path.Ref)]) = rels.foldLeft(this)(_ plusPathRel _)$/;"	methods	line:82
 plusThis	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    def plusThis(thisTy: Type.Class, sym: VarSymbol.Local) = plusLocalVar(sym).copy(thisTy = thisTy)$/;"	methods	line:78
-plusTypeRel	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    def plusTypeRel(rel: (Type.Member, TcRel, Type.Ref)) = copy(typeRels = rel :: typeRels)$/;"	methods	line:84
-plusTypeRels	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    def plusTypeRels(rels: List[(Type.Member, TcRel, Type.Ref)]) = rels.foldLeft(this)(_ plusTypeRel _)$/;"	methods	line:86
+plusTypeRel	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    def plusTypeRel(rel: (Type.Member, TcRel, Type)) = copy(typeRels = rel :: typeRels)$/;"	methods	line:84
+plusTypeRels	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    def plusTypeRels(rels: List[(Type.Member, TcRel, Type)]) = rels.foldLeft(this)(_ plusTypeRel _)$/;"	methods	line:86
 pos	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ClassFromCompiledSource.scala	/^    def pos = InterPosition.forClassNamed(name)$/;"	methods	line:12
 pos	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ClassFromSource.scala	/^    def pos = parseCdecl.pos$/;"	methods	line:16
 pos	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ClassSymbol.scala	/^    def pos: Position$/;"	methods	line:35
@@ -3499,7 +3499,7 @@ pushAsyncInterval	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/
 pushConvertingTo	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^            def pushConvertingTo(asmTypes: Array[asm.Type]) {$/;"	methods	line:797
 pushExprValue	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^        def pushExprValue(expr: in.Expr) {$/;"	methods	line:1017
 pushExprValueDowncastingTo	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^        def pushExprValueDowncastingTo(toAsmTy: asm.Type, expr: in.Expr) {$/;"	methods	line:1003
-pushExprValueDowncastingTo	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^        def pushExprValueDowncastingTo(toTy: Type.Ref, expr: in.Expr) {$/;"	methods	line:1008
+pushExprValueDowncastingTo	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^        def pushExprValueDowncastingTo(toTy: Type, expr: in.Expr) {$/;"	methods	line:1008
 pushIntegerConstant	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^        def pushIntegerConstant(value: Int) = value match {$/;"	methods	line:205
 pushLvalue	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^        def pushLvalue(mvis: asm.MethodVisitor) {$/;"	methods	line:456
 pushLvalue	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^        def pushLvalue(mvis: asm.MethodVisitor) {$/;"	methods	line:479
@@ -3510,7 +3510,7 @@ pushMethodArgs	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Byt
 pushPathRvalues	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^        def pushPathRvalues(lvalue: Pattern.Anon, rvalue: Path.Typed, asmTypes: List[asm.Type]): List[asm.Type] = {$/;"	methods	line:736
 pushPathValue	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^        def pushPathValue(path: Path.Typed) {$/;"	methods	line:833
 pushPathValueDowncastingTo	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^        def pushPathValueDowncastingTo(toAsmTy: asm.Type, path: Path.Typed) {$/;"	methods	line:828
-pushPathValueDowncastingTo	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^        def pushPathValueDowncastingTo(toTy: Type.Ref, path: Path.Typed) {$/;"	methods	line:824
+pushPathValueDowncastingTo	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^        def pushPathValueDowncastingTo(toTy: Type, path: Path.Typed) {$/;"	methods	line:824
 pushResultOfStatements	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^        def pushResultOfStatements(stmts: List[in.Stmt]) {$/;"	methods	line:1157
 pushStatement	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^        private[this] def pushStatement(stmt: in.Stmt) {$/;"	methods	line:1144
 pushSym	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^        def pushSym(sym: VarSymbol.Any, mvis: asm.MethodVisitor) = syms(sym).push(mvis)$/;"	methods	line:588
@@ -3660,7 +3660,7 @@ returnTy	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala
 returnTy	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Intrinsic.scala	/^            val returnTy = Type.Class(returnClass)$/;"	constants	line:45
 returnTy	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^            val returnTy = tmpl.returnTref match {$/;"	constants	line:1121
 returnTy	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        val returnTy = (mdecl.returnTref, optBody) match {$/;"	constants	line:105
-returnTy	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/MethodSignature.scala	/^    val returnTy: Type.Ref,$/;"	constants	line:4
+returnTy	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/MethodSignature.scala	/^    val returnTy: Type,$/;"	constants	line:4
 rightArgsUp	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^                val rightArgsUp = rightArgs.filter(appliesTo(bestCsym))$/;"	constants	line:593
 rightCsym	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^                val rightCsym = global.csym(rightName)$/;"	constants	line:586
 rightTy	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Intrinsic.scala	/^            val rightTy = Type.Class(rightClass)$/;"	constants	line:44
@@ -3740,7 +3740,7 @@ substForFlatArgs	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/M
 substFromPatExprs	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^    def substFromPatExprs(pats: List[Pattern.Ref], asts: List[in.Expr]): Subst = {$/;"	methods	line:286
 successors	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^        protected[this] def successors(P1: Path.Ref): Iterable[Path.Ref] = {$/;"	methods	line:321
 successors	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^        protected[this] def successors(item: T): Iterable[T]$/;"	methods	line:69
-successors	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^        protected[this] def successors(ty: Type.Ref) = ty match {$/;"	methods	line:400
+successors	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^        protected[this] def successors(ty: Type) = ty match {$/;"	methods	line:400
 summarizeSymbolsInExpr	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^    def summarizeSymbolsInExpr(summary: SymbolSummary, expr: in.Expr): SymbolSummary = {$/;"	methods	line:669
 summarizeSymbolsInPath	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^    def summarizeSymbolsInPath(summary: SymbolSummary, path: Path.Typed): SymbolSummary = {$/;"	methods	line:651
 summarizeSymbolsInPathNode	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^    def summarizeSymbolsInPathNode(summary: SymbolSummary, node: in.TypedPath) = {$/;"	methods	line:665
@@ -3805,7 +3805,7 @@ text	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Name.scala	/^
 text	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ResolveBody.scala	/^            val text = name.name.text$/;"	constants	line:191
 that	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^  * - Foo$Impl.class: a Java class that implements Foo, suitable$/;"	classes	line:28
 that	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    \/** Base class that captures the basic pattern of computing$/;"	classes	line:48
-theOldCollegeTry	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^            def theOldCollegeTry(lvalue: in.Lvalue): Type.Ref = lvalue match {$/;"	methods	line:733
+theOldCollegeTry	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^            def theOldCollegeTry(lvalue: in.Lvalue): Type = lvalue match {$/;"	methods	line:733
 thisAccessPath	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^            val thisAccessPath = derivedAccessMap.pathToFreshSlot(asmClassType(cname))$/;"	constants	line:1231
 thisCsym	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    def thisCsym = $/;"	methods	line:145
 thisField	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ResolveBody.scala	/^            def thisField(memberName: Name.Member) = {$/;"	methods	line:361
@@ -4001,13 +4001,13 @@ toTag	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Name.scala	/
 toTag	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Name.scala	/^        def toTag = base.toTag + name + "$"$/;"	methods	line:30
 toTag	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Name.scala	/^        def toTag = base.toTag + name + "$"$/;"	methods	line:42
 toTag	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Name.scala	/^        def toTag: String$/;"	methods	line:9
-toTy	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^        def toTy(ty: Type.Ref) = ()$/;"	methods	line:875
-toTy	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^        def toTy(ty: Type.Ref) = ()$/;"	methods	line:916
-toTy	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^        def toTy(ty: Type.Ref) = ty$/;"	methods	line:959
-toTy	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^    def toTy(ty: Type.Ref): Ty$/;"	methods	line:70
+toTy	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^        def toTy(ty: Type) = ()$/;"	methods	line:875
+toTy	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^        def toTy(ty: Type) = ()$/;"	methods	line:916
+toTy	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^        def toTy(ty: Type) = ty$/;"	methods	line:959
+toTy	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^    def toTy(ty: Type): Ty$/;"	methods	line:70
 toType	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ClassSymbol.scala	/^    def toType: Type.Class = name.toType$/;"	methods	line:47
 toType	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Name.scala	/^        def toType = Type.Class(this, Nil)$/;"	methods	line:48
-toTypeRef	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def toTypeRef(tref: in.ResolveTypeRef): Type.Ref = {$/;"	methods	line:472
+toTypeRef	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def toTypeRef(tref: in.ResolveTypeRef): Type = {$/;"	methods	line:472
 toTypedPath	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/VarSymbol.scala	/^        def toTypedPath = Path.TypedLocal(this)$/;"	methods	line:31
 token	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Parse.scala	/^        override def token: Parser[Token] = ( $/;"	methods	line:39
 tokens	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Parse.scala	/^        val tokens = new parser.lexical.Scanner(reader)$/;"	constants	line:439
@@ -4053,19 +4053,19 @@ ty	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^ 
 ty	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        val ty = decl.tref match {$/;"	constants	line:138
 ty	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Path.scala	/^        def ty = msig.returnTy$/;"	methods	line:99
 ty	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Path.scala	/^        def ty = sym.ty$/;"	methods	line:59
-ty	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Path.scala	/^        def ty: Type.Ref$/;"	methods	line:52
+ty	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Path.scala	/^        def ty: Type$/;"	methods	line:52
 ty	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Path.scala	/^        lazy val ty = Type.Tuple(paths.map(_.ty))$/;"	constants	line:122
 ty	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Path.scala	/^        lazy val ty = {$/;"	constants	line:106
 ty	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Path.scala	/^        lazy val ty = {$/;"	constants	line:68
 ty	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Path.scala	/^        lazy val ty = {$/;"	constants	line:75
-ty	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Pattern.scala	/^        def ty: Type.Ref$/;"	methods	line:8
+ty	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Pattern.scala	/^        def ty: Type$/;"	methods	line:8
 ty	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Pattern.scala	/^        def ty: Type.Tuple = Type.Tuple(patterns.map(_.ty))$/;"	methods	line:28
-ty	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Subst.scala	/^    def ty(t: Type.Ref): Type.Ref = t match {$/;"	methods	line:39
+ty	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Subst.scala	/^    def ty(t: Type): Type = t match {$/;"	methods	line:39
 ty	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/VarSymbol.scala	/^        val ty = optExpTy.getOrElse(Type.Null)$/;"	constants	line:18
 ty	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/VarSymbol.scala	/^        val ty = optExpTy.getOrElse(Type.Null)$/;"	constants	line:35
-ty	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/VarSymbol.scala	/^        val ty: Type.Ref$/;"	constants	line:28
-ty	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/VarSymbol.scala	/^        val ty: Type.Ref,$/;"	constants	line:13
-ty	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/VarSymbol.scala	/^    val ty: Type.Ref$/;"	constants	line:45
+ty	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/VarSymbol.scala	/^        val ty: Type$/;"	constants	line:28
+ty	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/VarSymbol.scala	/^        val ty: Type,$/;"	constants	line:13
+ty	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/VarSymbol.scala	/^    val ty: Type$/;"	constants	line:45
 type	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^            \/\/ p has class type `pathTy` == `c[args]`:$/;"	classes	line:418
 type	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ResolveBody.scala	/^            \/\/ `a.b.c[...]` must be class type:$/;"	classes	line:552
 type	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ResolveBody.scala	/^            \/\/ `a.b.c` could be path or class type:$/;"	classes	line:516
@@ -4075,10 +4075,10 @@ typeArg	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Parse.scal
 typeArg	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Subst.scala	/^    def typeArg(targ: Type.Arg): Type.Arg = targ match {$/;"	methods	line:46
 typeArgs	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^                    val typeArgs = inTypeArgs.flatMap(toOptTypeArgOf(csym))$/;"	constants	line:490
 typeArgsAreEquatable	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    private[this] def typeArgsAreEquatable(targ1: Type.Arg, targ2: Type.Arg): Boolean = {$/;"	methods	line:646
-typeEquatableWith	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    private[this] def typeEquatableWith(ty1: Type.Ref)(ty2: Type.Ref): Boolean = {$/;"	methods	line:686
+typeEquatableWith	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    private[this] def typeEquatableWith(ty1: Type)(ty2: Type): Boolean = {$/;"	methods	line:686
 typeOfPath	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    def typeOfPath(path: Path.Ref) = typedPath(path).ty$/;"	methods	line:296
 typeParamSymTabEntry	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ClassFromReflection.scala	/^    private[this] def typeParamSymTabEntry(tv: reflect.TypeVariable[_]) = {$/;"	methods	line:77
-typeRef	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ClassFromReflection.scala	/^    private[this] def typeRef(ty: reflect.Type): Type.Ref = ty match {$/;"	methods	line:94
+typeRef	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ClassFromReflection.scala	/^    private[this] def typeRef(ty: reflect.Type): Type = ty match {$/;"	methods	line:94
 typeRef	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Parse.scala	/^    lazy val typeRef: PackratParser[out.TR] = constrainedType | pathType | tupleType$/;"	constants	line:281
 typeT	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Intrinsic.scala	/^        val typeT = Type.Member(Path.This, Name.Member(iterableTy.name, "T"))$/;"	constants	line:206
 typeTypeArg	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Parse.scala	/^    lazy val typeTypeArg = positioned($/;"	constants	line:297
@@ -4095,8 +4095,8 @@ typedPathNodeForExpr	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compil
 types	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^      * means that we remove redundant class types; i.e., if $/;"	classes	line:459
 types	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^      * type variables.  It does not return supertypes of class types. *\/$/;"	classes	line:450
 types	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^      * type variables.  It does not return supertypes of class types. *\/$/;"	classes	line:455
-typesAreEquatable	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    def typesAreEquatable(ty1: Type.Ref, ty2: Type.Ref): Boolean = {$/;"	methods	line:682
-typesAreEquatable1	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    private[this] def typesAreEquatable1(pair: (Type.Ref, Type.Ref)): Boolean = {$/;"	methods	line:660
+typesAreEquatable	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    def typesAreEquatable(ty1: Type, ty2: Type): Boolean = {$/;"	methods	line:682
+typesAreEquatable1	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    private[this] def typesAreEquatable1(pair: (Type, Type)): Boolean = {$/;"	methods	line:660
 tys	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^                    val tys = msig.parameterPatterns.flatMap(_.varTys)$/;"	constants	line:816
 ub	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^        val ub = minimalUpperBoundType(varTy)$/;"	constants	line:521
 ubSubTys	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^        val ubSubTys = upperBoundVars(path.ty)$/;"	constants	line:812
@@ -4108,7 +4108,7 @@ undent	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/PrettyPrint
 undent	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/PrettyPrinter.scala	/^        override def undent() {$/;"	methods	line:49
 undent	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/PrettyPrinter.scala	/^    def undent(): Unit$/;"	methods	line:5
 unknown	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/InterPosition.scala	/^    val unknown = new Position() {$/;"	constants	line:27
-upperBoundVars	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    def upperBoundVars(ty: Type.Ref) = new Bounder(TcSub).compute(ty)$/;"	methods	line:451
+upperBoundVars	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    def upperBoundVars(ty: Type) = new Bounder(TcSub).compute(ty)$/;"	methods	line:451
 usage	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Config.scala	/^    private[this] def usage(err: PrintStream) {$/;"	methods	line:27
 useReflection	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Config.scala	/^    var useReflection = true$/;"	local variables	line:23
 using	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^          * We also generate the FooTask class using `deriveIntervalTask`. *\/$/;"	classes	line:1433
@@ -4135,7 +4135,7 @@ varNames	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Pattern.s
 varNames	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Pattern.scala	/^        def varNames: List[Name.LocalVar]$/;"	methods	line:14
 varTys	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Pattern.scala	/^        def varTys = List(ty)        $/;"	methods	line:19
 varTys	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Pattern.scala	/^        def varTys = patterns.flatMap(_.varTys)$/;"	methods	line:29
-varTys	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Pattern.scala	/^        def varTys: List[Type.Ref]$/;"	methods	line:9
+varTys	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Pattern.scala	/^        def varTys: List[Type]$/;"	methods	line:9
 version	/Users/niko/git/intervals-java/Harmonic/src/harmonic/Harmonize.scala	/^    val version = "1.0"$/;"	constants	line:15
 visitFieldAccessor	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^    def visitFieldAccessor($/;"	methods	line:1985
 visitMethodWithMro	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^    def visitMethodWithMro($/;"	methods	line:1951
@@ -4162,7 +4162,7 @@ will	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scal
 with	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^        \/** Returns an access map for a method-local class with$/;"	classes	line:1214
 with	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Global.scala	/^    \/** True if a class with the name `className` has been$/;"	classes	line:84
 with	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ResolveBody.scala	/^        \/\/ Process the rest of the class with all members in scope:$/;"	classes	line:36
-withOptReturnTy	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    def withOptReturnTy(optReturnTy: Option[Type.Ref]) = copy(optReturnTy = optReturnTy)$/;"	methods	line:88
+withOptReturnTy	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/^    def withOptReturnTy(optReturnTy: Option[Type]) = copy(optReturnTy = optReturnTy)$/;"	methods	line:88
 withPosOf	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Util.scala	/^    def withPosOf[P <: Positional, Q <: Product with Positional](from: P, to: Q): Q = {$/;"	methods	line:18
 withPosOfOpt	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Util.scala	/^    def withPosOfOpt[P <: Positional, Q <: Product with Positional](from: P, to: Option[Q]): Option[Q] = {$/;"	methods	line:29
 withPosOfR	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Util.scala	/^    def withPosOfR[P <: Positional, Q, R <: Product with Positional](from: P, to: Either[Q, R]): Either[Q, R] = {$/;"	methods	line:33

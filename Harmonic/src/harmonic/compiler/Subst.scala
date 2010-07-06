@@ -41,7 +41,7 @@ class Subst(private val map: Map[Path.Ref, Path.Ref]) {
         case Pattern.AnonTuple(patterns) => Pattern.SubstdTuple(patterns.map(pattern))
     }
     
-    def ty(t: Type.Ref): Type.Ref = t match {
+    def ty(t: Type): Type = t match {
         case Type.Member(p, tvar) => Type.Member(path(p), tvar)
         case Type.Class(clsName, targs) => Type.Class(clsName, targs.map(typeArg))
         case Type.Tuple(tys) => Type.Tuple(tys.map(ty))

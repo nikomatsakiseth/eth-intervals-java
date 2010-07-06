@@ -7,6 +7,8 @@ case class MethodId(
     methodName: Name.Method,
     msig: MethodSignature[Pattern.Anon]
 ) {
+    def is(methodId: MethodId) = (this == methodId)
+    
     override def toString = {
         "(%s.%s)%s".format(
             className,

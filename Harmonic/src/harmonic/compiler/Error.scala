@@ -27,14 +27,14 @@ object Error {
     
     case class ExplicitTypeRequiredDueToCycle(memName: String) extends ErrorProduct
     case class NoSuperClassImplements(mthdName: Name.Method) extends ErrorProduct
-    case class CanOnlyCreateClasses(ty: Type.Ref) extends ErrorProduct
+    case class CanOnlyCreateClasses(ty: Type) extends ErrorProduct
     case class AmbiguousMethodCall(numberOfOptions: Int) extends ErrorProduct
-    case class NoApplicableMethods(argTys: List[Type.Ref]) extends ErrorProduct
-    case class TypeNotFinal(ty: Type.Ref) extends ErrorProduct
+    case class NoApplicableMethods(argTys: List[Type]) extends ErrorProduct
+    case class TypeNotFinal(ty: Type) extends ErrorProduct
     case class DoesNotEnsure(fact: Fact) extends ErrorProduct
     case class NoReturnHere() extends ErrorProduct
-    case class MustBeSubtype(subTy: Type.Ref, supTy: Type.Ref) extends ErrorProduct
-    case class MustHaveType(path: Path.Typed, expTy: Type.Ref) extends ErrorProduct {
+    case class MustBeSubtype(subTy: Type, supTy: Type) extends ErrorProduct
+    case class MustHaveType(path: Path.Typed, expTy: Type) extends ErrorProduct {
         override def args = List(path.toString, path.ty.toString, expTy.toString)
     }
     case class NotOverride(className: Name.Class, methodName: Name.Method) extends ErrorProduct
@@ -74,8 +74,10 @@ object Error {
     case class ShadowedLocalVar(name: String) extends ErrorProduct
     case class CannotResolve(name: String) extends ErrorProduct
     case class DiffStaticClasses(className1: Name.Class, className2: Name.Class) extends ErrorProduct
-    case class NoSuchMember(ty: Type.Ref, uName: Name.UnloweredMember) extends ErrorProduct
-    case class NoSuchMethod(ty: Type.Ref, name: Name.Method) extends ErrorProduct
+    case class NoSuchMember(ty: Type, uName: Name.UnloweredMember) extends ErrorProduct
+    case class NoSuchMethod(ty: Type, name: Name.Method) extends ErrorProduct
+    case class NoSuchField(name: Name.Member) extends ErrorProduct
+    case class NoSuchMethodId(methodId: MethodId) extends ErrorProduct
     case class NotLegalInPathArg(name: Name.Var) extends ErrorProduct
     case class NotLegalInTypeArg(name: Name.Var) extends ErrorProduct
     case class QualStatic(memberVar: Name.Member) extends ErrorProduct

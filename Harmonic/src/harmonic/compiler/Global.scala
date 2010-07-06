@@ -241,8 +241,16 @@ class Global(
         }                
     }
     
+    // ___ Resolving symbols ________________________________________________
+    //
+    // This must be done after the lowering phase of the appropriate class.
+    
     def staticMethods(className: Name.Class, methodName: Name.Method) = {
         csym(className).methodsNamed(methodName).filter(_.modifiers.isStatic)            
+    }
+    
+    def fieldSymbol(memberName: Name.Member) = {
+        csym(memberName.className).fieldNamed(memberName)
     }
     
     // ___ Freshness ________________________________________________________

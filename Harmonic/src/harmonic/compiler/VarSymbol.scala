@@ -15,11 +15,11 @@ object VarSymbol {
         val pos: Position,
         val modifiers: Modifier.Set,
         val name: Name.Member,
-        val ty: Type.Ref,
+        val ty: Type,
         val kind: FieldKind
     ) extends VarSymbol[Name.Member]
     
-    def errorField(name: Name.Member, optExpTy: Option[Type.Ref]) = {
+    def errorField(name: Name.Member, optExpTy: Option[Type]) = {
         val ty = optExpTy.getOrElse(Type.Null)
         new Field(NoPosition, Modifier.Set.empty, name, ty, FieldKind.Harmonic) {
             override def isError = true
@@ -30,13 +30,13 @@ object VarSymbol {
         val pos: Position,
         val modifiers: Modifier.Set,
         val name: Name.LocalVar,
-        val ty: Type.Ref
+        val ty: Type
     ) extends VarSymbol[Name.LocalVar] {
         def toPath = Path.Local(name)
         def toTypedPath = Path.TypedLocal(this)
     }
     
-    def errorLocal(name: Name.LocalVar, optExpTy: Option[Type.Ref]) = {
+    def errorLocal(name: Name.LocalVar, optExpTy: Option[Type]) = {
         val ty = optExpTy.getOrElse(Type.Null)
         new Local(NoPosition, Modifier.Set.empty, name, ty) {
             override def isError = true
@@ -47,7 +47,7 @@ object VarSymbol {
 abstract class VarSymbol[+N <: Name.Var] extends Symbol with Page {
     val modifiers: Modifier.Set
     val name: N
-    val ty: Type.Ref
+    val ty: Type
     
     override def toString = "%s(%s, %x)".format(
         getClass.getSimpleName,

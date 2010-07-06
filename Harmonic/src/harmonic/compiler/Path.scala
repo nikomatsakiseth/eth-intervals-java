@@ -25,7 +25,7 @@ object Path {
     case class Local(v: Name.LocalVar) extends Ref {
         override def toString = v.toString
     }
-    case class Cast(ty: Type.Ref, path: Ref) extends Ref {
+    case class Cast(ty: Type, path: Ref) extends Ref {
         override def toString = "(%s)%s".format(ty, path)
     }
     case class Constant(obj: Object) extends Ref {
@@ -59,7 +59,7 @@ object Path {
     // ___ Typed Paths ______________________________________________________
     
     sealed abstract class Typed extends TypedOwner {
-        def ty: Type.Ref
+        def ty: Type
         def toPath: Path.Ref
         def toOwner = toPath
         def /(fsym: VarSymbol.Field) = TypedField(this, fsym)
@@ -69,7 +69,7 @@ object Path {
         def ty = sym.ty
         override def toString = toPath.toString
     }
-    case class TypedCast(ty: Type.Ref, path: Typed) extends Typed {
+    case class TypedCast(ty: Type, path: Typed) extends Typed {
         def toPath = Path.Cast(ty, path.toPath)
         override def toString = toPath.toString
     }

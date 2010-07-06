@@ -94,7 +94,7 @@ abstract class ClassSymbol extends Symbol {
     /** Symbols for methods defined on this class (not superclasses) 
       * with the given name.  May trigger lowering or other processing. */
     def methodsNamed(name: Name.Method): List[MethodSymbol]
-    
+
     /** Symbols for fields defined on this class (not superclasses)
       * with the given name.  May trigger lowering or other processing. */
     def fieldNamed(name: Name.Member): Option[VarSymbol.Field]

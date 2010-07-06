@@ -37,7 +37,7 @@ class LowerFieldMember(
     // the body, but it is otherwise independent.
     
     private[this] val symCreate: AsyncInterval = {
-        def createFieldSymbol(ty: Type.Ref) = {
+        def createFieldSymbol(ty: Type) = {
             new VarSymbol.Field(
                 pos       = inFieldDecl.pos,
                 modifiers = Modifier.forResolvedAnnotations(inFieldDecl.annotations),

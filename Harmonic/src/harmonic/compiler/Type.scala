@@ -9,18 +9,18 @@ sealed abstract class Type {
 
 object Type {
     
-    case class Member(path: Path.Ref, typeVar: Name.Member) extends Ref {
+    case class Member(path: Path.Ref, typeVar: Name.Member) extends Type {
         override def toString = "%s.%s".format(path, typeVar)
     }
-    case class Class(name: Name.Class, typeArgs: List[Type.Arg]) extends Ref {
+    case class Class(name: Name.Class, typeArgs: List[Type.Arg]) extends Type {
         override def toString = 
             if(typeArgs.isEmpty) name.toString
             else "%s[%s]".format(name, typeArgs.mkString(", "))
     }
-    case class Tuple(typeRefs: List[Type.Ref]) extends Ref {
+    case class Tuple(typeRefs: List[Type]) extends Type {
         override def toString = "(%s)".format(typeRefs.mkString(", "))
     }
-    case object Null extends Ref {
+    case object Null extends Type {
         override def toString = "Null"
     }
     
@@ -30,7 +30,7 @@ object Type {
     case class PathArg(name: Name.Member, rel: PcRel, path: Path.Ref) extends Arg {
         override def toString = "%s %s %s".format(name, rel, path)
     }
-    case class TypeArg(name: Name.Member, rel: TcRel, ty: Type.Ref) extends Arg {
+    case class TypeArg(name: Name.Member, rel: TcRel, ty: Type) extends Arg {
         override def toString = "%s %s %s".format(name, rel, ty)
     }
     
@@ -51,7 +51,7 @@ object Type {
     val Top = Object
 
     // Returns `Array[E <: ty]`
-    def arrayExtends(ty: Type.Ref) = {
+    def arrayExtends(ty: Type) = {
         Class(
             Name.ArrayClass,
             List(

@@ -108,7 +108,7 @@ class ClassFromReflection(
         case (nm, ty) => Some(Type.TypeArg(nm, TcEq, typeRef(ty)))
     }
     
-    private[this] def typeRef(ty: reflect.Type): Type.Ref = ty match {
+    private[this] def typeRef(ty: reflect.Type): Type = ty match {
         case ty: Class[_] if ty.isArray => {
             val targ = typeArg(Name.ArrayElem, ty.getComponentType).get
             global.requireLoadedOrLoadable(pos, Name.ArrayClass)
