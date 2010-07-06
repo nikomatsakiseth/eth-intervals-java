@@ -110,24 +110,24 @@ case class Env(
     }
     
     object Query {
-    
-        // Query for a single Fact.PP instances, where both sides are specified.
-        case class PP(left: Path.Ref, rel: PcRel, right: Path.Ref) 
-        extends Query[Boolean] {
-            private[this] val preFact = Fact.PP(left, rel, right)
-            
+        abstract class FindFact(desiredFact: Fact) extends Query[Boolean] {
             override def preevaluate(facts: Set[Fact]) = {
-                if(facts(preFact)) Some(true)
+                if(facts(desiredFact)) Some(true)
                 else None
             }
             
             override def evaluate(facts: Set[Fact]) = {
-                facts(preFact)
+                facts(desiredFact)
             }
-        }    
+        }
         
-        // Query for all paths R where `left rel R` can be proven
-        case class PL(left: Path.Ref, rel: PcTransRel) extends Query[Set[Path.Ref]] {
+        // Query to find if `(left rel right)` can be proven.
+        case class GivenBothPaths(left: Path.Ref, rel: PcRel, right: Path.Ref) 
+        extends FindFact(Fact.PP(left, rel, right))
+        
+        // Query for all paths R where `left rel R` can be proven.
+        // Only possible for transitive relations like 'hb' or 'eq'.
+        case class GivenLeftPath(left: Path.Ref, rel: PcTransRel) extends Query[Set[Path.Ref]] {
             override def preevaluate(facts: Set[Fact]) = None
             
             override def evaluate(facts: Set[Fact]) = {
@@ -139,7 +139,8 @@ case class Env(
         }
 
         // Query for all paths L where `L rel right` can be proven
-        case class PR(rel: PcTransRel, right: Path.Ref) extends Query[Set[Path.Ref]] {
+        // Only possible for transitive relations like 'hb' or 'eq'.
+        case class GivenRightPath(rel: PcTransRel, right: Path.Ref) extends Query[Set[Path.Ref]] {
             override def preevaluate(facts: Set[Fact]) = None
             
             override def evaluate(facts: Set[Fact]) = {
@@ -150,9 +151,32 @@ case class Env(
             }            
         }
         
+        object PP {
+            def unapply(query: Query) = query match {
+                case GivenBothPaths(l, rel, r) => Some((l, rel, r))
+                case _ => None
+            }
+        }
+        
+        object PL {
+            def unapply(query: Query) = query match {
+                case GivenBothPaths(l, rel, _) => Some((l, rel))
+                case GivenLeftPath(l, rel) => Some((l, rel))
+                case _ => None
+            }
+        }
+        
+        object PR {
+            def unapply(query: Query) = query match {
+                case GivenBothPaths(_, rel, r) => Some((rel, r))
+                case GivenRightPath(rel, r) => Some((rel, r))
+                case _ => None
+            }
+        }
+        
         case class PC(left: Path.Ref, right: Name.Class) 
         extends Query[Set[Type.Class]] {
-            override def preevaluate(facts: Set[Fact]): Option[R] = None
+            override def preevaluate(facts: Set[Fact]) = None
             
             override def evaluate(facts: Set[Fact]) = {
                 facts.flatMap {
@@ -162,27 +186,32 @@ case class Env(
             }
         }
         
-        case class TT(left: Type.Ref, rel: TcRel, right: Wildcard[Type.Ref]) 
-        extends Query[Set[Type.Ref]] {
-            private[this] val preFact = right match {
-                case Is(r) => Some(Fact.TT(left, rel, r))
-                case IsAny => None
-            }
+        case class GivenBothTypes(left: Type.Ref, rel: TcRel, right: Type.Ref) 
+        extends FindFact(Fact.PP(left, rel, right))
+        
+        case class GivenLeftType(left: Type.Ref, rel: TcRel) extends Query[Set[Type.Ref]] {
+            override def preevaluate(facts: Set[Fact]) = None
             
-            override def preevaluate(facts: Set[Fact]): Option[R] = {
-                preFact match {
-                    case Some(f) if facts(f) => Some(Set(f.right))
-                    case None => None
-                }
-            }
-            
-            override def evaluate(fact: Fact): Option[Fact.TT] = fact match {
-                case f @ Fact.TT(left(), rel(), right()) => Some(f)
+            override def evaluate(fact: Fact) = fact match {
+                case Fact.TT(left(), rel(), r) => Some(r)
                 case _ => None
             }            
         }
         
-    }
+        object TT {
+            def unapply(query: Query) = query match {
+                case GivenBothTypes(l, rel, r) => Some((l, rel, r))
+                case _ => None
+            }
+        }
+        
+        object TL {
+            def unapply(query: Query) = query match {
+                case GivenBothTypes(l, rel, _) => Some((l, rel))
+                case GivenLeftType(l, rel) => Some((l, rel))
+                case _ => None
+            }
+        }    }
     
     // ___ High-level query evaluation ______________________________________
     //
@@ -241,8 +270,8 @@ case class Env(
             }
         }
         
-        def eq(p: Path.Ref): Set[Path.Ref] = answer(Query.PL(p, PcEq))
-        def eq(p: Path.Ref, q: Path.Ref): Boolean = answer(Query.PP(p, PcEq, q))
+        def eq(p: Path.Ref): Set[Path.Ref] = answer(Query.GivenLeftPath(p, PcEq))
+        def eq(p: Path.Ref, q: Path.Ref): Boolean = answer(Query.FindFact(Fact.PP(p, PcEq, q)))
 
         /** Convenience method for finding equatable path lists of `ps`
           * If `ps` is `(x, y, z)`, yields something like
@@ -263,14 +292,14 @@ case class Env(
         
         def upcast(p: Path.Ref, c: Name.Class): Set[Type.Class] = answer(PathClassQuery(p, c))
         
-        def parents(c: Path.Ref): Set[Path.Ref] = answer(Query.PL(c, PcSubOf))
-        def inlineParents(c: Path.Ref): Set[Path.Ref] = answer(Query.PL(c, PcInlineSubOf))
-        def children(p: Path.Ref): Set[Path.Ref] = answer(Query.PR(PcSubOf, p))
-        def inlineChildren(p: Path.Ref): Set[Path.Ref] = answer(Query.PR(PcInlineSubOf, p))
+        def parents(c: Path.Ref): Set[Path.Ref] = answer(Query.GivenLeftPath(c, PcSubOf))
+        def inlineParents(c: Path.Ref): Set[Path.Ref] = answer(Query.GivenLeftPath(c, PcInlineSubOf))
+        def children(p: Path.Ref): Set[Path.Ref] = answer(Query.GivenRightPath(PcSubOf, p))
+        def inlineChildren(p: Path.Ref): Set[Path.Ref] = answer(Query.GivenRightPath(PcInlineSubOf, p))
         
-        def permitsWr(g: Path.Ref, i: Path.Ref): Boolean = answer(Query.PP(g, PcPermitsWr, i))
-        def permitsRd(g: Path.Ref, i: Path.Ref): Boolean = answer(Query.PP(g, PcPermitsRd, i))
-        def ensuresFinal(g: Path.Ref, i: Path.Ref): Boolean = answer(Query.PP(g, PcEnsuresFinal, i))
+        def permitsWr(g: Path.Ref, i: Path.Ref): Boolean = answer(Query.GivenBothPaths(g, PcPermitsWr, i))
+        def permitsRd(g: Path.Ref, i: Path.Ref): Boolean = answer(Query.GivenBothPaths(g, PcPermitsRd, i))
+        def ensuresFinal(g: Path.Ref, i: Path.Ref): Boolean = answer(Query.GivenBothPaths(g, PcEnsuresFinal, i))
     }
     
     def virginState = ProofState(ruleTemplates, Nil, baseFacts)
@@ -284,15 +313,8 @@ case class Env(
     q rel r
     --------------------
     p rel r
-    
-    and
-    
-    r == q
-    p rel q
-    --------------------
-    p rel r
     */
-    object PathEqPropTemplate extends RuleTemplate {
+    object PathEqLPropTemplate extends RuleTemplate {
         case class PathEqLProp(p: Path.Ref, rel: PcRel) extends Rule {
             override def deriveFacts(state: ProofState) = {
                 state.eq(p).flatMap { q =>
@@ -302,7 +324,20 @@ case class Env(
                 }
             }
         }
-
+        
+        def instantiate(state: ProofState)(query: Query) = query match {
+            case Query.PL(p, rel) => Some(PathEqLProp(p, rel))
+            case _ => None
+        }
+    }
+    
+    /*
+    p == q
+    q rel r
+    --------------------
+    p rel r
+    */
+    object PathEqRPropTemplate extends RuleTemplate {
         case class PathEqRProp(rel: PcRel, r: Path.Ref) extends Rule {
             override def deriveFacts(state: ProofState) = {
                 state.eq(r).flatMap { q =>
@@ -314,10 +349,8 @@ case class Env(
         }
         
         def instantiate(state: ProofState)(query: Query) = query match {
-            case Query.PP(p, rel, r) => List(PathEqLProp(p, rel), PathEqRProp(rel, r))
-            case Query.PL(p, rel) => List(PathEqLProp(p, rel))
-            case Query.PR(rel, r) => List(PathEqRProp(rel, r))
-            case _ => Nil
+            case Query.PR(rel, r) => Some(PathEqRProp(rel, r))
+            case _ => None
         }
     }
     
@@ -476,7 +509,7 @@ case class Env(
         }
         
         def instantiate(state: ProofState)(query: Query) = query match {
-            case Query.TT(left, TcEq, _) => Some(TypeSimplify(left))
+            case Query.TL(left, TcEq) => Some(TypeSimplify(left))
             case _ => None
         }
     }
@@ -497,7 +530,8 @@ case class Env(
         }        
         
         def instantiate(state: ProofState)(query: Query) = query match {
-            case Query.TT(Type.Member(p, x), TcEq, _) =>
+            case Query.TL(Type.Member(p, x), TcEq) => Some(MemberTypeInductive(p, x))
+            case _ => None
         }
     }
     
