@@ -145,7 +145,7 @@ object Env {
         case class GivenLeftType(left: Type, rel: TcRel) extends Query[Set[Type]] {
             override def preevaluate(facts: Set[Fact]) = None
             
-            override def evaluate(fact: Fact) = fact match {
+            override def evaluate(facts: Set[Fact]) = facts.flatMap {
                 case Fact.TT(left(), rel(), r) => Some(r)
                 case _ => None
             }            
@@ -154,7 +154,7 @@ object Env {
         case class GivenRightType(rel: TcRel, right: Type) extends Query[Set[Type]] {
             override def preevaluate(facts: Set[Fact]) = None
             
-            override def evaluate(fact: Fact) = fact match {
+            override def evaluate(facts: Set[Fact]) = facts.flatMap {
                 case Fact.TT(l, rel(), right()) => Some(l)
                 case _ => None
             }            
