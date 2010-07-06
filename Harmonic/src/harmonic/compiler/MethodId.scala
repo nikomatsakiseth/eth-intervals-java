@@ -15,3 +15,19 @@ case class MethodId(
         )
     }
 }
+
+object MethodId {
+    
+    val GetStart = MethodId(
+        Name.IntervalClass,
+        Name.Method(List("getStart")),
+        MethodSignature(Type.Point, List())
+    )
+
+    val GetEnd = MethodId(
+        Name.IntervalClass,
+        Name.Method(List("getEnd")),
+        MethodSignature(Type.Point, List())
+    )
+    
+}

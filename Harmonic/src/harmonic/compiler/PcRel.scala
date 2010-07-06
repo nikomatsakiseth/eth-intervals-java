@@ -1,6 +1,7 @@
 package harmonic.compiler
 
 sealed abstract class PcRel {
+    def is(rel: PcRel) = (rel == this)
     def unapply(rel: PcRel) = (rel == this)
 }
 

@@ -194,6 +194,9 @@ object Name {
     val AsyncIntervalClass = Class(classOf[ch.ethz.intervals.AsyncInterval])
     val InlineIntervalClass = Class(classOf[ch.ethz.intervals.InlineInterval])
 
+    // Point: from interval runtime
+    val PointClass = Class(classOf[ch.ethz.intervals.Point])
+
     // HarmonicTask: convenience class used for our harmonic tasks
     val HarmonicTaskClass = Class(classOf[harmonic.runtime.HarmonicTask])
 

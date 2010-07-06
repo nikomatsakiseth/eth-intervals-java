@@ -97,24 +97,64 @@ case class Env(
     //
     // Subtypes of `Query` abstractly represent the queries that can be 
     // issued and evaluated by the environment.
-    
+
     sealed abstract class Query[R] {
-        def evaluate(facts: Set[Fact]): R
+        def evaluate(facts: Set[Fact]): Set[R]
     }
     
-    case class SuccQuery(left: Path.Ref, rel: PcTransRel) extends Query[Set[Path.Ref]] {
+    object Query {
+    
+        abstract class Wildcard[+T] {
+            def unapply(any: Any): Boolean
+        }
+    
+        case object IsAny extends Wildcard[Nothing] {
+            def unapply(any: Any) = true
+        }
+    
+        case class Is[T](t: T) extends Wildcard[T] {
+            def unapply(any: Any) = (any == t)
+        }
         
-    }
-    
-    case class ClassQuery(left: Path.Ref, name: Name.Class) extends Query[Set[Type.Class]] {
+        case class PathPath(left: Wildcard[Path.Ref], rel: PcRel, right: Wildcard[Path.Ref]) 
+        extends Query[Fact.PathPath] {
+            def spec = (left, right) match {
+                case (Is(path1), Is(path2)) => List(path1, path2)
+                case (IsAny, Is(path1)) => List(path1)
+                case (Is(path1), IsAny) => List(path1)
+                case (IsAny, IsAny) => Nil
+            }
+            
+            override def evaluate(facts: Set[Fact]) = {
+                facts.flatMap {
+                    case f @ Fact.PathPath(left(), rel(), right()) => Some(f)
+                    case _ => None                    
+                }
+            }
+        }
         
-    }
-    
-    case class BoundsQuery(left: Type.Ref, rel: TcRel) extends Query[Set[Type.Ref]] {
+        case class PathClass(left: Path.Ref, right: Name.Class) 
+        extends Query[Type.Class] {
+            override def evaluate(facts: Set[Fact]) = {
+                facts.flatMap {
+                    case Fact.PathClass(left(), r @ Type.Class(name(), _)) => Some(r)
+                    case _ => None                    
+                }
+            }
+        }
         
-    }
-    
-    case class FactQuery(fact: Fact) extends Query[Boolean] {
+        case class TypeType(left: Type.Ref, rel: TcRel, right: Wildcard[Type.Ref]) 
+        extends Query[Type.Ref] {
+            def spec = right match {
+                case IsAny => List(left)
+                case Is(r) => List(left, r)
+            }
+            
+            override def evaluate(fact: Fact): Option[Fact.TypeType] = fact match {
+                case f @ Fact.TypeType(left(), rel(), right()) => Some(f)
+                case _ => None
+            }            
+        }
         
     }
     
@@ -135,7 +175,7 @@ case class Env(
     /** Rule templates instantiate rules that are likely to produce facts
       * useful to answering `query`. */
     abstract trait RuleTemplate {
-        def instantiate(state: ProofState)(query: Query): List[Rule]
+        def instantiate(state: ProofState)(query: Query): Iterable[Rule]
     }
     
     /** Records the current state of the computation (what facts are known,
@@ -153,7 +193,6 @@ case class Env(
         }
         
         def answer[R](query: Query[R]): R = {
-            
             // Evaluation of the rules could be easily parallelized if it would be helpful:
             val f = templates.foldLeft(facts) { (f, template) =>
                 val rules = template.instantiate(this)(query).filterNot(stack.contains)
@@ -166,7 +205,6 @@ case class Env(
             } else {
                 query.evaluate(f)
             } 
-            
         }
         
         /** Convenience method for finding equatable paths of `p` */
@@ -188,63 +226,83 @@ case class Env(
             }
         }
         
-        def upcast(p: Path.Ref, c: Name.Class): List[Type.Class] = {
-            answer(...)
-        }
+        def upcast(p: Path.Ref, c: Name.Class): Set[Type.Class] = answer(PathClassQuery(p, c))
         
+        def parents(p: Path.Ref): Set[Path.Ref] = answer(RightPathQuery(p, PcSubOf))
+        
+        def inlineParents(p: Path.Ref): Set[Path.Ref] = answer(RightPathQuery(p, PcInlineSubOf))
+        
+        def children(p: Path.Ref): Set[Path.Ref] = answer(LeftPathQuery(p, PcSubOf))
+        
+        def inlineChildren(p: Path.Ref): Set[Path.Ref] = answer(LeftPathQuery(p, PcInlineSubOf))
     }
     
     def virginState = ProofState(ruleTemplates, Nil, baseFacts)
     
-    // ___ Rule _____________________________________________________________
-
-    /*
-    --------------------
-    p == p
-    */
-    object PathEqReflexiveTemplate extends RuleTemplate {
-        
-        case class Instance(path: Path.Ref) extends Rule {
-            override def deriveFacts(state: ProofState) = {
-                Some(Fact.PathPath(path, PcEq, path))
-            }
-        }
-        
-        def instantiate(state: ProofState)(query: Query) = query match {
-            case SuccQuery(path, PcEq) => List(Instance(path))
-            case _ => Nil
-        }
-        
-    }
+    // ___ Rules ____________________________________________________________
+    
+    // ______ General rules _________________________________________________
     
     /*
+    p == q
+    q rel r
     --------------------
-    (t) == t
-    etc
+    p rel r
+    
+    and
+    
+    r == q
+    p rel q
+    --------------------
+    p rel r
     */
-    object PathSimplifyTemplate extends RuleTemplate {
-        
-        // Attempts to simplify a path into another path that will always
-        // be the same object (may yield the same path)
-        def simplify(ty: Path.Ref): Path.Ref = {
-            ty match {
-                case Type.Tuple(List(ty)) => ty     // (t) == t
-                case Type.Tuple(Nil) => Type.Void   // () == Void, not sure if this makes sense.
-                case ty => ty
+    object PathEqPropTemplate extends RuleTemplate {
+        case class PathEqLProp(p: Path.Ref, rel: PcRel) extends Rule {
+            override def deriveFacts(state: ProofState) = {
+                state.eq(p).flatMap { q =>
+                    state.rel(q, rel).map { r =>
+                        Fact.PathPath(p, rel, r)
+                    }
+                }
             }
         }
-                
-        case class Instance(ty: Type.Ref) extends Rule {
+
+        case class PathEqRProp(rel: PcRel, r: Path.Ref) extends Rule {
             override def deriveFacts(state: ProofState) = {
-                Some(Fact.TypeType(ty, TcEq, simplify(ty)))
+                state.eq(r).flatMap { q =>
+                    state.rel(rel, q).map { p =>
+                        Fact.PathPath(p, rel, r)
+                    }
+                }
             }
         }
         
         def instantiate(state: ProofState)(query: Query) = query match {
-            case SuccQuery(path, PcEq) => List(Instance(path))
+            case Query.PathPath(Is(p), rel, Is(r)) => List(PathEqLProp(p, rel), PathEqRProp(rel, r))
+            case Query.PathPath(Is(p), rel, _) => List(PathEqLProp(p, rel))
+            case Query.PathPath(_, rel, Is(r)) => List(PathEqRProp(rel, r))
             case _ => Nil
         }
+    }
+    
+    // ______ Path Equality _________________________________________________
+
+    /*
+    p == q
+    --------------------
+    q == p
+    */
+    object PathEqSymmetricTemplate extends RuleTemplate {
+        case class PathEqSymmetric(right: Path.Ref) extends Rule {
+            override def deriveFacts(state: ProofState) = {
+                state.eq(right).map(Fact.PathPath(_, PcEq, right))
+            }
+        }
         
+        def instantiate(state: ProofState)(query: Query) = query match {
+            case Query.PathPath(_, PcEq, Is(right)) => Some(PathEqSymmetric(right))
+            case _ => None
+        }
     }
     
     /*
@@ -252,10 +310,7 @@ case class Env(
     (T)p == p
     etc
     */
-    object TypeSimplifyTemplate extends RuleTemplate {
-        
-        // Attempts to simplify a path into another path that will always
-        // be the same object (may yield the same path)
+    object PathSimplifyTemplate extends RuleTemplate {
         def simplify(path: Path.Ref): Path.Ref = {
             path match {
                 case Path.Cast(_, base) => base
@@ -270,20 +325,20 @@ case class Env(
             }
         }
                 
-        case class Instance(ty: Type.Ref) extends Rule {
-            
+        case class TypeSimplify(ty: Type.Ref) extends Rule {
             override def deriveFacts(state: ProofState) = {
-                Some(Fact.PathPath(path, PcEq, simplify(path)))
+                List(
+                    Fact.PathPath(path, PcEq, path),
+                    Fact.PathPath(path, PcEq, simplify(path))
+                )
             }
-            
         }
         
         def instantiate(state: ProofState)(query: Query) = query match {
-            case BoundsQuery(ty, _) => List(Instance(ty))
-            case _ => Nil
+            case Query.PathPath(Is(left), TcEq, _) => Some(TypeSimplify(left))
+            case _ => None
         }
-        
-    }          
+    }    
     
     /*
     p == q
@@ -292,9 +347,7 @@ case class Env(
     etc
     */
     object PathEqInductiveTemplate extends RuleTemplate {
-        
-        case class Instance(path: Path.Ref) extends Rule {
-            
+        case class PathEqInductive(path: Path.Ref) extends Rule {
             override def deriveFacts(state: ProofState) = {
                 import state.eq
                 import state.eqs
@@ -335,14 +388,61 @@ case class Env(
                     |   Path.Constant(_) => Set()
                 }
             }
-            
         }
         
         def instantiate(state: ProofState)(query: Query) = query match {
-            case SuccQuery(path, PcEq) => List(Instance(path))
+            case Query.PathPath(Is(p), PcEq, _) => p.map(PathEqInductive)
             case _ => Nil
         }
+    }
+
+    // ______ Type Equality _________________________________________________
+
+    /*
+    t1 == t2
+    --------------------
+    t2 == t1
+    */
+    object TypeEqSymmetricTemplate extends RuleTemplate {
+        case class TypeEqSymmetric(t2: Path.Ref) extends Rule {
+            override def deriveFacts(state: ProofState) = {
+                state.eq(right).map(Fact.TypeType(_, TcEq, right))
+            }
+        }
         
+        def instantiate(state: ProofState)(query: Query) = query match {
+            case Query.TypeType(_, TcEq, Is(t2)) => Some(TypeEqSymmetric(t2))
+            case _ => None
+        }
+    }
+    
+    /*
+    --------------------
+    (t) == t
+    etc
+    */
+    object TypeSimplifyTemplate extends RuleTemplate {
+        def simplify(ty: Path.Ref): Path.Ref = {
+            ty match {
+                case Type.Tuple(List(ty)) => ty     // (t) == t
+                case Type.Tuple(Nil) => Type.Void   // () == Void, not sure if this makes sense.
+                case ty => ty
+            }
+        }
+                
+        case class TypeSimplify(ty: Type.Ref) extends Rule {
+            override def deriveFacts(state: ProofState) = {
+                List(
+                    Fact.TypeType(ty, TcEq, ty),
+                    Fact.TypeType(ty, TcEq, simplify(ty))
+                )
+            }
+        }
+        
+        def instantiate(state: ProofState)(query: Query) = query match {
+            case Query.TypeType(left, TcEq, _) => Some(TypeSimplify(left))
+            case _ => None
+        }
     }
     
     /*
@@ -352,56 +452,153 @@ case class Env(
     where p/q are paths, X is a type variable
     */
     object MemberTypeInductiveTemplate extends RuleTemplate {
-        
-        case class Instance(ty0: Type.Member) extends Rule {
+        case class MemberTypeInductive(p: Path.Ref, x: Name.Member) extends Rule {
             override def deriveFacts(state: ProofState) = {
-                state.eq(ty0.path).toList.map(Type.Member(_, ty.typeVar)).map { ty1 =>
-                    Fact.TypeType(ty0, TcEq, ty1)
+                state.eq(p).toList.map { q =>
+                    Fact.TypeType(Type.Member(p, x), TcEq, Type.Member(q, x))
                 }
             }
         }        
         
         def instantiate(state: ProofState)(query: Query) = query match {
-            case BoundsQuery(ty: Type.Member, TcEq) => List(Instance(ty))
-            case _ => Nil
+            case Query.TypeType(Type.Member(p, x), TcEq, _) =>
         }
-        
     }
     
+    // ______ subOf, inlineSubOf, hb ________________________________________
+
     /*
-    p : c[X rel T]
+    pc inlineSubOf pp
     --------------------
-    p.X rel T
+    pc subOf pp
     */
-    object MemberTypeBoundsTemplate extends RuleTemplate {
-        
-        case class Instance(path: Path.Ref, mem: Name.Member) extends Rule {
+    object InlineImpliesSubTemplate extends RuleTemplate {
+        case class InlineImpliesSub(pc: Path.Ref) extends Rule {
             override def deriveFacts(state: ProofState) = {
-                state.upcast(path, mem.className).flatMap {
-                    case Type.Class(_, args) => {
-                        args.map {
-                            case Type.PathArg(name, rel, otherPath) => 
-                                Fact.PathPath(Path.Field(path, name), rel, otherPath)
-                                
-                            case Type.TypeArg(name, rel, otherType) => 
-                                Fact.PathType(Type.Member(path, name), rel, otherType)
-                        }
-                    }
-                }
-                
-                state.eq(ty0.path).toList.map(Type.Member(_, ty.typeVar)).map { ty1 =>
-                    Fact.TypeType(ty0, TcEq, ty1)
+                state.inlineParents(pc).map { pp =>
+                    Fact.PathPath(pc, PcSubOf, pp)
                 }
             }
         }
         
         def instantiate(state: ProofState)(query: Query) = query match {
-            // likely more:
-            case BoundsQuery(Type.Member(path, mem), _) => List(Instance(path, mem))
-            case SuccQuery(Path.Field(path, mem), _) => List(Instance(path, mem))
-            case _ => Nil
+            case RightPathQuery(path, PcSubOf) => Some(InlineImpliesSub(path))
+            case _ => None
         }
+    }
+    
+    /*
+    pc subOf pp
+    ------------
+    pp.start hb pc.start
+    pc.end hb pp.end
+    */
+    object ParentHbTemplate extends RuleTemplate {
+        import MethodId.GetStart
+        import MethodId.GetEnd
+        
+        case class ParentToChild(pp: Path.Ref) extends Rule {
+            override def deriveFacts(state: ProofState) = {
+                state.children(pp).map(pc => Fact.PathPath(pp.call(GetStart), PcHb, pc.call(GetStart)))
+            }
+        }
+        
+        case class ChildToParent(pc: Path.Ref) extends Rule {
+            override def deriveFacts(state: ProofState) = {
+                state.parent(pc).map(pp => Fact.PathPath(pc.call(GetEnd), PcHb, pp.call(GetEnd)))
+            }
+        }
+        
+        def instantiate(state: ProofState)(query: Query) = query match {
+            case Query.PathPath(Is(Path.Call(pp, GetStart, List())), PcHb, _) => Some(ParentToChild(pp))
+            case Query.PathPath(Is(Path.Call(pc, GetEnd, List())), PcHb, _) => Some(ChildToParent(pc))
+            case _ => None
+        }
+    }    
+    
+    // ______ permitsWr, permitsRd, ensuresFinal ____________________________
 
+    /*
+    g permitsWr i
+    --------------------
+    g permitsRd i
+    */
+    object PermitsWrImpliesRdTemplate extends RuleTemplate {
+        case class PermitsWrImpliesRd(g: Path.Ref, i: Path.Ref) extends Rule {
+            override def deriveFacts(state: ProofState) = {
+                state.permitsWr(g, i) match {
+                    case true => Some(Fact.PathPath(g, PcPermitsRd, i))
+                    case false => None
+                }
+            }
+        }
+        
+        def instantiate(state: ProofState)(query: Query) = query match {
+            case Query.PathPath(Is(g), PcPermitsRd, Is(i)) => Some(PermitsWrImpliesRd(g, i))
+            case _ => None
+        }
+    }
+    
+    /*
+    g ensuresFinal i
+    --------------------
+    g permitsRd i
+    */
+    object EnsuresFinalImpliesRdTemplate extends RuleTemplate {
+        case class EnsuresFinalImpliesRd(g: Path.Ref, i: Path.Ref) extends Rule {
+            override def deriveFacts(state: ProofState) = {
+                state.ensuresFinal(g, i) match {
+                    case true => Some(Fact.PathPath(g, PcPermitsRd, i))
+                    case false => None
+                }
+            }
+        }
+        
+        def instantiate(state: ProofState)(query: Query) = query match {
+            case Query.PathPath(Is(g), PcPermitsRd, Is(i)) => Some(EnsuresFinalImpliesRd(g, i))
+            case _ => None
+        }
+    }
+
+    /*
+    i inlineSubOf j
+    g permitsWr j 
+    --------------------
+    g permitsWr i
+    */
+    object PermitsWrToInlineSubTemplate extends RuleTemplate {
+        case class PermitsWrToInlineSub(g: Path.Ref, i: Path.Ref) extends Rule {
+            override def deriveFacts(state: ProofState) = {
+                state.inlineParents(i).flatMap { j =>
+                    state.permitsWr(g, j) match {
+                        case true => Some(Fact.PathPath(g, PcPermitsWr, i))
+                        case false => None
+                    }
+                }
+            }
+        }
+        
+        def instantiate(state: ProofState)(query: Query) = query match {
+            case Query.PathPath(Is(g), PcPermitsWr, Is(i)) => Some(PermitsWrToInlineSub(g, i))
+            case _ => None
+        }
+    }
+    
+    /*
+    --------------------
+    final ensuresFinal i
+    */
+    object FinalEnsuresFinalTemplate extends RuleTemplate {
+        case class FinalEnsuresFinal(i: Path.Ref) extends Rule {
+            override def deriveFacts(state: ProofState) = {
+                Some(Fact.PathPath(Path.Final, PcEnsuresFinal, i))
+            }
+        }
+        
+        def instantiate(state: ProofState)(query: Query) = query match {
+            case Query.PathPath(_, PcEnsuresFinal, Is(i)) => Some(FinalEnsuresFinal(i))
+            case _ => None
+        }
     }
     
     // ___ Extending the Environment ________________________________________
