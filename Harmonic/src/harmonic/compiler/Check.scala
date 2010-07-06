@@ -159,14 +159,14 @@ case class Check(global: Global) {
                     env.pathIsFinalBy(left.path, current) &&
                     env.pathIsFinalBy(right.path, current)
                 ) {
-                    env.plusRel(req.toReq)
+                    env.plusFact(req.toFact)
                 } else {
                     env
                 }
             }
             
             case in.TypeRequirement(_, _, _) => {
-                env.plusRel(req.toReq)
+                env.plusFact(req.toFact)
             }
         }
     }
@@ -281,9 +281,8 @@ case class Check(global: Global) {
                 
                 // Check that ensures clauses are met:
                 decl.ensures.foreach { reqNode =>
-                    val req = reqNode.toReq
-                    if(!env.relHolds(req)) {
-                        Error.DoesNotEnsure(req).report(global, reqNode.pos)
+                    if(!env.factHolds(reqNode.toFact)) {
+                        Error.DoesNotEnsure(reqNode.toFact).report(global, reqNode.pos)
                     }
                 }
             }

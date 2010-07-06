@@ -3,9 +3,12 @@ package harmonic.compiler
 import scala.collection.mutable.HashSet
 import scala.collection.mutable.Queue
 
+sealed abstract class Type {
+    def unapply(ty: Type) = (this == ty)    
+}
+
 object Type {
     
-    sealed abstract class Ref
     case class Member(path: Path.Ref, typeVar: Name.Member) extends Ref {
         override def toString = "%s.%s".format(path, typeVar)
     }

@@ -1123,11 +1123,11 @@ object Ast {
                 ExtendedTypedPath(path)
                 
             case class ExtendedRequirement(req: Requirement) {
-                def toReq = req match {
+                def toFact = req match {
                     case TypeRequirement(TypeRef(l), rel, TypeRef(r)) => 
-                        Req.T(l, rel, r)
+                        Fact.TT(l, rel, r)
                     case PathRequirement(TypedPath(l), rel, TypedPath(r)) => 
-                        Req.P(l.toPath, rel, r.toPath)                    
+                        Fact.PP(l.toPath, rel, r.toPath)                    
                 }
             }
             implicit def extendedRequirement(req: Requirement): ExtendedRequirement =

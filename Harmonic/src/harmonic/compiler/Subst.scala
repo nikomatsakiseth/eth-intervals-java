@@ -31,11 +31,9 @@ class Subst(private val map: Map[Path.Ref, Path.Ref]) {
             Path.Call(owner(receiver), methodId, args.map(path))
     }
     
-    def pathReq(r: Req.P) = Req.P(path(r.left), r.rel, path(r.right))
-    def typeReq(r: Req.T) = Req.T(ty(r.left), r.rel, ty(r.right))
-    def req(r: Req.Any) = r match {
-        case r: Req.P => pathReq(r)
-        case r: Req.T => typeReq(r)
+    def fact(fact: Fact) = fact match {
+        case Fact.PP(l, rel, r) => Fact.PP(path(l), rel, path(r))
+        case Fact.TT(l, rel, r) => Fact.TT(ty(l), rel, ty(r))
     }
     
     def pattern(p: Pattern.Anon): Pattern.Anon = p match {

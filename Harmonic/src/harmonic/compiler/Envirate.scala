@@ -25,16 +25,7 @@ case class Envirate(global: Global) {
     //   - Add to environment.
     // - Add relations from class body if both sides are final.
     
-    def addAstReq(env: Env, req: in.Requirement) = {
-        req match {
-            case in.PathRequirement(in.TypedPath(left), rel, in.TypedPath(right)) => {
-                env.plusRel(Req.P(left.toPath, rel, right.toPath))
-            }
-            case in.TypeRequirement(in.TypeRef(left), rel, in.TypeRef(right)) => {
-                env.plusRel(Req.T(left, rel, right))
-            }
-        }
-    }
+    def addAstReq(env: Env, req: in.Requirement) = env.plusFact(req.toFact)
     
     def forClassFromSource(csym: ClassFromSource) = {
         
@@ -55,12 +46,12 @@ case class Envirate(global: Global) {
                 val argPaths = args.map(_.path)
 
                 val vsubst = msym.substForFlatArgs(argPaths)
-                val ensures = msym.ensures.view.map(vsubst.req)
-                val finalEnsures = ensures.filter(env.relIsFinalBy(_, method))
-                env = env.plusRels(finalEnsures)
+                val ensures = msym.ensures.view.map(vsubst.fact)
+                val finalEnsures = ensures.filter(env.factIsFinalBy(_, method))
+                env = env.plusFacts(finalEnsures)
 
                 val supCsym = global.csym(name.name)
-                env = env.plusRels(supCsym.checkEnv.allRels)
+                env = env.plusFacts(supCsym.checkEnv.allRels)
             }
         }
         
@@ -71,7 +62,7 @@ case class Envirate(global: Global) {
                     env.pathIsFinalBy(left, method) && 
                     env.pathIsFinalBy(right, method)
                 ) {
-                    env = env.plusRel(Req.P(left.toPath, rel, right.toPath))
+                    env = env.plusFact(Fact.PP(left.toPath, rel, right.toPath))
                 }
             }
             case _ => ()

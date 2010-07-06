@@ -16,83 +16,36 @@ import com.smallcultfollowing.lathos.model.{Util => LathosUtil}
 import Util._
 import Error.CanFail
 
+/*
+
+The Env class defines our type system.
+It collects facts and also embodies the rules
+for computing new ones.  
+
+The most complex rule manipulation is done by 
+the `Env.ProofState` class, along with the
+`Env.RuleTemplate` and `Env.Rule` instances.
+This is a prolog-like engine which begins
+with a query and a set of facts.  The `ProofState`
+object then iterates through the various RuleTemplate
+instances that are defined, supplying them with the
+query at hand and asking them to contribute to the 
+fact database.  Once the set of facts reaches a 
+steady state, the query can be answered
+(for monotonic queries, the answer can be found
+sooner).
+
+*/
+
 object Env {
     def empty(global: Global) = Env(
-        global       = global,
-        thisTy       = Type.Top,
-        optReturnTy  = None,
-        locals       = Map(
-            Name.FinalLocal -> global.finalSym
-        ),
-        pathRels     = Nil,
-        typeRels     = Nil
+        global      = global,
+        thisTy      = Type.Top,
+        optReturnTy = None,
+        locals      = Map(Name.FinalLocal -> global.finalSym),
+        baseFacts   = Set()
     )
-}
-
-/** The environment is used during a type check but also in other phases
-  * It stores information known by the compiler. */
-case class Env(
-    global: Global,
     
-    /** Type of the this pointer */
-    thisTy: Type.Class,
-    
-    /** Return type at current point, or 
-      * None if returns not currently allowed */
-    optReturnTy: Option[Type.Ref],
-    
-    /** In-scope local variables. */
-    locals: Map[Name.LocalVar, VarSymbol.Local],
-    
-    /** */
-    baseFacts: Set[Fact.Ref]
-) extends Page {
-    
-    private[this] def curLog = global.closestLog
-    
-    override def toString = getId
-    
-    // ___ Page interface ___________________________________________________
-    
-    override def getId = "Env[%s]".format(System.identityHashCode(this))
-    
-    override def getParent = null
-    
-    override def addContent(content: PageContent) = throw new UnsupportedOperationException()
-    
-    override def renderInLine(out: Output): Unit = {
-        LathosUtil.renderInLine(this, out)
-    }
-    
-    override def renderInPage(out: Output): Unit = {
-        out.startPage(this)
-        
-        out.startTable
-        
-        out.row("thisTy", thisTy)
-        out.row("optReturnTy", optReturnTy)
-        
-        out.endTable
-        
-        out.subpage("Locals") {
-            out.startTable
-            for((name, sym) <- locals){
-                out.row(name, sym, sym.ty)
-            }
-            out.endTable
-        }
-
-        out.subpage("Path Rels") {
-            out.list(pathRels)
-        }
-
-        out.subpage("Type Rels") {
-            out.list(typeRels)
-        }
-        
-        out.endPage(this)
-    }
-
     // ___ Queries __________________________________________________________
     //
     // Subtypes of `Query` abstractly represent the queries that can be 
@@ -152,14 +105,14 @@ case class Env(
         }
         
         object PP {
-            def unapply(query: Query) = query match {
+            def unapply(query: Query[_]) = query match {
                 case GivenBothPaths(l, rel, r) => Some((l, rel, r))
                 case _ => None
             }
         }
         
         object PL {
-            def unapply(query: Query) = query match {
+            def unapply(query: Query[_]) = query match {
                 case GivenBothPaths(l, rel, _) => Some((l, rel))
                 case GivenLeftPath(l, rel) => Some((l, rel))
                 case _ => None
@@ -167,27 +120,27 @@ case class Env(
         }
         
         object PR {
-            def unapply(query: Query) = query match {
+            def unapply(query: Query[_]) = query match {
                 case GivenBothPaths(_, rel, r) => Some((rel, r))
                 case GivenRightPath(rel, r) => Some((rel, r))
                 case _ => None
             }
         }
         
-        case class PC(left: Path.Ref, right: Name.Class) 
+        case class PC(left: Path.Ref, name: Name.Class) 
         extends Query[Set[Type.Class]] {
             override def preevaluate(facts: Set[Fact]) = None
             
             override def evaluate(facts: Set[Fact]) = {
                 facts.flatMap {
-                    case Fact.PC(left(), r @ Type.Class(name(), _)) => Some(r)
+                    case Fact.PT(left(), r @ Type.Class(name(), _)) => Some(r)
                     case _ => None                    
                 }
             }
         }
         
         case class GivenBothTypes(left: Type.Ref, rel: TcRel, right: Type.Ref) 
-        extends FindFact(Fact.PP(left, rel, right))
+        extends FindFact(Fact.TT(left, rel, right))
         
         case class GivenLeftType(left: Type.Ref, rel: TcRel) extends Query[Set[Type.Ref]] {
             override def preevaluate(facts: Set[Fact]) = None
@@ -199,19 +152,20 @@ case class Env(
         }
         
         object TT {
-            def unapply(query: Query) = query match {
+            def unapply(query: Query[_]) = query match {
                 case GivenBothTypes(l, rel, r) => Some((l, rel, r))
                 case _ => None
             }
         }
         
         object TL {
-            def unapply(query: Query) = query match {
+            def unapply(query: Query[_]) = query match {
                 case GivenBothTypes(l, rel, _) => Some((l, rel))
                 case GivenLeftType(l, rel) => Some((l, rel))
                 case _ => None
             }
-        }    }
+        }
+    }
     
     // ___ High-level query evaluation ______________________________________
     //
@@ -229,9 +183,19 @@ case class Env(
     
     /** Rule templates instantiate rules that are likely to produce facts
       * useful to answering `query`. */
-    abstract trait RuleTemplate {
-        def instantiate(state: ProofState)(query: Query): Iterable[Rule]
+    private[this] abstract trait RuleTemplate {
+        /** Returns a list of rules that might produce facts useful to answer
+          * `query`.  These rules usually are specific to information in the
+          * query. */
+        def instantiate(state: ProofState)(query: Query[_]): Iterable[Rule]
+        
+        // Add ourselves to this list upon instantiation.  This is not really
+        // a great idea, except that we only instantiate RuleTemplates as 
+        // objects within this class:
+        templates = this :: templates
     }
+    
+    private[this] var templates: List[RuleTemplate] = Nil
     
     /** Records the current state of the computation (what facts are known,
       * which rules are in the process of being evaluated, etc).  Right
@@ -239,7 +203,6 @@ case class Env(
       * used during rule evaluation <b>must</b> use `state.answer()` rather
       * than the `answer()` method offered on the environment. */
     case class ProofState(
-        templates: List[RuleTemplate],
         stack: List[Rule],
         facts: Set[Fact]
     ) {
@@ -270,8 +233,29 @@ case class Env(
             }
         }
         
-        def eq(p: Path.Ref): Set[Path.Ref] = answer(Query.GivenLeftPath(p, PcEq))
-        def eq(p: Path.Ref, q: Path.Ref): Boolean = answer(Query.FindFact(Fact.PP(p, PcEq, q)))
+        def rel(p: Path.Ref, rel: PcTransRel): Set[Path.Ref] = answer(Query.GivenLeftPath(p, rel))
+        def rel(rel: PcTransRel, q: Path.Ref): Set[Path.Ref] = answer(Query.GivenRightPath(rel, q))
+        def rel(p: Path.Ref, rel: PcRel, q: Path.Ref): Boolean = answer(Query.GivenBothPaths(p, rel, q))
+
+        def rel(l: Type.Ref, rel: TcRel, r: Type.Ref): Boolean = answer(Query.GivenBothTypes(l, rel, r))
+        def rel(l: Type.Ref, rel: TcRel): Boolean = answer(Query.GivenLeftType(l, rel))
+        
+        def fact(f: Fact) = f match {
+            case Fact.PP(l, rel, r) => rel(l, rel, r)
+            case Fact.TT(l, rel, r) => rel(l, rel, r)
+        }
+        
+        def eq(p: Path.Ref): Set[Path.Ref] = rel(p, PcEq)
+        def eq(p: Path.Ref, q: Path.Ref): Boolean = rel(p, PcEq, q)
+        
+        def parents(c: Path.Ref): Set[Path.Ref] = rel(c, PcSubOf)
+        def inlineParents(c: Path.Ref): Set[Path.Ref] = rel(c, PcInlineSubOf)
+        def children(p: Path.Ref): Set[Path.Ref] = rel(PcSubOf, p)
+        def inlineChildren(p: Path.Ref): Set[Path.Ref] = rel(PcInlineSubOf, p)
+        
+        def permitsWr(g: Path.Ref, i: Path.Ref): Boolean = rel(g, PcPermitsWr, i)
+        def permitsRd(g: Path.Ref, i: Path.Ref): Boolean = rel(g, PcPermitsRd, i)
+        def ensuresFinal(g: Path.Ref, i: Path.Ref): Boolean = rel(g, PcEnsuresFinal, i)
 
         /** Convenience method for finding equatable path lists of `ps`
           * If `ps` is `(x, y, z)`, yields something like
@@ -289,20 +273,8 @@ case class Env(
             }
         }
         
-        
-        def upcast(p: Path.Ref, c: Name.Class): Set[Type.Class] = answer(PathClassQuery(p, c))
-        
-        def parents(c: Path.Ref): Set[Path.Ref] = answer(Query.GivenLeftPath(c, PcSubOf))
-        def inlineParents(c: Path.Ref): Set[Path.Ref] = answer(Query.GivenLeftPath(c, PcInlineSubOf))
-        def children(p: Path.Ref): Set[Path.Ref] = answer(Query.GivenRightPath(PcSubOf, p))
-        def inlineChildren(p: Path.Ref): Set[Path.Ref] = answer(Query.GivenRightPath(PcInlineSubOf, p))
-        
-        def permitsWr(g: Path.Ref, i: Path.Ref): Boolean = answer(Query.GivenBothPaths(g, PcPermitsWr, i))
-        def permitsRd(g: Path.Ref, i: Path.Ref): Boolean = answer(Query.GivenBothPaths(g, PcPermitsRd, i))
-        def ensuresFinal(g: Path.Ref, i: Path.Ref): Boolean = answer(Query.GivenBothPaths(g, PcEnsuresFinal, i))
+        def upcast(p: Path.Ref, c: Name.Class): Set[Type.Class] = answer(Query.PC(p, c))
     }
-    
-    def virginState = ProofState(ruleTemplates, Nil, baseFacts)
     
     // ___ Rules ____________________________________________________________
     
@@ -694,7 +666,74 @@ case class Env(
             case _ => None
         }
     }
+}
+
+/** The environment is used during a type check but also in other phases
+  * It stores information known by the compiler. */
+case class Env(
+    global: Global,
     
+    /** Type of the this pointer */
+    thisTy: Type.Class,
+    
+    /** Return type at current point, or 
+      * None if returns not currently allowed */
+    optReturnTy: Option[Type.Ref],
+    
+    /** In-scope local variables. */
+    locals: Map[Name.LocalVar, VarSymbol.Local],
+    
+    /** */
+    baseFacts: Set[Fact]
+) extends Page {
+    
+    private[this] def curLog = global.closestLog
+    
+    override def toString = getId
+    
+    val state = ProofState(Nil, baseFacts)
+    
+    // ___ Page interface ___________________________________________________
+    
+    override def getId = "Env[%s]".format(System.identityHashCode(this))
+    
+    override def getParent = null
+    
+    override def addContent(content: PageContent) = throw new UnsupportedOperationException()
+    
+    override def renderInLine(out: Output): Unit = {
+        LathosUtil.renderInLine(this, out)
+    }
+    
+    override def renderInPage(out: Output): Unit = {
+        out.startPage(this)
+        
+        out.startTable
+        
+        out.row("thisTy", thisTy)
+        out.row("optReturnTy", optReturnTy)
+        
+        out.endTable
+        
+        out.subpage("Locals") {
+            out.startTable
+            for((name, sym) <- locals){
+                out.row(name, sym, sym.ty)
+            }
+            out.endTable
+        }
+
+        out.subpage("Path Rels") {
+            out.list(pathRels)
+        }
+
+        out.subpage("Type Rels") {
+            out.list(typeRels)
+        }
+        
+        out.endPage(this)
+    }
+
     // ___ Extending the Environment ________________________________________
     
     def plusLocalVar(sym: VarSymbol.Local) = copy(locals = locals + (sym.name -> sym))
@@ -703,42 +742,12 @@ case class Env(
 
     def plusThis(thisTy: Type.Class, sym: VarSymbol.Local) = plusLocalVar(sym).copy(thisTy = thisTy)
     
-    def plusRel(rel: Req.Any) = rel match {
-        case rel: Req.P => plusPathRel(rel)
-        case rel: Req.T => plusTypeRel(rel)
-    }
+    def plusFact(fact: Fact) = copy(baseFacts = baseFacts + fact)
     
-    def plusRels(rels: Iterable[Req.Any]) = rels.foldLeft(this)(_ plusRel _)
-    
-    def plusPathRel(rel: Req.P) = copy(pathRels = rel :: pathRels)
-
-    def plusPathRels(rels: Iterable[Req.P]) = rels.foldLeft(this)(_ plusPathRel _)
-
-    def plusTypeRel(rel: Req.T) = copy(typeRels = rel :: typeRels)
-    
-    def plusTypeRels(rels: Iterable[Req.T]) = rels.foldLeft(this)(_ plusTypeRel _)
+    def plusFacts(facts: Iterable[Fact]) = facts.foldLeft(this)(_ plusFact _)
     
     def withOptReturnTy(optReturnTy: Option[Type.Ref]) = copy(optReturnTy = optReturnTy)
     
-    // ___ Querying the relations ___________________________________________
-    
-    def allRels = pathRels.view ++ typeRels.view
-    
-    private[this] def pathsRelatedBy(Rel: PcRel): List[(Path.Ref, Path.Ref)] = pathRels.flatMap { 
-        case Req.P(p1, Rel, p2) => Some((p1, p2))
-        case _ => None
-    }
-    
-    private[this] def pathsRelatedBy(Rel: PcRel, P2: Path.Ref): List[Path.Ref] = pathRels.flatMap { 
-        case Req.P(p1, Rel, P2) => Some(p1)
-        case _ => None
-    }
-    
-    private[this] def pathsRelatedBy(P1: Path.Ref, Rel: PcRel): List[Path.Ref] = pathRels.flatMap { 
-        case Req.P(P1, Rel, p2) => Some(p2)
-        case _ => None
-    }
-
     // ___ Finding member names _____________________________________________
     
     def lookupEntry(csym: ClassSymbol, uName: Name.UnloweredMember): CanFail[SymTab.MemberEntry] = {
@@ -930,156 +939,6 @@ case class Env(
     
     def typeOfPath(path: Path.Ref) = typedPath(path).ty
     
-    // ___ Equating Paths ___________________________________________________   
-    //
-    // Two paths are equatable if they will always refer to equal objects
-    // at runtime.  We consider two objects equal if they are either
-    // pointer-equal or if they are value objects with the same
-    // constituents.  
-    
-    object Equatable {
-        def stream(path: Path.Ref) = new Equatable().stream(Nil, path)
-        def set(path: Path.Ref) = new Equatable().set(Nil, path)
-
-        // Attempts to simplify a path into another path that will always
-        // be the same object (may yield the same path)
-        def simplify(path: Path.Ref): Path.Ref = {
-            path match {
-                case Path.Cast(_, base) => base
-                case Path.Tuple(List(path)) => simplify(path)
-                case Path.Index(
-                    Path.Tuple(paths), 
-                    Path.Constant(index: java.lang.Integer)
-                ) if index.intValue < paths.length => {
-                    simplify(paths(index.intValue))
-                }
-                case _ => path
-            }
-        }
-    }
-    
-    class Equatable extends TransitiveCloser[Path.Ref] {
-        protected[this] def successors(stack: List[Path.Ref], p1: Path.Ref): Iterable[Path.Ref] = {
-            def eq(path: Path.Ref) = set(stack, path)
-            
-            def eqs(paths: List[Path.Ref]): List[List[Path.Ref]] = {
-                paths match {
-                    case path :: tl => {
-                        val eqTls = eqs(tl)
-                        eq(path).toList.flatMap { hd =>
-                            eqTls.map(hd :: _)
-                        }
-                    }
-
-                    case List() => {
-                        List()
-                    }
-                }
-            }
-            
-            val bySimplify = Equatable.simplify(p1)
-            
-            val byInduction = p1 match {
-                case Path.Field(base: Path.Ref, name) => {
-                    eq(base).map(Path.Field(_, name))
-                }
-                
-                case Path.Index(array, index) => {
-                    (eq(array) cross eq(index)).map { case (a, i) =>
-                        Path.Index(a, i)
-                    }
-                }
-                
-                case Path.Tuple(paths) => {
-                    eqs(paths).map(Path.Tuple)
-                }
-                
-                case Path.Call(receiver: Path.Ref, methodName, args) => {
-                    (eq(receiver) cross eqs(args)).map { case (r, a) =>
-                        Path.Call(r, methodName, a)
-                    }
-                }
-                
-                case Path.Field(Path.Static, _) 
-                |   Path.Cast(_, _)
-                |   Path.Call(Path.Static, _, _)
-                |   Path.Local(_)
-                |   Path.Constant(_) => {
-                    Set()                    
-                }
-            }
-            
-            val byRel = pathRels.flatMap {
-                case Req.P(p1(), PcEq, p2) => Some(p2)
-                case Req.P(p2, PcEq, p1()) => Some(p2)
-                case _ => None
-            }
-            
-            byInduction ++ Some(bySimplify) ++ byRel
-        }
-    }
-
-    def pathsAreEquatable(path1: Path.Ref, path2: Path.Ref) = {
-        Equatable.stream(path1).contains(Equatable.simplify(path2))
-    }
-
-    // ___ Relating Paths ___________________________________________________
-    
-    def pathsAreRelatable(rel: PcRel)(basePath1: Path.Ref, basePath2: Path.Ref): Boolean = {
-        
-        // The special variable "final" never permits writes and so always ensures final.
-        def tryFinal(
-            eqPath1: (Path.Ref => Boolean),
-            eqPath2: (Path.Ref => Boolean)
-        ) = {
-            (rel == PcEnsuresFinal) && eqPath1(Path.Final)
-        }
-        
-        // Search the relations found directly in the environment.
-        def trySearch(
-            eqPath1: (Path.Ref => Boolean), 
-            eqPath2: (Path.Ref => Boolean)
-        ) = {
-            pathRels.exists { case Req.P(p1, r, p2) =>
-                (r == rel) && eqPath1(p1) && eqPath2(p2)
-            }            
-        }
-        
-        // In a path like x.y, check whether x has a type like x[y rel path2]
-        def tryTypeArg(
-            eqPath1: Iterable[Path.Ref],
-            eqPath2: (Path.Ref => Boolean)
-        ) = {
-            eqPath1.exists { 
-                case Path.Field(base: Path.Ref, f) => {
-                    val typedBase = typedPath(base)
-                    minimalUpperBoundClassTys(typedBase.ty).exists { classTy =>
-                        classTy.typeArgs.exists {
-                            case Type.PathArg(f(), rel(), p2) if eqPath2(p2) => true
-                            case _ => false
-                        }
-                    }                
-                }
-                case _ => false
-            }
-        }
-
-        curLog.indent(this, ".pathsAreRelatable(", rel, ")(", basePath1, ", ", basePath2, ")") {
-            rel match {
-                case PcEq => pathsAreEquatable(basePath1, basePath2)
-                case _ => {
-                    val eqPath1 = Equatable.set(basePath1)
-                    val eqPath2 = Equatable.set(basePath2)
-                    
-                    tryFinal(eqPath1, eqPath2) ||
-                    trySearch(eqPath1, eqPath2) ||
-                    tryTypeArg(eqPath1, eqPath2)
-                }
-            }
-        }
-        
-    }
-    
     // ___ Bounding Type Variables __________________________________________
     
     /** Returns a set of types that are exactly equivalent to `ty`. */
@@ -1252,7 +1111,7 @@ case class Env(
             }
             
             case (Type.Member(path_val, tvar_val), Type.Member(path_pat, tvar_pat)) if tvar_val == tvar_pat =>
-                pathsAreEquatable(path_val, path_pat)
+                state.eq(path_val, path_pat)
                 
             case (Type.Tuple(tys_val), Type.Tuple(tys_pat)) if sameLength(tys_val, tys_pat) =>
                 tys_val.zip(tys_pat).forall { case (v, p) => isSuitableArgument(v, p) }
@@ -1289,7 +1148,7 @@ case class Env(
                     name1 == name2 && rel1 == rel2 && typesAreEquatable(ty1, ty2)
                     
                 case (Type.PathArg(name1, rel1, path1), Type.PathArg(name2, rel2, path2)) =>
-                    name1 == name2 && rel1 == rel2 && pathsAreEquatable(path1, path2)
+                    name1 == name2 && rel1 == rel2 && state.eq(path1, path2)
                 
                 case _ => false
             }
@@ -1437,7 +1296,7 @@ case class Env(
             arg match {
                 case Type.PathArg(name, rel, path2) => {
                     val extPath = Path.Field(path.toPath, name)
-                    pathsAreRelatable(rel)(extPath, path2)
+                    state.rel(extPath, rel, path2)
                 }
                 case Type.TypeArg(name, rel, ty) => {
                     val extTy = Type.Member(path.toPath, name)
@@ -1460,7 +1319,7 @@ case class Env(
             
                 case (t1 @ Type.Member(path1, v1), t2 @ Type.Member(path2, v2)) => {
                     curLog.indent("Member types: ", t1, " and ", t2) {
-                        (v1 == v2) && pathsAreEquatable(path1, path2)                    
+                        (v1 == v2) && state.eq(path1, path2)                    
                     }
                 }
             
@@ -1489,19 +1348,7 @@ case class Env(
         plusLocalVar(tempSym).pathHasType(tempSym.toTypedPath, supTy)
     }
   
-    // ___ Relations ________________________________________________________
-    
-    def pathRelHolds(rel: Req.P): Boolean = {
-        pathsAreRelatable(rel.rel)(rel.left, rel.right)
-    }
-
-    def typeRelHolds(rel: Req.T): Boolean = rel match {
-        case Req.T(l, TcEq, r) => typesAreEquatable(l, r)
-        case Req.T(l, TcSub, r) => isSubtype(l, r)
-        case Req.T(l, TcSup, r) => isSubtype(r, l)
-    }
-    
-    def relHolds(rel: Req.Any): Boolean = rel match {
+    def factHolds(fact: Fact): Boolean = state.rel match {
         case rel: Req.P => pathRelHolds(rel)
         case rel: Req.T => typeRelHolds(rel)
     }
@@ -1511,10 +1358,10 @@ case class Env(
     // Determines whether a given path has reached its final value by
     // the given interval.  The path `inter` is assumed to be final.
     
-    def relIsFinalBy(rel: Req.Any, inter: Path.Typed) = {
-        rel match {
-            case rel: Req.P => pathIsFinalBy(typedPath(rel.left), inter) && pathIsFinalBy(typedPath(rel.right), inter)
-            case rel: Req.T => typeIsFinalBy(rel.left, inter) && typeIsFinalBy(rel.right, inter)
+    def factIsFinalBy(fact: Fact, inter: Path.Typed) = {
+        fact match {
+            case Fact.PP(l, _, r) => pathIsFinalBy(typedPath(l), inter) && pathIsFinalBy(typedPath(r), inter)
+            case Fact.TT(l, _, r) => typeIsFinalBy(l, inter) && typeIsFinalBy(r, inter)
         }
     }
     
@@ -1553,7 +1400,7 @@ case class Env(
                 if(sym.modifiers.isNotMutable) true
                 else {
                     val guardPath = locals(Name.MethodLocal) // TODO: Configurable guard paths for locals
-                    pathsAreRelatable(PcEnsuresFinal)(guardPath.toPath, inter.toPath)
+                    state.ensuresFinal(guardPath.toPath, inter.toPath)
                 }
             }
                 
@@ -1568,7 +1415,7 @@ case class Env(
             case Path.TypedField(base, fsym) => {
                 ownerIsFinalBy(base, inter) && {                    
                     val guardPath = locals(Name.FinalLocal) // TODO: Guard path for fields
-                    pathsAreRelatable(PcEnsuresFinal)(guardPath.toPath, inter.toPath)
+                    state.ensuresFinal(guardPath.toPath, inter.toPath)
                 }
             }
             
@@ -1584,7 +1431,7 @@ case class Env(
                 pathIsFinalBy(array, inter) &&
                 pathIsFinalBy(index, inter) && {
                     val guardPath = wr(array.toPath)
-                    pathsAreRelatable(PcEnsuresFinal)(guardPath, inter.toPath)
+                    state.ensuresFinal(guardPath, inter.toPath)
                 }
             }
             
