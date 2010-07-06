@@ -9,38 +9,34 @@ sealed trait PcTransRel extends PcRel
 
 sealed trait PcWcRel extends PcRel
 
-sealed trait PcQuerySingleRel extends PcRel
-
-sealed trait PcQueryManyRel extends PcRel
-
-case object PcLocks extends PcQuerySpecificRel {
+case object PcLocks extends PcRel {
     override def toString = "locks"
 }
 
-case object PcSubOf extends PcTransRel with PcQueryManyRel {
+case object PcSubOf extends PcTransRel {
     override def toString = "subOf"
 }
 
-case object PcInlineSubOf extends PcTransRel with PcQueryManyRel {
+case object PcInlineSubOf extends PcTransRel {
     override def toString = "inlineSubOf"
 }
 
-case object PcHb extends PcTransRel with PcQueryManyRel {
+case object PcHb extends PcTransRel {
     override def toString = "->"
 }
 
-case object PcEq extends PcWcRel with PcTransRel with PcQueryManyRel {
+case object PcEq extends PcWcRel with PcTransRel {
     override def toString = "="
 }
 
-case object PcPermitsWr extends PcWcRel with PcQuerySpecificRel {
+case object PcPermitsWr extends PcWcRel {
     override def toString = "permitsWr"
 }
 
-case object PcPermitsRd extends PcWcRel with PcQuerySpecificRel {
+case object PcPermitsRd extends PcWcRel {
     override def toString = "permitsRd"
 }
 
-case object PcEnsuresFinal extends PcWcRel with PcQuerySpecificRel {
+case object PcEnsuresFinal extends PcWcRel {
     override def toString = "ensuresFinal"
 }
