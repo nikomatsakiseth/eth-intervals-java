@@ -7,7 +7,7 @@ trait FactSet {
     
     def contains(fact: Fact): Boolean
 
-    def allFactsOfKind(kind: Fact.ForwardKind): Set[Fact]
+    def allFactsOfKind(kind: Fact.ForwardKind): Set[Fact.Forward]
 
     def plusFacts(facts: Iterable[Fact]): FactSet
 }

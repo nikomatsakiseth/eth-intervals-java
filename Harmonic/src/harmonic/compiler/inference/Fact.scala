@@ -1,36 +1,26 @@
-package harmonic.scala
+package harmonic.compiler.inference
 
 /** A Fact represents an atomic unit of knowledge. 
   * It must be a value type.  A scala "case class"
   * is perfect. Also, you should derive from
   * Fact.Forward or Fact.Backward. */
 sealed trait Fact {
-    def kind: Fact.Kind
+    def kind: Fact.Kind = getClass.asSubclass(classOf[Fact])
 }
 
 object Fact {
-    /** Base type for all fact kinds */
-    sealed trait Kind {
-        val kindClass: Class[_ <: Fact]
-    }
-    
-    /** Kind for facts derivable via forward-chaining */
-    sealed trait ForwardKind extends Kind {
-        val kindClass: Class[_ <: Fact.Forward]
-    }
-    
-    /** Kind for facts derivable via backward-chaining */
-    sealed trait BackwardKind extends Kind {
-        val kindClass: Class[_ <: Fact.Backward]
-    }
+    // A fact's "Kind" is always its class
+    type Kind = Class[_ <: Fact]
+    type ForwardKind = Class[_ <: Fact.Forward]
+    type BackwardKind = Class[_ <: Fact.Backward]
     
     /** Base class for forward-chainable facts */
-    sealed trait Forward extends Fact {
-        def kind: Fact.ForwardKind
+    trait Forward extends Fact {
+        override def kind: Fact.ForwardKind = getClass.asSubclass(classOf[Forward])
     }
 
     /** Base class for backward-chainable facts */
-    sealed trait Backward extends Fact {
-        def kind: Fact.BackwardKind
+    trait Backward extends Fact {
+        override def kind: Fact.BackwardKind = getClass.asSubclass(classOf[Backward])
     }
 }

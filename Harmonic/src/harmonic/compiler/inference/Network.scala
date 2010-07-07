@@ -1,9 +1,36 @@
 package harmonic.compiler.inference
 
 import scala.collection.mutable
-import Breaks._
 
 class Network {
+    
+    class State(
+        val mem: Memory,
+        val queue: mutable.Queue[Fact.Forward]
+    ) {
+        var backwardStack: List[(Fact.Backward, Rule.Backward)] = Nil
+        
+        def drainQueue() = {
+            while(!queue.isEmpty) {
+                val fact = queue.dequeue
+                alphaNodes.get(fact.kind).foreach(_.add(this, fact))
+            }
+        }
+        
+        /** Returns facts of the given kind known so far. */
+        def forwardFacts(factKind: Fact.ForwardKind) = {
+            mem.alpha(factKind)
+        }
+
+        /** Returns true if `fact` can be established at this time. */
+        def backwardFact(fact: Fact.Backward) = {
+            omegaNodes.get(fact.kind).exists(_.derive(this, fact))                
+        }
+    }
+    
+    def state(mem: Memory, queue: mutable.Queue[Fact.Forward]) = {
+        new State(mem, queue)
+    }
     
     class Alpha(
         kind: Fact.ForwardKind
@@ -12,7 +39,7 @@ class Network {
         
         def add(state: State, fact: Fact.Forward) = {
             assert(fact.kind == kind)
-            if(mem.addAlpha(fact)) {
+            if(state.mem.addAlpha(fact)) {
                 betas.foreach(_.added(state, fact))                
             }
         }
@@ -26,14 +53,10 @@ class Network {
         override def suffixes(state: State) = Nil        
     }
 
-    trait Join[+F <: Fact] extends Suffix[F] {
-        def added(state: State, fact: F): Unit
-    }
-    
     class Beta(
         kinds: List[Fact.ForwardKind],
-        rhs: SuffixProducing[Fact.Forward]
-    ) extends Join[Fact.Forward] {
+        rhs: Suffix[Fact.Forward]
+    ) extends Suffix[Fact.Forward] {
         val rules = new mutable.ListBuffer[Rule.Forward]()
         
         override def suffixes(state: State) = state.mem.beta(kinds)
@@ -41,10 +64,9 @@ class Network {
         override def added(state: State, fact: Fact.Forward) = {
             val factLists = rhs.suffixes(state).map(factList => fact :: factList).toList
             factLists.foreach { factList =>
-                if(mem.addBeta(factList)) {
-                    templates.foreach { template =>
-                        val rule = template.instantiate(factLists)
-                        state.queue ++= rule.derive(state)                        
+                if(state.mem.addBeta(kinds, factList)) {
+                    rules.foreach { rule =>
+                        state.queue ++= rule.derive(state, factList)                        
                     }
                 }
             }
@@ -56,15 +78,21 @@ class Network {
     ) {
         val rules = new mutable.ListBuffer[Rule.Backward]()
         
-        def derive(state: State): Boolean = {
+        def derive(state: State, fact: Fact.Backward): Boolean = {
             if(state.mem.omega(fact)) {
                 return true
             } else {
-                for(template <- templates) {
-                    val rule = template.instantiate(fact)
-                    if(rule.canInfer(state, fact)) {
-                        mem.addOmega(fact)
-                        return true
+                for(rule <- rules) {
+                    if(!state.backwardStack.contains((fact, rule))) {
+                        state.backwardStack = (fact, rule) :: state.backwardStack
+                        try {
+                            if(rule.canInfer(state, fact)) {
+                                state.mem.addOmega(fact)
+                                return true
+                            }
+                        } finally {
+                            state.backwardStack = state.backwardStack.tail
+                        }
                     }
                 }
                 return false
@@ -72,49 +100,17 @@ class Network {
         }
    
     }
-    
-    class State(
-        val mem: Memory,
-        val queue: mutable.Queue[Fact.Forward]
-    ) {
-        private[this] var backwardStack: List[Fact.Backward] = Nil
-        
-        def drainQueue() = {
-            while(!queue.isEmpty) {
-                val fact = queue.dequeue
-                alphaNodes.get(fact.kind).foreach(_.add(this, fact))
-            }
-        }
-        
-        def forwardFacts(factKind: Fact.ForwardKind) = {
-            state.mem.alpha(factKind)
-        }
-
-        def backwardFact(fact: Fact.Backward) = {
-            if(backwardStack.contains(fact)) {
-                false
-            } else {
-                backwardStack = fact :: backwardStack
-                omegaNodes.get(fact.kind).exists(_.resolve(this))                
-                backwardStack = backwardStack.tail
-            }
-        }
-    }
-    
-    def state(mem: Memory, queue: mutable.Queue[Fact.Forward]) = {
-        new State(mem, queue)
-    }
 
     // ___ Defining and storing the network _________________________________
     //
     // Network should be defined completely before use 
     // and not modified thereafter.
 
-    val alphaNodes = new mutable.HashSet[Fact.ForwardKind, Alpha]()
-    val betaNodes = new mutable.HashSet[List[Fact.ForwardKind], Beta]()
-    val omegaNodes = new mutable.HashSet[Fact.BackwardKind, Omega]()
+    val alphaNodes = new mutable.HashMap[Fact.ForwardKind, Alpha]()
+    val betaNodes = new mutable.HashMap[List[Fact.ForwardKind], Beta]()
+    val omegaNodes = new mutable.HashMap[Fact.BackwardKind, Omega]()
 
-    private[this] addAlpha(kind: Fact.ForwardKind): Alpha = {
+    private[this] def addAlpha(kind: Fact.ForwardKind): Alpha = {
         alphaNodes.get(kind).getOrElse {
             val alpha = new Alpha(kind)
             alphaNodes(kind) = alpha
@@ -122,7 +118,7 @@ class Network {
         }
     }
     
-    private[this] addBeta(kinds: List[Fact.ForwardKind]): Beta = {
+    private[this] def addBeta(kinds: List[Fact.ForwardKind]): Beta = {
         betaNodes.get(kinds).getOrElse {
             val alpha = addAlpha(kinds.head)
             
@@ -132,14 +128,14 @@ class Network {
             }
             
             val beta = new Beta(kinds, rhs)
-            alphas.betas += beta
+            alpha.betas += beta
             
-            betaNodes(kind) = beta
+            betaNodes(kinds) = beta
             beta
         }
     }
     
-    private[this] addOmega(kind: Fact.BackwardKind): Omega = {
+    private[this] def addOmega(kind: Fact.BackwardKind): Omega = {
         omegaNodes.get(kind).getOrElse {
             val omega = new Omega(kind)
             omegaNodes(kind) = omega

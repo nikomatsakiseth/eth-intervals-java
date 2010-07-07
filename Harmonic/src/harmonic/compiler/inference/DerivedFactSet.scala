@@ -13,13 +13,14 @@ object DerivedFactSet {
             case fact: Fact.Backward => backwardFacts = fact :: backwardFacts
         }
         val result = new DerivedFactSet(baseFactSet, pending)
-        backwardFacts.foldLeft(result)(_ addOmega _)
+        backwardFacts.foreach(result.addOmega(_))
+        result
     }
 }
 
 class DerivedFactSet(
     baseFactSet: InternalFactSet,
-    pendingFacts: mutable.Queue[Fact.Forward],
+    pendingFacts: mutable.Queue[Fact.Forward]
 ) extends InternalFactSet with Memory {
     val network = baseFactSet.network
     def plusFacts(facts: Iterable[Fact]): FactSet = DerivedFactSet(this, facts)
@@ -32,7 +33,7 @@ class DerivedFactSet(
     private[this] var optBetaMemories: Option[Map[List[Fact.ForwardKind], Set[List[Fact.Forward]]]] = None
     private[this] var optOmegaMemories: Option[Set[Fact.Backward]] = None
     
-    private[this] def alphaMemories = {
+    private[this] def alphaMemories: Map[Fact.ForwardKind, Set[Fact.Forward]] = {
         optAlphaMemories.getOrElse(baseFactSet.resolvedAlphaMemories)
     }
     
@@ -75,7 +76,7 @@ class DerivedFactSet(
         }
     }
     
-    def addBeta(factKinds: List[Fact.FowardKind], factList: List[Fact.Forward]): Boolean = {
+    def addBeta(factKinds: List[Fact.ForwardKind], factList: List[Fact.Forward]): Boolean = {
         val bm = betaMemories
         bm.get(factKinds) match {
             case Some(set) if set(factList) => {
@@ -128,8 +129,10 @@ class DerivedFactSet(
         }
     }
     
-    def contains(fact: Fact): Boolean = synchronized {
-        if(!baseFactSet.contains(fact)) {
+    override def contains(fact: Fact): Boolean = synchronized {
+        if(baseFactSet.contains(fact)) {
+            true
+        } else {
             resolvePendingFacts
             fact match {
                 case fact: Fact.Forward =>
@@ -139,19 +142,15 @@ class DerivedFactSet(
                     if(omegaMemories(fact)) {
                         true
                     } else {
-                        network.state.backwardFact(fact)
+                        network.state(this, pendingFacts).backwardFact(fact)
                     }
             }            
         }
     }
     
-    def allFactsOfKinds(kind: Fact.ForwardKind): List[Fact] = synchronized {
+    override def allFactsOfKind(kind: Fact.ForwardKind): Set[Fact.Forward] = synchronized {
         resolvePendingFacts
-        val baseResult = baseFactSet.allFactsOfKind(kind)
-        alphaMemories.get(kind) {
-            case Some(mem) => mem.allFacts.foldLeft(baseResult) { (r, f) => f :: r }
-            case None => baseResult
-        }
+        alphaMemories.getOrElse(kind, Set())
     }
     
 }

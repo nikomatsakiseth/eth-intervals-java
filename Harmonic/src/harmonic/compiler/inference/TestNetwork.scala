@@ -1,7 +1,10 @@
-// Unit tests for the inference code.
+package harmonic.compiler.inference
 
+import com.smallcultfollowing.lathos.http.JettyLathosServer
 import com.smallcultfollowing.lathos.model.LathosServer
 import com.smallcultfollowing.lathos.model.Context
+
+// Unit tests for the inference code.
 
 object TestNetwork {
     
@@ -19,18 +22,18 @@ object TestNetwork {
         val network = new Network()
         
         network.addRule(new Rule.Forward() {
-            val inputKinds = Array(classOf[X])
+            val inputKinds = List(classOf[X])
             
-            def derive(state: Network.State, facts: Array[Fact.Forward]) = {
+            def derive(state: Network#State, facts: List[Fact.Forward]) = {
                 val x = facts(0).asInstanceOf[X]
                 List(Y(x.i))
             }
         })
         
         network.addRule(new Rule.Forward() {
-            val inputKinds = Array(classOf[W], classOf[Y])
+            val inputKinds = List(classOf[W], classOf[Y])
             
-            def derive(state: Network.State, facts: Array[Fact.Forward]) = {
+            def derive(state: Network#State, facts: List[Fact.Forward]) = {
                 val w = facts(0).asInstanceOf[W]
                 val y = facts(1).asInstanceOf[Y]
                 if(w.i == y.i) List(Z(w.i))
@@ -68,19 +71,19 @@ object TestNetwork {
     // Because JUnit and ScalaTest are just too hard
     
     def main(args: Array[String]) {
-        server = JettyLathosServer.start(8080)
+        val server = JettyLathosServer.start(8080)
         server.addDataRenderer(new com.smallcultfollowing.lathos.model.ThrowableDataRenderer())
-        ctx = server.context
+        val ctx = server.context
         
         var failed = 0
         var total = 0
         for(method <- getClass.getMethods) {
             if(method.getName.endsWith("Test")) {
                 method.setAccessible(true)
-                val page = ctx.pushPage(method.getName, "Running test ", method.getName)
+                val page = ctx.pushChild(method.getName, "Running test ", method.getName)
                 try {
                     method.invoke(this, ctx)                    
-                } catch (Throwable t) {
+                } catch { case t =>
                     ctx.log("Failed with throwable: ", t)
                     failed = failed + 1
                 }
@@ -91,6 +94,6 @@ object TestNetwork {
         
         simpleTest(ctx)
         println("%d failures out of %d tests".format(failed, total))
-        debugServer.join
+        server.join
     }
 }
