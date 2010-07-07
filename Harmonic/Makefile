@@ -31,6 +31,10 @@ compile: ${GENERATEDJAVA}
 	${JAVAC} -cp ${CLASSPATH} -d bin -sourcepath src $$(find src -name '*.java')
 	${SCALAC} -cp ${CLASSPATH} -deprecation -d bin -sourcepath src $$(find src -name '*.scala')
 	jar cf harmonic.jar -C bin harmonic
+
+# ___ Unit tests _______________________________________________________
+unit: compile
+	${SCALA} -cp ${CLASSPATH} harmonic.compiler.inference.TestNetwork
 	
 # ___ Running tests ____________________________________________________
 # To keep .test files, add "--preserve" to test.py invocation

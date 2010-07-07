@@ -5,11 +5,15 @@ sealed abstract class PcRel {
     def unapply(rel: PcRel) = (rel == this)
 }
 
-sealed trait PcTransRel extends PcRel
-
 sealed trait PcWcRel extends PcRel
 
-case object PcLocks extends PcRel {
+sealed trait PcForwardRel extends PcRel
+
+sealed trait PcTransRel extends PcForwardRel
+
+sealed trait PcBackwardRel extends PcRel
+
+case object PcLocks extends PcRel with PcBackwardRel {
     override def toString = "locks"
 }
 
@@ -29,14 +33,14 @@ case object PcEq extends PcWcRel with PcTransRel {
     override def toString = "="
 }
 
-case object PcPermitsWr extends PcWcRel {
+case object PcPermitsWr extends PcWcRel with PcBackwardRel {
     override def toString = "permitsWr"
 }
 
-case object PcPermitsRd extends PcWcRel {
+case object PcPermitsRd extends PcWcRel with PcBackwardRel {
     override def toString = "permitsRd"
 }
 
-case object PcEnsuresFinal extends PcWcRel {
+case object PcEnsuresFinal extends PcWcRel with PcBackwardRel {
     override def toString = "ensuresFinal"
 }
