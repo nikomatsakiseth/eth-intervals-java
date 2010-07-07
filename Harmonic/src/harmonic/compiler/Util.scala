@@ -51,7 +51,15 @@ object Util {
     }
     implicit def extendedAny(any: Any) = new ExtendedAny(any)    
 
-    class ExtendedString[E](string: String) {
+    class ExtendedBoolean(bool: Boolean) {
+        def toOption[A](a: A): Option[A] = {
+            if(bool) Some(a)
+            else None
+        }
+    }
+    implicit def extendedBoolean(bool: Boolean): ExtendedBoolean = new ExtendedBoolean(bool)
+
+    class ExtendedString(string: String) {
         def afterLast(c: Char) = {
             string.lastIndexOf(c) match {
                 case -1 => string
@@ -59,7 +67,7 @@ object Util {
             }
         }
     }
-    implicit def extendedString[E](string: String) = new ExtendedString(string)
+    implicit def extendedString[E](string: String): ExtendedString = new ExtendedString(string)
     
     class ExtendedIterable[E](iterable: Iterable[E]) {
         def firstSome[F](func: (E => Option[F])) = {
@@ -250,7 +258,11 @@ object Util {
             func: (Interval => Unit)
         ): AsyncInterval = {
             val result = inter.newAsyncChild(new AbstractTask(name) {
-                override def run(current: Interval): Unit = func(current)
+                override def run(current: Interval): Unit = {
+                    println("Entering %s".format(name))
+                    func(current)
+                    println("Exiting %s".format(name))
+                }
             })
             after.foreach(pnt => Intervals.addHb(pnt, result.getStart))
             before.foreach(pnt => Intervals.addHb(result.getEnd, pnt))

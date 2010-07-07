@@ -37,6 +37,7 @@ class Global(
         context.push(classPage)
         context.pushChild(tag, tag)
         logVar.set(inter, context)
+        println("Created %s.%s".format(classPage.getId, tag))
         context
     }
     

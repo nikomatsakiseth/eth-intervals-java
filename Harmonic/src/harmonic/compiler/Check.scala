@@ -38,8 +38,8 @@ case class Check(global: Global) {
                 }
             }
             
-            def checkPathHasType(path: Path.Typed, ty: Type): Unit = {
-                if(!env.pathHasType(path, ty)) {
+            def checkAssignable(path: Path.Typed, ty: Type): Unit = {
+                if(!env.assignable(path.toPath, ty)) {
                     Error.MustHaveType(path, ty).report(global, node.pos)
                 }
             }
@@ -52,7 +52,7 @@ case class Check(global: Global) {
             }
             
             def checkParamType(pair: (Type, Path.Typed)): Unit = {
-                checkPathHasType(pair._2, pair._1)
+                checkAssignable(pair._2, pair._1)
             }
             
             def checkPath(path: Path.Typed): Unit = {
@@ -86,7 +86,7 @@ case class Check(global: Global) {
             
             def checkPathAndType(path: Path.Typed, ty: Type): Unit = {
                 checkPath(path)
-                checkPathHasType(path, ty)
+                checkAssignable(path, ty)
             }
             
         }
@@ -118,7 +118,7 @@ case class Check(global: Global) {
         def checkParam(pair: (Type, in.TypedPath)): Unit = {
             val (ty, path) = pair
             At(path).checkPath(path.path)
-            At(path).checkPathHasType(path.path, ty)
+            At(path).checkAssignable(path.path, ty)
         }
         
         def checkExpr(expr: in.LowerTlExpr): Type = log.indent("checkExpr(", expr, ")") {
@@ -190,7 +190,7 @@ case class Check(global: Global) {
             case in.FieldLvalue(_, sym) => {
                 // TODO Check that dependent fields are assigned together.
                 val path = env.lookupThis.toTypedPath / sym
-                chk.checkPathHasType(path, ty)
+                chk.checkAssignable(path, ty)
                 env
             }
         }

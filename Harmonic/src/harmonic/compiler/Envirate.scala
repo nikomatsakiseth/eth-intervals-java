@@ -62,7 +62,7 @@ case class Envirate(global: Global) {
                     env.pathIsFinalBy(left, method) && 
                     env.pathIsFinalBy(right, method)
                 ) {
-                    env = env.plusFact(Fact.PP(left.toPath, rel, right.toPath))
+                    env = env.plusFact(Fact.PRP(left.toPath, rel, right.toPath))
                 }
             }
             case _ => ()

@@ -1125,9 +1125,9 @@ object Ast {
             case class ExtendedRequirement(req: Requirement) {
                 def toFact = req match {
                     case TypeRequirement(TypeRef(l), rel, TypeRef(r)) => 
-                        Fact.TT(l, rel, r)
+                        Fact.TRT(l, rel, r)
                     case PathRequirement(TypedPath(l), rel, TypedPath(r)) => 
-                        Fact.PP(l.toPath, rel, r.toPath)                    
+                        Fact.PRP(l.toPath, rel, r.toPath)                    
                 }
             }
             implicit def extendedRequirement(req: Requirement): ExtendedRequirement =

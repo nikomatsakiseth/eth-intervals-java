@@ -32,8 +32,9 @@ class Subst(private val map: Map[Path.Ref, Path.Ref]) {
     }
     
     def fact(fact: Fact) = fact match {
-        case Fact.PP(l, rel, r) => Fact.PP(path(l), rel, path(r))
-        case Fact.TT(l, rel, r) => Fact.TT(ty(l), rel, ty(r))
+        case Fact.PRP(l, rel, r) => Fact.PRP(path(l), rel, path(r))
+        case Fact.TRT(l, rel, r) => Fact.TRT(ty(l), rel, ty(r))
+        case Fact.Assignable(p, t) => Fact.Assignable(path(p), ty(t))
     }
     
     def pattern(p: Pattern.Anon): Pattern.Anon = p match {

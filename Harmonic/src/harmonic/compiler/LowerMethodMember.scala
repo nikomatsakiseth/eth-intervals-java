@@ -39,6 +39,7 @@ class LowerMethodMember(
             after = List(paramLower.getEnd)
         ) { inter =>
             val log = global.logForInter(csym.classPage, inter)
+            log.pushDisabledPage
             val (outParams, env) = outSig.v
             outMethodDecl.v = Lower(global).lowerMethodDecl(csym, inMethodDecl, outParams, env)                
         }
