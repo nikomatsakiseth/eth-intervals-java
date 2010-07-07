@@ -30,8 +30,8 @@ abstract class Resolve(global: Global, compUnit: in.CompUnit, log: Context) {
         }
     }
     
-    protected[this] def resolveAgainstClass(className: Name.Class, nm: String): Option[Name.Class] = {
-        val className = Name.Class(className, nm)
+    protected[this] def resolveAgainstClass(baseName: Name.Class, nm: String): Option[Name.Class] = {
+        val className = Name.Class(baseName, nm)
         if(global.loadedOrLoadable(className)) {
             Some(className)
         } else {
