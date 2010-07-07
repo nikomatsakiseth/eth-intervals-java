@@ -43,7 +43,7 @@ class Subst(private val map: Map[Path.Ref, Path.Ref]) {
     
     def ty(t: Type): Type = t match {
         case Type.Member(p, tvar) => Type.Member(path(p), tvar)
-        case Type.Class(clsName, targs) => Type.Class(clsName, targs.map(typeArg))
+        case Type.Class(className, targs) => Type.Class(className, targs.map(typeArg))
         case Type.Tuple(tys) => Type.Tuple(tys.map(ty))
         case Type.Null => Type.Null
     }

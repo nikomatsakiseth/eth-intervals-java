@@ -14,13 +14,13 @@ object MethodSymbol {
         //error(methodId.methodName, methodId.className, methodId.msig.parameterPatterns)
     }
     
-    def error(name: Name.Method, clsName: Name.Class, patterns: List[Pattern.Ref]): MethodSymbol = {
-        inlineInterval("Error %s.%s".format(clsName, name)) { inter =>
+    def error(name: Name.Method, className: Name.Class, patterns: List[Pattern.Ref]): MethodSymbol = {
+        inlineInterval("Error %s.%s".format(className, name)) { inter =>
             new MethodSymbol(
-                pos       = InterPosition.forClassNamed(clsName),
+                pos       = InterPosition.forClassNamed(className),
                 modifiers = Modifier.Set.empty,
                 kind      = MethodKind.ErrorMethod, 
-                clsName   = clsName, 
+                className = className, 
                 name      = name, 
                 elaborate = inter,
                 gather    = inter,
@@ -31,11 +31,11 @@ object MethodSymbol {
         }
     }
 
-    def error(name: Name.Method, clsName: Name.Class): MethodSymbol = {
+    def error(name: Name.Method, className: Name.Class): MethodSymbol = {
         val parameterPatterns = name.parts.zipWithIndex.map { case (_, i) => 
             Pattern.Var(Name.LocalVar("arg%d".format(i)), Type.Top)
         }
-        error(name, clsName, parameterPatterns)
+        error(name, className, parameterPatterns)
     }
     
 }
@@ -44,17 +44,17 @@ class MethodSymbol(
     val pos: Position,
     val modifiers: Modifier.Set,
     val kind: MethodKind,            /** Intrinsic, harmonic, java, etc. */
-    val clsName: Name.Class,         /** Class in which the method is defined. */
+    val className: Name.Class,         /** Class in which the method is defined. */
     val name: Name.Method,           /** Name of the method. */
     val msig: MethodSignature[Pattern.Ref],
     val elaborate: Interval,
     val gather: Interval
 ) extends Symbol with Page {
-    override def toString = "MethodSymbol(%s.%s, %x)".format(clsName, name, System.identityHashCode(this))
+    override def toString = "MethodSymbol(%s.%s, %x)".format(className, name, System.identityHashCode(this))
     
-    def id = MethodId(clsName, name, msig)
+    def id = MethodId(className, name, msig)
     
-    def isFromClassNamed(aName: Name.Qual) = (clsName == aName)
+    def isFromClassNamed(aName: Name.Qual) = (className == aName)
     
     def isNamed(aName: Name.Method) = (name == aName)
     

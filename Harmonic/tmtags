@@ -2127,7 +2127,7 @@ classMap	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Global.sc
 className	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^        def className = if(async) Name.AsyncBlockClass else Name.BlockClass$/;"	methods	line:624
 className	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ClassFromReflection.scala	/^            val className = Name.Class(cls)$/;"	constants	line:124
 className	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/GatherExtends.scala	/^            val className = extendsDecl.className.name$/;"	constants	line:43
-className	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Resolve.scala	/^        val className = Name.Class(clsName, nm)$/;"	constants	line:32
+className	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Resolve.scala	/^        val className = Name.Class(className, nm)$/;"	constants	line:32
 className	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Resolve.scala	/^        val className = Name.Class(pkgName, nm)$/;"	constants	line:23
 className	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Resolve.scala	/^        val className = resolveToClassOrObject(relName.pos, relNameToRelList(relName))$/;"	constants	line:126
 className	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ResolveBody.scala	/^                        val className = Name.Class(outerClassName, name)$/;"	constants	line:525
@@ -2135,7 +2135,7 @@ className	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ResolveB
 className	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ResolveBody.scala	/^                val className = resolvePathToClassName(path)$/;"	constants	line:548
 className	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ResolveBody.scala	/^                val className = resolvePathToClassName(path)$/;"	constants	line:554
 className	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ResolveBody.scala	/^        val className = resolveName(base).name$/;"	constants	line:236
-classNames	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/GatherOverrides.scala	/^                        val classNames = msym.overrides.map(_.clsName).toList$/;"	constants	line:104
+classNames	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/GatherOverrides.scala	/^                        val classNames = msym.overrides.map(_.className).toList$/;"	constants	line:104
 classParam	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ClassFromSource.scala	/^    def classParam = ClassParam.v$/;"	methods	line:147
 classParamAndEnv	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^    def classParamAndEnv(csym: ClassFromSource): (out.Param[VarSymbol.Field], Env) = {$/;"	methods	line:19
 classPaths	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Config.scala	/^    var classPaths = List(new File("."))$/;"	local variables	line:14
@@ -2150,7 +2150,7 @@ cls	/Users/niko/git/intervals-java/Harmonic/src/harmonic/Harmonize.scala	/^     
 cls	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ClassFromReflection.scala	/^            val cls = ty.getRawType.asInstanceOf[Class[_]]$/;"	constants	line:123
 cls	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ClassFromReflection.scala	/^    val cls: java.lang.Class[_]$/;"	constants	line:13
 clsFile	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^            val clsFile = fileWithExtension(".class")$/;"	constants	line:399
-clsName	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/MethodSymbol.scala	/^    val clsName: Name.Class,         \/** Class in which the method is defined. *\/$/;"	constants	line:30
+className	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/MethodSymbol.scala	/^    val className: Name.Class,         \/** Class in which the method is defined. *\/$/;"	constants	line:30
 column	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/InterPosition.scala	/^        def column = 1$/;"	methods	line:23
 column	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/InterPosition.scala	/^        def column = 1$/;"	methods	line:29
 column	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/InterPosition.scala	/^        def column = 1$/;"	methods	line:36
@@ -2541,7 +2541,7 @@ errTy	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^
 errTy	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^        def errTy = ()$/;"	methods	line:914
 errTy	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^        def errTy = Type.Top$/;"	methods	line:957
 errTy	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Ast.scala	/^    def errTy: Ty$/;"	methods	line:68
-error	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/MethodSymbol.scala	/^    def error(name: Name.Method, clsName: Name.Class) = {$/;"	methods	line:8
+error	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/MethodSymbol.scala	/^    def error(name: Name.Method, className: Name.Class) = {$/;"	methods	line:8
 error	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Reporter.scala	/^        val error = Error(pos, msgKey, msgArgs.toList)$/;"	constants	line:19
 error	/Users/niko/git/intervals-java/Harmonic/test.py	/^    def error(self, message):$/;"	member	line:449
 errorField	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/VarSymbol.scala	/^    def errorField(name: Name.Member, optExpTy: Option[Type]) = {$/;"	methods	line:17
@@ -2722,7 +2722,7 @@ helper	/Users/niko/git/intervals-java/Harmonic/test.py	/^        def helper(str)
 here	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^          * nor do we generate the contents of the FooTask class here.$/;"	classes	line:1396
 hprof	/Users/niko/git/intervals-java/Harmonic/Makefile	/^HPROFOPTS=-agentlib:hprof=cpu=samples,depth=6$/;"	macro	line:13
 i	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Config.scala	/^        var i = 0$/;"	local variables	line:77
-id	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/MethodSymbol.scala	/^    def id = MethodId(clsName, name, msig)$/;"	methods	line:36
+id	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/MethodSymbol.scala	/^    def id = MethodId(className, name, msig)$/;"	methods	line:36
 identifyBestFromMcall	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^            def identifyBestFromMcall(msyms: List[MethodSymbol], rcvrTy: Type) =$/;"	methods	line:991
 identifyBestMethod	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^        def identifyBestMethod($/;"	methods	line:949
 idx	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/MethodResolutionOrder.scala	/^            \/\/    val idx = stack.indexOf(csym)$/;"	constants	line:70
@@ -2793,7 +2793,7 @@ isError	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/MethodSymb
 isError	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Symbol.scala	/^    def isError: Boolean = false$/;"	methods	line:11
 isError	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/VarSymbol.scala	/^            override def isError = true$/;"	methods	line:20
 isError	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/VarSymbol.scala	/^            override def isError = true$/;"	methods	line:37
-isFromClassNamed	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/MethodSymbol.scala	/^    def isFromClassNamed(aName: Name.Qual) = (clsName == aName)$/;"	methods	line:38
+isFromClassNamed	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/MethodSymbol.scala	/^    def isFromClassNamed(aName: Name.Qual) = (className == aName)$/;"	methods	line:38
 isGoodHead	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/MethodResolutionOrder.scala	/^        def isGoodHead(superList: List[ClassSymbol]) = {$/;"	methods	line:33
 isInstanceFieldNamed	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/SymTab.scala	/^        def isInstanceFieldNamed(aName: Name.Member): Boolean = false$/;"	methods	line:7
 isInstanceFieldNamed	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/SymTab.scala	/^        override def isInstanceFieldNamed(aName: Name.Member): Boolean = (name == aName)$/;"	methods	line:19
@@ -2830,7 +2830,7 @@ join	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/GuardedBy.sca
 join	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Util.scala	/^        def join() = {$/;"	methods	line:195
 key	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ClassFromReflection.scala	/^            val key = (msym.name, msym.msig.parameterPatterns)$/;"	constants	line:254
 key	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ClassFromReflection.scala	/^            val key = (mthd.getName, mthd.getParameterTypes.toList)$/;"	constants	line:206
-key	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Global.scala	/^        val key = (msym.clsName, msym.name)$/;"	constants	line:59
+key	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Global.scala	/^        val key = (msym.className, msym.name)$/;"	constants	line:59
 kind	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/MethodSymbol.scala	/^    val kind: MethodKind,            \/** Intrinsic, harmonic, java, etc. *\/$/;"	constants	line:29
 kind	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/VarSymbol.scala	/^        val kind: FieldKind$/;"	constants	line:14
 label	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^                val label = new asm.Label()$/;"	constants	line:322
@@ -3519,8 +3519,8 @@ queue2	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Env.scala	/
 queued	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ClassSymbol.scala	/^        val queued = new mutable.Queue[ClassSymbol]()$/;"	constants	line:55
 rawData	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ClassFromCompiledSource.scala	/^            val rawData = loadData$/;"	constants	line:62
 rawSuperClassNames	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ResolveHeader.scala	/^        val rawSuperClassNames = cdecl.extendsDecls.map { case in.ExtendsDecl(relName, _, ()) =>$/;"	constants	line:58
-rcvr	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^        val rcvr = asm.Type.getObjectType(msym.clsName.internalName)$/;"	constants	line:156
-rcvr	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^        val rcvr = asm.Type.getObjectType(msym.clsName.internalName)$/;"	constants	line:163
+rcvr	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^        val rcvr = asm.Type.getObjectType(msym.className.internalName)$/;"	constants	line:156
+rcvr	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala	/^        val rcvr = asm.Type.getObjectType(msym.className.internalName)$/;"	constants	line:163
 rcvr	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Lower.scala	/^                    val rcvr = in.varExpr(tvar)$/;"	constants	line:1049
 rcvr	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Parse.scala	/^    lazy val rcvr: PackratParser[out.Rcvr] = positioned($/;"	constants	line:368
 reader	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Parse.scala	/^        val reader = new FileReader(interFile, PagedSeq.fromReader(javaReader), 0)$/;"	constants	line:438
@@ -3583,7 +3583,7 @@ res	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ByteCode.scala
 resolve	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ResolveBody.scala	/^        val resolve = new ResolveClassParams(csym.name, emptyScope, cdecl.pattern)$/;"	constants	line:34
 resolveAbsToQual	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Resolve.scala	/^    def resolveAbsToQual(relName: in.RelName): Option[Name.Qual] = {$/;"	methods	line:52
 resolveAgainst	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Resolve.scala	/^    protected[this] def resolveAgainst(ctxName: Name.Qual, nm: String) = {$/;"	methods	line:40
-resolveAgainstClass	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Resolve.scala	/^    protected[this] def resolveAgainstClass(clsName: Name.Class, nm: String): Option[Name.Class] = {$/;"	methods	line:31
+resolveAgainstClass	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Resolve.scala	/^    protected[this] def resolveAgainstClass(className: Name.Class, nm: String): Option[Name.Class] = {$/;"	methods	line:31
 resolveAgainstPackage	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/Resolve.scala	/^    protected[this] def resolveAgainstPackage(pkgName: Name.Package, nm: String): Name.Qual = {$/;"	methods	line:22
 resolveAnnotation	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ResolveBody.scala	/^        def resolveAnnotation(ann: in.Annotation) = withPosOf(ann, $/;"	methods	line:275
 resolveBlock	/Users/niko/git/intervals-java/Harmonic/src/harmonic/compiler/ResolveBody.scala	/^        def resolveBlock(tmpl: in.Block) = withPosOf(tmpl, {$/;"	methods	line:687

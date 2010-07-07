@@ -33,7 +33,7 @@ case class Lower(global: Global) {
             pos       = cdecl.pattern.pos,
             modifiers = Modifier.Set.empty,
             kind      = MethodKind.HarmonicCtor,
-            clsName   = csym.name,
+            className = csym.name,
             name      = Name.InitMethod,
             elaborate = csym.create,
             gather    = csym.gather,
@@ -306,7 +306,7 @@ case class Lower(global: Global) {
                 substFromPatExprs(msig.parameterPatterns, args)
             case rcvr: in.Expr =>
                 substFromPatExprs(
-                    Pattern.Var(Name.ThisLocal, msym.clsName.toType) :: msig.parameterPatterns, 
+                    Pattern.Var(Name.ThisLocal, msym.className.toType) :: msig.parameterPatterns, 
                     rcvr :: args
                 )
         }

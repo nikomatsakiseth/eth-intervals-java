@@ -139,10 +139,10 @@ object Env {
             }
         }
                 
-        case class GivenBothTypes(left: Type, rel: TcRel, right: Type) 
+        case class GivenTypeRelType(left: Type, rel: TcRel, right: Type) 
         extends FindFact(Fact.TT(left, rel, right))
         
-        case class GivenLeftType(left: Type, rel: TcRel) extends Query[Set[Type]] {
+        case class GivenTypeRel(left: Type, rel: TcRel) extends Query[Set[Type]] {
             override def preevaluate(facts: Set[Fact]) = None
             
             override def evaluate(facts: Set[Fact]) = facts.flatMap {
@@ -151,7 +151,7 @@ object Env {
             }            
         }
         
-        case class GivenRightType(rel: TcRel, right: Type) extends Query[Set[Type]] {
+        case class GivenRelType(rel: TcRel, right: Type) extends Query[Set[Type]] {
             override def preevaluate(facts: Set[Fact]) = None
             
             override def evaluate(facts: Set[Fact]) = facts.flatMap {
@@ -162,23 +162,23 @@ object Env {
         
         object TRT { // "Type Rel Type"
             def unapply(query: Query[_]) = query match {
-                case GivenBothTypes(l, rel, r) => Some((l, rel, r))
+                case GivenTypeRelType(l, rel, r) => Some((l, rel, r))
                 case _ => None
             }
         }
         
         object TR { // "Type Rel"
             def unapply(query: Query[_]) = query match {
-                case GivenBothTypes(l, rel, _) => Some((l, rel))
-                case GivenLeftType(l, rel) => Some((l, rel))
+                case GivenTypeRelType(l, rel, _) => Some((l, rel))
+                case GivenTypeRel(l, rel) => Some((l, rel))
                 case _ => None
             }
         }
 
         object RT { // "Rel Type"
             def unapply(query: Query[_]) = query match {
-                case GivenBothTypes(_, rel, r) => Some((rel, r))
-                case GivenRightType(rel, r) => Some((rel, r))
+                case GivenTypeRelType(_, rel, r) => Some((rel, r))
+                case GivenRelType(rel, r) => Some((rel, r))
                 case _ => None
             }
         }
@@ -200,19 +200,17 @@ object Env {
     
     /** Rule templates instantiate rules that are likely to produce facts
       * useful to answering `query`. */
-    sealed abstract trait RuleTemplate {
+    abstract trait RuleTemplate {
         /** Returns a list of rules that might produce facts useful to answer
           * `query`.  These rules usually are specific to information in the
           * query. */
         def instantiate(state: ProofState)(query: Query[_]): Iterable[Rule]
-        
-        // Add ourselves to this list upon instantiation.  This is not really
-        // a great idea, except that we only instantiate RuleTemplates as 
-        // objects within this class:
-        templates = this :: templates
     }
     
     private[this] var templates: List[RuleTemplate] = Nil
+    def add(tmpl: RuleTemplate) = {
+        templates = tmpl :: templates
+    }
     
     /** Records the current state of the computation (what facts are known,
       * which rules are in the process of being evaluated, etc).  Right
@@ -221,15 +219,53 @@ object Env {
       * than the `answer()` method offered on the environment. */
     case class ProofState(
         global: Global,
+        log: Context, 
         stack: List[Rule],
         locals: Map[Name.LocalVar, VarSymbol.Local],
         facts: Set[Fact]
-    ) {
-        private[this] def evaluateRule(rule: Rule) = {
-            rule.deriveFacts(copy(stack = rule :: stack))
+    ) extends Page {
+        
+        // ___ Page interface ___________________________________________________
+        
+        override def toString = getId
+
+        override def getId = "ProofState[%s]".format(System.identityHashCode(this))
+
+        override def getParent = null
+
+        override def addContent(content: PageContent) = throw new UnsupportedOperationException()
+
+        override def renderInLine(out: Output): Unit = {
+            LathosUtil.renderInLine(this, out)
+        }
+
+        override def renderInPage(out: Output): Unit = {
+            out.startPage(this)
+
+            out.subpage("Locals") {
+                out.startTable
+                for((name, sym) <- locals){
+                    out.row(name, sym, sym.ty)
+                }
+                out.endTable
+            }
+
+            out.subpage("Facts") {
+                out.list(facts)
+            }
+
+            out.endPage(this)
         }
         
-        def answer[R](query: Query[R]): R = {
+        // ___  _________________________________________________________________        
+        
+        private[this] def evaluateRule(rule: Rule) = {
+            log.indent(this, ".evaluateRule(", rule, ")") {
+                rule.deriveFacts(copy(stack = rule :: stack))                
+            }
+        }
+        
+        def answer[R](query: Query[R]): R = log.indent(this, ".answer(", query, ")") {
             // pre-evaluate allows the query to stop early if it has 
             // enough facts to be answered, even if more facts might be
             // computable
@@ -244,8 +280,10 @@ object Env {
 
                     // Did we learn any new facts?  If so, loop as we might yet learn more.
                     if(newFacts.size != facts.size) {
+                        log.log(this, ": Iterating because we learned new facts")
                         copy(facts = newFacts).answer(query)
                     } else {
+                        log.log(this, ": No new facts, evaluating query")
                         query.evaluate(facts)
                     } 
                 }
@@ -256,9 +294,9 @@ object Env {
         def rel(rel: PcTransRel, q: Path.Ref): Set[Path.Ref] = answer(Query.GivenRelPath(rel, q))
         def rel(p: Path.Ref, rel: PcRel, q: Path.Ref): Boolean = answer(Query.GivenBothPaths(p, rel, q))
 
-        def rel(l: Type, rel: TcRel, r: Type): Boolean = answer(Query.GivenBothTypes(l, rel, r))
-        def rel(l: Type, rel: TcRel): Set[Type] = answer(Query.GivenLeftType(l, rel))
-        def rel(rel: TcRel, r: Type): Set[Type] = answer(Query.GivenRightType(rel, r))
+        def rel(l: Type, rel: TcRel, r: Type): Boolean = answer(Query.GivenTypeRelType(l, rel, r))
+        def rel(l: Type, rel: TcRel): Set[Type] = answer(Query.GivenTypeRel(l, rel))
+        def rel(rel: TcRel, r: Type): Set[Type] = answer(Query.GivenRelType(rel, r))
         
         def fact(f: Fact) = f match {
             case Fact.PP(p1, r, p2) => rel(p1, r, p2)
@@ -376,7 +414,7 @@ object Env {
     --------------------
     p.(c.f) rel q
     */
-    object TypeArgsTemplate extends RuleTemplate {
+    add(new RuleTemplate() {
         case class TypeArgs(p: Path.Ref, c: Name.Class) extends Rule {
             override def deriveFacts(state: ProofState) = {
                 state.upcast(p, c).flatMap { case Type.Class(_, args) =>
@@ -392,8 +430,8 @@ object Env {
             case Query.PR(Path.Field(p: Path.Ref, f), _) => Some(TypeArgs(p, f.className))
             case _ => None
         }
-    }
-        
+    })
+    
     // ______ Equivalence Propagation _______________________________________
     //
     // The `Eq` relation has the nice property that any two paths that are
@@ -408,7 +446,7 @@ object Env {
     
     Covers all cases where both p, r are known.
     */
-    object PathEqPropTemplate extends RuleTemplate {
+    add(new RuleTemplate() {
         case class PathEqProp(p: Path.Ref, rel: PcRel, r: Path.Ref) extends Rule {
             override def deriveFacts(state: ProofState) = {
                 state.equiv(p).flatMap { q =>
@@ -423,8 +461,8 @@ object Env {
         def instantiate(state: ProofState)(query: Query[_]) = query match {
             case Query.PRP(p, rel, r) => Some(PathEqProp(p, rel, r))
             case _ => None
-        }
-    }    
+        }        
+    })
     
     /*
     p == q
@@ -434,7 +472,7 @@ object Env {
     
     Covers cases where only p is known.
     */
-    object PathEqLPropTemplate extends RuleTemplate {
+    add(new RuleTemplate() {
         case class PathEqLProp(p: Path.Ref, rel: PcTransRel) extends Rule {
             override def deriveFacts(state: ProofState) = {
                 state.equiv(p).flatMap { q =>
@@ -449,7 +487,7 @@ object Env {
             case Query.GivenPathRel(p, rel) => Some(PathEqLProp(p, rel))
             case _ => None
         }
-    }
+    })
     
     /*
     p == q
@@ -459,7 +497,7 @@ object Env {
     
     Covers cases where only r is known.
     */
-    object PathEqRPropTemplate extends RuleTemplate {
+    add(new RuleTemplate() {
         case class PathEqRProp(rel: PcTransRel, r: Path.Ref) extends Rule {
             override def deriveFacts(state: ProofState) = {
                 state.equiv(r).flatMap { q =>
@@ -474,7 +512,7 @@ object Env {
             case Query.GivenRelPath(rel, r) => Some(PathEqRProp(rel, r))
             case _ => None
         }
-    }
+    })
     
     // ______ Path Equality _________________________________________________
 
@@ -483,7 +521,7 @@ object Env {
     --------------------
     q == p
     */
-    object PathEqSymmetricTemplate extends RuleTemplate {
+    add(new RuleTemplate() {
         case class PathEqSymmetric(right: Path.Ref) extends Rule {
             override def deriveFacts(state: ProofState) = {
                 state.equiv(right).map(Fact.PP(_, PcEq, right))
@@ -494,7 +532,7 @@ object Env {
             case Query.RP(PcEq, right) => Some(PathEqSymmetric(right))
             case _ => None
         }
-    }
+    })
     
     /*
     --------------------
@@ -503,7 +541,7 @@ object Env {
     
     Also handles the reflexive case (p == p).
     */
-    object PathSimplifyTemplate extends RuleTemplate {
+    add(new RuleTemplate() {
         def simplify(p: Path.Ref): Path.Ref = {
             p match {
                 case Path.Cast(_, base) => base
@@ -531,7 +569,7 @@ object Env {
             case Query.PR(left, PcEq) => Some(PathSimplify(left))
             case _ => None
         }
-    }    
+    })
     
     /*
     p == q
@@ -539,7 +577,7 @@ object Env {
     p.f == q.f
     etc
     */
-    object PathEqInductiveTemplate extends RuleTemplate {
+    add(new RuleTemplate() {
         case class PathEqInductive(path: Path.Ref) extends Rule {
             override def deriveFacts(state: ProofState) = {
                 import state.equiv
@@ -589,7 +627,7 @@ object Env {
             case Query.PR(p, PcEq) => Some(PathEqInductive(p))
             case _ => Nil
         }
-    }
+    })
 
     // ______ Type Equality _________________________________________________
 
@@ -598,7 +636,7 @@ object Env {
     --------------------
     t2 == t1
     */
-    object TypeEqSymmetricTemplate extends RuleTemplate {
+    add(new RuleTemplate() {
         case class TypeEqSymmetric(t1: Type) extends Rule {
             override def deriveFacts(state: ProofState) = {
                 state.equiv(t1).map(t2 => Fact.TT(t2, TcEq, t1))
@@ -609,7 +647,7 @@ object Env {
             case Query.RT(TcEq, t1) => Some(TypeEqSymmetric(t1))
             case _ => None
         }
-    }
+    })
     
     /*
     --------------------
@@ -618,7 +656,7 @@ object Env {
     
     Also handles the reflexive case (t == t).
     */
-    object TypeSimplifyTemplate extends RuleTemplate {
+    add(new RuleTemplate() {
         def simplify(ty: Type): Type = {
             ty match {
                 case Type.Tuple(List(ty)) => simplify(ty)   // (t) == t
@@ -640,7 +678,7 @@ object Env {
             case Query.TR(left, TcEq) => Some(TypeSimplify(left))
             case _ => None
         }
-    }
+    })
     
     /*
     p == q
@@ -648,7 +686,7 @@ object Env {
     p.X == q.X
     where p/q are paths, X is a type variable
     */
-    object MemberTypeInductiveTemplate extends RuleTemplate {
+    add(new RuleTemplate() {
         case class MemberTypeInductive(p: Path.Ref, x: Name.Member) extends Rule {
             override def deriveFacts(state: ProofState) = {
                 state.equiv(p).toList.map { q =>
@@ -661,7 +699,7 @@ object Env {
             case Query.TR(Type.Member(p, x), TcEq) => Some(MemberTypeInductive(p, x))
             case _ => None
         }
-    }
+    })
 
     // ______ Sub- and super-typing _________________________________________
 
@@ -670,7 +708,7 @@ object Env {
     --------------------
     t1 :> t2
     */
-    object SupFromSupTemplate extends RuleTemplate {
+    add(new RuleTemplate() {
         case class SupFromSub(t2: Type) extends Rule {
             override def deriveFacts(state: ProofState) = {
                 state.rel(t2, TcSub).map(t1 => Fact.TT(t1, TcSup, t2))
@@ -681,14 +719,14 @@ object Env {
             case Query.RT(TcSup, t2) => Some(SupFromSub(t2))
             case _ => None
         }
-    }
+    })
     
     /*
     class c1 extends c2
     --------------------
     c1[args] <: c2[args]
     */
-    object ExtendsTemplate extends RuleTemplate {
+    add(new RuleTemplate() {
         case class Extends(ty1: Type.Class) extends Rule {
             override def deriveFacts(state: ProofState) = {
                 val csym = state.global.csym(ty1.name)
@@ -704,7 +742,7 @@ object Env {
             case Query.TR(ty1: Type.Class, TcSub) => Some(Extends(ty1))
             case _ => None
         }
-    }
+    })
     
     /*
     t1 <: t2
@@ -712,7 +750,7 @@ object Env {
     --------------------
     t1 <: t3
     */
-    object SubtypingTransTemplate extends RuleTemplate {
+    add(new RuleTemplate() {
         case class SubtypingTrans(ty1: Type.Class) extends Rule {
             override def deriveFacts(state: ProofState) = {
                 state.rel(ty1, TcSub).flatMap { ty2 =>
@@ -727,14 +765,14 @@ object Env {
             case Query.TR(ty1: Type.Class, TcSub) => Some(SubtypingTrans(ty1))
             case _ => None
         }
-    }
+    })
     
     /*
     t1 == t2
     --------------------
     t1 <: t2
     */
-    object EqualityImpliesSubtypingTemplate extends RuleTemplate {
+    add(new RuleTemplate() {
         case class EqualityImpliesSubtyping(ty1: Type.Class) extends Rule {
             override def deriveFacts(state: ProofState) = {
                 state.rel(ty1, TcEq).map { ty2 =>
@@ -747,7 +785,7 @@ object Env {
             case Query.TR(ty1: Type.Class, TcSub) => Some(EqualityImpliesSubtyping(ty1))
             case _ => None
         }
-    }    
+    })
     
     // ______ subOf, inlineSubOf, hb ________________________________________
 
@@ -756,7 +794,7 @@ object Env {
     --------------------
     pc subOf pp
     */
-    object InlineImpliesSubTemplate extends RuleTemplate {
+    add(new RuleTemplate() {
         case class InlineImpliesSub(pc: Path.Ref) extends Rule {
             override def deriveFacts(state: ProofState) = {
                 state.inlineParents(pc).map { pp =>
@@ -769,7 +807,7 @@ object Env {
             case Query.PR(pc, PcSubOf) => Some(InlineImpliesSub(pc))
             case _ => None
         }
-    }
+    })
     
     /*
     pc subOf pp
@@ -777,7 +815,7 @@ object Env {
     pp.start hb pc.start
     pc.end hb pp.end
     */
-    object ParentHbTemplate extends RuleTemplate {
+    add(new RuleTemplate() {
         import MethodId.GetStart
         import MethodId.GetEnd
         
@@ -798,7 +836,7 @@ object Env {
             case Query.PR(Path.Call(pc: Path.Ref, GetEnd, List()), PcHb) => Some(ChildToParent(pc))
             case _ => None
         }
-    }    
+    })
     
     // ______ permitsWr, permitsRd, ensuresFinal ____________________________
 
@@ -807,7 +845,7 @@ object Env {
     --------------------
     g permitsRd i
     */
-    object PermitsWrImpliesRdTemplate extends RuleTemplate {
+    add(new RuleTemplate() {
         case class PermitsWrImpliesRd(g: Path.Ref, i: Path.Ref) extends Rule {
             override def deriveFacts(state: ProofState) = {
                 state.permitsWr(g, i) match {
@@ -821,14 +859,14 @@ object Env {
             case Query.PRP(g, PcPermitsRd, i) => Some(PermitsWrImpliesRd(g, i))
             case _ => None
         }
-    }
+    })
     
     /*
     g ensuresFinal i
     --------------------
     g permitsRd i
     */
-    object EnsuresFinalImpliesRdTemplate extends RuleTemplate {
+    add(new RuleTemplate() {
         case class EnsuresFinalImpliesRd(g: Path.Ref, i: Path.Ref) extends Rule {
             override def deriveFacts(state: ProofState) = {
                 state.ensuresFinal(g, i) match {
@@ -842,7 +880,7 @@ object Env {
             case Query.PRP(g, PcPermitsRd, i) => Some(EnsuresFinalImpliesRd(g, i))
             case _ => None
         }
-    }
+    })
 
     /*
     i subOf j
@@ -850,7 +888,7 @@ object Env {
     --------------------
     g permitsRd i
     */
-    object PermitsRdToSubTemplate extends RuleTemplate {
+    add(new RuleTemplate() {
         case class PermitsRdToSub(g: Path.Ref, i: Path.Ref) extends Rule {
             override def deriveFacts(state: ProofState) = {
                 state.parents(i).flatMap { j =>
@@ -866,7 +904,7 @@ object Env {
             case Query.PRP(g, PcPermitsRd, i) => Some(PermitsRdToSub(g, i))
             case _ => None
         }
-    }
+    })
     
     /*
     i inlineSubOf j
@@ -874,7 +912,7 @@ object Env {
     --------------------
     g permitsWr i
     */
-    object PermitsWrToInlineSubTemplate extends RuleTemplate {
+    add(new RuleTemplate() {
         case class PermitsWrToInlineSub(g: Path.Ref, i: Path.Ref) extends Rule {
             override def deriveFacts(state: ProofState) = {
                 state.inlineParents(i).flatMap { j =>
@@ -890,13 +928,13 @@ object Env {
             case Query.PRP(g, PcPermitsWr, i) => Some(PermitsWrToInlineSub(g, i))
             case _ => None
         }
-    }
+    })
     
     /*
     --------------------
     final ensuresFinal i
     */
-    object FinalEnsuresFinalTemplate extends RuleTemplate {
+    add(new RuleTemplate() {
         case class FinalEnsuresFinal(i: Path.Ref) extends Rule {
             override def deriveFacts(state: ProofState) = {
                 Some(Fact.PP(Path.Final, PcEnsuresFinal, i))
@@ -907,7 +945,7 @@ object Env {
             case Query.PRP(_, PcEnsuresFinal, i) => Some(FinalEnsuresFinal(i))
             case _ => None
         }
-    }
+    })
 }
 
 /** The environment is used during a type check but also in other phases
@@ -986,7 +1024,7 @@ case class Env(
     
     // ___ Simple queries ___________________________________________________
     
-    val state = Env.ProofState(global, Nil, locals, facts)
+    def state = Env.ProofState(global, curLog, Nil, locals, facts)
     
     def typesAreEquatable(ty1: Type, ty2: Type) = state.equiv(ty1, ty2)
     
@@ -1598,6 +1636,5 @@ case class Env(
             
         }
     }
-    
   
 }

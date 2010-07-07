@@ -71,25 +71,27 @@ class Global(
     def compile() = {
         val log = debugServer.context
         
-        log.log("Compilation started")
-        
-        inlineInterval("master") { inter =>
-            master = inter
-            
-            Intrinsic(this).add()
-            
-            // Start by parsing the input files.  This will create
-            // various subintervals of master, which will begin to
-            // execute once all parsing and loading is complete.
-            // It is necessary for those subintervals to wait till all
-            // the initial files have been loaded because they may
-            // reference symbols created in one another.
-            config.inputFiles.foreach { inputFile =>
-                Parse(this, inputFile).foreach(createSymbols)
-            }
+        try {
+            log.log("Compilation started")
+
+            inlineInterval("master") { inter =>
+                master = inter
+
+                Intrinsic(this).add()
+
+                // Start by parsing the input files.  This will create
+                // various subintervals of master, which will begin to
+                // execute once all parsing and loading is complete.
+                // It is necessary for those subintervals to wait till all
+                // the initial files have been loaded because they may
+                // reference symbols created in one another.
+                config.inputFiles.foreach { inputFile =>
+                    Parse(this, inputFile).foreach(createSymbols)
+                }
+            }            
+        } finally {
+            debugServer.join            
         }
-        
-        debugServer.join
     }
     
     // ___ Private Data For Other Classes ___________________________________
@@ -116,7 +118,7 @@ class Global(
     val intrinsics = new mutable.HashMap[(Name.Qual, Name.Method), List[MethodSymbol]]()
     
     def addIntrinsic(msym: MethodSymbol) {
-        val key = (msym.clsName, msym.name)
+        val key = (msym.className, msym.name)
         intrinsics(key) = msym :: intrinsics.get(key).getOrElse(Nil)
     }
     

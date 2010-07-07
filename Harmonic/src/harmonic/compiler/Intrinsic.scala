@@ -64,7 +64,7 @@ case class Intrinsic(global: Global) {
                             Array(leftClass, rightClass),
                             returnClass
                         ),
-                        clsName = leftTy.name,
+                        className = leftTy.name,
                         name = interName, 
                         elaborate = inter,
                         gather = inter,
@@ -137,7 +137,7 @@ case class Intrinsic(global: Global) {
                     Array(booleanClass, templateClass),
                     voidClass
                 ),
-                clsName = booleanTy.name,
+                className = booleanTy.name,
                 name = Name.Method(List("if")),
                 elaborate = inter,
                 gather = inter,
@@ -160,7 +160,7 @@ case class Intrinsic(global: Global) {
                     Array(objectClass, templateClass),
                     voidClass
                 ),
-                clsName = objectTy.name,
+                className = objectTy.name,
                 name = Name.Method(List("ifNull")),
                 elaborate = inter,
                 gather = inter,
@@ -183,7 +183,7 @@ case class Intrinsic(global: Global) {
                     Array(booleanClass, templateClass, templateClass),
                     objectClass
                 ),
-                clsName = booleanTy.name,
+                className = booleanTy.name,
                 name = Name.Method(List("if", "else")),
                 elaborate = inter,
                 gather = inter,
@@ -207,7 +207,7 @@ case class Intrinsic(global: Global) {
                     Array(objectClass, templateClass, templateClass),
                     objectClass
                 ),
-                clsName = objectTy.name,
+                className = objectTy.name,
                 name = Name.Method(List("ifNull", "else")),
                 elaborate = inter,
                 gather = inter,
@@ -232,7 +232,7 @@ case class Intrinsic(global: Global) {
                     Array(iterableClass, templateClass),
                     voidClass
                 ),
-                clsName = iterableTy.name,
+                className = iterableTy.name,
                 name = Name.Method(List("forEach")),
                 elaborate = inter,
                 gather = inter,
@@ -258,7 +258,7 @@ case class Intrinsic(global: Global) {
                     Array(templateClass, templateClass),
                     objectClass
                 ),
-                clsName = Name.Class(templateClass),
+                className = Name.Class(templateClass),
                 name = Name.Method(List("while")),
                 elaborate = inter,
                 gather = inter,

@@ -50,7 +50,7 @@ class ClassFromReflection(
                         pos       = pos, 
                         modifiers = Modifier.Set.empty,
                         kind      = MethodKind.JavaDummyCtor,
-                        clsName   = name,
+                        className = name,
                         name      = Name.InitMethod,
                         elaborate = inter,
                         gather    = gather,
@@ -174,7 +174,7 @@ class ClassFromReflection(
                 mthd.getParameterTypes,
                 classOf[Unit]
             ),
-            clsName   = name,
+            className = name,
             name      = Name.InitMethod,
             elaborate = inter,
             gather    = gather,
@@ -205,7 +205,7 @@ class ClassFromReflection(
                 mthd.getParameterTypes,
                 mthd.getReturnType
             ),
-            clsName   = name,
+            className = name,
             name      = Name.Method(List(mthd.getName)),
             elaborate = inter,
             gather    = gather,
