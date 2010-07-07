@@ -4,6 +4,11 @@ import scala.collection.mutable
 import scala.collection.immutable.Map
 import scala.collection.immutable.Set
 
+import com.smallcultfollowing.lathos.model._
+import com.smallcultfollowing.lathos.model.{Util => LathosUtil}
+
+import harmonic.compiler.Util._
+
 object DerivedFactSet {
     def apply(baseFactSet: InternalFactSet, addedFacts: Iterable[Fact]) = {
         val pending = new mutable.Queue[Fact.Forward]()
@@ -21,7 +26,7 @@ object DerivedFactSet {
 class DerivedFactSet(
     baseFactSet: InternalFactSet,
     pendingFacts: mutable.Queue[Fact.Forward]
-) extends InternalFactSet with Memory {
+) extends InternalFactSet with Memory with Page {
     val network = baseFactSet.network
     def plusFacts(facts: Iterable[Fact]): FactSet = DerivedFactSet(this, facts)
     
@@ -151,6 +156,43 @@ class DerivedFactSet(
     override def allFactsOfKind(kind: Fact.ForwardKind): Set[Fact.Forward] = synchronized {
         resolvePendingFacts
         alphaMemories.getOrElse(kind, Set())
+    }
+    
+    // ___ Page interface ___________________________________________________
+    
+    override def toString = getId
+    
+    override def getId = "DerivedFactSet[%s]".format(System.identityHashCode(this))
+    
+    override def getParent = null
+    
+    override def addContent(content: PageContent) = throw new UnsupportedOperationException()
+    
+    override def renderInLine(out: Output): Unit = {
+        LathosUtil.renderInLine(this, out)
+    }
+    
+    override def renderInPage(out: Output): Unit = {
+        out.startPage(this)
+        
+        out.startTable
+        out.row("Derived from", baseFactSet)
+        out.row("network", network)
+        out.endTable
+        
+        out.subpage("Alpha") {
+            out.map(alphaMemories)
+        }
+
+        out.subpage("Beta") {
+            out.map(betaMemories)
+        }
+
+        out.subpage("Omega") {
+            out.list(omegaMemories)
+        }
+        
+        out.endPage(this)
     }
     
 }

@@ -19,7 +19,7 @@ object TestNetwork {
     case class Z(i: Int) extends Fact.Forward
     
     def simpleTest(context: Context): Unit = {
-        val network = new Network()
+        val network = new Network(context.server)
         
         network.addRule(new Rule.Forward() {
             val inputKinds = List(classOf[X])
@@ -42,24 +42,28 @@ object TestNetwork {
         })
         
         val factSet0 = EmptyFactSet(network)
+        context.log("factSet0 = ", factSet0)
         assert(factSet0.allFactsOfKind(classOf[X]) == Set())
         assert(factSet0.allFactsOfKind(classOf[Y]) == Set())
         assert(factSet0.allFactsOfKind(classOf[W]) == Set())
         assert(factSet0.allFactsOfKind(classOf[Z]) == Set())
         
         val factSet1 = factSet0.plusFacts(List(X(0)))
+        context.log("factSet1 = ", factSet1)
         assert(factSet1.allFactsOfKind(classOf[X]) == Set(X(0)))
         assert(factSet1.allFactsOfKind(classOf[Y]) == Set(Y(0)))
         assert(factSet1.allFactsOfKind(classOf[W]) == Set())
         assert(factSet1.allFactsOfKind(classOf[Z]) == Set())
         
         val factSet2 = factSet1.plusFacts(List(X(1)))
+        context.log("factSet2 = ", factSet2)
         assert(factSet2.allFactsOfKind(classOf[X]) == Set(X(0), X(1)))
         assert(factSet2.allFactsOfKind(classOf[Y]) == Set(Y(0), Y(1)))
         assert(factSet2.allFactsOfKind(classOf[W]) == Set())
         assert(factSet2.allFactsOfKind(classOf[Z]) == Set())
 
         val factSet3 = factSet1.plusFacts(List(W(1)))
+        context.log("factSet3 = ", factSet3)
         assert(factSet3.allFactsOfKind(classOf[X]) == Set(X(0), X(1)))
         assert(factSet3.allFactsOfKind(classOf[Y]) == Set(Y(0), Y(1)))
         assert(factSet3.allFactsOfKind(classOf[W]) == Set(W(1)))
@@ -92,7 +96,6 @@ object TestNetwork {
             }
         }
         
-        simpleTest(ctx)
         println("%d failures out of %d tests".format(failed, total))
         server.join
     }

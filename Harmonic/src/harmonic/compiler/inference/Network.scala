@@ -2,7 +2,12 @@ package harmonic.compiler.inference
 
 import scala.collection.mutable
 
-class Network {
+import com.smallcultfollowing.lathos.model._
+import com.smallcultfollowing.lathos.model.{Util => LathosUtil}
+
+import harmonic.compiler.Util._
+
+class Network(server: LathosServer) extends Page {
     
     class State(
         val mem: Memory,
@@ -37,6 +42,8 @@ class Network {
     ) {
         val betas = new mutable.ListBuffer[Beta]()
         
+        override def toString = "Alpha[%s]".format(kind.getName)
+        
         def add(state: State, fact: Fact.Forward) = {
             assert(fact.kind == kind)
             if(state.mem.addAlpha(fact)) {
@@ -59,9 +66,11 @@ class Network {
     ) extends Suffix[Fact.Forward] {
         val rules = new mutable.ListBuffer[Rule.Forward]()
         
+        override def toString = "Beta[%s]".format(kinds.map(_.getName).mkString(", "))
+        
         override def suffixes(state: State) = state.mem.beta(kinds)
         
-        override def added(state: State, fact: Fact.Forward) = {
+        def added(state: State, fact: Fact.Forward) = {
             val factLists = rhs.suffixes(state).map(factList => fact :: factList).toList
             factLists.foreach { factList =>
                 if(state.mem.addBeta(kinds, factList)) {
@@ -153,6 +162,38 @@ class Network {
             val omega = addOmega(rule.outputKind)
             omega.rules += rule
         }
+    }
+    
+    // ___ Page interface ___________________________________________________
+    
+    override def toString = getId
+    
+    override def getId = "Network[%s]".format(System.identityHashCode(this))
+    
+    override def getParent = null
+    
+    override def addContent(content: PageContent) = throw new UnsupportedOperationException()
+    
+    override def renderInLine(out: Output): Unit = {
+        LathosUtil.renderInLine(this, out)
+    }
+    
+    override def renderInPage(out: Output): Unit = {
+        out.startPage(this)
+        
+        out.subpage("Alpha") {
+            out.map(alphaNodes)
+        }
+
+        out.subpage("Beta") {
+            out.map(betaNodes)
+        }
+
+        out.subpage("Omega") {
+            out.map(omegaNodes)
+        }
+        
+        out.endPage(this)
     }
     
 }
