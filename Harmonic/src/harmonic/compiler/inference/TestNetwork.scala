@@ -42,33 +42,29 @@ object TestNetwork {
             }
         })
         
+        def assertSets(factSet: FactSet, xs: Set[X], ys: Set[Y], ws: Set[W], zs: Set[Z]) = {
+            assert(factSet.allFactsOfKind(classOf[X]) == xs)
+            assert(factSet.allFactsOfKind(classOf[Y]) == ys)
+            assert(factSet.allFactsOfKind(classOf[W]) == ws)
+            assert(factSet.allFactsOfKind(classOf[Z]) == zs)
+        }
+        
         val factSet0 = EmptyFactSet(network)
         context.log("factSet0 = ", factSet0)
-        assert(factSet0.allFactsOfKind(classOf[X]) == Set())
-        assert(factSet0.allFactsOfKind(classOf[Y]) == Set())
-        assert(factSet0.allFactsOfKind(classOf[W]) == Set())
-        assert(factSet0.allFactsOfKind(classOf[Z]) == Set())
         
         val factSet1 = factSet0.plusFacts(List(X(0)))
         context.log("factSet1 = ", factSet1)
-        assert(factSet1.allFactsOfKind(classOf[X]) == Set(X(0)))
-        assert(factSet1.allFactsOfKind(classOf[Y]) == Set(Y(0)))
-        assert(factSet1.allFactsOfKind(classOf[W]) == Set())
-        assert(factSet1.allFactsOfKind(classOf[Z]) == Set())
         
         val factSet2 = factSet1.plusFacts(List(X(1)))
         context.log("factSet2 = ", factSet2)
-        assert(factSet2.allFactsOfKind(classOf[X]) == Set(X(0), X(1)))
-        assert(factSet2.allFactsOfKind(classOf[Y]) == Set(Y(0), Y(1)))
-        assert(factSet2.allFactsOfKind(classOf[W]) == Set())
-        assert(factSet2.allFactsOfKind(classOf[Z]) == Set())
 
         val factSet3 = factSet2.plusFacts(List(W(1)))
         context.log("factSet3 = ", factSet3)
-        assert(factSet3.allFactsOfKind(classOf[X]) == Set(X(0), X(1)))
-        assert(factSet3.allFactsOfKind(classOf[Y]) == Set(Y(0), Y(1)))
-        assert(factSet3.allFactsOfKind(classOf[W]) == Set(W(1)))
-        assert(factSet3.allFactsOfKind(classOf[Z]) == Set(Z(1)))
+        
+        assertSets(factSet3, Set(X(0), X(1)), Set(Y(0), Y(1)), Set(W(1)), Set(Z(1)))
+        assertSets(factSet2, Set(X(0), X(1)), Set(Y(0), Y(1)), Set(), Set())
+        assertSets(factSet1, Set(X(0)), Set(Y(0)), Set(), Set())
+        assertSets(factSet0, Set(), Set(), Set(), Set())
     }
     
     // ___ testing 'framework' ______________________________________________
