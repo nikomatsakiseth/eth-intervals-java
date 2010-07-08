@@ -121,15 +121,17 @@ object TestNetwork {
     }
     
     def testBackwardsContains(context: Context): Unit = {
-        val network = makeSimpleNetwork(context)
+        val network = makeBackwardNetwork(context)
         
         val factSet0 = EmptyFactSet(network)
+        context.log("factSet0 = ", factSet0)
         assert(!factSet0.contains(A(0)))
         assert(!factSet0.contains(A(1)))
         
         val factSet1 = factSet0.plusFacts(List(X(0)))
+        context.log("factSet1 = ", factSet1)
         assert(factSet1.contains(A(0)))
-        assert(!factSet1.contains(A(1)))
+        assert(!factSet1.contains(A(1)))        
     }    
     
     // ___ testing 'framework' ______________________________________________
@@ -159,6 +161,7 @@ object TestNetwork {
         }
         
         println("%d failures out of %d tests".format(failed, total))
-        server.join
+        if(failed != 0)
+            server.join
     }
 }

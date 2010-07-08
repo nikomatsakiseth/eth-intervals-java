@@ -2,15 +2,14 @@ package harmonic.compiler.inference
 
 import scala.collection.mutable
 
-import com.smallcultfollowing.lathos.model._
-import com.smallcultfollowing.lathos.model.{Util => LathosUtil}
+import com.smallcultfollowing.lathos
 
 import harmonic.compiler.Util._
 
-class Network(server: LathosServer) extends Page {
+class Network(server: lathos.model.LathosServer) extends DebugPage {
     
     class State(
-        page: Page,
+        page: lathos.model.Page,
         val mem: Memory,
         val queue: mutable.Queue[Fact.Forward]
     ) {
@@ -40,7 +39,7 @@ class Network(server: LathosServer) extends Page {
         }
         
         /** Returns true if `fact` can be established at this time. */
-        def contains(fact: Fact.Fact) = {
+        def contains(fact: Fact) = {
             fact match {
                 case fact: Fact.Backward => backwardFact(fact)
                 case fact: Fact.Forward => forwardFacts(fact.kind)(fact)
@@ -48,7 +47,7 @@ class Network(server: LathosServer) extends Page {
         }
     }
     
-    def state(page: Page, mem: Memory, queue: mutable.Queue[Fact.Forward]) = {
+    def state(page: lathos.model.Page, mem: Memory, queue: mutable.Queue[Fact.Forward]) = {
         new State(page, mem, queue)
     }
     
@@ -196,34 +195,29 @@ class Network(server: LathosServer) extends Page {
         }
     }
     
-    def addRule(rule: Rule) = rule match {
-        case rule: Rule.Forward => {
-            val beta = addBeta(rule.inputKinds)
-            beta.rules += rule
+    def addRule(rule: Rule) = {
+        val log = {
+            if(true)
+                server.contextForPage(this)
+            else
+                new lathos.none.NoneContext(server)
         }
         
-        case rule: Rule.Backward => {
-            val omega = addOmega(rule.outputKind)
-            omega.rules += rule
+        log.indent("addRule(", rule, ")") {
+            rule match {
+                case rule: Rule.Forward => {
+                    val beta = addBeta(rule.inputKinds)
+                    beta.rules += rule
+                    log.log("Forward rule with inputKinds ", rule.inputKinds, " added to ", beta)
+                }
+
+                case rule: Rule.Backward => {
+                    val omega = addOmega(rule.outputKind)
+                    omega.rules += rule
+                    log.log("Backward rule with outputKind ", rule.outputKind, " added to ", omega)
+                }
+            }            
         }
-    }
-    
-    // ___ Page interface ___________________________________________________
-    
-    override def toString = getId
-    
-    override def getId = "Network[%s]".format(System.identityHashCode(this))
-    
-    override def getParent = null
-    
-    override def addContent(content: PageContent) = throw new UnsupportedOperationException()
-    
-    override def renderInLine(out: Output): Unit = {
-        LathosUtil.renderInLine(this, out)
-    }
-    
-    override def renderInPage(out: Output): Unit = {
-        LathosUtil.reflectivePage(this, out)
     }
     
 }

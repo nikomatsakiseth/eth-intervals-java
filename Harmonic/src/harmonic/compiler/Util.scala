@@ -121,14 +121,18 @@ object Util {
     // Extend the Lathos debugging library.
     
     trait DebugPage extends lathos.Page {
+        @lathos.Ignore
+        protected[this] var contents: List[lathos.PageContent] = Nil
+        
         override def toString = getId
 
         override def getId = "%s[%s]".format(getClass.getSimpleName, System.identityHashCode(this))
 
         override def getParent = null
 
-        override def addContent(content: lathos.PageContent) = {
-            throw new UnsupportedOperationException()
+        override def addContent(content: lathos.PageContent) = synchronized {
+            if(!contents.contains(content))
+                contents = content :: contents
         }
 
         override def renderInLine(out: lathos.Output): Unit = synchronized {
@@ -136,8 +140,16 @@ object Util {
         }
 
         def renderInPage(out: lathos.Output): Unit = synchronized {
-            lathos.Util.reflectivePage(this, out)            
-        }        
+            out.startPage(this)
+            
+            lathos.Util.reflectivePageContents(this, out)
+            
+            contents.reverseIterator.foreach { content =>
+                content.renderInPage(out)
+            }
+
+            out.endPage(this)
+        }
     }
 
     object ScalaDataRenderer extends lathos.DataRenderer {
@@ -272,9 +284,14 @@ object Util {
                 if(result != ())
                     context.log("Result: ", result.asInstanceOf[Object])
                 result
-            } catch { case t =>
-                context.log("Error: ", t)
-                throw t
+            } catch { 
+                case t: scala.runtime.NonLocalReturnControl[_] => {
+                    throw t                                        
+                }
+                case t => {
+                    context.log("Error: ", t)
+                    throw t                    
+                }
             } finally {
                 context.pop(page)
             }

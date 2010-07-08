@@ -26,7 +26,7 @@ object DerivedFactSet {
 class DerivedFactSet(
     baseFactSet: InternalFactSet,
     pendingFacts: mutable.Queue[Fact.Forward]
-) extends InternalFactSet with Memory with Page {
+) extends InternalFactSet with Memory with DebugPage {
     val network = baseFactSet.network
     def plusFacts(facts: Iterable[Fact]): FactSet = DerivedFactSet(this, facts)
     
@@ -156,51 +156,6 @@ class DerivedFactSet(
     override def allFactsOfKind(kind: Fact.ForwardKind): Set[Fact.Forward] = synchronized {
         resolvePendingFacts
         alphaMemories.getOrElse(kind, Set())
-    }
-    
-    // ___ Page interface ___________________________________________________
-    
-    private[this] var contents: List[PageContent] = Nil
-    
-    override def toString = getId
-    
-    override def getId = "DerivedFactSet[%s]".format(System.identityHashCode(this))
-    
-    override def getParent = null
-    
-    override def addContent(content: PageContent) = synchronized {
-        contents = content :: contents
-    }
-    
-    override def renderInLine(out: Output): Unit = synchronized {
-        LathosUtil.renderInLine(this, out)
-    }
-    
-    override def renderInPage(out: Output): Unit = synchronized {
-        out.startPage(this)
-        
-        out.table {
-            out.row("Derived from", baseFactSet)
-            out.row("network", network)            
-        }
-        
-        out.subpage("Alpha") {
-            out.map(alphaMemories)
-        }
-
-        out.subpage("Beta") {
-            out.map(betaMemories)
-        }
-
-        out.subpage("Omega") {
-            out.list(omegaMemories)
-        }
-        
-        contents.reverseIterator.foreach { content =>
-            content.renderInPage(out)
-        }
-        
-        out.endPage(this)
     }
     
 }

@@ -75,7 +75,7 @@ object Rule {
     
     // Simply define a method canInfer(state, fact) and the outputKind
     // will determined by reflection.
-    trait ReflectiveBackward extends Forward {
+    trait ReflectiveBackward extends Backward {
         val method = checkBasics(getTriggerMethod(getClass), classOf[Boolean], 2, 2)
         
         val outputKind = {
@@ -88,8 +88,8 @@ object Rule {
             }
         }
         
-        def derive(state: Network#State, fact: Fact.Backward): Boolean = {
-            method.invoke(state, fact).asInstanceOf[Boolean].booleanValue
+        def canInfer(state: Network#State, fact: Fact.Backward): Boolean = {
+            method.invoke(this, state, fact).asInstanceOf[Boolean].booleanValue
         }
     }
     
