@@ -43,6 +43,19 @@ object Util {
     
     // ___ Extensions to Collection Classes and Other Miscellany ____________
     
+    class ExtendedC[C](obj: C) {
+        def matchAll[R](funcs: (C => R)*): List[R] = {
+            funcs.toList.flatMap { func =>
+                try {
+                    Some(func(obj))
+                } catch {
+                    case _: MatchError => None
+                }
+            }
+        }
+    }
+    implicit def extendedC[C](obj: C): ExtendedC[C] = new ExtendedC(obj)
+    
     class ExtendedAny(any: Any) {
         def asObj = any.asInstanceOf[java.lang.Object]
     }
@@ -81,6 +94,10 @@ object Util {
             }
         }
         
+        def mapAsPrefix[F](list: List[F])(func: (E => F)): List[F] = {
+            iterable.foldRight(list) { e => func(e) :: list }
+        }
+        
         def cross[J](js: Iterable[J]) = 
             for(i <- iterable.view; j <- js.view) yield (i,j)
             
@@ -98,6 +115,13 @@ object Util {
                     val (context2, tl1) = tl.mapContext(context, func)
                     (context2, hd1 :: tl1)
                 }
+            }
+        }
+        
+        def replace(from: E, to: E) = {
+            list.map { elem =>
+                if(from == elem) to
+                else elem
             }
         }
     }
