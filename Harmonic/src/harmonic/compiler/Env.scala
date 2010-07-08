@@ -144,15 +144,6 @@ object Env {
             }            
         }
         
-        case class GivenRelType(rel: TcRel, right: Type) extends Query[Set[Type]] {
-            override def preevaluate(facts: Set[Fact]) = None
-            
-            override def evaluate(facts: Set[Fact]) = facts.flatMap {
-                case Fact.TRT(l, rel(), right()) => Some(l)
-                case _ => None
-            }            
-        }
-        
         object TR { // "Type Rel"
             def unapply(query: Query[_]) = query match {
                 case TRT(l, rel, _) => Some((l, rel))
@@ -161,14 +152,6 @@ object Env {
             }
         }
 
-        object RT { // "Rel Type"
-            def unapply(query: Query[_]) = query match {
-                case TRT(_, rel, r) => Some((rel, r))
-                case GivenRelType(rel, r) => Some((rel, r))
-                case _ => None
-            }
-        }
-        
         case class Assignable(path: Path.Ref, ty: Type) 
         extends FindFact(Fact.Assignable(path, ty))
     }
@@ -810,8 +793,6 @@ object Env {
         def instantiate(state: ProofState)(query: Query[_]) = query match {
             case Query.TR(ty1, TcSub) => Some(EqualityImpliesSubtypingL(ty1))
             case Query.TR(ty1, TcSup) => Some(EqualityImpliesSubtypingL(ty1))
-            case Query.RT(TcSub, ty2) => Some(EqualityImpliesSubtypingR(ty2))
-            case Query.RT(TcSup, ty2) => Some(EqualityImpliesSubtypingR(ty2))
             case _ => None
         }
     })
