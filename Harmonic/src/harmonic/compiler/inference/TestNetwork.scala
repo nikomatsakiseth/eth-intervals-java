@@ -107,26 +107,30 @@ object TestNetwork {
         network.addRule(new Rule.ReflectiveForward() {
             def trigger(state: Network#State, x: X) = {
                 val y = Y(x.i)
-                state.log.log(x, " => ", y)
                 List(y)
             }
         })
         
-        network.addRule(new Rule.ReflectiveForward() {
-            def trigger(state: Network#State, w: W, y: Y) = {
-                if(w.i == y.i) {
-                    val z = Z(w.i)
-                    state.log.log(w, ", ", y, " => ", z)
-                    List(z)
-                } else {
-                    state.log.log(w, ", ", y, " =/> (nothing)")
-                    Nil
-                }
+        network.addRule(new Rule.ReflectiveBackward() {
+            def trigger(state: Network#State, a: A) = {
+                state.contains(X(a.i)) && state.contains(Y(a.i))
             }
         })
         
         network
     }
+    
+    def testBackwardsContains(context: Context): Unit = {
+        val network = makeSimpleNetwork(context)
+        
+        val factSet0 = EmptyFactSet(network)
+        assert(!factSet0.contains(A(0)))
+        assert(!factSet0.contains(A(1)))
+        
+        val factSet1 = factSet0.plusFacts(List(X(0)))
+        assert(factSet1.contains(A(0)))
+        assert(!factSet1.contains(A(1)))
+    }    
     
     // ___ testing 'framework' ______________________________________________
     //

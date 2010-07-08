@@ -38,6 +38,14 @@ class Network(server: LathosServer) extends Page {
         def backwardFact(fact: Fact.Backward) = log.indent("backwardFact(", fact, ")") {
             omegaNodes.get(fact.kind).exists(_.derive(this, fact))                
         }
+        
+        /** Returns true if `fact` can be established at this time. */
+        def contains(fact: Fact.Fact) = {
+            fact match {
+                case fact: Fact.Backward => backwardFact(fact)
+                case fact: Fact.Forward => forwardFacts(fact.kind)(fact)
+            }
+        }
     }
     
     def state(page: Page, mem: Memory, queue: mutable.Queue[Fact.Forward]) = {
