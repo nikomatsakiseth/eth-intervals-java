@@ -22,22 +22,15 @@ object TestNetwork {
         val network = new Network(context.server)
         
         network.addRule(new Rule.ReflectiveForward() {
-            val inputKinds = List(classOf[X])
-            
-            def derive(state: Network#State, facts: List[Fact.Forward]) = {
-                val x = facts(0).asInstanceOf[X]
+            def trigger(state: Network#State, x: X) = {
                 val y = Y(x.i)
                 state.log.log(x, " => ", y)
                 List(y)
             }
         })
         
-        network.addRule(new Rule.Forward() {
-            val inputKinds = List(classOf[W], classOf[Y])
-            
-            def derive(state: Network#State, facts: List[Fact.Forward]) = {
-                val w = facts(0).asInstanceOf[W]
-                val y = facts(1).asInstanceOf[Y]
+        network.addRule(new Rule.ReflectiveForward() {
+            def trigger(state: Network#State, w: W, y: Y) = {
                 if(w.i == y.i) {
                     val z = Z(w.i)
                     state.log.log(w, ", ", y, " => ", z)

@@ -5,6 +5,17 @@ import java.lang.reflect
 sealed trait Rule
 
 object Rule {
+    private[this] def getTriggerMethod(cls: Class[_]): reflect.Method = {
+        cls.getDeclaredMethods.find(_.getName == "trigger") match {
+            case Some(m) => 
+                m
+            case None if (cls.getSuperclass == null) => 
+                throw new RuntimeException("No trigger(...) method defined in %s".format(getClass))
+            case None =>
+                getTriggerMethod(cls.getSuperclass)
+        }
+    }
+    
     private[this] def checkBasics(
         m: reflect.Method,
         returnClass: Class[_],
@@ -27,6 +38,8 @@ object Rule {
             throw new RuntimeException("First argument of %s must have type Network#State".format(m))
         }
         
+        m.setAccessible(true)
+        
         m
     }
     
@@ -38,14 +51,7 @@ object Rule {
     // Simply define a method trigger(state, fact1, fact2, fact3) and this
     // trait uncovers the input kinds by reflection.
     trait ReflectiveForward extends Forward {
-        val method = {
-            getClass.getMethods.find(_.getName == "trigger") match {
-                case None => 
-                    throw new RuntimeException("No trigger(...) method defined in %s".format(getClass))
-                case Some(m) => 
-                    checkBasics(m, classOf[Iterable[Any]], 2, Integer.MAX_VALUE)
-            }
-        }
+        val method = checkBasics(getTriggerMethod(getClass), classOf[Iterable[Any]], 2, Integer.MAX_VALUE)
         
         val inputKinds = {
             try {
@@ -70,14 +76,7 @@ object Rule {
     // Simply define a method canInfer(state, fact) and the outputKind
     // will determined by reflection.
     trait ReflectiveBackward extends Forward {
-        val method = {
-            getClass.getMethods.find(_.getName == "trigger") match {
-                case None => 
-                    throw new RuntimeException("No trigger(...) method defined in %s".format(getClass))
-                case Some(m) => 
-                    checkBasics(m, classOf[Boolean], 2, 2)
-            }
-        }
+        val method = checkBasics(getTriggerMethod(getClass), classOf[Boolean], 2, 2)
         
         val outputKind = {
             try {
