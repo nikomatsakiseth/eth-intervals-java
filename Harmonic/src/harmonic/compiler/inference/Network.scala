@@ -10,101 +10,136 @@ import harmonic.compiler.Util._
 class Network(server: LathosServer) extends Page {
     
     class State(
+        page: Page,
         val mem: Memory,
         val queue: mutable.Queue[Fact.Forward]
     ) {
+        val log = server.contextForPage(page)
         var backwardStack: List[(Fact.Backward, Rule.Backward)] = Nil
         
-        def drainQueue() = {
+        def drainQueue() = log.indent("drainQueue") {
             while(!queue.isEmpty) {
                 val fact = queue.dequeue
-                alphaNodes.get(fact.kind).foreach(_.add(this, fact))
+                log.indent("Fact ", fact) {
+                    alphaNodes.get(fact.kind) match {
+                        case Some(alpha) => alpha.add(this, fact)
+                        case None => mem.addAlpha(fact)
+                    }              
+                }
             }
         }
         
         /** Returns facts of the given kind known so far. */
-        def forwardFacts(factKind: Fact.ForwardKind) = {
+        def forwardFacts(factKind: Fact.ForwardKind) = log.indent("forwardFacts(", factKind, ")") {
             mem.alpha(factKind)
         }
 
         /** Returns true if `fact` can be established at this time. */
-        def backwardFact(fact: Fact.Backward) = {
+        def backwardFact(fact: Fact.Backward) = log.indent("backwardFact(", fact, ")") {
             omegaNodes.get(fact.kind).exists(_.derive(this, fact))                
         }
     }
     
-    def state(mem: Memory, queue: mutable.Queue[Fact.Forward]) = {
-        new State(mem, queue)
+    def state(page: Page, mem: Memory, queue: mutable.Queue[Fact.Forward]) = {
+        new State(page, mem, queue)
     }
     
+    trait Node extends DebugPage
+    
     class Alpha(
-        kind: Fact.ForwardKind
-    ) {
+        val kind: Fact.ForwardKind
+    ) extends Node {
         val betas = new mutable.ListBuffer[Beta]()
         
-        override def toString = "Alpha[%s]".format(kind.getName)
+        def get(state: State) = state.mem.alpha(kind)
         
         def add(state: State, fact: Fact.Forward) = {
-            assert(fact.kind == kind)
-            if(state.mem.addAlpha(fact)) {
-                betas.foreach(_.added(state, fact))                
-            }
+            state.log.indent(this, ".add(", fact, ")") {
+                assert(fact.kind == kind)
+                if(state.mem.addAlpha(fact)) {
+                    betas.foreach(_.factAdded(state, fact))                
+                }
+            }            
         }
     }
     
-    trait Suffix[+F <: Fact] {
-        def suffixes(state: State): Iterable[List[F]]
+    trait Rhs extends Node {
+        def get(state: State): Iterable[List[Fact.Forward]]
+        def addBeta(beta: Beta): Unit
     }
     
-    object EmptySuffix extends Suffix[Fact.Forward] {
-        override def suffixes(state: State) = Nil        
+    object EmptyRhs extends Rhs {
+        override def get(state: State) = List(Nil)    
+        def addBeta(beta: Beta) = ()
     }
 
     class Beta(
-        kinds: List[Fact.ForwardKind],
-        rhs: Suffix[Fact.Forward]
-    ) extends Suffix[Fact.Forward] {
+        val kinds: List[Fact.ForwardKind],
+        val alpha: Alpha,
+        val rhs: Rhs
+    ) extends Rhs {
+        val betas = new mutable.ListBuffer[Beta]()
         val rules = new mutable.ListBuffer[Rule.Forward]()
         
         override def toString = "Beta[%s]".format(kinds.map(_.getName).mkString(", "))
         
-        override def suffixes(state: State) = state.mem.beta(kinds)
+        override def get(state: State) = state.mem.beta(kinds)
         
-        def added(state: State, fact: Fact.Forward) = {
-            val factLists = rhs.suffixes(state).map(factList => fact :: factList).toList
-            factLists.foreach { factList =>
-                if(state.mem.addBeta(kinds, factList)) {
-                    rules.foreach { rule =>
-                        state.queue ++= rule.derive(state, factList)                        
-                    }
+        override def addBeta(beta: Beta) = (betas += beta)
+        
+        private[this] def newFactList(state: State, factList: List[Fact.Forward]): Unit = {
+            state.log.log(this, ".newFactList(", factList, ")")
+            if(state.mem.addBeta(kinds, factList)) {
+                rules.foreach { rule =>
+                    state.queue ++= rule.derive(state, factList)                        
                 }
+                
+                betas.foreach(_.suffixAdded(state, factList))
+            }
+        }
+        
+        def factAdded(state: State, fact: Fact.Forward): Unit = {
+            state.log.indent(this, ".factAdded(", fact, ")") {
+                rhs.get(state).foreach { suffix => newFactList(state, fact :: suffix) }
+            }            
+        }
+        
+        def suffixAdded(state: State, suffix: List[Fact.Forward]): Unit = {
+            state.log.indent(this, ".suffixAdded(", suffix, ")") {
+                alpha.get(state).foreach { fact => newFactList(state, fact :: suffix) }
             }
         }
     }
     
     class Omega(
-        kind: Fact.BackwardKind
-    ) {
+        val kind: Fact.BackwardKind
+    ) extends Node {
         val rules = new mutable.ListBuffer[Rule.Backward]()
         
         def derive(state: State, fact: Fact.Backward): Boolean = {
             if(state.mem.omega(fact)) {
+                state.log.log("Fact already known: ", fact)
                 return true
             } else {
-                for(rule <- rules) {
-                    if(!state.backwardStack.contains((fact, rule))) {
-                        state.backwardStack = (fact, rule) :: state.backwardStack
-                        try {
-                            if(rule.canInfer(state, fact)) {
-                                state.mem.addOmega(fact)
-                                return true
+                state.log.indent(this, ".derive(", fact, ")") {
+                    for(rule <- rules) {
+                        if(!state.backwardStack.contains((fact, rule))) {
+                            state.backwardStack = (fact, rule) :: state.backwardStack
+                            try {
+                                state.log.log("Invoking rule ", rule)
+                                if(rule.canInfer(state, fact)) {
+                                    state.mem.addOmega(fact)
+                                    return true
+                                }
+                            } finally {
+                                state.backwardStack = state.backwardStack.tail
                             }
-                        } finally {
-                            state.backwardStack = state.backwardStack.tail
+                        } else {
+                            state.log.log("Not invoking rule ", rule, " as it would cause an infinite loop.")
                         }
                     }
+                    return false
                 }
-                return false
             }
         }
    
@@ -132,11 +167,12 @@ class Network(server: LathosServer) extends Page {
             val alpha = addAlpha(kinds.head)
             
             val rhs = {
-                if(kinds.length <= 1) EmptySuffix
+                if(kinds.length <= 1) EmptyRhs
                 else addBeta(kinds.tail)
             }
             
-            val beta = new Beta(kinds, rhs)
+            val beta = new Beta(kinds, alpha, rhs)
+            rhs.addBeta(beta)
             alpha.betas += beta
             
             betaNodes(kinds) = beta
@@ -179,21 +215,7 @@ class Network(server: LathosServer) extends Page {
     }
     
     override def renderInPage(out: Output): Unit = {
-        out.startPage(this)
-        
-        out.subpage("Alpha") {
-            out.map(alphaNodes)
-        }
-
-        out.subpage("Beta") {
-            out.map(betaNodes)
-        }
-
-        out.subpage("Omega") {
-            out.map(omegaNodes)
-        }
-        
-        out.endPage(this)
+        LathosUtil.reflectivePage(this, out)
     }
     
 }

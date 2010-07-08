@@ -130,7 +130,7 @@ class DerivedFactSet(
     
     private[this] def resolvePendingFacts: Unit = {
         if(!pendingFacts.isEmpty) {
-            network.state(this, pendingFacts).drainQueue
+            network.state(this, this, pendingFacts).drainQueue
         }
     }
     
@@ -147,7 +147,7 @@ class DerivedFactSet(
                     if(omegaMemories(fact)) {
                         true
                     } else {
-                        network.state(this, pendingFacts).backwardFact(fact)
+                        network.state(this, this, pendingFacts).backwardFact(fact)
                     }
             }            
         }
@@ -160,25 +160,29 @@ class DerivedFactSet(
     
     // ___ Page interface ___________________________________________________
     
+    private[this] var contents: List[PageContent] = Nil
+    
     override def toString = getId
     
     override def getId = "DerivedFactSet[%s]".format(System.identityHashCode(this))
     
     override def getParent = null
     
-    override def addContent(content: PageContent) = throw new UnsupportedOperationException()
+    override def addContent(content: PageContent) = synchronized {
+        contents = content :: contents
+    }
     
-    override def renderInLine(out: Output): Unit = {
+    override def renderInLine(out: Output): Unit = synchronized {
         LathosUtil.renderInLine(this, out)
     }
     
-    override def renderInPage(out: Output): Unit = {
+    override def renderInPage(out: Output): Unit = synchronized {
         out.startPage(this)
         
-        out.startTable
-        out.row("Derived from", baseFactSet)
-        out.row("network", network)
-        out.endTable
+        out.table {
+            out.row("Derived from", baseFactSet)
+            out.row("network", network)            
+        }
         
         out.subpage("Alpha") {
             out.map(alphaMemories)
@@ -190,6 +194,10 @@ class DerivedFactSet(
 
         out.subpage("Omega") {
             out.list(omegaMemories)
+        }
+        
+        contents.reverseIterator.foreach { content =>
+            content.renderInPage(out)
         }
         
         out.endPage(this)

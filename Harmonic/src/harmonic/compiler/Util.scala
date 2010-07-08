@@ -7,10 +7,7 @@ import ch.ethz.intervals._
 import ch.ethz.intervals.task.AbstractTask
 import ch.ethz.intervals.task.ResultTask
 
-import com.smallcultfollowing.lathos.model.Context
-import com.smallcultfollowing.lathos.model.Page
-import com.smallcultfollowing.lathos.model.LathosServer
-import com.smallcultfollowing.lathos.model.Output
+import com.smallcultfollowing.lathos.{model => lathos}
 
 import scala.collection.Set
 
@@ -122,8 +119,115 @@ object Util {
     // ___ Debug ____________________________________________________________
     //
     // Extend the Lathos debugging library.
+    
+    trait DebugPage extends lathos.Page {
+        override def toString = getId
 
-    class ExtendedServer(server: LathosServer) {
+        override def getId = "%s[%s]".format(getClass.getSimpleName, System.identityHashCode(this))
+
+        override def getParent = null
+
+        override def addContent(content: lathos.PageContent) = {
+            throw new UnsupportedOperationException()
+        }
+
+        override def renderInLine(out: lathos.Output): Unit = synchronized {
+            lathos.Util.renderInLine(this, out)
+        }
+
+        def renderInPage(out: lathos.Output): Unit = synchronized {
+            lathos.Util.reflectivePage(this, out)            
+        }        
+    }
+
+    object ScalaDataRenderer extends lathos.DataRenderer {
+        
+        def renderIteratorInLine(page: lathos.Page, out: lathos.Output, iter: Iterator[_]) = {
+            out.outputText("(")
+            
+            def outputNext(withComma: Boolean) = {
+                if(iter.hasNext) {
+                    if(withComma) out.outputText(", ")
+                    val n = iter.next
+                    out.outputObject(n)
+                }                
+            }
+            
+            outputNext(false)
+            outputNext(true)
+            outputNext(true)
+            
+            if(iter.hasNext) {
+                out.startLink(page)
+                out.outputText(", ...")
+                out.endLink(page)
+            }
+            out.outputText(")")            
+        }
+        
+        case class ScalaIterable(value: Iterable[_]) extends DebugPage {
+            override def renderInLine(out: lathos.Output): Unit = synchronized {
+                renderIteratorInLine(this, out, value.iterator)
+            }
+            
+            override def renderInPage(out: lathos.Output): Unit = synchronized {
+                value match {
+                    case value: scala.collection.Map[_, _] => {
+                        out.startPage(this)
+                        out.map(value)
+                        out.endPage(this)
+                    }
+                    case _ => {
+                        out.startPage(this)
+                        out.list(value)
+                        out.endPage(this)
+                    }
+                }
+            }
+        }
+        
+        case class ScalaProduct(value: Product) extends DebugPage {
+            override def renderInLine(out: lathos.Output): Unit = synchronized {
+                out.outputText(value.productPrefix)
+                renderIteratorInLine(this, out, value.productIterator)
+            }
+            
+            override def renderInPage(out: lathos.Output): Unit = synchronized {
+                out.startPage(this)
+                out.table {
+                    out.row("Prefix", value.productPrefix)
+                    value.productIterator.zipWithIndex.foreach { case (v, i) =>
+                        out.row(i.asObj, v.asObj)
+                    }
+                }
+                out.endPage(this)
+            }
+        }
+        
+        override def addToLine(line: lathos.Line, value: Object): Boolean = {
+            value match {
+                case value: Iterable[_] => {
+                    line.addContent(ScalaIterable(value))
+                    true
+                }
+                
+                case value: Product => {
+                    line.addContent(ScalaProduct(value))
+                    true
+                }
+                
+                case _ => false
+            }
+        }
+        
+    }
+    
+    class ExtendedServer(server: lathos.LathosServer) {
+        def addDefaultRenderers = {
+            server.addDataRenderer(ScalaDataRenderer)
+            server.addDataRenderer(new lathos.ThrowableDataRenderer())
+        }
+        
         def topLevelPage(id: String, title: Object*) = {
             val context = server.context
             val page = context.pushTopLevel(id, title: _*)
@@ -133,9 +237,9 @@ object Util {
             page
         }
         
-        def pageForClass(name: Name.Class): Page = topLevelPage(name.toString, "Class ", name)
+        def pageForClass(name: Name.Class): lathos.Page = topLevelPage(name.toString, "Class ", name)
         
-        def contextForPage(page: Page) = {
+        def contextForPage(page: lathos.Page) = {
             val context = server.context
             context.push(page)
             context
@@ -150,7 +254,7 @@ object Util {
             context
         }
         
-        def contextForInter(classPage: Page, inter: Interval) = {
+        def contextForInter(classPage: lathos.Page, inter: Interval) = {
             val context = server.context
             val tag = inter.toString.afterLast('.')
             context.push(classPage)
@@ -158,9 +262,9 @@ object Util {
             context
         }
     }
-    implicit def extendedServer(server: LathosServer): ExtendedServer = new ExtendedServer(server)
+    implicit def extendedServer(server: lathos.LathosServer): ExtendedServer = new ExtendedServer(server)
 
-    class ExtendedContext(context: Context) {
+    class ExtendedContext(context: lathos.Context) {
         def indent[R](args: Object*)(func: => R) = {
             val page = context.pushChild(null, args: _*)
             try {
@@ -176,9 +280,33 @@ object Util {
             }
         }
     }
-    implicit def extendedContext(context: Context): ExtendedContext = new ExtendedContext(context)
+    implicit def extendedContext(context: lathos.Context): ExtendedContext = new ExtendedContext(context)
     
-    class ExtendedOutput(out: Output) {
+    class ExtendedOutput(out: lathos.Output) {
+        
+        def bolded(func: => Unit) {
+            out.startBold
+            func
+            out.endBold
+        }
+        
+        def row(func: => Unit) {
+            out.startRow
+            func
+            out.endRow
+        }
+        
+        def column(func: => Unit) {
+            out.startColumn
+            func
+            out.endColumn
+        }
+        
+        def table(func: => Unit) {
+            out.startTable
+            func
+            out.endTable
+        }
         
         def row(objs: Object*) {
             com.smallcultfollowing.lathos.model.Util.row(out, objs: _*)
@@ -194,34 +322,30 @@ object Util {
         }
         
         def list(data: Iterable[Any]) {
-            out.startTable
-            
-            data.foreach { row =>
-                out.startRow
-                out.startColumn
-                out.outputText(row.toString)
-                out.endColumn
-                out.endRow
+            table {
+                data.foreach { item =>
+                    row {
+                        column {
+                            out.outputObject(item.asObj)
+                        }
+                    }
+                }                
             }
-            
-            out.endTable            
         }
         
         def map(data: Iterable[(Any, Any)]) {
-            out.startTable
-            
-            data.foreach { case (col1, col2) =>
-                out.row(
-                    col1.asInstanceOf[Object], 
-                    col2.asInstanceOf[Object]
-                )
+            table {
+                data.foreach { case (col1, col2) =>
+                    out.row(
+                        col1.asInstanceOf[Object], 
+                        col2.asInstanceOf[Object]
+                    )
+                }                
             }
-            
-            out.endTable
         }
         
     }
-    implicit def extendedOutput(output: Output): ExtendedOutput = new ExtendedOutput(output)
+    implicit def extendedOutput(output: lathos.Output): ExtendedOutput = new ExtendedOutput(output)
     
     // ___ Profiling ________________________________________________________
     
