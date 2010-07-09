@@ -34,7 +34,7 @@ class Subst(private val map: Map[Path.Ref, Path.Ref]) {
     def fact(fact: inference.Fact): inference.Fact = fact match {
         case fact @ K.Paths(l, r) => fact.withPaths(path(l), path(r))
         case fact @ K.Types(l, r) => fact.withTypes(ty(l), ty(r))
-        case K.Assignable(p, t) => K.Assignable(path(p), ty(t))
+        case K.HasType(p, t) => K.HasType(path(p), ty(t))
     }
     
     def pattern(p: Pattern.Anon): Pattern.Anon = p match {

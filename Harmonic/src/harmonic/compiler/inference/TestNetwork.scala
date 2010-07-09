@@ -23,7 +23,7 @@ object TestNetwork {
     // X(i) => Y(i)
     // W(i), Y(i) => Z(i)
     
-    def assertSimple(factSet: FactSet, xs: Set[X], ys: Set[Y], ws: Set[W], zs: Set[Z]) = {
+    def assertSimple(factSet: FactSet[_], xs: Set[X], ys: Set[Y], ws: Set[W], zs: Set[Z]) = {
         assert(factSet.allFactsOfKind(classOf[X]) == xs)
         assert(factSet.allFactsOfKind(classOf[Y]) == ys)
         assert(factSet.allFactsOfKind(classOf[W]) == ws)
@@ -31,24 +31,23 @@ object TestNetwork {
     }
     
     def makeSimpleNetwork(context: Context) = {
-        val network = new Network(context.server)
+        val network = new Network[Unit](context.server)
         
-        network.addRule(new Rule.ReflectiveForward() {
-            def trigger(state: Network#State, x: X) = {
+        network.addRule(new Rule.ReflectiveForward[Unit]() {
+            override def toString = "X(i) => Y(i)"
+            def trigger(unit: Unit, x: X) = {
                 val y = Y(x.i)
-                state.log.log(x, " => ", y)
                 List(y)
             }
         })
         
-        network.addRule(new Rule.ReflectiveForward() {
-            def trigger(state: Network#State, w: W, y: Y) = {
+        network.addRule(new Rule.ReflectiveForward[Unit]() {
+            override def toString = "W(i), Y(i) => Z(i)"
+            def trigger(unit: Unit, w: W, y: Y) = {
                 if(w.i == y.i) {
                     val z = Z(w.i)
-                    state.log.log(w, ", ", y, " => ", z)
                     List(z)
                 } else {
-                    state.log.log(w, ", ", y, " =/> (nothing)")
                     Nil
                 }
             }
@@ -64,15 +63,15 @@ object TestNetwork {
         context.log("factSet0 = ", factSet0)
         assertSimple(factSet0, Set(), Set(), Set(), Set())
         
-        val factSet1 = factSet0.plusFacts(List(X(0)))
+        val factSet1 = factSet0.plusFacts(List(X(0)), ())
         context.log("factSet1 = ", factSet1)
         assertSimple(factSet1, Set(X(0)), Set(Y(0)), Set(), Set())
         
-        val factSet2 = factSet1.plusFacts(List(X(1)))
+        val factSet2 = factSet1.plusFacts(List(X(1)), ())
         context.log("factSet2 = ", factSet2)
         assertSimple(factSet2, Set(X(0), X(1)), Set(Y(0), Y(1)), Set(), Set())
 
-        val factSet3 = factSet2.plusFacts(List(W(1)))
+        val factSet3 = factSet2.plusFacts(List(W(1)), ())
         context.log("factSet3 = ", factSet3)
         assertSimple(factSet3, Set(X(0), X(1)), Set(Y(0), Y(1)), Set(W(1)), Set(Z(1)))
     }
@@ -81,9 +80,9 @@ object TestNetwork {
         val network = makeSimpleNetwork(context)
         
         val factSet0 = EmptyFactSet(network)
-        val factSet1 = factSet0.plusFacts(List(X(0)))
-        val factSet2 = factSet1.plusFacts(List(X(1)))
-        val factSet3 = factSet2.plusFacts(List(W(1)))
+        val factSet1 = factSet0.plusFacts(List(X(0)), ())
+        val factSet2 = factSet1.plusFacts(List(X(1)), ())
+        val factSet3 = factSet2.plusFacts(List(W(1)), ())
         
         context.log("factSet0 = ", factSet0)
         context.log("factSet1 = ", factSet1)
@@ -98,22 +97,24 @@ object TestNetwork {
     
     // ___ backwardsTest ____________________________________________________
     //
-    // X(i) => Y(i) if (i is even)
+    // X(i) => Y(i)
     // X(i), Y(i) => A(i)
     
     def makeBackwardNetwork(context: Context) = {
-        val network = new Network(context.server)
+        val network = new Network[Unit](context.server)
         
-        network.addRule(new Rule.ReflectiveForward() {
-            def trigger(state: Network#State, x: X) = {
+        network.addRule(new Rule.ReflectiveForward[Unit]() {
+            override def toString = "X(i) => Y(i)"
+            def trigger(unit: Unit, x: X) = {
                 val y = Y(x.i)
                 List(y)
             }
         })
         
-        network.addRule(new Rule.ReflectiveBackward() {
-            def trigger(state: Network#State, a: A) = {
-                state.contains(X(a.i)) && state.contains(Y(a.i))
+        network.addRule(new Rule.ReflectiveBackward[Unit]() {
+            override def toString = "X(i), Y(i) => A(i)"
+            def trigger(recurse: Recurse[Unit], a: A) = {
+                recurse.contains(X(a.i)) && recurse.contains(Y(a.i))
             }
         })
         
@@ -125,13 +126,13 @@ object TestNetwork {
         
         val factSet0 = EmptyFactSet(network)
         context.log("factSet0 = ", factSet0)
-        assert(!factSet0.contains(A(0)))
-        assert(!factSet0.contains(A(1)))
+        assert(!factSet0.contains(A(0)), ())
+        assert(!factSet0.contains(A(1)), ())
         
-        val factSet1 = factSet0.plusFacts(List(X(0)))
+        val factSet1 = factSet0.plusFacts(List(X(0)), ())
         context.log("factSet1 = ", factSet1)
-        assert(factSet1.contains(A(0)))
-        assert(!factSet1.contains(A(1)))        
+        assert(factSet1.contains(A(0)), ())
+        assert(!factSet1.contains(A(1)), ())        
     }    
     
     // ___ testing 'framework' ______________________________________________

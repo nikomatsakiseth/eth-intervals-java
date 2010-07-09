@@ -58,7 +58,8 @@ extends Network[HarmonicRulesNetwork.Xtra](server)
             val subpaths = fact.path match {
                 case Path.Field(p: Path.Ref, _) => List(p)
                 case Path.Cast(_, p) => List(p)
-                case Path.Call(r, _, args) => r :: args
+                case Path.Call(r: Path.Ref, _, args) => r :: args
+                case Path.Call(Path.Static, _, args) => args
                 case Path.Index(a, i) => List(a, i)
                 case Path.Tuple(paths) => paths
                 case _ => Nil
@@ -106,7 +107,7 @@ extends Network[HarmonicRulesNetwork.Xtra](server)
     addRule(new Rule.ReflectiveForward[Xtra] {
         def trigger(xtra: Xtra, fact: K.PathExists, hasType: K.HasType) = {
             fact.path match {
-                case Path.Field(p, _) => {
+                case Path.Field(p: Path.Ref, _) => {
                     hasType match {
                         case K.HasType(p(), Type.Class(_, args)) => {
                             args.map {

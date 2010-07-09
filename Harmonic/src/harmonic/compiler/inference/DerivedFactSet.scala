@@ -10,7 +10,19 @@ import com.smallcultfollowing.lathos.model.{Util => LathosUtil}
 import harmonic.compiler.Util._
 
 object DerivedFactSet {
-    def apply[X](baseFactSet: InternalFactSet[X], addedFacts: Iterable[Fact], xtra: X) = {
+    def apply[X](baseFactSet: InternalFactSet[X], addedFacts: Iterable[Fact], xtra: X): FactSet[X] = {
+        val pending = new mutable.Queue[Fact.Forward]()
+        var backwardFacts: List[Fact.Backward] = Nil
+        addedFacts.foreach {
+            case fact: Fact.Forward => pending.enqueue(fact)
+            case fact: Fact.Backward => backwardFacts = fact :: backwardFacts
+        }
+        val result = new DerivedFactSet(baseFactSet, pending, xtra)
+        backwardFacts.foreach(result.addOmega(_))
+        result
+    }
+    
+    def apply[X](baseFactSet: InternalFactSet[X], addedFactSet: FactSet[X], xtra: X): FactSet[X] = {
         val pending = new mutable.Queue[Fact.Forward]()
         var backwardFacts: List[Fact.Backward] = Nil
         addedFacts.foreach {
@@ -30,6 +42,7 @@ class DerivedFactSet[X](
 ) extends InternalFactSet[X] with Memory with DebugPage {
     val network = baseFactSet.network
     def plusFacts(facts: Iterable[Fact], xtra: X): FactSet[X] = DerivedFactSet(this, facts, xtra)
+    def plusFactSet(factSet: FactSet[X], xtra: X): FactSet[X] = DerivedFactSet(this, factSet, xtra)
     
     // ___ Memory interface _________________________________________________
     //

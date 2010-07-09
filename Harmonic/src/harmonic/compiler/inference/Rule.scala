@@ -1,6 +1,7 @@
 package harmonic.compiler.inference
 
 import java.lang.reflect
+import harmonic.compiler.Util._
 
 sealed trait Rule[X]
 
@@ -64,7 +65,8 @@ object Rule {
         }
         
         def derive(xtra: X, facts: List[Fact.Forward]): Iterable[Fact.Forward] = {
-            method.invoke(this, (xtra :: facts): _*).asInstanceOf[Iterable[Any]].map(_.asInstanceOf[Fact.Forward])
+            val res = method.invoke(this, (xtra.asObj :: facts): _*)
+            res.asInstanceOf[Iterable[Any]].map(_.asInstanceOf[Fact.Forward])
         }
     }
     

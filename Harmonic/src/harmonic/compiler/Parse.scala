@@ -204,7 +204,11 @@ class Parse extends StdTokenParsers with PackratParsers {
     
     lazy val wcRel: PackratParser[PcWcRel] = (
         "="             ^^^ PcEq
-    |   "permitsWr"     ^^^ PcPermitsWr
+    |   guardRel
+    )
+    
+    lazy val guardRel: PackratParser[PcWcRel] = (
+        "permitsWr"     ^^^ PcPermitsWr
     |   "permitsRd"     ^^^ PcPermitsRd
     |   "ensuresFinal"  ^^^ PcEnsuresFinal
     )

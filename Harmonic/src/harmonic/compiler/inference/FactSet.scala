@@ -10,4 +10,6 @@ trait FactSet[X] {
     def allFactsOfKind(kind: Fact.ForwardKind): Set[Fact.Forward]
 
     def plusFacts(facts: Iterable[Fact], xtra: X): FactSet[X]
+    
+    def plusFactSet(factSet: FactSet[X], xtra: X): FactSet[X] // must be from same network
 }
