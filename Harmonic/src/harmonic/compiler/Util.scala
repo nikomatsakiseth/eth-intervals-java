@@ -95,7 +95,7 @@ object Util {
         }
         
         def mapAsPrefix[F](list: List[F])(func: (E => F)): List[F] = {
-            iterable.foldRight(list) { e => func(e) :: list }
+            iterable.foldRight(list) { (e, l) => func(e) :: l }
         }
         
         def cross[J](js: Iterable[J]) = 

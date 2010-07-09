@@ -31,7 +31,7 @@ object Error {
     case class AmbiguousMethodCall(numberOfOptions: Int) extends ErrorProduct
     case class NoApplicableMethods(argTys: List[Type]) extends ErrorProduct
     case class TypeNotFinal(ty: Type) extends ErrorProduct
-    case class DoesNotEnsure(fact: Fact) extends ErrorProduct
+    case class DoesNotEnsure(fact: inference.Fact) extends ErrorProduct
     case class NoReturnHere() extends ErrorProduct
     case class MustBeSubtype(subTy: Type, supTy: Type) extends ErrorProduct
     case class MustHaveType(path: Path.Typed, expTy: Type) extends ErrorProduct {

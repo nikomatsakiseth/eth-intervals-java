@@ -2,7 +2,7 @@ package harmonic.compiler.inference
 
 import java.lang.reflect
 
-sealed trait Rule
+sealed trait Rule[X]
 
 object Rule {
     private[this] def getTriggerMethod(cls: Class[_]): reflect.Method = {
@@ -34,8 +34,8 @@ object Rule {
             throw new RuntimeException("%s must take at most %d parameters".format(m, minParams))
         }
         
-        if(!m.getParameterTypes.apply(0).isAssignableFrom(classOf[Network#State])) {
-            throw new RuntimeException("First argument of %s must have type Network#State".format(m))
+        if(m.getParameterTypes.apply(0).isAssignableFrom(classOf[Fact])) {
+            throw new RuntimeException("First argument of %s should not be a fact.".format(m))
         }
         
         m.setAccessible(true)
@@ -43,14 +43,14 @@ object Rule {
         m
     }
     
-    trait Forward extends Rule {
+    trait Forward[X] extends Rule[X] {
         def inputKinds: List[Fact.ForwardKind]
-        def derive(state: Network#State, facts: List[Fact.Forward]): Iterable[Fact.Forward]        
+        def derive(xtra: X, facts: List[Fact.Forward]): Iterable[Fact.Forward]        
     }
     
     // Simply define a method trigger(state, fact1, fact2, fact3) and this
     // trait uncovers the input kinds by reflection.
-    trait ReflectiveForward extends Forward {
+    trait ReflectiveForward[X] extends Forward[X] {
         val method = checkBasics(getTriggerMethod(getClass), classOf[Iterable[Any]], 2, Integer.MAX_VALUE)
         
         val inputKinds = {
@@ -63,19 +63,19 @@ object Rule {
             }
         }
         
-        def derive(state: Network#State, facts: List[Fact.Forward]): Iterable[Fact.Forward] = {
-            method.invoke(this, (state :: facts): _*).asInstanceOf[Iterable[Any]].map(_.asInstanceOf[Fact.Forward])
+        def derive(xtra: X, facts: List[Fact.Forward]): Iterable[Fact.Forward] = {
+            method.invoke(this, (xtra :: facts): _*).asInstanceOf[Iterable[Any]].map(_.asInstanceOf[Fact.Forward])
         }
     }
     
-    trait Backward extends Rule {
+    trait Backward[X] extends Rule[X] {
         def outputKind: Fact.BackwardKind
-        def canInfer(state: Network#State, fact: Fact.Backward): Boolean        
+        def canInfer(recurse: Recurse[X], fact: Fact.Backward): Boolean        
     }
     
     // Simply define a method canInfer(state, fact) and the outputKind
     // will determined by reflection.
-    trait ReflectiveBackward extends Backward {
+    trait ReflectiveBackward[X] extends Backward[X] {
         val method = checkBasics(getTriggerMethod(getClass), classOf[Boolean], 2, 2)
         
         val outputKind = {
@@ -88,8 +88,8 @@ object Rule {
             }
         }
         
-        def canInfer(state: Network#State, fact: Fact.Backward): Boolean = {
-            method.invoke(this, state, fact).asInstanceOf[Boolean].booleanValue
+        def canInfer(recurse: Recurse[X], fact: Fact.Backward): Boolean = {
+            method.invoke(this, recurse, fact).asInstanceOf[Boolean].booleanValue
         }
     }
     

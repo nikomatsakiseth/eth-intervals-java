@@ -72,10 +72,10 @@ class MethodSymbol(
     // in the requirements lists (otherwise, one method would have to be 
     // fully constructed first, which would be impossible).
     
-    val Requirements = new GuardedBy[List[Fact]](elaborate)
+    val Requirements = new GuardedBy[List[inference.Fact]](elaborate)
     def requirements = Requirements.v
     
-    val Ensures = new GuardedBy[List[Fact]](elaborate)
+    val Ensures = new GuardedBy[List[inference.Fact]](elaborate)
     def ensures = Ensures.v
     
     // ___ Gather Phase _____________________________________________________

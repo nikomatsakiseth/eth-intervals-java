@@ -6,15 +6,37 @@ import com.smallcultfollowing.lathos
 
 import harmonic.compiler.Util._
 
-class Network(server: lathos.model.LathosServer) extends DebugPage {
+// X is the type of the eXtra data that will be supplied to various rules.
+class Network[X](server: lathos.model.LathosServer) extends DebugPage {
+    
+    def contains(
+        page: lathos.model.Page, 
+        mem: Memory, 
+        xtra: X,
+        queue: mutable.Queue[Fact.Forward])
+    (
+        fact: Fact
+    ) = {
+        new State(page, mem, xtra, queue).contains(fact)
+    }
+
+    def drainQueue(
+        page: lathos.model.Page, 
+        mem: Memory, 
+        xtra: X,
+        queue: mutable.Queue[Fact.Forward]
+    ) = {
+        new State(page, mem, xtra, queue).drainQueue
+    }
     
     class State(
         page: lathos.model.Page,
         val mem: Memory,
+        val xtra: X,
         val queue: mutable.Queue[Fact.Forward]
-    ) {
+    ) extends Recurse[X] {
         val log = server.contextForPage(page)
-        var backwardStack: List[(Fact.Backward, Rule.Backward)] = Nil
+        var backwardStack: List[(Fact.Backward, Rule.Backward[X])] = Nil
         
         def drainQueue() = log.indent("drainQueue") {
             while(!queue.isEmpty) {
@@ -28,8 +50,11 @@ class Network(server: lathos.model.LathosServer) extends DebugPage {
             }
         }
         
-        /** Returns facts of the given kind known so far. */
-        def forwardFacts(factKind: Fact.ForwardKind) = log.indent("forwardFacts(", factKind, ")") {
+        /** Returns facts of the given kind known so far.
+          *
+          * Note: Only invokable from backward rules. */
+        def allFactsOfKind(factKind: Fact.ForwardKind) = log.indent("forwardFacts(", factKind, ")") {
+            drainQueue
             mem.alpha(factKind)
         }
 
@@ -38,17 +63,15 @@ class Network(server: lathos.model.LathosServer) extends DebugPage {
             omegaNodes.get(fact.kind).exists(_.derive(this, fact))                
         }
         
-        /** Returns true if `fact` can be established at this time. */
+        /** Returns true if `fact` can be established at this time. 
+          *
+          * Note: Only invokable from backward rules. */
         def contains(fact: Fact) = {
             fact match {
                 case fact: Fact.Backward => backwardFact(fact)
-                case fact: Fact.Forward => forwardFacts(fact.kind)(fact)
+                case fact: Fact.Forward => allFactsOfKind(fact.kind)(fact)
             }
         }
-    }
-    
-    def state(page: lathos.model.Page, mem: Memory, queue: mutable.Queue[Fact.Forward]) = {
-        new State(page, mem, queue)
     }
     
     trait Node extends DebugPage
@@ -86,7 +109,7 @@ class Network(server: lathos.model.LathosServer) extends DebugPage {
         val rhs: Rhs
     ) extends Rhs {
         val betas = new mutable.ListBuffer[Beta]()
-        val rules = new mutable.ListBuffer[Rule.Forward]()
+        val rules = new mutable.ListBuffer[Rule.Forward[X]]()
         
         override def toString = "Beta[%s]".format(kinds.map(_.getName).mkString(", "))
         
@@ -98,7 +121,7 @@ class Network(server: lathos.model.LathosServer) extends DebugPage {
             state.log.log(this, ".newFactList(", factList, ")")
             if(state.mem.addBeta(kinds, factList)) {
                 rules.foreach { rule =>
-                    state.queue ++= rule.derive(state, factList)                        
+                    state.queue ++= rule.derive(state.xtra, factList)                        
                 }
                 
                 betas.foreach(_.suffixAdded(state, factList))
@@ -121,7 +144,7 @@ class Network(server: lathos.model.LathosServer) extends DebugPage {
     class Omega(
         val kind: Fact.BackwardKind
     ) extends Node {
-        val rules = new mutable.ListBuffer[Rule.Backward]()
+        val rules = new mutable.ListBuffer[Rule.Backward[X]]()
         
         def derive(state: State, fact: Fact.Backward): Boolean = {
             if(state.mem.omega(fact)) {
@@ -195,7 +218,7 @@ class Network(server: lathos.model.LathosServer) extends DebugPage {
         }
     }
     
-    def addRule(rule: Rule) = {
+    def addRule(rule: Rule[X]) = {
         val log = {
             if(true)
                 server.contextForPage(this)
@@ -205,13 +228,13 @@ class Network(server: lathos.model.LathosServer) extends DebugPage {
         
         log.indent("addRule(", rule, ")") {
             rule match {
-                case rule: Rule.Forward => {
+                case rule: Rule.Forward[X] => {
                     val beta = addBeta(rule.inputKinds)
                     beta.rules += rule
                     log.log("Forward rule with inputKinds ", rule.inputKinds, " added to ", beta)
                 }
 
-                case rule: Rule.Backward => {
+                case rule: Rule.Backward[X] => {
                     val omega = addOmega(rule.outputKind)
                     omega.rules += rule
                     log.log("Backward rule with outputKind ", rule.outputKind, " added to ", omega)

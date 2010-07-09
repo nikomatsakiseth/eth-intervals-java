@@ -61,7 +61,9 @@ class Parse extends StdTokenParsers with PackratParsers {
         "class", "extends", "import", "package", 
         "interval", "requires", "ensures", "locks", "new",
         "type", "ghost", "true", "false", "this",
-        "super", "null", "return", "break", "continue"
+        "super", "null", "return", "break", "continue",
+        
+        "permitsWr", "permitsRd", "ensuresFinal"
     )
     
     def comma[A](p: PackratParser[A]) = repsep(p, ",")<~opt(",")
@@ -200,10 +202,11 @@ class Parse extends StdTokenParsers with PackratParsers {
     |   "inlineSubOf"   ^^^ PcInlineSubOf
     )
     
-    lazy val wcRel = (
+    lazy val wcRel: PackratParser[PcWcRel] = (
         "="             ^^^ PcEq
     |   "permitsWr"     ^^^ PcPermitsWr
     |   "permitsRd"     ^^^ PcPermitsRd
+    |   "ensuresFinal"  ^^^ PcEnsuresFinal
     )
     
     lazy val tcRel = (

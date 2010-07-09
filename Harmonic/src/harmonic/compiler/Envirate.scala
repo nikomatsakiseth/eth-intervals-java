@@ -56,17 +56,15 @@ case class Envirate(global: Global) {
         }
         
         // Add from class body:
-        cdecl.members.foreach {
-            case in.RelDecl(_, in.TypedPath(left), rel, in.TypedPath(right)) => {
-                if(
-                    env.pathIsFinalBy(left, method) && 
-                    env.pathIsFinalBy(right, method)
-                ) {
-                    env = env.plusFact(Fact.PRP(left.toPath, rel, right.toPath))
-                }
-            }
-            case _ => ()
+        val newFacts = cdecl.members.flatMap {
+            case in.RelDecl(_, in.TypedPath(left), rel, in.TypedPath(right))
+            if(
+                env.pathIsFinalBy(left, method) && 
+                env.pathIsFinalBy(right, method)
+            ) => Some(rel.toFact(left.toPath, right.toPath))
+            case _ => None
         }
+        env = env.plusFacts(newFacts)
         
         // Store final computed class environment:
         csym.CheckEnv.v = env

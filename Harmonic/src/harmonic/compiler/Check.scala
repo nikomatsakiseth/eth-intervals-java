@@ -39,7 +39,7 @@ case class Check(global: Global) {
             }
             
             def checkAssignable(path: Path.Typed, ty: Type): Unit = {
-                if(!env.assignable(path.toPath, ty)) {
+                if(!env.isAssignable(path.toPath, ty)) {
                     Error.MustHaveType(path, ty).report(global, node.pos)
                 }
             }

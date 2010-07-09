@@ -40,6 +40,10 @@ class Global(
         println("Created %s.%s".format(classPage.getId, tag))
         context
     }
+
+    // ___ Reporting Errors _________________________________________________
+    
+    val network = new HarmonicRulesNetwork(debugServer)
     
     // ___ Reporting Errors _________________________________________________
     

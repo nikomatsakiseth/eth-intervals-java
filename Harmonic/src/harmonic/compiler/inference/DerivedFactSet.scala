@@ -10,25 +10,26 @@ import com.smallcultfollowing.lathos.model.{Util => LathosUtil}
 import harmonic.compiler.Util._
 
 object DerivedFactSet {
-    def apply(baseFactSet: InternalFactSet, addedFacts: Iterable[Fact]) = {
+    def apply[X](baseFactSet: InternalFactSet[X], addedFacts: Iterable[Fact], xtra: X) = {
         val pending = new mutable.Queue[Fact.Forward]()
         var backwardFacts: List[Fact.Backward] = Nil
         addedFacts.foreach {
             case fact: Fact.Forward => pending.enqueue(fact)
             case fact: Fact.Backward => backwardFacts = fact :: backwardFacts
         }
-        val result = new DerivedFactSet(baseFactSet, pending)
+        val result = new DerivedFactSet(baseFactSet, pending, xtra)
         backwardFacts.foreach(result.addOmega(_))
         result
     }
 }
 
-class DerivedFactSet(
-    baseFactSet: InternalFactSet,
-    pendingFacts: mutable.Queue[Fact.Forward]
-) extends InternalFactSet with Memory with DebugPage {
+class DerivedFactSet[X](
+    baseFactSet: InternalFactSet[X],
+    pendingFacts: mutable.Queue[Fact.Forward],
+    xtra: X
+) extends InternalFactSet[X] with Memory with DebugPage {
     val network = baseFactSet.network
-    def plusFacts(facts: Iterable[Fact]): FactSet = DerivedFactSet(this, facts)
+    def plusFacts(facts: Iterable[Fact], xtra: X): FactSet[X] = DerivedFactSet(this, facts, xtra)
     
     // ___ Memory interface _________________________________________________
     //
@@ -130,7 +131,7 @@ class DerivedFactSet(
     
     private[this] def resolvePendingFacts: Unit = {
         if(!pendingFacts.isEmpty) {
-            network.state(this, this, pendingFacts).drainQueue
+            network.drainQueue(this, this, xtra, pendingFacts)
         }
     }
     
@@ -147,7 +148,7 @@ class DerivedFactSet(
                     if(omegaMemories(fact)) {
                         true
                     } else {
-                        network.state(this, this, pendingFacts).backwardFact(fact)
+                        network.contains(this, this, xtra, pendingFacts)(fact)
                     }
             }            
         }
