@@ -141,6 +141,7 @@ case class Env(
     private[this] def curLog = global.closestLog
     
     override def toString = getId
+    private[this] def xtra = EnvXtra(global, locals)
     
     // ___ Extending the Environment ________________________________________
     
@@ -150,7 +151,11 @@ case class Env(
     def withOptReturnTy(optReturnTy: Option[Type]) = copy(optReturnTy = optReturnTy)
     def plusFact(fact: inference.Fact) = plusFacts(Some(fact))
     def plusFacts(facts: Iterable[inference.Fact]) = {
-        val newFactSet = factSet.plusFacts(facts, EnvXtra(global, locals))
+        val newFactSet = factSet.plusFacts(facts, xtra)
+        copy(factSet = newFactSet)
+    }
+    def plusFactSet(factSet: inference.FactSet[HarmonicRulesNetwork.Xtra]) = {
+        val newFactSet = factSet.plusFactSet(factSet, xtra)
         copy(factSet = newFactSet)
     }
 
@@ -159,7 +164,7 @@ case class Env(
     def typesAreEquatable(ty1: Type, ty2: Type) = factSet.contains(K.TypeEq(ty1, ty2))
     def pathsAreEquatable(p1: Path.Ref, p2: Path.Ref) = factSet.contains(K.PathEq(p1, p2))
     def factHolds(fact: inference.Fact): Boolean = factSet.contains(fact)
-    def typedPath(path: Path.Ref) = EnvXtra(global, locals).typedPath(path)
+    def typedPath(path: Path.Ref) = xtra.typedPath(path)
     def typeOfPath(path: Path.Ref) = typedPath(path).ty
     def ensuresFinal(guard: Path.Ref, inter: Path.Ref) = factSet.contains(K.EnsuresFinal(guard, inter))
     def upperBounds(ty: Type) = factSet.allFactsOfKind(classOf[K.TypeUb]).flatMap {

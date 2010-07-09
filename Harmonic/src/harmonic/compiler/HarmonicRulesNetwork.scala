@@ -38,11 +38,11 @@ extends Network[HarmonicRulesNetwork.Xtra](server)
     // "0-predicate" rules.
 
     class PathFactRule(
-        val kind: Class[_ <: K.Paths]
+        val kind: Class[_ <: (K.Paths with Fact.Forward)]
     ) extends Rule.Forward[Xtra] {
         val inputKinds = List(kind)
     
-        def derive(xtra: Xtra, facts: List[Fact]) = {
+        override def derive(xtra: Xtra, facts: List[Fact.Forward]): Iterable[Fact.Forward] = {
             val List(K.Paths(l, r)) = facts
             List(K.PathExists(l), K.PathExists(r))
         }
@@ -53,7 +53,7 @@ extends Network[HarmonicRulesNetwork.Xtra](server)
     addRule(new PathFactRule(classOf[K.InlineSubOf]))
     addRule(new PathFactRule(classOf[K.Locks]))
     
-    addRule(new Rule.Forward[Xtra]() {
+    addRule(new Rule.ReflectiveForward[Xtra]() {
         def trigger(xtra: Xtra, fact: K.PathExists) = {
             val subpaths = fact.path match {
                 case Path.Field(p: Path.Ref, _) => List(p)
@@ -69,11 +69,11 @@ extends Network[HarmonicRulesNetwork.Xtra](server)
     })
 
     class TypeFactRule(
-        val kind: Class[_ <: K.Types]
+        val kind: Class[_ <: (K.Types with Fact.Forward)]
     ) extends Rule.Forward[Xtra] {
         val inputKinds = List(kind)
     
-        def derive(xtra: Xtra, facts: List[Fact]) = {
+        override def derive(xtra: Xtra, facts: List[Fact.Forward]): Iterable[Fact.Forward] = {
             val List(K.Types(l, r)) = facts
             List(K.TypeExists(l), K.TypeExists(r))
         }
@@ -81,7 +81,7 @@ extends Network[HarmonicRulesNetwork.Xtra](server)
     addRule(new TypeFactRule(classOf[K.TypeEq]))
     addRule(new TypeFactRule(classOf[K.TypeUb]))
 
-    addRule(new Rule.Forward[Xtra]() {
+    addRule(new Rule.ReflectiveForward[Xtra]() {
         private[this] def extract(arg: Type.Arg) = arg match {
             case Type.PathArg(_, _, _) => None
             case Type.TypeArg(_, _, ty) => Some(ty)
@@ -135,8 +135,9 @@ extends Network[HarmonicRulesNetwork.Xtra](server)
     ) extends Rule.Forward[Xtra] {
         val inputKinds = List(classOf[K.PathEq], otherKind)
     
-        def derive(xtra: Xtra, facts: List[Fact]) = {
-            val List(K.PathEq(p, q), f @ K.Paths(l, r)) = facts
+        def derive(xtra: Xtra, facts: List[Fact.Forward]) = {
+            val List(K.PathEq(p, q), K.Paths(l, r)) = facts
+            val f = facts(1).asInstanceOf[K.ForwardPaths]
             List(
                 p.is(l) toOption f.withPaths(q, r),
                 p.is(r) toOption f.withPaths(l, q),
@@ -153,9 +154,9 @@ extends Network[HarmonicRulesNetwork.Xtra](server)
     addRule(new PathEqualityRuleForward(classOf[K.Locks]))
 
     class PathEqualityRuleBackward(
-        outputKind: Fact.BackwardKind
+        override val outputKind: Fact.BackwardKind
     ) extends Rule.Backward[Xtra] {
-        def derive(recurse: Recurse[Xtra], fact: Fact.Backward) = {
+        override def canInfer(recurse: Recurse[Xtra], fact: Fact.Backward): Boolean = {
             val f @ K.Paths(p, q) = fact
             val eqs = recurse.allFactsOfKind(classOf[K.PathEq])
             val eqToPs = eqs.flatMap {

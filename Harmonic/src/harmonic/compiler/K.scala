@@ -20,7 +20,11 @@ object K {
         def unapply(fact: Paths) = Some(fact.left, fact.right)
     }
     
-    sealed trait ChildParent extends Paths with Fact.Forward {
+    sealed trait ForwardPaths extends Paths with Fact.Forward {
+        def withPaths(left: Path.Ref, right: Path.Ref): inference.Fact.Forward
+    }
+    
+    sealed trait ChildParent extends ForwardPaths {
         def child: Path.Ref
         def parent: Path.Ref
         
@@ -36,10 +40,10 @@ object K {
         def right = inter
     }
     
-    final case class PathEq(left: Path.Ref, right: Path.Ref) extends Paths with Fact.Forward {
+    final case class PathEq(left: Path.Ref, right: Path.Ref) extends ForwardPaths {
         def withPaths(left: Path.Ref, right: Path.Ref) = PathEq(left, right)        
     }
-    final case class Hb(left: Path.Ref, right: Path.Ref) extends Paths with Fact.Forward {
+    final case class Hb(left: Path.Ref, right: Path.Ref) extends ForwardPaths {
         def withPaths(left: Path.Ref, right: Path.Ref) = Hb(left, right)                
     }
     final case class SubOf(child: Path.Ref, parent: Path.Ref) extends ChildParent {
@@ -83,7 +87,9 @@ object K {
     
     // left ub right == "left upper-bounded-by right"
     final case class TypeUb(sub: Type, sup: Type) extends Types with Fact.Forward {        
-        def withTypes(left: Type, right: Type) = TypeUb(left, right)                
+        def left = sub
+        def right = sup
+        def withTypes(left: Type, right: Type) = TypeUb(left, right)
     }
     
     // ___ Mixed paths and types ____________________________________________

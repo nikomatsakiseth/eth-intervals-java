@@ -51,7 +51,7 @@ case class Envirate(global: Global) {
                 env = env.plusFacts(finalEnsures)
 
                 val supCsym = global.csym(name.name)
-                env = env.plusFacts(supCsym.checkEnv.facts)
+                env = env.plusFactSet(supCsym.checkEnv.factSet)
             }
         }
         

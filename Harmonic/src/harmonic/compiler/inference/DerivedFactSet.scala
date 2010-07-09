@@ -10,28 +10,37 @@ import com.smallcultfollowing.lathos.model.{Util => LathosUtil}
 import harmonic.compiler.Util._
 
 object DerivedFactSet {
-    def apply[X](baseFactSet: InternalFactSet[X], addedFacts: Iterable[Fact], xtra: X): FactSet[X] = {
-        val pending = new mutable.Queue[Fact.Forward]()
-        var backwardFacts: List[Fact.Backward] = Nil
-        addedFacts.foreach {
-            case fact: Fact.Forward => pending.enqueue(fact)
-            case fact: Fact.Backward => backwardFacts = fact :: backwardFacts
-        }
-        val result = new DerivedFactSet(baseFactSet, pending, xtra)
+    private[this] def create[X](
+        baseFactSet: InternalFactSet[X],
+        pendingFacts: mutable.Queue[Fact.Forward],
+        backwardFacts: Iterable[Fact.Backward],
+        xtra: X
+    ) = {
+        val result = new DerivedFactSet(baseFactSet, pendingFacts, xtra)
         backwardFacts.foreach(result.addOmega(_))
         result
     }
     
-    def apply[X](baseFactSet: InternalFactSet[X], addedFactSet: FactSet[X], xtra: X): FactSet[X] = {
-        val pending = new mutable.Queue[Fact.Forward]()
+    def apply[X](baseFactSet: InternalFactSet[X], addedFacts: Iterable[Fact], xtra: X): FactSet[X] = {
+        val pendingFacts = new mutable.Queue[Fact.Forward]()
         var backwardFacts: List[Fact.Backward] = Nil
         addedFacts.foreach {
-            case fact: Fact.Forward => pending.enqueue(fact)
+            case fact: Fact.Forward => pendingFacts.enqueue(fact)
             case fact: Fact.Backward => backwardFacts = fact :: backwardFacts
         }
-        val result = new DerivedFactSet(baseFactSet, pending, xtra)
-        backwardFacts.foreach(result.addOmega(_))
-        result
+        create(baseFactSet, pendingFacts, backwardFacts, xtra)
+    }
+    
+    def apply[X](baseFactSet: InternalFactSet[X], addedFactSet: FactSet[X], xtra: X): FactSet[X] = {
+        // TODO: If we make FactSets an inner-class of network, can we enforce this statically?
+        assert(baseFactSet.network == addedFactSet.network) 
+        val pendingFacts = new mutable.Queue[Fact.Forward]()
+        val internalFactSet = addedFactSet.asInstanceOf[InternalFactSet[X]]
+        internalFactSet.resolvedAlphaMemories.values.foreach { alphaFacts =>
+            pendingFacts ++= alphaFacts
+        }
+        val backwardFacts = internalFactSet.currentOmegaMemories
+        create(baseFactSet, pendingFacts, backwardFacts, xtra)
     }
 }
 
