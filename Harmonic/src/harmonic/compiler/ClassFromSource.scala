@@ -7,7 +7,7 @@ import Util._
 
 class ClassFromSource(
     val name: Name.Class,
-    val global: Global,
+    implicit val global: Global,
     compUnit: Ast.Parse.CompUnit,
     parseCdecl: Ast.Parse.ClassDecl
 ) extends ClassSymbol {
@@ -68,37 +68,38 @@ class ClassFromSource(
 
     val header: AsyncInterval = master.subinterval(
         name = "%s.Header".format(name),
+        parentPage = classPage,
         // Hold off on scheduling header until class def'n is complete:
         schedule = false 
     ) { 
         inter => {
-            val log = global.logForInter(classPage, inter)
-            ResolveHeader(global, compUnit, log).resolveClassHeader(this, parseCdecl)                        
+            ResolveHeader(global, compUnit).resolveClassHeader(this, parseCdecl)                        
         }
     }
     
     val cmro: AsyncInterval = master.subinterval(
         name = "%s.cmro".format(name),
+        parentPage = classPage,
         after = List(header.getEnd)
     ) {
         inter => {
-            val log = global.logForInter(classPage, inter)
             Mro.v = MethodResolutionOrder(global).computeForSym(this)
         }
     }
 
     val body: AsyncInterval = master.subinterval(
         name = "%s.Body".format(name),
+        parentPage = classPage,
         after = List(header.getEnd)
     ) { 
         inter => {
-            val log = global.logForInter(classPage, inter)
-            ResolveBody(global, compUnit, log).resolveClassBody(this, parseCdecl)
+            ResolveBody(global, compUnit).resolveClassBody(this, parseCdecl)
         }
     }
 
     val lower: AsyncInterval = master.subinterval(
         name = "%s.Lower".format(name),
+        parentPage = classPage,
         after = List(body.getEnd, cmro.getEnd),
         // Scheduled explicitly so we can add
         // create/members/merge within
@@ -109,16 +110,17 @@ class ClassFromSource(
     
     val create: AsyncInterval = master.subinterval(
         name = "%s.Create".format(name),
+        parentPage = classPage,
         during = List(lower)
     ) {
         inter => {
-            val log = global.logForInter(classPage, inter)
             Create(global).createMemberIntervals(this)
         }
     }
     
     val members: AsyncInterval = master.subinterval(
         name = "%s.Members".format(name),
+        parentPage = classPage,
         during = List(lower), 
         after = List(create.getEnd)
     ) { 
@@ -127,51 +129,51 @@ class ClassFromSource(
     
     val merge: AsyncInterval = master.subinterval(
         name = "%s.Merge".format(name),
+        parentPage = classPage,
         during = List(lower), 
         after = List(members.getEnd)
     ) { 
         inter => {
-            val log = global.logForInter(classPage, inter)
             Merge(global).mergeMemberIntervals(this)
         }
     }
     
     val envirate: AsyncInterval = master.subinterval(
         name = "%s.Envirate".format(name),
+        parentPage = classPage,
         after = List(lower.getEnd)
     ) {
         inter => {
-            val log = global.logForInter(classPage, inter)
             Envirate(global).forClassFromSource(this)
         }
     }
     
     val check: AsyncInterval = master.subinterval(
         name = "%s.Check".format(name),
+        parentPage = classPage,
         after = List(envirate.getEnd)
     ) {
         inter => {
-            val log = global.logForInter(classPage, inter)
-            Check(global).classSymbol(this)
+            //Check(global).classSymbol(this)
         }
     }
     
     val gather: AsyncInterval = master.subinterval(
         name = "%s.Gather".format(name),
+        parentPage = classPage,
         after = List(envirate.getEnd)
     ) {
         inter => {
-            val log = global.logForInter(classPage, inter)
             Gather(global).forSym(this)
         }
     }
 
     val byteCode: AsyncInterval = master.subinterval(
         name = "%s.ByteCode".format(name),
+        parentPage = classPage,
         after = List(check.getEnd, gather.getEnd)
     ) { 
         inter => {
-            val log = global.logForInter(classPage, inter)
             if(!global.hasErrors) ByteCode(global).writeClassSymbol(this)
         }
     }

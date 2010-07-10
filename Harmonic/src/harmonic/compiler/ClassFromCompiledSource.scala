@@ -5,6 +5,7 @@ import Util._
 
 abstract class ClassFromCompiledSource extends ClassSymbol
 {
+    implicit val implicitGlobal = global
     import global.master
     import global.debugServer
     
@@ -77,111 +78,111 @@ abstract class ClassFromCompiledSource extends ClassSymbol
     private[this] lazy val intervals = {
         val header: AsyncInterval = master.subinterval(
             schedule = false,
-            name = "%s.Header".format(name)
+            name = "%s.Header".format(name),
+            parentPage = classPage
         ) { 
             inter => {
-                val log = global.logForInter(classPage, inter)
                 val rawData = loadData(inter)
                 LoadedData.v = rawData.copy(
-                    superClassNames = ResolveHeader.cookRawSuperClasses(this, log, rawData.superClassNames)
+                    superClassNames = ResolveHeader.cookRawSuperClasses(this, rawData.superClassNames)
                 )
             }
         }
         
         val cmro: AsyncInterval = master.subinterval(
             name = "%s.cmro".format(name),
+            parentPage = classPage,
             after = List(header.getEnd)
         ) {
             inter => {
-                val log = global.logForInter(classPage, inter)
                 Mro.v = MethodResolutionOrder(global).computeForSym(this)
             }
         }
 
         val body: AsyncInterval = master.subinterval(
             name = "%s.Body".format(name),
+            parentPage = classPage,
             after = List(header.getEnd)
         ) { 
             inter => {
-                //val log = global.logForInter(classPage, inter)
             }
         }
 
         val lower: AsyncInterval = master.subinterval(
             name = "%s.Lower".format(name),
+            parentPage = classPage,
             after = List(body.getEnd, cmro.getEnd),
             // Scheduled explicitly so we can add
             // create/members/merge within
             schedule = false 
         ) { 
             _ => {
-                //val log = global.logForInter(classPage, inter)
             }
         }
 
         val create: AsyncInterval = master.subinterval(
             name = "%s.Create".format(name),
+            parentPage = classPage,
             during = List(lower)
         ) {
             inter => {
-                //val log = global.logForInter(classPage, inter)
             }
         }
 
         val members: AsyncInterval = master.subinterval(
             name = "%s.Members".format(name),
+            parentPage = classPage,
             during = List(lower), 
             after = List(create.getEnd)
         ) { 
             inter => {
-                //val log = global.logForInter(classPage, inter)
             }
         }
 
         val merge: AsyncInterval = master.subinterval(
             name = "%s.Merge".format(name),
+            parentPage = classPage,
             during = List(lower), 
             after = List(members.getEnd)
         ) { 
             inter => {
-                //val log = global.logForInter(classPage, inter)
             }
         }
         
         val envirate: AsyncInterval = master.subinterval(
             name = "%s.Envirate".format(name),
+            parentPage = classPage,
             after = List(lower.getEnd)
         ) {
             inter => {
-                //val log = global.logForInter(classPage, inter)
             }
         }
         
         val check: AsyncInterval = master.subinterval(
             name = "%s.Check".format(name),
+            parentPage = classPage,
             after = List(envirate.getEnd)
         ) {
             inter => {
-                //val log = global.logForInter(classPage, inter)
             }
         }
 
         val gather: AsyncInterval = master.subinterval(
             name = "%s.Gather".format(name),
+            parentPage = classPage,
             after = List(envirate.getEnd)
         ) {
             inter => {
-                val log = global.logForInter(classPage, inter)
                 GatherOverrides(global).forSym(this)
             }
         }
 
         val byteCode: AsyncInterval = master.subinterval(
             name = "%s.ByteCode".format(name),
+            parentPage = classPage,
             after = List(check.getEnd, gather.getEnd)
         ) { 
             inter => {
-                //val log = global.logForInter(classPage, inter)
             }
         }
         

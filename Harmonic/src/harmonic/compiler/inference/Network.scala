@@ -3,34 +3,55 @@ package harmonic.compiler.inference
 import scala.collection.mutable
 
 import com.smallcultfollowing.lathos
+import com.smallcultfollowing.lathos.Ignore
 
 import harmonic.compiler.Util._
 
-// X is the type of the eXtra data that will be supplied to various rules.
-class Network[X](server: lathos.model.LathosServer) extends DebugPage {
+/** The Network defines the rules that will execute when facts are
+  * added or queried.  It combines a simple Rete network (forward prop.)
+  * with a backwards-propagating network.  The backward propagating nodes
+  * may recurse and make additional queries. They may also query the
+  * forward propagating nodes.
+  * 
+  * X is the type of the eXtra data that will be supplied to various rules. 
+  */
+class Network[X](server: lathos.LathosServer) extends DebugPage {
     
-    def contains(
-        page: lathos.model.Page, 
-        mem: Memory, 
-        xtra: X,
-        queue: mutable.Queue[Fact.Forward])
-    (
-        fact: Fact
-    ) = {
-        new State(page, mem, xtra, queue).contains(fact)
+    def emptyFactSet(xtra: X) = EmptyFactSet.plusFacts(Nil, xtra)
+    
+    /** This is a bit of a hack: it allows us to artificially 
+      * add forward facts before a forwards query is processed. 
+      * We use it to add PathExists() and TypeExists() facts. */
+    protected[this] def prequery(kind: Fact.Kind, args: Array[Option[Any]]): Iterable[Fact.Forward] = Nil
+    
+    /** This is a bit of a hack: it allows us to artificially 
+      * add forward facts before a backwards query is processed. 
+      * We use it to add PathExists() and TypeExists() facts. */
+    protected[this] def precontains(fact: Fact): Iterable[Fact.Forward] = Nil
+    
+    object EmptyFactSet extends InternalFactSet[X] {
+        def network = Network.this
+        def contains(fact: Fact): Boolean = false
+        def query[F <: Fact.Forward](
+            kind: Class[F], 
+            optArgs: Option[Any]*
+        ): Set[F] = Set()
+        def plusFacts(facts: Iterable[Fact], xtra: X): FactSet[X] = DerivedFactSet(this, facts, xtra)
+        def plusFactSet(factSet: FactSet[X], xtra: X): FactSet[X] = DerivedFactSet(this, factSet, xtra)
+        def resolvedAlphaMemories = Map()
+        def resolvedBetaMemories = Map()
+        def currentOmegaMemories = Set()
     }
-
-    def drainQueue(
-        page: lathos.model.Page, 
-        mem: Memory, 
+    
+    def state(
+        page: lathos.Page,
+        mem: Memory,
         xtra: X,
         queue: mutable.Queue[Fact.Forward]
-    ) = {
-        new State(page, mem, xtra, queue).drainQueue
-    }
+    ) = new State(page, mem, xtra, queue)
     
     class State(
-        page: lathos.model.Page,
+        page: lathos.Page,
         val mem: Memory,
         val xtra: X,
         val queue: mutable.Queue[Fact.Forward]
@@ -50,12 +71,33 @@ class Network[X](server: lathos.model.LathosServer) extends DebugPage {
             }
         }
         
-        /** Returns facts of the given kind known so far.
-          *
-          * Note: Only invokable from backward rules. */
-        def allFactsOfKind(factKind: Fact.ForwardKind) = log.indent("forwardFacts(", factKind, ")") {
+        /** See FactSet.queryAll */
+        def queryAll(
+            kind: Fact.ForwardKind
+        ): Set[Fact.Forward] = log.indent("queueAll(", kind, ")") {
             drainQueue
-            mem.alpha(factKind)
+            mem.alpha(kind)
+        }
+        
+        /** See FactSet.queryN */
+        def query[F <: Fact.Forward](
+            kind: Class[F], 
+            optArgs: Option[Any]*
+        ): Set[F] = log.indent("queueN(", kind, ", ", optArgs, ")") {
+            queue ++= prequery(kind, optArgs.toArray)
+            val allFacts = queryAll(kind)
+            if(optArgs.length == 0) {
+                allFacts.map(kind.cast)
+            } else {
+                val queryArgs = optArgs.zipWithIndex
+                allFacts.flatMap { fact =>
+                    val matches = queryArgs.forall { 
+                        case (None, _) => true
+                        case (Some(v), idx) => (fact.productElement(idx) == v)
+                    }
+                    matches toOption kind.cast(fact)
+                }                
+            }
         }
 
         /** Returns true if `fact` can be established at this time. */
@@ -66,16 +108,20 @@ class Network[X](server: lathos.model.LathosServer) extends DebugPage {
         /** Returns true if `fact` can be established at this time. 
           *
           * Note: Only invokable from backward rules. */
-        def contains(fact: Fact) = {
+        def contains(fact: Fact) = log.indent("contains(", fact, ")") {
+            queue ++= precontains(fact)
             fact match {
                 case fact: Fact.Backward => backwardFact(fact)
-                case fact: Fact.Forward => allFactsOfKind(fact.kind)(fact)
+                case fact: Fact.Forward => queryAll(fact.kind)(fact)
             }
         }
     }
     
     trait Node extends DebugPage
     
+    /** Alpha nodes represent the set of facts of a particular kind. 
+      * Their only task is to notify the beta nodes when new facts
+      * are added. */
     class Alpha(
         val kind: Fact.ForwardKind
     ) extends Node {
@@ -103,6 +149,9 @@ class Network[X](server: lathos.model.LathosServer) extends DebugPage {
         def addBeta(beta: Beta) = ()
     }
 
+    /** Beta nodes represent a unique combination of facts of various kinds. 
+      * They also contain a list of rules to execute each time a new 
+      * fact set is generated. */
     class Beta(
         val kinds: List[Fact.ForwardKind],
         val alpha: Alpha,
@@ -141,6 +190,7 @@ class Network[X](server: lathos.model.LathosServer) extends DebugPage {
         }
     }
     
+    /** Omega nodes store the rules that handle backwards queries. */
     class Omega(
         val kind: Fact.BackwardKind
     ) extends Node {
@@ -180,9 +230,9 @@ class Network[X](server: lathos.model.LathosServer) extends DebugPage {
     // Network should be defined completely before use 
     // and not modified thereafter.
 
-    val alphaNodes = new mutable.HashMap[Fact.ForwardKind, Alpha]()
-    val betaNodes = new mutable.HashMap[List[Fact.ForwardKind], Beta]()
-    val omegaNodes = new mutable.HashMap[Fact.BackwardKind, Omega]()
+    @Ignore val alphaNodes = new mutable.HashMap[Fact.ForwardKind, Alpha]()
+    @Ignore val betaNodes = new mutable.HashMap[List[Fact.ForwardKind], Beta]()
+    @Ignore val omegaNodes = new mutable.HashMap[Fact.BackwardKind, Omega]()
 
     private[this] def addAlpha(kind: Fact.ForwardKind): Alpha = {
         alphaNodes.get(kind).getOrElse {
@@ -223,7 +273,7 @@ class Network[X](server: lathos.model.LathosServer) extends DebugPage {
             if(true)
                 server.contextForPage(this)
             else
-                new lathos.none.NoneContext(server)
+                new lathos.NoneContext(server)
         }
         
         log.indent("addRule(", rule, ")") {

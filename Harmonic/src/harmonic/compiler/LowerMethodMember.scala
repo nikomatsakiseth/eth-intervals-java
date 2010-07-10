@@ -4,7 +4,7 @@ import ch.ethz.intervals._
 import Ast.{Resolve => in}
 import Ast.{Lower => out}
 import Ast.Lower.Extensions._
-import com.smallcultfollowing.lathos.model.Context
+import com.smallcultfollowing.lathos.Lathos
 import Util._
 
 class LowerMethodMember(
@@ -12,6 +12,7 @@ class LowerMethodMember(
     csym: ClassFromSource,
     inMethodDecl: in.MethodDecl
 ) extends LowerMember(global, csym, inMethodDecl) {
+    implicit val implicitGlobal = global
     import global.debugServer
     
     // ___ Lowering the Parameters __________________________________________
@@ -20,9 +21,9 @@ class LowerMethodMember(
         global.master.subinterval(
             schedule = false,
             name = "%s.%s:paramLower".format(csym.name, inMethodDecl.name),
+            parentPage = csym.classPage,
             during = List(csym.members)
         ) { inter =>
-            val log = global.logForInter(csym.classPage, inter)
             outSig.v = Lower(global).lowerMethodParams(csym.classEnv, inMethodDecl.params)
         }
     }
@@ -35,11 +36,10 @@ class LowerMethodMember(
         global.master.subinterval(
             schedule = false,
             name = "%s.%s:memberLower".format(csym.name, inMethodDecl.name),
+            parentPage = csym.classPage,
             during = List(csym.members),
             after = List(paramLower.getEnd)
         ) { inter =>
-            val log = global.logForInter(csym.classPage, inter)
-            log.pushDisabledPage
             val (outParams, env) = outSig.v
             outMethodDecl.v = Lower(global).lowerMethodDecl(csym, inMethodDecl, outParams, env)                
         }
@@ -82,6 +82,7 @@ class LowerMethodMember(
                 global.master.subinterval(
                     schedule = false,
                     name = "%s.%s:symCreate".format(csym.name, inMethodDecl.name),
+                    parentPage = csym.classPage,
                     during = List(csym.members),
                     after = List(paramLower.getEnd, memberLower.getEnd)
                 ) { inter =>
@@ -94,10 +95,10 @@ class LowerMethodMember(
                 global.master.subinterval(
                     schedule = false,
                     name = "%s.%s:symCreate".format(csym.name, inMethodDecl.name),
+                    parentPage = csym.classPage,
                     during = List(csym.members),
                     after = List(paramLower.getEnd)
                 ) { inter =>
-                    val log = global.logForInter(csym.classPage, inter)
                     val (outParams, env) = outSig.v
                     val outReturnTref = Lower(global).InEnv(env).lowerTypeRef(inReturnTref)
                     Sym.v = createSymbol(outParams, outReturnTref)
@@ -113,6 +114,7 @@ class LowerMethodMember(
         global.master.subinterval(
             schedule = false,
             name = "%s.%s.symElaborate".format(csym.name, inMethodDecl.name),
+            parentPage = csym.classPage,
             during = List(csym.members),
             after = List(symCreate.getEnd, memberLower.getEnd)
         ) { inter =>

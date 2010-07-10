@@ -4,12 +4,14 @@ import scala.collection.immutable.Map
 import scala.collection.immutable.Set
 import scala.collection.mutable
 
-import com.smallcultfollowing.lathos.model.Context
+import com.smallcultfollowing.lathos.Lathos
 import Ast.{Lower => in}
 import Util._
 
 /** Determines which methods override one another. */
 case class GatherOverrides(global: Global) {
+    
+    val log = Lathos.context
     
     /** Populates `csym.methodGroups` as well as the `overrides` 
       * fields of all method symbols defined in `csym` */
@@ -28,6 +30,7 @@ case class GatherOverrides(global: Global) {
         //    edges super.gather.end->gather.start.
         
         var env = csym.checkEnv
+        log.log("Gather for ", csym, " in environment ", env)
         val methodGroups = gatherMethodGroups(csym, env)
         computeOverrides(csym, methodGroups)
         val allGroups = methodGroups.allGroups
@@ -48,12 +51,12 @@ case class GatherOverrides(global: Global) {
             msig: MethodSignature[Pattern.Ref]
         )(
             group: MethodGroup
-        ) = {
+        ) = log.indent("isCompatibleWith(", msig, ", ", group, ")") {
             env.overrides(msig, group.msig)            
         }
             
         /** Add `msym` to an appropriate group, creating a new one if needed */
-        def addMsym(msym: MethodSymbol) = {
+        def addMsym(msym: MethodSymbol) = log.indent("addMysm(", msym, ")") {
             val prevGroups = groups.get(msym.name).getOrElse(Nil)
             prevGroups.find(isCompatibleWith(msym.msig)) match {
                 case Some(group) => group.addMsym(msym)

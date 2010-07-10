@@ -3,7 +3,7 @@ package harmonic.compiler
 import scala.collection.mutable
 import scala.util.parsing.input.Position
 import ch.ethz.intervals._
-import com.smallcultfollowing.lathos.model.Context
+import com.smallcultfollowing.lathos.Context
 import Util._
 
 abstract class ClassSymbol extends Symbol {

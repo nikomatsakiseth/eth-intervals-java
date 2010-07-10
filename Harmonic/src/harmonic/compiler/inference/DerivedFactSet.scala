@@ -4,8 +4,8 @@ import scala.collection.mutable
 import scala.collection.immutable.Map
 import scala.collection.immutable.Set
 
-import com.smallcultfollowing.lathos.model._
-import com.smallcultfollowing.lathos.model.{Util => LathosUtil}
+import com.smallcultfollowing.lathos._
+import com.smallcultfollowing.lathos.Lathos
 
 import harmonic.compiler.Util._
 
@@ -57,9 +57,9 @@ class DerivedFactSet[X](
     //
     // Only used by Network.  Assume that the lock on this is held.
     
-    private[this] var optAlphaMemories: Option[Map[Fact.ForwardKind, Set[Fact.Forward]]] = None
-    private[this] var optBetaMemories: Option[Map[List[Fact.ForwardKind], Set[List[Fact.Forward]]]] = None
-    private[this] var optOmegaMemories: Option[Set[Fact.Backward]] = None
+    @Ignore private[this] var optAlphaMemories: Option[Map[Fact.ForwardKind, Set[Fact.Forward]]] = None
+    @Ignore private[this] var optBetaMemories: Option[Map[List[Fact.ForwardKind], Set[List[Fact.Forward]]]] = None
+    @Ignore private[this] var optOmegaMemories: Option[Set[Fact.Backward]] = None
     
     private[this] def alphaMemories: Map[Fact.ForwardKind, Set[Fact.Forward]] = {
         optAlphaMemories.getOrElse(baseFactSet.resolvedAlphaMemories)
@@ -135,6 +135,12 @@ class DerivedFactSet[X](
     
     // ___ InternalFactSet interface ________________________________________
     
+    private[this] def resolvePendingFacts: Unit = {
+        if(!pendingFacts.isEmpty) {
+            network.state(this, this, xtra, pendingFacts).drainQueue
+        }
+    }
+    
     def resolvedAlphaMemories: Map[Fact.ForwardKind, Set[Fact.Forward]] = synchronized {
         resolvePendingFacts
         alphaMemories
@@ -151,34 +157,15 @@ class DerivedFactSet[X](
         
     // ___ FactSet interface ________________________________________________
     
-    private[this] def resolvePendingFacts: Unit = {
-        if(!pendingFacts.isEmpty) {
-            network.drainQueue(this, this, xtra, pendingFacts)
-        }
-    }
-    
     override def contains(fact: Fact): Boolean = synchronized {
-        if(baseFactSet.contains(fact)) {
-            true
-        } else {
-            resolvePendingFacts
-            fact match {
-                case fact: Fact.Forward =>
-                    alpha(fact.kind)(fact)
-                    
-                case fact: Fact.Backward =>
-                    if(omegaMemories(fact)) {
-                        true
-                    } else {
-                        network.contains(this, this, xtra, pendingFacts)(fact)
-                    }
-            }            
-        }
+        network.state(this, this, xtra, pendingFacts).contains(fact)
     }
     
-    override def allFactsOfKind(kind: Fact.ForwardKind): Set[Fact.Forward] = synchronized {
-        resolvePendingFacts
-        alphaMemories.getOrElse(kind, Set())
+    override def query[F <: Fact.Forward](
+        kind: Class[F], 
+        optArgs: Option[Any]*
+    ): Set[F] = {
+        network.state(this, this, xtra, pendingFacts).query(kind, optArgs: _*)
     }
     
 }

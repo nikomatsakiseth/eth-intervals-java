@@ -1,6 +1,6 @@
 package harmonic.compiler
 
-import com.smallcultfollowing.lathos.model.Context
+import com.smallcultfollowing.lathos.Context
 import Ast.{Resolve => in}
 import Ast.{Lower => out}
 import Util._

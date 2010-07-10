@@ -4,14 +4,14 @@ import scala.collection.immutable.Map
 import scala.collection.mutable
 import scala.util.parsing.input.Position
 
-import com.smallcultfollowing.lathos.model.Context
+import com.smallcultfollowing.lathos.Lathos
 
 import Ast.{Lower => in}
 import Ast.Lower.Extensions._
 import Util._
 
 case class Check(global: Global) {
-    val log = global.closestLog
+    val log = Lathos.context
     private[this] val emptyEnv = Env.empty(global)
     
     object In {

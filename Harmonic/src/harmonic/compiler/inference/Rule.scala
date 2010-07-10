@@ -24,19 +24,19 @@ object Rule {
         maxParams: Int
     ): reflect.Method = {
         if(!returnClass.isAssignableFrom(m.getReturnType)) {
-            throw new RuntimeException("%s must return Iterable[Fact.Forward]".format(m))
+            throw new RuntimeException("%s must return Iterable[Fact.Forward] (%s)".format(m, this))
         }
 
         if(m.getParameterTypes.length < minParams) {
-            throw new RuntimeException("%s must take at least %d parameters".format(m, minParams))
+            throw new RuntimeException("%s must take at least %d parameters (%s)".format(m, minParams, this))
         }
         
         if(m.getParameterTypes.length > maxParams) {
-            throw new RuntimeException("%s must take at most %d parameters".format(m, minParams))
+            throw new RuntimeException("%s must take at most %d parameters (%s)".format(m, minParams, this))
         }
         
         if(m.getParameterTypes.apply(0).isAssignableFrom(classOf[Fact])) {
-            throw new RuntimeException("First argument of %s should not be a fact.".format(m))
+            throw new RuntimeException("First argument of %s should not be a fact (%s)".format(m, this))
         }
         
         m.setAccessible(true)

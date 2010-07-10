@@ -1,8 +1,8 @@
 package harmonic.compiler
 
 import ch.ethz.intervals._
-import com.smallcultfollowing.lathos.model._
-import com.smallcultfollowing.lathos.model.{Util => LathosUtil}
+import com.smallcultfollowing.lathos._
+import com.smallcultfollowing.lathos.Lathos
 import scala.util.parsing.input.Position
 import scala.collection.mutable
 import Util._
@@ -14,7 +14,7 @@ object MethodSymbol {
         //error(methodId.methodName, methodId.className, methodId.msig.parameterPatterns)
     }
     
-    def error(name: Name.Method, className: Name.Class, patterns: List[Pattern.Ref]): MethodSymbol = {
+    def error(name: Name.Method, className: Name.Class, patterns: List[Pattern.Ref])(implicit global: Global): MethodSymbol = {
         inlineInterval("Error %s.%s".format(className, name)) { inter =>
             new MethodSymbol(
                 pos       = InterPosition.forClassNamed(className),
@@ -31,7 +31,7 @@ object MethodSymbol {
         }
     }
 
-    def error(name: Name.Method, className: Name.Class): MethodSymbol = {
+    def error(name: Name.Method, className: Name.Class)(implicit global: Global): MethodSymbol = {
         val parameterPatterns = name.parts.zipWithIndex.map { case (_, i) => 
             Pattern.Var(Name.LocalVar("arg%d".format(i)), Type.Top)
         }
@@ -49,7 +49,7 @@ class MethodSymbol(
     val msig: MethodSignature[Pattern.Ref],
     val elaborate: Interval,
     val gather: Interval
-) extends Symbol with Page {
+)(implicit global: Global) extends Symbol with Page {
     override def toString = "MethodSymbol(%s.%s, %x)".format(className, name, System.identityHashCode(this))
     
     def id = MethodId(className, name, msig)
@@ -96,7 +96,7 @@ class MethodSymbol(
     override def addContent(content: PageContent) = throw new UnsupportedOperationException()
     
     override def renderInLine(out: Output): Unit = {
-        LathosUtil.renderInLine(this, out)
+        Lathos.renderInLine(this, out)
     }
     
     override def renderInPage(out: Output): Unit = {

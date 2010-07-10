@@ -7,7 +7,8 @@ import ch.ethz.intervals._
 import ch.ethz.intervals.task.AbstractTask
 import ch.ethz.intervals.task.ResultTask
 
-import com.smallcultfollowing.lathos.{model => lathos}
+import com.smallcultfollowing.lathos
+import com.smallcultfollowing.lathos.Lathos
 
 import scala.collection.Set
 
@@ -150,7 +151,10 @@ object Util {
         
         override def toString = getId
 
-        override def getId = "%s[%s]".format(getClass.getSimpleName, System.identityHashCode(this))
+        override def getId = "%s[%x]".format(
+            getClass.getName.afterLast('.'), 
+            System.identityHashCode(this)
+        )
 
         override def getParent = null
 
@@ -160,13 +164,13 @@ object Util {
         }
 
         override def renderInLine(out: lathos.Output): Unit = synchronized {
-            lathos.Util.renderInLine(this, out)
+            Lathos.renderInLine(this, out)
         }
 
         def renderInPage(out: lathos.Output): Unit = synchronized {
             out.startPage(this)
             
-            lathos.Util.reflectivePageContents(this, out)
+            Lathos.reflectivePageContents(this, out)
             
             contents.reverseIterator.foreach { content =>
                 content.renderInPage(out)
@@ -247,6 +251,18 @@ object Util {
                     true
                 }
                 
+                case value: Type => {
+                    false
+                }
+                
+                case value: Path.Ref => {
+                    false
+                }
+                
+                case value: Name.Any => {
+                    false
+                }
+                
                 case value: Product => {
                     line.addContent(ScalaProduct(value))
                     true
@@ -289,35 +305,31 @@ object Util {
             context.push(page)
             context
         }
-        
-        def contextForInter(classPage: lathos.Page, inter: Interval) = {
-            val context = server.context
-            val tag = inter.toString.afterLast('.')
-            context.push(classPage)
-            context.pushChild(tag, tag)
-            context
-        }
     }
     implicit def extendedServer(server: lathos.LathosServer): ExtendedServer = new ExtendedServer(server)
 
     class ExtendedContext(context: lathos.Context) {
         def indent[R](args: Object*)(func: => R) = {
-            val page = context.pushChild(null, args: _*)
+            val page = context.pushLinkedChild(null, args: _*)
             try {
                 val result = func
                 if(result != ())
-                    context.log("Result: ", result.asInstanceOf[Object])
+                    context.log("Result: ", result.asObj)
+                context.pop(page)
+                if(result != ())
+                    context.log("> Result: ", result.asObj)
                 result
             } catch { 
                 case t: scala.runtime.NonLocalReturnControl[_] => {
+                    context.pop(page)
                     throw t                                        
                 }
                 case t => {
                     context.log("Error: ", t)
+                    context.pop(page)
+                    context.log("> Error: ", t)
                     throw t                    
                 }
-            } finally {
-                context.pop(page)
             }
         }
     }
@@ -350,7 +362,7 @@ object Util {
         }
         
         def row(objs: Object*) {
-            com.smallcultfollowing.lathos.model.Util.row(out, objs: _*)
+            Lathos.row(out, objs: _*)
         }
         
         def subpage(title: String)(func: => Unit) {
@@ -388,6 +400,15 @@ object Util {
     }
     implicit def extendedOutput(output: lathos.Output): ExtendedOutput = new ExtendedOutput(output)
     
+    def usingLog[R](log: lathos.Context)(func: => R) = {
+        val oldLog = Lathos.setContext(log)
+        try {
+            func
+        } finally {
+            Lathos.setContext(oldLog)
+        }
+    }
+    
     // ___ Profiling ________________________________________________________
     
     def measure[R](label: String)(func: => R) = {
@@ -412,23 +433,51 @@ object Util {
     
     // ___ Intervals ________________________________________________________
     
-    case class ExtendedInterval(inter: Interval) {
+    case class ExtendedInterval(inter: Interval, implicit val global: Global) {
         def subinterval[R](
+            name: String,
+            parentPage: lathos.Page,
             during: List[Interval] = Nil,
             before: List[Point] = Nil,
             after: List[Point] = Nil,
-            name: String = null,
             schedule: Boolean = true
         )(
             func: (Interval => Unit)
         ): AsyncInterval = {
+            val creatorPage = Lathos.context.topPage
+            
+            val interPage = Lathos.newPage(
+                global.debugServer, 
+                parentPage,
+                name.afterLast('.'),
+                "Interval", name
+            )
+
+            // create the log we will later use in the interval here:
+            val log = global.debugServer.context
+            log.push(parentPage)
+            log.log(log.link(interPage, name))
+            log.pop(parentPage)
+            
             val result = inter.newAsyncChild(new AbstractTask(name) {
                 override def run(current: Interval): Unit = {
-                    println("Entering %s".format(name))
-                    func(current)
-                    println("Exiting %s".format(name))
+                    usingLog(log) {
+                        try {
+                            log.push(interPage)
+                            log.log("Created by ", creatorPage)
+                            func(current)
+                            log.log("(Completed)")
+                            log.pop(interPage)
+                        } catch { case t => 
+                            log.push(global.errorsPage)
+                            log.log("Interval ", interPage, " threw ", t)
+                            log.pop(global.errorsPage)
+                            throw t
+                        }
+                    }
                 }
             })
+            
             after.foreach(pnt => Intervals.addHb(pnt, result.getStart))
             before.foreach(pnt => Intervals.addHb(result.getEnd, pnt))
             during.foreach(inter => Intervals.addHb(inter.getStart, result.getStart))
@@ -459,12 +508,18 @@ object Util {
             }
         }
     }
-    implicit def extendedInterval(inter: Interval) = ExtendedInterval(inter)
+    implicit def extendedInterval(inter: Interval)(implicit global: Global) = ExtendedInterval(inter, global)
     
     def inlineInterval[R](name: String)(func: (Interval => R)): R = {
+        val log = Lathos.context
+        assert(log != null)
         Intervals.inline(new ResultTask[R](name) {
             def compute(subinterval: Interval) = {
-                func(subinterval)
+                usingLog(log) {
+                    log.indent("Subinterval ", name) {
+                        func(subinterval)                    
+                    }
+                }
             }
         })
     }

@@ -5,10 +5,10 @@ import scala.collection.immutable.ListSet
 import scala.util.parsing.input.Positional
 import scala.util.parsing.input.Position
 import scala.util.parsing.input.NoPosition
-import com.smallcultfollowing.lathos.model.Page
-import com.smallcultfollowing.lathos.model.PageContent
-import com.smallcultfollowing.lathos.model.Output
-import com.smallcultfollowing.lathos.model.{Util => LathosUtil}
+import com.smallcultfollowing.lathos.Page
+import com.smallcultfollowing.lathos.PageContent
+import com.smallcultfollowing.lathos.Output
+import com.smallcultfollowing.lathos.Lathos
 import Util._
 
 abstract class Ast {
@@ -878,7 +878,7 @@ object Ast {
         override def addContent(content: PageContent) = throw new UnsupportedOperationException()
 
         override def renderInLine(out: Output): Unit = {
-            LathosUtil.renderInLine(this, out)
+            Lathos.renderInLine(this, out)
         }
         
         private[this] def render(out: Output, any: Any): Unit = any match {

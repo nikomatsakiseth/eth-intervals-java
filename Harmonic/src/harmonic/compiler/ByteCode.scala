@@ -9,7 +9,7 @@ import scala.util.parsing.input.Position
 import scala.util.parsing.input.NoPosition
 import asm.{Opcodes => O}
 
-import com.smallcultfollowing.lathos.model.Context
+import com.smallcultfollowing.lathos.Context
 import Ast.{Lower => in}
 import Ast.Lower.Extensions._
 import Util._

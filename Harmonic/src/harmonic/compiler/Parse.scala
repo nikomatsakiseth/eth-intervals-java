@@ -12,7 +12,7 @@ import scala.util.parsing.combinator.lexical.StdLexical
 import scala.util.parsing.combinator.PackratParsers
 import scala.collection.immutable.PagedSeq
 
-import com.smallcultfollowing.lathos.model.Context
+import com.smallcultfollowing.lathos.Context
 
 import java.io.File
 

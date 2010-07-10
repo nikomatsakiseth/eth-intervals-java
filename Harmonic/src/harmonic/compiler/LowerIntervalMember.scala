@@ -11,14 +11,15 @@ class LowerIntervalMember(
     csym: ClassFromSource,
     inIntervalDecl: in.IntervalDecl
 ) extends LowerMember(global, csym, inIntervalDecl) {
+    implicit val implicitGlobal = global
 
     private[this] val memberLower: AsyncInterval = {
         global.master.subinterval(
             schedule = false,
             name = "%s.%s.memberLower".format(csym.name, inIntervalDecl.name),
+            parentPage = csym.classPage,
             during = List(csym.members)
         ) { inter =>
-            val log = global.logForInter(csym.classPage, inter)            
             outIntervalDecl.v = Lower(global).lowerIntervalDecl(csym, inIntervalDecl)
         }
     }

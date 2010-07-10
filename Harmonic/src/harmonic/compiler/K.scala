@@ -20,7 +20,7 @@ object K {
         def unapply(fact: Paths) = Some(fact.left, fact.right)
     }
     
-    sealed trait ForwardPaths extends Paths with Fact.Forward {
+    sealed trait ForwardPaths extends Paths with Fact.Binary[Path.Ref, Path.Ref] {
         def withPaths(left: Path.Ref, right: Path.Ref): inference.Fact.Forward
     }
     
@@ -70,7 +70,7 @@ object K {
 
     // ___ Two types ________________________________________________________
     
-    sealed trait Types {
+    sealed trait Types extends Fact.Binary[Type, Type] {
         def left: Type
         def right: Type
         def withTypes(left: Type, right: Type): inference.Fact
@@ -81,12 +81,12 @@ object K {
     }
     
     // Two types are equivalent.
-    final case class TypeEq(left: Type, right: Type) extends Types with Fact.Forward {
+    final case class TypeEq(left: Type, right: Type) extends Types {
         def withTypes(left: Type, right: Type) = TypeEq(left, right)                
     }
     
     // left ub right == "left upper-bounded-by right"
-    final case class TypeUb(sub: Type, sup: Type) extends Types with Fact.Forward {        
+    final case class TypeUb(sub: Type, sup: Type) extends Types {
         def left = sub
         def right = sup
         def withTypes(left: Type, right: Type) = TypeUb(left, right)

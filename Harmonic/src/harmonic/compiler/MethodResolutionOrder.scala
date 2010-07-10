@@ -1,7 +1,7 @@
 package harmonic.compiler
 
 import scala.collection.mutable
-import com.smallcultfollowing.lathos.model.Context
+import com.smallcultfollowing.lathos.Context
 
 import Util._
 

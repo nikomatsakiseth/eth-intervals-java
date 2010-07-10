@@ -23,10 +23,27 @@ object HarmonicRulesNetwork
 
 /** Defines the inference rules for the Harmonic type system. 
   * The facts which we operate over are defined in the K module. */
-class HarmonicRulesNetwork(server: lathos.model.LathosServer)
+class HarmonicRulesNetwork(server: lathos.LathosServer)
 extends Network[HarmonicRulesNetwork.Xtra](server)
 {
     import HarmonicRulesNetwork.Xtra
+    
+    protected[this] override def precontains(fact: Fact): Iterable[Fact.Forward] = {
+        fact match {
+            case K.Paths(l, r) => List(K.PathExists(l), K.PathExists(r))
+            case K.Types(l, r) => List(K.TypeExists(l), K.TypeExists(r))
+            case K.HasType(l, r) => List(K.PathExists(l), K.TypeExists(r))
+            case _ => Nil
+        }
+    }
+    
+    protected[this] override def prequery(kind: Fact.Kind, args: Array[Option[Any]]): Iterable[Fact.Forward] = {
+        args.view.flatMap {
+            case Some(path: Path.Ref) => Some(K.PathExists(path))
+            case Some(ty: Type) => Some(K.TypeExists(ty))
+            case _ => None
+        }
+    }
     
     // ______ Path and Type facts ___________________________________________
     //
@@ -40,6 +57,7 @@ extends Network[HarmonicRulesNetwork.Xtra](server)
     class PathFactRule(
         val kind: Class[_ <: (K.Paths with Fact.Forward)]
     ) extends Rule.Forward[Xtra] {
+        override def toString = "PathFactRule(%s)".format(kind)
         val inputKinds = List(kind)
     
         override def derive(xtra: Xtra, facts: List[Fact.Forward]): Iterable[Fact.Forward] = {
@@ -54,6 +72,7 @@ extends Network[HarmonicRulesNetwork.Xtra](server)
     addRule(new PathFactRule(classOf[K.Locks]))
     
     addRule(new Rule.ReflectiveForward[Xtra]() {
+        override def toString = "subpaths"
         def trigger(xtra: Xtra, fact: K.PathExists) = {
             val subpaths = fact.path match {
                 case Path.Field(p: Path.Ref, _) => List(p)
@@ -71,6 +90,7 @@ extends Network[HarmonicRulesNetwork.Xtra](server)
     class TypeFactRule(
         val kind: Class[_ <: (K.Types with Fact.Forward)]
     ) extends Rule.Forward[Xtra] {
+        override def toString = "TypeFactRule(%s)".format(kind)
         val inputKinds = List(kind)
     
         override def derive(xtra: Xtra, facts: List[Fact.Forward]): Iterable[Fact.Forward] = {
@@ -82,6 +102,8 @@ extends Network[HarmonicRulesNetwork.Xtra](server)
     addRule(new TypeFactRule(classOf[K.TypeUb]))
 
     addRule(new Rule.ReflectiveForward[Xtra]() {
+        override def toString = "subtypes"
+        
         private[this] def extract(arg: Type.Arg) = arg match {
             case Type.PathArg(_, _, _) => None
             case Type.TypeArg(_, _, ty) => Some(ty)
@@ -105,6 +127,8 @@ extends Network[HarmonicRulesNetwork.Xtra](server)
     p.(c.f) rel q
     */
     addRule(new Rule.ReflectiveForward[Xtra] {
+        override def toString = "typeArgs"
+        
         def trigger(xtra: Xtra, fact: K.PathExists, hasType: K.HasType) = {
             fact.path match {
                 case Path.Field(p: Path.Ref, _) => {
@@ -133,6 +157,7 @@ extends Network[HarmonicRulesNetwork.Xtra](server)
     class PathEqualityRuleForward(
         otherKind: Fact.ForwardKind
     ) extends Rule.Forward[Xtra] {
+        override def toString = "PathEqualityRuleForward(%s)".format(otherKind)
         val inputKinds = List(classOf[K.PathEq], otherKind)
     
         def derive(xtra: Xtra, facts: List[Fact.Forward]) = {
@@ -156,17 +181,12 @@ extends Network[HarmonicRulesNetwork.Xtra](server)
     class PathEqualityRuleBackward(
         override val outputKind: Fact.BackwardKind
     ) extends Rule.Backward[Xtra] {
+        override def toString = "PathEqualityRuleBackward(%s)".format(outputKind)
+        
         override def canInfer(recurse: Recurse[Xtra], fact: Fact.Backward): Boolean = {
             val f @ K.Paths(p, q) = fact
-            val eqs = recurse.allFactsOfKind(classOf[K.PathEq])
-            val eqToPs = eqs.flatMap {
-                case K.PathEq(p(), r) => Some(r)
-                case _ => None
-            }
-            val eqToQs = eqs.flatMap {
-                case K.PathEq(r, q()) => Some(r)
-                case _ => None 
-            }
+            val eqToPs = recurse.queryRGivenL[Path.Ref, Path.Ref, K.PathEq](classOf[K.PathEq], p)
+            val eqToQs = recurse.queryLGivenR[Path.Ref, Path.Ref, K.PathEq](classOf[K.PathEq], q)
             (eqToPs cross eqToQs).exists { case (eqToP, eqToQ) =>
                 recurse.contains(f.withPaths(eqToP, eqToQ))
             }
@@ -186,7 +206,7 @@ extends Network[HarmonicRulesNetwork.Xtra](server)
     addRule(new Rule.ReflectiveForward[Xtra]() {
         override def toString = "PathEq-Reflexive"
     
-        def trigger(xtra: Xtra, eq: K.PathExists) = {
+        def trigger(xtra: Xtra, eq: K.PathExists): Iterable[Fact.Forward] = {
             val K.PathExists(p) = eq
             Some(K.PathEq(p, p))
         }
@@ -200,7 +220,7 @@ extends Network[HarmonicRulesNetwork.Xtra](server)
     addRule(new Rule.ReflectiveForward[Xtra]() {
         override def toString = "PathEq-Symmetric"
     
-        def trigger(xtra: Xtra, eq: K.PathEq) = {
+        def trigger(xtra: Xtra, eq: K.PathEq): Iterable[Fact.Forward] = {
             val K.PathEq(p, q) = eq
             Some(K.PathEq(q, p))
         }
@@ -216,7 +236,7 @@ extends Network[HarmonicRulesNetwork.Xtra](server)
     addRule(new Rule.ReflectiveForward[Xtra]() {
         override def toString = "Path-Simplify"
     
-        def trigger(xtra: Xtra, fact: K.PathExists) = {
+        def trigger(xtra: Xtra, fact: K.PathExists): Iterable[Fact.Forward] = {
             val path = fact.path
             path match {
                 case Path.Cast(_, base) => Some(K.PathEq(path, base))
@@ -237,7 +257,7 @@ extends Network[HarmonicRulesNetwork.Xtra](server)
     addRule(new Rule.ReflectiveForward[Xtra]() {
         override def toString = "Path-Induction-Path-Eq"
     
-        def trigger(xtra: Xtra, fact: K.PathExists, eq: K.PathEq) = {
+        def trigger(xtra: Xtra, fact: K.PathExists, eq: K.PathEq): Iterable[Fact.Forward] = {
             val (K.PathExists(path), K.PathEq(p, q)) = (fact, eq)
             // XXX replaces ALL occurrences, ideally we'd replace all permutations
             Some(K.PathEq(path, Subst(p -> q).path(path)))
@@ -254,7 +274,7 @@ extends Network[HarmonicRulesNetwork.Xtra](server)
     addRule(new Rule.ReflectiveForward[Xtra]() {
         override def toString = "Type-Eq-Reflexive"
     
-        def trigger(xtra: Xtra, eq: K.TypeEq) = {
+        def trigger(xtra: Xtra, eq: K.TypeEq): Iterable[Fact.Forward] = {
             val K.TypeEq(ty1, ty2) = eq
             Some(K.TypeEq(ty2, ty1))
         }
@@ -268,12 +288,14 @@ extends Network[HarmonicRulesNetwork.Xtra](server)
     Also handles the reflexive case (t == t).
     */
     addRule(new Rule.ReflectiveForward[Xtra]() {
-        def trigger(xtra: Xtra, fact: K.TypeExists) = {
+        def trigger(xtra: Xtra, fact: K.TypeExists): Iterable[Fact.Forward] = {
             val K.TypeExists(ty) = fact
-            ty.matchAll(
-                { case _ => K.TypeEq(ty, ty) },
-                { case Type.Tuple(List(ty1)) => K.TypeEq(ty, ty1) },
-                { case Type.Tuple(Nil) => K.TypeEq(ty, Type.Void) }
+            List(K.TypeEq(ty, ty)) ++ (
+                ty match {
+                    case Type.Tuple(List(ty1)) => Some(K.TypeEq(ty, ty1))
+                    case Type.Tuple(Nil) => Some(K.TypeEq(ty, Type.Void))
+                    case _ => None
+                }
             )
         }
     })
@@ -287,7 +309,7 @@ extends Network[HarmonicRulesNetwork.Xtra](server)
     addRule(new Rule.ReflectiveForward[Xtra]() {
         override def toString = "Type-Induction-Path-Eq"
     
-        def trigger(xtra: Xtra, fact: K.TypeExists, factEq: K.PathEq) = {
+        def trigger(xtra: Xtra, fact: K.TypeExists, factEq: K.PathEq): Iterable[Fact.Forward] = {
             val K.PathEq(p, q) = factEq
             val K.TypeExists(ty) = fact
             Some(K.TypeEq(ty, Subst(p -> q).ty(ty)))
@@ -303,7 +325,7 @@ extends Network[HarmonicRulesNetwork.Xtra](server)
     addRule(new Rule.ReflectiveForward[Xtra]() {
         override def toString = "Path-HasType"
     
-        def trigger(xtra: Xtra, fact: K.PathExists) = {
+        def trigger(xtra: Xtra, fact: K.PathExists): Iterable[Fact.Forward] = {
             val path = fact.path
             val ty = xtra.typeOfPath(path)
             Some(K.HasType(path, ty))
@@ -319,7 +341,7 @@ extends Network[HarmonicRulesNetwork.Xtra](server)
     addRule(new Rule.ReflectiveForward[Xtra]() {
         override def toString = "Type-Induction-Path-Eq"
     
-        def trigger(xtra: Xtra, hasType: K.HasType, ub: K.TypeUb) = {
+        def trigger(xtra: Xtra, hasType: K.HasType, ub: K.TypeUb): Iterable[Fact.Forward] = {
             val K.HasType(p, ty1) = hasType
             ub match {
                 case K.TypeUb(ty1(), ty2) => Some(K.HasType(p, ty2))
@@ -338,7 +360,7 @@ extends Network[HarmonicRulesNetwork.Xtra](server)
     addRule(new Rule.ReflectiveForward[Xtra]() {
         override def toString = "Extends"
     
-        def trigger(xtra: Xtra, sub: K.TypeExists) = {
+        def trigger(xtra: Xtra, sub: K.TypeExists): Iterable[Fact.Forward] = {
             sub.ty match {
                 case ty: Type.Class => xtra.superTypes(ty).map(K.TypeUb(ty, _))
                 case _ => Nil
@@ -355,9 +377,9 @@ extends Network[HarmonicRulesNetwork.Xtra](server)
     addRule(new Rule.ReflectiveForward[Xtra]() {
         override def toString = "Sub-Sup-Imply-Eq"
     
-        def trigger(xtra: Xtra, ub1: K.TypeUb, ub2: K.TypeUb) = {
+        def trigger(xtra: Xtra, ub1: K.TypeUb, ub2: K.TypeUb): Iterable[Fact.Forward] = {
             val K.TypeUb(t1, t2) = ub1
-            ub2.matchAll(
+            (ub2: @unchecked).matchAll(
                 { case K.TypeUb(t2(), t1()) => K.TypeEq(t1, t2) }
             )
         }
@@ -377,9 +399,9 @@ extends Network[HarmonicRulesNetwork.Xtra](server)
     addRule(new Rule.ReflectiveForward[Xtra]() {
         override def toString = ""
     
-        def trigger(xtra: Xtra, ub: K.TypeUb, eq: K.TypeEq) = {
+        def trigger(xtra: Xtra, ub: K.TypeUb, eq: K.TypeEq): Iterable[Fact.Forward] = {
             val K.TypeUb(t1, t2) = ub
-            eq.matchAll(
+            (eq: @unchecked).matchAll(
                 { case K.TypeEq(t2(), t3) => K.TypeUb(t1, t3) },
                 { case K.TypeEq(t1(), t3) => K.TypeUb(t3, t2) }
             )
@@ -395,9 +417,9 @@ extends Network[HarmonicRulesNetwork.Xtra](server)
     addRule(new Rule.ReflectiveForward[Xtra]() {
         override def toString = "Sub-Transitive"
     
-        def trigger(xtra: Xtra, bnd1: K.TypeUb, bnd2: K.TypeUb) = {
+        def trigger(xtra: Xtra, bnd1: K.TypeUb, bnd2: K.TypeUb): Iterable[Fact.Forward] = {
             val K.TypeUb(t1, t2) = bnd1
-            bnd2.matchAll(
+            (bnd2: @unchecked).matchAll(
                 { case K.TypeUb(t2(), t3) => K.TypeUb(t1, t3) }
             )
         }
@@ -412,7 +434,7 @@ extends Network[HarmonicRulesNetwork.Xtra](server)
     addRule(new Rule.ReflectiveForward[Xtra]() {
         override def toString = "Eq-Implies-Sub-Sup"
     
-        def trigger(xtra: Xtra, fact: K.TypeEq) = {
+        def trigger(xtra: Xtra, fact: K.TypeEq): Iterable[Fact.Forward] = {
             val K.TypeEq(t1, t2) = fact
             List(K.TypeUb(t1, t2), K.TypeUb(t2, t1))
         }
@@ -429,7 +451,7 @@ extends Network[HarmonicRulesNetwork.Xtra](server)
     addRule(new Rule.ReflectiveForward[Xtra]() {
         override def toString = "InlineSubOf-Implies-SubOf"
     
-        def trigger(xtra: Xtra, inlineSubOf: K.InlineSubOf) = {
+        def trigger(xtra: Xtra, inlineSubOf: K.InlineSubOf): Iterable[Fact.Forward] = {
             val K.InlineSubOf(pc, pp) = inlineSubOf
             Some(K.SubOf(pc, pp))
         }
@@ -444,7 +466,7 @@ extends Network[HarmonicRulesNetwork.Xtra](server)
     addRule(new Rule.ReflectiveForward[Xtra]() {
         override def toString = "SubOf-Implies-HB"
     
-        def trigger(xtra: Xtra, subOf: K.SubOf) = {
+        def trigger(xtra: Xtra, subOf: K.SubOf): Iterable[Fact.Forward] = {
             import MethodId.{GetStart, GetEnd}
             val K.SubOf(pc, pp) = subOf
             List(
@@ -464,7 +486,7 @@ extends Network[HarmonicRulesNetwork.Xtra](server)
     addRule(new Rule.ReflectiveBackward[Xtra]() {
         override def toString = "PermitsWr-Implies-PermitsRd"
     
-        def trigger(recurse: Recurse[Xtra], fact: K.PermitsRd) = {
+        def trigger(recurse: Recurse[Xtra], fact: K.PermitsRd): Boolean = {
             val K.PermitsRd(g, i) = fact
             recurse.contains(K.PermitsWr(g, i))
         }
@@ -478,7 +500,7 @@ extends Network[HarmonicRulesNetwork.Xtra](server)
     addRule(new Rule.ReflectiveBackward[Xtra]() {
         override def toString = "EnsuresFinal-Implies-PermitsRd"
     
-        def trigger(recurse: Recurse[Xtra], fact: K.PermitsRd) = {
+        def trigger(recurse: Recurse[Xtra], fact: K.PermitsRd): Boolean = {
             val K.PermitsRd(g, i) = fact
             recurse.contains(K.EnsuresFinal(g, i))
         }
@@ -493,13 +515,13 @@ extends Network[HarmonicRulesNetwork.Xtra](server)
     addRule(new Rule.ReflectiveBackward[Xtra]() {
         override def toString = "SubOf-PermitsRd"
     
-        def trigger(recurse: Recurse[Xtra], fact: K.PermitsRd) = {
+        def trigger(recurse: Recurse[Xtra], fact: K.PermitsRd): Boolean = {
             val K.PermitsRd(g, i) = fact
-            recurse.allFactsOfKind(classOf[K.SubOf]).exists {
-                case K.SubOf(i(), j) => {
-                    recurse.contains(K.PermitsRd(g, j))                
-                }
-                case _ => false
+            recurse.queryRGivenL[Path.Ref, Path.Ref, K.SubOf](
+                classOf[K.SubOf], 
+                i
+            ).exists { j =>
+                recurse.contains(K.PermitsRd(g, j))                
             }
         }
     })
@@ -513,13 +535,13 @@ extends Network[HarmonicRulesNetwork.Xtra](server)
     addRule(new Rule.ReflectiveBackward[Xtra]() {
         override def toString = "InlineSubOf-PermitsWr"
     
-        def trigger(recurse: Recurse[Xtra], fact: K.PermitsWr) = {
+        def trigger(recurse: Recurse[Xtra], fact: K.PermitsWr): Boolean = {
             val K.PermitsWr(g, i) = fact
-            recurse.allFactsOfKind(classOf[K.InlineSubOf]).exists {
-                case K.InlineSubOf(i(), j) => {
-                    recurse.contains(K.PermitsWr(g, j))
-                }
-                case _ => false
+            recurse.queryRGivenL[Path.Ref, Path.Ref, K.InlineSubOf](
+                classOf[K.InlineSubOf], 
+                i
+            ).exists { j => 
+                recurse.contains(K.PermitsWr(g, j))
             }
         }
     })
@@ -531,7 +553,7 @@ extends Network[HarmonicRulesNetwork.Xtra](server)
     addRule(new Rule.ReflectiveBackward[Xtra]() {
         override def toString = "Final-EnsuresFinal"
     
-        def trigger(recurse: Recurse[Xtra], fact: K.EnsuresFinal) = {
+        def trigger(recurse: Recurse[Xtra], fact: K.EnsuresFinal): Boolean = {
             fact.left.is(Path.Final)
         }
     })

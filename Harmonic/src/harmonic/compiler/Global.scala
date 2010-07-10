@@ -6,11 +6,12 @@ import scala.util.parsing.input.NoPosition
 import scala.collection.mutable
 import ch.ethz.intervals.Interval
 import ch.ethz.intervals.Intervals
-import com.smallcultfollowing.lathos.none.NoneServer
-import com.smallcultfollowing.lathos.model.LathosServer
-import com.smallcultfollowing.lathos.model.Context
-import com.smallcultfollowing.lathos.model.Page
-import com.smallcultfollowing.lathos.http.JettyLathosServer
+import com.smallcultfollowing.lathos.NoneServer
+import com.smallcultfollowing.lathos.LathosServer
+import com.smallcultfollowing.lathos.Context
+import com.smallcultfollowing.lathos.Page
+import com.smallcultfollowing.lathos.JettyLathosServer
+import com.smallcultfollowing.lathos.Lathos
 import Util._
 
 class Global(
@@ -25,21 +26,9 @@ class Global(
         if(debugging) JettyLathosServer.start(config.debugPort)
         else new NoneServer()
         
+    debugServer.addDefaultRenderers
+    
     val errorsPage = debugServer.topLevelPage("Errors")
-    
-    val logVar = Intervals.scopedVar[Context](null)
-    
-    def closestLog = logVar.get
-        
-    def logForInter(classPage: Page, inter: Interval) = {
-        val context = debugServer.context
-        val tag = inter.toString.afterLast('.')
-        context.push(classPage)
-        context.pushChild(tag, tag)
-        logVar.set(inter, context)
-        println("Created %s.%s".format(classPage.getId, tag))
-        context
-    }
 
     // ___ Reporting Errors _________________________________________________
     
@@ -56,8 +45,8 @@ class Global(
         // Add to appropriate logs, cross-referencing to the current page:
         val errorLog = debugServer.contextForPage(errorsPage)
         val msgArgsString = msgArgs.mkString(", ")
-        closestLog.log("Error ", msgKey, "(", msgArgsString, ")")
-        errorLog.log("Error ", msgKey, "(", msgArgsString, ")", " at ", closestLog.topPage)
+        Lathos.context.log("Error ", msgKey, "(", msgArgsString, ")")
+        errorLog.log("Error ", msgKey, "(", msgArgsString, ")", " at ", Lathos.context.topPage)
     }
     
     // ___ The "final" interval _____________________________________________
@@ -74,28 +63,28 @@ class Global(
     var master: Interval = null
     
     def compile() = {
-        val log = debugServer.context
-        
-        try {
-            log.log("Compilation started")
+        usingLog(debugServer.context) {
+            try {
+                Lathos.context.log("Compilation started")
 
-            inlineInterval("master") { inter =>
-                master = inter
+                inlineInterval("master") { inter =>
+                    master = inter
 
-                Intrinsic(this).add()
+                    Intrinsic(this).add()
 
-                // Start by parsing the input files.  This will create
-                // various subintervals of master, which will begin to
-                // execute once all parsing and loading is complete.
-                // It is necessary for those subintervals to wait till all
-                // the initial files have been loaded because they may
-                // reference symbols created in one another.
-                config.inputFiles.foreach { inputFile =>
-                    Parse(this, inputFile).foreach(createSymbols)
-                }
+                    // Start by parsing the input files.  This will create
+                    // various subintervals of master, which will begin to
+                    // execute once all parsing and loading is complete.
+                    // It is necessary for those subintervals to wait till all
+                    // the initial files have been loaded because they may
+                    // reference symbols created in one another.
+                    config.inputFiles.foreach { inputFile =>
+                        Parse(this, inputFile).foreach(createSymbols)
+                    }
+                }            
+            } finally {
+                debugServer.join            
             }            
-        } finally {
-            debugServer.join            
         }
     }
     

@@ -1,7 +1,7 @@
 package harmonic.compiler
 
-import com.smallcultfollowing.lathos.model._
-import com.smallcultfollowing.lathos.model.{Util => LathosUtil}
+import com.smallcultfollowing.lathos._
+import com.smallcultfollowing.lathos.Lathos
 
 import scala.util.parsing.input.Position
 import scala.util.parsing.input.NoPosition
@@ -66,7 +66,7 @@ abstract class VarSymbol[+N <: Name.Var] extends Symbol with Page {
     override def addContent(content: PageContent) = throw new UnsupportedOperationException()
     
     override def renderInLine(out: Output): Unit = {
-        LathosUtil.renderInLine(this, out)
+        Lathos.renderInLine(this, out)
     }
     
     override def renderInPage(out: Output): Unit = {

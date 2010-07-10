@@ -1,7 +1,7 @@
 package harmonic.compiler.inference
 
-import com.smallcultfollowing.lathos.http.JettyLathosServer
-import com.smallcultfollowing.lathos.model.Context
+import com.smallcultfollowing.lathos.JettyLathosServer
+import com.smallcultfollowing.lathos.Context
 import harmonic.compiler.Util._
 
 // Unit tests for the inference code.
@@ -24,10 +24,10 @@ object TestNetwork {
     // W(i), Y(i) => Z(i)
     
     def assertSimple(factSet: FactSet[_], xs: Set[X], ys: Set[Y], ws: Set[W], zs: Set[Z]) = {
-        assert(factSet.allFactsOfKind(classOf[X]) == xs)
-        assert(factSet.allFactsOfKind(classOf[Y]) == ys)
-        assert(factSet.allFactsOfKind(classOf[W]) == ws)
-        assert(factSet.allFactsOfKind(classOf[Z]) == zs)
+        assert(factSet.query(classOf[X]) == xs)
+        assert(factSet.query(classOf[Y]) == ys)
+        assert(factSet.query(classOf[W]) == ws)
+        assert(factSet.query(classOf[Z]) == zs)
     }
     
     def makeSimpleNetwork(context: Context) = {
@@ -59,7 +59,7 @@ object TestNetwork {
     def testSimpleAssertDuring(context: Context): Unit = {
         val network = makeSimpleNetwork(context)
         
-        val factSet0 = EmptyFactSet(network)
+        val factSet0 = network.emptyFactSet(())
         context.log("factSet0 = ", factSet0)
         assertSimple(factSet0, Set(), Set(), Set(), Set())
         
@@ -79,7 +79,7 @@ object TestNetwork {
     def testSimpleAssertAfter(context: Context): Unit = {
         val network = makeSimpleNetwork(context)
         
-        val factSet0 = EmptyFactSet(network)
+        val factSet0 = network.emptyFactSet(())
         val factSet1 = factSet0.plusFacts(List(X(0)), ())
         val factSet2 = factSet1.plusFacts(List(X(1)), ())
         val factSet3 = factSet2.plusFacts(List(W(1)), ())
@@ -95,36 +95,50 @@ object TestNetwork {
         assertSimple(factSet0, Set(), Set(), Set(), Set())
     }
     
+    def testSimpleValueBasedQueries(context: Context): Unit = {
+        val network = makeSimpleNetwork(context)
+        
+        val factSet0 = network.emptyFactSet(())
+        val factSet1 = factSet0.plusFacts(List(X(0)), ())
+        val factSet2 = factSet1.plusFacts(List(X(1)), ())
+        
+        assert(factSet2.query(classOf[X], Some(0)).size == 1)
+        assert(factSet2.query(classOf[X], Some(1)).size == 1)
+        assert(factSet2.query(classOf[X], None).size == 1)
+        
+        assert(factSet2.query(classOf[Y], Some(0)).size == 1)
+        assert(factSet2.query(classOf[Y], Some(1)).size == 1)
+        assert(factSet2.query(classOf[Y], None).size == 1)
+    }
+    
     // ___ backwardsTest ____________________________________________________
     //
     // X(i) => Y(i)
     // X(i), Y(i) => A(i)
     
     def makeBackwardNetwork(context: Context) = {
-        val network = new Network[Unit](context.server)
-        
-        network.addRule(new Rule.ReflectiveForward[Unit]() {
-            override def toString = "X(i) => Y(i)"
-            def trigger(unit: Unit, x: X) = {
-                val y = Y(x.i)
-                List(y)
-            }
-        })
-        
-        network.addRule(new Rule.ReflectiveBackward[Unit]() {
-            override def toString = "X(i), Y(i) => A(i)"
-            def trigger(recurse: Recurse[Unit], a: A) = {
-                recurse.contains(X(a.i)) && recurse.contains(Y(a.i))
-            }
-        })
-        
-        network
+        new Network[Unit](context.server) {
+            addRule(new Rule.ReflectiveForward[Unit]() {
+                override def toString = "X(i) => Y(i)"
+                def trigger(unit: Unit, x: X) = {
+                    val y = Y(x.i)
+                    List(y)
+                }
+            })
+            
+            addRule(new Rule.ReflectiveBackward[Unit]() {
+                override def toString = "X(i), Y(i) => A(i)"
+                def trigger(recurse: Recurse[Unit], a: A) = {
+                    recurse.contains(X(a.i)) && recurse.contains(Y(a.i))
+                }
+            })
+        }
     }
     
     def testBackwardsContains(context: Context): Unit = {
         val network = makeBackwardNetwork(context)
         
-        val factSet0 = EmptyFactSet(network)
+        val factSet0 = network.emptyFactSet(())
         context.log("factSet0 = ", factSet0)
         assert(!factSet0.contains(A(0)), ())
         assert(!factSet0.contains(A(1)), ())
@@ -149,7 +163,7 @@ object TestNetwork {
         for(method <- getClass.getMethods) {
             if(method.getName.startsWith("test")) {
                 method.setAccessible(true)
-                val page = ctx.pushChild(method.getName, "Running test ", method.getName)
+                val page = ctx.pushEmbeddedChild(method.getName, "Running test ", method.getName)
                 try {
                     method.invoke(this, ctx)                    
                 } catch { case t =>

@@ -7,11 +7,11 @@ import scala.collection.immutable.ListSet
 import scala.collection.immutable.Queue
 import scala.collection.mutable
 
-import com.smallcultfollowing.lathos.model.Page
-import com.smallcultfollowing.lathos.model.Context
-import com.smallcultfollowing.lathos.model.PageContent
-import com.smallcultfollowing.lathos.model.Output
-import com.smallcultfollowing.lathos.model.{Util => LathosUtil}
+import com.smallcultfollowing.lathos.Page
+import com.smallcultfollowing.lathos.Context
+import com.smallcultfollowing.lathos.PageContent
+import com.smallcultfollowing.lathos.Output
+import com.smallcultfollowing.lathos.Lathos
 
 import harmonic.compiler.inference.FactSet
 
@@ -38,16 +38,6 @@ steady state, the query can be answered
 sooner).
 
 */
-
-object Env {
-    def empty(global: Global) = Env(
-        global      = global,
-        thisTy      = Type.Top,
-        optReturnTy = None,
-        locals      = Map(Name.FinalLocal -> global.finalSym),
-        factSet     = inference.EmptyFactSet(global.network)
-    )
-}
 
 case class EnvXtra(
     global: Global,
@@ -119,6 +109,16 @@ case class EnvXtra(
     }
 }
 
+object Env {
+    def empty(global: Global) = Env(
+        global      = global,
+        thisTy      = Type.Top,
+        optReturnTy = None,
+        locals      = Map(Name.FinalLocal -> global.finalSym),
+        factSet     = global.network.emptyFactSet(EnvXtra(global, Map()))
+    )
+}
+
 /** The environment is used during a type check but also in other phases
   * It stores information known by the compiler. */
 case class Env(
@@ -137,11 +137,9 @@ case class Env(
     /** Known facts */
     factSet: inference.FactSet[HarmonicRulesNetwork.Xtra]
 ) extends DebugPage {
-    
-    private[this] def curLog = global.closestLog
+    private[this] def xtra = EnvXtra(global, locals)
     
     override def toString = getId
-    private[this] def xtra = EnvXtra(global, locals)
     
     // ___ Extending the Environment ________________________________________
     
@@ -161,19 +159,26 @@ case class Env(
 
     // ___ Simple queries ___________________________________________________
     
-    def typesAreEquatable(ty1: Type, ty2: Type) = factSet.contains(K.TypeEq(ty1, ty2))
-    def pathsAreEquatable(p1: Path.Ref, p2: Path.Ref) = factSet.contains(K.PathEq(p1, p2))
-    def factHolds(fact: inference.Fact): Boolean = factSet.contains(fact)
+    def factHolds(fact: inference.Fact): Boolean = {
+        Lathos.context.indent(this, ".factHolds(", fact, ")? Consulting ", factSet) {
+            factSet.contains(fact)
+        }
+    }
+    
+    def typesAreEquatable(ty1: Type, ty2: Type) = factHolds(K.TypeEq(ty1, ty2))
+    def pathsAreEquatable(p1: Path.Ref, p2: Path.Ref) = factHolds(K.PathEq(p1, p2))
     def typedPath(path: Path.Ref) = xtra.typedPath(path)
     def typeOfPath(path: Path.Ref) = typedPath(path).ty
-    def ensuresFinal(guard: Path.Ref, inter: Path.Ref) = factSet.contains(K.EnsuresFinal(guard, inter))
-    def upperBounds(ty: Type) = factSet.allFactsOfKind(classOf[K.TypeUb]).flatMap {
-        case K.TypeUb(ty(), ub) => Some(ub)
-        case _ => None
+    def ensuresFinal(guard: Path.Ref, inter: Path.Ref) = factHolds(K.EnsuresFinal(guard, inter))
+    def upperBounds(ty: Type) = {
+        Lathos.context.indent(this, ".upperBounds(", ty, ")? Consulting ", factSet) {
+            factSet.queryRGivenL[Type, Type, K.TypeUb](classOf[K.TypeUb], ty)
+        }
     }
-    def lowerBounds(ty: Type) = factSet.allFactsOfKind(classOf[K.TypeUb]).flatMap {
-        case K.TypeUb(lb, ty()) => Some(lb)
-        case _ => None
+    def lowerBounds(ty: Type) = {
+        Lathos.context.indent(this, ".lowerBounds(", ty, ") Consulting ", factSet) {
+            factSet.queryLGivenR[Type, Type, K.TypeUb](classOf[K.TypeUb], ty)
+        }
     }
 
     /** Returns a minimal set of upper-bounds for `ty`. "Minimal"
@@ -461,7 +466,8 @@ case class Env(
     // consider the full subtyping relation but rather only the erased type
     // and (to a limited extent) type variables.
     
-    private[this] def isSuitableArgumentBounded(ty_val: Type, ty_pat: Type): Boolean = {
+    private[this] def isSuitableArgument1(ty_val: Type, ty_pat: Type): Boolean = {
+        Lathos.context.log("isSuitableArgument1(", ty_val, ", ", ty_pat, ")")
         (ty_val, ty_pat) match {
             case (Type.Class(name_val, _), Type.Class(name_pat, _)) => {
                 val sym_val = global.csym(name_val)
@@ -472,15 +478,15 @@ case class Env(
             case (Type.Member(path_val, tvar_val), Type.Member(path_pat, tvar_pat)) if tvar_val == tvar_pat =>
                 pathsAreEquatable(path_val, path_pat)
                 
-            case (Type.Tuple(tys_val), Type.Tuple(tys_pat)) if sameLength(tys_val, tys_pat) =>
-                tys_val.zip(tys_pat).forall { case (v, p) => isSuitableArgument(v, p) }
-                
             case (Type.Tuple(List(ty)), _) =>
-                isSuitableArgument(ty, ty_pat)
+                isSuitableArgument1(ty, ty_pat)
                 
             case (_, Type.Tuple(List(ty))) =>
-                isSuitableArgument(ty_val, ty)
+                isSuitableArgument1(ty_val, ty)
                 
+            case (Type.Tuple(tys_val), Type.Tuple(tys_pat)) if sameLength(tys_val, tys_pat) =>
+                tys_val.zip(tys_pat).forall { case (v, p) => isSuitableArgument(v, p) }
+
             case (Type.Null, _) => 
                 true
                 
@@ -490,8 +496,10 @@ case class Env(
     }
     
     def isSuitableArgument(ty_val: Type, ty_pat: Type): Boolean = {
-        (upperBounds(ty_val) cross lowerBounds(ty_pat)).exists {
-            case (u, l) => isSuitableArgumentBounded(u, l)
+        Lathos.context.indent("isSuitableArgument(", ty_val, ", ", ty_pat, ")") {
+            (upperBounds(ty_val) cross lowerBounds(ty_pat)).exists {
+                case (u, l) => isSuitableArgument1(u, l)
+            }            
         }
     }
     
@@ -514,28 +522,6 @@ case class Env(
         }
     }
 
-    private[this] def typesAreEquatable1(pair: (Type, Type)): Boolean = {
-        val (ty1, ty2) = pair
-        (ty1 == ty2) || {
-            (ty1, ty2) match {
-                case (Type.Class(name1, targs1), Type.Class(name2, targs2)) if sameLength(targs1, targs2) => {
-                    name1 == name2 && 
-                    targs1.forall(a => 
-                        targs2.exists(b => 
-                            typeArgsAreEquatable(a, b)))
-                }
-                
-                case (Type.Tuple(tys1), Type.Tuple(tys2)) if sameLength(tys1, tys2) => {
-                    tys1.zip(tys2).forall { case (ty1, ty2) => 
-                        typesAreEquatable(ty1, ty2) 
-                    }                    
-                }
-                
-                case _ => false
-            }
-        }
-    }
-    
     // ___ Method Override Checking _________________________________________
     //
     // One method overrides another if the types of its arguments are

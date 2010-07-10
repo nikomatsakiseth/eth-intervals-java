@@ -3,14 +3,14 @@ package harmonic.compiler
 import ch.ethz.intervals._
 import Ast.{Lower => out}
 import Util._
-import com.smallcultfollowing.lathos.model.Context
+import com.smallcultfollowing.lathos.Lathos
 
 object Merge {
     def apply(global: Global) = new Merge(global)
 }
 
 class Merge(global: Global) {
-    val log = global.closestLog
+    val log = Lathos.context
     
     def mergeMemberIntervals(csym: ClassFromSource) {
         val cdecl = csym.resolvedSource

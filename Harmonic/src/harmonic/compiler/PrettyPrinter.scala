@@ -1,6 +1,6 @@
 package harmonic.compiler
 
-import com.smallcultfollowing.lathos.model.Context
+import com.smallcultfollowing.lathos.Context
 
 abstract class PrettyPrinter {
     protected[this] var ind = 0

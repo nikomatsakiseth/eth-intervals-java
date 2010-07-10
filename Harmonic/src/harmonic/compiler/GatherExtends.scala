@@ -4,7 +4,7 @@ import scala.collection.immutable.Map
 import scala.collection.immutable.Set
 import scala.collection.mutable
 
-import com.smallcultfollowing.lathos.model.Context
+import com.smallcultfollowing.lathos.Context
 
 import scala.util.parsing.input.Position
 import Ast.{Lower => in}

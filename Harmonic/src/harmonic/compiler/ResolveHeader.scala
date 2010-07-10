@@ -6,7 +6,7 @@ import scala.collection.mutable.ListBuffer
 import scala.collection.immutable.Map
 
 import ch.ethz.intervals._
-import com.smallcultfollowing.lathos.model.Context
+import com.smallcultfollowing.lathos.Lathos
 
 import Ast.{Parse => in}
 import Ast.{Resolve => out}
@@ -18,7 +18,7 @@ object ResolveHeader {
     /** Given a list of superclass names, adds edges from the superclass
       * intervals to our own where needed.  The returned list of superclass
       * names omits those that cause a cycle. */
-    def cookRawSuperClasses(csym: ClassSymbol, log: Context, rawSuperClassNames: List[Name.Class]) = {
+    def cookRawSuperClasses(csym: ClassSymbol, rawSuperClassNames: List[Name.Class]) = {
         import csym.global
         
         rawSuperClassNames.flatMap { superName =>
@@ -47,8 +47,8 @@ object ResolveHeader {
   * rest of the body.  Before we can resolve a class body, we must first 
   * ensure that its headers and those of its superclasses (transitively) have 
   * been resolved. */
-case class ResolveHeader(global: Global, compUnit: in.CompUnit, log: Context) 
-extends Resolve(global, compUnit, log) 
+case class ResolveHeader(global: Global, compUnit: in.CompUnit) 
+extends Resolve(global, compUnit) 
 {
     
     def resolveClassHeader(
@@ -61,7 +61,7 @@ extends Resolve(global, compUnit, log)
         val rawSuperClassNames = cdecl.extendsDecls.map { case in.ExtendsDecl(relName, _, ()) =>
             resolveName(relName).name
         }
-        csym.SuperClassNames.v = ResolveHeader.cookRawSuperClasses(csym, log, rawSuperClassNames)
+        csym.SuperClassNames.v = ResolveHeader.cookRawSuperClasses(csym, rawSuperClassNames)
         
         def addVarMembersFromMember(varMembers: List[SymTab.Entry], decl: in.MemberDecl): List[SymTab.Entry] = {
             decl match {

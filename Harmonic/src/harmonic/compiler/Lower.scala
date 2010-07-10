@@ -3,7 +3,7 @@ package harmonic.compiler
 import scala.collection.immutable.Map
 import scala.collection.mutable
 import scala.util.parsing.input.Position
-import com.smallcultfollowing.lathos.model.Context
+import com.smallcultfollowing.lathos.Lathos
 
 import Ast.{Resolve => in}
 import Ast.{Lower => out}
@@ -15,7 +15,8 @@ import Util._
   * - Fills in any inferred types.  (Note that we don't perform a full type check!)
   * - Removes nested expressions into intermediate variables. */
 case class Lower(global: Global) {
-    val log = global.closestLog
+    implicit val implicitGlobal = global
+    val log = Lathos.context
     private[this] val emptyEnv = Env.empty(global)
     
     def classParamAndEnv(csym: ClassFromSource): (out.Param[VarSymbol.Field], Env) = {

@@ -4,6 +4,7 @@ import ch.ethz.intervals._
 import Util._
 
 case class Intrinsic(global: Global) {
+    implicit val implicitGlobal = global
     
     private[this] def initReqs(msym: MethodSymbol) = {
         msym.Requirements.v = Nil

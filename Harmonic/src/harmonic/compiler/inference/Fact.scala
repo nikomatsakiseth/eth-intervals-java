@@ -4,7 +4,7 @@ package harmonic.compiler.inference
   * It must be a value type.  A scala "case class"
   * is perfect. Also, you should derive from
   * Fact.Forward or Fact.Backward. */
-sealed trait Fact {
+sealed trait Fact extends Product {
     def kind: Fact.Kind = getClass.asSubclass(classOf[Fact])
 }
 
@@ -22,5 +22,12 @@ object Fact {
     /** Base class for backward-chainable facts */
     trait Backward extends Fact {
         override def kind: Fact.BackwardKind = getClass.asSubclass(classOf[Backward])
+    }
+    
+    /** The most common facts are Binary and thus relate two entities. 
+      * We have some specialized machinery in the API to handle these cases. */
+    trait Binary[L, R] extends Forward {
+        def left: L
+        def right: R
     }
 }

@@ -2,7 +2,7 @@ package harmonic.compiler
 
 import scala.util.parsing.input.Positional
 import scala.util.parsing.input.Position
-import com.smallcultfollowing.lathos.model.Context
+import com.smallcultfollowing.lathos.Context
 
 // For functions which can fail but for which failures should not
 // be immediately reported, we often return a CanFail[T],
