@@ -15,7 +15,6 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import ch.ethz.intervals.IntervalException;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.Point;
-import ch.ethz.intervals.impl.ThreadPool.Worker;
 import ch.ethz.intervals.util.ChunkList;
 
 import com.smallcultfollowing.lathos.Lathos;
@@ -366,7 +365,7 @@ implements Point, Page, RefManipulator
 			didReachWaitCountZero();
 	}
 
-	/** Invoked by {@link #arrive(int)} when wait count reaches zero. */
+	/** Invoked by {@link #arrive(int, RefManipulator)} when wait count reaches zero. */
 	void didReachWaitCountZero() {
 		intervalImpl.didReachWaitCountZero(this);
 	}
@@ -414,7 +413,7 @@ implements Point, Page, RefManipulator
 	
 	/** Takes the appropriate action to notify a successor {@code pnt}
 	 *  that {@code this} has occurred.  Propagates exceptions and 
-	 *  optionally invokes {@link #arrive(int)}. */
+	 *  optionally invokes {@link #arrive(int, RefManipulator)}. */
 	private void notifySuccessor(PointImpl pnt, boolean arrive) {
 		if(didOccurWithError()) {
 			/* No need to deliver the error to our bound:
@@ -469,29 +468,17 @@ implements Point, Page, RefManipulator
 	 * tries to do useful work in the meantime!
 	 */
 	void join() {
-		Worker worker = ContextImpl.POOL.currentWorker();
-	
-		if(worker == null) {
-			synchronized(this) {
-				while(!didOccur())
-					try {
-						wait();
-					} catch (InterruptedException e) {
-						throw new RuntimeException(e); // Should never happen
-					}
-			}
-		} else {
-			while(true) {
-				int wc;
-				synchronized(this) {
-					wc = waitCount;
+		boolean hadMedallion = ContextImpl.POOL.yieldMedallion();
+		synchronized(this) {
+			while(!didOccur())
+				try {
+					wait();
+				} catch (InterruptedException e) {
+					throw new RuntimeException(e); // Should never happen
 				}
-				if(didOccur(wc))
-					return;
-				if(!worker.doWork(false))
-					Thread.yield();				
-			}
 		}
+		if(hadMedallion)
+			ContextImpl.POOL.reacquireMedallion();
 	}
 
 	/** Simply adds an outgoing edge, without acquiring locks or performing any

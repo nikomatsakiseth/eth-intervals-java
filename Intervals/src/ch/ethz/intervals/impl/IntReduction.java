@@ -75,7 +75,7 @@ public class IntReduction {
 	 */
 	// @JPartMethod(effects="AtomicWr(@W)")
 	public void add(int amnt) {
-		int index = ContextImpl.POOL.currentWorker().id * PAD;
+		int index = ContextImpl.POOL.currentId() * PAD;
 		add(amnt, index);
 	}
 	
@@ -87,7 +87,7 @@ public class IntReduction {
 	 */
 	// @JPartMethod(effects="AtomicWr(@W)")
 	public void subtract(int amnt) {
-		int index = ContextImpl.POOL.currentWorker().id * PAD;
+		int index = ContextImpl.POOL.currentId() * PAD;
 		add(-amnt, index);
 	}
 	

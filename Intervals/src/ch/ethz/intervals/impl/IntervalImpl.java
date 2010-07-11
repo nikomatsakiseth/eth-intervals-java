@@ -20,7 +20,7 @@ import ch.ethz.intervals.Point;
 import ch.ethz.intervals.RethrownException;
 import ch.ethz.intervals.Task;
 import ch.ethz.intervals.guard.Guard;
-import ch.ethz.intervals.impl.ThreadPool.Worker;
+import ch.ethz.intervals.impl.ThreadPool.Medallion;
 import ch.ethz.intervals.util.ChunkList;
 
 public abstract class IntervalImpl 
@@ -664,7 +664,7 @@ implements Guard, Interval, Page, RefManipulator
 	 * Simply invokes {@link #exec()}.
 	 */
 	@Override
-	final void exec(Worker worker) {
+	final void exec(Medallion medallion) {
 		exec();
 	}
 	

@@ -1,51 +1,89 @@
 package ch.ethz.intervals.impl;
 
 import java.util.ArrayList;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-
+/**
+ * Intervals Thread Pool.  A work stealing thread pool
+ * customized to the needs of intervals.
+ */
 public class ThreadPool {
 	
-	class KeepAliveThread extends Thread {		
-		public final Semaphore sem = new Semaphore(1);
-		
-		@Override
-		public void run() {
-			sem.acquireUninterruptibly();
-			sem.release();
-			return;
-		}		
-	}
-	
-	private KeepAliveThread keepAliveThread;
-	
-	/** 
-	 * Starts a keep alive thread that prevents the JVM from
-	 * exiting. This is invoked when new work is submitted to
-	 * the pool from the outside. Always executed under the {@link #idleLock}.
+	/* The design allows for a fixed amount of parallelism.
+	 * Most of the time this just means you have a fixed
+	 * pool of worker threads pulling tasks off of various
+	 * queues and executing them.
+	 * 
+	 * Although there are only a fixed number of threads
+	 * doing work at any one time, there may be any number
+	 * of worker threads.  This is because threads that
+	 * are forced to block (such as when waiting for an 
+	 * inline interval) must spin off new threads to keep
+	 * the system from stalling.
+	 * 
+	 * The thread pool is created with a fixed number of
+	 * Medallions.  A worker thread must hold the medallion
+	 * to do work, and when it needs to block it yields the
+	 * medallion to other threads.  When it wants to resume,
+	 * requests a new medallion (which might not be the
+	 * same one it had before).
+	 * 
+	 * Each medallion has an associated deque.  The thread
+	 * holding the medallion will pop tasks off the deque;
+	 * if there are no tasks, it will then try to steal
+	 * from other medallions.  If that fails, it will 
+	 * eventually fall back to a global queue or simply
+	 * block until work arrives.
+	 * 
+	 * When a thread completes a task, however, it also
+	 * checks to see if any previously suspended workers
+	 * have requested a medallion.  If so, it will exit,
+	 * as we consider it a priority for the suspended task
+	 * to resume and terminate.
 	 */
-	private void startKeepAliveThread() {
-		if(keepAliveThread == null) {
-			keepAliveThread = new KeepAliveThread();
-			keepAliveThread.sem.acquireUninterruptibly();
-			keepAliveThread.start();
-		}		
-	}
 	
-	/** 
-	 * Stops the keep alive thread that prevents the JVM from
-	 * exiting.  This is invoked when all threads become
-	 * idle.  Always executed under the {@link #idleLock}.
-	 */
-	private void stopKeepAliveThread() {
-		if(keepAliveThread != null) {
-			keepAliveThread.sem.release();
-			keepAliveThread = null;
-		}
-	}
+//	class KeepAliveThread extends Thread {		
+//		public final Semaphore sem = new Semaphore(1);
+//		
+//		@Override
+//		public void run() {
+//			sem.acquireUninterruptibly();
+//			sem.release();
+//			return;
+//		}		
+//	}
+//	
+//	private KeepAliveThread keepAliveThread;
+//	
+//	/** 
+//	 * Starts a keep alive thread that prevents the JVM from
+//	 * exiting. This is invoked when new work is submitted to
+//	 * the pool from the outside. Always executed under the {@link #idleLock}.
+//	 */
+//	private void startKeepAliveThread() {
+//		if(keepAliveThread == null) {
+//			keepAliveThread = new KeepAliveThread();
+//			keepAliveThread.sem.acquireUninterruptibly();
+//			keepAliveThread.start();
+//		}		
+//	}
+//	
+//	/** 
+//	 * Stops the keep alive thread that prevents the JVM from
+//	 * exiting.  This is invoked when all threads become
+//	 * idle.  Always executed under the {@link #idleLock}.
+//	 */
+//	private void stopKeepAliveThread() {
+//		if(keepAliveThread != null) {
+//			keepAliveThread.sem.release();
+//			keepAliveThread = null;
+//		}
+//	}
 	
 	static class LazyDeque {
 		static class ThiefData {
@@ -72,7 +110,7 @@ public class ThreadPool {
 			return ((id % l) << PAD) + OFFSET;
 		}
 		
-		public void put(Worker owner, WorkItem task) { // Only owner can put.
+		public void put(Medallion owner, WorkItem task) { // Only owner can put.
 			assert task != null;
 			while(true) {
 				final int l = tasksArray.length() >> PAD;
@@ -93,7 +131,7 @@ public class ThreadPool {
 			}
 		}
 		
-		public WorkItem take(Worker owner) { 
+		public WorkItem take(Medallion owner) { 
 			// Only owner can take.  Returns either NULL or a WorkItem that should be executed.
 			if(ownerHead == ownerTail)
 				return null; // Empty.
@@ -124,7 +162,7 @@ public class ThreadPool {
 			}				
 		}
 		
-		public WorkItem steal(Worker victimWorker, Worker thiefWorker) {
+		public WorkItem steal(Medallion victimWorker, Medallion thiefWorker) {
 			synchronized(thief) { // At most one thief at a time.
 				final int head = thief.head;
 				final int index = index(head);
@@ -169,177 +207,275 @@ public class ThreadPool {
 	}
 	
 	static abstract class WorkItem {
-		abstract void exec(Worker worker);
+		abstract void exec(Medallion medallion);
 	}
+	
+	final class Worker
+	implements Runnable
+	{
+		private Medallion medallion;
+		final Semaphore semaphore = new Semaphore(0);
+		Worker nextWaiting;
 		
-	final class Worker extends Thread {
-		final int id;
-		final Semaphore semaphore = new Semaphore(1);
-		LazyDeque tasks = new LazyDeque();
-		
-		Worker(int id) {
-			super("Intervals-Worker-"+id);
-			this.id = id;
+		Worker(Medallion initial) {
+			medallion = initial;
 		}
 		
-		@Override
-		public String toString(){
-			return "("+getName()+")";
+		@Override 
+		public void run() {
+			while(doWork() && (waitingWorker == null))
+				;
+			
+			releaseMedallion();
 		}
 
-		@Override public void run() {
-			currentWorker.set(this);
-			this.semaphore.acquireUninterruptibly(); // cannot fail
-			while(true) {
-				doWork(true);
+		private void acquireMedallion() {
+			idleLock.lock();
+			Medallion theMedallion = freeMedallion;
+			if(theMedallion != null) {
+				freeMedallion = theMedallion.nextFree;
+			} else {
+				nextWaiting = waitingWorker;
+				waitingWorker = this;
 			}
+			idleLock.unlock();
+
+			if(theMedallion != null) {
+				theMedallion.nextFree = null;
+				medallion = theMedallion;
+				return;
+			} else {
+				// Block until someone wakes us up.
+				// They will have assigned us a medallion.
+				semaphore.acquireUninterruptibly();
+				assert medallion != null;
+			}
+		}
+		
+		private void releaseMedallion() {
+			Worker awaken;
+			
+			idleLock.lock();
+			awaken = waitingWorker;
+			if(awaken == null) {
+				medallion.nextFree = freeMedallion;
+				freeMedallion = medallion;
+			} else {
+				waitingWorker = awaken.nextWaiting;
+			}
+			idleLock.unlock();
+			
+			if(awaken != null) {
+				awaken.nextWaiting = null;
+				awaken.medallion = medallion;
+				awaken.semaphore.release();
+			}
+			
+			medallion = null;
 		}
 		
 		/**
 		 * Tries to do some work. 
-		 * @param block if true, will block if no work is found, otherwise just returns false
 		 * @return true if work was done, false otherwise
 		 */
-		boolean doWork(boolean block) {
+		boolean doWork() {
 			WorkItem item;			
-			if((item = tasks.take(this)) == null)
+			if((item = medallion.takeTask()) == null)
 				if((item = stealTask()) == null)
-					if((item = findPendingWork(block)) == null)
+					if((item = findPendingWork()) == null)
 						return false;
 			
-//			if(Debug.ENABLED)
-//				Debug.execute(this, item, true);
-			item.exec(this);
+			item.exec(medallion);
 			return true;
 		}
 
 		private WorkItem stealTask() {
 			WorkItem item;
-			for(int victim = id + 1; victim < numWorkers; victim++)
+			for(int victim = medallion.id + 1; victim < numWorkers; victim++)
 				if((item = stealTaskFrom(victim)) != null)
 					return item;
-			for(int victim = 0; victim < id; victim++)
+			for(int victim = 0; victim < medallion.id; victim++)
 				if((item = stealTaskFrom(victim)) != null)
 					return item;
 			return null;
 		}
 		
 		private WorkItem stealTaskFrom(int victimId) {
-			Worker victim = workers[victimId];
-			WorkItem item = victim.tasks.steal(victim, this);
+			Medallion victim = medallions[victimId];
+			WorkItem item = victim.tasks.steal(victim, medallion);
 			return item;
 		}
 	
-		private WorkItem findPendingWork(boolean block) {
+		private WorkItem findPendingWork() {
 			idleLock.lock();
-			
 			int l = pendingWorkItems.size();
 			if(l != 0) {
 				WorkItem item = pendingWorkItems.remove(l - 1);
 				idleLock.unlock();
 				return item;
-			} else if (block) {
-				idleWorkersExist = true;
-				idleWorkers.add(this);
-				
-				int length = idleWorkers.size();
-				if (length == numWorkers) {
-					// All workers asleep.
-					stopKeepAliveThread();
-				}
-				
-				idleLock.unlock();
-				semaphore.acquireUninterruptibly(); // blocks until release() is invoked by some other worker
-				return null;
-			}
-			
+			} 
 			idleLock.unlock();
 			return null;
 		}
-
-		void enqueue(WorkItem item) {
-			if(idleWorkersExist) {
-				Worker idleWorker = null;
-				idleLock.lock();
-				try {
-					int l = idleWorkers.size();
-					if(l != 0) {
-						idleWorker = idleWorkers.remove(l - 1);
-						idleWorkersExist = (l != 1);
-					}
-				} finally {				
-					idleLock.unlock();
-				}
-				
-				if(idleWorker != null) {
-//					if(Debug.ENABLED)
-//						Debug.awakenIdle(this, item, idleWorker);
-					idleWorker.tasks.put(idleWorker, item);
-					idleWorker.semaphore.release();
-					return;
-				}
-			} 
-//			if(Debug.ENABLED)
-//				Debug.enqeue(this, item);
-			tasks.put(this, item);
-		}			
 		
 	}
 	
-	public final int numWorkers = Runtime.getRuntime().availableProcessors();
-	final Worker[] workers = new Worker[numWorkers];
-	final Worker sentinel = new Worker(-1);
-	final static ThreadLocal<Worker> currentWorker = new ThreadLocal<Worker>();
-	
-	final Lock idleLock = new ReentrantLock();
-	final ArrayList<WorkItem> pendingWorkItems = new ArrayList<WorkItem>(); // guarded by idleLock
-	final ArrayList<Worker> idleWorkers = new ArrayList<Worker>(); // guarded by idleLock
-	volatile boolean idleWorkersExist;
-	
-	public ThreadPool() {
-		for(int i = 0; i < numWorkers; i++) {
-			Worker worker = new Worker(i);
-			workers[i] = worker;
-			worker.setDaemon(true);
+	/**
+	 * Medallion represents the "right to do intervals
+	 * work."  There are only a fixed number, usually
+	 * the number of processors on the system. */
+	final class Medallion 
+	{
+		final int id;
+		LazyDeque tasks = new LazyDeque();
+		Medallion nextFree;
+		
+		Medallion(int id) {
+			this.id = id;
 		}
 		
-		for(Worker worker : workers)
-			worker.start();
+		public WorkItem takeTask() {
+			return tasks.take(this);
+		}
+
+		@Override
+		public String toString(){
+			return "(Medallion-"+id+")";
+		}
+
+		void enqueue(WorkItem item) {
+			if(freeMedallion == null || !tryToStartWorkerWith(item)) {
+				tasks.put(this, item);
+			}
+		}
+		
 	}
 	
-	public Worker currentWorker() {
-		return currentWorker.get();
+	/**
+	 * Used to spin up new workers when more parallelism is needed. */
+	final Executor executor = Executors.newCachedThreadPool();
+	
+	/**
+	 * Number of medallions issued in total. */
+	public final int numWorkers = Runtime.getRuntime().availableProcessors();
+	
+	/**
+	 * Array of all medallions.  Never modified after the constructor. */
+	final Medallion[] medallions = new Medallion[numWorkers];
+	
+	/**
+	 * Current medallion assigned to a thread, if any. */
+	final static ThreadLocal<Worker> currentWorker = new ThreadLocal<Worker>();
+	
+	/**
+	 * Lock used to protect various data structures. */
+	final Lock idleLock = new ReentrantLock();
+	
+	/**
+	 * List of work items that were submitted from the outside 
+	 * when there were no available medallions.  
+	 * Rarely used and should probably be removed. */
+	final ArrayList<WorkItem> pendingWorkItems = new ArrayList<WorkItem>();
+	
+	/**
+	 * Head of the linked list of free medallions.  If
+	 * null, then there are no available medallions.
+	 * 
+	 * Modified only while holding {@link #idleLock}, but 
+	 * read without lock. */
+	volatile Medallion freeMedallion;
+
+	/**
+	 * Head of the linked list of workers waiting for a 
+	 * medallion.  If null, then there are no waiting workers.
+	 * 
+	 * Modified only while holding {@link #idleLock}, but 
+	 * read without lock. */
+	volatile Worker waitingWorker; 
+	
+	public ThreadPool() {
+		freeMedallion = medallions[0] = new Medallion(0);
+		for(int i = 1; i < numWorkers; i++) {
+			Medallion medallion = new Medallion(i);
+			medallions[i] = medallion;
+			medallions[i-1].nextFree = medallion;
+		}
+	}
+
+	private boolean tryToStartWorkerWith(WorkItem item) {
+		Medallion medallion = null;
+		
+		idleLock.lock();
+		medallion = freeMedallion;
+		if(medallion != null) {
+			freeMedallion = medallion.nextFree;
+		}
+		idleLock.unlock();
+			
+		if(medallion == null)
+			return false;
+
+		startWorkerWith(item, medallion);
+		return false;
+	}
+
+	private void startWorkerWith(WorkItem item, Medallion medallion) {
+		medallion.nextFree = null;
+		medallion.tasks.put(medallion, item);
+		executor.execute(new Worker(medallion));
 	}
 	
+	public int currentId() {
+		return currentWorker.get().medallion.id;
+	}
+	
+	/**
+	 * Yields the medallion held by the current thread,
+	 * if any. 
+	 * 
+	 * @return true if the current thread held a medallion */
+	public boolean yieldMedallion() {
+		Worker worker = currentWorker.get();
+		if(worker == null) {
+			return false;
+		} else {
+			assert worker.medallion != null;
+			worker.releaseMedallion();
+			return true;
+		}
+	}
+	
+	/**
+	 * Re-acquires a medallion for the current thread
+	 * after it invoked {@link #yieldMedallion()}. */
+	public void reacquireMedallion() {
+		Worker worker = currentWorker.get();
+		assert worker != null && worker.medallion == null;
+		worker.acquireMedallion();
+	}
+
 	public void submit(WorkItem item) {		
-		Worker worker = currentWorker();
-		if(worker != null)
-			worker.enqueue(item);
-		else {
+		Worker worker = currentWorker.get();
+		if(worker != null) {
+			assert worker.medallion != null;
+			worker.medallion.enqueue(item);
+		} else {
 			idleLock.lock();		
-			startKeepAliveThread();
-			int l = idleWorkers.size();
-			if(l == 0) { 
+			
+			if(freeMedallion == null) {
 				// No one waiting to take this job.  
 				// Put it on the list of pending items, and
 				// someone will get to it rather than becoming idle.
 				pendingWorkItems.add(item);
-//				if(Debug.ENABLED)
-//					Debug.enqeue(null, item);
 				idleLock.unlock();
-			}
-			else {
-				// There is an idle worker.  Remove it, assign 
-				// it this job, and wake it.
-				worker = idleWorkers.remove(l - 1);
-				idleWorkersExist = (l != 1);
+			} else {
+				// There is a free medallion.  Spin up a new worker.
+				Medallion medallion = freeMedallion;
+				freeMedallion = freeMedallion.nextFree;
 				idleLock.unlock();
-//				if(Debug.ENABLED)
-//					Debug.awakenIdle(null, item, worker);
-				worker.tasks.put(worker, item);
-				worker.semaphore.release();
+				startWorkerWith(item, medallion);
 			}					
 		}
 	}
-	
+
 }

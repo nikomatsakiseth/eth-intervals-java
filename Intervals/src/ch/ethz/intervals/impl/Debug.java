@@ -5,9 +5,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
-
-import org.eclipse.jetty.util.BlockingArrayQueue;
 
 import pcollections.PSet;
 import ch.ethz.intervals.impl.IntervalImpl.State;

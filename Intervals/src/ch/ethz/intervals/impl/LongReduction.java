@@ -75,7 +75,7 @@ public class LongReduction {
 	 */
 	// @JPartMethod(effects="AtomicWr(@W)")
 	public void add(long amnt) {
-		int index = ContextImpl.POOL.currentWorker().id * PAD;
+		int index = ContextImpl.POOL.currentId() * PAD;
 		add(amnt, index);
 	}
 	
@@ -87,7 +87,7 @@ public class LongReduction {
 	 */
 	// @JPartMethod(effects="AtomicWr(@W)")
 	public void subtract(long amnt) {
-		int index = ContextImpl.POOL.currentWorker().id * PAD;
+		int index = ContextImpl.POOL.currentId() * PAD;
 		add(-amnt, index);
 	}
 	
