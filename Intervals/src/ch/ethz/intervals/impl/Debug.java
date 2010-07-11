@@ -3,8 +3,11 @@ package ch.ethz.intervals.impl;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+
+import org.eclipse.jetty.util.BlockingArrayQueue;
 
 import pcollections.PSet;
 import ch.ethz.intervals.impl.IntervalImpl.State;
@@ -44,22 +47,34 @@ implements Page
 	 * Controls whether debugging is enabled.   
 	 * Initialized from the property {@code IntervalsDebug}.
 	 * Defaults to {@code false}. */
-	public static final boolean ENABLED = STATIC_SWITCH || Boolean.parseBoolean(System.getProperty("IntervalsDebug", "false"));
-	
+	public static final boolean ENABLED = 
+		STATIC_SWITCH || Boolean.parseBoolean(System.getProperty("IntervalsDebug", "false"));
+
 	/** 
 	 * Throw out events if we have more than this amount, unless the relevant
 	 * point has not yet occurred. 
 	 * 
-	 * Initialized from the property {@code IntervalsDebugMemory1}.
+	 * Initialized from the property {@code IntervalsDebug.Memory1}.
 	 * Defaults to {@code 10000}. */
-	public static final long MEMORY1 = Long.parseLong(System.getProperty("IntervalsDebugMemory1", "10000"));
+	public static final int MEMORY1 = 
+		Integer.parseInt(System.getProperty("IntervalsDebug.Memory1", "10000"));
 	
 	/** 
 	 * Unconditionally remove events when we have accumulated this amount. 
 	 * 
-	 * Initialized from the property {@code IntervalsDebugMemory2}.
+	 * Initialized from the property {@code IntervalsDebug.Memory2}.
 	 * Defaults to {@code 100000}. */
-	public static final long MEMORY2 = Long.parseLong(System.getProperty("IntervalsDebugMemory2", "100000"));
+	public static final int MEMORY2 = 
+		Integer.parseInt(System.getProperty("IntervalsDebug.Memory2", "100000"));
+	
+	/** 
+	 * Maximum capacity of the event log queue.  This prevents the worker threads 
+	 * from swamping the update thread with events.
+	 * 
+	 * Initialized from the property {@code IntervalsDebug.QueueCapacity}.
+	 * Defaults to {@link #MEMORY1}. */
+	public static final int QUEUE_CAPACITY = 
+		Integer.parseInt(System.getProperty("IntervalsDebug.QueueCapacity", Integer.toString(MEMORY1)));
 	
 	/**
 	 * Singleton instance. */
@@ -70,14 +85,90 @@ implements Page
 		updateThread.start();
 	}
 	
+	// Update thread:
+	// --------------
+
+	private BlockingQueue<Event> queue = new ArrayBlockingQueue<Debug.Event>(QUEUE_CAPACITY, true);
+	
+	private void putQueue(Event event) {
+		try {
+			queue.put(event);
+		} catch (InterruptedException e) {}
+	}
+
+	private class UpdateThread extends Thread {
+		
+		public UpdateThread() {
+			super("Interval Debug Thread");
+			setDaemon(true);
+		}
+		
+		@Override
+		public void run() {
+			try {
+				while(true) {
+					Event event = queue.take();
+					synchronized(Debug.this) {
+						event.post(Debug.this);
+					}
+				}
+			} catch (InterruptedException e) {
+			}
+		}
+		
+	}
+	
+	private final UpdateThread updateThread;
+	
 	// Interval data structures:
 	// -------------------------
 	//
 	// Accessed only while holding lock on the RefTracker.
 	// Generally this is done during the update thread.
 	
+	private class EventList {
+		int size;
+		Event first;
+		Event last;
+	}
+	
+	private abstract static class Event implements CustomOutput {
+		final PointImpl relevantTo;
+		long id;
+		Event prevAll, nextAll;
+		Event prevObject, nextObject;
+		
+		public Event(PointImpl relevant) {
+			this.relevantTo = relevant;
+		}
+
+		/** 
+		 * Invoked from the update thread while 
+		 * holding the RefTracker lock. */
+		public void post(Debug debug) {
+			debug.addEvent(this);
+		}
+		
+		/**
+		 * Returns true if this event pertains to something 
+		 * which has already happened and is in the past.
+		 * If there are too many events, irrelevant events are
+		 * purged first. */
+		public boolean irrelevant() {
+			if(relevantTo != null)
+				// Already occurred == irrelevant
+				return relevantTo.didOccur(); // racy, but so what?
+			
+			return true;
+		}
+
+		public void outputComments(Output out) 
+		throws IOException {
+		}
+	}
+	
 	private final Map<PointImpl, EventList> perObjectLists = new HashMap<PointImpl, EventList>(); 
-//	private final Map<RefEvent, AddRefEvent> unmatchedAddRefEvents = new HashMap<RefEvent, AddRefEvent>();
+	private final Map<RefEvent, AddRefEvent> unmatchedAddRefEvents = new HashMap<RefEvent, AddRefEvent>();
 	private EventList allEvents = new EventList();
 	private long counter = 0;
 	
@@ -180,81 +271,38 @@ implements Page
 		return nextAll;
 	}
 
-	// Update thread:
-	// --------------
-
-	private class EventList {
-		public long size;
-		Event first;
-		Event last;
-	}
-	
-	private abstract static class Event implements CustomOutput {
-		final PointImpl relevantTo;
-		long id;
-		Event prevAll, nextAll;
-		Event prevObject, nextObject;
-		
-		public Event(PointImpl relevant) {
-			this.relevantTo = relevant;
-		}
-
-		/** 
-		 * Invoked from the update thread while 
-		 * holding the RefTracker lock. */
-		public void post(Debug debug) {
-			debug.addEvent(this);
-		}
-		
-		/**
-		 * Returns true if this event pertains to something 
-		 * which has already happened and is in the past.
-		 * If there are too many events, irrelevant events are
-		 * purged first. */
-		public boolean irrelevant() {
-			if(relevantTo != null)
-				// Already occurred == irrelevant
-				return relevantTo.didOccur(); // racy, but so what?
-			
-			return true;
-		}
-	}
-	
-	private BlockingQueue<Event> queue = new LinkedBlockingQueue<Debug.Event>();
-	
-	private class UpdateThread extends Thread {
-		
-		public UpdateThread() {
-			super("Interval Debug Thread");
-			setDaemon(true);
-		}
-		
-		@Override
-		public void run() {
-			try {
-				while(true) {
-					Event event = queue.take();
-					synchronized(Debug.this) {
-						event.post(Debug.this);
-					}
-				}
-			} catch (InterruptedException e) {
-			}
-		}
-		
-	}
-	
-	private final UpdateThread updateThread;
-	
 	// Posting routines:
 	// -----------------
 	
 	abstract static class RefEvent extends Event {
 		final Object from;
+		long matchedWith = -1; 
 		
 		public RefEvent(PointImpl point, Object from) {
 			super(point);
 			this.from = from;
+		}
+		
+		public boolean isMatched() {
+			return matchedWith != -1;
+		}
+		
+		@Override
+		public boolean irrelevant() {
+			return super.irrelevant() || isMatched();
+		}
+
+		@Override
+		public void outputComments(Output out) 
+		throws IOException {
+			if(!isMatched()) {
+				out.startBold();
+				out.outputText("Unmatched.");
+				out.endBold();
+			} else {
+				out.outputText("Matched to ");
+				out.outputText(Long.toString(matchedWith));
+			}
 		}
 
 		@Override 
@@ -281,31 +329,22 @@ implements Page
 		final int newValue;
 		
 		// If this field is null or points to an AddRefEvent, this
-		// add ref is not yet matched against a DecRef.  If it points
-		// to a DecRefEvent, then it has been matched.
-//		RefEvent nextUnmatched;
+		// add ref is not yet matched against a DecRef.  Set to
+		// null once we found a match.
+		AddRefEvent nextUnmatched;
 		
 		public AddRefEvent(PointImpl point, Object from, int newValue) {
 			super(point, from);
 			this.newValue = newValue;
 		}
 		
-//		@Override
-//		public void post(Debug debug) {
-//			super.post(debug);
-//			
-//			nextUnmatched = debug.unmatchedAddRefEvents.put(this, this);
-//		}
-//		
-//		private boolean isMatched() {
-//			return (nextUnmatched != null) && (nextUnmatched instanceof DecRefEvent);
-//		}
-//
-//		@Override
-//		public boolean irrelevant() {
-//			return super.irrelevant() || isMatched();
-//		}
-
+		@Override
+		public void post(Debug debug) {
+			super.post(debug);
+			
+			nextUnmatched = debug.unmatchedAddRefEvents.put(this, this);
+		}
+		
 		@Override
 		public void renderInLine(Output output) throws IOException {
 			output.outputText("AddRef(");
@@ -316,43 +355,42 @@ implements Page
 			output.outputText(Integer.toString(newValue));
 			output.outputText(")");
 		}
-
 	}
 	
 	public void postAddRef(PointImpl point, Object from, int newValue) {
 		if(ENABLED) {
-			queue.add(new AddRefEvent(point, from, newValue));
+			putQueue(new AddRefEvent(point, from, newValue));
 		}
 	}
 
 	static class DecRefEvent extends RefEvent {
 		final int newValue;
-		DecRefEvent nextUnmatched; // normally null except when printing out
 		
 		public DecRefEvent(PointImpl point, Object from, int newValue) {
 			super(point, from);
 			this.newValue = newValue;
 		}
 		
-//		@Override
-//		public void post(Debug debug) {
-//			super.post(debug);
-//			
-//			AddRefEvent match = debug.unmatchedAddRefEvents.get(this);
-//			if(match == null) {
-//				// unmatched add. bad.
-//			} else {
-//				if(match.nextUnmatched == null)
-//					debug.unmatchedAddRefEvents.remove(match);
-//				else
-//					debug.unmatchedAddRefEvents.put(
-//							match.nextUnmatched, 
-//							(AddRefEvent) match.nextUnmatched);
-//				
-//				match.nextUnmatched = this;
-//			}
-//		}
-
+		@Override
+		public void post(Debug debug) {
+			super.post(debug);
+			
+			AddRefEvent match = debug.unmatchedAddRefEvents.get(this);
+			if(match != null) {
+				if(match.nextUnmatched == null)
+					debug.unmatchedAddRefEvents.remove(match);
+				else
+					debug.unmatchedAddRefEvents.put(
+							match.nextUnmatched, 
+							(AddRefEvent) match.nextUnmatched);
+				
+				matchedWith = match.id;
+				match.matchedWith = id;
+			} else {
+				// This really should not happen.
+			}
+		}
+		
 		@Override
 		public void renderInLine(Output output) throws IOException {
 			output.outputText("DecRef(");
@@ -367,7 +405,7 @@ implements Page
 	
 	public void postDecRef(PointImpl point, RefManipulator from, int newValue) {
 		if(ENABLED) {
-			queue.add(new DecRefEvent(point, from, newValue));
+			putQueue(new DecRefEvent(point, from, newValue));
 		}
 	}
 	
@@ -387,7 +425,7 @@ implements Page
 	
 	public void postOccur(PointImpl point) {
 		if(ENABLED) {
-			queue.add(new OccurEvent(point));
+			putQueue(new OccurEvent(point));
 		}
 	}
 	
@@ -414,7 +452,7 @@ implements Page
 	
 	public void postSchedule(IntervalImpl scheduled, IntervalImpl scheduledBy) {
 		if(ENABLED) {
-			queue.add(new ScheduleEvent(scheduled, scheduledBy));
+			putQueue(new ScheduleEvent(scheduled, scheduledBy));
 		}
 	}
 	
@@ -452,7 +490,7 @@ implements Page
 			State newState) 
 	{
 		if(ENABLED) {
-			queue.add(new TransitionEvent(intervalImpl, state, newState));
+			putQueue(new TransitionEvent(intervalImpl, state, newState));
 		}
 	}
 	
@@ -485,7 +523,7 @@ implements Page
 			PSet<Throwable> vertExceptions) 
 	{
 		if(ENABLED) {
-			queue.add(new VertExceptionEvent(intervalImpl, vertExceptions.size()));
+			putQueue(new VertExceptionEvent(intervalImpl, vertExceptions.size()));
 		}
 	}
 
@@ -521,25 +559,25 @@ implements Page
 	
 	public void postLockAcquired(LockBase lockBase, LockList acq) {
 		if(ENABLED) {
-			queue.add(new LockEvent("Acquired", lockBase, acq));
+			putQueue(new LockEvent("Acquired", lockBase, acq));
 		}
 	}
 
 	public void postLockEnqueued(LockBase lockBase, LockList acq) {
 		if(ENABLED) {
-			queue.add(new LockEvent("Enqueued", lockBase, acq));
+			putQueue(new LockEvent("Enqueued", lockBase, acq));
 		}
 	}
 
 	public void postLockDequeued(LockBase lockBase, LockList acq) {
 		if(ENABLED) {
-			queue.add(new LockEvent("Dequeued", lockBase, acq));
+			putQueue(new LockEvent("Dequeued", lockBase, acq));
 		}
 	}
 
 	public void postLockFreed(LockBase lockBase) {
 		if(ENABLED) {
-			queue.add(new LockEvent("Freed", lockBase, null));
+			putQueue(new LockEvent("Freed", lockBase, null));
 		}
 	}
 
@@ -572,7 +610,7 @@ implements Page
 	
 	public void postNewInterval(IntervalImpl inter, IntervalImpl creator) {
 		if(ENABLED) {
-			queue.add(new NewIntervalEvent(inter, creator));
+			putQueue(new NewIntervalEvent(inter, creator));
 		}
 	}
 
@@ -607,32 +645,34 @@ implements Page
 
 			out.startColumn();
 			
-			if(event instanceof DecRefEvent) {
-				DecRefEvent decRef = (DecRefEvent) event;
-				assert decRef.nextUnmatched == null;
-				DecRefEvent oldRef = unmatched.put(decRef, decRef);
-				if(oldRef != null)
-					decRef.nextUnmatched = oldRef;
-			}
+			event.outputComments(out);
 			
-			if(event instanceof AddRefEvent) {
-				AddRefEvent addRef = (AddRefEvent) event;
-				DecRefEvent match = unmatched.get(addRef);
-				if(match == null) {
-					out.startBold();
-					out.outputText("unmatched");
-					out.endBold();
-				} else {
-					if(match.nextUnmatched != null) {
-						unmatched.put(match, match.nextUnmatched);
-						match.nextUnmatched = null;
-					} else {
-						unmatched.remove(match);
-					}
-					out.outputText("matched with event ");
-					out.outputText(Long.toString(match.id));
-				} 
-			}
+//			if(event instanceof DecRefEvent) {
+//				DecRefEvent decRef = (DecRefEvent) event;
+//				assert decRef.nextUnmatched == null;
+//				DecRefEvent oldRef = unmatched.put(decRef, decRef);
+//				if(oldRef != null)
+//					decRef.nextUnmatched = oldRef;
+//			}
+//			
+//			if(event instanceof AddRefEvent) {
+//				AddRefEvent addRef = (AddRefEvent) event;
+//				DecRefEvent match = unmatched.get(addRef);
+//				if(match == null) {
+//					out.startBold();
+//					out.outputText("unmatched");
+//					out.endBold();
+//				} else {
+//					if(match.nextUnmatched != null) {
+//						unmatched.put(match, match.nextUnmatched);
+//						match.nextUnmatched = null;
+//					} else {
+//						unmatched.remove(match);
+//					}
+//					out.outputText("matched with event ");
+//					out.outputText(Long.toString(match.id));
+//				} 
+//			}
 			
 			out.endColumn();
 			
@@ -649,25 +689,25 @@ implements Page
 		public void dumpUnmatchedTable(Output out)
 		throws IOException
 		{
-			if(!unmatched.isEmpty()) {
-				out.startPage(null);
-				out.startBold();
-				out.outputText("Unmatched refs");
-				out.endBold();
-				out.startTable();
-				Lathos.headerRow(out, "Unmatched id", "event");
-				for(Map.Entry<?, DecRefEvent> entry : unmatched.entrySet()) {
-					DecRefEvent next = entry.getValue();
-					while(next != null) {
-						DecRefEvent unmatched = next;
-						Lathos.row(out, unmatched.id, unmatched);
-						next = unmatched.nextUnmatched;
-						unmatched.nextUnmatched = null;
-					}
-				}
-				out.endTable();
-				out.endPage(null);
-			}
+//			if(!unmatched.isEmpty()) {
+//				out.startPage(null);
+//				out.startBold();
+//				out.outputText("Unmatched refs");
+//				out.endBold();
+//				out.startTable();
+//				Lathos.headerRow(out, "Unmatched id", "event");
+//				for(Map.Entry<?, DecRefEvent> entry : unmatched.entrySet()) {
+//					DecRefEvent next = entry.getValue();
+//					while(next != null) {
+//						DecRefEvent unmatched = next;
+//						Lathos.row(out, unmatched.id, unmatched);
+//						next = unmatched.nextUnmatched;
+//						unmatched.nextUnmatched = null;
+//					}
+//				}
+//				out.endTable();
+//				out.endPage(null);
+//			}
 		}
 	}
 	
