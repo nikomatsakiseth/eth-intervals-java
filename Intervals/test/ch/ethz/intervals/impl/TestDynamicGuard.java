@@ -13,10 +13,10 @@ import org.junit.Test;
 
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.IntervalException;
+import ch.ethz.intervals.IntervalException.DataRace;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.Point;
 import ch.ethz.intervals.RethrownException;
-import ch.ethz.intervals.IntervalException.DataRace;
 import ch.ethz.intervals.guard.Guard;
 import ch.ethz.intervals.guard.ReadSummarizingDynamicGuard;
 import ch.ethz.intervals.guard.ReadTrackingDynamicGuard;

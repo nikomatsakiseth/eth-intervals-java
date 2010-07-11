@@ -1,7 +1,5 @@
 package ch.ethz.intervals;
 
-import java.util.concurrent.atomic.AtomicBoolean;
-
 import ch.ethz.intervals.guard.Guard;
 import ch.ethz.intervals.impl.ContextImpl;
 import ch.ethz.intervals.task.AbstractTask;

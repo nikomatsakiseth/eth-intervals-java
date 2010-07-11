@@ -2,10 +2,10 @@ package ch.ethz.intervals.guard;
 
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.IntervalException;
-import ch.ethz.intervals.Lock;
-import ch.ethz.intervals.Point;
 import ch.ethz.intervals.IntervalException.DataRace;
 import ch.ethz.intervals.IntervalException.DataRace.Role;
+import ch.ethz.intervals.Lock;
+import ch.ethz.intervals.Point;
 
 /**
  * Dynamic guards monitor field accesses dynamically to guarantee 

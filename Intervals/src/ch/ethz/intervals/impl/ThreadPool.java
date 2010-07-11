@@ -87,8 +87,8 @@ public class ThreadPool {
 				tasksArray.set(index, task);
 				ownerTail = tail + 1; // important: put vol. wr. after array store to create HB rel
 				
-				if(Debug.ENABLED)
-					Debug.dequePut(owner, l, ownerHead, ownerTail, tail, task);				
+//				if(Debug.ENABLED)
+//					Debug.dequePut(owner, l, ownerHead, ownerTail, tail, task);				
 				return;
 			}
 		}
@@ -119,8 +119,8 @@ public class ThreadPool {
 				ownerTail = lastTail;
 				return item;
 			} finally { 
-				if(Debug.ENABLED)
-					Debug.dequeTake(owner, tasksArray.length() >> PAD, ownerHead, ownerTail, lastIndex, item);				
+//				if(Debug.ENABLED)
+//					Debug.dequeTake(owner, tasksArray.length() >> PAD, ownerHead, ownerTail, lastIndex, item);				
 			}				
 		}
 		
@@ -130,8 +130,8 @@ public class ThreadPool {
 				final int index = index(head);
 				WorkItem item = tasksArray.getAndSet(index, null);
 				
-				if(Debug.ENABLED)
-					Debug.dequeSteal(victimWorker, thiefWorker, thief.head, index, item);
+//				if(Debug.ENABLED)
+//					Debug.dequeSteal(victimWorker, thiefWorker, thief.head, index, item);
 				
 				if(item == null) // if null, was either already taken by owner or never there.
 					return null; 
@@ -207,8 +207,8 @@ public class ThreadPool {
 					if((item = findPendingWork(block)) == null)
 						return false;
 			
-			if(Debug.ENABLED)
-				Debug.execute(this, item, true);
+//			if(Debug.ENABLED)
+//				Debug.execute(this, item, true);
 			item.exec(this);
 			return true;
 		}
@@ -272,15 +272,15 @@ public class ThreadPool {
 				}
 				
 				if(idleWorker != null) {
-					if(Debug.ENABLED)
-						Debug.awakenIdle(this, item, idleWorker);
+//					if(Debug.ENABLED)
+//						Debug.awakenIdle(this, item, idleWorker);
 					idleWorker.tasks.put(idleWorker, item);
 					idleWorker.semaphore.release();
 					return;
 				}
 			} 
-			if(Debug.ENABLED)
-				Debug.enqeue(this, item);
+//			if(Debug.ENABLED)
+//				Debug.enqeue(this, item);
 			tasks.put(this, item);
 		}			
 		
@@ -324,8 +324,8 @@ public class ThreadPool {
 				// Put it on the list of pending items, and
 				// someone will get to it rather than becoming idle.
 				pendingWorkItems.add(item);
-				if(Debug.ENABLED)
-					Debug.enqeue(null, item);
+//				if(Debug.ENABLED)
+//					Debug.enqeue(null, item);
 				idleLock.unlock();
 			}
 			else {
@@ -334,8 +334,8 @@ public class ThreadPool {
 				worker = idleWorkers.remove(l - 1);
 				idleWorkersExist = (l != 1);
 				idleLock.unlock();
-				if(Debug.ENABLED)
-					Debug.awakenIdle(null, item, worker);
+//				if(Debug.ENABLED)
+//					Debug.awakenIdle(null, item, worker);
 				worker.tasks.put(worker, item);
 				worker.semaphore.release();
 			}					

@@ -1,12 +1,17 @@
 package ch.ethz.intervals.impl;
 
+import java.io.IOException;
 import java.util.Set;
+
+import com.smallcultfollowing.lathos.Lathos;
+import com.smallcultfollowing.lathos.Output;
+import com.smallcultfollowing.lathos.Page;
+import com.smallcultfollowing.lathos.PageContent;
 
 import pcollections.Empty;
 import pcollections.HashTreePSet;
 import pcollections.PSet;
 import ch.ethz.intervals.AsyncInterval;
-import ch.ethz.intervals.InlineInterval;
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.IntervalException;
 import ch.ethz.intervals.Intervals;
@@ -20,7 +25,7 @@ import ch.ethz.intervals.util.ChunkList;
 
 public abstract class IntervalImpl 
 extends ThreadPool.WorkItem 
-implements Guard, Interval
+implements Guard, Interval, Page, RefManipulator
 {	
 	// =====================================================================================
 	// Public interface (and some private supporting functions):
@@ -323,15 +328,15 @@ implements Guard, Interval
 		
 		boolean isInline = isInline();
 		
-		int pntFlags = (isInline ? PointImpl.FLAG_INLINE : PointImpl.NO_FLAGS);
-		int startWaitCount = 2; // parent, sched
-		int endWaitCount = 2; // start, task
+		final int pntFlags = (isInline ? PointImpl.FLAG_INLINE : PointImpl.NO_FLAGS);
+		final int startWaitCount = 2; // parent, sched
+		final int endWaitCount = 2; // start, task
 
 		this.name = taskName;
 		this.parent = parent;
 		this.task = task;
 		end = new PointImpl(name, pntFlags | PointImpl.FLAG_END, parentEnd, endWaitCount, this);
-		start = new PointImpl(name, pntFlags, end, startWaitCount, this);	
+		start = new PointImpl(name, pntFlags, end, startWaitCount, this);
 		
 		State parentState;
 		if(parent != null)
@@ -342,8 +347,9 @@ implements Guard, Interval
 		if(!parentState.permitsNewChildren)
 			throw new IntervalException.ParPhaseCompleted(parent);			
 		
-		if(isInline || !parentState.willSignalAsyncChild)
-			start.addWaitCountUnsync(-1);
+		if(isInline || !parentState.willSignalAsyncChild) {
+			start.addWaitCountUnsync(-1);			
+		}
 		
 		if(parentState.childrenCancelled)
 			state = State.CANCEL_WAIT;
@@ -355,13 +361,30 @@ implements Guard, Interval
 				
 		ExecutionLog.logNewInterval(null, start, end);
 		
+		if(Debug.ENABLED) {
+			// There may be a bit of a race cond. here between the
+			// parent starting, and thus posting a DecRef, and us posting
+			// the AddRef event.  But hey, that's life.  Also, I think that in
+			// the new rules the creator of a child must HB the start of the
+			// parent, in which case there is no danger.
+			
+			if(!isInline && parentState.willSignalAsyncChild)
+				Debug.debug.postAddRef(start, parent, 1);
+			Debug.debug.postAddRef(start, current.inter, 1);
+				
+			Debug.debug.postAddRef(end, start, 1);
+			Debug.debug.postAddRef(end, this, 1);
+			
+			Debug.debug.postNewInterval(this, current.inter);
+		}
+		
 		// Note: task.attachedTo() is invoked in the subclasses.
 	}
 	
 	/** Moves to a new state. */
 	private void transitionUnsync(State newState) {
 		if(Debug.ENABLED)
-			Debug.transition(this, state, newState);
+			Debug.debug.postTransition(this, state, newState);
 		state = newState;
 	}
 	
@@ -412,7 +435,7 @@ implements Guard, Interval
 		}
 		
 		if(Debug.ENABLED)
-			Debug.addVertException(this, thr, vertExceptions);
+			Debug.debug.postVertException(this, thr, vertExceptions);
 	}
 	
 	synchronized final void addVertExceptionSync(Throwable thr) {
@@ -426,7 +449,7 @@ implements Guard, Interval
 			vertExceptions = vertExceptions.plusAll(errors);
 		
 		if(Debug.ENABLED)
-			Debug.addVertException(this, null, vertExceptions);
+			Debug.debug.postVertException(this, null, vertExceptions);
 	}
 
 	final void setRevLocksUnsync(LockList locks) {
@@ -699,12 +722,12 @@ implements Guard, Interval
 				@Override public void doForEach(IntervalImpl child, int flags) {
 					if(newState.childrenCancelled)
 						child.cancel(child.start);
-					child.start.arrive(1);
+					child.start.arrive(1, IntervalImpl.this);
 				}
 			};
 		}
 
-		end.arrive(1);
+		end.arrive(1, this);
 	}
 
 	/**
@@ -731,6 +754,49 @@ implements Guard, Interval
 	void didSchedule(boolean explicit) {
 		// Only invoked by our scheduler:
 		unscheduled = null;
+	}
+
+	// =====================================================================================
+	// Lathos routines
+	
+	@Override
+	public void renderInLine(Output output) throws IOException {
+		Lathos.renderInLine(this, output);
+	}
+
+	// This routine is not synchronized; its nature is inherently racy.
+	@Override
+	public void renderInPage(Output out) throws IOException {
+		out.startPage(this);
+
+		out.startPar();
+		out.startBold();
+		out.outputText("Interval: ");
+		out.outputText(toString());
+		out.endBold();
+		out.endPar();
+
+		out.startTable();
+		Lathos.headerRow(out, "Field", "Value", "Comments");
+		Lathos.row(out, "Name", name, "");
+		Lathos.row(out, "Start Point", start, start.didOccur());
+		Lathos.row(out, "End Point", end, start.didOccur());
+		Lathos.row(out, "State", state, "");
+		out.endTable();
+		
+		Debug.debug.renderEventsForObject(out, this);
+		
+		out.endPage(this);
+	}
+
+	@Override
+	public String getId() {
+		return Lathos.defaultId(this);
+	}
+
+	@Override
+	public void addContent(PageContent content) {
+		throw new UnsupportedOperationException();
 	}
 	
 }

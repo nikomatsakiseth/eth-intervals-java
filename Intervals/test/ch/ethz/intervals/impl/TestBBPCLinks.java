@@ -12,7 +12,6 @@ import org.junit.Test;
 
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
-import ch.ethz.intervals.impl.IntervalImpl;
 import ch.ethz.intervals.quals.Creator;
 import ch.ethz.intervals.task.AbstractTask;
 

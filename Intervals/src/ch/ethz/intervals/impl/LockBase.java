@@ -34,13 +34,13 @@ abstract class LockBase
 		synchronized(this) {
 			if(!locked) { // Available.  Go to locked state.
 				if(Debug.ENABLED)
-					Debug.acquireLock(this, acq);
+					Debug.debug.postLockAcquired(this, acq);
 				
 				locked = true;
 				result = 0;
 			} else { // Already locked.  Enqueue 'acq'.
 				if(Debug.ENABLED)
-					Debug.enqueueForLock(this, acq);
+					Debug.debug.postLockEnqueued(this, acq);
 				
 				if (firstPending == null) {
 					firstPending = lastPending = acq;
@@ -71,7 +71,7 @@ abstract class LockBase
 				locked = false;
 				
 				if(Debug.ENABLED)
-					Debug.lockFree(this);
+					Debug.debug.postLockFreed(this);
 				
 				return;
 			} 
@@ -86,7 +86,7 @@ abstract class LockBase
 		}
 		
 		if(Debug.ENABLED)
-			Debug.dequeueForLock(this, newOwner);
+			Debug.debug.postLockDequeued(this, newOwner);
 		
 		// If we get here, we dequeued newOwner.  Wake them up.
 		newOwner.nextPending = null;

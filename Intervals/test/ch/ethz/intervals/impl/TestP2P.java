@@ -14,8 +14,6 @@ import ch.ethz.intervals.AsyncInterval;
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.Point;
-import ch.ethz.intervals.impl.IntervalImpl;
-import ch.ethz.intervals.impl.PointImpl;
 import ch.ethz.intervals.task.AbstractTask;
 import ch.ethz.intervals.task.ResultTask;
 import ch.ethz.intervals.task.SetupTask;

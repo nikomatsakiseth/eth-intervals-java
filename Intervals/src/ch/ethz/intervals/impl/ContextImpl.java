@@ -1,10 +1,9 @@
 package ch.ethz.intervals.impl;
 
-import static ch.ethz.intervals.util.ChunkList.NORMAL;
 import ch.ethz.intervals.Context;
 import ch.ethz.intervals.IntervalException;
-import ch.ethz.intervals.ScopedVar;
 import ch.ethz.intervals.Lock;
+import ch.ethz.intervals.ScopedVar;
 import ch.ethz.intervals.Task;
 import ch.ethz.intervals.guard.Guard;
 

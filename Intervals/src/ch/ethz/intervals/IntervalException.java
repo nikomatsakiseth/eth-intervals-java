@@ -1,9 +1,7 @@
 package ch.ethz.intervals;
 
-import ch.ethz.intervals.guard.ReadTrackingDynamicGuard;
 import ch.ethz.intervals.guard.Guard;
-import ch.ethz.intervals.impl.IntervalImpl;
-import ch.ethz.intervals.impl.PointImpl;
+import ch.ethz.intervals.guard.ReadTrackingDynamicGuard;
 
 
 /** Base class for all exceptions thrown by the interval runtime. */

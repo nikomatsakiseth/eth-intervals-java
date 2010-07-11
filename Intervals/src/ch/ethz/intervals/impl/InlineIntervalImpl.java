@@ -49,9 +49,6 @@ implements InlineInterval
 			if(current.mr != null && current.mr != current.start())
 				current.mr.addEdgeAfterOccurredWithoutException(start, NORMAL);
 			
-			if(Debug.ENABLED)
-				Debug.subInterval(this);
-			
 			current.schedule(this);
 			end.join();
 			current.updateMostRecent(end);

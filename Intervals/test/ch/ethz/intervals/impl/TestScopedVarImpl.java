@@ -7,10 +7,10 @@ import org.junit.Test;
 import ch.ethz.intervals.Context;
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.IntervalException;
-import ch.ethz.intervals.ScopedVar;
+import ch.ethz.intervals.IntervalException.MustBeCurrent;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.RethrownException;
-import ch.ethz.intervals.IntervalException.MustBeCurrent;
+import ch.ethz.intervals.ScopedVar;
 import ch.ethz.intervals.task.AbstractTask;
 
 public class TestScopedVarImpl extends TestUtil {

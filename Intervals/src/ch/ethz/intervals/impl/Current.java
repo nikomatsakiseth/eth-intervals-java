@@ -100,11 +100,11 @@ public class Current
 		assert p.isUnscheduled(this);
 		
 		if(Debug.ENABLED)
-			Debug.schedule(p, inter);
+			Debug.debug.postSchedule(p, inter);
 		ExecutionLog.logScheduleInterval(p);
 		
 		p.didSchedule(explicit);
-		p.start.arrive(1);
+		p.start.arrive(1, inter);
 	}
 	
 	void cancelAll() {

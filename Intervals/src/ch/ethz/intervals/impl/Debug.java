@@ -1,531 +1,656 @@
 package ch.ethz.intervals.impl;
 
-import java.util.concurrent.atomic.AtomicLong;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 import pcollections.PSet;
-import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.impl.IntervalImpl.State;
-import ch.ethz.intervals.impl.ThreadPool.WorkItem;
-import ch.ethz.intervals.impl.ThreadPool.Worker;
-import ch.ethz.intervals.util.ChunkList;
 
-public class Debug {
-	
-	public static final boolean ENABLED = false;
-	public static final int BUFFER_SIZE = 0; // If 0, dump immediately.
-	public static final boolean DUMP_IMMEDIATELY = true;
-	
-	public static final boolean ENABLED_LOCK = false;        /** Debug statements related to locks. */
-	public static final boolean ENABLED_WAIT_COUNTS = false; /** Debug statements related to wait counts. */
-	public static final boolean ENABLED_ARRIVE = false; 		 /** \-> Arrive statements in particular. */
-	public static final boolean ENABLED_ADD_WC = false; 		 /** \-> Add Wait Count statements in particular. */
-	public static final boolean ENABLED_INTER = false;       /** Debug statements related to higher-level interval control-flow */
-	public static final boolean ENABLED_WORK_STEAL = false;  /** Debug statements related to the work-stealing queue */
-	public static final boolean ENABLED_EXC = true;       	 /** Debug statements related to exceptions */
-	
-	private static Event[] events = new Event[BUFFER_SIZE];
-	private static AtomicLong pos = new AtomicLong(0);
-	
-	public static void addEvent(Event e) {
-		assert ENABLED; // all debug actions should be protected by if(ENABLED)
-		if(ENABLED) { // just in case.
-			boolean dumpImmediately = (BUFFER_SIZE == 0);
-			if(dumpImmediately) {
-				synchronized(events) {
-					System.err.println(e.toString());
-				}
-			} else {
-				e.index = pos.getAndIncrement();
-				int actualIndex = (int)(e.index % BUFFER_SIZE);
-				events[actualIndex] = e;
-			}
-		}
-	}
-	
-	public static void dumpAfter(final long millis) {
-		new Thread() {
-			@Override
-			public void run() {
-				super.run();
-				try {
-					Thread.sleep(millis);
-				} catch (InterruptedException e) {
-					e.printStackTrace();
-				}
-				dump();
-			}
-		}.start();
-	}
-	
-	public static void dump() {
-		synchronized(events) {
-			long longMax = pos.get();
-			int intMax = (int)(longMax % BUFFER_SIZE);
-			System.err.printf("Dumping from event %s in REVERSE ORDER\n", longMax);
-			for(int i = intMax - 1; i >= 0; i--) {
-				Event e = events[i];
-				if(e != null && e.index < longMax) {
-					System.err.printf("%6d: %s\n", e.index, e);
-				} else break;
-			}
-			for(int i = events.length - 1; i >= intMax; i--) {
-				Event e = events[i];
-				if(e != null && e.index < longMax) {
-					System.err.printf("%6d: %s\n", e.index, e);
-				} else break;
-			}
-		}
-	}
+import com.smallcultfollowing.lathos.CustomOutput;
+import com.smallcultfollowing.lathos.Lathos;
+import com.smallcultfollowing.lathos.LathosServer;
+import com.smallcultfollowing.lathos.Output;
+import com.smallcultfollowing.lathos.Page;
+import com.smallcultfollowing.lathos.PageContent;
 
-	static abstract class Event {
-		public long index;
-	}
+/**
+ * Used for debugging the execution of intervals.
+ * Must be enabled by setting {@link Debug#ENABLED}
+ * to true.  
+ * 
+ * This Debug object itself is just a Lathos page.
+ * To actually view debug information, you must
+ * create a {@link LathosServer} and add {@link Debug#debug}
+ * as a top-level page.
+ * 
+ * The basic implementation is a kind of actor model.
+ * The various intervals post events into a central queue
+ * (we could later change this into a set of per-worker queues).
+ * A separate thread reads that queue and updates the data structures.
+ * This allows us to do some fairly complex tracking.
+ */
+public class Debug 
+implements Page 
+{
 
-	static class ArriveEvent extends Event {
-		public final PointImpl pointImpl;
-		public final int count;
-		public final int newCount;
+	/**
+	 * Enable debugging. */
+	public static final boolean ENABLED = true;
+	
+	/** 
+	 * Throw out events if we have more than this amount, unless the relevant
+	 * point has not yet occurred. */
+	public static final long MEMORY1 = 10000;
+	
+	/** 
+	 * Unconditionally remove events when we have accumulated this amount. */
+	public static final long MEMORY2 = 1000000;
+	
+	/**
+	 * Singleton instance. */
+	public static final Debug debug = new Debug();
+	
+	private Debug() {
+		updateThread = new UpdateThread();
+		updateThread.start();
+	}
+	
+	// Interval data structures:
+	// -------------------------
+	//
+	// Accessed only while holding lock on the RefTracker.
+	// Generally this is done during the update thread.
+	
+	private Map<Object, EventList> perObjectLists = new HashMap<Object, EventList>(); 
+	private EventList allEvents = new EventList();
+	private long counter = 0;
+	
+	private void addEvent(Event event) {
+		event.id = counter;
+		counter += 1;
 		
-		public ArriveEvent(PointImpl pointImpl, int count, int newCount) {
-			this.pointImpl = pointImpl;
-			this.count = count;
-			this.newCount = newCount;
-		}				
-		
-		public String toString() {
-			return String.format("ARRIVE %s count=%d newCount=%d", pointImpl, count, newCount);
+		EventList list = perObjectLists.get(event.relevantTo);
+		if(list == null) {
+			perObjectLists.put(event.relevantTo, (list = new EventList()));
+			list.first = list.last = event;
+		} else {
+			assert list.first != null;
+			list.last.nextObject = event;
+			event.prevObject = list.last;
+			list.last = event;
 		}
-	}
-	
-	public static void arrive(PointImpl pointImpl, int count, int newCount) {
-		if(ENABLED_WAIT_COUNTS || ENABLED_ARRIVE)
-			addEvent(new ArriveEvent(pointImpl, count, newCount));
-	}
-	
-	static class ScheduleEvent extends Event {
-		public final IntervalImpl inter;
-		public final IntervalImpl current;
-		
-		public ScheduleEvent(IntervalImpl inter, IntervalImpl current) {
-			this.inter = inter;
-			this.current = current;
-		}				
-		
-		public String toString() {
-			return String.format("SCHEDULE %s start=%s current=%s", inter, inter.start, current);
-		}
-	}
-	
-	public static void schedule(IntervalImpl inter, IntervalImpl current) {
-		if(ENABLED_WAIT_COUNTS)
-			addEvent(new ScheduleEvent(inter, current));
-	}
 
-	static class OccurEvent extends Event {
-		public final PointImpl pointImpl;
-		public final ChunkList<PointImpl> list;
-		
-		public OccurEvent(PointImpl pointImpl, ChunkList<PointImpl> list) {
-			this.pointImpl = pointImpl;
-			this.list = list;
-		}				
-		
-		public String toString() {
-			final StringBuilder sb = new StringBuilder();
-			sb.append(String.format("OCCUR %s withError %s bound %s succs", 
-					pointImpl, pointImpl.didOccurWithError(), pointImpl.bound));
+		if(allEvents.first == null) {
+			allEvents.first = allEvents.last = event;
+		} else {
+			allEvents.last.nextAll = event;
+			event.prevAll = allEvents.last;
+			allEvents.last = event;
 			
-			new ChunkList.Iterator<PointImpl>(list) {
-				public void doForEach(PointImpl toPoint, int flags) {
-					if(ChunkList.waiting(flags))
-						sb.append(String.format(" %s(%x)", toPoint, flags & ChunkList.ALL_FLAGS));					
-				}
-			};
+			purgeOldEvents();
+		}
+	}
+	
+	private void purgeOldEvents() {
+		long outstanding = allEvents.last.id - allEvents.first.id;
+
+		// After a certain point, start throwing out events if
+		// they still seem relevant.
+		while(outstanding > MEMORY2) {
+			removeOldestEvent();
+			outstanding--;
+		}
+
+		// Until then, we'll throw out old events unless they still
+		// seem relevant.
+		while(outstanding > MEMORY1) {
+			if(allEvents.first.stillRelevant())
+				break;
 			
-			return sb.toString();
+			removeOldestEvent();
+			outstanding--;
 		}
 	}
 	
-	public static void occur(PointImpl pointImpl, ChunkList<PointImpl> list) {
-		if(ENABLED_WAIT_COUNTS)
-			addEvent(new OccurEvent(pointImpl, list));
+	private void removeOldestEvent() {
+		Event victim = allEvents.first;
+		EventList objectList = perObjectLists.get(victim.relevantTo);
+		
+		allEvents.first = victim.nextAll;
+		objectList.first = victim.nextObject;
+		
+		assert victim.nextAll != null;
+		victim.nextAll.prevAll = null;
+		victim.nextAll = null;
+
+		if(victim.nextObject != null) {
+			victim.nextObject.prevObject = null;
+			victim.nextObject = null;
+		} else {
+			// Last event for this object:
+			//   Remove the per-object list altogether.
+			assert (objectList.last == victim);
+			objectList.last = null;
+			perObjectLists.remove(victim.relevantTo);
+		}
+	}
+
+	// Update thread:
+	// --------------
+
+	private class EventList {
+		Event first;
+		Event last;
 	}
 	
-	static class JoinEvent extends Event {
-		public final PointImpl joinedPnt;
+	private abstract class Event implements CustomOutput {
+		final PointImpl relevantTo;
+		long id;
+		Event prevAll, nextAll;
+		Event prevObject, nextObject;
 		
-		public JoinEvent(PointImpl joinedPnt) {
-			this.joinedPnt = joinedPnt;
+		public Event(PointImpl relevant) {
+			this.relevantTo = relevant;
 		}
-		
-		public String toString() {
-			return String.format("JOIN %s", joinedPnt);
-		}
-	}
-	
-	public static void join(PointImpl joinedPnt) {
-		addEvent(new JoinEvent(joinedPnt));
-	}
 
-	static class SubIntervalEvent extends Event {
-		public final IntervalImpl inter;
-
-		public SubIntervalEvent(IntervalImpl inter) {
-			this.inter = inter;
+		/** 
+		 * Invoked from the update thread while 
+		 * holding the RefTracker lock. */
+		public void post() {
+			addEvent(this);
 		}
 		
-		public String toString() {
-			return String.format("SUB %s-%s", inter.start, inter.end);
-		}
-	}
-	
-	public static void subInterval(IntervalImpl inter) {
-		if(ENABLED_INTER)
-			addEvent(new SubIntervalEvent(inter));
-	}
-
-	static class NewIntervalEvent extends Event {
-		public final IntervalImpl inter;
-		public final String description;
-
-		public NewIntervalEvent(IntervalImpl inter, String description) {
-			this.inter = inter;
-			this.description = description;
-		}
-		
-		public String toString() {
-			return String.format("NEW %s desc=%s", inter, description);
-		}
-	}
-	
-	public static void newInterval(IntervalImpl inter, String description) {
-		if(ENABLED_INTER)
-			addEvent(new NewIntervalEvent(inter, description));
-	}
-
-	static class AddWaitCountEvent extends Event {
-		public final PointImpl pointImpl;
-		public final PointImpl fromImpl;
-		public final int newCount;
-		
-		public AddWaitCountEvent(PointImpl pointImpl, PointImpl fromImpl, int newCount) {
-			this.pointImpl = pointImpl;
-			this.fromImpl = fromImpl;
-			this.newCount = newCount;
-		}
-		
-		public String toString() {
-			return String.format("ADD_WAIT_COUNT %s from=%s newCount=%d", pointImpl, fromImpl, newCount);
+		public boolean stillRelevant() {
+			// racy, but so what?
+			if(relevantTo != null)
+				return relevantTo.didOccur();
+			return false;
 		}
 	}
 	
-	public static void addWaitCount(PointImpl pointImpl, PointImpl fromImpl, int newCount) {
-		if(ENABLED_WAIT_COUNTS || ENABLED_ADD_WC)
-			addEvent(new AddWaitCountEvent(pointImpl, fromImpl, newCount));
-	}
+	private BlockingQueue<Event> queue = new LinkedBlockingQueue<Debug.Event>();
 	
-	static class AwakenIdleEvent extends Event {
-		public final Worker awakenedByWorker;
-		public final WorkItem workItem;
-		public final Worker idleWorker;
+	private class UpdateThread extends Thread {
 		
-		public AwakenIdleEvent(Worker awakenWorker, WorkItem workItem, Worker idleWorker) {
-			this.awakenedByWorker = awakenWorker;
-			this.workItem = workItem;
-			this.idleWorker = idleWorker;
+		public UpdateThread() {
+			super("Interval Debug Thread");
+			setDaemon(true);
 		}
 		
-		public String toString() {
-			return String.format("AWAKEN_IDLE %s workItem=%s awakenedBy=%s", idleWorker, workItem, awakenedByWorker);
-		}
-	}
-	
-	public static void awakenIdle(Worker worker, WorkItem workItem,
-			Worker idleWorker) {
-		if(ENABLED_WORK_STEAL)
-			addEvent(new AwakenIdleEvent(worker, workItem, idleWorker));
-	}
-	
-	static class EnqueueEvent extends Event {
-		public final Worker enqueueWorker;
-		public final WorkItem item;
-		
-		public EnqueueEvent(Worker enqueueWorker, WorkItem item) {
-			this.enqueueWorker = enqueueWorker;
-			this.item = item;
+		@Override
+		public void run() {
+			try {
+				while(true) {
+					Event event = queue.take();
+					synchronized(Debug.this) {
+						event.post();
+					}
+				}
+			} catch (InterruptedException e) {
+			}
 		}
 		
-		public String toString() {
-			return String.format("ENQUEUE %s item=%s", enqueueWorker, item);
-		}
 	}
 	
-	public static void enqeue(Worker worker, WorkItem item) {
-		if(ENABLED_WORK_STEAL)
-			addEvent(new EnqueueEvent(worker, item));
-	}
+	private final UpdateThread updateThread;
 	
-	static class QueueOpEvent extends Event {
-		public final String kind;
-		public final Worker victim; // or owner
-		public final Worker thief;
-		public final int h1, s1, g1;
-		public final WorkItem task;
-		public final int h2, s2, g2;
+	// Posting routines:
+	// -----------------
+	
+	abstract class RefEvent extends Event {
+		final Object from;
 		
-		public QueueOpEvent(String kind, Worker victim, Worker thief, int h1,
-				int s1, int g1, WorkItem task, int h2, int s2, int g2) {
-			super();
-			this.kind = kind;
-			this.victim = victim;
-			this.thief = thief;
-			this.h1 = h1;
-			this.s1 = s1;
-			this.g1 = g1;
-			this.task = task;
-			this.h2 = h2;
-			this.s2 = s2;
-			this.g2 = g2;
+		public RefEvent(PointImpl point, Object from) {
+			super(point);
+			assert point != null && from != null;
+			this.from = from;
+		}
+
+		@Override 
+		public boolean equals(Object object) {
+			if(object == this) {
+				return true;				
+			} else if(object instanceof RefEvent) {
+				// HACK-- Any two ref events (either add or dec)
+				// compare equal if the point/from are the same.
+				// This avoids the need to allocate another 
+				// object when we find unmatched adds/decs.
+				RefEvent ref = (RefEvent) object;
+				return (relevantTo == ref.relevantTo && from == ref.from);
+			} else return false;
 		}
 		
-		public String toString() {
-			return String.format("QUEUE_%s %s thief=%s before=<%d,%d,%d> after=<%d,%d,%d> item=%s",
-					kind, victim, thief, h1, s1, g1, h2, s2, g2, task);
-		}
-	}
-
-	public static void queueOp(String kind, Worker victim, Worker thief,
-			int h1, int s1, int g1, WorkItem task, int h2, int s2, int g2) {
-		if(ENABLED_WORK_STEAL)
-			addEvent(new QueueOpEvent(kind, victim, thief, h1, s1, g1, task, h2, s2, g2));
-	}
-
-	static class DequePutEvent extends Event {
-		public final Worker owner;
-		public final int l, ownerHead, ownerTail, taskIndex;
-		public final WorkItem task;
-
-		public DequePutEvent(Worker owner, int l, int ownerHead, int ownerTail,
-				int taskIndex, WorkItem task) {
-			super();
-			this.owner = owner;
-			this.l = l;
-			this.ownerHead = ownerHead;
-			this.ownerTail = ownerTail;
-			this.task = task;
-			this.taskIndex = taskIndex;
-		}
-
-
-
-		public String toString() {
-			return String.format("DEQUE_PUT %s l=%d owner=%d-%d tasks[%d]=%s", 
-					owner, l, ownerHead, ownerTail, taskIndex, task);
-		}
-	}
-
-	public static void dequePut(Worker owner, int l, int ownerHead, int ownerTail,
-			int taskIndex, WorkItem task) {
-		if(ENABLED_WORK_STEAL)
-			addEvent(new DequePutEvent(owner, l, ownerHead, ownerTail, taskIndex, task));
-	}
-
-	static class DequeTakeEvent extends Event {
-		public final Worker owner;
-		public final int l, ownerHead, ownerTail, lastIndex;
-		public final WorkItem task;
-
-		public DequeTakeEvent(Worker owner, int l, int ownerHead, int ownerTail,
-				int lastIndex, WorkItem task) {
-			super();
-			this.owner = owner;
-			this.l = l;
-			this.ownerHead = ownerHead;
-			this.ownerTail = ownerTail;
-			this.lastIndex = lastIndex;
-			this.task = task;
-		}
-
-		public String toString() {
-			return String.format("DEQUE_TAKE %s l=%d owner=%d-%d tasks[%d]=%s",
-					owner, l, ownerHead, ownerTail, lastIndex, task);
-		}
-	}
-
-	public static void dequeTake(Worker owner, int l, int ownerHead, int ownerTail,
-			int lastIndex, WorkItem task) {
-		if(ENABLED_WORK_STEAL)
-			addEvent(new DequeTakeEvent(owner, l, ownerHead, ownerTail, lastIndex, task));
-	}
-	
-	static class DequeStealEvent extends Event {
-		public final Worker victimWorker, thiefWorker;
-		public final int thiefHead;
-		public final int taskIndex;
-		public final WorkItem task;
-
-		public DequeStealEvent(Worker victimWorker, Worker thiefWorker,
-				int thiefHead, int taskIndex, WorkItem task) {
-			super();
-			this.victimWorker = victimWorker;
-			this.thiefWorker = thiefWorker;
-			this.thiefHead = thiefHead;
-			this.taskIndex = taskIndex;
-			this.task = task;
-		}
-
-		public String toString() {
-			return String.format("DEQUE_STEAL %s thief=%s head=%d tasks[%d]=%s",
-					victimWorker, thiefWorker, thiefHead, taskIndex, task);
+		@Override 
+		public int hashCode() {
+			return System.identityHashCode(relevantTo) ^ System.identityHashCode(from);
 		}
 	}
 	
-	public static void dequeSteal(Worker victimWorker, Worker thiefWorker, int thiefHead, int taskIndex, WorkItem task) {
-		if(ENABLED_WORK_STEAL)
-			addEvent(new DequeStealEvent(victimWorker, thiefWorker, thiefHead, taskIndex, task));
+	class AddRefEvent extends RefEvent {
+		final int newValue;
+		
+		public AddRefEvent(PointImpl point, Object from, int newValue) {
+			super(point, from);
+			this.newValue = newValue;
+		}
+
+		@Override
+		public void renderInLine(Output output) throws IOException {
+			output.outputText("AddRef(");
+			output.outputObject(relevantTo);
+			output.outputText(" <- ");
+			output.outputObject(from);
+			output.outputText(" = ");
+			output.outputText(Integer.toString(newValue));
+			output.outputText(")");
+		}
+
+	}
+	
+	public void postAddRef(PointImpl point, Object from, int newValue) {
+		if(ENABLED) {
+			queue.add(new AddRefEvent(point, from, newValue));
+		}
 	}
 
-	static class ExecuteEvent extends Event {
-		public final Worker worker;
-		public final WorkItem item;
-		public final boolean started;
+	class DecRefEvent extends RefEvent {
+		final int newValue;
+		DecRefEvent nextUnmatched; // normally null except when printing out
 		
-		public ExecuteEvent(Worker worker, WorkItem item, boolean started) {
-			this.worker = worker;
-			this.item = item;
-			this.started = started;
+		public DecRefEvent(PointImpl point, Object from, int newValue) {
+			super(point, from);
+			this.newValue = newValue;
 		}
-		
-		public String toString() {
-			return String.format("EXECUTE %s started=%s item=%s", worker, started, item);
+
+		@Override
+		public void renderInLine(Output output) throws IOException {
+			output.outputText("DecRef(");
+			output.outputObject(relevantTo);
+			output.outputText(" <- ");
+			output.outputObject(from);
+			output.outputText(" = ");
+			output.outputText(Integer.toString(newValue));
+			output.outputText(")");
 		}
 	}
 	
-	public static void execute(Worker worker, WorkItem item, boolean started) {
-		if(ENABLED_WAIT_COUNTS)
-			addEvent(new ExecuteEvent(worker, item, started));
+	public void postDecRef(PointImpl point, RefManipulator from, int newValue) {
+		if(ENABLED) {
+			queue.add(new DecRefEvent(point, from, newValue));
+		}
 	}
 	
-	static class AcquireLockEvent extends Event {
-		public final LockBase lockBase;
-		public final LockList acq;
-		
-		public AcquireLockEvent(LockBase lockBase, LockList acq) {
-			this.lockBase = lockBase;
-			this.acq = acq;
+	class OccurEvent extends Event {
+		public OccurEvent(PointImpl point) {
+			super(point);
 		}
 
-		public String toString() {
-			return String.format("ACQUIRE_LOCK %s lockList=%s", lockBase, acq);
-		}
-	}
-
-	public static void acquireLock(LockBase lockBase, LockList acq) {
-		if(ENABLED_LOCK)
-			addEvent(new AcquireLockEvent(lockBase, acq));
-	}
-
-	static class QueueForLockEvent extends Event {
-		public final LockBase lockBase;
-		public final LockList acq;
-		
-		public QueueForLockEvent(LockBase lockBase, LockList acq) {
-			this.lockBase = lockBase;
-			this.acq = acq;
+		@Override
+		public void renderInLine(Output output) throws IOException {
+			output.outputText("Occur(");
+			output.outputObject(relevantTo);
+			output.outputText(")");
 		}
 
-		public String toString() {
-			return String.format("ENQUEUE_FOR_LOCK %s start=%s", lockBase, acq);
-		}
-	}
-
-	public static void enqueueForLock(LockBase lockBase, LockList acq) {
-		if(ENABLED_LOCK)
-			addEvent(new QueueForLockEvent(lockBase, acq));
-	}
-
-	static class DequeueForLockEvent extends Event {
-		public final LockBase lockBase;
-		public final LockList acq;
-		
-		public DequeueForLockEvent(LockBase lockBase, LockList acq) {
-			this.lockBase = lockBase;
-			this.acq = acq;
-		}
-
-		public String toString() {
-			return String.format("DEQUEUE_FOR_LOCK %s start=%s", lockBase, acq);
-		}
-	}
-
-	public static void dequeueForLock(LockBase lockBase, LockList acq) {
-		if(ENABLED_LOCK)
-			addEvent(new DequeueForLockEvent(lockBase, acq));
 	}
 	
-	static class LockFreeEvent extends Event {
-		public final LockBase lockBase;
+	public void postOccur(PointImpl point) {
+		if(ENABLED) {
+			queue.add(new OccurEvent(point));
+		}
+	}
+	
+	class ScheduleEvent extends Event {
+		final IntervalImpl scheduled;
+		final IntervalImpl scheduledBy;
 		
-		public LockFreeEvent(LockBase lockBase) {
-			this.lockBase = lockBase;
+		public ScheduleEvent(IntervalImpl scheduled, IntervalImpl scheduledBy) {
+			super(scheduled.start);
+			this.scheduled = scheduled;
+			this.scheduledBy = scheduledBy;
 		}
 
-		public String toString() {
-			return String.format("LOCK_FREE lock=%s", lockBase);
+		@Override
+		public void renderInLine(Output output) throws IOException {
+			output.outputText("Schedule(");
+			output.outputObject(scheduled);
+			output.outputText(" by ");
+			output.outputObject(scheduledBy);
+			output.outputText(")");
+		}
+
+	}
+	
+	public void postSchedule(IntervalImpl scheduled, IntervalImpl scheduledBy) {
+		if(ENABLED) {
+			queue.add(new ScheduleEvent(scheduled, scheduledBy));
 		}
 	}
-
-	public static void lockFree(LockBase lockBase) {
-		if(ENABLED_LOCK)
-			addEvent(new LockFreeEvent(lockBase));
-	}
-
-	static class TransitionEvent extends Event {
-		public final IntervalImpl inter;
-		public final IntervalImpl.State oldState;
-		public final IntervalImpl.State newState;
-
-		private TransitionEvent(IntervalImpl inter, State oldState, State newState) {
-			this.inter = inter;
+	
+	class TransitionEvent extends Event {
+		final IntervalImpl interval;
+		final State oldState;
+		final State newState;
+		
+		public TransitionEvent(
+				IntervalImpl interval,
+				State oldState, 
+				State newState) 
+		{
+			super(interval.end);
+			this.interval = interval;
 			this.oldState = oldState;
 			this.newState = newState;
 		}
-
-		public String toString() {
-			return String.format("TRANSITION %s to %s from %s",
-					inter, newState, oldState);
-		}
-	}
-
-	public static void transition(IntervalImpl inter, State oldState, State newState) {
-		if(ENABLED_WAIT_COUNTS)
-			addEvent(new TransitionEvent(inter, oldState, newState));
-	}
-	
-	static class VertExceptionEvent extends Event {
-		final Interval interval;
-		final Throwable thr;
-		final int size;
 		
-		VertExceptionEvent(Interval interval, Throwable thr, int size) {
-			this.interval = interval;
-			this.thr = thr;
-			this.size = size;
+		@Override
+		public void renderInLine(Output output) throws IOException {
+			output.outputText("Transition(");
+			output.outputObject(interval);
+			output.outputText(" from ");
+			output.outputObject(oldState);
+			output.outputText(" to ");
+			output.outputObject(newState);
+			output.outputText(")");
 		}
+	}
 	
-		public String toString() {
-			return String.format("ADD_VERT_EXCEPTION(S) %s thr=%s size=%s",
-					interval, thr, size);
-		}		
+	public void postTransition(
+			IntervalImpl intervalImpl, 
+			State state,
+			State newState) 
+	{
+		if(ENABLED) {
+			queue.add(new TransitionEvent(intervalImpl, state, newState));
+		}
+	}
+	
+	class VertExceptionEvent extends Event {
+		final IntervalImpl interval;
+		final int totalCount;
+		
+		public VertExceptionEvent(
+				IntervalImpl interval,
+				int totalCount) 
+		{
+			super(interval.end);
+			this.interval = interval;
+			this.totalCount = totalCount;
+		}
+		
+		@Override
+		public void renderInLine(Output output) throws IOException {
+			output.outputText("VertException(");
+			output.outputObject(interval);
+			output.outputText(" total ");
+			output.outputText(Integer.toString(totalCount));
+			output.outputText(")");
+		}
 	}
 
-	public static void addVertException(
-			Interval intervalImpl,
-			Throwable thr, 
+	public void postVertException(
+			IntervalImpl intervalImpl, 
+			Throwable thr,
 			PSet<Throwable> vertExceptions) 
 	{
-		if(ENABLED_EXC)
-			addEvent(new VertExceptionEvent(intervalImpl, thr, vertExceptions.size()));
+		if(ENABLED) {
+			queue.add(new VertExceptionEvent(intervalImpl, vertExceptions.size()));
+		}
+	}
+
+	class LockEvent extends Event {
+		final String kind;
+		final LockBase lock;
+		final LockList acq;
+		
+		public LockEvent(
+				String kind, 
+				LockBase lock,
+				LockList acq) 
+		{
+			super((acq != null ? acq.inter.end : null));
+			this.kind = kind;
+			this.lock = lock;
+			this.acq = acq;
+		}
+		
+		@Override
+		public void renderInLine(Output output) throws IOException {
+			output.outputText(kind);
+			output.outputText("(");
+			output.outputObject(lock);
+			if(acq != null) {
+				output.outputText(" by ");
+				output.outputObject(acq);
+			}
+			output.outputText(")");
+		}
+		
 	}
 	
+	public void postLockAcquired(LockBase lockBase, LockList acq) {
+		if(ENABLED) {
+			queue.add(new LockEvent("Acquired", lockBase, acq));
+		}
+	}
+
+	public void postLockEnqueued(LockBase lockBase, LockList acq) {
+		if(ENABLED) {
+			queue.add(new LockEvent("Enqueued", lockBase, acq));
+		}
+	}
+
+	public void postLockDequeued(LockBase lockBase, LockList acq) {
+		if(ENABLED) {
+			queue.add(new LockEvent("Dequeued", lockBase, acq));
+		}
+	}
+
+	public void postLockFreed(LockBase lockBase) {
+		if(ENABLED) {
+			queue.add(new LockEvent("Freed", lockBase, null));
+		}
+	}
+
+	class NewIntervalEvent extends Event {
+		final IntervalImpl inter;
+		final IntervalImpl creator;
+		
+		public NewIntervalEvent(
+				IntervalImpl inter,
+				IntervalImpl creator) 
+		{
+			super(inter.end);
+			this.inter = inter;
+			this.creator = creator;
+		}
+
+
+
+		@Override
+		public void renderInLine(Output output) throws IOException {
+			output.outputText("NewInterval");
+			output.outputText("(");
+			output.outputObject(inter);
+			output.outputText(" by ");
+			output.outputObject(creator);
+			output.outputText(")");
+		}
+		
+	}
+	
+	public void postNewInterval(IntervalImpl inter, IntervalImpl creator) {
+		if(ENABLED) {
+			queue.add(new NewIntervalEvent(inter, creator));
+		}
+	}
+
+	// Lathos routines:
+	// ----------------
+	
+	class EventDumper {
+		final Map<RefEvent, DecRefEvent> unmatched = new HashMap<RefEvent, DecRefEvent>();
+		
+		public void startMainTable(Output out)
+		throws IOException
+		{
+			out.startPage(null);
+			out.startBold();
+			out.outputText("Event Listing");
+			out.endBold();
+			out.startTable();
+			Lathos.headerRow(out, "id", "event", "comments");
+		}
+		
+		public void dump(Output out, Event event) 
+		throws IOException {
+			out.startRow();
+			
+			out.startColumn();
+			out.outputText(Long.toString(event.id));
+			out.endColumn();
+
+			out.startColumn();
+			out.outputObject(event);
+			out.endColumn();
+
+			out.startColumn();
+			
+			if(event instanceof DecRefEvent) {
+				DecRefEvent decRef = (DecRefEvent) event;
+				assert decRef.nextUnmatched == null;
+				DecRefEvent oldRef = unmatched.put(decRef, decRef);
+				if(oldRef != null)
+					decRef.nextUnmatched = oldRef;
+			}
+			
+			if(event instanceof AddRefEvent) {
+				AddRefEvent addRef = (AddRefEvent) event;
+				DecRefEvent match = unmatched.get(addRef);
+				if(match == null) {
+					out.startBold();
+					out.outputText("unmatched");
+					out.endBold();
+				} else {
+					if(match.nextUnmatched != null) {
+						unmatched.put(match, match.nextUnmatched);
+						match.nextUnmatched = null;
+					} else {
+						unmatched.remove(match);
+					}
+					out.outputText("matched with event ");
+					out.outputText(Long.toString(match.id));
+				} 
+			}
+			
+			out.endColumn();
+			
+			out.endRow();
+		}
+		
+		public void endMainTable(Output out)
+		throws IOException
+		{
+			out.endTable();
+			out.endPage(null);
+		}
+		
+		public void dumpUnmatchedTable(Output out)
+		throws IOException
+		{
+			if(!unmatched.isEmpty()) {
+				out.startPage(null);
+				out.startBold();
+				out.outputText("Unmatched refs");
+				out.endBold();
+				out.startTable();
+				Lathos.headerRow(out, "Unmatched id", "event");
+				for(Map.Entry<?, DecRefEvent> entry : unmatched.entrySet()) {
+					DecRefEvent next = entry.getValue();
+					while(next != null) {
+						DecRefEvent unmatched = next;
+						Lathos.row(out, unmatched.id, unmatched);
+						next = unmatched.nextUnmatched;
+						unmatched.nextUnmatched = null;
+					}
+				}
+				out.endTable();
+				out.endPage(null);
+			}
+		}
+	}
+	
+	public synchronized void renderEventsForObject(Output out, Object obj) 
+	throws IOException {
+		EventList objectList = perObjectLists.get(obj);
+		if(objectList == null) {
+			out.outputText("No events.");
+		} else {
+			EventDumper dump = new EventDumper();
+			dump.startMainTable(out);
+			for(Event event = objectList.last; event != null; event = event.prevObject) {
+				dump.dump(out, event);
+			}
+			dump.endMainTable(out);
+			dump.dumpUnmatchedTable(out);
+		}
+	}
+	
+	@Override
+	public synchronized void renderInPage(Output out) 
+	throws IOException {
+		out.startPage(this);
+		
+		if(!ENABLED) {
+			out.startPar();
+			out.startBold();
+			out.outputText("Note: Disabled!");
+			out.endBold();
+			out.endPar();
+		}
+		
+		if(allEvents.first != null) {
+			long eventCount = allEvents.last.id - allEvents.first.id;
+			out.outputText(eventCount + " total events.");
+			EventDumper dump = new EventDumper();
+			dump.startMainTable(out);
+			for(Event event = allEvents.last; event != null; event = event.prevAll) {
+				dump.dump(out, event);
+			}
+			dump.endMainTable(out);
+			dump.dumpUnmatchedTable(out);
+		} else {
+			out.outputText("No events.");
+		}
+		out.endPage(this);
+	}
+
+	@Override
+	public void renderInLine(Output output) throws IOException {
+		Lathos.renderInLine(this, output);
+	}
+	
+	@Override
+	public String toString() {
+		return getId();
+	}
+
+	@Override
+	public String getId() {
+		return "IntervalsDebug";
+	}
+
+	@Override
+	public Page getParent() {
+		return null;
+	}
+
+	@Override
+	public void addContent(PageContent content) {
+		throw new UnsupportedOperationException();
+	}
+
 }

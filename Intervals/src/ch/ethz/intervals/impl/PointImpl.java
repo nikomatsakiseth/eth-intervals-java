@@ -6,6 +6,7 @@ import static ch.ethz.intervals.util.ChunkList.TEST_EDGE;
 import static ch.ethz.intervals.util.ChunkList.WAITING;
 import static ch.ethz.intervals.util.ChunkList.speculative;
 
+import java.io.IOException;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Set;
@@ -17,8 +18,13 @@ import ch.ethz.intervals.Point;
 import ch.ethz.intervals.impl.ThreadPool.Worker;
 import ch.ethz.intervals.util.ChunkList;
 
+import com.smallcultfollowing.lathos.Lathos;
+import com.smallcultfollowing.lathos.Output;
+import com.smallcultfollowing.lathos.Page;
+import com.smallcultfollowing.lathos.PageContent;
+
 public final class PointImpl 
-implements Point 
+implements Point, Page, RefManipulator
 {
 	public static final int NO_FLAGS = 0;
 	public static final int FLAG_END = 1;		  /** is end point? */
@@ -78,7 +84,7 @@ implements Point
 	final private boolean didOccur(int wc) {
 		return wc < 0;
 	}
-
+	
 	final boolean didOccur() {
 		return didOccur(waitCount);
 	}
@@ -349,12 +355,11 @@ implements Point
 	 *  
 	 *  @param cnt the number of preceding things that occurred,
 	 *  should always be positive and non-zero */
-	final void arrive(int cnt) {
+	final void arrive(int cnt, RefManipulator from) {
 		int newCount = waitCountUpdater.addAndGet(this, -cnt);
 		
-		if(Debug.ENABLED) {
-			Debug.arrive(this, cnt, newCount);
-		}		
+		if(Debug.ENABLED)
+			Debug.debug.postDecRef(this, from, newCount);
 		
 		assert newCount >= 0;
 		if(newCount == 0 && cnt != 0)
@@ -388,7 +393,7 @@ implements Point
 		ExecutionLog.logArrive(this);
 		
 		if(Debug.ENABLED)
-			Debug.occur(this, outEdges);
+			Debug.debug.postOccur(this);
 		
 		// Notify our successors:
 		if(outEdges != null) {
@@ -429,17 +434,18 @@ implements Point
 			}
 		}
 		if(arrive)
-			pnt.arrive(1);
+			pnt.arrive(1, this);
 	}
 
 	/** Adds to the wait count.  Only safe when the caller is
 	 *  one of the people we are waiting for.  
 	 *  <b>Does not acquire a lock on this.</b> */
-	protected void addWaitCount(PointImpl from) {
+	protected void addWaitCount(RefManipulator from) {
 		int newCount = waitCountUpdater.incrementAndGet(this);
 		assert newCount > 1;
+		
 		if(Debug.ENABLED)
-			Debug.addWaitCount(this, from, newCount);		
+			Debug.debug.postAddRef(this, from, newCount);
 	}
 
 	protected void addWaitCountUnsync(int cnt) {
@@ -704,6 +710,84 @@ implements Point
 			b = b.bound;
 		}
 		return bounds;			
+	}
+	
+	// =====================================================================================
+	// Lathos routines
+	
+	@Override
+	public void renderInLine(Output output) throws IOException {
+		Lathos.renderInLine(this, output);
+	}
+
+	@Override
+	public void renderInPage(final Output out) throws IOException {
+		out.startPage(this);
+		
+		out.startPar();
+		out.startBold();
+		out.outputText("Point: ");
+		out.outputText(toString());
+		out.endBold();
+		out.endPar();
+		
+		int waitCount;
+		ChunkList<PointImpl> outEdges;
+		synchronized(this) {
+			waitCount = waitCountUpdater.get(this);
+			outEdges = this.outEdges;
+		}
+
+		// Fields:
+		out.startTable();
+		Lathos.row(out, "Name", name);
+		Lathos.row(out, "Bound", bound);
+		Lathos.row(out, "Depth", depth);
+		Lathos.row(out, "End?", isEndPoint());
+		Lathos.row(out, "Inline?", isInline());
+		Lathos.row(out, "Wait count", waitCount);
+		out.endTable();
+		
+		out.startPage(null);
+		out.startBold();
+		out.outputText("Edges");
+		out.endBold();
+		out.startTable();
+		Lathos.headerRow(out, "toPoint", "speculative", "waiting", "test edge");		
+		new ChunkList.Iterator<PointImpl>(outEdges) {
+			@Override public void doForEach(PointImpl toPoint, int flags) {
+				try {
+					Lathos.row(out, 
+							toPoint, 
+							(flags & ChunkList.SPECULATIVE) != 0,
+							(flags & ChunkList.WAITING) != 0,
+							(flags & ChunkList.TEST_EDGE) != 0);
+				} catch (IOException e) {
+					throw new RuntimeException(e);
+				}
+			}
+		};
+		out.endTable();
+		out.endPage(null);
+		
+		Debug.debug.renderEventsForObject(out, this);
+		
+		out.endPage(this);
+	}
+	
+	@Override
+	public Page getParent() {
+		return null;
+	}
+
+	@Override
+	public String getId() {
+		return Lathos.defaultId(this);
+	}
+
+	@Override
+	public void addContent(PageContent content) {
+		throw new UnsupportedOperationException();
 	}
 	
 }
