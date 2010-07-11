@@ -18,8 +18,8 @@ import com.smallcultfollowing.lathos.PageContent;
 
 /**
  * Used for debugging the execution of intervals.
- * Must be enabled by setting {@link Debug#ENABLED}
- * to true.  
+ * Can be enabled by setting the 
+ * property IntervalsDebug to true.
  * 
  * This Debug object itself is just a Lathos page.
  * To actually view debug information, you must
@@ -35,10 +35,14 @@ import com.smallcultfollowing.lathos.PageContent;
 public class Debug 
 implements Page 
 {
+	/**
+	 * Enable debugging.  Sometimes easier to edit source file than to 
+	 * adjust the properties! */
+	private static final boolean STATIC_SWITCH = false; 
 
 	/**
 	 * Enable debugging. */
-	public static final boolean ENABLED = true;
+	public static final boolean ENABLED = STATIC_SWITCH || Boolean.parseBoolean(System.getProperty("IntervalsDebug", "false"));
 	
 	/** 
 	 * Throw out events if we have more than this amount, unless the relevant
