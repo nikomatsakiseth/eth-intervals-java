@@ -63,9 +63,9 @@ implements Page
 	 * Unconditionally remove events when we have accumulated this amount. 
 	 * 
 	 * Initialized from the property {@code IntervalsDebug.Memory2}.
-	 * Defaults to {@code 100000}. */
+	 * Defaults to {@link #MEMORY1} {@code * 10}. */
 	public static final int MEMORY2 = 
-		Integer.parseInt(System.getProperty("IntervalsDebug.Memory2", "100000"));
+		Integer.parseInt(System.getProperty("IntervalsDebug.Memory2", Integer.toString(MEMORY1 * 10)));
 	
 	/** 
 	 * Maximum capacity of the event log queue.  This prevents the worker threads 
