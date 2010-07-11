@@ -41,17 +41,25 @@ implements Page
 	private static final boolean STATIC_SWITCH = false; 
 
 	/**
-	 * Enable debugging. */
+	 * Controls whether debugging is enabled.   
+	 * Initialized from the property {@code IntervalsDebug}.
+	 * Defaults to {@code false}. */
 	public static final boolean ENABLED = STATIC_SWITCH || Boolean.parseBoolean(System.getProperty("IntervalsDebug", "false"));
 	
 	/** 
 	 * Throw out events if we have more than this amount, unless the relevant
-	 * point has not yet occurred. */
-	public static final long MEMORY1 = 10000;
+	 * point has not yet occurred. 
+	 * 
+	 * Initialized from the property {@code IntervalsDebugMemory1}.
+	 * Defaults to {@code 10000}. */
+	public static final long MEMORY1 = Long.parseLong(System.getProperty("IntervalsDebugMemory1", "10000"));
 	
 	/** 
-	 * Unconditionally remove events when we have accumulated this amount. */
-	public static final long MEMORY2 = 1000000;
+	 * Unconditionally remove events when we have accumulated this amount. 
+	 * 
+	 * Initialized from the property {@code IntervalsDebugMemory2}.
+	 * Defaults to {@code 100000}. */
+	public static final long MEMORY2 = Long.parseLong(System.getProperty("IntervalsDebugMemory2", "100000"));
 	
 	/**
 	 * Singleton instance. */
@@ -68,7 +76,8 @@ implements Page
 	// Accessed only while holding lock on the RefTracker.
 	// Generally this is done during the update thread.
 	
-	private Map<Object, EventList> perObjectLists = new HashMap<Object, EventList>(); 
+	private final Map<PointImpl, EventList> perObjectLists = new HashMap<PointImpl, EventList>(); 
+//	private final Map<RefEvent, AddRefEvent> unmatchedAddRefEvents = new HashMap<RefEvent, AddRefEvent>();
 	private EventList allEvents = new EventList();
 	private long counter = 0;
 	
@@ -76,17 +85,21 @@ implements Page
 		event.id = counter;
 		counter += 1;
 		
-		EventList list = perObjectLists.get(event.relevantTo);
-		if(list == null) {
-			perObjectLists.put(event.relevantTo, (list = new EventList()));
-			list.first = list.last = event;
-		} else {
-			assert list.first != null;
-			list.last.nextObject = event;
-			event.prevObject = list.last;
-			list.last = event;
+		if(event.relevantTo != null) {
+			EventList list = perObjectLists.get(event.relevantTo);
+			if(list == null) {
+				perObjectLists.put(event.relevantTo, (list = new EventList()));
+				list.first = list.last = event;
+			} else {
+				assert list.first != null;
+				list.last.nextObject = event;
+				event.prevObject = list.last;
+				list.last = event;
+			}
+			list.size++;
 		}
 
+		allEvents.size++;
 		if(allEvents.first == null) {
 			allEvents.first = allEvents.last = event;
 		} else {
@@ -99,58 +112,84 @@ implements Page
 	}
 	
 	private void purgeOldEvents() {
-		long outstanding = allEvents.last.id - allEvents.first.id;
-
-		// After a certain point, start throwing out events if
-		// they still seem relevant.
-		while(outstanding > MEMORY2) {
-			removeOldestEvent();
-			outstanding--;
+		Event victim = allEvents.first;
+		
+		// Never allow more than MEMORY2 events:
+		while(allEvents.size > MEMORY2) {
+			victim = purgeEvent(victim);
 		}
-
-		// Until then, we'll throw out old events unless they still
-		// seem relevant.
-		while(outstanding > MEMORY1) {
-			if(allEvents.first.stillRelevant())
-				break;
-			
-			removeOldestEvent();
-			outstanding--;
+		
+		// Allow more than MEMORY1 events only if they are still relevant:
+		while(victim != null && allEvents.size > MEMORY1) {
+			if(victim.irrelevant()) {
+				victim = purgeEvent(victim);
+			} else {
+				victim = victim.nextAll;
+			}
 		}
 	}
-	
-	private void removeOldestEvent() {
-		Event victim = allEvents.first;
-		EventList objectList = perObjectLists.get(victim.relevantTo);
-		
-		allEvents.first = victim.nextAll;
-		objectList.first = victim.nextObject;
-		
-		assert victim.nextAll != null;
-		victim.nextAll.prevAll = null;
-		victim.nextAll = null;
 
-		if(victim.nextObject != null) {
-			victim.nextObject.prevObject = null;
+	private Event purgeEvent(Event victim) {
+		
+		// Remove from per-object list:
+		if(victim.relevantTo != null) {
+			EventList objectList = perObjectLists.get(victim.relevantTo);
+
+			if(objectList.first == victim) {
+				assert victim.prevObject == null;
+				objectList.first = victim.nextObject;
+			} else {
+				victim.prevObject.nextObject = victim.nextObject;
+			}
+
+			if(victim.nextObject != null) {
+				victim.nextObject.prevObject = victim.prevObject;
+			} else {
+				assert victim.nextObject == null;
+				objectList.last = victim.prevObject;
+			}
+			
+			victim.prevObject = null;
 			victim.nextObject = null;
-		} else {
-			// Last event for this object:
-			//   Remove the per-object list altogether.
-			assert (objectList.last == victim);
-			objectList.last = null;
-			perObjectLists.remove(victim.relevantTo);
+			objectList.size--;
+			
+			if(objectList.size == 0)
+				perObjectLists.remove(victim.relevantTo);
 		}
+		
+		if(allEvents.first == victim) {
+			assert victim.prevAll == null;
+			allEvents.first = victim.nextAll;
+		} else {
+			victim.prevAll.nextAll = victim.nextAll;
+		}
+
+		if(allEvents.last == victim) {
+			assert victim.nextAll == null;
+			allEvents.last = victim.prevAll;
+		} else {
+			victim.nextAll.prevAll = victim.prevAll;
+		}
+		
+		Event nextAll = victim.nextAll;
+		victim.prevAll = null;
+		victim.nextAll = null;
+		
+		allEvents.size--;
+
+		return nextAll;
 	}
 
 	// Update thread:
 	// --------------
 
 	private class EventList {
+		public long size;
 		Event first;
 		Event last;
 	}
 	
-	private abstract class Event implements CustomOutput {
+	private abstract static class Event implements CustomOutput {
 		final PointImpl relevantTo;
 		long id;
 		Event prevAll, nextAll;
@@ -163,15 +202,21 @@ implements Page
 		/** 
 		 * Invoked from the update thread while 
 		 * holding the RefTracker lock. */
-		public void post() {
-			addEvent(this);
+		public void post(Debug debug) {
+			debug.addEvent(this);
 		}
 		
-		public boolean stillRelevant() {
-			// racy, but so what?
+		/**
+		 * Returns true if this event pertains to something 
+		 * which has already happened and is in the past.
+		 * If there are too many events, irrelevant events are
+		 * purged first. */
+		public boolean irrelevant() {
 			if(relevantTo != null)
-				return relevantTo.didOccur();
-			return false;
+				// Already occurred == irrelevant
+				return relevantTo.didOccur(); // racy, but so what?
+			
+			return true;
 		}
 	}
 	
@@ -190,7 +235,7 @@ implements Page
 				while(true) {
 					Event event = queue.take();
 					synchronized(Debug.this) {
-						event.post();
+						event.post(Debug.this);
 					}
 				}
 			} catch (InterruptedException e) {
@@ -204,12 +249,11 @@ implements Page
 	// Posting routines:
 	// -----------------
 	
-	abstract class RefEvent extends Event {
+	abstract static class RefEvent extends Event {
 		final Object from;
 		
 		public RefEvent(PointImpl point, Object from) {
 			super(point);
-			assert point != null && from != null;
 			this.from = from;
 		}
 
@@ -233,13 +277,34 @@ implements Page
 		}
 	}
 	
-	class AddRefEvent extends RefEvent {
+	static class AddRefEvent extends RefEvent {
 		final int newValue;
+		
+		// If this field is null or points to an AddRefEvent, this
+		// add ref is not yet matched against a DecRef.  If it points
+		// to a DecRefEvent, then it has been matched.
+//		RefEvent nextUnmatched;
 		
 		public AddRefEvent(PointImpl point, Object from, int newValue) {
 			super(point, from);
 			this.newValue = newValue;
 		}
+		
+//		@Override
+//		public void post(Debug debug) {
+//			super.post(debug);
+//			
+//			nextUnmatched = debug.unmatchedAddRefEvents.put(this, this);
+//		}
+//		
+//		private boolean isMatched() {
+//			return (nextUnmatched != null) && (nextUnmatched instanceof DecRefEvent);
+//		}
+//
+//		@Override
+//		public boolean irrelevant() {
+//			return super.irrelevant() || isMatched();
+//		}
 
 		@Override
 		public void renderInLine(Output output) throws IOException {
@@ -260,7 +325,7 @@ implements Page
 		}
 	}
 
-	class DecRefEvent extends RefEvent {
+	static class DecRefEvent extends RefEvent {
 		final int newValue;
 		DecRefEvent nextUnmatched; // normally null except when printing out
 		
@@ -268,6 +333,25 @@ implements Page
 			super(point, from);
 			this.newValue = newValue;
 		}
+		
+//		@Override
+//		public void post(Debug debug) {
+//			super.post(debug);
+//			
+//			AddRefEvent match = debug.unmatchedAddRefEvents.get(this);
+//			if(match == null) {
+//				// unmatched add. bad.
+//			} else {
+//				if(match.nextUnmatched == null)
+//					debug.unmatchedAddRefEvents.remove(match);
+//				else
+//					debug.unmatchedAddRefEvents.put(
+//							match.nextUnmatched, 
+//							(AddRefEvent) match.nextUnmatched);
+//				
+//				match.nextUnmatched = this;
+//			}
+//		}
 
 		@Override
 		public void renderInLine(Output output) throws IOException {
@@ -287,7 +371,7 @@ implements Page
 		}
 	}
 	
-	class OccurEvent extends Event {
+	static class OccurEvent extends Event {
 		public OccurEvent(PointImpl point) {
 			super(point);
 		}
@@ -307,7 +391,7 @@ implements Page
 		}
 	}
 	
-	class ScheduleEvent extends Event {
+	static class ScheduleEvent extends Event {
 		final IntervalImpl scheduled;
 		final IntervalImpl scheduledBy;
 		
@@ -334,7 +418,7 @@ implements Page
 		}
 	}
 	
-	class TransitionEvent extends Event {
+	static class TransitionEvent extends Event {
 		final IntervalImpl interval;
 		final State oldState;
 		final State newState;
@@ -593,6 +677,7 @@ implements Page
 		if(objectList == null) {
 			out.outputText("No events.");
 		} else {
+			out.outputText(objectList.size + " total events.");
 			EventDumper dump = new EventDumper();
 			dump.startMainTable(out);
 			for(Event event = objectList.last; event != null; event = event.prevObject) {
@@ -617,8 +702,7 @@ implements Page
 		}
 		
 		if(allEvents.first != null) {
-			long eventCount = allEvents.last.id - allEvents.first.id;
-			out.outputText(eventCount + " total events.");
+			out.outputText(allEvents.size + " total events.");
 			EventDumper dump = new EventDumper();
 			dump.startMainTable(out);
 			for(Event event = allEvents.last; event != null; event = event.prevAll) {

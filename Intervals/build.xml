@@ -1,37 +1,39 @@
-<?xml version="1.0"?>
-<project name="sampleProject" basedir="." default="compile">
-    <target name="compile" depends="create">
-        <javac destdir="bin">            
-            <src path="src"/>            
-            <classpath refid="java"/>
-        </javac>
-
-        <javac destdir="bin">            
-            <src path="test"/>            
-            <classpath refid="java"/>
-        </javac>
-
-        <javac destdir="bin">            
-            <src path="erco_test/benchmarks/sor"/>            
-            <classpath refid="java"/>
+<project name="Intervals" default="jar" basedir=".">
+    <description>
+        Creates a single .JAR file containing all
+        dependencies to run the Intervals library.
+        This includes Google's pcollections and the
+        Lathos library in addition to Intervals proper.
+    </description>
+    
+    <target name="compile" description="compile the source" >
+        <javac srcdir="src" destdir="bin" debug="on">
+            <classpath>
+                <fileset dir="lib">
+                    <include name="**/*.jar"/>
+                </fileset>
+            </classpath>
         </javac>
     </target>
 
     <target name="jar" depends="compile">
-        <jar destfile="test.jar">
+        <zip destfile="Intervals.jar">
             <fileset dir="bin"/>
-        </jar>
+            <fileset dir="src"/>
+        </zip>
     </target>
-
+    
+    <target name="jar-all" depends="compile">
+        <zip destfile="Intervals-All.jar">
+            <fileset dir="bin"/>
+            <fileset dir="src"/>
+            <zipgroupfileset dir="lib" includes="*.jar"/>
+        </zip>
+    </target>
+    
     <target name="clean">
-        <delete dir="bin"/>
+        <delete>
+            <fileset dir="bin"/>
+        </delete>
     </target>
-
-    <target name="create" depends="clean">
-        <mkdir dir="bin"/>
-    </target>
-
-    <path id="java">
-      <fileset dir="lib"> <include name="*.jar"/> </fileset>
-    </path>
 </project>

@@ -5,9 +5,9 @@
 	<classpathentry kind="src" path="erco_test/benchmarks/elevator"/>
 	<classpathentry kind="src" path="erco_test/benchmarks/sor"/>
 	<classpathentry kind="src" path="test"/>
-	<classpathentry kind="lib" path="lib/junit-4.7.jar"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
 	<classpathentry kind="lib" path="lib/pcollections-1.0.0.jar"/>
 	<classpathentry kind="lib" path="lib/Lathos.jar"/>
+	<classpathentry kind="lib" path="libx/junit-4.7.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

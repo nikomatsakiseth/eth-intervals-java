@@ -1,0 +1,12 @@
+#!/bin/bash
+#
+# Builds and distributes JAR file into Harmonic subdirectory.
+
+echo "Building intervals.jar..."
+ant jar
+echo ""
+for DIR in ../Harmonic/lib
+do
+	echo cp Intervals.jar $DIR
+	cp Intervals.jar $DIR
+done

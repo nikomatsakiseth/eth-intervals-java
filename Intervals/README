@@ -1,0 +1,34 @@
+Intervals: Safe and Easy Parallel Programming
+http://intervals.inf.ethz.ch
+
+Nicholas Matsakis <nmatsaki@inf.ethz.ch>
+
+To build:
+---------
+
+The easiest way is to run "ant jar".  This creates a
+jar file including the intervals source code.  To run it,
+you will also need the jar files found in the lib directory.
+
+You can also use "ant jar-all", which creates a jar file
+containing not only the intervals code but also the class
+files for all dependencies required to run.
+
+Normal development is done using Eclipse (the project is 
+checked in).
+
+Directory structure:
+--------------------
+
+src  -- Intervals source files
+test -- Intervals unit tests and other test cases
+lib  -- Required .jar files
+libx -- Optional .jar files required only for testing 
+
+License:
+--------
+
+Distributed under the MIT license.
+
+Makes use of the PCollections project, also distributed
+under the MIT license.
