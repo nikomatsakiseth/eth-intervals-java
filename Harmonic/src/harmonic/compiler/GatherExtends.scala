@@ -4,7 +4,7 @@ import scala.collection.immutable.Map
 import scala.collection.immutable.Set
 import scala.collection.mutable
 
-import com.smallcultfollowing.lathos.Context
+import com.smallcultfollowing.lathos.Lathos
 
 import scala.util.parsing.input.Position
 import Ast.{Lower => in}
@@ -21,6 +21,7 @@ import Util._
   * Requires: 
   * - lower for csym and its supertypes has completed */
 case class GatherExtends(global: Global) {
+    val log = Lathos.context
     
     class Data(pos: Position) {
         
@@ -88,7 +89,7 @@ case class GatherExtends(global: Global) {
         
     }
     
-    def forSym(csym: ClassFromSource) = {
+    def forSym(csym: ClassFromSource) = log.indent("GatherExtends(", csym, ")") {
         val data = new Data(csym.pos)
         data.addFor(TypedSubst.empty)(csym)
         csym.ExtendedClasses.v = csym.mro.tail.reverse.flatMap { 

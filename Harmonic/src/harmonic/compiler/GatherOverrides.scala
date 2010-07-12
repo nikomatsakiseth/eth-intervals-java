@@ -10,12 +10,12 @@ import Util._
 
 /** Determines which methods override one another. */
 case class GatherOverrides(global: Global) {
-    
+    implicit val implicitGlobal = global
     val log = Lathos.context
     
     /** Populates `csym.methodGroups` as well as the `overrides` 
       * fields of all method symbols defined in `csym` */
-    def forSym(csym: ClassSymbol): Unit = {
+    def forSym(csym: ClassSymbol): Unit = log.indent("GatherOverrides(", csym, ")") {
         
         // The full dependencies for GatherOverrides are:
         //
@@ -25,12 +25,20 @@ case class GatherOverrides(global: Global) {
         //
         // 2. GatherOverrides must execute on all supertypes
         //    so that the supertype's MethodSymbols have
-        //    their overrides fields initialized.
-        //    This is assured by ResolveHeader which adds
-        //    edges super.gather.end->gather.start.
+        //    their overrides fields initialized.  This is
+        //    assured below.  We do this here rather than in Header 
+        //    because we don't want to execute the gather passes for 
+        //    classes from compiled sources unless we really 
+        //    have to.  Otherwise, it leads us to compile a very 
+        //    broad transitive closure as we investigate the
+        //    various terrifying methods of java.lang.System and 
+        //    the like.
+        
+        csym.superClassNames.map(global.csym).foreach(_.gather.join)
+        log.log("Joined ", csym.superClassNames)
         
         var env = csym.checkEnv
-        log.log("Gather for ", csym, " in environment ", env)
+        log.log("Check environment ", env)
         val methodGroups = gatherMethodGroups(csym, env)
         computeOverrides(csym, methodGroups)
         val allGroups = methodGroups.allGroups
@@ -122,19 +130,21 @@ case class GatherOverrides(global: Global) {
     /** Checks that the contents of a group meet certain conditions:
       * - All */
     private[this] def sanityCheckGroup(
-        csym: ClassSymbol,
+        inCsym: ClassSymbol,
         group: MethodGroup
-    ): Unit = {
-        def overrides(msym: MethodSymbol) = {
+    ): Unit = log.indent("sanityCheckGroup(", inCsym, ", ", group, ")") {
+        def overrides(msym: MethodSymbol) = log.indent("overrides(", msym, ")") {
             val csym = global.csym(msym.className)
             csym.allOverrides.getOrElse(msym, Nil)
         }
 
         // Consider the methods in this group defined in `csym` itself:
-        group.msyms.takeWhile(_.isFromClassNamed(csym.name)) match {
+        group.msyms.takeWhile(_.isFromClassNamed(inCsym.name)) match {
             
             case List() => {
-                // No version of this method defined in `csym`.
+                log.log("No version defined in this class")
+                
+                // No version of this method defined in `inCsym`.
                 // In that case, all impl. of the method must
                 // override a common base method.
                 val tops = group.msyms.foldLeft(group.msyms) {
@@ -145,22 +155,24 @@ case class GatherOverrides(global: Global) {
                     if(msym1 != msym2 && !overrides(msym1).intersects(overrides(msym2))) {
                         if(reported.add((msym1, msym2)) && reported.add((msym2, msym1))) {
                             Error.MustResolveAmbiguousInheritance(
-                                csym.name, group.methodName, 
+                                inCsym.name, group.methodName, 
                                 msym1.className, msym2.className
-                            ).report(global, csym.pos)
+                            ).report(global, inCsym.pos)
                         }
                     }
                 }
             }
 
             case List(msym) => {
-                ()
+                log.log("Precisely one version defined in this class: ", msym)
             }
             
             case msyms => {
+                log.log("Multiple versions defined in this class: ", msyms)
+                
                 Error.MultipleOverridesInSameClass(
-                    csym.name, group.methodName, msyms.length
-                ).report(global, csym.pos)
+                    inCsym.name, group.methodName, msyms.length
+                ).report(global, inCsym.pos)
             }
             
         }

@@ -23,7 +23,6 @@ object MethodSymbol {
                 className = className, 
                 name      = name, 
                 elaborate = inter,
-                gather    = inter,
                 msig      = MethodSignature(Type.Null, patterns)
             ) {
                 override def isError = true
@@ -47,8 +46,7 @@ class MethodSymbol(
     val className: Name.Class,         /** Class in which the method is defined. */
     val name: Name.Method,           /** Name of the method. */
     val msig: MethodSignature[Pattern.Ref],
-    val elaborate: Interval,
-    val gather: Interval
+    val elaborate: Interval
 )(implicit global: Global) extends Symbol with DebugPage {
     override def toString = "MethodSymbol(%s.%s, %x)".format(className, name, System.identityHashCode(this))
     

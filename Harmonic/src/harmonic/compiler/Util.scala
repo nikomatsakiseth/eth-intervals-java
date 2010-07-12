@@ -324,8 +324,8 @@ object Util {
         def indent[R](args: Object*)(func: => R) = {
             
             val indentPage = Lathos.newPage(context.server, context.topPage, null, args: _*)
-            context.push(indentPage)
             val indentLine = context.log(context.link(indentPage, "\u25B2"))
+            context.push(indentPage)
             
             try {
                 context.append(indentLine, args: _*)
@@ -472,6 +472,9 @@ object Util {
                 name.afterLast('.'),
                 "Interval ", name
             )
+            
+            val creatorLog = global.debugServer.contextForPage(parentPage)
+            creatorLog.log("Phase ", interPage)
 
             val info = global.intervalsPage.registerInterval(parentPage, interPage)
             

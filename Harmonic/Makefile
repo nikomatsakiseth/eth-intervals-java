@@ -1,3 +1,5 @@
+.PHONY = help clean compile unit test
+
 JAVA=java
 JAVAC=javac
 SBT=${JAVA} -Dsbt.log.noformat=true -Xmx256M -jar sbt-launch-0.7.0.jar
@@ -17,6 +19,15 @@ STDLIB=java_standard_library.jar
 
 all: compile
 
+help:
+	@echo "The following make targets are defined:"
+	@echo "clean:    removes all files"
+	@echo "compile:  builds the Harmonic source files and Harmonic.jar"
+	@echo "unit:     runs the unit test suite, after compiling"
+	@echo "test:     runs the harmonic test suite, after compiling"
+	@echo
+	@echo "compile is the default target."
+
 # ___ Clean ____________________________________________________________
 clean:
 	rm -rf harmonic.jar bin bin-test .scala_dependencies 
@@ -30,7 +41,7 @@ compile: ${GENERATEDJAVA}
 	mkdir -p bin bin-test
 	${JAVAC} -cp ${CLASSPATH} -d bin -sourcepath src $$(find src -name '*.java')
 	${SCALAC} -cp ${CLASSPATH} -deprecation -d bin -sourcepath src $$(find src -name '*.scala')
-	jar cf harmonic.jar -C bin harmonic
+	ant jar
 
 # ___ Unit tests _______________________________________________________
 unit: compile

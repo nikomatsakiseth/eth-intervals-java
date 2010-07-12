@@ -1,7 +1,3 @@
 #!/bin/bash
 MYDIR=$(dirname $0)
-
-# LIBS should not be needed, but for now they are:
-LIBS=$MYDIR/lib/asm-debug-all-3.2.jar:$MYDIR/lib/Intervals.jar:$MYDIR/lib/pcollections-1.0.0.jar
-
-scala -classpath "$CLASSPATH:$MYDIR/harmonic.jar:$LIBS" harmonic.Harmonize "$@"
+scala -classpath "$CLASSPATH:$MYDIR/harmonic.jar" harmonic.Harmonize "$@"

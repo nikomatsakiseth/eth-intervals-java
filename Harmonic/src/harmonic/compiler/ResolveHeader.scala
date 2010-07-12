@@ -30,7 +30,6 @@ object ResolveHeader {
                 Intervals.addHb(superCsym.lower.getEnd, csym.lower.getEnd)
                 Intervals.addHb(superCsym.envirate.getEnd, csym.envirate.getStart)
                 Intervals.addHb(superCsym.check.getEnd, csym.check.getStart)
-                Intervals.addHb(superCsym.gather.getEnd, csym.gather.getStart)
                 Some(superName)
             } catch {
                 case _: IntervalException.Cycle => {
@@ -58,8 +57,12 @@ extends Resolve(global, compUnit)
         // Resolve the names of all superclasses and add an edge
         // so that resolving our header does not complete until
         // their headers have been resolved.  
-        val rawSuperClassNames = cdecl.extendsDecls.map { case in.ExtendsDecl(relName, _, ()) =>
+        val rawSuperClassNames1 = cdecl.extendsDecls.map { case in.ExtendsDecl(relName, _, ()) =>
             resolveName(relName).name
+        }
+        val rawSuperClassNames = rawSuperClassNames1 match {
+            case List() => List(Name.ObjectClass)
+            case list => list
         }
         csym.SuperClassNames.v = ResolveHeader.cookRawSuperClasses(csym, rawSuperClassNames)
         

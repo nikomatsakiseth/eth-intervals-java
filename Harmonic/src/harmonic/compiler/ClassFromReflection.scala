@@ -7,6 +7,8 @@ import java.lang.reflect.{Modifier => jModifier}
 
 import scala.collection.mutable
 
+import com.smallcultfollowing.lathos.Lathos
+
 import Util._
 
 class ClassFromReflection(
@@ -29,16 +31,16 @@ class ClassFromReflection(
                 else
                     (cls.getSuperclass :: cls.getInterfaces.toList).filter(_ != null).map(Name.Class)
             }
+            Lathos.context.log(name, ".superClassNames = ", allNames)
             allNames.foreach(global.requireLoadedOrLoadable(pos, _))
             allNames
         },
         
-        varMembers = {
-            (
-                cls.getDeclaredFields.map(fieldSymTabEntry) ++ 
-                cls.getTypeParameters.map(typeParamSymTabEntry)
-            ).toList
-        },
+        varMembers = List[Array[SymTab.Entry]](
+            Intrinsic(global).extraVarMembers(name),
+            cls.getDeclaredFields.map(fieldSymTabEntry),
+            cls.getTypeParameters.map(typeParamSymTabEntry)
+        ).flatten,
         
         constructors = {
             val ctors = cls.getConstructors
@@ -53,7 +55,6 @@ class ClassFromReflection(
                         className = name,
                         name      = Name.InitMethod,
                         elaborate = inter,
-                        gather    = gather,
                         msig      = MethodSignature(Type.Void, List())
                     ))
                 )
@@ -68,9 +69,10 @@ class ClassFromReflection(
             )
         },
         
-        allFieldSymbols = {
-            cls.getDeclaredFields.filter(isSuitable).map(fieldSymbol).toList
-        },
+        allFieldSymbols = List(
+            Intrinsic(global).extraFieldSymbols(name),
+            cls.getDeclaredFields.filter(isSuitable).map(fieldSymbol)
+        ).flatten,
         
         allIntervalSymbols = Nil,
         
@@ -177,7 +179,6 @@ class ClassFromReflection(
             className = name,
             name      = Name.InitMethod,
             elaborate = inter,
-            gather    = gather,
             msig      = MethodSignature(
                 returnTy          = Type.Void,
                 parameterPatterns = List(Pattern.Tuple(
@@ -208,7 +209,6 @@ class ClassFromReflection(
             className = name,
             name      = Name.Method(List(mthd.getName)),
             elaborate = inter,
-            gather    = gather,
             msig      = MethodSignature(
                 returnTy          = typeRef(mthd.getGenericReturnType),
                 parameterPatterns = List(Pattern.Tuple(

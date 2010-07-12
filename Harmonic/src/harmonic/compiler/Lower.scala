@@ -37,7 +37,6 @@ case class Lower(global: Global) {
             className = csym.name,
             name      = Name.InitMethod,
             elaborate = csym.create,
-            gather    = csym.gather,
             msig      = MethodSignature(
                 returnTy = Type.Void,
                 parameterPatterns = List(csym.classParam.toPatternRef)

@@ -16,6 +16,40 @@ case class Intrinsic(global: Global) {
         global.requireLoadedOrLoadable(InterPosition.forClass(cls), Name.Class(cls))
     }
     
+    // ___ Extra Members ____________________________________________________
+    //
+    // This is used to add ghosts to Object.
+    
+    def extraVarMembers(name: Name.Class): Array[SymTab.Entry] = {
+        name match {
+            case Name.ObjectClass => Array(SymTab.Ghost(Name.Wr), SymTab.Ghost(Name.Init))
+            case _ => Array()
+        }
+    }
+    
+    def extraFieldSymbols(name: Name.Class): Array[VarSymbol.Field] = {
+        name match {
+            case Name.ObjectClass => Array(
+                // TODO-- Ghosts
+                new VarSymbol.Field(
+                    InterPosition.forClassNamed(name),
+                    Modifier.Set.empty, 
+                    Name.Wr,
+                    Type.Interval,
+                    FieldKind.Java(classOf[Object], "Wr", classOf[Interval])
+                ),
+                new VarSymbol.Field(
+                    InterPosition.forClassNamed(name),
+                    Modifier.Set.empty, 
+                    Name.Init,
+                    Type.Interval,
+                    FieldKind.Java(classOf[Object], "Init", classOf[Interval])
+                )
+            )
+            case _ => Array()
+        }
+    }
+    
     // ___ IntrinsicMath ____________________________________________________
     
     val integralTypes = List[Class[_]](
@@ -68,7 +102,6 @@ case class Intrinsic(global: Global) {
                         className = leftTy.name,
                         name = interName, 
                         elaborate = inter,
-                        gather = inter,
                         msig = MethodSignature(
                             returnTy = returnTy,
                             parameterPatterns = List(Pattern.Var(Name.LocalVar("arg"), rightTy))
@@ -141,7 +174,6 @@ case class Intrinsic(global: Global) {
                 className = booleanTy.name,
                 name = Name.Method(List("if")),
                 elaborate = inter,
-                gather = inter,
                 msig = MethodSignature(
                     returnTy = voidTy,
                     parameterPatterns = List(
@@ -164,7 +196,6 @@ case class Intrinsic(global: Global) {
                 className = objectTy.name,
                 name = Name.Method(List("ifNull")),
                 elaborate = inter,
-                gather = inter,
                 msig = MethodSignature(
                     returnTy = voidTy,
                     parameterPatterns = List(
@@ -187,7 +218,6 @@ case class Intrinsic(global: Global) {
                 className = booleanTy.name,
                 name = Name.Method(List("if", "else")),
                 elaborate = inter,
-                gather = inter,
                 msig = MethodSignature(
                     returnTy = voidTy, /* ΧΧΧ Generic Method */
                     parameterPatterns = List(
@@ -211,7 +241,6 @@ case class Intrinsic(global: Global) {
                 className = objectTy.name,
                 name = Name.Method(List("ifNull", "else")),
                 elaborate = inter,
-                gather = inter,
                 msig = MethodSignature(
                     returnTy = voidTy, /* ΧΧΧ Generic Method */
                     parameterPatterns = List(
@@ -236,7 +265,6 @@ case class Intrinsic(global: Global) {
                 className = iterableTy.name,
                 name = Name.Method(List("forEach")),
                 elaborate = inter,
-                gather = inter,
                 msig = MethodSignature(
                     returnTy = voidTy,
                     parameterPatterns = List(
@@ -262,7 +290,6 @@ case class Intrinsic(global: Global) {
                 className = Name.Class(templateClass),
                 name = Name.Method(List("while")),
                 elaborate = inter,
-                gather = inter,
                 msig = MethodSignature(
                     returnTy = voidTy, 
                     parameterPatterns = List(

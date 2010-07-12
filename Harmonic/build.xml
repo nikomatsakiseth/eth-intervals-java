@@ -1,0 +1,26 @@
+<project name="Intervals" default="useMake" basedir=".">
+    <description>
+        Creates a single .JAR file containing all
+        dependencies to run Harmonic.  Note: do not
+        use this ant file directly, instead prefer 
+        "make".
+    </description>
+    
+    <target name="useMake">
+        <echo message="To build Harmonic, type 'make', not 'ant'!"/>
+    </target>
+    
+    <target name="jar">
+        <zip destfile="Harmonic.jar">
+            <!-- Harmonic: -->
+            <fileset dir="bin"/>
+            <fileset dir="src"/>
+            
+            <!-- Dependencies: -->
+            <zipgroupfileset dir="lib" includes="*.jar"/>
+            
+            <file file="META-INF/MANIFEST.MF"/>
+        </zip>
+    </target>
+
+</project>

@@ -68,7 +68,6 @@ class LowerMethodMember(
                 className   = csym.name,
                 name      = inMethodDecl.name,
                 elaborate = symElaborate,
-                gather    = csym.gather,
                 msig      = MethodSignature(
                     returnTy          = outReturnTref.ty,
                     parameterPatterns = outParams.map(_.toPatternRef)
