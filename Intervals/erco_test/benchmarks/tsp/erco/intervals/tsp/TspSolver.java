@@ -1,5 +1,6 @@
 package erco.intervals.tsp;
 
+import java.util.Arrays;
 import java.util.BitSet;
 
 import ch.ethz.intervals.Interval;
@@ -168,8 +169,11 @@ public class TspSolver extends AbstractTask {
 				continue; /* Already visited. */
 			if ((dist = config.weights[from][i]) == 0)
 				continue; /* Not connected. */
-			if (curDist + dist > config.minTourLength)
+			if (curDist + dist > config.minTourLength) {
+//				if(path[1] == 2 && path[2] == 8 && path[3] == 7 && path[4] == 6 && path[5] == 4 && path[6] == 5)
+//					System.err.printf("  (Abandoned %s with bound %d)\n", Arrays.toString(path), curDist + dist);
 				continue; /* Path too long. */
+			}
 
 			/* Try next node. */
 			visited.set(i);
@@ -191,7 +195,8 @@ public class TspSolver extends AbstractTask {
 
 			/* Remove current try and loop again at this level. */
 			curDist -= dist;
-			pathLen--;
+			path[--pathLen] = 0;
+			//pathLen--;
 			visited.clear(i);
 		}
 	}

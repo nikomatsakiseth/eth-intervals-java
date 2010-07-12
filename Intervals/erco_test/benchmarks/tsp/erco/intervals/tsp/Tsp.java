@@ -12,6 +12,16 @@ import ch.ethz.intervals.task.AbstractTask;
 
 public class Tsp {
 	
+	public static class Result {
+		final public int minTourLength;
+		final public int minTour[];
+		
+		public Result(int minTourLength, int[] minTour) {
+			this.minTourLength = minTourLength;
+			this.minTour = minTour;
+		}
+	}
+	
 	Config loadConfig(String fname) throws IOException
 	{
 		BufferedReader in = new BufferedReader(new FileReader(fname));
@@ -27,7 +37,7 @@ public class Tsp {
 		return config;
 	}
 
-	public int[] solve(String fname) throws IOException 
+	public Result solve(String fname) throws IOException 
 	{
 		final Config config = loadConfig(fname);
 		TourElement first = new TourElement(config.startNode);
@@ -36,10 +46,39 @@ public class Tsp {
 			@Override public void run(Interval subinterval) {
 				subinterval.newAsyncChild(new TspSolver(config));
 			}
-		});		
-		return config.minTour;
+		});
+		
+		// Sanity checks:
+		System.err.printf("minTourLength: %d\n", config.minTourLength);
+		
+		int calculatedLength = 0;
+		boolean seenNodes[] = new boolean[config.numNodes];
+		check(config.minTour[0] == 0);
+		check(config.numNodes + 1 == config.minTour.length);
+		for(int i = 1; i < config.minTour.length; i++) {
+			int currentNode = config.minTour[i];
+			int previousNode = config.minTour[i-1];
+			int weight = config.weights[previousNode][currentNode];
+			check(weight > 0);
+			calculatedLength += weight; 
+			check(!seenNodes[currentNode]);
+			seenNodes[currentNode] = true;
+		}
+		check(calculatedLength == config.minTourLength);
+		
+		for(int i = 0; i < config.numNodes; i++) {
+			check(seenNodes[i]);
+		}
+
+		System.err.printf("calculatedLength: %d\n", calculatedLength);
+
+		return new Result(config.minTourLength, config.minTour);
 	}
 	
+	private void check(boolean b) {
+		if(!b) throw new RuntimeException("Check failed");
+	}
+
 	public static void main(String args[]) throws IOException {
 		for(String fname : args) {
 			Tsp tsp = new Tsp();

@@ -1,5 +1,6 @@
 package erco.intervals.tsp;
 
+import java.util.Arrays;
 import java.util.PriorityQueue;
 
 import ch.ethz.intervals.Interval;
@@ -63,9 +64,13 @@ public class Config {
 				subinterval.addLock(queueLock);
 			}
 			@Override public void run(Interval subinterval) {
+//				System.err.printf("curDist: %d minTourLength: %d tour: %s\n", 
+//						curDist, minTourLength, Arrays.toString(path));
 				if(curDist < minTourLength) {
 					System.arraycopy(path, 0, minTour, 0, minTour.length);
 					minTourLength = curDist;
+					
+//					System.err.printf("  BEST SO FAR\n");
 				}
 			}
 		});
