@@ -7,7 +7,11 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
+
+import com.smallcultfollowing.lathos.JettyLathosServer;
+import com.smallcultfollowing.lathos.LathosServer;
 
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
@@ -56,10 +60,11 @@ public class TestInterval extends TestUtil {
 
 	@Test public void basic() {
 		for (int i = 0; i < repeat; i++) {
+			final int iter = i;
 			final List<List<Integer>> list = Collections.synchronizedList(new ArrayList<List<Integer>>());
-			Intervals.inline(new AbstractTask("parentInterval") {
+			Intervals.inline(new AbstractTask("parentInterval:"+iter) {
 				public void run(final Interval parentInterval) {
-					Intervals.inline(new AbstractTask("childInterval") {
+					Intervals.inline(new AbstractTask("childInterval:"+iter) {
 						public void run(final Interval childInterval) {							
 							Interval after = parentInterval.newAsyncChild(new AddTask(list, 2));
 							Intervals.addHb(childInterval, after);

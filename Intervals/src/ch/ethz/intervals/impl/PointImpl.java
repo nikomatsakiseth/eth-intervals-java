@@ -378,6 +378,8 @@ implements Point, Page, RefManipulator
 		assert waitCount == 0;
 		
 		int newWaitCount = (withError ? OCCURRED_WITH_ERROR : OCCURRED_WITHOUT_ERROR);
+		
+//		System.err.printf("occur(%s @ %x): %s\n", toString(), System.identityHashCode(this), newWaitCount);
 
 		// Save copies of our outgoing edges at the time we occurred:
 		//      They may be modified further while we are notifying successors.
@@ -385,8 +387,7 @@ implements Point, Page, RefManipulator
 		synchronized(this) {
 			outEdges = this.outEdges;
 			this.waitCount = newWaitCount;
-			if(bound == null) // If this is (or could be) a root subinterval...
-				notifyAll();  // ...someone might be wait()ing on us!
+			notifyAll();  // someone might be wait()ing on us!
 		}
 		
 		ExecutionLog.logArrive(this);
@@ -468,8 +469,14 @@ implements Point, Page, RefManipulator
 	 * tries to do useful work in the meantime!
 	 */
 	void join() {
+		if(Debug.ENABLED) {
+			Current current = Current.get();
+			Debug.debug.postJoin(this, current.inter);
+		}
+		
 		boolean hadMedallion = ContextImpl.POOL.yieldMedallion();
 		synchronized(this) {
+//			System.err.printf("(%s @ %x).join(%s)\n", toString(), System.identityHashCode(this), waitCount);
 			while(!didOccur())
 				try {
 					wait();

@@ -8,8 +8,12 @@ import java.util.concurrent.BlockingQueue;
 
 import pcollections.PSet;
 import ch.ethz.intervals.impl.IntervalImpl.State;
+import ch.ethz.intervals.impl.ThreadPool.Medallion;
+import ch.ethz.intervals.impl.ThreadPool.WorkItem;
+import ch.ethz.intervals.impl.ThreadPool.Worker;
 
 import com.smallcultfollowing.lathos.CustomOutput;
+import com.smallcultfollowing.lathos.JettyLathosServer;
 import com.smallcultfollowing.lathos.Lathos;
 import com.smallcultfollowing.lathos.LathosServer;
 import com.smallcultfollowing.lathos.Output;
@@ -36,16 +40,17 @@ public class Debug
 implements Page 
 {
 	/**
-	 * Enable debugging.  Sometimes easier to edit source file than to 
-	 * adjust the properties! */
-	private static final boolean STATIC_SWITCH = false; 
-
+	 * If this variable is non-zero, then debugging is enabled
+	 * and a JettyLathosServer is automatically started. 
+	 * This is very useful for unit tests and the like.*/
+	private static final int STATIC_PORT = 0; 
+	
 	/**
 	 * Controls whether debugging is enabled.   
 	 * Initialized from the property {@code IntervalsDebug}.
 	 * Defaults to {@code false}. */
 	public static final boolean ENABLED = 
-		STATIC_SWITCH || Boolean.parseBoolean(System.getProperty("IntervalsDebug", "false"));
+		(STATIC_PORT != 0) || Boolean.parseBoolean(System.getProperty("IntervalsDebug", "false"));
 
 	/** 
 	 * Throw out events if we have more than this amount, unless the relevant
@@ -76,6 +81,18 @@ implements Page
 	/**
 	 * Singleton instance. */
 	public static final Debug debug = new Debug();
+	
+	static {
+		if(STATIC_PORT != 0) {
+			LathosServer server;
+			try {
+				server = JettyLathosServer.start(STATIC_PORT);
+			} catch (Exception e) {
+				throw new RuntimeException(e);
+			}
+			server.registerPage(debug);
+		}
+	}
 	
 	private Debug() {
 		updateThread = new UpdateThread();
@@ -406,6 +423,31 @@ implements Page
 		}
 	}
 	
+	static class JoinEvent extends Event {
+		public final IntervalImpl joiner;
+		
+		public JoinEvent(PointImpl joinedPoint, IntervalImpl joiner) {
+			super(joinedPoint);
+			this.joiner = joiner;
+		}
+
+		@Override
+		public void renderInLine(Output output) throws IOException {
+			output.outputText("Joined(");
+			output.outputObject(relevantTo);
+			output.outputText(" by ");
+			output.outputObject(joiner);
+			output.outputText(")");
+		}
+
+	}
+
+	public void postJoin(PointImpl joinedPoint, IntervalImpl joiner) {
+		if(ENABLED) {
+			putQueue(new JoinEvent(joinedPoint, joiner));
+		}
+	}
+
 	static class OccurEvent extends Event {
 		public OccurEvent(PointImpl point) {
 			super(point);
@@ -491,7 +533,7 @@ implements Page
 		}
 	}
 	
-	class VertExceptionEvent extends Event {
+	static class VertExceptionEvent extends Event {
 		final IntervalImpl interval;
 		final int totalCount;
 		
@@ -524,7 +566,7 @@ implements Page
 		}
 	}
 
-	class LockEvent extends Event {
+	static class LockEvent extends Event {
 		final String kind;
 		final LockBase lock;
 		final LockList acq;
@@ -578,7 +620,7 @@ implements Page
 		}
 	}
 
-	class NewIntervalEvent extends Event {
+	static class NewIntervalEvent extends Event {
 		final IntervalImpl inter;
 		final IntervalImpl creator;
 		
@@ -590,8 +632,6 @@ implements Page
 			this.inter = inter;
 			this.creator = creator;
 		}
-
-
 
 		@Override
 		public void renderInLine(Output output) throws IOException {
@@ -610,6 +650,194 @@ implements Page
 			putQueue(new NewIntervalEvent(inter, creator));
 		}
 	}
+
+	static class FreshWorkerEvent extends Event {
+		public final Medallion medallion;
+
+		public FreshWorkerEvent(Medallion medallion) {
+			super(null);
+			this.medallion = medallion;
+		}
+
+		@Override
+		public void renderInLine(Output output) throws IOException {
+			output.outputText("FreshWorker(");
+			output.outputObject(medallion);
+			output.outputText(")");
+		}
+	}
+	
+	public void postStartedFreshWorker(Medallion medallion) {
+		if(ENABLED) {
+			putQueue(new FreshWorkerEvent(medallion));
+		}
+	}
+	
+	static class TaskEvent extends Event {
+		public final String kind;
+		public final Worker worker;
+		public final Medallion medallion;
+		public final Medallion victim;
+		public final WorkItem workItem;
+		
+		public TaskEvent(
+				String kind, 
+				Worker worker,
+				Medallion medallion,
+				Medallion victim, 
+				WorkItem workItem) {
+			super(null);
+			this.kind = kind;
+			this.worker = worker;
+			this.medallion = medallion;
+			this.victim = victim;
+			this.workItem = workItem;
+		}
+		
+		@Override
+		public void renderInLine(Output output) throws IOException {
+			output.outputText(kind);
+			output.outputText("Task(");
+			
+			if(worker != null) {
+				output.outputText("worker=");
+				output.outputObject(worker);
+				output.outputText(", medallion=");
+				output.outputObject(medallion);
+				output.outputText(", ");
+			}
+			
+			if(victim != null) {
+				output.outputText("victim=");
+				output.outputObject(victim);
+				output.outputText(", ");
+			}
+			
+			output.outputText("item=");
+			output.outputObject(workItem);
+			
+			output.outputText(")");
+		}
+	}
+
+	public void postTookTask(
+			Worker worker,
+			Medallion medallion, 
+			WorkItem item) 
+	{
+		if(ENABLED) {
+			putQueue(new TaskEvent("Took", worker, medallion, null, item));
+		}
+	}
+	
+	public void postStoleTask(
+			Worker thief,
+			Medallion medallion, 
+			Medallion victim,
+			WorkItem item) 
+	{
+		if(ENABLED) {
+			putQueue(new TaskEvent("Stole", thief, medallion, victim, item));
+		}
+	}
+
+	public void postRemovePendingTask(
+			Worker worker,
+			Medallion medallion, 
+			WorkItem item) 
+	{
+		if(ENABLED) {
+			putQueue(new TaskEvent("Pending", worker, medallion, null, item));
+		}
+	}
+
+	public void postAddPendingTask(
+			WorkItem item) 
+	{
+		if(ENABLED) {
+			putQueue(new TaskEvent("AddPending", null, null, null, item));
+		}
+	}
+	
+	static class MedallionEvent extends Event {
+		public final String kind;
+		public final Medallion medallion;
+		public final Worker worker;
+		public final Worker awakened;
+		
+		public MedallionEvent(
+				String kind,
+				Medallion medallion, 
+				Worker worker, 
+				Worker awakened) 
+		{
+			super(null);
+			this.kind = kind;
+			this.medallion = medallion;
+			this.worker = worker;
+			this.awakened = awakened;
+		}
+
+		@Override
+		public void renderInLine(Output output) throws IOException {
+			output.outputText(kind);
+			output.outputText("Medallion(");
+			output.outputObject(medallion);
+			output.outputText(", worker=");
+			output.outputObject(worker);
+			output.outputText(", awakened=");
+			output.outputObject(awakened);
+			output.outputText(")");
+		}
+		
+	}
+
+	public void postCededMedallion(
+			Worker worker, 
+			Medallion oldMedallion,
+			Worker waiting) 
+	{
+		if(ENABLED) {
+			putQueue(new MedallionEvent("Ceded", oldMedallion, worker, waiting));
+		}		
+	}
+
+	public void postForkedMedallion(
+			Worker worker, 
+			Medallion oldMedallion)
+	{
+		if(ENABLED) {
+			putQueue(new MedallionEvent("Forked", oldMedallion, worker, null));
+		}		
+	}
+
+	public void postReleasedMedallion(
+			Worker worker, 
+			Medallion oldMedallion,
+			Worker awakened)
+	{
+		if(ENABLED) {
+			putQueue(new MedallionEvent("Released", oldMedallion, worker, awakened));
+		}		
+	}
+
+	public void postReacquiredMedallion(
+			Worker worker, 
+			Medallion aMedallion) 
+	{
+		if(ENABLED) {
+			putQueue(new MedallionEvent("Reacquired", aMedallion, worker, null));
+		}		
+	}
+	
+	public void postWaitingForMedallion(
+			Worker worker) 
+	{
+		if(ENABLED) {
+			putQueue(new MedallionEvent("Waiting", null, worker, null));
+		}		
+	}
+
 
 	// Lathos routines:
 	// ----------------

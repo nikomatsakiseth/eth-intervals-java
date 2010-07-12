@@ -5,8 +5,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.junit.AfterClass;
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
+
+import com.smallcultfollowing.lathos.JettyLathosServer;
+import com.smallcultfollowing.lathos.LathosServer;
 
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
@@ -44,7 +49,7 @@ public class TestLocks {
 	
 	public static final int REPEAT = 300;
 	public static final int REPEAT_SMALL = 25; // some tests sleep or otherwise take a long time
-
+	
 	// Just test that locks work at all:
 	@Test public void simple() {
 		for(int i = 0; i < REPEAT; i++) {
