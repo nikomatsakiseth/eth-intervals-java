@@ -27,8 +27,11 @@ class Global(
         else new NoneServer()
         
     debugServer.addDefaultRenderers
-    
+    debugServer.registerPage(ch.ethz.intervals.impl.Debug.debug)
+
+    val rootPage = debugServer.topLevelPage("Root")
     val errorsPage = debugServer.topLevelPage("Errors")
+    val intervalsPage = new debug.Intervals(debugServer, rootPage)
 
     // ___ Reporting Errors _________________________________________________
     
@@ -65,23 +68,25 @@ class Global(
     def compile() = {
         usingLog(debugServer.context) {
             try {
-                Lathos.context.log("Compilation started")
+                val log = Lathos.context
 
-                inlineInterval("master") { inter =>
-                    master = inter
+                Util.measure("master") {
+                    inlineInterval("master") { inter =>
+                        master = inter
 
-                    Intrinsic(this).add()
+                        Intrinsic(this).add()
 
-                    // Start by parsing the input files.  This will create
-                    // various subintervals of master, which will begin to
-                    // execute once all parsing and loading is complete.
-                    // It is necessary for those subintervals to wait till all
-                    // the initial files have been loaded because they may
-                    // reference symbols created in one another.
-                    config.inputFiles.foreach { inputFile =>
-                        Parse(this, inputFile).foreach(createSymbols)
-                    }
-                }            
+                        // Start by parsing the input files.  This will create
+                        // various subintervals of master, which will begin to
+                        // execute once all parsing and loading is complete.
+                        // It is necessary for those subintervals to wait till all
+                        // the initial files have been loaded because they may
+                        // reference symbols created in one another.
+                        config.inputFiles.foreach { inputFile =>
+                            Parse(this, inputFile).foreach(createSymbols)
+                        }
+                    }                                
+                }
             } finally {
                 debugServer.join            
             }            

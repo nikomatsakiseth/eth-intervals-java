@@ -77,13 +77,13 @@ abstract class ClassSymbol extends Symbol {
       * during resolution. */
     def varMembers: List[SymTab.Entry]
     
-    // ___ Invoking causes MRO to be resolved _______________________________
+    // ___ Invokable after `cmro` ___________________________________________
 
     /** Method resolution order for this class.  First element in the
       * list is always `this`. */
     def mro: List[ClassSymbol]
     
-    // ___ Invokable once body is resolved __________________________________
+    // ___ Invokable after `body` ___________________________________________
     //
     // Invoking these methods may result in lowering or in new classes being
     // loaded.
@@ -99,13 +99,7 @@ abstract class ClassSymbol extends Symbol {
       * with the given name.  May trigger lowering or other processing. */
     def fieldNamed(name: Name.Member): Option[VarSymbol.Field]
     
-    // ___ Invokable once type checking is complete _________________________
-    //
-    // The environment used within the class body.
-    
-    def checkEnv: Env
-    
-    // ___ Invokable once lowered ___________________________________________
+    // ___ Invokable after `lower` __________________________________________
     
     /** Symbols for all methods defined on this class but not superclasses. */
     def allMethodSymbols: List[MethodSymbol]
@@ -115,5 +109,16 @@ abstract class ClassSymbol extends Symbol {
     
     /** Symbols for all interval members defined on this class but not superclasses. */
     def allIntervalSymbols: List[VarSymbol.Field]
+    
+    // ___ Invokable after `check` __________________________________________
+    //
+    // The environment used within the class body.
+    
+    def checkEnv: Env
+    
+    // ___ Invokable after `gather` _________________________________________
+
+    def AllOverrides: GuardedBy[Map[MethodSymbol, List[MethodSymbol]]]
+    def allOverrides = AllOverrides.v
     
 }

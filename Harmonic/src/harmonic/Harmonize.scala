@@ -92,9 +92,7 @@ object Harmonize {
         if(args.length > 0 && args(0) == "run") {
             new Instance(System.in, System.out, System.err).main(args.slice(1, args.length))
         } else if(args.length > 0 && args(0) == "compile") {
-            measure("compiler") {
-                harmonic.compiler.Main.main(args.slice(1, args.length))                
-            }
+            harmonic.compiler.Main.main(args.slice(1, args.length))                
         } else {
             System.err.printf("The Harmonic Language, version %s\n", version)
             System.err.printf("\n")

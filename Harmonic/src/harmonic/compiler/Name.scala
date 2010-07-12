@@ -109,7 +109,7 @@ object Name {
     /** Method names. */
     final case class Method(
         parts: List[String]
-    ) {
+    ) extends Any {
         def javaName = parts.mkString("$")
         
         def is(name: Name.Method) = (this == name)

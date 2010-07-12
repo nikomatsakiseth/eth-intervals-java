@@ -164,7 +164,7 @@ class DerivedFactSet[X](
     override def query[F <: Fact.Forward](
         kind: Class[F], 
         optArgs: Option[Any]*
-    ): Set[F] = {
+    ): Set[F] = synchronized {
         network.state(this, this, xtra, pendingFacts).query(kind, optArgs: _*)
     }
     

@@ -584,13 +584,15 @@ case class Env(
     def overrides(
         msig_sub: MethodSignature[Pattern.Ref], 
         msig_sup: MethodSignature[Pattern.Ref]
-    ) = {
+    ) = Lathos.context.indent("overrides(", msig_sub, ", ", msig_sup, ")") {
         val pps_sub = msig_sub.parameterPatterns
         val pps_sup = msig_sup.parameterPatterns
-        val subst = pps_sub.zip(pps_sup).foldLeft(Subst.empty)(addOverrideSubst)
-        pps_sub.zip(pps_sup).forall { case (pp_sub, pp_sup) => 
-            typesAreEquatable(pp_sub.ty, subst.ty(pp_sup.ty))
-        }
+        sameLength(pps_sub, pps_sup) && {
+            val subst = pps_sub.zip(pps_sup).foldLeft(Subst.empty)(addOverrideSubst)
+            pps_sub.zip(pps_sup).forall { case (pp_sub, pp_sup) => 
+                typesAreEquatable(pp_sub.ty, subst.ty(pp_sup.ty))
+            }            
+        }            
     }
     
 //    def isSubclass(ty_sub: Type, ty_sup: Type): Boolean = {

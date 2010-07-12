@@ -52,7 +52,9 @@ case class GatherOverrides(global: Global) {
         )(
             group: MethodGroup
         ) = log.indent("isCompatibleWith(", msig, ", ", group, ")") {
-            env.overrides(msig, group.msig)            
+            log.log("pps_sub.length = ", msig.parameterPatterns.length.asObj)
+            log.log("pps_sup.length = ", group.msig.parameterPatterns.length.asObj)
+            env.overrides(msig, group.msig)                            
         }
             
         /** Add `msym` to an appropriate group, creating a new one if needed */
@@ -79,8 +81,7 @@ case class GatherOverrides(global: Global) {
         env: Env
     ): MethodGroups = {
         val methodGroups = new MethodGroups(env)
-        val mro = csym.mro
-        mro.foreach { mroCsym =>
+        csym.mro.foreach { mroCsym =>
             val msyms = mroCsym.allMethodSymbols
             msyms.foreach(methodGroups.addMsym)
         }        
@@ -93,16 +94,17 @@ case class GatherOverrides(global: Global) {
         csym: ClassSymbol,
         methodGroups: MethodGroups
     ): Unit = {
-        csym.allMethodSymbols.foreach { msym =>
+        val emptyOverrides = Map[MethodSymbol, List[MethodSymbol]]()
+        csym.AllOverrides.v = csym.allMethodSymbols.foldLeft(emptyOverrides) { (all, msym) =>
             val group = methodGroups.group(msym)
-            msym.Overrides.v = group.msyms.dropWhile(_.isFromClassNamed(csym.name))
+            val overrides = group.msyms.dropWhile(_.isFromClassNamed(csym.name))
             
             msym.kind match {
                 case _: MethodKind.Harmonic => {
-                    if(msym.overrides.isEmpty && msym.modifiers.isOverride) {
+                    if(overrides.isEmpty && msym.modifiers.isOverride) {
                         Error.NotOverride(csym.name, msym.name).report(global, msym.pos)
-                    } else if (!msym.overrides.isEmpty && !msym.modifiers.isOverride) {
-                        val classNames = msym.overrides.map(_.className).toList
+                    } else if (!overrides.isEmpty && !msym.modifiers.isOverride) {
+                        val classNames = overrides.map(_.className).toList
                         Error.NotMarkedOverride(msym.name, classNames).report(global, msym.pos)
                     }                    
                 }
@@ -112,6 +114,8 @@ case class GatherOverrides(global: Global) {
                 |   MethodKind.ErrorMethod => {
                 }
             }
+            
+            all + (msym -> overrides)
         }
     }
     
@@ -121,7 +125,11 @@ case class GatherOverrides(global: Global) {
         csym: ClassSymbol,
         group: MethodGroup
     ): Unit = {
-        
+        def overrides(msym: MethodSymbol) = {
+            val csym = global.csym(msym.className)
+            csym.allOverrides.getOrElse(msym, Nil)
+        }
+
         // Consider the methods in this group defined in `csym` itself:
         group.msyms.takeWhile(_.isFromClassNamed(csym.name)) match {
             
@@ -130,11 +138,11 @@ case class GatherOverrides(global: Global) {
                 // In that case, all impl. of the method must
                 // override a common base method.
                 val tops = group.msyms.foldLeft(group.msyms) {
-                    case (l, msym) => l.filterNot(msym.overrides.contains)
+                    case (l, msym) => l.filterNot(overrides(msym).contains)
                 }
                 val reported = new mutable.HashSet[(MethodSymbol, MethodSymbol)]()
                 (tops cross tops).foreach { case (msym1, msym2) =>
-                    if(msym1 != msym2 && !msym1.overrides.intersects(msym2.overrides)) {
+                    if(msym1 != msym2 && !overrides(msym1).intersects(overrides(msym2))) {
                         if(reported.add((msym1, msym2)) && reported.add((msym2, msym1))) {
                             Error.MustResolveAmbiguousInheritance(
                                 csym.name, group.methodName, 

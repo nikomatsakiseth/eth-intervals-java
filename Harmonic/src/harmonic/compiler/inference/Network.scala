@@ -56,7 +56,8 @@ class Network[X](server: lathos.LathosServer) extends DebugPage {
         val xtra: X,
         val queue: mutable.Queue[Fact.Forward]
     ) extends Recurse[X] {
-        val log = server.contextForPage(page)
+        val log = lathos.Lathos.context
+        
         var backwardStack: List[(Fact.Backward, Rule.Backward[X])] = Nil
         
         def drainQueue() = log.indent("drainQueue") {

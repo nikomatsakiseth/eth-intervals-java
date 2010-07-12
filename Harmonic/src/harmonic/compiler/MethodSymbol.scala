@@ -49,7 +49,7 @@ class MethodSymbol(
     val msig: MethodSignature[Pattern.Ref],
     val elaborate: Interval,
     val gather: Interval
-)(implicit global: Global) extends Symbol with Page {
+)(implicit global: Global) extends Symbol with DebugPage {
     override def toString = "MethodSymbol(%s.%s, %x)".format(className, name, System.identityHashCode(this))
     
     def id = MethodId(className, name, msig)
@@ -77,40 +77,5 @@ class MethodSymbol(
     
     val Ensures = new GuardedBy[List[inference.Fact]](elaborate)
     def ensures = Ensures.v
-    
-    // ___ Gather Phase _____________________________________________________
-    //
-    // List of methods overridden by this method.  The ordering is 
-    // significant, because when super is invoked it will proceed to the
-    // next implementation in the list.
-    
-    val Overrides = new GuardedBy[List[MethodSymbol]](gather)
-    def overrides = Overrides.v
-    
-    // ___ Page interface ___________________________________________________
-    
-    override def getId = "MethodSymbol[%s]".format(System.identityHashCode(this))
-    
-    override def getParent = null
-    
-    override def addContent(content: PageContent) = throw new UnsupportedOperationException()
-    
-    override def renderInLine(out: Output): Unit = {
-        Lathos.renderInLine(this, out)
-    }
-    
-    override def renderInPage(out: Output): Unit = {
-        out.startPage(this)
-        
-        out.startTable
-        
-        out.row("name", name)
-        out.row("msig", msig)
-        out.row("pos", pos)
-        
-        out.endTable
-        
-        out.endPage(this)
-    }
     
 }

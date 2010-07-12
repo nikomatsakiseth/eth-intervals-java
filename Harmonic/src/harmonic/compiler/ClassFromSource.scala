@@ -277,6 +277,8 @@ class ClassFromSource(
         MethodGroups.v = groups
     }
 
+    val AllOverrides = new GuardedBy[Map[MethodSymbol, List[MethodSymbol]]](gather)
+    
     // ___ Schedule unscheduled intervals ___________________________________
     //
     // It is important that this happen last.  This is because the header

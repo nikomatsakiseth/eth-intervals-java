@@ -163,7 +163,7 @@ object Util {
                 contents = content :: contents
         }
 
-        override def renderInLine(out: lathos.Output): Unit = synchronized {
+        override def renderInLine(out: lathos.Output): Unit = {
             Lathos.renderInLine(this, out)
         }
 
@@ -255,11 +255,23 @@ object Util {
                     false
                 }
                 
+                case value: MethodSignature[_] => {
+                    false
+                }
+                
+                case value: Pattern.Anon => {
+                    false
+                }
+                
                 case value: Path.Ref => {
                     false
                 }
                 
                 case value: Name.Any => {
+                    false
+                }
+                
+                case value: Ast.Node => {
                     false
                 }
                 
@@ -310,32 +322,42 @@ object Util {
 
     class ExtendedContext(context: lathos.Context) {
         def indent[R](args: Object*)(func: => R) = {
-            val page = context.pushLinkedChild(null, args: _*)
+            
+            val indentPage = Lathos.newPage(context.server, context.topPage, null, args: _*)
+            context.push(indentPage)
+            val indentLine = context.log(context.link(indentPage, "\u25B2"))
+            
             try {
+                context.append(indentLine, args: _*)
+                
                 val result = func
-                if(result != ())
-                    context.log("Result: ", result.asObj)
-                context.pop(page)
-                if(result != ())
-                    context.log("> Result: ", result.asObj)
+
+                context.log("Result: ", result.asObj)
+                context.pop(indentPage)
+                context.append(indentLine, " (Result: ", result.asObj, ")")
+                
                 result
             } catch { 
-                case t: scala.runtime.NonLocalReturnControl[_] => {
-                    context.pop(page)
-                    throw t                                        
-                }
                 case t => {
                     context.log("Error: ", t)
-                    context.pop(page)
-                    context.log("> Error: ", t)
+                    context.pop(indentPage)
+                    context.append(indentLine, " (Error: ", t, ")")
+                    
                     throw t                    
                 }
             }
+            
         }
     }
     implicit def extendedContext(context: lathos.Context): ExtendedContext = new ExtendedContext(context)
     
     class ExtendedOutput(out: lathos.Output) {
+        
+        def par(func: => Unit) {
+            out.startPar
+            func
+            out.endPar
+        }
         
         def bolded(func: => Unit) {
             out.startBold
@@ -419,15 +441,13 @@ object Util {
             val elapsedMilli = System.currentTimeMillis - start
             val elapsedSec = elapsedMilli / 1000
             val elapsedMin = elapsedSec / 60
-            Util.synchronized {
-                println("%s: %s ms == %s min %s sec %s ms".format(
-                    label,
-                    elapsedMilli,
-                    elapsedMin,
-                    elapsedSec % 60,
-                    elapsedMilli % 1000
-                ))
-            }
+            Lathos.context.log(
+                label, "completed in ", 
+                elapsedMilli.asObj, " ms, or ",
+                elapsedMin.asObj, " min ", 
+                (elapsedSec % 60).asObj, " sec ", 
+                (elapsedMilli % 1000).asObj, " ms"
+            )
         }
     }
     
@@ -450,33 +470,38 @@ object Util {
                 global.debugServer, 
                 parentPage,
                 name.afterLast('.'),
-                "Interval", name
+                "Interval ", name
             )
 
-            // create the log we will later use in the interval here:
-            val log = global.debugServer.context
-            log.push(parentPage)
-            log.log(log.link(interPage, name))
-            log.pop(parentPage)
+            val info = global.intervalsPage.registerInterval(parentPage, interPage)
             
             val result = inter.newAsyncChild(new AbstractTask(name) {
                 override def run(current: Interval): Unit = {
+                    val log = global.debugServer.context
                     usingLog(log) {
                         try {
+                            info.setRunning
+                            
                             log.push(interPage)
+                            log.log("Interval object ", current)
                             log.log("Created by ", creatorPage)
                             func(current)
-                            log.log("(Completed)")
                             log.pop(interPage)
+                            
+                            info.setCompleted
                         } catch { case t => 
                             log.push(global.errorsPage)
                             log.log("Interval ", interPage, " threw ", t)
                             log.pop(global.errorsPage)
+                            
+                            info.setThrew(t)
                             throw t
                         }
                     }
                 }
             })
+
+            info.setInterval(result)
             
             after.foreach(pnt => Intervals.addHb(pnt, result.getStart))
             before.foreach(pnt => Intervals.addHb(result.getEnd, pnt))
