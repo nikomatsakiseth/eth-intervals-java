@@ -18,7 +18,7 @@ class Config
     var dumpResolvedTrees = false
     var dumpLoweredTrees = false
     var dumpBytecode = false
-    var checkBytecode = true
+    var checkBytecode = false
     var ignoreErrors = false
     var useReflection = true
     var localize = false

@@ -4,6 +4,8 @@ import scala.collection.mutable
 import scala.collection.immutable.Map
 import scala.collection.immutable.Set
 
+import ch.ethz.intervals.Intervals
+
 import com.smallcultfollowing.lathos._
 import com.smallcultfollowing.lathos.Lathos
 
@@ -50,6 +52,8 @@ class DerivedFactSet[X](
     xtra: X
 ) extends InternalFactSet[X] with Memory with DebugPage {
     val network = baseFactSet.network
+    val lock = Intervals.lock(getId)
+    
     def plusFacts(facts: Iterable[Fact], xtra: X): FactSet[X] = DerivedFactSet(this, facts, xtra)
     def plusFactSet(factSet: FactSet[X], xtra: X): FactSet[X] = DerivedFactSet(this, factSet, xtra)
     
@@ -141,30 +145,30 @@ class DerivedFactSet[X](
         }
     }
     
-    def resolvedAlphaMemories: Map[Fact.ForwardKind, Set[Fact.Forward]] = synchronized {
+    def resolvedAlphaMemories: Map[Fact.ForwardKind, Set[Fact.Forward]] = withLock(lock) {
         resolvePendingFacts
         alphaMemories
     }
     
-    def resolvedBetaMemories: Map[List[Fact.ForwardKind], Set[List[Fact.Forward]]] = synchronized {
+    def resolvedBetaMemories: Map[List[Fact.ForwardKind], Set[List[Fact.Forward]]] = withLock(lock) {
         resolvePendingFacts
         betaMemories
     }
     
-    def currentOmegaMemories: Set[Fact.Backward] = synchronized {
+    def currentOmegaMemories: Set[Fact.Backward] = withLock(lock) {
         omegaMemories
     }
         
     // ___ FactSet interface ________________________________________________
     
-    override def contains(fact: Fact): Boolean = synchronized {
+    override def contains(fact: Fact): Boolean = withLock(lock) {
         network.state(this, this, xtra, pendingFacts).contains(fact)
     }
     
     override def query[F <: Fact.Forward](
         kind: Class[F], 
         optArgs: Option[Any]*
-    ): Set[F] = synchronized {
+    ): Set[F] = withLock(lock) {
         network.state(this, this, xtra, pendingFacts).query(kind, optArgs: _*)
     }
     

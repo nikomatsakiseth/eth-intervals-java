@@ -98,7 +98,7 @@ case class EnvXtra(
     
     def typeOfPath(path: Path.Ref) = typedPath(path).ty
     
-    def superTypes(ty: Type.Class) = {
+    def superTypes(ty: Type.Class) = Lathos.context.embeddedIndent("superTypes(", ty, ")") {
         val Type.Class(nm, args) = ty
         val csym = global.csym(nm)
         csym.superClassNames.map { c2 =>
@@ -467,31 +467,32 @@ case class Env(
     // and (to a limited extent) type variables.
     
     private[this] def isSuitableArgument1(ty_val: Type, ty_pat: Type): Boolean = {
-        Lathos.context.log("isSuitableArgument1(", ty_val, ", ", ty_pat, ")")
-        (ty_val, ty_pat) match {
-            case (Type.Class(name_val, _), Type.Class(name_pat, _)) => {
-                val sym_val = global.csym(name_val)
-                val sym_pat = global.csym(name_pat)
-                sym_val.isSubclass(sym_pat)
-            }
-            
-            case (Type.Member(path_val, tvar_val), Type.Member(path_pat, tvar_pat)) if tvar_val == tvar_pat =>
-                pathsAreEquatable(path_val, path_pat)
-                
-            case (Type.Tuple(List(ty)), _) =>
-                isSuitableArgument1(ty, ty_pat)
-                
-            case (_, Type.Tuple(List(ty))) =>
-                isSuitableArgument1(ty_val, ty)
-                
-            case (Type.Tuple(tys_val), Type.Tuple(tys_pat)) if sameLength(tys_val, tys_pat) =>
-                tys_val.zip(tys_pat).forall { case (v, p) => isSuitableArgument(v, p) }
+        Lathos.context.embeddedIndent("isSuitableArgument1(", ty_val, ", ", ty_pat, ")") {
+            (ty_val, ty_pat) match {
+                case (Type.Class(name_val, _), Type.Class(name_pat, _)) => {
+                    val sym_val = global.csym(name_val)
+                    val sym_pat = global.csym(name_pat)
+                    sym_val.isSubclass(sym_pat)
+                }
 
-            case (Type.Null, _) => 
-                true
-                
-            case _ =>
-                false
+                case (Type.Member(path_val, tvar_val), Type.Member(path_pat, tvar_pat)) if tvar_val == tvar_pat =>
+                    pathsAreEquatable(path_val, path_pat)
+
+                case (Type.Tuple(List(ty)), _) =>
+                    isSuitableArgument1(ty, ty_pat)
+
+                case (_, Type.Tuple(List(ty))) =>
+                    isSuitableArgument1(ty_val, ty)
+
+                case (Type.Tuple(tys_val), Type.Tuple(tys_pat)) if sameLength(tys_val, tys_pat) =>
+                    tys_val.zip(tys_pat).forall { case (v, p) => isSuitableArgument(v, p) }
+
+                case (Type.Null, _) => 
+                    true
+
+                case _ =>
+                    false
+            }            
         }
     }
     

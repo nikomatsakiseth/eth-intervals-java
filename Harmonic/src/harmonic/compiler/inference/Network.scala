@@ -75,16 +75,16 @@ class Network[X](server: lathos.LathosServer) extends DebugPage {
         /** See FactSet.queryAll */
         def queryAll(
             kind: Fact.ForwardKind
-        ): Set[Fact.Forward] = log.indent("queueAll(", kind, ")") {
+        ): Set[Fact.Forward] = log.indent("queryAll(", kind, ")") {
             drainQueue
             mem.alpha(kind)
         }
         
-        /** See FactSet.queryN */
+        /** See FactSet.query */
         def query[F <: Fact.Forward](
             kind: Class[F], 
             optArgs: Option[Any]*
-        ): Set[F] = log.indent("queueN(", kind, ", ", optArgs, ")") {
+        ): Set[F] = log.indent("query(", kind, ", ", optArgs, ")") {
             queue ++= prequery(kind, optArgs.toArray)
             val allFacts = queryAll(kind)
             if(optArgs.length == 0) {
@@ -131,7 +131,7 @@ class Network[X](server: lathos.LathosServer) extends DebugPage {
         def get(state: State) = state.mem.alpha(kind)
         
         def add(state: State, fact: Fact.Forward) = {
-            state.log.indent(this, ".add(", fact, ")") {
+            state.log.embeddedIndent(this, ".add(", fact, ")") {
                 assert(fact.kind == kind)
                 if(state.mem.addAlpha(fact)) {
                     betas.foreach(_.factAdded(state, fact))                
@@ -171,21 +171,24 @@ class Network[X](server: lathos.LathosServer) extends DebugPage {
             state.log.log(this, ".newFactList(", factList, ")")
             if(state.mem.addBeta(kinds, factList)) {
                 rules.foreach { rule =>
+                    state.log.log("Invoking rule ", rule)
                     state.queue ++= rule.derive(state.xtra, factList)                        
                 }
                 
                 betas.foreach(_.suffixAdded(state, factList))
+            } else {
+                state.log.append(" (previously known)")
             }
         }
         
         def factAdded(state: State, fact: Fact.Forward): Unit = {
-            state.log.indent(this, ".factAdded(", fact, ")") {
+            state.log.embeddedIndent(this, ".factAdded(", fact, ")") {
                 rhs.get(state).foreach { suffix => newFactList(state, fact :: suffix) }
             }            
         }
         
         def suffixAdded(state: State, suffix: List[Fact.Forward]): Unit = {
-            state.log.indent(this, ".suffixAdded(", suffix, ")") {
+            state.log.embeddedIndent(this, ".suffixAdded(", suffix, ")") {
                 alpha.get(state).foreach { fact => newFactList(state, fact :: suffix) }
             }
         }
@@ -202,7 +205,7 @@ class Network[X](server: lathos.LathosServer) extends DebugPage {
                 state.log.log("Fact already known: ", fact)
                 return true
             } else {
-                state.log.indent(this, ".derive(", fact, ")") {
+                state.log.embeddedIndent(this, ".derive(", fact, ")") {
                     for(rule <- rules) {
                         if(!state.backwardStack.contains((fact, rule))) {
                             state.backwardStack = (fact, rule) :: state.backwardStack

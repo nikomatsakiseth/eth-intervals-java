@@ -93,25 +93,6 @@ class Global(
         }
     }
     
-    // ___ Private Data For Other Classes ___________________________________
-    //
-    // Various passes and helpers, such as Lower or MethodResolutionOrder,
-    // require state that should persist within a particular compilation.
-    // They store their data in the `State` using the data() method.
-    
-    private[this] val privateData = new mutable.HashMap[java.lang.Class[_], Any]()
-    
-    def data[C](cls: java.lang.Class[C]): C = synchronized {
-        privateData.get(cls) match {
-            case Some(v) => cls.cast(v)
-            case None => {
-                val v = cls.getConstructor().newInstance()
-                privateData(cls) = v
-                v
-            }
-        }
-    }
-    
     // ___ Intrinsics _______________________________________________________
     
     val intrinsics = new mutable.HashMap[(Name.Qual, Name.Method), List[MethodSymbol]]()

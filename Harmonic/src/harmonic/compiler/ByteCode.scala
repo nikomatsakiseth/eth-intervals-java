@@ -2142,14 +2142,14 @@ case class ByteCode(global: Global) {
         val wr = new ClassWriter(csym.name, noSuffix, csym.pos)
         import wr.cvis
         
-        val superClassNames = csym.superClassNames
+        val implementingNames = csym.superClassNames.filterNot(_ == Name.ObjectClass)
         cvis.visit(
             O.V1_5,
             O.ACC_ABSTRACT + O.ACC_INTERFACE + O.ACC_PUBLIC,
             csym.name.internalName,
             null, // FIXME Signature
             "java/lang/Object",
-            superClassNames.map(_.internalName).toArray
+            implementingNames.map(_.internalName).toArray
         )
         
         csym.allFieldSymbols.foreach { fsym =>

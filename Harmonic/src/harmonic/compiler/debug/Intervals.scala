@@ -80,6 +80,11 @@ extends lathos.Page
             out.row(info.parentPage, info.log, info.interval, info.result)
         }
         
+        out.par { out.bolded { out.outputText("Failed") } }
+        out.table {
+            for(info <- infos if info.isFailed) { row(info) }
+        }
+
         out.par { out.bolded { out.outputText("Running") } }
         out.table {
             for(info <- infos if info.isRunning) { row(info) }
@@ -88,11 +93,6 @@ extends lathos.Page
         out.par { out.bolded { out.outputText("Waiting") } }
         out.table {
             for(info <- infos if info.isWaiting) { row(info) }
-        }
-
-        out.par { out.bolded { out.outputText("Failed") } }
-        out.table {
-            for(info <- infos if info.isFailed) { row(info) }
         }
 
         out.par { out.bolded { out.outputText("Completed") } }

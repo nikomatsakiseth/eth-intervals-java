@@ -321,7 +321,7 @@ object Util {
     implicit def extendedServer(server: lathos.LathosServer): ExtendedServer = new ExtendedServer(server)
 
     class ExtendedContext(context: lathos.Context) {
-        def indent[R](args: Object*)(func: => R) = {
+        private[this] def masterIndent[R](args: Object*)(func: => R) = {
             
             val indentPage = Lathos.newPage(context.server, context.topPage, null, args: _*)
             val indentLine = context.log(context.link(indentPage, "\u25B2"))
@@ -343,6 +343,44 @@ object Util {
                     context.pop(indentPage)
                     context.append(indentLine, " (Error: ", t, ")")
                     
+                    throw t                    
+                }
+            }
+            
+        }
+        
+        def embeddedIndent[R](args: Object*)(func: => R) = {
+            val indentPage = context.pushEmbeddedChild(null, args: _*)
+            try {
+                val result = func
+                context.log("Result: ", result.asObj)
+                context.pop(indentPage)
+                result
+            } catch { 
+                case t => {
+                    context.log("Error: ", t)
+                    context.pop(indentPage)
+                    throw t                    
+                }
+            }
+        }
+
+        def indent[R](args: Object*)(func: => R) = {
+            val indentPage = Lathos.newPage(context.server, context.topPage, null, args: _*)
+            val indentLine = context.log(context.link(indentPage, "\u25B2"))
+            context.push(indentPage)
+            try {
+                context.append(indentLine, args: _*)
+                val result = func
+                context.log("Result: ", result.asObj)
+                context.pop(indentPage)
+                context.append(indentLine, " (Result: ", result.asObj, ")")
+                result
+            } catch { 
+                case t => {
+                    context.log("Error: ", t)
+                    context.pop(indentPage)
+                    context.append(indentLine, " (Error: ", t, ")")
                     throw t                    
                 }
             }
@@ -453,6 +491,25 @@ object Util {
     
     // ___ Intervals ________________________________________________________
     
+    def withLock[R](lock: Lock)(func: => R): R = {
+        assert(lock != null)
+        val log = Lathos.contextOrNone
+        
+        log.embeddedIndent("withLock(", lock, ")") {
+            Intervals.inline(new ResultTask[R]("withLock(%s)".format(lock)) {
+                override def attachedTo(inlineInterval: Interval) = {
+                    log.log("inlineInterval = ", inlineInterval)
+                    inlineInterval.addLock(lock)                        
+                }
+                override def compute(inlineInterval: Interval) = {
+                    usingLog(log) {
+                        func
+                    }
+                }
+            })            
+        }
+    }
+    
     case class ExtendedInterval(inter: Interval, implicit val global: Global) {
         def subinterval[R](
             name: String,
@@ -516,15 +573,19 @@ object Util {
         }
         
         def join() = {
+            Lathos.context.log("Joining ", inter)
             try {
                 Intervals.inline(new AbstractTask() {
                     override def toString = 
                         "join(%s)".format(inter)
-                    override def attachedTo(inlineInterval: Interval) = 
-                        Intervals.addHb(inter.getEnd, inlineInterval.getStart)
+                    override def attachedTo(inlineInterval: Interval) = {
+                        Lathos.context.append(" with ", inlineInterval)
+                        Intervals.addHb(inter.getEnd, inlineInterval.getStart)                        
+                    }
                     override def run(inlineInterval: Interval) = 
                         ()
                 })                       
+                Lathos.context.append(" (complete)")
             } catch {
                 // Rethrow wrapped exceptions (if there is exactly one):
                 case r: RethrownException if r.allErrors.size == 1 => {
@@ -539,8 +600,7 @@ object Util {
     implicit def extendedInterval(inter: Interval)(implicit global: Global) = ExtendedInterval(inter, global)
     
     def inlineInterval[R](name: String)(func: (Interval => R)): R = {
-        val log = Lathos.context
-        assert(log != null)
+        val log = Lathos.contextOrNone
         Intervals.inline(new ResultTask[R](name) {
             def compute(subinterval: Interval) = {
                 usingLog(log) {

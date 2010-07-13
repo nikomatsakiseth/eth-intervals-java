@@ -49,27 +49,10 @@ abstract class ClassSymbol extends Symbol {
     /** Creates a `Type.Class` for the class defined by this symbol. */
     def toType: Type.Class = name.toType
     
-    // ___ Invoking causes header to be resolved ____________________________
+    // ___ Invoking causes header to be joined ______________________________
     
     /** Names of any superclasses */
     def superClassNames: List[Name.Class]
-    
-    lazy val transitiveSuperClassSymbols: Set[ClassSymbol] = {
-        val queued = new mutable.Queue[ClassSymbol]()
-        val visited = new mutable.HashSet[ClassSymbol]()
-        queued += this
-        while(!queued.isEmpty) {
-            val nextCsym = queued.dequeue()
-            visited += nextCsym
-            queued ++= nextCsym.superClassNames.map(global.csym).filterNot(visited)
-        }
-        visited.toSet                  
-    }
-    
-    /** True if `this` is a subclass of `csym_sup` */
-    def isSubclass(superCsym: ClassSymbol): Boolean = {
-        (this == superCsym) || transitiveSuperClassSymbols(superCsym)
-    }
     
     /** List of all "variable" members and what kind they are. 
       * Variable members include fields, ghosts, etc. The results 
@@ -77,11 +60,16 @@ abstract class ClassSymbol extends Symbol {
       * during resolution. */
     def varMembers: List[SymTab.Entry]
     
-    // ___ Invokable after `cmro` ___________________________________________
+    // ___ Invoking causes cmro to be joined ________________________________
 
     /** Method resolution order for this class.  First element in the
       * list is always `this`. */
     def mro: List[ClassSymbol]
+    
+    /** True if `this` is a subclass of `csym_sup` */
+    def isSubclass(superCsym: ClassSymbol): Boolean = {
+        mro.contains(superCsym)
+    }
     
     // ___ Invokable after `body` ___________________________________________
     //
