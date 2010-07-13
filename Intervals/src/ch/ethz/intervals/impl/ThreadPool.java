@@ -45,14 +45,34 @@ public class ThreadPool {
 	 * holding the medallion will pop tasks off the deque;
 	 * if there are no tasks, it will then try to steal
 	 * from other medallions.  If that fails, it will 
-	 * eventually fall back to a global queue or simply
-	 * block until work arrives.
+	 * eventually check the global queue and --- assuming
+	 * no work is found there! --- simply exit.
+	 * 
+	 * When threads generate a task, they first do a quick
+	 * check to see if there are free medallions.  If so,
+	 * they spin up a parallel worker to handle their task.
+	 * Otherwise, they push it on their local dequeue.
 	 * 
 	 * When a thread completes a task, however, it also
 	 * checks to see if any previously suspended workers
 	 * have requested a medallion.  If so, it will exit,
 	 * as we consider it a priority for the suspended task
 	 * to resume and terminate.
+	 * 
+	 * There is a potential race condition that I do not 
+	 * know how to fix.  This race condition can cause 
+	 * us to use fewer threads but not lead to deadlock.
+	 * The problem is that the steal attempt and the
+	 * check for global work is not atomic.
+	 * What can happen therefore is that worker thread A searches
+	 * for work to steal and does not find any.  In the
+	 * meantime, worker thread B pushes one or more tasks.
+	 * Then worker thread A proceeds to check the global queue,
+	 * finds no tasks, and exits, freeing its medallion, even
+	 * though it could be busy working on the tasks that B pushed.
+	 * When and if worker thread B pushes another task, however,
+	 * A will be replaced by another worker, at which point 
+	 * execute proceeds normally.
 	 */
 	
 /* We used to use a KeepAliveThread to prevent the VM from
