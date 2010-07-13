@@ -82,7 +82,7 @@ public class Tsp {
 	public static void main(String args[]) throws IOException {
 		for(String fname : args) {
 			Tsp tsp = new Tsp();
-			int[] tour = tsp.solve(fname);
+			int[] tour = tsp.solve(fname).minTour;
 			
 			System.out.printf("%s:", fname);
 			for(int i = 0; i < tour.length; i++)

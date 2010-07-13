@@ -15,6 +15,7 @@ import com.smallcultfollowing.lathos.LathosServer;
 
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
+import ch.ethz.intervals.Lock;
 import ch.ethz.intervals.task.AbstractTask;
 
 public class TestLocks {
@@ -53,7 +54,7 @@ public class TestLocks {
 	// Just test that locks work at all:
 	@Test public void simple() {
 		for(int i = 0; i < REPEAT; i++) {
-			final LockImpl l1 = new LockImpl();
+			final LockImpl l1 = (LockImpl) Intervals.lock("l1");
 			final List<String> ids = new ArrayList<String>();
 			Intervals.inline(new AbstractTask("iter"+i) {			
 				@Override public void run(Interval subinterval) {
@@ -72,7 +73,7 @@ public class TestLocks {
 	// Test recursive locking:
 	@Test public void recursive() {
 		for(int i = 0; i < REPEAT; i++) {
-			final LockImpl l1 = new LockImpl();
+			final LockImpl l1 = (LockImpl) Intervals.lock("l1");
 			final List<String> ids = new ArrayList<String>();
 			Intervals.inline(new AbstractTask("iter"+i) {			
 				@Override public void run(Interval subinterval) {

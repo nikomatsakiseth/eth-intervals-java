@@ -425,10 +425,12 @@ implements Page
 	
 	static class JoinEvent extends Event {
 		public final IntervalImpl joiner;
+		public final Worker worker;
 		
-		public JoinEvent(PointImpl joinedPoint, IntervalImpl joiner) {
+		public JoinEvent(PointImpl joinedPoint, IntervalImpl joiner, Worker worker) {
 			super(joinedPoint);
 			this.joiner = joiner;
+			this.worker = worker;
 		}
 
 		@Override
@@ -437,14 +439,16 @@ implements Page
 			output.outputObject(relevantTo);
 			output.outputText(" by ");
 			output.outputObject(joiner);
+			output.outputText(" worker ");
+			output.outputObject(worker);
 			output.outputText(")");
 		}
 
 	}
 
-	public void postJoin(PointImpl joinedPoint, IntervalImpl joiner) {
+	public void postJoin(PointImpl joinedPoint, IntervalImpl joiner, Worker worker) {
 		if(ENABLED) {
-			putQueue(new JoinEvent(joinedPoint, joiner));
+			putQueue(new JoinEvent(joinedPoint, joiner, worker));
 		}
 	}
 
@@ -652,24 +656,28 @@ implements Page
 	}
 
 	static class FreshWorkerEvent extends Event {
+		public final Worker worker;
 		public final Medallion medallion;
 
-		public FreshWorkerEvent(Medallion medallion) {
+		public FreshWorkerEvent(Worker worker, Medallion medallion) {
 			super(null);
+			this.worker = worker;
 			this.medallion = medallion;
 		}
 
 		@Override
 		public void renderInLine(Output output) throws IOException {
 			output.outputText("FreshWorker(");
+			output.outputObject(worker);
+			output.outputText(" with ");
 			output.outputObject(medallion);
 			output.outputText(")");
 		}
 	}
 	
-	public void postStartedFreshWorker(Medallion medallion) {
+	public void postStartedFreshWorker(Worker worker, Medallion medallion) {
 		if(ENABLED) {
-			putQueue(new FreshWorkerEvent(medallion));
+			putQueue(new FreshWorkerEvent(worker, medallion));
 		}
 	}
 	

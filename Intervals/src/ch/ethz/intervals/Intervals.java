@@ -29,8 +29,8 @@ public class Intervals {
 	 * Creates a new lock in the current context.
 	 * 
 	 * @see Context#lock() */
-	public static Lock lock() {
-		return context().lock();
+	public static Lock lock(String name) {
+		return context().lock(name);
 	}
 	
 	public static <T> ScopedVar<T> scopedVar(T defaultValue) {

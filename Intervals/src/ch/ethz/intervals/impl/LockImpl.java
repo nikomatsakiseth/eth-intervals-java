@@ -14,8 +14,7 @@ implements Guard, Lock
 	private final String name;
 	
 	public LockImpl() {
-		super(false);
-		this.name = null;
+		this(null);
 	}
 	
 	public LockImpl(String name) {

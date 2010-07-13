@@ -779,6 +779,7 @@ implements Guard, Interval, Page, RefManipulator
 		out.startTable();
 		Lathos.headerRow(out, "Field", "Value", "Comments");
 		Lathos.row(out, "Name", name, "");
+		Lathos.row(out, "Parent", parent, null);
 		Lathos.row(out, "Start Point", start, start.didOccur());
 		Lathos.row(out, "End Point", end, start.didOccur());
 		Lathos.row(out, "State", state, "");

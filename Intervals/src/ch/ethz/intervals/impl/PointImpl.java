@@ -471,7 +471,7 @@ implements Point, Page, RefManipulator
 	void join() {
 		if(Debug.ENABLED) {
 			Current current = Current.get();
-			Debug.debug.postJoin(this, current.inter);
+			Debug.debug.postJoin(this, current.inter, ContextImpl.POOL.currentWorker());
 		}
 		
 		boolean hadMedallion = ContextImpl.POOL.yieldMedallion();

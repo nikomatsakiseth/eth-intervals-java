@@ -20,7 +20,7 @@ public interface Context {
 	
 	/**
 	 * Creates a new lock object. */
-	public Lock lock();
+	public Lock lock(String name);
 	
 	/**
 	 * Creates a new scoped variable. */

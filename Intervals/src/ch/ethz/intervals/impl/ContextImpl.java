@@ -19,8 +19,8 @@ public class ContextImpl implements Context {
 	}
 	
 	@Override
-	public Lock lock() {
-		return null;
+	public Lock lock(String name) {
+		return new LockImpl(name);
 	}
 	
 	public boolean checkReadable(Guard guard) 

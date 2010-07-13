@@ -1,9 +1,8 @@
 <project name="Intervals" default="jar" basedir=".">
     <description>
-        Creates a single .JAR file containing all
-        dependencies to run the Intervals library.
-        This includes Google's pcollections and the
-        Lathos library in addition to Intervals proper.
+	Either creates a JAR file with the Intervals runtime,
+	or a JAR file including both the Intervals runtime
+	and all dependencies required.
     </description>
     
     <target name="compile" description="compile the source" >

@@ -1,12 +1,20 @@
 package ch.ethz.intervals.impl;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+
+import com.smallcultfollowing.lathos.Lathos;
+import com.smallcultfollowing.lathos.Output;
+import com.smallcultfollowing.lathos.Page;
+import com.smallcultfollowing.lathos.PageContent;
 
 /**
  * Intervals Thread Pool.  A work stealing thread pool
@@ -46,6 +54,19 @@ public class ThreadPool {
 	 * as we consider it a priority for the suspended task
 	 * to resume and terminate.
 	 */
+	
+/* We used to use a KeepAliveThread to prevent the VM from
+ * terminating while intervals are active.  In the new API,
+ * however, the user must always use a blocking inline
+ * interval as the "root" interval, and thus we don't need
+ * to worry about that anymore, so long as the root interval
+ * was itself started from a non-daemon thread.  Horray.
+ * 
+ * I left the code here, however, in case this issue should
+ * come back to haunt me.  The idea was to start 
+ * the KeepAliveThread whenever we gave out our first medallion
+ * and stop it whenever we all medallions became free again.
+ */
 	
 //	class KeepAliveThread extends Thread {		
 //		public final Semaphore sem = new Semaphore(1);
@@ -219,7 +240,7 @@ public class ThreadPool {
 	}
 	
 	final class Worker
-	implements Runnable
+	implements Runnable, Page
 	{
 		/**
 		 * Semaphore used for blocking and unblocking this
@@ -239,6 +260,11 @@ public class ThreadPool {
 		 * when a worker is waiting for a medallion.
 		 * Owned by {@code ThreadPool.this}. */
 		private Worker nextWaiting;
+		
+		/**
+		 * Only used when debugging is enabled: stores the currently
+		 * executing item. */
+		private volatile WorkItem debugItem;
 		
 		Worker(Medallion initial) {
 			medallion = initial;
@@ -261,15 +287,15 @@ public class ThreadPool {
 				}
 				
 				if((item = takeTask()) != null) {
-					item.exec(medallion); continue loop;
+					exec(item); continue loop;
 				}
 				
 				if((item = stealTask()) != null) {
-					item.exec(medallion); continue loop;
+					exec(item); continue loop;
 				}
 				
 				if((item = findPendingWork()) != null) {
-					item.exec(medallion); continue loop;
+					exec(item); continue loop;
 				}
 				
 				break loop;
@@ -277,6 +303,18 @@ public class ThreadPool {
 
 			assert medallion == null;
 			currentWorker.remove();
+		}
+
+		private void exec(WorkItem item) {
+			if(Debug.ENABLED) {
+				debugItem = item;
+			}
+			
+			item.exec(medallion);
+			
+			if(Debug.ENABLED) {
+				debugItem = null;
+			}
 		}
 
 		/**
@@ -447,6 +485,42 @@ public class ThreadPool {
 			}
 		}
 
+		@Override
+		public void renderInPage(Output out) throws IOException {
+			out.startPage(this);
+			
+			out.startBold();
+			out.outputText(toString());
+			out.endBold();
+			
+			out.startTable();
+			Lathos.row(out, "Item", debugItem);
+			Lathos.row(out, "Medallion", medallion);
+			out.endTable();
+			
+			out.endPage(this);
+		}
+
+		@Override
+		public void renderInLine(Output output) throws IOException {
+			Lathos.renderInLine(this, output);
+		}
+
+		@Override
+		public String getId() {
+			return toString();
+		}
+
+		@Override
+		public Page getParent() {
+			return Debug.debug;
+		}
+
+		@Override
+		public void addContent(PageContent content) {
+			throw new UnsupportedOperationException();
+		}
+
 	}
 	
 	/**
@@ -482,7 +556,16 @@ public class ThreadPool {
 	
 	/**
 	 * Used to spin up new workers when more parallelism is needed. */
-	final Executor executor = Executors.newCachedThreadPool();
+	final Executor executor = Executors.newCachedThreadPool(new ThreadFactory() {
+		final AtomicInteger counter = new AtomicInteger(0);
+		
+		@Override
+		public Thread newThread(Runnable r) {
+			Thread t = new Thread(r, "Intervals-Worker-" + counter.getAndIncrement());
+			t.setDaemon(true);
+			return t;
+		}
+	});
 	
 	/**
 	 * Number of medallions issued in total. */
@@ -557,19 +640,32 @@ public class ThreadPool {
 		medallion.nextFree = null;
 		if(item != null)
 			medallion.tasks.put(medallion, item);
-		executor.execute(new Worker(medallion));
+		Worker worker = new Worker(medallion);
+		executor.execute(worker);
 		
 		if(Debug.ENABLED)
-			Debug.debug.postStartedFreshWorker(medallion);
+			Debug.debug.postStartedFreshWorker(worker, medallion);
+	}
+	
+	/**
+	 * Returns the current worker. */
+	public Worker currentWorker() {
+		return currentWorker.get();
 	}
 	
 	/**
 	 * Returns a small integer from 0 to {@link #numWorkers}.
 	 * This number can change before and after inline subintervals,
 	 * but you are always guaranteed that no two concurrent
-	 * intervals will read the same results. */
+	 * intervals will read the same results. 
+	 * 
+	 * @return the id of the current medallion, or -1 if not in an
+	 * interval thread */
 	public int currentId() {
-		return currentWorker.get().medallion.id;
+		Worker worker = currentWorker.get();
+		if(worker == null)
+			return -1;
+		return worker.medallion.id;
 	}
 	
 	/**
