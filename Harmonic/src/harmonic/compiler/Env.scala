@@ -39,84 +39,93 @@ sooner).
 
 */
 
-case class EnvXtra(
-    global: Global,
-    locals: Map[Name.LocalVar, VarSymbol.Local]
-) extends HarmonicRulesNetwork.Xtra {
-    def typedOwner(owner: Path.UntypedOwner): Path.TypedOwner = owner match {
-        case Path.Static => Path.Static
-        case owner: Path.Ref => typedPath(owner)
-    }
-    
-    def typedPath(path: Path.Ref): Path.Typed = path match {
-        case Path.Local(name: Name.LocalVar) => {
-            val lvsym = locals.get(name).getOrElse(VarSymbol.errorLocal(name, None))
-            Path.TypedLocal(lvsym)
-        }
-    
-        case Path.Field(owner, name) => {
-            val fsym = global.fieldSymbol(name).getOrElse {
-                // TODO --- report invalid method ids at the site of use.
-                Error.NoSuchField(name).report(
-                    global, 
-                    InterPosition.forClassNamed(name.className)
-                )
-                VarSymbol.errorField(name, None)
-            }
-            Path.TypedField(typedOwner(owner), fsym)
-        }
-    
-        case Path.Call(owner, methodId, args) => {
-            val csym = global.csym(methodId.className)
-            val msym = csym.methodsNamed(methodId.methodName).find(_.id.is(methodId)).getOrElse {
-                // TODO --- report invalid method ids at the site of use.
-                Error.NoSuchMethodId(methodId).report(
-                    global, 
-                    InterPosition.forClassNamed(methodId.className)
-                )
-                MethodSymbol.error(methodId)
-            }
-            Path.TypedCall(typedOwner(owner), msym, args.map(typedPath))
-        }
-    
-        case Path.Cast(ty, base) => {
-            Path.TypedCast(ty, typedPath(base))
-        }
-    
-        case Path.Constant(obj) => {
-            Path.TypedConstant(obj)
-        }
-    
-        case Path.Index(array, index) => {
-            Path.TypedIndex(typedPath(array), typedPath(index))
-        }
-    
-        case Path.Tuple(paths) => {
-            Path.TypedTuple(paths.map(typedPath))
-        }
-    }
-    
-    def typeOfPath(path: Path.Ref) = typedPath(path).ty
-    
-    def superTypes(ty: Type.Class) = Lathos.context.embeddedIndent("superTypes(", ty, ")") {
-        val Type.Class(nm, args) = ty
-        val csym = global.csym(nm)
-        csym.superClassNames.map { c2 =>
-            // TODO: Add in any applicable constraints defined in c1!!
-            // TODO: Filter out inapplicable arguments from ty (won't hurt though)
-            Type.Class(c2, args)
-        }
-    }
-}
-
 object Env {
-    def empty(global: Global) = Env(
-        global      = global,
-        thisTy      = Type.Top,
-        optReturnTy = None,
-        locals      = Map(Name.FinalLocal -> global.finalSym),
-        factSet     = global.network.emptyFactSet(EnvXtra(global, Map()))
-    )
+    def empty(global: Global) = {
+        val xtra = Env.Xtra(global, Map(Name.FinalLocal -> global.finalSym))
+        Env(
+            global      = global,
+            thisTy      = Type.Top,
+            optReturnTy = None,
+            factSet     = global.network.emptyFactSet(xtra)
+        )
+    }
+    
+    case class Xtra(
+        global: Global,
+        locals: Map[Name.LocalVar, VarSymbol.Local]
+    ) {
+
+        def plusLocalVar(sym: VarSymbol.Local) = 
+            copy(locals = locals + (sym.name -> sym))
+
+        def typedOwner(owner: Path.UntypedOwner): Path.TypedOwner = owner match {
+            case Path.Static => Path.Static
+            case owner: Path.Ref => typedPath(owner)
+        }
+
+        def typedPath(path: Path.Ref): Path.Typed = Lathos.context.indent(this, ".typedPath(", path, ")") {
+            path match {
+                case Path.Local(name: Name.LocalVar) => {
+                    val lvsym = locals.get(name).getOrElse(VarSymbol.errorLocal(name, None))
+                    Lathos.context.log("Local variable: ", name, " symbol: ", lvsym)
+                    Path.TypedLocal(lvsym)
+                }
+
+                case Path.Field(owner, name) => {
+                    val fsym = global.fieldSymbol(name).getOrElse {
+                        // TODO --- report invalid method ids at the site of use.
+                        Error.NoSuchField(name).report(
+                            global, 
+                            InterPosition.forClassNamed(name.className)
+                        )
+                        VarSymbol.errorField(name, None)
+                    }
+                    Path.TypedField(typedOwner(owner), fsym)
+                }
+
+                case Path.Call(owner, methodId, args) => {
+                    val csym = global.csym(methodId.className)
+                    val msym = csym.methodsNamed(methodId.methodName).find(_.id.is(methodId)).getOrElse {
+                        // TODO --- report invalid method ids at the site of use.
+                        Error.NoSuchMethodId(methodId).report(
+                            global, 
+                            InterPosition.forClassNamed(methodId.className)
+                        )
+                        MethodSymbol.error(methodId)
+                    }
+                    Path.TypedCall(typedOwner(owner), msym, args.map(typedPath))
+                }
+
+                case Path.Cast(ty, base) => {
+                    Path.TypedCast(ty, typedPath(base))
+                }
+
+                case Path.Constant(obj) => {
+                    Path.TypedConstant(obj)
+                }
+
+                case Path.Index(array, index) => {
+                    Path.TypedIndex(typedPath(array), typedPath(index))
+                }
+
+                case Path.Tuple(paths) => {
+                    Path.TypedTuple(paths.map(typedPath))
+                }
+            }        
+        }
+
+        def typeOfPath(path: Path.Ref) = typedPath(path).ty
+
+        def superTypes(ty: Type.Class) = Lathos.context.embeddedIndent("superTypes(", ty, ")") {
+            val Type.Class(nm, args) = ty
+            val csym = global.csym(nm)
+            csym.superClassNames.map { c2 =>
+                // TODO: Add in any applicable constraints defined in c1!!
+                // TODO: Filter out inapplicable arguments from ty (won't hurt though)
+                Type.Class(c2, args)
+            }
+        }
+    }
 }
 
 /** The environment is used during a type check but also in other phases
@@ -131,33 +140,36 @@ case class Env(
       * None if returns not currently allowed */
     optReturnTy: Option[Type],
     
-    /** In-scope local variables. */
-    locals: Map[Name.LocalVar, VarSymbol.Local],
-    
     /** Known facts */
-    factSet: inference.FactSet[HarmonicRulesNetwork.Xtra]
+    factSet: inference.FactSet[Env.Xtra]
 ) extends DebugPage {
-    private[this] def xtra = EnvXtra(global, locals)
-    
     override def toString = getId
     
     // ___ Extending the Environment ________________________________________
     
-    def plusLocalVar(sym: VarSymbol.Local) = copy(locals = locals + (sym.name -> sym))
-    def plusLocalVars(syms: Iterable[VarSymbol.Local]) = syms.foldLeft(this)(_ plusLocalVar _)
-    def plusThis(thisTy: Type.Class, sym: VarSymbol.Local) = plusLocalVar(sym).copy(thisTy = thisTy)
-    def withOptReturnTy(optReturnTy: Option[Type]) = copy(optReturnTy = optReturnTy)
-    def plusFact(fact: inference.Fact) = plusFacts(Some(fact))
-    def plusFacts(facts: Iterable[inference.Fact]) = {
-        val newFactSet = factSet.plusFacts(facts, xtra)
-        copy(factSet = newFactSet)
-    }
-    def plusFactSet(factSet: inference.FactSet[HarmonicRulesNetwork.Xtra]) = {
-        val newFactSet = factSet.plusFactSet(factSet, xtra)
-        copy(factSet = newFactSet)
-    }
+    def plusLocalVar(sym: VarSymbol.Local): Env = 
+        copy(factSet = factSet.plusXtra(xtra.plusLocalVar(sym)))
+        
+    def plusThis(thisTy: Type.Class, sym: VarSymbol.Local): Env = 
+        plusLocalVar(sym).copy(thisTy = thisTy)
+        
+    def withOptReturnTy(optReturnTy: Option[Type]): Env = 
+        copy(optReturnTy = optReturnTy)
+        
+    def plusFact(fact: inference.Fact): Env = 
+        plusFacts(Some(fact))
+        
+    def plusFacts(facts: Iterable[inference.Fact]): Env =
+        copy(factSet = factSet.plusFacts(facts, xtra))
+        
+    def plusFactSet(factSet: inference.FactSet[Env.Xtra]): Env =
+        copy(factSet = factSet.plusFactSet(factSet, xtra))
 
     // ___ Simple queries ___________________________________________________
+    
+    private[this] def xtra = factSet.xtra
+    
+    def locals = xtra.locals
     
     def factHolds(fact: inference.Fact): Boolean = {
         Lathos.context.indent(this, ".factHolds(", fact, ")? Consulting ", factSet) {

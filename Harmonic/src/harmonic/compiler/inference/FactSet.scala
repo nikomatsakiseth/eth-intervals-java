@@ -5,6 +5,8 @@ import scala.collection.immutable
 trait FactSet[X] {
     def network: Network[X]
     
+    def xtra: X
+    
     /** Ask after a specific fact, either forward or backward */
     def contains(fact: Fact): Boolean
 
@@ -39,4 +41,11 @@ trait FactSet[X] {
     
     /** Adds all facts from the given fact set, returning a new fact set. */
     def plusFactSet(factSet: FactSet[X], xtra: X): FactSet[X] // must be from same network
+    
+    /** Users a new xtra data --- this should be an expansion
+      * of the current extra data.  That is, everything provable
+      * with the old value should still be provable. That's why
+      * the name is "plusXtra" even though the new xtra value
+      * simply replaces the old one. */
+    def plusXtra(xtra: X): FactSet[X] = plusFacts(Nil, xtra)
 }

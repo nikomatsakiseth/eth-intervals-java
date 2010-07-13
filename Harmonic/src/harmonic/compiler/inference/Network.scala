@@ -17,7 +17,7 @@ import harmonic.compiler.Util._
   */
 class Network[X](server: lathos.LathosServer) extends DebugPage {
     
-    def emptyFactSet(xtra: X) = EmptyFactSet.plusFacts(Nil, xtra)
+    def emptyFactSet(xtra: X) = EmptyFactSet(xtra).plusFacts(Nil, xtra)
     
     /** This is a bit of a hack: it allows us to artificially 
       * add forward facts before a forwards query is processed. 
@@ -29,7 +29,7 @@ class Network[X](server: lathos.LathosServer) extends DebugPage {
       * We use it to add PathExists() and TypeExists() facts. */
     protected[this] def precontains(fact: Fact): Iterable[Fact.Forward] = Nil
     
-    object EmptyFactSet extends InternalFactSet[X] {
+    case class EmptyFactSet(xtra: X) extends InternalFactSet[X] {
         def network = Network.this
         def contains(fact: Fact): Boolean = false
         def query[F <: Fact.Forward](
@@ -168,11 +168,13 @@ class Network[X](server: lathos.LathosServer) extends DebugPage {
         override def addBeta(beta: Beta) = (betas += beta)
         
         private[this] def newFactList(state: State, factList: List[Fact.Forward]): Unit = {
-            state.log.log(this, ".newFactList(", factList, ")")
+            state.log.log("newFactList(", factList, ")")
             if(state.mem.addBeta(kinds, factList)) {
                 rules.foreach { rule =>
-                    state.log.log("Invoking rule ", rule)
-                    state.queue ++= rule.derive(state.xtra, factList)                        
+                    val line = state.log.log("\u2022 Invoking rule ", rule)
+                    val facts = rule.derive(state.xtra, factList)
+                    state.log.append(line, " \u21A6 ", facts)
+                    state.queue ++= facts
                 }
                 
                 betas.foreach(_.suffixAdded(state, factList))

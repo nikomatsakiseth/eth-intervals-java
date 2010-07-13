@@ -49,7 +49,7 @@ object DerivedFactSet {
 class DerivedFactSet[X](
     baseFactSet: InternalFactSet[X],
     pendingFacts: mutable.Queue[Fact.Forward],
-    xtra: X
+    val xtra: X
 ) extends InternalFactSet[X] with Memory with DebugPage {
     val network = baseFactSet.network
     val lock = Intervals.lock(getId)
