@@ -51,7 +51,7 @@ extends Resolve(global, compUnit)
         )
 
         if(global.config.dumpResolvedTrees) {
-            csym.resolvedSource.print(PrettyPrinter.debug(Lathos.context))
+            PrettyPrinter.dumpTo(System.out, csym.resolvedSource)
         }
     }
     

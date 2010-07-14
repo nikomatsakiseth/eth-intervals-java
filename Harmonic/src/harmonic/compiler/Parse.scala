@@ -465,7 +465,7 @@ object Parse {
             }
             case parser.Success(compUnit, _) => {
                 if(global.config.dumpParsedTrees) {
-                    compUnit.print(PrettyPrinter.debug(log))
+                    PrettyPrinter.dumpTo(System.out, compUnit)
                 }
                 
                 Some(compUnit)

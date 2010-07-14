@@ -30,15 +30,22 @@ abstract class PrettyPrinter {
 
 object PrettyPrinter {
     
-    def stdout = new PrettyPrinter() {
-        override def newl(fmt: String, args: Any*) {
-            System.out.println("")
-            System.out.print(" " * ind)
-            addl(fmt, args: _*)
+    def dumpTo(
+        stream: java.io.PrintStream,
+        node: Ast.Node
+    ) = synchronized {
+        object pp extends PrettyPrinter() {
+            override def newl(fmt: String, args: Any*) {
+                stream.println("")
+                stream.print(" " * ind)
+                addl(fmt, args: _*)
+            }
+            override def addl(fmt: String, args: Any*) {
+                stream.print(fmt.format(args.map(_.toString): _*))
+            }
         }
-        override def addl(fmt: String, args: Any*) {
-            System.out.print(fmt.format(args.map(_.toString): _*))
-        }
+        
+        node.print(pp)
     }
     
     def debug(log: Context) = new PrettyPrinter() {

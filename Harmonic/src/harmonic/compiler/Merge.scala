@@ -45,7 +45,7 @@ class Merge(global: Global) {
         )
 
         if(global.config.dumpLoweredTrees) {
-            csym.loweredSource.print(PrettyPrinter.debug(log))
+            PrettyPrinter.dumpTo(System.out, csym.loweredSource)
         }
     }
     
