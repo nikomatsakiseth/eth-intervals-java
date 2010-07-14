@@ -144,8 +144,8 @@ case class Intrinsic(global: Global) {
             Type.Class(
                 Name.Class(templateClass),
                 List(
-                    Type.TypeArg(Name.BlockR, TcEq, returnTy),
-                    Type.TypeArg(Name.BlockA, TcEq, argumentTy)
+                    Type.TypeArg(Name.BlockR, TcSub, returnTy),
+                    Type.TypeArg(Name.BlockA, TcSup, argumentTy)
                 )
             )
         }
