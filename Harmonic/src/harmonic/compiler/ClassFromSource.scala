@@ -202,6 +202,9 @@ class ClassFromSource(
         
     // ___ Computed by Pass.Create __________________________________________
     
+    val SuperTypes = new GuardedBy[List[Type.Class]](create)
+    def superTypes = SuperTypes.join
+
     /** Lowered version of class parameter */
     val ClassParam = new GuardedBy[Ast.Lower.Param[VarSymbol.Field]](create)    
     def classParam = ClassParam.v

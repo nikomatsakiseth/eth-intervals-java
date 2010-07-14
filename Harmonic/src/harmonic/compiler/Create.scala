@@ -19,6 +19,10 @@ class Create(global: Global) {
         csym.ClassEnv.v = classEnv
         csym.Constructor.v = Lower(global).createSymbolForConstructor(csym)
         
+        // Determine supertypes:
+        // TODO: To accurately determine supertypes, we need a bit more info I guess.
+        csym.SuperTypes.v = for(c <- csym.superClassNames) yield Type.Class(c, Nil)
+        
         // Determine ghosts:
         csym.AllGhostSymbols.v = cdecl.members.flatMap {
             case decl: in.GhostDecl => Some(new GhostSymbol(decl.pos, decl.name.name, decl.bound.name))

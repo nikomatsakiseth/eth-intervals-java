@@ -335,23 +335,25 @@ extends Network[Env.Xtra](server)
         }
     })
     
-    // ______ Bounding ______________________________________________________
-
     /*
-    class c1 extends c2
+    class c1 extends c2[a1]
+    c1[args] <: c2[a1 + a2]
     --------------------
-    c1[args] <: c2[args]
+    path : c2[a2]
     */
     addRule(new Rule.ReflectiveForward[Env.Xtra]() {
         override def toString = "Extends"
     
-        def trigger(xtra: Env.Xtra, sub: K.TypeExists): Iterable[Fact.Forward] = {
-            sub.ty match {
-                case ty: Type.Class => xtra.superTypes(ty).map(K.TypeUb(ty, _))
+        def trigger(xtra: Env.Xtra, ht: K.HasType): Iterable[Fact.Forward] = {
+            ht match {
+                case K.HasType(p, ty: Type.Class) =>
+                    for(superTy <- xtra.superTypes(p, ty)) yield K.HasType(p, superTy)
                 case _ => Nil
             }
         }
     })
+
+    // ______ Bounding of type vars _________________________________________
 
     /*
     t1 ub t2

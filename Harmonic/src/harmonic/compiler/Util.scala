@@ -119,11 +119,16 @@ object Util {
             }
         }
         
-        def replace(from: E, to: E) = {
+        def replace(from: E, to: E): List[E] = {
             list.map { elem =>
                 if(from == elem) to
                 else elem
             }
+        }
+        
+        def ?::(op: Option[E]): List[E] = op match {
+            case Some(v) => v :: list
+            case None => list
         }
     }
     implicit def extendedList[E](list: List[E]): ExtendedList[E] = new ExtendedList(list)

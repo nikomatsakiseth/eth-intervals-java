@@ -183,7 +183,7 @@ case class Lower(global: Global) {
             new VarSymbol.Local(pos, modifiers, name, ty)
         def addSym(env: Env, sym: VarSymbol.Local) = env.plusLocalVar(sym)
         val (List(outParam), env1) = lowerAnyParams(newSym, addSym)(env, List((expTy, inParam)))
-        (outParam, env1)
+        (outParam, env1)            
     }
     
     def lowerAnyParams[S <: VarSymbol.Any](

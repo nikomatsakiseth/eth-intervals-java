@@ -30,6 +30,7 @@ abstract class ClassFromCompiledSource extends ClassSymbol
     case class Data(
         modifiers: Modifier.Set,
         superClassNames: List[Name.Class],
+        superTypes: List[Type.Class],
         varMembers: List[SymTab.Entry],
         constructors: List[MethodSymbol],
         allMethodSymbols: List[MethodSymbol],
@@ -44,6 +45,7 @@ abstract class ClassFromCompiledSource extends ClassSymbol
     lazy val LoadedData = new GuardedBy[Data](header)
     final def modifiers: Modifier.Set = LoadedData.join.modifiers
     final def superClassNames: List[Name.Class] = LoadedData.join.superClassNames
+    final def superTypes: List[Type.Class] = LoadedData.join.superTypes
     final def varMembers: List[SymTab.Entry] = LoadedData.join.varMembers
     final def constructors: List[MethodSymbol] = LoadedData.join.constructors
     final def allMethodSymbols: List[MethodSymbol] = LoadedData.join.allMethodSymbols

@@ -20,6 +20,8 @@ class ClassFromReflection(
     val cls: java.lang.Class[_]
 ) extends ClassFromCompiledSource {
     
+    def isObject = name is Name.ObjectClass
+    def isJavaInterface = (cls.getModifiers & reflect.Modifier.INTERFACE) != 0
     def isPrivate(member: reflect.Member) = (member.getModifiers & reflect.Modifier.PRIVATE) != 0
     def isDeclaredByCls(member: reflect.Member) = (member.getDeclaringClass == cls)
     def isSuitable(member: reflect.Member) = isDeclaredByCls(member) && !isPrivate(member)
@@ -28,15 +30,32 @@ class ClassFromReflection(
         modifiers = Modifier.forClass(cls),
         
         superClassNames = {
-            val allNames = {
-                if((cls.getModifiers & reflect.Modifier.INTERFACE) != 0)
-                    cls.getInterfaces.toList.map(Name.Class) :+ Name.ObjectClass
-                else
-                    (cls.getSuperclass :: cls.getInterfaces.toList).filter(_ != null).map(Name.Class)
+            val superClasses = {
+                val interfaceClasses = cls.getInterfaces.toList
+                val classesWithSuper = Option(cls.getSuperclass) ?:: interfaceClasses
+                classesWithSuper match {
+                    case Nil if isObject => Nil
+                    case Nil => List(classOf[Object])
+                    case list => list
+                }
             }
-            Lathos.context.log(name, ".superClassNames = ", allNames)
-            allNames.foreach(global.requireLoadedOrLoadable(pos, _))
-            allNames
+            val superNames = for(c <- superClasses) yield Name.Class(c)
+            superNames.foreach(global.requireLoadedOrLoadable(pos, _))
+            superNames
+        },
+        
+        superTypes = {
+            // Note: does not include java.lang.Object if this is an interface, enum, etc
+            val reflTypes = {
+                val interfaceTypes = cls.getGenericInterfaces.toList
+                Option(cls.getGenericSuperclass) ?:: interfaceTypes
+            }
+            val tys = for(rt <- reflTypes) yield typeRef(rt).asInstanceOf[Type.Class]
+            tys match {
+                case Nil if isObject => Nil
+                case Nil => List(Type.Object)
+                case list => list
+            }
         },
         
         varMembers = List[Array[SymTab.Entry]](

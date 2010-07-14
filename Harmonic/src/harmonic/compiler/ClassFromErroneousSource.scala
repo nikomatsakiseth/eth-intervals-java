@@ -9,6 +9,7 @@ class ClassFromErroroneousSource(
     protected[this] def loadData(inter: Interval) = Data(
         modifiers = Modifier.Set.empty,
         superClassNames = List(Name.ObjectClass),
+        superTypes = List(Type.Object),
         constructors = Nil,
         varMembers = Nil,
         allMethodSymbols = Nil,

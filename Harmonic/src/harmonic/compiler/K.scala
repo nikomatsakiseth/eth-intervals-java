@@ -94,6 +94,9 @@ object K {
     
     // ___ Mixed paths and types ____________________________________________
     
-    final case class HasType(path: Path.Ref, ty: Type) extends Fact.Forward
+    final case class HasType(path: Path.Ref, ty: Type) extends Fact.Binary[Path.Ref, Type] {
+        def left = path
+        def right = ty
+    }
     
 }

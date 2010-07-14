@@ -132,13 +132,20 @@ object Env {
             }        
         }
         
-        def superTypes(ty: Type.Class) = Lathos.context.embeddedIndent("superTypes(", ty, ")") {
+        def superTypes(
+            path: Path.Ref,
+            ty: Type.Class
+        ) = Lathos.context.embeddedIndent("superTypes(", path, ", ", ty, ")") {
             val Type.Class(nm, args) = ty
             val csym = global.csym(nm)
-            csym.superClassNames.map { c2 =>
-                // TODO: Add in any applicable constraints defined in c1!!
-                // TODO: Filter out inapplicable arguments from ty (won't hurt though)
-                Type.Class(c2, args)
+            
+            // Filter out type arguments for members defined in `nm`
+            val applArgs = args.filterNot(_.name.className is nm)
+            
+            val subst = Subst(Path.This -> path)
+            for(Type.Class(superNm, superArgs) <- csym.superTypes) yield {
+                val substArgs = for(a <- superArgs) yield subst.typeArg(a)
+                Type.Class(superNm, substArgs ++ applArgs)
             }
         }
     }
@@ -197,6 +204,11 @@ case class Env(
     def pathsAreEquatable(p1: Path.Ref, p2: Path.Ref) = factHolds(K.PathEq(p1, p2))
     def symPath(path: Path.Ref) = xtra.symPath(path)
     def ensuresFinal(guard: Path.Ref, inter: Path.Ref) = factHolds(K.EnsuresFinal(guard, inter))
+    def pathUpperBounds(path: Path.Ref) = {
+        Lathos.context.indent(this, ".pathUpperBounds(", path, ")? Consulting ", factSet) {
+            factSet.queryRGivenL[Path.Ref, Type, K.HasType](classOf[K.HasType], path)
+        }
+    }
     def upperBounds(ty: Type) = {
         Lathos.context.indent(this, ".upperBounds(", ty, ")? Consulting ", factSet) {
             factSet.queryRGivenL[Type, Type, K.TypeUb](classOf[K.TypeUb], ty)
@@ -801,7 +813,7 @@ case class Env(
 
         // Find upper bounds of path's type and lower bounds of 
         // lvalue's type, then check to see if they intersect:
-        val ubPathTys = upperBounds(spath.ty)
+        val ubPathTys = pathUpperBounds(spath.toPath)
         val lbLvalueTys = lowerBounds(ty)
         (ubPathTys cross lbLvalueTys).exists {
             case (Type.Null, _) =>

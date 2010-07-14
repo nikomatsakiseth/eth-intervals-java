@@ -79,6 +79,9 @@ abstract class ClassSymbol extends Symbol {
     /** List of all constructors for this class */
     def constructors: List[MethodSymbol]
     
+    /** Supertypes of an instance of this class named `this`. */
+    def superTypes: List[Type.Class]
+    
     /** Symbols for methods defined on this class (not superclasses) 
       * with the given name.  May trigger lowering or other processing. */
     def methodsNamed(name: Name.Method): List[MethodSymbol]
