@@ -10,7 +10,7 @@ case class MethodId(
     def is(methodId: MethodId) = (this == methodId)
     
     override def toString = {
-        "(%s.%s)%s".format(
+        "(%s#%s)%s".format(
             className,
             methodName.javaName,
             msig

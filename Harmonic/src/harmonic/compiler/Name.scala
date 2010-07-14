@@ -130,7 +130,7 @@ object Name {
         className: Name.Class,
         text: String
     ) extends Var with UnloweredMember {
-        override def toString = "(%s.%s)".format(className, text)
+        override def toString = "(%s#%s)".format(className, text)
         
         def is(otherName: Name.Member) = (this == otherName)
         
