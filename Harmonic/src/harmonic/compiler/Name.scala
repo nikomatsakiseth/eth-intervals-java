@@ -10,9 +10,21 @@ object Name {
     
     sealed abstract class Qual extends Any {
         def toInternalPrefix: String
+        
+        /** Tag used in generated fields etc: `String` == `$Harmonic$java$lang$String$` */
         def toTag: String
+        
         def toPrefix: String
+        
+        /** User-visible, absolute name. `Map.Entry` == `java.util.Map.Entry` */
+        def toString: String
+        
         def asClassName: Option[Class]
+        
+        def toAnnPrefix: String
+        
+        /** Name parsable by `AnnParser`. `Map.Entry` == `java.util.Map$Entry` */
+        def toAnnString: String
     }
     
     sealed abstract class Package extends Qual {
@@ -20,20 +32,24 @@ object Name {
     }
     
     case object Root extends Package {
-        def toInternalPrefix = ""
-        def toTag = "$Harmonic$"
-        def toPrefix = ""
+        override def toInternalPrefix = ""
+        override def toTag = "$Harmonic$"
+        override def toPrefix = ""
         override def toString = "<root>"
+        override def toAnnPrefix = ""
+        override def toAnnString = "<root>"
     }
     
     final case class Subpackage(
         base: Package,
         name: String
     ) extends Package {
-        def toInternalPrefix = base.toInternalPrefix + name + "/"
-        def toTag = base.toTag + name + "$"
-        def toPrefix = toString + "."
+        override def toInternalPrefix = base.toInternalPrefix + name + "/"
+        override def toTag = base.toTag + name + "$"
+        override def toPrefix = toString + "."
         override def toString = base.toPrefix + name
+        override def toAnnPrefix = toString + "."
+        override def toAnnString = base.toAnnPrefix + name
     }
     
     final case class Class(
@@ -42,14 +58,15 @@ object Name {
     ) extends Qual {
         def is(name: Name.Class) = (this == name)
         
-        def toInternalPrefix = internalName + "$"
+        override def toInternalPrefix = internalName + "$"
         
-        /** Tag used in generated fields etc: `String` == `$Harmonic$java$lang$String$` */
-        def toTag = base.toTag + name + "$"
+        override def toTag = base.toTag + name + "$"
         
-        def toPrefix = toString + "."
+        override def toPrefix = toString + "."
         
-        def asClassName = Some(this)
+        override def toAnnPrefix = toString + "$"
+        
+        override def asClassName = Some(this)
         
         def toType = Type.Class(this, Nil)
         
@@ -60,8 +77,9 @@ object Name {
         /** So-called "Internal name" used in JVM: `String` == `java/lang/String` */
         def internalName = base.toInternalPrefix + name
         
-        /** User-visible, absolute name. `String` == `java.lang.String` */
         override def toString = base.toPrefix + name
+        
+        override def toAnnString = base.toAnnPrefix + name
         
         /** Creates a new class name in same package but with the given suffix. */
         def withSuffix(suffix: String) = Class(base, name + suffix)
@@ -130,9 +148,11 @@ object Name {
         className: Name.Class,
         text: String
     ) extends Var with UnloweredMember {
-        override def toString = "(%s#%s)".format(className, text)
+        override def toString = "(%s.%s)".format(className, text)
         
         def is(otherName: Name.Member) = (this == otherName)
+        
+        def toAnnString = "(%s#%s)".format(className, text)
         
         def matches(unlowerName: UnloweredMember) = unlowerName match {
             case u: ClasslessMember => (text == u.text)
