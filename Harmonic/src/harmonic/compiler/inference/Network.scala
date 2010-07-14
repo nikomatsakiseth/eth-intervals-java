@@ -38,9 +38,7 @@ class Network[X](server: lathos.LathosServer) extends DebugPage {
         ): Set[F] = Set()
         def plusFacts(facts: Iterable[Fact], xtra: X): FactSet[X] = DerivedFactSet(this, facts, xtra)
         def plusFactSet(factSet: FactSet[X], xtra: X): FactSet[X] = DerivedFactSet(this, factSet, xtra)
-        def resolvedAlphaMemories = Map()
-        def resolvedBetaMemories = Map()
-        def currentOmegaMemories = Set()
+        def resolvedMemories = Memories(Map(), Map(), Set())
     }
     
     def state(
@@ -168,7 +166,7 @@ class Network[X](server: lathos.LathosServer) extends DebugPage {
         override def addBeta(beta: Beta) = (betas += beta)
         
         private[this] def newFactList(state: State, factList: List[Fact.Forward]): Unit = {
-            state.log.log("newFactList(", factList, ")")
+            val line = state.log.log("newFactList(", factList, ")")
             if(state.mem.addBeta(kinds, factList)) {
                 rules.foreach { rule =>
                     val line = state.log.log("\u2022 Invoking rule ", rule)
@@ -179,7 +177,7 @@ class Network[X](server: lathos.LathosServer) extends DebugPage {
                 
                 betas.foreach(_.suffixAdded(state, factList))
             } else {
-                state.log.append(" (previously known)")
+                state.log.append(line, " (previously known)")
             }
         }
         

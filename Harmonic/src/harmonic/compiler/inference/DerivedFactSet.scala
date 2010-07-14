@@ -37,12 +37,11 @@ object DerivedFactSet {
         // TODO: If we make FactSets an inner-class of network, can we enforce this statically?
         assert(baseFactSet.network == addedFactSet.network) 
         val pendingFacts = new mutable.Queue[Fact.Forward]()
-        val internalFactSet = addedFactSet.asInstanceOf[InternalFactSet[X]]
-        internalFactSet.resolvedAlphaMemories.values.foreach { alphaFacts =>
+        val addedMem = addedFactSet.asInstanceOf[InternalFactSet[X]].resolvedMemories
+        addedMem.alphas.values.foreach { alphaFacts =>
             pendingFacts ++= alphaFacts
         }
-        val backwardFacts = internalFactSet.currentOmegaMemories
-        create(baseFactSet, pendingFacts, backwardFacts, xtra)
+        create(baseFactSet, pendingFacts, addedMem.omegas, xtra)
     }
 }
 
@@ -59,80 +58,82 @@ class DerivedFactSet[X](
     
     // ___ Memory interface _________________________________________________
     //
-    // Only used by Network.  Assume that the lock on this is held.
+    // Only used by Network.  Assume that `lock` is held.  Note that to actually
+    // MODIFY the optAlphaMemories, optBetaMemories, and optOmegaMemories 
+    // fields, we briefly acquire the synchronized lock.  This is to coordinate
+    // with the DebugPage trait, which may be rendering a web page at that moment.
     
-    @Ignore private[this] var optAlphaMemories: Option[Map[Fact.ForwardKind, Set[Fact.Forward]]] = None
-    @Ignore private[this] var optBetaMemories: Option[Map[List[Fact.ForwardKind], Set[List[Fact.Forward]]]] = None
-    @Ignore private[this] var optOmegaMemories: Option[Set[Fact.Backward]] = None
+    private[this] var optMemories: Option[Memories] = None
     
-    private[this] def alphaMemories: Map[Fact.ForwardKind, Set[Fact.Forward]] = {
-        optAlphaMemories.getOrElse(baseFactSet.resolvedAlphaMemories)
+    private[this] def memories = {
+        optMemories.getOrElse(baseFactSet.resolvedMemories)
     }
     
-    private[this] def betaMemories = {
-        optBetaMemories.getOrElse(baseFactSet.resolvedBetaMemories)
-    }
-    
-    private[this] def omegaMemories = {
-        optOmegaMemories.getOrElse(baseFactSet.currentOmegaMemories)
+    private[this] def setMemories(memories: Memories) = synchronized {
+        optMemories = Some(memories)
     }
     
     def alpha(factKind: Fact.ForwardKind): Set[Fact.Forward] = {
-        alphaMemories.getOrElse(factKind, Set())
+        memories.alphas.getOrElse(factKind, Set())
     }
     
     def beta(factKinds: List[Fact.ForwardKind]): Set[List[Fact.Forward]] = {
-        betaMemories.getOrElse(factKinds, Set())
+        memories.betas.getOrElse(factKinds, Set())
     }
     
     def omega(fact: Fact.Backward): Boolean = {
-        omegaMemories(fact)
+        memories.omegas(fact)
     }
     
     def addAlpha(fact: Fact.Forward): Boolean = {
-        val am = alphaMemories
-        am.get(fact.kind) match {
+        val mem = memories
+        mem.alphas.get(fact.kind) match {
             case Some(set) if set(fact) => {
                 false
             }
             
             case None => {
-                optAlphaMemories = Some(am + (fact.kind -> Set(fact)))
+                val newValue = mem.alphas + (fact.kind -> Set(fact))
+                setMemories(mem.copy(alphas = newValue))
                 true
             }
             
             case Some(set) => {
-                optAlphaMemories = Some(am + (fact.kind -> (set + fact)))
+                val newValue = mem.alphas + (fact.kind -> (set + fact))
+                setMemories(mem.copy(alphas = newValue))
                 true
             }
         }
     }
     
     def addBeta(factKinds: List[Fact.ForwardKind], factList: List[Fact.Forward]): Boolean = {
-        val bm = betaMemories
-        bm.get(factKinds) match {
+        val mem = memories
+        mem.betas.get(factKinds) match {
             case Some(set) if set(factList) => {
                 false
             }
             
             case None => {
-                optBetaMemories = Some(bm + (factKinds -> Set(factList)))
+                val newValue = mem.betas + (factKinds -> Set(factList))
+                setMemories(mem.copy(betas = newValue))
                 true
             }
             
             case Some(set) => {
-                optBetaMemories = Some(bm + (factKinds -> (set + factList)))
+                val newValue = mem.betas + (factKinds -> (set + factList))
+                setMemories(mem.copy(betas = newValue))
                 true
             }
         }
     }
     
     def addOmega(fact: Fact.Backward): Boolean = {
-        val om = omegaMemories
-        if(om(fact)) {
+        val mem = memories
+        if(mem.omegas(fact)) {
             false
         } else {
-            optOmegaMemories = Some(om + fact)
+            val newValue = mem.omegas + fact
+            setMemories(mem.copy(omegas = newValue))
             true
         }
     }
@@ -145,23 +146,15 @@ class DerivedFactSet[X](
         }
     }
     
-    def resolvedAlphaMemories: Map[Fact.ForwardKind, Set[Fact.Forward]] = withLock(lock) {
+    override def resolvedMemories = withLock(lock) {
         resolvePendingFacts
-        alphaMemories
-    }
-    
-    def resolvedBetaMemories: Map[List[Fact.ForwardKind], Set[List[Fact.Forward]]] = withLock(lock) {
-        resolvePendingFacts
-        betaMemories
-    }
-    
-    def currentOmegaMemories: Set[Fact.Backward] = withLock(lock) {
-        omegaMemories
+        memories
     }
         
     // ___ FactSet interface ________________________________________________
     
     override def contains(fact: Fact): Boolean = withLock(lock) {
+        Lathos.para(Lathos.context.server, this, "contains(", fact, ")")
         network.state(this, this, xtra, pendingFacts).contains(fact)
     }
     
@@ -169,6 +162,7 @@ class DerivedFactSet[X](
         kind: Class[F], 
         optArgs: Option[Any]*
     ): Set[F] = withLock(lock) {
+        Lathos.para(Lathos.context.server, this, "query(", kind, ": ", optArgs, ")")
         network.state(this, this, xtra, pendingFacts).query(kind, optArgs: _*)
     }
     
