@@ -1101,16 +1101,16 @@ case class Lower(global: Global) {
         def optTypeArg(TypeVarName: Name.Var, optExpTy: Option[Type]) = optExpTy match {
             case Some(Type.Class(_, typeArgs)) => {
                 typeArgs.firstSome {
-                    case Type.TypeArg(TypeVarName, TcEq, ty) => Some(ty)
-                    case Type.TypeArg(TypeVarName, TcSub, ty) => Some(ty)
+                    case Type.TypeArg(TypeVarName, _, ty) => Some(ty)
                     case _ => None
                 }
             }
             case _ => None
         }
                 
-        def lowerBlock(optExpTy: Option[Type])(tmpl: in.Block) = withPosOf(tmpl, {
+        def lowerBlock(optExpTy: Option[Type])(tmpl: in.Block) = withPosOf(tmpl, log.embeddedIndent("lowerBlock(", optExpTy, ")(", tmpl, ")") {
             val expArgumentTy = optTypeArg(Name.BlockA, optExpTy).getOrElse(Type.Void)
+            log.log("expArgumentTy = ", expArgumentTy)
             val (outParam, subenv) = lowerBlockParam(env, expArgumentTy, tmpl.param)
             val outStmts0 = lowerStmts(subenv, tmpl.stmts)
             
