@@ -310,8 +310,10 @@ extends Network[Env.Xtra](server)
     
         def trigger(xtra: Env.Xtra, fact: K.PathExists): Iterable[Fact.Forward] = {
             val path = fact.path
-            val ty = xtra.typeOfPath(path)
-            Some(K.HasType(path, ty))
+            xtra.symPath(path) match {
+                case SPath.Typed(ty) => Some(K.HasType(path, ty))
+                case _ => None
+            }
         }
     })
     

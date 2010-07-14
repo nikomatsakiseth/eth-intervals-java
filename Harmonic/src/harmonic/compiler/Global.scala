@@ -32,12 +32,15 @@ class Global(
     val rootPage = debugServer.topLevelPage("Root")
     val errorsPage = debugServer.topLevelPage("Errors")
     val intervalsPage = new debug.Intervals(debugServer, rootPage)
-
-    // ___ Reporting Errors _________________________________________________
-    
-    val network = new HarmonicRulesNetwork(debugServer)
     
     // ___ Reporting Errors _________________________________________________
+    
+    /** Tracks the position of the "current node" in the AST tree.
+      * Used when reporting errors in the environment or other places
+      * where we have lost "position" information. */
+    val curPosVar = Intervals.context.scopedVar(NoPosition)
+    
+    def curPos = curPosVar.get
     
     def hasErrors = reporter.hasErrors
     
@@ -51,6 +54,10 @@ class Global(
         Lathos.context.log("Error ", msgKey, "(", msgArgsString, ")")
         errorLog.log("Error ", msgKey, "(", msgArgsString, ")", " at ", Lathos.context.topPage)
     }
+    
+    // ___ Fact propagation _________________________________________________
+    
+    val network = new HarmonicRulesNetwork(debugServer)
     
     // ___ The "final" interval _____________________________________________
     
@@ -88,7 +95,13 @@ class Global(
                     }                                
                 }
             } finally {
-                debugServer.join            
+                val cnt = reporter.errorCount
+                if(cnt > config.joinIfMore || cnt < config.joinIfLess) {
+                    println("Joining debug server (%d errors): http://localhost:%d/Errors".format(cnt, config.debugPort))
+                    debugServer.join            
+                } else {
+                    debugServer.stop
+                }
             }            
         }
     }
@@ -233,6 +246,10 @@ class Global(
     
     def fieldSymbol(memberName: Name.Member) = {
         csym(memberName.className).fieldNamed(memberName)
+    }
+    
+    def ghostSymbol(memberName: Name.Member) = {
+        csym(memberName.className).ghostNamed(memberName)
     }
     
     // ___ Freshness ________________________________________________________

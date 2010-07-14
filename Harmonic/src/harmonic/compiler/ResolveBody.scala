@@ -284,6 +284,7 @@ extends Resolve(global, compUnit)
                 case decl: in.MethodDecl => resolveMethodDecl(decl)
                 case decl: in.FieldDecl => resolveFieldDecl(className, decl)
                 case decl: in.RelDecl => resolveRelDecl(decl)
+                case decl: in.GhostDecl => resolveGhostDecl(className, decl)
             }
         })
 
@@ -318,6 +319,13 @@ extends Resolve(global, compUnit)
                 case in.TypeRequirement(left, rel, right) =>
                     out.TypeRequirement(resolveTypeRef(left), rel, resolveTypeRef(right))
             }
+        })
+        
+        def resolveGhostDecl(className: Name.Class, decl: in.GhostDecl) = withPosOf(decl, {
+            out.GhostDecl(
+                name = Ast.MemberName(Name.Member(className, decl.name.nm)),
+                bound = resolveName(decl.bound)
+            )
         })
 
         def resolveFieldDecl(className: Name.Class, decl: in.FieldDecl) = withPosOf(decl, {

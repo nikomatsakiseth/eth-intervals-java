@@ -15,10 +15,10 @@ case class Check(global: Global) {
     private[this] val emptyEnv = Env.empty(global)
     
     object In {
-        def apply(env: Env, current: Path.Typed) = new In(env, current)
+        def apply(env: Env, current: SPath) = new In(env, current)
     }
     
-    class In(env: Env, current: Path.Typed) {
+    class In(env: Env, current: SPath) {
         
         object At {
             def apply(node: Ast.Node) = new At(node)
@@ -38,53 +38,53 @@ case class Check(global: Global) {
                 }
             }
             
-            def checkAssignable(path: Path.Typed, ty: Type): Unit = {
-                if(!env.isAssignable(path.toPath, ty)) {
+            def checkAssignable(path: SPath.Typed, ty: Type): Unit = {
+                if(!env.isAssignable(path, ty)) {
                     Error.MustHaveType(path, ty).report(global, node.pos)
                 }
             }
             
-            def checkOwner(owner: Path.TypedOwner): Unit = {
+            def checkOwner(owner: SPath.Owner): Unit = {
                 owner match {
-                    case Path.Static =>
-                    case owner: Path.Typed => checkPath(owner)
+                    case SPath.Static =>
+                    case owner: SPath.Typed => checkPath(owner)
                 }
             }
             
-            def checkParamType(pair: (Type, Path.Typed)): Unit = {
+            def checkParamType(pair: (Type, SPath.Typed)): Unit = {
                 checkAssignable(pair._2, pair._1)
             }
             
-            def checkPath(path: Path.Typed): Unit = {
+            def checkPath(path: SPath.Typed): Unit = {
                 path match {
-                    case Path.TypedLocal(sym) => {
+                    case SPath.Local(sym) => {
                         // TODO Check that guard is readable.
                     }
-                    case Path.TypedCast(_, castedPath) => {
+                    case SPath.Cast(_, castedPath) => {
                         checkPath(castedPath)
                     }
-                    case Path.TypedConstant(_) => {
+                    case SPath.Constant(_) => {
                     }
-                    case Path.TypedField(base, sym) => {
+                    case SPath.Field(base, sym) => {
                         checkOwner(base)
                         // TODO Check that guard is readable.
                     }
-                    case path @ Path.TypedCall(rcvr, msym, args) => {
+                    case path @ SPath.Call(rcvr, msym, args) => {
                         checkOwner(rcvr)
                         args.foreach(checkPath)
                         path.msig.flatParamTypes.zip(args).foreach(checkParamType)
                     }
-                    case Path.TypedIndex(array, index) => {
+                    case SPath.Index(array, index) => {
                         checkPath(array)
                         checkPath(index)
                     }
-                    case Path.TypedTuple(paths) => {
+                    case SPath.Tuple(paths) => {
                         paths.foreach(checkPath)
                     }
                 }
             }
             
-            def checkPathAndType(path: Path.Typed, ty: Type): Unit = {
+            def checkPathAndType(path: SPath.Typed, ty: Type): Unit = {
                 checkPath(path)
                 checkAssignable(path, ty)
             }
@@ -149,7 +149,7 @@ case class Check(global: Global) {
         
     }
     
-    def checkAndAddReq(current: Path.Typed)(env: Env, req: in.Requirement) = {
+    def checkAndAddReq(current: SPath)(env: Env, req: in.Requirement) = {
         In(env, current).checkReq(req)
         
         req match {
@@ -171,7 +171,7 @@ case class Check(global: Global) {
         }
     }
     
-    def checkAndAddAssign(current: Path.Typed)(env: Env, pair: (in.Lvalue, in.Expr)): Env = {
+    def checkAndAddAssign(current: SPath)(env: Env, pair: (in.Lvalue, in.Expr)): Env = {
         val (lv, rv) = pair
         val ty = In(env, current).checkExpr(rv)
         val chk = In(env, current).At(rv)
@@ -189,14 +189,14 @@ case class Check(global: Global) {
             
             case in.FieldLvalue(_, sym) => {
                 // TODO Check that dependent fields are assigned together.
-                val path = env.lookupThis.toTypedPath / sym
+                val path = env.lookupThis.toSPath / sym
                 chk.checkAssignable(path, ty)
                 env
             }
         }
     }
         
-    def checkAndAddStmt(current: Path.Typed)(env: Env, stmt: in.LowerStmt): Env = 
+    def checkAndAddStmt(current: SPath)(env: Env, stmt: in.LowerStmt): Env = 
         log.indent("checkAndAddStmt(", stmt, ")") {
             stmt match {
                 case stmt: in.LowerTlExpr => {
@@ -210,7 +210,7 @@ case class Check(global: Global) {
             
                 case stmt @ in.InlineInterval(name, in.Body(stmts), vsym) => {
                     // Note: vsym is already in the environment.
-                    stmts.foldLeft(env)(checkAndAddStmt(vsym.toTypedPath))
+                    stmts.foldLeft(env)(checkAndAddStmt(vsym.toSPath))
                 }
             
                 case stmt @ in.MethodReturn(in.TypedPath(path)) => {
@@ -226,7 +226,7 @@ case class Check(global: Global) {
             }
         }
     
-    def checkStmts(current: Path.Typed, env: Env, stmts: List[in.LowerStmt]): Unit = {
+    def checkStmts(current: SPath, env: Env, stmts: List[in.LowerStmt]): Unit = {
         stmts.foldLeft(env)(checkAndAddStmt(current))
     }
     
@@ -236,8 +236,8 @@ case class Check(global: Global) {
         decl: in.IntervalDecl
     ) = log.indent("checkIntervalDecl(", fsym, ")") {
         val env = csym.checkEnv
-        val thisPath = csym.loweredSource.thisSym.toTypedPath
-        val initPath = env.typedPath(Path.ThisInit)
+        val thisPath = csym.loweredSource.thisSym.toSPath
+        val initPath = env.symPath(Path.ThisInit)
         In(env, initPath).checkPathAndType(decl.parent, Type.Interval)
         checkStmts(thisPath / fsym, csym.checkEnv, decl.body.stmts)
     }
@@ -257,7 +257,7 @@ case class Check(global: Global) {
             Type.Interval
         )
         env = env.plusLocalVar(methodSym)
-        val methodPath = methodSym.toTypedPath
+        val methodPath = methodSym.toSPath
         
         // Add in the requirements:
         //     Note that these may reference parameters.

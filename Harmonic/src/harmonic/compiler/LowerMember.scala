@@ -21,5 +21,5 @@ abstract class LowerMember(
 
     /// Like `toOptMethodSymbol()`, but for fields.
     /// Joins the interval(s) creating the symbol as needed.
-    def toOptFieldSymbol(MemName: Name.Member): Option[VarSymbol.Field] = None
+    def toOptFieldSymbol(memName: Name.Member): Option[VarSymbol.Field] = None
 }

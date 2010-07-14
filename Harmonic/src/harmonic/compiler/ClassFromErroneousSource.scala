@@ -14,6 +14,7 @@ class ClassFromErroroneousSource(
         allMethodSymbols = Nil,
         allFieldSymbols = Nil,
         allIntervalSymbols = Nil,
+        allGhostSymbols = Nil,
         checkEnv = Env.empty(global)
     )
 }

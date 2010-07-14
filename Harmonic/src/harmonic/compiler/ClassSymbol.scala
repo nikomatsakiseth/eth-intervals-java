@@ -82,21 +82,28 @@ abstract class ClassSymbol extends Symbol {
     /** Symbols for methods defined on this class (not superclasses) 
       * with the given name.  May trigger lowering or other processing. */
     def methodsNamed(name: Name.Method): List[MethodSymbol]
-
+    
     /** Symbols for fields defined on this class (not superclasses)
-      * with the given name.  May trigger lowering or other processing. */
+      * with the given name.  This includes intervals.  
+      * May trigger lowering or other processing. */
     def fieldNamed(name: Name.Member): Option[VarSymbol.Field]
     
+    /** Symbols for ghosts defined on this class. */
+    def ghostNamed(name: Name.Member): Option[GhostSymbol]
+
     // ___ Invokable after `lower` __________________________________________
     
-    /** Symbols for all methods defined on this class but not superclasses. */
+    /** Symbols for all methods defined on this class (but not superclasses). */
     def allMethodSymbols: List[MethodSymbol]
     
-    /** Symbols for all methods defined on this class but not superclasses. */
+    /** Symbols for all fields defined on this class (but not superclasses). */
     def allFieldSymbols: List[VarSymbol.Field]
     
-    /** Symbols for all interval members defined on this class but not superclasses. */
+    /** Symbols for all interval members defined on this class (but not superclasses). */
     def allIntervalSymbols: List[VarSymbol.Field]
+    
+    /** Symbols for all ghosts defined on this class (but not superclasses). */
+    def allGhostSymbols: List[GhostSymbol]
     
     // ___ Invokable after `check` __________________________________________
     //
@@ -108,5 +115,4 @@ abstract class ClassSymbol extends Symbol {
 
     def AllOverrides: GuardedBy[Map[MethodSymbol, List[MethodSymbol]]]
     def allOverrides = AllOverrides.v
-    
 }

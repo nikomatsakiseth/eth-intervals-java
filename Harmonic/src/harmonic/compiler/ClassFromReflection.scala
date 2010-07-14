@@ -9,6 +9,9 @@ import scala.collection.mutable
 
 import com.smallcultfollowing.lathos.Lathos
 
+import harmonic.lang.Ghosts
+import harmonic.lang.Ghost
+
 import Util._
 
 class ClassFromReflection(
@@ -38,6 +41,7 @@ class ClassFromReflection(
         
         varMembers = List[Array[SymTab.Entry]](
             Intrinsic(global).extraVarMembers(name),
+            ghostSymTabEntries(cls.getAnnotation(classOf[Ghosts])),
             cls.getDeclaredFields.map(fieldSymTabEntry),
             cls.getTypeParameters.map(typeParamSymTabEntry)
         ).flatten,
@@ -70,11 +74,15 @@ class ClassFromReflection(
         },
         
         allFieldSymbols = List(
-            Intrinsic(global).extraFieldSymbols(name),
             cls.getDeclaredFields.filter(isSuitable).map(fieldSymbol)
         ).flatten,
         
         allIntervalSymbols = Nil,
+        
+        allGhostSymbols = List(
+            Intrinsic(global).extraGhostSymbols(name),
+            ghostSymbols(cls.getAnnotation(classOf[Ghosts]))
+        ).flatten,
         
         checkEnv = Env.empty(global)
     )
@@ -91,6 +99,11 @@ class ClassFromReflection(
         val modifiers = Modifier.forMember(fld)
         if(modifiers.isStatic) SymTab.StaticField(memberName)
         else SymTab.InstanceField(memberName)
+    }
+    
+    private[this] def ghostSymTabEntries(ghosts: Ghosts): Array[SymTab.Entry] = {
+        if(ghosts == null) Array()
+        else for(g <- ghosts.value) yield SymTab.Ghost(Name.Member(name, g.name))
     }
     
     private[this] def typeParamSymTabEntry(tv: reflect.TypeVariable[_]) = {
@@ -156,6 +169,19 @@ class ClassFromReflection(
             ty        = typeRef(fld.getGenericType),
             kind      = FieldKind.Java(cls, fld.getName, fld.getType)
         )        
+    }
+    
+    private[this] def ghostSymbol(ghost: Ghost) = {
+        new GhostSymbol(
+            pos,
+            Name.Member(name, ghost.name),
+            Name.Class(ghost.cls)
+        )
+    }
+    
+    private[this] def ghostSymbols(ghosts: Ghosts): Array[GhostSymbol] = {
+        if(ghosts == null) Array()
+        else for(g <- ghosts.value) yield ghostSymbol(g)
     }
     
     private[this] def paramPattern(pair: (reflect.Type, Int)) = {

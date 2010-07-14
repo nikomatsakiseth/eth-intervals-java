@@ -35,6 +35,7 @@ abstract class ClassFromCompiledSource extends ClassSymbol
         allMethodSymbols: List[MethodSymbol],
         allFieldSymbols: List[VarSymbol.Field],
         allIntervalSymbols: List[VarSymbol.Field],
+        allGhostSymbols: List[GhostSymbol],
         checkEnv: Env
     )
     
@@ -48,8 +49,10 @@ abstract class ClassFromCompiledSource extends ClassSymbol
     final def allMethodSymbols: List[MethodSymbol] = LoadedData.join.allMethodSymbols
     final def allFieldSymbols: List[VarSymbol.Field] = LoadedData.join.allFieldSymbols
     final def allIntervalSymbols: List[VarSymbol.Field] = LoadedData.join.allIntervalSymbols
+    final def allGhostSymbols: List[GhostSymbol] = LoadedData.join.allGhostSymbols
     final def methodsNamed(name: Name.Method): List[MethodSymbol] = allMethodSymbols.filter(_.isNamed(name))
     final def fieldNamed(name: Name.Member): Option[VarSymbol.Field] = allFieldSymbols.find(_.isNamed(name))
+    final def ghostNamed(name: Name.Member): Option[GhostSymbol] = allGhostSymbols.find(_.isNamed(name))
     final def checkEnv = LoadedData.join.checkEnv
     
     lazy val Mro = new GuardedBy[List[ClassSymbol]](cmro)

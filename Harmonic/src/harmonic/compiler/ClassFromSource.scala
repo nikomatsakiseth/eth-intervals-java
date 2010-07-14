@@ -154,7 +154,7 @@ class ClassFromSource(
         after = List(envirate.getEnd)
     ) {
         inter => {
-            //Check(global).classSymbol(this)
+            Check(global).classSymbol(this)
         }
     }
     
@@ -219,6 +219,10 @@ class ClassFromSource(
     val LowerMembers = new GuardedBy[List[LowerMember]](create)
     def lowerMembers = LowerMembers.v
     
+    /** Ghosts are so simple we just lower them directly. */
+    val AllGhostSymbols = new GuardedBy[List[GhostSymbol]](create)
+    def allGhostSymbols = AllGhostSymbols.v
+    
     override def methodsNamed(mthdName: Name.Method) = {
         LowerMembers.join.flatMap(_.toOptMethodSymbol(mthdName))
     }
@@ -228,6 +232,10 @@ class ClassFromSource(
             val fsyms: List[VarSymbol.Field] = classParam.symbols
             fsyms.find(_.isNamed(name))
         }
+    }
+    
+    override def ghostNamed(name: Name.Member) = {
+        AllGhostSymbols.join.find(_.isNamed(name))
     }
     
     // ___ Computed by Pass.Merge ___________________________________________
@@ -251,7 +259,7 @@ class ClassFromSource(
     /** Given values `p` for the class parameters `f`, 
       * returns a substituion including `thisPath.f1 -> p1`, 
       * `thisPath.f2 -> p2`, etc. */
-    def typedSubstForFlatArgs(args: List[Path.Typed]): TypedSubst = {
+    def typedSubstForFlatArgs(args: List[SPath.Typed]): TypedSubst = {
         val thisSym = loweredSource.thisSym
         val fieldSyms = loweredSource.pattern.symbols
         fieldSyms.zip(args).foldLeft(TypedSubst.empty) { case (s, (fsym, arg)) =>
@@ -270,7 +278,7 @@ class ClassFromSource(
     val MethodGroups = new GuardedBy[List[MethodGroup]](gather)
     def methodGroups = MethodGroups.v
 
-    val ExtendedClasses = new GuardedBy[List[(Ast.Lower.ExtendsDecl, List[Path.Typed])]](gather)    
+    val ExtendedClasses = new GuardedBy[List[(Ast.Lower.ExtendsDecl, List[SPath.Typed])]](gather)    
     def extendedClasses = ExtendedClasses.v
     
     def setMethodGroups(groups: List[MethodGroup]) {

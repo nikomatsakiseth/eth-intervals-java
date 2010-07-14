@@ -168,6 +168,7 @@ class Parse extends StdTokenParsers with PackratParsers {
     lazy val member: PackratParser[out.MemberDecl] = (
         methodDecl
     |   fieldDecl
+    |   ghostDecl
     |   intervalDecl
     |   relDecl
     )
@@ -238,6 +239,12 @@ class Parse extends StdTokenParsers with PackratParsers {
     lazy val fieldDecl = positioned(
         annotations~relBase~optTypeRef~fieldValue~";" ^^ {
             case a~n~t~v~";" => out.FieldDecl(a, n, t, v) 
+        }
+    )
+    
+    lazy val ghostDecl = positioned(
+        "ghost"~relBase~":"~relName~";" ^^ {
+            case _~n~_~c~_ => out.GhostDecl(n, c)
         }
     )
     

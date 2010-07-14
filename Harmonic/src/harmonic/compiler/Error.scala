@@ -10,6 +10,9 @@ import com.smallcultfollowing.lathos.Context
 
 abstract class Error {
     def report(global: Global, pos: Position): Unit    
+    
+    def report(implicit global: Global): Unit = 
+        report(global, global.curPos)
 }
 
 object Error {
@@ -25,6 +28,7 @@ object Error {
         }
     }
     
+    case class NoGhostHere(path: SPath) extends ErrorProduct
     case class ExplicitTypeRequiredDueToCycle(memName: String) extends ErrorProduct
     case class NoSuperClassImplements(mthdName: Name.Method) extends ErrorProduct
     case class CanOnlyCreateClasses(ty: Type) extends ErrorProduct
@@ -34,7 +38,7 @@ object Error {
     case class DoesNotEnsure(fact: inference.Fact) extends ErrorProduct
     case class NoReturnHere() extends ErrorProduct
     case class MustBeSubtype(subTy: Type, supTy: Type) extends ErrorProduct
-    case class MustHaveType(path: Path.Typed, expTy: Type) extends ErrorProduct {
+    case class MustHaveType(path: SPath.Typed, expTy: Type) extends ErrorProduct {
         override def args = List(path.toString, path.ty.toString, expTy.toString)
     }
     case class NotOverride(className: Name.Class, methodName: Name.Method) extends ErrorProduct
@@ -45,9 +49,9 @@ object Error {
     case class ExtendsNotEquiv(
         extendedName: Name.Class,
         leftName: Name.Class,
-        leftPath: Path.Typed,
+        leftPath: SPath.Typed,
         rightName: Name.Class,
-        rightPath: Path.Typed
+        rightPath: SPath.Typed
     ) extends ErrorProduct
     case class AmbiguousInheritance(
         className: Name.Class,

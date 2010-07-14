@@ -38,7 +38,7 @@ case class Envirate(global: Global) {
         val classReqs: List[in.Requirement] = Nil // TODO
         env = classReqs.foldLeft(env)(addAstReq)
 
-        val method = env.typedPath(Path.ThisInit)
+        val method = env.symPath(Path.ThisInit)
         
         // Add inherited environments from extends clauses:
         cdecl.extendsDecls.foreach { 

@@ -296,6 +296,21 @@ abstract class Ast {
         }
     }
     
+    case class GhostDecl(
+        name: MND,
+        bound: CN
+    ) extends MemberDecl {
+        override val annotations: List[Annotation] = Nil
+        
+        override def print(out: PrettyPrinter) {
+            out.newl("ghost ")
+            name.print(out)
+            out.addl(" : ")
+            bound.print(out)
+            out.addl(";")
+        }
+    }
+    
     case class FieldDecl(
         annotations: List[Annotation],
         name: MND,
@@ -625,7 +640,7 @@ abstract class Ast {
         }
     }
     
-    case class TypedPath(path: Path.Typed) extends TypedNode with LowerTlExpr {
+    case class TypedPath(path: SPath.Typed) extends TypedNode with LowerTlExpr {
         override def toString = path.toString
         def ty = toTy(path.ty)
     }
@@ -1115,11 +1130,11 @@ object Ast {
             implicit def extendedParam(pat: Param[VSym]): ExtendedParam = 
                 ExtendedParam(pat)
             
-            case class ExtendedTypedPath(path: Path.Typed) {
+            case class ExtendedTypedPath(path: SPath.Typed) {
                 def toNode: TypedPath = TypedPath(path)
                 def toNodeWithPosOf(n: Node): TypedPath = withPosOf(n, toNode)
             }
-            implicit def extendedTypedPath(path: Path.Typed): ExtendedTypedPath = 
+            implicit def extendedTypedPath(path: SPath.Typed): ExtendedTypedPath = 
                 ExtendedTypedPath(path)
                 
             case class ExtendedRequirement(req: Requirement) {

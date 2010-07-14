@@ -20,6 +20,8 @@ case class Intrinsic(global: Global) {
     //
     // This is used to add ghosts to Object.
     
+    val objectPos = InterPosition.forClass(classOf[Object])
+    
     def extraVarMembers(name: Name.Class): Array[SymTab.Entry] = {
         name match {
             case Name.ObjectClass => Array(SymTab.Ghost(Name.Wr), SymTab.Ghost(Name.Init))
@@ -27,24 +29,11 @@ case class Intrinsic(global: Global) {
         }
     }
     
-    def extraFieldSymbols(name: Name.Class): Array[VarSymbol.Field] = {
+    def extraGhostSymbols(name: Name.Class): Array[GhostSymbol] = {
         name match {
             case Name.ObjectClass => Array(
-                // TODO-- Ghosts
-                new VarSymbol.Field(
-                    InterPosition.forClassNamed(name),
-                    Modifier.Set.empty, 
-                    Name.Wr,
-                    Type.Interval,
-                    FieldKind.Java(classOf[Object], "Wr", classOf[Interval])
-                ),
-                new VarSymbol.Field(
-                    InterPosition.forClassNamed(name),
-                    Modifier.Set.empty, 
-                    Name.Init,
-                    Type.Interval,
-                    FieldKind.Java(classOf[Object], "Init", classOf[Interval])
-                )
+                new GhostSymbol(objectPos, Name.Wr, Name.GuardClass),
+                new GhostSymbol(objectPos, Name.Init, Name.IntervalClass)
             )
             case _ => Array()
         }

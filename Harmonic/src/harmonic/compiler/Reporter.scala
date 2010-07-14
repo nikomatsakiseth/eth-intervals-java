@@ -15,6 +15,8 @@ class Reporter(config: Config) {
     
     def hasErrors = !errors.isEmpty
     
+    def errorCount = synchronized { errors.size }
+    
     def report(error: Error) = synchronized {
         if(!errors.contains(error))
             errors += error

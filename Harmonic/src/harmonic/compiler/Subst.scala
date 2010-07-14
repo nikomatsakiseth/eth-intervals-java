@@ -7,7 +7,7 @@ class Subst(private val map: Map[Path.Ref, Path.Ref]) {
     def +(s: Subst) = new Subst(map ++ s.map)
     def +(p: Pair[Path.Ref, Path.Ref]) = new Subst(map + p)
     
-    def owner(owner: Path.UntypedOwner): Path.UntypedOwner = owner match {
+    def owner(owner: Path.Owner): Path.Owner = owner match {
         case Path.Static => Path.Static
         case owner: Path.Ref => path(owner)
     }
@@ -75,7 +75,7 @@ object Subst {
         new Subst(Map(vars.map(_.toPath).zip(paths): _*))
     }
     
-    def vt(lists: (List[Name.LocalVar], List[Path.Typed])) = {
+    def vt(lists: (List[Name.LocalVar], List[SPath.Typed])) = {
         val (vars, paths) = lists
         vp(vars -> paths.map(_.toPath))
     }

@@ -205,7 +205,7 @@ object Util {
             out.outputText(")")            
         }
         
-        case class ScalaIterable(value: Iterable[_]) extends DebugPage {
+        class ScalaIterable(value: Iterable[_]) extends DebugPage {
             override def renderInLine(out: lathos.Output): Unit = synchronized {
                 renderIteratorInLine(this, out, value.iterator)
             }
@@ -225,10 +225,11 @@ object Util {
                 }
             }
         }
-        
-        case class ScalaProduct(value: Product) extends DebugPage {
+
+        class ScalaProduct(value: Product) extends DebugPage {
             override def renderInLine(out: lathos.Output): Unit = synchronized {
-                out.outputText(value.productPrefix)
+                if(!value.productPrefix.startsWith("Tuple"))
+                    out.outputText(value.productPrefix)
                 renderIteratorInLine(this, out, value.productIterator)
             }
             
@@ -244,10 +245,20 @@ object Util {
             }
         }
         
+        class ScalaPair(value: (Any, Any)) extends ScalaProduct(value) {
+            override def renderInLine(out: lathos.Output): Unit = synchronized {
+                out.outputText("(")
+                out.outputObject(value._1)
+                out.outputText(" \u2192 ")
+                out.outputObject(value._2)
+                out.outputText(")")
+            }
+        }
+        
         override def addToLine(line: lathos.Line, value: Object): Boolean = {
             value match {
                 case value: Iterable[_] => {
-                    line.addContent(ScalaIterable(value))
+                    line.addContent(new ScalaIterable(value))
                     true
                 }
                 
@@ -275,8 +286,17 @@ object Util {
                     false
                 }
                 
+                case value: inference.Fact => {
+                    false
+                }
+                
+                case value: Tuple2[_, _] => {
+                    line.addContent(new ScalaPair(value))
+                    true
+                }
+                
                 case value: Product => {
-                    line.addContent(ScalaProduct(value))
+                    line.addContent(new ScalaProduct(value))
                     true
                 }
                 

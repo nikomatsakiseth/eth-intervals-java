@@ -23,6 +23,8 @@ class Config
     var useReflection = true
     var localize = false
     var emitDebugInfo = true
+    var joinIfMore = Integer.MAX_VALUE
+    var joinIfLess = 0
     var debugPort = 0
     
     private[this] def usage(err: PrintStream) {
@@ -45,6 +47,8 @@ class Config
         err.printf("  --dump-lowered-trees\n")
         err.printf("  --dump-bytecode\n")
         err.printf("  --check-bytecode\n")
+        err.printf("  --join-if-more <error count>\n")
+        err.printf("  --join-if-less <error count>\n")
         err.printf("  --ignore-errors\n")
     }
     
@@ -111,6 +115,12 @@ class Config
                 } else if(args(i) == "--ignore-errors") {
                     ignoreErrors = true
                     i += 1
+                } else if(args(i) == "--join-if-more") {
+                    joinIfMore = Integer.parseInt(args(i+1))
+                    i += 2
+                } else if(args(i) == "--join-if-less") {
+                    joinIfLess = Integer.parseInt(args(i+1))
+                    i += 2
                 } else if(args(i) == "--no-reflection") {
                     useReflection = false
                     i += 1

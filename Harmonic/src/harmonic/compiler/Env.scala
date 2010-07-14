@@ -54,68 +54,84 @@ object Env {
         global: Global,
         locals: Map[Name.LocalVar, VarSymbol.Local]
     ) {
-
         def plusLocalVar(sym: VarSymbol.Local) = 
             copy(locals = locals + (sym.name -> sym))
 
-        def typedOwner(owner: Path.UntypedOwner): Path.TypedOwner = owner match {
-            case Path.Static => Path.Static
+        def symOwner(owner: Path.Owner): SPath.Owner = owner match {
+            case Path.Static => SPath.Static
             case owner: Path.Ref => typedPath(owner)
         }
-
-        def typedPath(path: Path.Ref): Path.Typed = Lathos.context.indent(this, ".typedPath(", path, ")") {
+        
+        def typedPath(path: Path.Ref): SPath.Typed = Lathos.context.indent(this, ".typedPath(", path, ")") {
+            symPath(path) match {
+                case spath: SPath.Typed => spath
+                case spath => {
+                    Error.NoGhostHere(spath).report(global)
+                    SPath.Tuple(List()) // Have to give back SOMETHING.                    
+                }
+            }
+        }
+        
+        def symPath(path: Path.Ref): SPath = Lathos.context.indent(this, ".symPath(", path, ")") {
             path match {
                 case Path.Local(name: Name.LocalVar) => {
                     val lvsym = locals.get(name).getOrElse(VarSymbol.errorLocal(name, None))
                     Lathos.context.log("Local variable: ", name, " symbol: ", lvsym)
-                    Path.TypedLocal(lvsym)
+                    SPath.Local(lvsym)
                 }
 
                 case Path.Field(owner, name) => {
-                    val fsym = global.fieldSymbol(name).getOrElse {
-                        // TODO --- report invalid method ids at the site of use.
-                        Error.NoSuchField(name).report(
-                            global, 
-                            InterPosition.forClassNamed(name.className)
-                        )
-                        VarSymbol.errorField(name, None)
+                    def fieldSymbol = {
+                        global.fieldSymbol(name).getOrElse {
+                            Error.NoSuchField(name).report(global)
+                            VarSymbol.errorField(name, None)
+                        }                        
                     }
-                    Path.TypedField(typedOwner(owner), fsym)
+                    
+                    symOwner(owner) match {
+                        case SPath.Static => {
+                            // Must be a field:
+                            SPath.Field(SPath.Static, fieldSymbol)                            
+                        }
+                        
+                        case path: SPath.Typed => {
+                            // May be a field or a ghost:
+                            global.ghostSymbol(name) match {
+                                case Some(gsym) => SPath.Ghost(path, gsym)
+                                case None => SPath.Field(path, fieldSymbol)
+                            }
+                        }
+                    }
                 }
 
                 case Path.Call(owner, methodId, args) => {
+                    val sowner = symOwner(owner)
                     val csym = global.csym(methodId.className)
                     val msym = csym.methodsNamed(methodId.methodName).find(_.id.is(methodId)).getOrElse {
-                        // TODO --- report invalid method ids at the site of use.
-                        Error.NoSuchMethodId(methodId).report(
-                            global, 
-                            InterPosition.forClassNamed(methodId.className)
-                        )
+                        Error.NoSuchMethodId(methodId).report(global)
                         MethodSymbol.error(methodId)
                     }
-                    Path.TypedCall(typedOwner(owner), msym, args.map(typedPath))
+                    SPath.Call(sowner, msym, args.map(typedPath))
                 }
 
                 case Path.Cast(ty, base) => {
-                    Path.TypedCast(ty, typedPath(base))
+                    SPath.Cast(ty, typedPath(base))
                 }
 
                 case Path.Constant(obj) => {
-                    Path.TypedConstant(obj)
+                    SPath.Constant(obj)
                 }
 
                 case Path.Index(array, index) => {
-                    Path.TypedIndex(typedPath(array), typedPath(index))
+                    SPath.Index(typedPath(array), typedPath(index))
                 }
 
                 case Path.Tuple(paths) => {
-                    Path.TypedTuple(paths.map(typedPath))
+                    SPath.Tuple(paths.map(typedPath))
                 }
             }        
         }
-
-        def typeOfPath(path: Path.Ref) = typedPath(path).ty
-
+        
         def superTypes(ty: Type.Class) = Lathos.context.embeddedIndent("superTypes(", ty, ")") {
             val Type.Class(nm, args) = ty
             val csym = global.csym(nm)
@@ -179,8 +195,7 @@ case class Env(
     
     def typesAreEquatable(ty1: Type, ty2: Type) = factHolds(K.TypeEq(ty1, ty2))
     def pathsAreEquatable(p1: Path.Ref, p2: Path.Ref) = factHolds(K.PathEq(p1, p2))
-    def typedPath(path: Path.Ref) = xtra.typedPath(path)
-    def typeOfPath(path: Path.Ref) = typedPath(path).ty
+    def symPath(path: Path.Ref) = xtra.symPath(path)
     def ensuresFinal(guard: Path.Ref, inter: Path.Ref) = factHolds(K.EnsuresFinal(guard, inter))
     def upperBounds(ty: Type) = {
         Lathos.context.indent(this, ".upperBounds(", ty, ")? Consulting ", factSet) {
@@ -644,46 +659,46 @@ case class Env(
     // Determines whether a given path has reached its final value by
     // the given interval.  The path `inter` is assumed to be final.
     
-    def factIsFinalBy(fact: inference.Fact, inter: Path.Typed) = {
+    def factIsFinalBy(fact: inference.Fact, inter: SPath) = {
         fact match {
-            case K.Paths(l, r) => pathIsFinalBy(typedPath(l), inter) && pathIsFinalBy(typedPath(r), inter)
+            case K.Paths(l, r) => pathIsFinalBy(symPath(l), inter) && pathIsFinalBy(symPath(r), inter)
             case K.Types(l, r) => typeIsFinalBy(l, inter) && typeIsFinalBy(r, inter)
-            case K.HasType(p, t) => pathIsFinalBy(typedPath(p), inter) && typeIsFinalBy(t, inter)
+            case K.HasType(p, t) => pathIsFinalBy(symPath(p), inter) && typeIsFinalBy(t, inter)
         }
     }
     
-    def typeIsFinalBy(ty: Type, inter: Path.Typed): Boolean = {
+    def typeIsFinalBy(ty: Type, inter: SPath): Boolean = {
         ty match {
-            case Type.Member(path, _) => pathIsFinalBy(typedPath(path), inter)
+            case Type.Member(path, _) => pathIsFinalBy(symPath(path), inter)
             case Type.Class(_, args) => args.forall(typeArgIsFinalBy(_, inter))
             case Type.Tuple(tys) => tys.forall(typeIsFinalBy(_, inter))
             case Type.Null => true
         }
     }
     
-    def typeArgIsFinalBy(targ: Type.Arg, inter: Path.Typed): Boolean = {
+    def typeArgIsFinalBy(targ: Type.Arg, inter: SPath): Boolean = {
         targ match {
-            case Type.PathArg(_, _, path) => pathIsFinalBy(typedPath(path), inter)
+            case Type.PathArg(_, _, path) => pathIsFinalBy(symPath(path), inter)
             case Type.TypeArg(_, _, ty) => typeIsFinalBy(ty, inter)
         }
     }
     
-    def ownerIsFinalBy(owner: Path.TypedOwner, inter: Path.Typed) = {
+    def ownerIsFinalBy(owner: SPath.Owner, inter: SPath) = {
         owner match {
-            case Path.Static => true
-            case owner: Path.Typed => pathIsFinalBy(owner, inter)
+            case SPath.Static => true
+            case owner: SPath.Typed => pathIsFinalBy(owner, inter)
         }        
     }
     
-    def pathIsFinalBy(path: Path.Typed, inter: Path.Typed): Boolean = {
+    def pathIsFinalBy(path: SPath, inter: SPath): Boolean = {
         def wr(path: Path.Ref) = Path.Field(path, Name.Wr)
         
         path match {
-            case Path.TypedTuple(paths) => {
+            case SPath.Tuple(paths) => {
                 paths.forall(pathIsFinalBy(_, inter))
             }
             
-            case Path.TypedLocal(sym) => {
+            case SPath.Local(sym) => {
                 if(sym.modifiers.isNotMutable) true
                 else {
                     val guardPath = locals(Name.MethodLocal) // TODO: Configurable guard paths for locals
@@ -691,22 +706,26 @@ case class Env(
                 }
             }
                 
-            case Path.TypedCast(_, castedPath) => {
+            case SPath.Cast(_, castedPath) => {
                 pathIsFinalBy(castedPath, inter)
             }
             
-            case Path.TypedConstant(_) => {
+            case SPath.Constant(_) => {
                 true                
             }
+            
+            case SPath.Ghost(base, _) => {
+                pathIsFinalBy(base, inter)
+            }
                 
-            case Path.TypedField(base, fsym) => {
+            case SPath.Field(base, fsym) => {
                 ownerIsFinalBy(base, inter) && {                    
                     val guardPath = locals(Name.FinalLocal) // TODO: Guard path for fields
                     ensuresFinal(guardPath.toPath, inter.toPath)
                 }
             }
             
-            case Path.TypedCall(receiver, msym, args) => {
+            case SPath.Call(receiver, msym, args) => {
                 ownerIsFinalBy(receiver, inter) &&
                 args.forall(pathIsFinalBy(_, inter)) && {
                     // TODO: Allow finalBy annotations in method signature
@@ -714,7 +733,7 @@ case class Env(
                 }
             }
             
-            case Path.TypedIndex(array, index) => {
+            case SPath.Index(array, index) => {
                 pathIsFinalBy(array, inter) &&
                 pathIsFinalBy(index, inter) && {
                     val guardPath = wr(array.toPath)
@@ -746,13 +765,15 @@ case class Env(
             ty = ty1
         )
 
-        plusLocalVar(fresh).isAssignable(fresh.toPath, ty2)
+        plusLocalVar(fresh).isAssignable(fresh.toSPath, ty2)
     }
     
     /** A path `p` is assignable to a lvalue of type `ty` if 
       * (1) `p.ty` is of the right class and satisfies all constraints on `ty`; or,
       * (2) `p.ty` is upper-bounded by `ty` */
-    def isAssignable(path: Path.Ref, ty: Type): Boolean = {
+    def isAssignable(spath: SPath.Typed, ty: Type): Boolean = {
+        val path = spath.toPath
+        
         // True if `arg` is satisfied relative to `path`:
         def isSatisfiedForPath(arg: Type.Arg): Boolean = {
             arg match {
@@ -780,8 +801,7 @@ case class Env(
 
         // Find upper bounds of path's type and lower bounds of 
         // lvalue's type, then check to see if they intersect:
-        val pathTy = typeOfPath(path)
-        val ubPathTys = upperBounds(pathTy)
+        val ubPathTys = upperBounds(spath.ty)
         val lbLvalueTys = lowerBounds(ty)
         (ubPathTys cross lbLvalueTys).exists {
             case (Type.Null, _) =>
@@ -792,7 +812,7 @@ case class Env(
 
             case (t1, t2) =>
                 t1.is(t2)
-        }
+        }                
     }
   
 }

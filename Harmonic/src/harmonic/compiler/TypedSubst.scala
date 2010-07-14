@@ -6,54 +6,61 @@ import Ast.{Lower => in}
 import Util._
 
 class TypedSubst(
-    lvmap: Map[VarSymbol.Local, Path.Typed],
-    fmap: Map[(VarSymbol.Local, VarSymbol.Field), Path.Typed]
+    lvmap: Map[VarSymbol.Local, SPath.Typed],
+    fmap: Map[(VarSymbol.Local, VarSymbol.Field), SPath.Typed]
 ) {
     
-    def +(p: Pair[VarSymbol.Local, Path.Typed]): TypedSubst = {
+    def +(p: Pair[VarSymbol.Local, SPath.Typed]): TypedSubst = {
         new TypedSubst(lvmap + p, fmap)
     }
     
-    def plusField(p: Pair[(VarSymbol.Local, VarSymbol.Field), Path.Typed]) = {
+    def plusField(p: Pair[(VarSymbol.Local, VarSymbol.Field), SPath.Typed]) = {
         new TypedSubst(lvmap, fmap + p)        
     }
     
-    def typedOwner(owner: Path.TypedOwner): Path.TypedOwner = {
+    def typedOwner(owner: SPath.Owner): SPath.Owner = {
         owner match {
-            case Path.Static => Path.Static
-            case owner: Path.Typed => typedPath(owner)
+            case SPath.Static => SPath.Static
+            case owner: SPath.Typed => typedPath(owner)
+        }
+    }
+
+    def symPath(spath: SPath): SPath = {
+        spath match {
+            case SPath.Ghost(path, gsym) => SPath.Ghost(typedPath(path), gsym)
+            case spath: SPath.Typed => typedPath(spath)
         }
     }
     
-    def typedPath(path: Path.Typed): Path.Typed = {
+    def typedPath(path: SPath.Typed): SPath.Typed = {
         path match {
             // Perform substitutions:
             
-            case Path.TypedLocal(vsym) if lvmap.isDefinedAt(vsym) =>
+            case SPath.Local(vsym) if lvmap.isDefinedAt(vsym) =>
                 lvmap(vsym)
         
-            case Path.TypedField(Path.TypedLocal(vsym), fsym) if fmap.isDefinedAt((vsym, fsym)) => 
+            case SPath.Field(SPath.Local(vsym), fsym) if fmap.isDefinedAt((vsym, fsym)) => 
                 fmap((vsym, fsym))
                 
             // Pass through:
             
-            case Path.TypedLocal(_) | Path.TypedConstant(_) =>
+            case SPath.Local(_) | SPath.Constant(_) =>
                 path
 
-            case Path.TypedField(base, fsym) => 
-                Path.TypedField(typedOwner(base), fsym)
+            case SPath.Field(base, fsym) => 
+                SPath.Field(typedOwner(base), fsym)
                 
-            case Path.TypedCall(receiver, msym, args) =>
-                Path.TypedCall(typedOwner(receiver), msym, args.map(typedPath))
+            case SPath.Call(receiver, msym, args) =>
+                SPath.Call(typedOwner(receiver), msym, args.map(typedPath))
 
-            case Path.TypedCast(ty, path) =>
-                Path.TypedCast(ty, typedPath(path))
+            case SPath.Cast(ty, path) =>
+                SPath.Cast(ty, typedPath(path))
             
-            case Path.TypedIndex(array, index) =>
-                Path.TypedIndex(typedPath(array), typedPath(index))
+            case SPath.Index(array, index) =>
+                SPath.Index(typedPath(array), typedPath(index))
                 
-            case Path.TypedTuple(paths) =>
-                Path.TypedTuple(paths.map(typedPath))
+            case SPath.Tuple(paths) =>
+                SPath.Tuple(paths.map(typedPath))
         }
     }
     

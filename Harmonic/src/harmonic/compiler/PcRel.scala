@@ -20,7 +20,7 @@ sealed trait PcBackwardRel extends PcRel {
     def toFact(left: Path.Ref, right: Path.Ref): inference.Fact.Backward
 }
 
-case object PcLocks extends PcRel with PcForwardRel {
+case object PcLocks extends PcForwardRel {
     override def toString = "locks"
     def toFact(left: Path.Ref, right: Path.Ref) = K.Locks(left, right)
 }

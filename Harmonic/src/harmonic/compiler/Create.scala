@@ -19,12 +19,19 @@ class Create(global: Global) {
         csym.ClassEnv.v = classEnv
         csym.Constructor.v = Lower(global).createSymbolForConstructor(csym)
         
+        // Determine ghosts:
+        csym.AllGhostSymbols.v = cdecl.members.flatMap {
+            case decl: in.GhostDecl => Some(new GhostSymbol(decl.pos, decl.name.name, decl.bound.name))
+            case _ => None
+        }
+        
         // Create futures for lowering each member declaration:
-        csym.LowerMembers.v = cdecl.members.map {
-            case decl: in.IntervalDecl => new LowerIntervalMember(global, csym, decl)
-            case decl: in.FieldDecl => new LowerFieldMember(global, csym, decl)
-            case decl: in.MethodDecl => new LowerMethodMember(global, csym, decl)
-            case decl: in.RelDecl => new LowerRelDecl(global, csym, decl)
+        csym.LowerMembers.v = cdecl.members.flatMap {
+            case decl: in.IntervalDecl => Some(new LowerIntervalMember(global, csym, decl))
+            case decl: in.FieldDecl => Some(new LowerFieldMember(global, csym, decl))
+            case decl: in.MethodDecl => Some(new LowerMethodMember(global, csym, decl))
+            case decl: in.RelDecl => Some(new LowerRelDecl(global, csym, decl))
+            case decl: in.GhostDecl => None
         }
     }
     

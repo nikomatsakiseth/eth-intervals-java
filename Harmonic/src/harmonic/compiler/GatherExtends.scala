@@ -27,11 +27,11 @@ case class GatherExtends(global: Global) {
         
         // Extends declarations for (transitive) supertypes of `csym`.
         // All substituted so as to be in terms of the parameters of `csym`.        
-        val result = new mutable.HashMap[Name.Class, (Name.Class, in.ExtendsDecl, List[Path.Typed])]()
+        val result = new mutable.HashMap[Name.Class, (Name.Class, in.ExtendsDecl, List[SPath.Typed])]()
         
         // Returns None if pair are equivalent, else returns `Some(pos)` where
         // pos is the position of the item in the left which caused an error.
-        def notEquatable(env: Env)(pair: (Path.Typed, Path.Typed)): Boolean = {
+        def notEquatable(env: Env)(pair: (SPath.Typed, SPath.Typed)): Boolean = {
             val (left, right) = pair
             !env.pathsAreEquatable(left.toPath, right.toPath)
         }
