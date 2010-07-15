@@ -20,8 +20,8 @@ trait FactSet[X] {
     
     /** Specialized variant for binary facts:
       * Extracts `right` given `left`. */
-    def queryRGivenL[L, R, F <: Fact.Binary[L, R]](
-        kind: Class[F], 
+    def queryRGivenL[L, R](
+        kind: Class[_ <: Fact.Binary[L, R]], 
         left: L
     ): Set[R] = {
         query(kind, Some(left)).map(_.right)
@@ -29,8 +29,8 @@ trait FactSet[X] {
 
     /** Specialized variant for binary facts:
       * Extracts `left` given `right`. */
-    def queryLGivenR[L, R, F <: Fact.Binary[L, R]](
-        kind: Class[F], 
+    def queryLGivenR[L, R](
+        kind: Class[_ <: Fact.Binary[L, R]], 
         right: R
     ): Set[L] = {
         query(kind, None, Some(right)).map(_.left)

@@ -20,6 +20,12 @@ case class MethodId(
 
 object MethodId {
     
+    val GetParent = MethodId(
+        Name.IntervalClass,
+        Name.Method(List("getParent")),
+        MethodSignature(Type.Interval, List())
+    )
+    
     val GetStart = MethodId(
         Name.IntervalClass,
         Name.Method(List("getStart")),
