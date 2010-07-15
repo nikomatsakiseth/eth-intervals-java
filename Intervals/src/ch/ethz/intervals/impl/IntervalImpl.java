@@ -109,7 +109,7 @@ implements Guard, Interval, Page, RefManipulator
 	 * when it executes, or it is a blocking subinterval of
 	 * someone who will.
 	 */
-	@Override public final boolean locks(Lock lock) {
+	@Override public final boolean locks(RoLock lock) {
 		if(holdsLockItself(lock))
 			return true;
 		
@@ -123,7 +123,7 @@ implements Guard, Interval, Page, RefManipulator
 	 * True if {@code this} will hold the lock {@code lock}
 	 * when it executes.
 	 */
-	final boolean holdsLockItself(Lock lock) {
+	final boolean holdsLockItself(RoLock lock) {
 		for(LockList ll = revLocksSync(); ll != null; ll = ll.next)
 			if(ll.lockImpl == lock)
 				return true;

@@ -18,7 +18,7 @@ public interface RoInterval {
 	public RoPoint getEnd();
 	
 	/** True if this will hold {@code lock} when it executes */
-	public boolean locks(Lock lock);
+	public boolean locks(RoLock lock);
 	
 	/**
 	 * Returns true if {@code this} is a (transitive) subinterval of {@code inter} or

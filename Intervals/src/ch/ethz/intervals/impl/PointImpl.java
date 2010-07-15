@@ -148,7 +148,7 @@ implements Point, Page, RefManipulator
 		return i;
 	}
 	
-	@Override public final PointImpl bound() {
+	@Override public final PointImpl getBound() {
 		return bound;
 	}
 	

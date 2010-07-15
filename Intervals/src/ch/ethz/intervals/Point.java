@@ -11,7 +11,7 @@ public interface Point extends RoPoint {
 	
 	/** 
 	 * Returns the bound of this point. */
-	public Point bound();
+	public Point getBound();
 	
 	/** 
 	 * Returns an array {@code bounds} where 
