@@ -1,10 +1,10 @@
 package ch.ethz.intervals.guard;
 
-import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.IntervalException;
 import ch.ethz.intervals.IntervalException.DataRace;
 import ch.ethz.intervals.IntervalException.DataRace.Role;
-import ch.ethz.intervals.Point;
+import ch.ethz.intervals.RoInterval;
+import ch.ethz.intervals.RoPoint;
 import ch.ethz.intervals.util.ChunkList;
 
 /**
@@ -14,7 +14,7 @@ import ch.ethz.intervals.util.ChunkList;
  * not be written again.
  */
 public class ReadTrackingDynamicGuard
-extends WriteTrackingDynamicGuard<ChunkList<Point>> {
+extends WriteTrackingDynamicGuard<ChunkList<RoPoint>> {
 
 	public ReadTrackingDynamicGuard() {
 		super();
@@ -26,15 +26,15 @@ extends WriteTrackingDynamicGuard<ChunkList<Point>> {
 
 	@Override
 	protected void checkHappensAfterActiveReads(
-			final Point mr, 
-			final Interval inter, 
+			final RoPoint mr, 
+			final RoInterval inter, 
 			final Role interRole,
-			final ChunkList<Point> reads)
+			final ChunkList<RoPoint> reads)
 	{
-		final Point interEnd = inter.getEnd();
+		final RoPoint interEnd = inter.getEnd();
 		if(reads != null) {
-			new ChunkList.Iterator<Point>(reads) {
-				@Override public void doForEach(Point rd, int _) {
+			new ChunkList.Iterator<RoPoint>(reads) {
+				@Override public void doForEach(RoPoint rd, int _) {
 					if(rd != interEnd && !rd.hbeq(mr))
 						throw new IntervalException.DataRace(
 								ReadTrackingDynamicGuard.this, 
@@ -46,9 +46,9 @@ extends WriteTrackingDynamicGuard<ChunkList<Point>> {
 	}
 
 	@Override
-	protected ChunkList<Point> addActiveReadBoundedBy(
-			ChunkList<Point> reads, 
-			Point interEnd) 
+	protected ChunkList<RoPoint> addActiveReadBoundedBy(
+			ChunkList<RoPoint> reads, 
+			RoPoint interEnd) 
 	{
 		return ChunkList.add(reads, interEnd, ChunkList.NO_FLAGS);
 	}

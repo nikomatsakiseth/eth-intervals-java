@@ -1,8 +1,8 @@
 package ch.ethz.intervals.guard;
 
-import ch.ethz.intervals.Interval;
-import ch.ethz.intervals.Lock;
-import ch.ethz.intervals.Point;
+import ch.ethz.intervals.RoInterval;
+import ch.ethz.intervals.RoLock;
+import ch.ethz.intervals.RoPoint;
 
 /**
  * A "Guard" which permits reads or writes at any time.  
@@ -22,20 +22,20 @@ public final class RacyGuard implements Guard {
 
 	@Override
 	public RuntimeException checkLockable(
-			Interval interval,
-			Lock lock) 
+			RoInterval interval,
+			RoLock lock) 
 	{
 		return null;
 	}
 
 	@Override
-	public RuntimeException checkReadable(Point mr, Interval current) 
+	public RuntimeException checkReadable(RoPoint mr, RoInterval current) 
 	{
 		return null;
 	}
 
 	@Override
-	public RuntimeException checkWritable(Point mr, Interval inter) 
+	public RuntimeException checkWritable(RoPoint mr, RoInterval inter) 
 	{
 		return null;
 	}

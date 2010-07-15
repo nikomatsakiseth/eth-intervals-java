@@ -7,7 +7,7 @@ import ch.ethz.intervals.impl.PointImpl;
  * Mirror class representing points.  {@link Guard} implementations should
  * use this class in place of {@link PointImpl}.
  */
-public interface Point {
+public interface Point extends RoPoint {
 	
 	/** 
 	 * Returns the bound of this point. */
@@ -18,17 +18,6 @@ public interface Point {
 	 * {@code bounds[0]} == end of the root interval
 	 * code the last element is {@code this}. */
 	public Point[] getBounds();
-	
-	/**
-	 * Returns the mutual bound of {@code this} and
-	 * {@code pnt}. */
-	public Point mutualBound(Point pnt);
-	
-	public boolean isBoundedBy(Point pnt);
-	
-	public boolean hb(Point pnt);
-	
-	public boolean hbeq(Point pnt);
 	
 	/** 
 	 * Creates a dependency so that {@code this} <em>happens before</em>

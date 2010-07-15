@@ -3,7 +3,9 @@ package ch.ethz.intervals.guard;
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.Lock;
-import ch.ethz.intervals.Point;
+import ch.ethz.intervals.RoInterval;
+import ch.ethz.intervals.RoLock;
+import ch.ethz.intervals.RoPoint;
 import ch.ethz.intervals.impl.IntervalImpl;
 import ch.ethz.intervals.impl.LockImpl;
 import ch.ethz.intervals.quals.Creator;
@@ -18,7 +20,7 @@ import ch.ethz.intervals.quals.GuardedBy;
  * during an interval which holds the lock.  
  *  
  * <li>{@link IntervalImpl}: Fields guarded by an {@link IntervalImpl} {@code inter} may only be
- * written by the {@link IntervalImpl#run()} method of {@code inter}, but they
+ * written by the task of {@code inter}, but they
  * may be read by an interval which {@code inter} <em>happens before</em>.\
  * 
  * <li>{@link ReadTrackingDynamicGuard}: Fields guarded by a dynamic guard are dynamically monitored
@@ -45,7 +47,7 @@ public interface Guard {
 	/**
 	 * If fields protected by this guard are writable and/or readable by the given
 	 * interval, returns {@code null}.  Otherwise, returns an exception describing
-	 * the error that ocurred.   
+	 * the error that occurred.   
 	 * 
 	 * @param mr the most recent point that has already happened in {@code inter}.
 	 * This is normally {@code inter.start}, but if there have been synchronous
@@ -55,21 +57,21 @@ public interface Guard {
 	 * 
 	 * @returns null if there is no error, otherwise a descriptive exception
 	 */
-	public RuntimeException checkWritable(Point mr, Interval inter); 
+	public RuntimeException checkWritable(RoPoint mr, RoInterval inter); 
 
 	/** 
-	 * Same as {@link #checkWritable(Point, Interval)}, but only
+	 * Same as {@link #checkWritable(RoPoint, RoInterval)}, but only
 	 * for read access.
 	 */
-	public RuntimeException checkReadable(Point mr, Interval current);
+	public RuntimeException checkReadable(RoPoint mr, RoInterval current);
 		
 	/**
 	 * Checks whether fields protected by this guard may legally be locked
 	 * by the lock {@code lock}.  Users would never normally need to
 	 * invoke this method directly; it is invoked automatically when you
-	 * use the method {@link Intervals#addExclusiveLock(IntervalImpl, LockImpl)}.
+	 * use the method {@link Interval#addLock(Lock)}.
 	 * 
 	 * @returns null if there is no error, otherwise a descriptive exception
 	 */
-	public RuntimeException checkLockable(Interval interval, Lock lock);
+	public RuntimeException checkLockable(RoInterval interval, RoLock lock);
 }

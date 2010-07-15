@@ -1,17 +1,16 @@
 package ch.ethz.intervals.guard;
 
-import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.IntervalException;
 import ch.ethz.intervals.IntervalException.DataRace;
 import ch.ethz.intervals.IntervalException.DataRace.Role;
-import ch.ethz.intervals.Intervals;
-import ch.ethz.intervals.Point;
+import ch.ethz.intervals.RoInterval;
+import ch.ethz.intervals.RoPoint;
 
 /**
  * A version of the {@link WriteTrackingDynamicGuard} which does not track
  * individual reads, but rather their mutual bound. If more than one read
  * is active, the next writer must <i>happen after</i> their mutual
- * bound as computed by {@link Intervals#mutualBound(Point, Point)}.
+ * bound as computed by {@link RoPoint#mutualBound(RoPoint)}.
  * This checker is sufficient for most usages.
  */
 public class ReadSummarizingDynamicGuard extends WriteTrackingDynamicGuard<Object> {
@@ -25,13 +24,13 @@ public class ReadSummarizingDynamicGuard extends WriteTrackingDynamicGuard<Objec
 	}
 
 	private static class SummarizedRead {
-		public Point bound;
+		public RoPoint bound;
 
-		public SummarizedRead(Point bound) {
+		public SummarizedRead(RoPoint bound) {
 			this.bound = bound;
 		}
 		
-		public void add(Point pnt) {
+		public void add(RoPoint pnt) {
 			bound = bound.mutualBound(pnt);
 		}
 	}
@@ -39,7 +38,7 @@ public class ReadSummarizingDynamicGuard extends WriteTrackingDynamicGuard<Objec
 	@Override
 	protected Object addActiveReadBoundedBy(
 			Object reads,
-			Point interEnd) 
+			RoPoint interEnd) 
 	{
 		if(reads == null) // no active readers
 			return interEnd; // ...now exactly 1
@@ -50,7 +49,7 @@ public class ReadSummarizingDynamicGuard extends WriteTrackingDynamicGuard<Objec
 			summary = (SummarizedRead) reads;
 		} else {
 			// used to be just 1 active reader:
-			summary = new SummarizedRead((Point) reads);
+			summary = new SummarizedRead((RoPoint) reads);
 		}
 		
 		summary.add(interEnd);
@@ -59,8 +58,8 @@ public class ReadSummarizingDynamicGuard extends WriteTrackingDynamicGuard<Objec
 
 	@Override
 	protected void checkHappensAfterActiveReads(
-			Point mr,
-			Interval inter, 
+			RoPoint mr,
+			RoInterval inter, 
 			Role interRole, 
 			Object reads) 
 	{
@@ -74,7 +73,7 @@ public class ReadSummarizingDynamicGuard extends WriteTrackingDynamicGuard<Objec
 			} else {
 				// Precisely one read:
 				//    Note: if null, then the bound is effectively root.end
-				Point rd = (Point) reads;
+				RoPoint rd = (RoPoint) reads;
 				if(rd != inter.getEnd() && !rd.hbeq(mr))
 					throw new IntervalException.DataRace(this, interRole, inter, DataRace.READ, rd);
 			}

@@ -18,6 +18,9 @@ import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.Lock;
 import ch.ethz.intervals.Point;
 import ch.ethz.intervals.RethrownException;
+import ch.ethz.intervals.RoInterval;
+import ch.ethz.intervals.RoLock;
+import ch.ethz.intervals.RoPoint;
 import ch.ethz.intervals.Task;
 import ch.ethz.intervals.guard.Guard;
 import ch.ethz.intervals.impl.ThreadPool.Medallion;
@@ -44,38 +47,33 @@ implements Guard, Interval, Page, RefManipulator
 		return end.bound;
 	}
 	
-	private boolean isWritableBy(Interval inter) {
+	private boolean isWritableBy(RoInterval inter) {
 		while(inter != this && inter.isInline())
 			inter = inter.getParent();
 		return (inter == this);
 	}
 	
-	private boolean isReadableBy(Point mr, Interval inter) {
+	private boolean isReadableBy(RoPoint mr, RoInterval inter) {
 		return (isWritableBy(inter) || (mr != null && end.hbeq(mr)));
 	}
 	
 	@Override
-	public IntervalException checkLockable(Interval interval, Lock lock) {
+	public IntervalException checkLockable(RoInterval interval, RoLock lock) {
 		return new IntervalException.CannotBeLockedBy(this, lock);
 	}
 
 	@Override
-	public IntervalException checkReadable(Point mr, Interval inter) {
+	public IntervalException checkReadable(RoPoint mr, RoInterval inter) {
 		if(!isReadableBy(mr, inter))
 			return new IntervalException.MustHappenBefore(end, mr);
 		return null;
 	}
 
 	@Override
-	public IntervalException checkWritable(Point mr, Interval inter) {
+	public IntervalException checkWritable(RoPoint mr, RoInterval inter) {
 		if(!isWritableBy(inter))
 			return new IntervalException.NotSubinterval(inter, this);
 		return null;
-	}
-	
-	@Override
-	public final Task getTask() {
-		return task;
 	}
 	
 	@Override

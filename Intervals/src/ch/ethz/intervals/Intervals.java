@@ -28,7 +28,7 @@ public class Intervals {
 	/** 
 	 * Creates a new lock in the current context.
 	 * 
-	 * @see Context#lock() */
+	 * @see Context#lock(String) */
 	public static Lock lock(String name) {
 		return context().lock(name);
 	}

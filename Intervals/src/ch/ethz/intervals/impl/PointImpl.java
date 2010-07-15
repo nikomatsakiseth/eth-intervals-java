@@ -15,6 +15,7 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import ch.ethz.intervals.IntervalException;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.Point;
+import ch.ethz.intervals.RoPoint;
 import ch.ethz.intervals.util.ChunkList;
 
 import com.smallcultfollowing.lathos.Lathos;
@@ -127,7 +128,7 @@ implements Point, Page, RefManipulator
 	}
 	
 	@Override
-	public PointImpl mutualBound(Point _j) {
+	public PointImpl mutualBound(RoPoint _j) {
 		PointImpl j = (PointImpl) _j;
 		PointImpl i = this;
 		
@@ -162,7 +163,7 @@ implements Point, Page, RefManipulator
 	}
 	
 	/** True if {@code p} bounds {@code this} or one of its bounds */
-	@Override public final boolean isBoundedBy(Point p) {
+	@Override public final boolean isBoundedBy(RoPoint p) {
 		if(p instanceof PointImpl) 
 			return isBoundedBy((PointImpl)p);
 		return false; // always bounded by a genuine Point, not some funky mirror
@@ -174,12 +175,12 @@ implements Point, Page, RefManipulator
 	}
 
 	/** Returns true if {@code this} <i>happens before</i> {@code p} */
-	@Override public final boolean hb(final Point p) {
+	@Override public final boolean hb(final RoPoint p) {
 		return hb((PointImpl) p, SPECULATIVE|TEST_EDGE);
 	}
 	
 	/** Returns true if {@code this == p} or {@code this} <i>happens before</i> {@code p} */
-	@Override public boolean hbeq(final Point p) {
+	@Override public boolean hbeq(final RoPoint p) {
 		return (this == p) || hb(p);
 	}
 	

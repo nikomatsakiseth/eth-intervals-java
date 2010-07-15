@@ -1,11 +1,11 @@
 package ch.ethz.intervals.guard;
 
-import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.IntervalException;
 import ch.ethz.intervals.IntervalException.DataRace;
 import ch.ethz.intervals.IntervalException.DataRace.Role;
-import ch.ethz.intervals.Lock;
-import ch.ethz.intervals.Point;
+import ch.ethz.intervals.RoInterval;
+import ch.ethz.intervals.RoLock;
+import ch.ethz.intervals.RoPoint;
 
 /**
  * Dynamic guards monitor field accesses dynamically to guarantee 
@@ -27,17 +27,17 @@ import ch.ethz.intervals.Point;
 abstract class WriteTrackingDynamicGuard<R> implements DynamicGuard {
 	
 	final static class Owner {
-		final Point end;
-		final Lock lock;
+		final RoPoint end;
+		final RoLock lock;
 		final Owner prev;
 		
-		Owner(Point bound, Lock lock, Owner prev) {
+		Owner(RoPoint bound, RoLock lock, Owner prev) {
 			this.end = bound;
 			this.lock = lock;
 			this.prev = prev;
 		}
 		
-		public boolean boundsOrEquals(Interval inter) {
+		public boolean boundsOrEquals(RoInterval inter) {
 			return (end == null) || inter.getEnd() == end || inter.getEnd().isBoundedBy(end);
 		}
 	}
@@ -48,8 +48,8 @@ abstract class WriteTrackingDynamicGuard<R> implements DynamicGuard {
 	
 	protected static final class State<R> {
 		Owner owner;
-		Point mrw;
-		Lock mrl;
+		RoPoint mrw;
+		RoLock mrl;
 		R activeReads;
 	}
 	
@@ -57,7 +57,7 @@ abstract class WriteTrackingDynamicGuard<R> implements DynamicGuard {
 	Owner owner = WriteTrackingDynamicGuard.rootOwner;
 	
 	/** end of most recent write within current owner */
-	Point mrw = null;
+	RoPoint mrw = null;
 	
 	/** end of potentially active reads within current owner */
 	R activeReads = null;
@@ -85,7 +85,7 @@ abstract class WriteTrackingDynamicGuard<R> implements DynamicGuard {
 	 * <li> Drops any active reads which were bounded by a popped owner. 
 	 * </ul>  
 	 */
-	private State<R> walkBack(Point mr, Interval inter) {
+	private State<R> walkBack(RoPoint mr, RoInterval inter) {
 		State<R> result = new State<R>();
 		if(owner.boundsOrEquals(inter)) {
 			result.owner = owner;
@@ -110,8 +110,8 @@ abstract class WriteTrackingDynamicGuard<R> implements DynamicGuard {
 	}
 	
 	private void checkHappensAfterMostRecentWrite(
-			final Point mr,
-			final Interval inter, 
+			final RoPoint mr,
+			final RoInterval inter, 
 			final Role interRole,
 			State<R> result) 
 	{
@@ -126,7 +126,7 @@ abstract class WriteTrackingDynamicGuard<R> implements DynamicGuard {
 	 *  @code interEnd the bound of the reader to add to the read set
 	 *  
 	 *  @returns the new read set */
-	protected abstract R addActiveReadBoundedBy(R reads, Point interEnd);
+	protected abstract R addActiveReadBoundedBy(R reads, RoPoint interEnd);
 
 	/** Checks whether the given interval happens after all the reads represented
 	 *  by the read set {@code reads}.  
@@ -139,14 +139,14 @@ abstract class WriteTrackingDynamicGuard<R> implements DynamicGuard {
 	 *  @throws IntervalException if an error is detected
 	 */
 	protected abstract void checkHappensAfterActiveReads(
-			final Point mr,
-			final Interval inter, 
+			final RoPoint mr,
+			final RoInterval inter, 
 			final Role interRole,
 			final R reads);
 	
 	@Override
-	public synchronized IntervalException checkReadable(Point mr, Interval inter) {
-		Point interEnd = inter.getEnd();
+	public synchronized IntervalException checkReadable(RoPoint mr, RoInterval inter) {
+		RoPoint interEnd = inter.getEnd();
 		
 		// Read by owner, ok.
 		if(owner.end == interEnd)
@@ -167,8 +167,8 @@ abstract class WriteTrackingDynamicGuard<R> implements DynamicGuard {
 	}
 	
 	@Override
-	public synchronized IntervalException checkWritable(final Point mr, final Interval inter) {
-		Point interEnd = inter.getEnd();
+	public synchronized IntervalException checkWritable(final RoPoint mr, final RoInterval inter) {
+		RoPoint interEnd = inter.getEnd();
 		
 		// Write by owner, ok.
 		if(owner.end == interEnd)
@@ -191,10 +191,10 @@ abstract class WriteTrackingDynamicGuard<R> implements DynamicGuard {
 	}
 
 	@Override
-	public synchronized IntervalException checkLockable(Interval inter, Lock lock) {
+	public synchronized IntervalException checkLockable(RoInterval inter, RoLock lock) {
 		assert lock != null;
 		
-		Point interStart = inter.getEnd();
+		RoPoint interStart = inter.getEnd();
 		State<R> result = walkBack(interStart, inter);
 
 		try {

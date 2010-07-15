@@ -1,11 +1,8 @@
 package ch.ethz.intervals;
 
-import ch.ethz.intervals.guard.Guard;
-import ch.ethz.intervals.impl.LockImpl;
 
 /** 
- * Mirror class representing locks.  {@link Guard} implementations should
- * use this class in place of {@link LockImpl}.
+ * Mirror class representing locks.
  */
-public interface Lock {
+public interface Lock extends RoLock {
 }

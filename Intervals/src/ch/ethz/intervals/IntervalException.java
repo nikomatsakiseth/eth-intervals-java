@@ -100,10 +100,10 @@ public abstract class IntervalException extends RuntimeException {
 	}
 	
 	public static class NotSubinterval extends IntervalException {
-		public final Interval current;
-		public final Interval reqdParent;
+		public final RoInterval current;
+		public final RoInterval reqdParent;
 		
-		public NotSubinterval(Interval current, Interval reqdParent) {
+		public NotSubinterval(RoInterval current, RoInterval reqdParent) {
 			this.current = current;
 			this.reqdParent = reqdParent;
 		}
@@ -116,10 +116,10 @@ public abstract class IntervalException extends RuntimeException {
 	}
 
 	public static class LockNotHeld extends IntervalException {
-		public final Lock lock;
-		public final Interval inter;
+		public final RoLock lock;
+		public final RoInterval inter;
 
-		public LockNotHeld(Lock lock, Interval inter) {
+		public LockNotHeld(RoLock lock, RoInterval inter) {
 			this.lock = lock;
 			this.inter = inter;
 		}
@@ -132,10 +132,10 @@ public abstract class IntervalException extends RuntimeException {
 	}
 	
 	public static class MustHappenBefore extends IntervalException {
-		public final Point before;
-		public final Point after;
+		public final RoPoint before;
+		public final RoPoint after;
 
-		public MustHappenBefore(Point before, Point after) {
+		public MustHappenBefore(RoPoint before, RoPoint after) {
 			this.before = before;
 			this.after = after;
 		}
@@ -160,9 +160,9 @@ public abstract class IntervalException extends RuntimeException {
 		public static final Role READ = new NamedRole("READ");
 		public static final Role WRITE = new NamedRole("WRITE");
 		public static class LockRole extends Role {
-			public final Lock lock;
+			public final RoLock lock;
 			
-			public LockRole(Lock lock) {
+			public LockRole(RoLock lock) {
 				this.lock = lock;
 			}
 
@@ -172,17 +172,17 @@ public abstract class IntervalException extends RuntimeException {
 		public final Guard dg;      			/** Guard on which the race occurred. */
 		
 		public final Role interloperRole;  		/** Kind of access which failed. */
-		public final Interval interloper; /** Interval performing failed access. */
+		public final RoInterval interloper; 	/** Interval performing failed access. */
 
 		public final Role ownerRole;       		/** Current role of {@link #dg} */
-		public final Point ownerBound;    /** Bound when current role ends. */
+		public final RoPoint ownerBound;    	/** Bound when current role ends. */
 		
 		public DataRace(
 				Guard dg,
 				Role interloperRole,
-				Interval interloper,
+				RoInterval interloper,
 				Role ownerRole,
-				Point ownerBound) 
+				RoPoint ownerBound) 
 		{
 			this.dg = dg;
 			this.interloperRole = interloperRole;
@@ -223,9 +223,9 @@ public abstract class IntervalException extends RuntimeException {
 	
 	public static class CannotBeLockedBy extends IntervalException {
 		public final Guard guard;
-		public final Lock lock;
+		public final RoLock lock;
 
-		public CannotBeLockedBy(Guard guard, Lock lock) {
+		public CannotBeLockedBy(Guard guard, RoLock lock) {
 			this.guard = guard;
 			this.lock = lock;
 		}

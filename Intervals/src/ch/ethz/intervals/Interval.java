@@ -5,15 +5,9 @@ import ch.ethz.intervals.guard.Guard;
 /** 
  * Mirror class representing intervals.
  */
-public interface Interval extends Guard {
-	/** Returns the task that this interval will execute. */
-	public Task getTask();
-	
+public interface Interval extends RoInterval, Guard {
 	/** Returns the parent interval */
 	public Interval getParent();
-
-	/** True if this is an inline interval */
-	public boolean isInline();
 
 	/** Returns the start point */
 	public Point getStart();
@@ -33,9 +27,6 @@ public interface Interval extends Guard {
 	 *  @param lock the lock to be acquired
 	 *  @param guard the guard whose data is being protected, or {@code null} */
 	public void addLock(Lock lock, Guard guard);
-	
-	/** True if this will hold {@code lock} when it executes */
-	public boolean locks(Lock lock);
 	
 	/** Creates a new asynchronous interval child of this. */
 	public AsyncInterval newAsyncChild(Task task);
@@ -60,23 +51,4 @@ public interface Interval extends Guard {
 	 * @see InlineInterval#execute() */
 	public void cancel(boolean unconditionally);
 	
-	/**
-	 * Returns true if {@code this} is a (transitive) subinterval of {@code inter} or
-	 * if {@code inter == this}. 
-	 * 
-	 * @param inter the parent interval.  {@code null} is considered the root
-	 * interval, and therefore returns this method returns true if 
-	 * {@code inter == null}. 
-	 */
-	public boolean isSubintervalOf(Interval inter);
-
-	/**
-	 * Returns true if {@code this} is a (transitive) inline subinterval 
-	 * of {@code inter} or if {@code inter == this}.
-	 * 
-	 * @param inter the parent interval.  {@code null} is considered the root
-	 * interval.
-	 */
-	public boolean isInlineSubintervalOf(Interval inter);
-
 }
