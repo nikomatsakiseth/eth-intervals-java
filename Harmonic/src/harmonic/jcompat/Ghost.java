@@ -1,4 +1,4 @@
-package harmonic.lang;
+package harmonic.jcompat;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -8,6 +8,9 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target({})
 public @interface Ghost {
+    /** Name of the ghost member */
     public String name();
-    public Class<?> cls();
+    
+    /** Ghost can only be bound to instances of this class */
+    public Class<?> bound();
 }

@@ -17,6 +17,7 @@ import com.smallcultfollowing.lathos.Context
 import java.io.File
 
 import Ast.{Parse => out}
+import Error.CanFail
 import Util._
 
 /** A parser just for Java annotations.  The syntax for these is
@@ -135,7 +136,7 @@ object AnnParse extends StdTokenParsers with PackratParsers {
     |   ty~tcRel~ty             ^^ { case l~rel~r => rel.toFact(l, r) }
     )
 
-    private[this] def parse[R](prod: PackratParser[R])(text: String): Either[harmonic.compiler.Error, R] = {
+    private[this] def parse[R](prod: PackratParser[R])(text: String): CanFail[R] = {
         val tokens = new lexical.Scanner(text)
         phrase(prod)(tokens) match {
             case n: NoSuccess => Left(harmonic.compiler.Error.ParseError(n.msg))
@@ -143,6 +144,7 @@ object AnnParse extends StdTokenParsers with PackratParsers {
         }
     }
     
+    def parsePath = parse(path) _    
     def parseFact = parse(fact) _    
 }
 

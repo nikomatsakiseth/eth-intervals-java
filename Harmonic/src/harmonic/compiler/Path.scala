@@ -50,5 +50,6 @@ object Path {
     val Method = Name.MethodLocal.toPath
     val Final = Name.FinalLocal.toPath
     val ThisInit = This / Name.Init
+    val ThisWr = This / Name.Wr
 
 }

@@ -275,7 +275,10 @@ extends Resolve(global, compUnit)
         })
 
         def resolveAnnotation(ann: in.Annotation) = withPosOf(ann, 
-            out.Annotation(resolveName(ann.name))
+            out.Annotation(
+                resolveName(ann.name),
+                ann.args.map(resolvePathToPath)
+            )
         )
 
         def resolveMember(className: Name.Class, mem: in.MemberDecl): out.MemberDecl = withPosOf(mem, {
@@ -352,7 +355,7 @@ extends Resolve(global, compUnit)
         case class ResolvedToList(names: List[String]) extends ResolvePathResult
         sealed abstract class ResolvePathFinalResult extends ResolvePathResult
         case class ResolvedToClass(className: Name.Class) extends ResolvePathFinalResult
-        case class ResolvedToPath(path: out.PathNode) extends ResolvePathFinalResult
+        case class ResolvedToPath(path: out.AnyPathNode) extends ResolvePathFinalResult
         
         object ResolvePathResult {
             def apply(names: List[String]) = {
@@ -364,13 +367,13 @@ extends Resolve(global, compUnit)
             }
         }
         
-        def withPosOfRes(path: in.PathNode, res: ResolvePathResult) = res match {
+        def withPosOfRes(path: in.AnyPathNode, res: ResolvePathResult) = res match {
             case ResolvedToList(_) => res
             case ResolvedToClass(_) => res
             case ResolvedToPath(outPath) => ResolvedToPath(withPosOf(path, outPath))
         }
         
-        def resolvePathToAny(path: in.PathNode): ResolvePathResult = withPosOfRes(path, {
+        def resolvePathToAny(path: in.AnyPathNode): ResolvePathResult = withPosOfRes(path, {
             def thisField(memberName: Name.Member) = {
                 out.PathDot(
                     out.PathBase(Ast.LocalName(Name.ThisLocal), ()),
@@ -471,7 +474,7 @@ extends Resolve(global, compUnit)
             }
         })
         
-        def resolvePathToFinal(path: in.PathNode): ResolvePathFinalResult = {
+        def resolvePathToFinal(path: in.AnyPathNode): ResolvePathFinalResult = {
             resolvePathToAny(path) match {
                 case ResolvedToList(names) => ResolvedToClass(resolveToClassOrObject(path.pos, names))
                 case ResolvedToClass(className) => ResolvedToClass(className)
@@ -479,7 +482,7 @@ extends Resolve(global, compUnit)
             }
         }
         
-        def resolvePathToPath(path: in.PathNode): out.PathNode = withPosOf(path, {
+        def resolvePathToPath(path: in.AnyPathNode): out.AnyPathNode = withPosOf(path, {
             resolvePathToAny(path) match {
                 case ResolvedToList(names) => {
                     Error.NoSuchVar(names.last).report(global, path.pos)
@@ -497,7 +500,7 @@ extends Resolve(global, compUnit)
             }
         })
         
-        def resolvePathToClassName(path: in.PathNode): Name.Class = {
+        def resolvePathToClassName(path: in.AnyPathNode): Name.Class = {
             resolvePathToFinal(path) match {
                 case ResolvedToClass(className) => {
                     className                    
@@ -679,7 +682,7 @@ extends Resolve(global, compUnit)
             case tmpl: in.Block => resolveBlock(tmpl)
             case in.Cast(v, t) => out.Cast(resolveExpr(v), resolveTypeRef(t))
             case expr: in.Literal => resolveLiteral(expr)
-            case expr: in.PathNode => resolvePathToPath(expr)
+            case expr: in.AnyPathNode => resolvePathToPath(expr)
             case expr: in.Field => resolveField(expr)
             case expr: in.MethodCall => resolveMethodCall(expr)
             case expr: in.NewCtor => resolveNewCtor(expr)

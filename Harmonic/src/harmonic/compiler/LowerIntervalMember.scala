@@ -34,9 +34,12 @@ class LowerIntervalMember(
             modifiers = Modifier.forResolvedAnnotations(inIntervalDecl.annotations),
             name      = inIntervalDecl.name.name,
             ty        = Type.AsyncInterval,
-            kind      = FieldKind.Harmonic
+            kind      = FieldKind.Harmonic,
+            elaborate = csym.create // i.e., the current interval
         )        
     }
+    
+    sym.GuardPath.v = Path.Final
     
     override def toOptFieldSymbol(memName: Name.Member): Option[VarSymbol.Field] = {
         if(inIntervalDecl.name.name.is(memName)) Some(sym)

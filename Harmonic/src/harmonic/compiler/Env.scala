@@ -54,6 +54,8 @@ object Env {
         global: Global,
         locals: Map[Name.LocalVar, VarSymbol.Local]
     ) {
+        implicit val implicitGlobal = global
+        
         def plusLocalVar(sym: VarSymbol.Local) = 
             copy(locals = locals + (sym.name -> sym))
 
@@ -70,6 +72,28 @@ object Env {
                     SPath.Tuple(List()) // Have to give back SOMETHING.                    
                 }
             }
+        }
+        
+        def hasClass(
+            spath: SPath, 
+            className: Name.Class,
+            upperBounds: (Type => Set[Type])
+        ) = {
+            val csym = global.csym(className)
+            spath match {
+                case SPath.Ghost(_, gsym) => global.csym(gsym.bound).isSubclass(csym)
+                case spath: SPath.Typed => {
+                    spath.ty match {
+                        case Type.Class(bnd, _) => global.csym(bnd).isSubclass(csym)
+                        case ty => {
+                            upperBounds(ty).exists {
+                                case Type.Class(bnd, _) => global.csym(bnd).isSubclass(csym)
+                                case _ => false
+                            }
+                        }
+                    }
+                }
+            }            
         }
         
         def symPath(path: Path.Ref): SPath = Lathos.context.indent(this, ".symPath(", path, ")") {
@@ -309,18 +333,22 @@ case class Env(
         }
     }
 
-    private[this] def lookupField(
+    private[this] def lookupFieldLike(
         ownerTy: Type, 
         uName: Name.UnloweredMember
-    ): CanFail[VarSymbol.Field] = {
-        def findSym(memberVar: Name.Member) = {
-            val memberCsym = global.csym(memberVar.className)
-            memberCsym.fieldNamed(memberVar).orErr(Error.NoSuchMember(ownerTy, uName))                
+    ): CanFail[FieldLikeSymbol] = {
+        def findFieldSym(memName: Name.Member) = {
+            global.fieldSymbol(memName).orErr(Error.NoSuchMember(ownerTy, uName))
+        }
+
+        def findGhostSym(memName: Name.Member) = {
+            global.ghostSymbol(memName).orErr(Error.NoSuchMember(ownerTy, uName))
         }
         
         lookupMember(ownerTy, uName) {
-            case SymTab.InstanceField(memberVar) => findSym(memberVar)
-            case SymTab.StaticField(memberVar) => findSym(memberVar)
+            case SymTab.InstanceField(memName) => findFieldSym(memName)
+            case SymTab.StaticField(memName) => findFieldSym(memName)
+            case SymTab.Ghost(memName) => findGhostSym(memName)
             case entry => Left(Error.NotField(entry.name))
         }
     }
@@ -328,35 +356,24 @@ case class Env(
     def lookupBean(
         ownerTy: Type, 
         uName: Name.UnloweredMember
-    ): CanFail[Either[VarSymbol.Field, MethodSymbol]] = {
-        (lookupField(ownerTy, uName), uName) match {
+    ): CanFail[BeanSymbol] = {
+        (lookupFieldLike(ownerTy, uName), uName) match {
             // If no field `foo` is found, try to find a method `getFoo`.
             case (Left(err @ Error.NoSuchMember(_, _)), Name.ClasslessMember(text)) => {
                 val prop = "get%c%s".format(text.charAt(0).toUpper, text.substring(1))
                 val methodName = Name.Method(List(prop))
                 lookupInstanceMethods(ownerTy, methodName) match {
                     case Nil => Left(err)
-                    case msym :: _ => Right(Right(msym))
+                    case msym :: _ => Right(msym)
                 }
             }
             
             case (Left(err), _) => Left(err)
             
-            case (Right(fld), _) => Right(Left(fld))
+            case (Right(fld), _) => Right(fld)
         }
     }
         
-    private[this] def lookupFieldOrError(
-        ownerTy: Type,  
-        name: Name.UnloweredMember,
-        optExpTy: Option[Type]
-    ): VarSymbol.Field = {
-        lookupField(ownerTy, name) match {
-            case Left(_) => VarSymbol.errorField(name.inDefaultClass(Name.ObjectClass), optExpTy)
-            case Right(sym) => sym
-        }
-    }    
-    
     private[this] def lookupInstanceMethodsDefinedOnClass(
         className: Name.Class,
         methodName: Name.Method
@@ -778,6 +795,10 @@ case class Env(
         )
 
         plusLocalVar(fresh).isAssignable(fresh.toSPath, ty2)
+    }
+
+    def hasClass(spath: SPath, className: Name.Class): Boolean = {
+        xtra.hasClass(spath, className, upperBounds)
     }
     
     /** A path `p` is assignable to a lvalue of type `ty` if 

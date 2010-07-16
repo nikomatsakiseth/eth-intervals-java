@@ -175,10 +175,10 @@ implements Guard, Interval, Page, RefManipulator
 	// necessarily indicative of a *design constraint* so much as intended for 
 	// documentation of where a function is used.
 	
-	final IntervalImpl parent;
-	final PointImpl start;
-	final PointImpl end;
-	final Task task;
+	public final IntervalImpl parent;
+	public final PointImpl start;
+	public final PointImpl end;
+	public final Task task;
 	
 	/* State diagram for intervals:
 	 * 

@@ -50,7 +50,8 @@ abstract class Ast {
     type Stmt <: ParseStmt  
     type Expr <: ParseTlExpr
     type Lvalue <: Node
-    type PathNode <: Node
+    type TyPathNode <: Node   // must be a typed path
+    type AnyPathNode <: Node  // possibly refers to a ghost
     
     type NE <: Node
     type EA <: Node
@@ -224,7 +225,7 @@ abstract class Ast {
     case class IntervalDecl(
         annotations: List[Annotation],
         name: MND,
-        parent: PathNode,
+        parent: TyPathNode,
         body: Body
     ) extends MemberDecl {
         def ty = voidTy
@@ -284,7 +285,7 @@ abstract class Ast {
     }
     
     case class PathRequirement(
-        left: PathNode, rel: PcRel, right: PathNode
+        left: AnyPathNode, rel: PcRel, right: AnyPathNode
     ) extends Requirement {
         override def toString = "%s %s %s".format(left, rel, right)
         
@@ -335,9 +336,9 @@ abstract class Ast {
     
     case class RelDecl(
         annotations: List[Annotation],        
-        left: PathNode, 
+        left: TyPathNode, 
         kind: PcRel,
-        right: PathNode
+        right: TyPathNode
     ) extends MemberDecl {
         override def toString = "%s %s %s".format(left, kind, right)
         override def print(out: PrettyPrinter) {
@@ -351,13 +352,17 @@ abstract class Ast {
     }
     
     case class Annotation(
-        name: CN
+        name: CN,
+        args: List[AnyPathNode]
     ) extends Node {
-        override def toString = "@%s".format(name)
+        override def toString = "@%s(%s)".format(name, args.mkString(", "))
         
         override def print(out: PrettyPrinter) {
             out.newl("@")
             name.print(out)
+            out.addl("(")
+            printSep(out, args, ", ")
+            out.addl(")")
         }
     }
     
@@ -390,7 +395,7 @@ abstract class Ast {
         override def toString = "(%s)".format(args.mkString(", "))
         //def ty: TyTuple = tupleTy(args.map(_.ty))
     }
-    case class PathExtendsArg(path: PathNode) extends ExtendsArg {
+    case class PathExtendsArg(path: TyPathNode) extends ExtendsArg {
         override def toString = path.toString
     }
         
@@ -543,11 +548,11 @@ abstract class Ast {
     
     sealed abstract trait ParseTypeRef extends OptionalParseTypeRef
     
-    case class PathType(path: PathNode) extends ParseTypeRef {
+    case class PathType(path: AnyPathNode) extends ParseTypeRef {
         override def toString = path.toString        
     }
     
-    case class ConstrainedType(path: PathNode, typeArgs: List[TypeArg]) extends ParseTypeRef {
+    case class ConstrainedType(path: AnyPathNode, typeArgs: List[TypeArg]) extends ParseTypeRef {
         override def toString = (
             typeArgs match {
                 case List() => path.toString
@@ -560,7 +565,7 @@ abstract class Ast {
     
     sealed abstract trait ResolveTypeRef extends OptionalResolveTypeRef
     
-    case class TypeVar(path: PathNode, typeVar: MN) extends ResolveTypeRef {
+    case class TypeVar(path: AnyPathNode, typeVar: MN) extends ResolveTypeRef {
         override def toString = "%s.%s".format(path, typeVar)
     }
     
@@ -596,7 +601,7 @@ abstract class Ast {
         def forGhost(aName: VarName) = None
     }
     
-    case class PathTypeArg(name: MN, rel: PcRel, path: PathNode) extends TypeArg {
+    case class PathTypeArg(name: MN, rel: PcRel, path: AnyPathNode) extends TypeArg {
         override def toString = "%s %s %s".format(name, rel, path)
         
         def forTypeVar(aName: VarName) = None
@@ -619,7 +624,7 @@ abstract class Ast {
         def ty = vsymTy(sym)
     }
     
-    case class PathBaseCall(className: Name.Class, name: Name.Method, args: List[PathNode], ty: Ty) extends ParsePath {
+    case class PathBaseCall(className: Name.Class, name: Name.Method, args: List[AnyPathNode], ty: Ty) extends ParsePath {
         override def toString = {
             className.toString + "." + name.parts.zip(args).map({ case (name, arg) =>
                 "%s(%s)".format(name, arg)
@@ -627,17 +632,21 @@ abstract class Ast {
         }
     }
     
-    case class PathDot(owner: PathNode, name: MN, ty: Ty) extends ParsePath {
+    case class PathDot(owner: AnyPathNode, name: MN, ty: Ty) extends ParsePath {
         override def toString = owner + "." + name
     }
 
     // Could be a static or instance call.
-    case class PathCall(owner: PathNode, name: Name.Method, args: List[PathNode], ty: Ty) extends ParsePath {
+    case class PathCall(owner: AnyPathNode, name: Name.Method, args: List[AnyPathNode], ty: Ty) extends ParsePath {
         override def toString = {
             owner.toString + "." + name.parts.zip(args).map({ case (name, arg) =>
                 "%s(%s)".format(name, arg)
             }).mkString(" ")
         }
+    }
+    
+    case class AnyPath(path: SPath) extends Node {
+        override def toString = path.toString
     }
     
     case class TypedPath(path: SPath.Typed) extends TypedNode with LowerTlExpr {
@@ -1014,7 +1023,8 @@ object Ast {
         type Stmt = ParseStmt
         type Expr = ParseTlExpr
         type Lvalue = TreeLvalue
-        type PathNode = ParsePath
+        type AnyPathNode = ParsePath
+        type TyPathNode = ParsePath
         type Rcvr = ParseRcvr
         type Owner = ParseOwner
         type CSym = Unit
@@ -1055,7 +1065,8 @@ object Ast {
         type Stmt = ResolveStmt
         type Expr = ResolveTlExpr
         type Lvalue = TreeLvalue
-        type PathNode = ParsePath
+        type AnyPathNode = ParsePath
+        type TyPathNode = ParsePath
         type Rcvr = ResolveRcvr
         type Owner = ResolveOwner
         type CSym = Unit
@@ -1093,12 +1104,13 @@ object Ast {
         type VN = VarName
         type OTR = TypeRef
         type TR = TypeRef
-        type NE = PathNode
+        type NE = TypedPath
         type EA = TypedPath
         type Stmt = LowerStmt
         type Expr = LowerTlExpr
         type Lvalue = ElemLvalue
-        type PathNode = TypedPath
+        type AnyPathNode = AnyPath
+        type TyPathNode = TypedPath
         type Rcvr = Super
         type Owner = ResolveOwner // No longer relevant.
         type CSym = ClassSymbol
@@ -1137,11 +1149,18 @@ object Ast {
             implicit def extendedTypedPath(path: SPath.Typed): ExtendedTypedPath = 
                 ExtendedTypedPath(path)
                 
+            case class ExtendedAnyPath(path: SPath) {
+                def toApNode: AnyPath = AnyPath(path)
+                def toApNodeWithPosOf(n: Node): AnyPath = withPosOf(n, toApNode)
+            }
+            implicit def extendedAnyPath(path: SPath): ExtendedAnyPath = 
+                ExtendedAnyPath(path)
+                
             case class ExtendedRequirement(req: Requirement) {
                 def toFact = req match {
                     case TypeRequirement(TypeRef(l), rel, TypeRef(r)) => 
                         rel.toFact(l, r)
-                    case PathRequirement(TypedPath(l), rel, TypedPath(r)) => 
+                    case PathRequirement(AnyPath(l), rel, AnyPath(r)) => 
                         rel.toFact(l.toPath, r.toPath)
                 }
             }

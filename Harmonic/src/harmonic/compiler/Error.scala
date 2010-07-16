@@ -38,6 +38,7 @@ object Error {
     case class DoesNotEnsure(fact: inference.Fact) extends ErrorProduct
     case class NoReturnHere() extends ErrorProduct
     case class MustBeSubtype(subTy: Type, supTy: Type) extends ErrorProduct
+    case class MustHaveClass(path: SPath, expClassName: Name.Class) extends ErrorProduct
     case class MustHaveType(path: SPath.Typed, expTy: Type) extends ErrorProduct {
         override def args = List(path.toString, path.ty.toString, expTy.toString)
     }

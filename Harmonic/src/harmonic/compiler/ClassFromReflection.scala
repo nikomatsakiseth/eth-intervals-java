@@ -9,8 +9,11 @@ import scala.collection.mutable
 
 import com.smallcultfollowing.lathos.Lathos
 
-import harmonic.lang.Ghosts
-import harmonic.lang.Ghost
+import harmonic.jcompat.Ghosts
+import harmonic.jcompat.Ghost
+
+import harmonic.lang.Mutable
+import harmonic.lang.Requires
 
 import Util._
 
@@ -93,7 +96,7 @@ class ClassFromReflection(
         },
         
         allFieldSymbols = List(
-            cls.getDeclaredFields.filter(isSuitable).map(fieldSymbol)
+            cls.getDeclaredFields.filter(isSuitable).map(fieldSymbol(inter))
         ).flatten,
         
         allIntervalSymbols = Nil,
@@ -180,21 +183,38 @@ class ClassFromReflection(
         case _ => throw new RuntimeException("Not here")
     }
     
-    private[this] def fieldSymbol(fld: reflect.Field) = {
-        new VarSymbol.Field(
+    private[this] def fieldSymbol(inter: Interval)(fld: reflect.Field) = {
+        val fsym = new VarSymbol.Field(
             pos       = pos,
             modifiers = Modifier.forMember(fld),
             name      = Name.Member(name, fld.getName),
             ty        = typeRef(fld.getGenericType),
-            kind      = FieldKind.Java(cls, fld.getName, fld.getType)
-        )        
+            kind      = FieldKind.Java(cls, fld.getName, fld.getType),
+            elaborate = inter
+        )
+        
+        fsym.GuardPath.v = fld.getAnnotation(classOf[Mutable]) match {
+            case null => Path.ThisWr
+            case path => AnnParse.parsePath(path.value) match {
+                case Left(err) => {
+                    err.report(global, pos)
+                    Path.ThisWr
+                }
+                
+                case Right(path) => {
+                    path
+                }
+            }
+        }
+        
+        fsym
     }
     
     private[this] def ghostSymbol(ghost: Ghost) = {
         new GhostSymbol(
             pos,
             Name.Member(name, ghost.name),
-            Name.Class(ghost.cls)
+            Name.Class(ghost.bound)
         )
     }
     

@@ -44,7 +44,8 @@ class LowerFieldMember(
                 modifiers = Modifier.forResolvedAnnotations(inFieldDecl.annotations),
                 name      = inFieldDecl.name.name,
                 ty        = ty,
-                kind      = FieldKind.Harmonic
+                kind      = FieldKind.Harmonic,
+                elaborate = symElaborate
             )            
         }
         
@@ -83,9 +84,13 @@ class LowerFieldMember(
             parentPage = csym.classPage,
             name = "%s.%s:symElaborate".format(csym.name, inFieldDecl.name),
             during = List(csym.members),
-            after = List(symCreate.getEnd)
+            after = List(symCreate.getEnd, memberLower.getEnd)
         ) { inter =>
-            
+            // Obtain guard path from @Mutable annotation:
+            sym.GuardPath.v = memberDecl.annotations.find(_.name.is(Name.MutableClass)) match {
+                case Some(out.Annotation(_, List(arg))) => arg.path.toPath
+                case _ => Path.Final
+            }
         }
     }
     

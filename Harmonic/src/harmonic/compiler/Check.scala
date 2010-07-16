@@ -38,6 +38,12 @@ case class Check(global: Global) {
                 }
             }
             
+            def checkHasClass(path: SPath, className: Name.Class): Unit = {
+                if(!env.hasClass(path, className)) {
+                    Error.MustHaveClass(path, className).report(global, node.pos)
+                }
+            }
+            
             def checkAssignable(path: SPath.Typed, ty: Type): Unit = {
                 if(!env.isAssignable(path, ty)) {
                     Error.MustHaveType(path, ty).report(global, node.pos)
@@ -55,7 +61,7 @@ case class Check(global: Global) {
                 checkAssignable(pair._2, pair._1)
             }
             
-            def checkPath(path: SPath.Typed): Unit = {
+            def checkPath(path: SPath): Unit = {
                 path match {
                     case SPath.Local(sym) => {
                         // TODO Check that guard is readable.
@@ -81,7 +87,15 @@ case class Check(global: Global) {
                     case SPath.Tuple(paths) => {
                         paths.foreach(checkPath)
                     }
+                    case SPath.Ghost(base, gsym) => {
+                        checkPath(base)
+                    }
                 }
+            }
+
+            def checkPathAndClass(path: SPath, cls: Name.Class): Unit = {
+                checkPath(path)
+                checkHasClass(path, cls)
             }
             
             def checkPathAndType(path: SPath.Typed, ty: Type): Unit = {
@@ -91,8 +105,8 @@ case class Check(global: Global) {
             
         }
         
-        def checkPath(path: in.TypedPath): Unit = {
-            At(path).checkPath(path.path)
+        def checkPathAndClass(path: in.AnyPath, className: Name.Class): Unit = {
+            At(path).checkPathAndClass(path.path, className)
         }
 
         def checkPathAndType(path: in.TypedPath, ty: Type): Unit = {
@@ -103,14 +117,9 @@ case class Check(global: Global) {
 
         def checkReq(req: in.Requirement) = {
             req match {
-                case in.PathRequirement(left, PcEq, right) => {
-                    checkPath(left)
-                    checkPath(right)                    
-                }
-                
-                case in.PathRequirement(left, _, right) => {
-                    checkPathAndType(left, Type.Guard)
-                    checkPathAndType(right, Type.Interval)
+                case in.PathRequirement(left, rel, right) => {
+                    checkPathAndClass(left, rel.classes._1)
+                    checkPathAndClass(right, rel.classes._2)                    
                 }
             }
         }

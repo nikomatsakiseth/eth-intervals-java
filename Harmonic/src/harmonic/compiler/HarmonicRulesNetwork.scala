@@ -554,21 +554,11 @@ extends Network[Env.Xtra](server)
     
         def trigger(recurse: Recurse[Env.Xtra], fact: K.HasClass): Boolean = {
             val global = recurse.xtra.global
-            val right = global.csym(fact.right)
-            recurse.xtra.symPath(fact.left) match {
-                case SPath.Ghost(_, gsym) => global.csym(gsym.bound).isSubclass(right)
-                case spath: SPath.Typed => {
-                    spath.ty match {
-                        case Type.Class(bnd, _) => global.csym(bnd).isSubclass(right)
-                        case ty => {
-                            recurse.queryRGivenL(ty, classOf[K.TypeUb]).exists {
-                                case Type.Class(bnd, _) => global.csym(bnd).isSubclass(right)
-                                case _ => false
-                            }
-                        }
-                    }
-                }
-            }
+            recurse.xtra.hasClass(
+                recurse.xtra.symPath(fact.left),
+                fact.right,
+                recurse.queryRGivenL(_, classOf[K.TypeUb])
+            )
         }
     })
     
