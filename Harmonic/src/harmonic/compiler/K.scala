@@ -107,9 +107,6 @@ object K {
 
     // True if the object to which `path` refers will be an instance of `cls`.
     // This is computable even for ghosts, unlike HasType.
-    final case class HasClass(path: Path.Ref, cls: Name.Class) extends Fact.Binary[Path.Ref, Name.Class] {
-        def left = path
-        def right = cls
-    }
+    final case class HasClass(path: Path.Ref, cls: Name.Class) extends Fact.Backward 
     
 }

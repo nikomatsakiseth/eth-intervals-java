@@ -79,6 +79,7 @@ case class ByteCode(global: Global) {
     val asmStringType = asm.Type.getType(classOf[java.lang.String])
     val asmIntervalsType = asm.Type.getType(classOf[ch.ethz.intervals.Intervals])
     val asmIntervalType = asm.Type.getType(classOf[ch.ethz.intervals.Interval])
+    val asmIntervalImplType = asm.Type.getType(classOf[ch.ethz.intervals.impl.IntervalImpl])
     val asmAsyncIntervalType = asm.Type.getType(classOf[ch.ethz.intervals.AsyncInterval])
     val asmInlineIntervalType = asm.Type.getType(classOf[ch.ethz.intervals.InlineInterval])
     val asmPointType = asm.Type.getType(classOf[ch.ethz.intervals.Point])
@@ -1422,7 +1423,7 @@ case class ByteCode(global: Global) {
         }
         
         /** Here we emit code like: 
-          *     t = (FooTask) inter.getTask()
+          *     t = (FooTask) ((IntervalImpl)inter).task;
           *     <initialize fields of t>
           *     inter.execute()
           * 
@@ -1435,16 +1436,14 @@ case class ByteCode(global: Global) {
             accessMap.pushSym(decl.vsym, mvis)
             
             mvis.visitInsn(O.DUP)
-            mvis.visitMethodInsn(
-                O.INVOKEINTERFACE, 
-                asmIntervalType.getInternalName, 
-                "getTask", 
-                getMethodDescriptor(asmTaskType, Array())
+            mvis.visitTypeInsn(O.CHECKCAST, asmIntervalImplType.getInternalName)
+            mvis.visitFieldInsn(
+                O.GETFIELD,
+                asmIntervalImplType.getInternalName,
+                "task",
+                asmTaskType.getDescriptor
             )
-            mvis.visitTypeInsn(
-                O.CHECKCAST,
-                taskClassName.internalName
-            )
+            mvis.visitTypeInsn(O.CHECKCAST, taskClassName.internalName)
             deriveIntervalTask(taskClassName, decl.name.toString, decl.body)
             mvis.visitInsn(O.POP)
             
