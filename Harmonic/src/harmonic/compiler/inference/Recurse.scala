@@ -11,15 +11,15 @@ trait Recurse[X] {
         optArgs: Option[Any]*
     ): Set[F]
     
-    def queryRGivenL[L, R, F <: Fact.Binary[L, R]](
-        kind: Class[F], 
-        left: L
+    def queryRGivenL[L, R](
+        left: L,
+        kind: Class[_ <: Fact.Binary[L, R]]
     ): Set[R] = {
         query(kind, Some(left)).map(_.right)
     }
 
-    def queryLGivenR[L, R, F <: Fact.Binary[L, R]](
-        kind: Class[F], 
+    def queryLGivenR[L, R](
+        kind: Class[_ <: Fact.Binary[L, R]], 
         right: R
     ): Set[L] = {
         query(kind, None, Some(right)).map(_.left)

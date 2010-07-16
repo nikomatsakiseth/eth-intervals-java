@@ -40,6 +40,10 @@ object K {
         def right = inter
     }
     
+    object GuardInter {
+        def unapply(fact: GuardInter) = Some(fact.guard, fact.inter)
+    }
+    
     final case class PathEq(left: Path.Ref, right: Path.Ref) extends ForwardPaths {
         def withPaths(left: Path.Ref, right: Path.Ref) = PathEq(left, right)        
     }
@@ -94,9 +98,18 @@ object K {
     
     // ___ Mixed paths and types ____________________________________________
     
+    // True if the path is (a) re-ified and (b) the object at runtime will have type `ty`.
+    // Note that this fact is never true if `path` refers to a ghost.
     final case class HasType(path: Path.Ref, ty: Type) extends Fact.Binary[Path.Ref, Type] {
         def left = path
         def right = ty
+    }
+
+    // True if the object to which `path` refers will be an instance of `cls`.
+    // This is computable even for ghosts, unlike HasType.
+    final case class HasClass(path: Path.Ref, cls: Name.Class) extends Fact.Binary[Path.Ref, Name.Class] {
+        def left = path
+        def right = cls
     }
     
 }

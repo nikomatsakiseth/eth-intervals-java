@@ -3,7 +3,7 @@ package harmonic.compiler.mock
 import ch.ethz.intervals._
 import harmonic.compiler._
 
-abstract class MockInterval(
+class MockRoInterval(
     val path: Path.Ref,
     menv: MockEnv
 ) extends MockObject with RoInterval {
@@ -29,7 +29,7 @@ abstract class MockInterval(
     }
     
     override def isInline: Boolean = {
-        !menv.queryRGivenL(classOf[K.InlineSubOf], path).isEmpty
+        !menv.queryRGivenL(path, classOf[K.InlineSubOf]).isEmpty
     }
 
     override def isSubintervalOf(inter: Interval): Boolean = {

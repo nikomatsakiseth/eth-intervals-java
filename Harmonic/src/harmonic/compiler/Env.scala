@@ -206,12 +206,12 @@ case class Env(
     def ensuresFinal(guard: Path.Ref, inter: Path.Ref) = factHolds(K.EnsuresFinal(guard, inter))
     def pathUpperBounds(path: Path.Ref) = {
         Lathos.context.indent(this, ".pathUpperBounds(", path, ")? Consulting ", factSet) {
-            factSet.queryRGivenL(classOf[K.HasType], path)
+            factSet.queryRGivenL(path, classOf[K.HasType])
         }
     }
     def upperBounds(ty: Type) = {
         Lathos.context.indent(this, ".upperBounds(", ty, ")? Consulting ", factSet) {
-            factSet.queryRGivenL(classOf[K.TypeUb], ty)
+            factSet.queryRGivenL(ty, classOf[K.TypeUb])
         }
     }
     def lowerBounds(ty: Type) = {

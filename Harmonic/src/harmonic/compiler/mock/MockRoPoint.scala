@@ -5,7 +5,6 @@ import harmonic.compiler._
 
 class MockRoPoint(
     val path: Path.Ref,
-    //bnd: MockRoPoint,
     menv: MockEnv
 ) extends MockObject with RoPoint {
     

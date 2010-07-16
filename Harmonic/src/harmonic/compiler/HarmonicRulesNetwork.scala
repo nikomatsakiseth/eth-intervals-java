@@ -9,6 +9,8 @@ import harmonic.compiler.inference.Fact
 import harmonic.compiler.inference.Rule
 import harmonic.compiler.inference.Recurse
 
+import ch.ethz.intervals
+
 import Util._
 
 /** Defines the inference rules for the Harmonic type system. 
@@ -168,8 +170,8 @@ extends Network[Env.Xtra](server)
         
         override def canInfer(recurse: Recurse[Env.Xtra], fact: Fact.Backward): Boolean = {
             val f @ K.Paths(p, q) = fact
-            val eqToPs = recurse.queryRGivenL[Path.Ref, Path.Ref, K.PathEq](classOf[K.PathEq], p)
-            val eqToQs = recurse.queryLGivenR[Path.Ref, Path.Ref, K.PathEq](classOf[K.PathEq], q)
+            val eqToPs = recurse.queryRGivenL(p, classOf[K.PathEq])
+            val eqToQs = recurse.queryLGivenR(classOf[K.PathEq], q)
             (eqToPs cross eqToQs).exists { case (eqToP, eqToQ) =>
                 recurse.contains(f.withPaths(eqToP, eqToQ))
             }
@@ -463,7 +465,7 @@ extends Network[Env.Xtra](server)
         }
     })
 
-    // ______ permitsWr, permitsRd, ensuresFinal ____________________________
+    // ______ permitsWr, permitsRd, ensuresFinal (built-in) _________________
 
     /*
     g permitsWr i
@@ -504,10 +506,7 @@ extends Network[Env.Xtra](server)
     
         def trigger(recurse: Recurse[Env.Xtra], fact: K.PermitsRd): Boolean = {
             val K.PermitsRd(g, i) = fact
-            recurse.queryRGivenL[Path.Ref, Path.Ref, K.SubOf](
-                classOf[K.SubOf], 
-                i
-            ).exists { j =>
+            recurse.queryRGivenL(i, classOf[K.SubOf]).exists { j =>
                 recurse.contains(K.PermitsRd(g, j))                
             }
         }
@@ -524,10 +523,7 @@ extends Network[Env.Xtra](server)
     
         def trigger(recurse: Recurse[Env.Xtra], fact: K.PermitsWr): Boolean = {
             val K.PermitsWr(g, i) = fact
-            recurse.queryRGivenL[Path.Ref, Path.Ref, K.InlineSubOf](
-                classOf[K.InlineSubOf], 
-                i
-            ).exists { j => 
+            recurse.queryRGivenL(i, classOf[K.InlineSubOf]).exists { j => 
                 recurse.contains(K.PermitsWr(g, j))
             }
         }
@@ -544,4 +540,66 @@ extends Network[Env.Xtra](server)
             fact.left.is(Path.Final)
         }
     })
+
+    /*
+    --------------------
+    path hasClass c
+    */
+    addRule(new Rule.ReflectiveBackward[Env.Xtra]() {
+        override def toString = "Path-Has-Class"
+    
+        // TODO-- to make this more efficient we could add a bunch
+        //        of special cases and avoid the need to fully compute
+        //        symPath
+    
+        def trigger(recurse: Recurse[Env.Xtra], fact: K.HasClass): Boolean = {
+            val global = recurse.xtra.global
+            val right = global.csym(fact.right)
+            recurse.xtra.symPath(fact.left) match {
+                case SPath.Ghost(_, gsym) => global.csym(gsym.bound).isSubclass(right)
+                case spath: SPath.Typed => {
+                    spath.ty match {
+                        case Type.Class(bnd, _) => global.csym(bnd).isSubclass(right)
+                        case ty => {
+                            recurse.queryRGivenL(ty, classOf[K.TypeUb]).exists {
+                                case Type.Class(bnd, _) => global.csym(bnd).isSubclass(right)
+                                case _ => false
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    })
+    
+    // ______ permitsWr, permitsRd, ensuresFinal (mock) _____________________
+    
+    class MockRule(
+        val outputKind: Fact.BackwardKind,
+        val eval: ((intervals.guard.Guard, intervals.RoInterval) => RuntimeException)
+    ) extends Rule.Backward[Env.Xtra] {
+        override def toString = "Mock-" + outputKind.toString
+        
+        def canInfer(recurse: Recurse[Env.Xtra], fact: Fact.Backward): Boolean = {
+            val K.GuardInter(guardPath, interPath) = fact.asInstanceOf[K.GuardInter]
+            val menv = new mock.MockEnv(recurse)
+            menv.tryMock(guardPath) match {
+                case Some(guard: intervals.guard.StaticGuard) => {
+                    menv.tryMock(interPath) match {
+                        case Some(inter: intervals.RoInterval) => {
+                            val err = eval(guard, inter)
+                            (err == null)
+                        }
+                        case _ => false
+                    }
+                }
+                case _ => false
+            }
+        }
+    }
+    
+    addRule(new MockRule(classOf[K.PermitsWr], ((g, i) => g.checkWritable(i.getStart, i))))
+    addRule(new MockRule(classOf[K.PermitsRd], ((g, i) => g.checkReadable(i.getStart, i))))
+    addRule(new MockRule(classOf[K.EnsuresFinal], ((g, i) => g.ensuresFinal(i.getStart, i))))
+
 }

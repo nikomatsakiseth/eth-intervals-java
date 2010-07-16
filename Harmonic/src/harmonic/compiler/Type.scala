@@ -41,7 +41,9 @@ object Type {
     
     val Object = Type.Class(Name.ObjectClass, List())
     val Void = Type.Class(Name.VoidClass, List())
+    val RoInterval = Type.Class(Name.RoIntervalClass, List())
     val Interval = Type.Class(Name.IntervalClass, List())
+    val RoPoint = Type.Class(Name.RoPointClass, List())
     val Point = Type.Class(Name.PointClass, List())
     val AsyncInterval = Type.Class(Name.AsyncIntervalClass, List())
     val InlineInterval = Type.Class(Name.InlineIntervalClass, List())

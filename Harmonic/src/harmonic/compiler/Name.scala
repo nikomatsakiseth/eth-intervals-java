@@ -210,12 +210,18 @@ object Name {
     val GuardClass = Class(classOf[ch.ethz.intervals.guard.Guard])
     
     // Interval, AsyncInterval, InlineInterval: from interval runtime
+    val RoIntervalClass = Class(classOf[ch.ethz.intervals.RoInterval])
     val IntervalClass = Class(classOf[ch.ethz.intervals.Interval])
     val AsyncIntervalClass = Class(classOf[ch.ethz.intervals.AsyncInterval])
     val InlineIntervalClass = Class(classOf[ch.ethz.intervals.InlineInterval])
 
     // Point: from interval runtime
+    val RoPointClass = Class(classOf[ch.ethz.intervals.RoPoint])
     val PointClass = Class(classOf[ch.ethz.intervals.Point])
+
+    // Lock: from interval runtime
+    val RoLockClass = Class(classOf[ch.ethz.intervals.RoLock])
+    val LockClass = Class(classOf[ch.ethz.intervals.Lock])
 
     // HarmonicTask: convenience class used for our harmonic tasks
     val HarmonicTaskClass = Class(classOf[harmonic.runtime.HarmonicTask])
