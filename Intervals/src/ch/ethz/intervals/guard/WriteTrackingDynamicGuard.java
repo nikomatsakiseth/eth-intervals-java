@@ -212,5 +212,11 @@ abstract class WriteTrackingDynamicGuard<R> implements DynamicGuard {
 		activeReads = null;
 		return null;
 	}
+	
+	@Override
+	public RuntimeException ensuresFinal(RoPoint mr, RoInterval current) {
+		// XXX -- allow dynamic guards to ensureFinal!
+		return new IntervalException.NeverFinal(this);
+	}
 
 }

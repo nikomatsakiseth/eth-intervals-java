@@ -247,6 +247,18 @@ public abstract class IntervalException extends RuntimeException {
 		}
 	}
 
+	public static class NeverFinal extends IntervalException {
+		public final Guard guard;
+		
+		public NeverFinal(Guard guard) {
+			this.guard = guard;
+		}
+		
+		@Override public String toString() {
+			return "The guard " + guard + " never ensures finality.";
+		}
+	}
+
 
 
 }

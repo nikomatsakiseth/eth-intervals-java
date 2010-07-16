@@ -64,6 +64,12 @@ public interface Guard {
 	 * for read access.
 	 */
 	public RuntimeException checkReadable(RoPoint mr, RoInterval current);
+	
+	/**
+	 * Same as {@link #checkWritable(RoPoint, RoInterval)}, but successful
+	 * only if the guard guarantees no further writes will occur.
+	 */
+	public RuntimeException ensuresFinal(RoPoint mr, RoInterval current);
 		
 	/**
 	 * Checks whether fields protected by this guard may legally be locked

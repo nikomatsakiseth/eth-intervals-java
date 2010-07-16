@@ -77,6 +77,13 @@ implements Guard, Interval, Page, RefManipulator
 	}
 	
 	@Override
+	public IntervalException ensuresFinal(RoPoint mr, RoInterval inter) {
+		if(end.hb(mr))
+			return null;
+		return new IntervalException.MustHappenBefore(end, mr);
+	}
+	
+	@Override
 	public boolean isSubintervalOf(Interval inter) {
 		if(inter == this)
 			return true;

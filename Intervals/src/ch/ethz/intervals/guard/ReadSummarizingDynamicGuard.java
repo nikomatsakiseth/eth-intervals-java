@@ -80,4 +80,10 @@ public class ReadSummarizingDynamicGuard extends WriteTrackingDynamicGuard<Objec
 		}
 	}
 
+	@Override
+	public RuntimeException ensuresFinal(RoPoint mr, RoInterval current) {
+		// XXX -- allow this!
+		return new IntervalException.NeverFinal(this);
+	}
+
 }

@@ -48,4 +48,9 @@ implements Guard, Lock
 		return null;
 	}
 
+	@Override
+	public RuntimeException ensuresFinal(RoPoint mr, RoInterval current) {
+		return new IntervalException.NeverFinal(this);
+	}
+
 }

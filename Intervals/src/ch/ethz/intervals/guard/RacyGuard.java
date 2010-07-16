@@ -1,5 +1,6 @@
 package ch.ethz.intervals.guard;
 
+import ch.ethz.intervals.IntervalException;
 import ch.ethz.intervals.RoInterval;
 import ch.ethz.intervals.RoLock;
 import ch.ethz.intervals.RoPoint;
@@ -32,6 +33,11 @@ public final class RacyGuard implements Guard {
 	public RuntimeException checkReadable(RoPoint mr, RoInterval current) 
 	{
 		return null;
+	}
+	
+	@Override
+	public RuntimeException ensuresFinal(RoPoint mr, RoInterval current) {
+		return new IntervalException.NeverFinal(this);
 	}
 
 	@Override
