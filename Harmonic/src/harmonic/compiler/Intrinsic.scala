@@ -296,7 +296,9 @@ case class Intrinsic(global: Global) {
         inlineInterval("Intrinsic Creation") { inter =>
             addMathTo(inter)
             addControlFlow(inter)            
-            ensureLoadable(classOf[ch.ethz.intervals.Interval]) // type of "method"
+            ensureLoadable(classOf[ch.ethz.intervals.Interval])         // type of "method"
+            ensureLoadable(classOf[ch.ethz.intervals.guard.FinalGuard]) // type of "final"
+            ensureLoadable(classOf[ch.ethz.intervals.guard.RacyGuard])  // type of "final"
         }
     }
 

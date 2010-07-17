@@ -32,10 +32,11 @@ object SymTab {
     
     type Map = scala.collection.immutable.Map[String, Entry]
     
-    val empty: Map = scala.collection.immutable.Map()
-    
     case class ExtendedMap(m: Map) {
         def +(entry: SymTab.Entry): Map = m + (entry.name.text -> entry)
     }
     implicit def extendedMap(m: Map) = ExtendedMap(m)
+    
+    val empty: Map = scala.collection.immutable.Map()
+    
 }

@@ -10,7 +10,7 @@ case class MethodId(
     def is(methodId: MethodId) = (this == methodId)
     
     override def toString = {
-        "(%s.%s)%s".format(
+        "(%s.%s%s)".format(
             className,
             methodName.javaName,
             msig
@@ -20,22 +20,24 @@ case class MethodId(
 
 object MethodId {
     
+    val noParams = Pattern.AnonTuple(Nil)
+    
     val GetParent = MethodId(
-        Name.IntervalClass,
+        Name.RoIntervalClass,
         Name.Method(List("getParent")),
-        MethodSignature(Type.Interval, List())
+        MethodSignature(Type.RoInterval, List(noParams))
     )
     
     val GetStart = MethodId(
-        Name.IntervalClass,
+        Name.RoIntervalClass,
         Name.Method(List("getStart")),
-        MethodSignature(Type.Point, List())
+        MethodSignature(Type.RoPoint, List(noParams))
     )
 
     val GetEnd = MethodId(
-        Name.IntervalClass,
+        Name.RoIntervalClass,
         Name.Method(List("getEnd")),
-        MethodSignature(Type.Point, List())
+        MethodSignature(Type.RoPoint, List(noParams))
     )
     
 }

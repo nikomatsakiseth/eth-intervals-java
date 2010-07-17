@@ -24,10 +24,12 @@ class ClassFromReflection(
 ) extends ClassFromCompiledSource {
     
     def isObject = name is Name.ObjectClass
-    def isJavaInterface = (cls.getModifiers & reflect.Modifier.INTERFACE) != 0
-    def isPrivate(member: reflect.Member) = (member.getModifiers & reflect.Modifier.PRIVATE) != 0
+    def isJavaInterface = cls.getModifiers.containsBits(jModifier.INTERFACE)
+    def isPrivate(member: reflect.Member) = member.getModifiers.containsBits(jModifier.PRIVATE)
     def isDeclaredByCls(member: reflect.Member) = (member.getDeclaringClass == cls)
     def isSuitable(member: reflect.Member) = isDeclaredByCls(member) && !isPrivate(member)
+    
+    override def toReflectedJavaClass = Some(cls)
     
     protected[this] def loadData(inter: Interval) = Data(
         modifiers = Modifier.forClass(cls),
@@ -194,7 +196,12 @@ class ClassFromReflection(
         )
         
         fsym.GuardPath.v = fld.getAnnotation(classOf[Mutable]) match {
-            case null => Path.ThisWr
+            case null if fld.getModifiers.containsBits(jModifier.FINAL) => 
+                Path.Final
+            case null if fld.getModifiers.containsBits(jModifier.STATIC) => 
+                Path.RacyGuard
+            case null => 
+                Path.ThisWr
             case path => AnnParse.parsePath(path.value) match {
                 case Left(err) => {
                     err.report(global, pos)
@@ -254,9 +261,9 @@ class ClassFromReflection(
     
     private[this] def methodSymbol(inter: Interval)(mthd: reflect.Method) = {
         val op = {
-            if((mthd.getModifiers & reflect.Modifier.STATIC) != 0)
+            if(mthd.getModifiers.containsBits(jModifier.STATIC))
                 MethodKind.JavaStatic
-            else if((cls.getModifiers & reflect.Modifier.INTERFACE) != 0)
+            else if(cls.getModifiers.containsBits(jModifier.INTERFACE))
                 MethodKind.JavaInterface
             else
                 MethodKind.JavaVirtual            

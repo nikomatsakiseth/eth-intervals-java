@@ -59,15 +59,6 @@ class Global(
     
     val network = new HarmonicRulesNetwork(debugServer)
     
-    // ___ The "final" interval _____________________________________________
-    
-    val finalSym = new VarSymbol.Local(
-        pos = NoPosition,
-        modifiers = Modifier.Set.empty,
-        name = Name.FinalLocal,
-        ty = Type.Interval        
-    )
-    
     // ___ Main Routine _____________________________________________________
     
     var master: Interval = null

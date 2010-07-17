@@ -32,7 +32,7 @@ extends Resolve(global, compUnit)
         // This guarantees that they don't reference other fields in their
         // types.  They are permitted to reference other class params, but
         // only those that appear earlier in the list.
-        val emptyScope = InScope(Map())
+        val emptyScope = InScope(SymTab.empty)
         val resolve = new ResolveClassParams(csym.name, emptyScope, cdecl.pattern)
 
         // Process the rest of the class with all members in scope:
@@ -63,7 +63,7 @@ extends Resolve(global, compUnit)
         val superSymtabs = superCsyms.map(constructSymbolTable)
         superSymtabs match {
             // Micro-optimize the case of zero or one supertypes:
-            case List() => SymTab.empty 
+            case List() => SymTab.empty
             case List(symTab) => symTab
 
             // General case of multiple supertypes:
@@ -611,7 +611,7 @@ extends Resolve(global, compUnit)
                 resolveExpr(expr) :: resolveStmts(stmts)
 
             case (stmt @ in.DefineLv((), rv)) :: stmts => {
-                throw new RuntimeException("AssignLV in ResolveBody") // TODO: Refactor types
+                throw new Ast.RefactorTypeException("DefineLv")
             }
                 
             case (stmt @ in.Assign(lvs, rvs)) :: stmts => {

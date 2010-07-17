@@ -41,7 +41,7 @@ sooner).
 
 object Env {
     def empty(global: Global) = {
-        val xtra = Env.Xtra(global, Map(Name.FinalLocal -> global.finalSym))
+        val xtra = Env.Xtra(global, Map())
         Env(
             global      = global,
             thisTy      = Type.Top,
@@ -132,6 +132,10 @@ object Env {
                     val sowner = symOwner(owner)
                     val csym = global.csym(methodId.className)
                     val msym = csym.methodsNamed(methodId.methodName).find(_.id.is(methodId)).getOrElse {
+                        Lathos.context.log(
+                            "Methods of class ", csym, " named ", methodId.methodName, ": ",
+                            csym.methodsNamed(methodId.methodName)
+                        )
                         Error.NoSuchMethodId(methodId).report(global)
                         MethodSymbol.error(methodId)
                     }
@@ -758,6 +762,14 @@ case class Env(
             
             case SPath.Ghost(base, _) => {
                 pathIsFinalBy(base, inter)
+            }
+            
+            case SPath.Field(SPath.Static, fsym) if (fsym.name is Name.FinalMember) => {
+                // This special case is needed to prevent infinite recursion.
+                // Otherwise, we'd loop trying to determine if the guard path
+                // for FinalGuard#Final (which is also FinalGuard#Final) is
+                // itself final.  
+                true
             }
                 
             case SPath.Field(base, fsym) => {

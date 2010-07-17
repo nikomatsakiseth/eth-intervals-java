@@ -228,7 +228,8 @@ case class Check(global: Global) {
                 
                 case in.DefineLv(lv, rv) => {
                     val ty = In(env, current).checkExpr(rv)
-                    In(env, current).At(rv).checkIsSubtype(ty, lv.ty)
+                    // Guaranteed by construction:
+                    //In(env, current).At(rv).checkIsSubtype(ty, lv.ty)
                     env.plusLocalVar(lv)
                 }
             

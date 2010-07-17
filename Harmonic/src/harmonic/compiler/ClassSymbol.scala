@@ -49,6 +49,9 @@ abstract class ClassSymbol extends Symbol {
     /** Creates a `Type.Class` for the class defined by this symbol. */
     def toType: Type.Class = name.toType
     
+    /** If this class is available via reflection, returns the Java `Class` instance. */
+    def toReflectedJavaClass: Option[Class[_]] = None
+    
     // ___ Invoking causes header to be joined ______________________________
     
     /** Names of any superclasses */

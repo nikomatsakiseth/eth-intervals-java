@@ -139,14 +139,14 @@ case class ByteCode(global: Global) {
         getMethodDescriptor(asm.Type.VOID_TYPE, Array(asmClassType(name)))
     }
 
-    def plainMethodDescFromSig(msig: MethodSignature[Pattern.Anon]): String = {
+    def plainMethodDescFromSig(msig: MethodSignature[_ <: Pattern.Any]): String = {
         getMethodDescriptor(
             msig.returnTy.toAsmType,
             msig.parameterPatterns.flatMap(_.varTys).map(_.toAsmType).toArray
         )
     }
     
-    def mroMethodDescFromSig(msig: MethodSignature[Pattern.Anon]): String = {
+    def mroMethodDescFromSig(msig: MethodSignature[_ <: Pattern.Any]): String = {
         getMethodDescriptor(
             msig.returnTy.toAsmType,
             (asm.Type.INT_TYPE :: msig.parameterPatterns.flatMap(_.varTys).map(_.toAsmType)).toArray
@@ -702,6 +702,13 @@ case class ByteCode(global: Global) {
             
             case in.MethodReturn(expr) => 
                 summarizeSymbolsInExpr(summary, expr)
+                
+            case in.DefineLv(lvsym, rv) => {
+                val summaryRv = summarizeSymbolsInExpr(summary, rv)
+                summaryRv.copy(
+                    declaredSyms = summaryRv.declaredSyms + lvsym
+                )
+            }
             
             case in.Assign(locals, exprs) => {
                 val summaryExprs = exprs.foldLeft(summary)(summarizeSymbolsInExpr)
@@ -730,15 +737,15 @@ case class ByteCode(global: Global) {
         
         def inBlock = (flags & IN_BLOCK) != 0
         
-        def pushPathRvalues(lvalue: Pattern.Anon, rvalue: SPath.Typed, asmTypes: List[asm.Type]): List[asm.Type] = {
+        def pushPathRvalues(lvalue: Pattern.Any, rvalue: SPath.Typed, asmTypes: List[asm.Type]): List[asm.Type] = {
             (lvalue, rvalue) match {
-                case (Pattern.AnonTuple(List(l)), _) =>
+                case (Pattern.AnyTuple(List(l)), _) =>
                     pushPathRvalues(l, rvalue, asmTypes)
                     
                 case (_, SPath.Tuple(List(r))) =>
                     pushPathRvalues(lvalue, r, asmTypes)
                 
-                case (Pattern.AnonTuple(ls), SPath.Tuple(rs)) if sameLength(ls, rs) =>
+                case (Pattern.AnyTuple(ls), SPath.Tuple(rs)) if sameLength(ls, rs) =>
                     ls.zip(rs).foldLeft(asmTypes) {
                         case (aT, (l, r)) => pushPathRvalues(l, r, aT)
                     }
@@ -750,9 +757,9 @@ case class ByteCode(global: Global) {
             }
         }
         
-        def expand(lvalue: Pattern.Anon, inAsmTypes: List[asm.Type]): List[asm.Type] = {
+        def expand(lvalue: Pattern.Any, inAsmTypes: List[asm.Type]): List[asm.Type] = {
             lvalue match {
-                case Pattern.AnonTuple(sublvalues) => {
+                case Pattern.AnyTuple(sublvalues) => {
                     accessMap.withStashSlot { stashSlot =>
                         mvis.visitVarInsn(O.ASTORE, stashSlot) // Stack: ...
                         sublvalues.zipWithIndex.foldLeft(inAsmTypes) { case (asmTypes, (sublvalue, idx)) =>
@@ -766,7 +773,7 @@ case class ByteCode(global: Global) {
                     }
                 }
 
-                case Pattern.AnonVar(ty) => {
+                case Pattern.AnyVar(ty) => {
                     inAsmTypes match {
                         case Nil => Nil
                         case asmTy :: tl => {
@@ -1105,6 +1112,13 @@ case class ByteCode(global: Global) {
                     // Emit "return <path>" if in a method
                     pushExprValue(path)
                     mvis.visitInsn(O.ARETURN)
+                }
+                
+                case in.DefineLv(lvsym, rv) => {
+                    val path = accessMap.syms(lvsym)
+                    path.pushLvalue(mvis)
+                    pushExprValueDowncastingTo(lvsym.ty, rv)
+                    path.storeLvalue(mvis)
                 }
 
                 case in.Assign(lvalues, rvalues) => {
@@ -1580,7 +1594,7 @@ case class ByteCode(global: Global) {
             tmplmvis.complete
             
             // Emit a forwarding method from the interface version:
-            val interfaceMethodSig = MethodSignature(
+            val interfaceMethodSig = MethodSignature[Pattern.Ref](
                 Type.Object,
                 List(Pattern.Var(Name.LocalVar("arg"), Type.Object))
             )

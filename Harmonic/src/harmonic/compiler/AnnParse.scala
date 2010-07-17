@@ -67,17 +67,19 @@ object AnnParse extends StdTokenParsers with PackratParsers {
         case i => Name.LocalVar(i)
     }
     
-    lazy val methodPart = ident~"("~comma(ty)~")" ^^ {
-        case i~_~tys~_ => (i, tys)
+    lazy val anonVar = ty                           ^^ Pattern.AnonVar
+    lazy val anonTuple = "("~>comma(anonPat)<~")"     ^^ Pattern.AnonTuple
+    lazy val anonPat: PackratParser[Pattern.Anon] = anonVar | anonTuple
+    
+    lazy val methodPart = ident~anonTuple ^^ {
+        case i~pat => (i, pat)
     }
     
     lazy val methodId = "("~className~"#"~rep1(methodPart)~ty~")" ^^ {
         case _~className~_~parts~returnTy~_ => {
             val methodName = Name.Method(parts.map(_._1))
-            val parameterPatterns = parts.map { case (_, tys) =>
-                Pattern.SubstdTuple(tys.map(Pattern.SubstdVar))
-            }
-            MethodId(className, methodName, MethodSignature(returnTy, parameterPatterns))
+            val patterns = parts.map(_._2)
+            MethodId(className, methodName, MethodSignature(returnTy, patterns))
         }
     }
     

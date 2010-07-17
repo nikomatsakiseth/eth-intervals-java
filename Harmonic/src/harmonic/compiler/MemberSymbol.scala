@@ -20,12 +20,12 @@ sealed trait FieldLikeSymbol extends BeanSymbol
 
 object MethodSymbol {
     
-    def error(methodId: MethodId): MethodSymbol = {
-        throw new RuntimeException("TODO--gin up a fake methodsymbol from methodid")
-        //error(methodId.methodName, methodId.className, methodId.msig.parameterPatterns)
-    }
-    
-    def error(name: Name.Method, className: Name.Class, patterns: List[Pattern.Ref])(implicit global: Global): MethodSymbol = {
+    private[this] def error(
+        name: Name.Method, 
+        className: Name.Class, 
+        returnTy: Type,
+        patterns: List[Pattern.Ref]
+    )(implicit global: Global): MethodSymbol = {
         inlineInterval("Error %s.%s".format(className, name)) { inter =>
             new MethodSymbol(
                 pos       = InterPosition.forClassNamed(className),
@@ -34,18 +34,23 @@ object MethodSymbol {
                 className = className, 
                 name      = name, 
                 elaborate = inter,
-                msig      = MethodSignature(Type.Null, patterns)
+                msig      = MethodSignature(returnTy, patterns)
             ) {
                 override def isError = true
             }            
         }
     }
 
+    def error(methodId: MethodId)(implicit global: Global): MethodSymbol = {
+        val patterns = Pattern.makeRefs(methodId.msig.parameterPatterns)
+        error(methodId.methodName, methodId.className, methodId.msig.returnTy, patterns)
+    }
+    
     def error(name: Name.Method, className: Name.Class)(implicit global: Global): MethodSymbol = {
         val parameterPatterns = name.parts.zipWithIndex.map { case (_, i) => 
             Pattern.Var(Name.LocalVar("arg%d".format(i)), Type.Top)
         }
-        error(name, className, parameterPatterns)
+        error(name, className, Type.Null, parameterPatterns)
     }
     
 }
@@ -61,7 +66,7 @@ class MethodSymbol(
 )(implicit global: Global) extends BeanSymbol with DebugPage {
     override def toString = "MethodSymbol(%s.%s, %x)".format(className, name, System.identityHashCode(this))
     
-    def id = MethodId(className, name, msig)
+    val id = MethodId(className, name, msig.toAnon)
     
     def isFromClassNamed(aName: Name.Qual) = (className == aName)
     

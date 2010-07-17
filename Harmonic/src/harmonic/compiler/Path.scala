@@ -48,7 +48,8 @@ object Path {
     
     val This = Name.ThisLocal.toPath
     val Method = Name.MethodLocal.toPath
-    val Final = Name.FinalLocal.toPath
+    val Final = Field(Static, Name.FinalMember)
+    val RacyGuard = Field(Static, Name.RacyMember)
     val ThisInit = This / Name.Init
     val ThisWr = This / Name.Wr
 

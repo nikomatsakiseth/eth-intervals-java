@@ -32,11 +32,28 @@ class MockRoInterval(
         !menv.queryRGivenL(path, classOf[K.InlineSubOf]).isEmpty
     }
 
-    override def isSubintervalOf(inter: Interval): Boolean = {
+    override def isSubintervalOfOrEqualTo(inter: RoInterval): Boolean = {
         (inter == this) || contains(PcSubOf)(inter)
     }
     
-    override def isInlineSubintervalOf(inter: Interval): Boolean = {
+    override def isInlineSubintervalOfOrEqualTo(inter: RoInterval): Boolean = {
         (inter == this) || contains(PcInlineSubOf)(inter)
     }
+    
+    override def checkWritable(mr: RoPoint, inter: RoInterval): RuntimeException = {
+        impl.IntervalImpl.checkWritableImpl(this, mr, inter)
+    }
+    
+    override def checkReadable(mr: RoPoint, inter: RoInterval): RuntimeException = {
+        impl.IntervalImpl.checkReadableImpl(this, mr, inter)
+    }
+
+    override def ensuresFinal(mr: RoPoint, inter: RoInterval): RuntimeException = {
+        impl.IntervalImpl.ensuresFinalImpl(this, mr, inter)
+    }
+
+    override def checkLockable(inter: RoInterval, lock: RoLock): RuntimeException = {
+        impl.IntervalImpl.checkLockableImpl(this, inter, lock)
+    }
+
 }

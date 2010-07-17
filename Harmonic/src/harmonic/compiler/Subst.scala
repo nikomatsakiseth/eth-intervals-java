@@ -37,9 +37,9 @@ class Subst(private val map: Map[Path.Ref, Path.Ref]) {
         case K.HasType(p, t) => K.HasType(path(p), ty(t))
     }
     
-    def pattern(p: Pattern.Anon): Pattern.Anon = p match {
-        case Pattern.AnonVar(t) => Pattern.SubstdVar(ty(t))
-        case Pattern.AnonTuple(patterns) => Pattern.SubstdTuple(patterns.map(pattern))
+    def pattern(p: Pattern.Any): Pattern.Anon = p match {
+        case Pattern.AnyVar(t) => Pattern.AnonVar(ty(t))
+        case Pattern.AnyTuple(patterns) => Pattern.AnonTuple(patterns.map(pattern))
     }
     
     def ty(t: Type): Type = t match {
@@ -54,7 +54,7 @@ class Subst(private val map: Map[Path.Ref, Path.Ref]) {
         case Type.TypeArg(n, r, t) => Type.TypeArg(n, r, ty(t))
     }
     
-    def methodSignature(msig: MethodSignature[Pattern.Anon]) = {
+    def methodSignature(msig: MethodSignature[_ <: Pattern.Any]) = {
         MethodSignature(
             returnTy = ty(msig.returnTy),
             parameterPatterns = msig.parameterPatterns.map(pattern)

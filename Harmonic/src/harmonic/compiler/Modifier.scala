@@ -1,5 +1,6 @@
 package harmonic.compiler
 
+import Util._
 import java.lang.reflect.{Modifier => jModifier}
 
 object Modifier {
@@ -15,7 +16,7 @@ object Modifier {
     
     case class Set(mods: Int) {
         override def toString = "ModSet(%s)".format(toList.mkString(", "))
-        def contains(mod: Mod) = (mods & mod.bit) != 0
+        def contains(mod: Mod) = mods.containsBits(mod.bit)
         def +(mod: Mod) = Set(mods | mod.bit)
         def toList = All.filter(contains)
         
@@ -41,7 +42,7 @@ object Modifier {
     }
     
     def forJavaModifiers(bits: Int) = {
-        Set(All.filter(mod => (bits & mod.jBit) != 0))
+        Set(All.filter(mod => bits.containsBits(mod.jBit)))
     }
     
     def forClass(cls: java.lang.Class[_]) = {

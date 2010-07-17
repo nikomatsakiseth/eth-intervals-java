@@ -317,12 +317,12 @@ case class Lower(global: Global) {
     
     // Flattens the method arguments into a list of final paths:
     def flattenAssignment(
-        lvalues: List[Pattern.Anon], 
+        lvalues: List[Pattern.Any], 
         rvalues: List[out.TypedPath]
     ): List[out.TypedPath] = {
-        def flattenPair(pos: out.TypedPath)(pair: (Pattern.Anon, SPath.Typed)): List[out.TypedPath] = {
+        def flattenPair(pos: out.TypedPath)(pair: (Pattern.Any, SPath.Typed)): List[out.TypedPath] = {
             pair match {
-                case (Pattern.AnonTuple(List(pat)), path) => {
+                case (Pattern.AnyTuple(List(pat)), path) => {
                     flattenPair(pos)((pat, path))
                 }
                 
@@ -330,11 +330,11 @@ case class Lower(global: Global) {
                     flattenPair(pos)((pat, path))
                 }
                 
-                case (Pattern.AnonTuple(pats), SPath.Tuple(paths)) if sameLength(pats, paths) => {
+                case (Pattern.AnyTuple(pats), SPath.Tuple(paths)) if sameLength(pats, paths) => {
                     pats.zip(paths).flatMap(flattenPair(pos))
                 }
                     
-                case (Pattern.AnonTuple(pats), path) => {
+                case (Pattern.AnyTuple(pats), path) => {
                     pats.indices.map({ idx =>
                         SPath.Index(
                             path,
@@ -343,7 +343,7 @@ case class Lower(global: Global) {
                     }).toList
                 }
                 
-                case (Pattern.AnonVar(_), path) => {
+                case (Pattern.AnyVar(_), path) => {
                     List(path.toNodeWithPosOf(pos))
                 }
             }
@@ -614,7 +614,7 @@ case class Lower(global: Global) {
             val msyms = targetCsym.constructors
             val (msym, msig) = resolveOverloading(extendsDecl.pos, createSubst, msyms, args.map(_.ty)).getOrElse {
                 val errorSym = MethodSymbol.error(Name.InitMethod, targetCsym.name)
-                (errorSym, errorSym.msig)
+                (errorSym, errorSym.msig.toAnon)
             }
             
             // Finally, convert the extends args to the flattened repr
@@ -726,6 +726,10 @@ case class Lower(global: Global) {
             stmt match {
                 case stmt: in.Assign => {
                     appendAssign(stmt)
+                }
+                
+                case stmt: in.DefineLv => {
+                    throw new Ast.RefactorTypeException("DefineLv in Lower")
                 }
                 
                 case in.InlineInterval(name, body, ()) => {

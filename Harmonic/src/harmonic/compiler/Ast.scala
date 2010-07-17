@@ -756,7 +756,8 @@ abstract class Ast {
         override def toString = obj.toString
     }
 
-    /** Eventually, all the complex rvalues get moved into `DefineLv` statements */
+    /** Generated during the lower phrase to create temporaries storing
+      * the results of complex expressions. */
     case class DefineLv(lvsym: LVSym, rvalue: Expr) extends LowerStmt {
         def ty = voidTy
         override def toString = "%s = %s".format(lvsym, rvalue)
@@ -1182,4 +1183,9 @@ object Ast {
 
     }
 
+    // I throw this in places where an impossible case occurs. Later
+    // I will go back over and see if I can't refactor the types to 
+    // eliminate these possibilities.
+    case class RefactorTypeException(str: String) extends RuntimeException
+    
 }

@@ -70,6 +70,13 @@ object Util {
     }
     implicit def extendedBoolean(bool: Boolean): ExtendedBoolean = new ExtendedBoolean(bool)
 
+    class ExtendedInt(value: Int) {
+        def containsBits(i: Int): Boolean = {
+            (value & i) == i
+        }
+    }
+    implicit def extendedInt(value: Int): ExtendedInt = new ExtendedInt(value)
+
     class ExtendedString(string: String) {
         def afterLast(c: Char) = {
             string.lastIndexOf(c) match {

@@ -189,10 +189,6 @@ object Name {
     // the current method activation.
     val MethodLocal = Name.LocalVar("method")
 
-    // The special variable `final` refers to a guard
-    // that never permits writes.
-    val FinalLocal = Name.LocalVar("final")
-
     // Object: base class of all objects!
     //
     // Implicitly defines the Wr ghost, conventionally used to control
@@ -206,22 +202,20 @@ object Name {
     // type automatically return null.
     val VoidClass = Class(classOf[java.lang.Void])
     
-    // Guard: interface for field and local variable guards
+    // Classes and inter from interval runtime
     val GuardClass = Class(classOf[ch.ethz.intervals.guard.Guard])
-    
-    // Interval, AsyncInterval, InlineInterval: from interval runtime
     val RoIntervalClass = Class(classOf[ch.ethz.intervals.RoInterval])
     val IntervalClass = Class(classOf[ch.ethz.intervals.Interval])
     val AsyncIntervalClass = Class(classOf[ch.ethz.intervals.AsyncInterval])
     val InlineIntervalClass = Class(classOf[ch.ethz.intervals.InlineInterval])
-
-    // Point: from interval runtime
     val RoPointClass = Class(classOf[ch.ethz.intervals.RoPoint])
     val PointClass = Class(classOf[ch.ethz.intervals.Point])
-
-    // Lock: from interval runtime
     val RoLockClass = Class(classOf[ch.ethz.intervals.RoLock])
     val LockClass = Class(classOf[ch.ethz.intervals.Lock])
+    val FinalGuardClass = Class(classOf[ch.ethz.intervals.guard.FinalGuard])
+    val RacyGuardClass = Class(classOf[ch.ethz.intervals.guard.RacyGuard])
+    val FinalMember = Name.Member(FinalGuardClass, "Final")
+    val RacyMember = Name.Member(RacyGuardClass, "Racy")
 
     // HarmonicTask: convenience class used for our harmonic tasks
     val HarmonicTaskClass = Class(classOf[harmonic.runtime.HarmonicTask])

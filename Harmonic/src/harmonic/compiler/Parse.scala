@@ -145,11 +145,12 @@ class Parse extends StdTokenParsers with PackratParsers {
     }
     
     lazy val annotation = positioned(
-        "@"~>relName                            ^^ { case r => out.Annotation(r, Nil) }
-    |   "@"~>relName~("("~>comma(path)<~")")    ^^ { case r~a => out.Annotation(r, a) }
+        "@"~>relName~("("~>comma(path)<~")")    ^^ { case r~a => out.Annotation(r, a) }
+    |   "@"~>relName                            ^^ { case r => out.Annotation(r, Nil) }
     )
     
     lazy val annotations = rep(annotation) 
+    lazy val annotations1 = rep1(annotation) 
     
     lazy val optClassTupleParam = positioned(
         opt(tupleMthdParam) ^^ { 
@@ -283,9 +284,8 @@ class Parse extends StdTokenParsers with PackratParsers {
         relDot ^^ { case n => out.FieldLvalue(n, ()) }
     )
     lazy val declLvalue = positioned(
-        annotations~localName~reqTypeRef ^^ { 
-            case a~n~t => out.DeclareVarLvalue(a, t, n, ())
-        }
+        annotations~localName~reqTypeRef        ^^ { case a~n~t => out.DeclareVarLvalue(a, t, n, ()) }
+    |   annotations1~localName~optTypeRef       ^^ { case a~n~t => out.DeclareVarLvalue(a, t, n, ()) }
     )
     lazy val lvalue: PackratParser[out.Lvalue] = tupleLvalue | declLvalue | reassignLvalue | fieldLvalue
     

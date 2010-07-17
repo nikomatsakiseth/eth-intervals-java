@@ -1,58 +1,80 @@
 package harmonic.compiler
 
+import java.util.concurrent.atomic.AtomicInteger
+
 object Pattern {
+
+    // ___ Any pattern ______________________________________________________
+    //
+    // Can be either Anon or Ref.  Warning: Do not compare for equality with
+    // Any patterns!  An Anon and a Ref are never equal.  Annoyingly, there is 
+    // no good way to enforce this, except that there is no is() method on 
+    // Any.
     
-    /** Base type for all patterns.  Contains no names
-      * for the variables being assigned to. */
-    sealed abstract trait Anon {
+    sealed trait Any {
         def ty: Type
         def varTys: List[Type]
+        def toAnon: Anon
     }
     
-    /** Base type for patterns that include variable names. */
-    sealed abstract trait Ref extends Anon {
-        def varNames: List[Name.LocalVar]
+    sealed trait AnyVar extends Any {
+        def ty: Type
+        def varTys = List(ty)
+        def toAnon: AnonVar
     }
     
-    /** An anonymous reference to a variable. */
-    sealed trait AnonVar extends Anon {
-        def varTys = List(ty)        
+    object AnyVar {
+        def unapply(p: AnyVar) = Some(p.ty)
     }
     
-    object AnonVar {
-        def unapply(anon: AnonVar) = Some(anon.ty)
-    }
-    
-    sealed trait AnonTuple extends Anon {
-        def patterns: List[Pattern.Anon]
+    sealed trait AnyTuple extends Any {
         def ty: Type.Tuple = Type.Tuple(patterns.map(_.ty))
+        def patterns: List[Pattern.Any]
         def varTys = patterns.flatMap(_.varTys)
+        def toAnon: AnonTuple
     }
     
-    object AnonTuple {
-        def unapply(anon: AnonTuple) = Some(anon.patterns)
+    object AnyTuple {
+        def unapply(p: AnyTuple) = Some(p.patterns)
     }
     
-    case class SubstdVar(ty: Type) extends AnonVar {
+    // ___ Anonymous patterns _______________________________________________
+    
+    sealed trait Anon extends Any {
+        def is(pat: Anon) = (this == pat)
+    }
+    
+    sealed case class AnonVar(ty: Type) extends Anon with AnyVar {
+        def toAnon = this
         override def toString = ty.toString
     }
     
-    case class SubstdTuple(patterns: List[Pattern.Anon]) extends AnonTuple {
+    sealed case class AnonTuple(patterns: List[Pattern.Anon]) extends Anon with AnyTuple {
+        def toAnon = this
         override def toString = "(%s)".format(patterns.mkString(", "))        
     }
     
-    case class Var(
-        name: Name.LocalVar,
-        ty: Type
-    ) extends AnonVar with Ref {
+    // ___ Named patterns ___________________________________________________
+    
+    sealed trait Ref extends Any {
+        def is(pat: Ref) = (this == pat)
+        def toAnon: Anon
+        def varNames: List[Name.LocalVar]
+    }
+    
+    case class Var(name: Name.LocalVar, ty: Type) extends Ref with AnyVar {
+        def toAnon = AnonVar(ty)
         def varNames = List(name)
         override def toString = "%s: %s".format(name, ty)
     }
     
-    case class Tuple(patterns: List[Pattern.Ref]) extends AnonTuple with Ref {
+    case class Tuple(patterns: List[Pattern.Ref]) extends Ref with AnyTuple {
+        def toAnon = AnonTuple(patterns.map(_.toAnon))
         def varNames = patterns.flatMap(_.varNames)
         override def toString = "(%s)".format(patterns.mkString(", "))
     }
+    
+    // ___ Helpers __________________________________________________________
     
     private case object NoMatch extends Exception
     
@@ -89,6 +111,26 @@ object Pattern {
             Some(doSubsts(pats_from, pats_to))
         } catch {
             case NoMatch => None
+        }
+    }
+    
+    /** Converts a list of anonymous patterns to named patterns, created names like arg0, ..., argN */
+    def makeRefs(anons: List[Pattern.Anon]): List[Pattern.Ref] = {
+        val ctr = new AtomicInteger(0)
+        anons.map(makeRef(ctr))
+    }
+    
+    /** Converts an anonymous pattern to a named one, created names like arg3, arg7, etc.
+      * The counter `ctr` is used to track the most recent name given out. */
+    def makeRef(ctr: AtomicInteger)(anon: Pattern.Anon): Pattern.Ref = {
+        anon match {
+            case Pattern.AnonTuple(anons) => 
+                Pattern.Tuple(anons.map(makeRef(ctr)))
+            case Pattern.AnonVar(ty) => 
+                Pattern.Var(
+                    Name.LocalVar("arg%d".format(ctr.getAndIncrement)),
+                    ty
+                )
         }
     }
     
