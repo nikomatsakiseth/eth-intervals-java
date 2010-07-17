@@ -47,6 +47,7 @@ case class Lower(global: Global) {
         // TODO Add ensures that equate each argument x to a field this.x
         msym.Requirements.v = Nil
         msym.Ensures.v = Nil
+        msym.GuardPath.v = Path.RacyGuard
         
         msym
     }

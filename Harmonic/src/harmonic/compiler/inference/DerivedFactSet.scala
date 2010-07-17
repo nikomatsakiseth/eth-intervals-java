@@ -6,7 +6,7 @@ import scala.collection.immutable.Set
 
 import ch.ethz.intervals.Intervals
 
-import com.smallcultfollowing.lathos._
+import com.smallcultfollowing.lathos
 import com.smallcultfollowing.lathos.Lathos
 
 import harmonic.compiler.Util._
@@ -63,6 +63,7 @@ class DerivedFactSet[X](
     // fields, we briefly acquire the synchronized lock.  This is to coordinate
     // with the DebugPage trait, which may be rendering a web page at that moment.
     
+    @lathos.Ignore 
     private[this] var optMemories: Option[Memories] = None
     
     private[this] def memories = {
@@ -164,6 +165,17 @@ class DerivedFactSet[X](
     ): Set[F] = withLock(lock) {
         Lathos.para(Lathos.context.server, this, "query(", kind, ": ", optArgs, ")")
         network.state(this, this, xtra, pendingFacts).query(kind, optArgs: _*)
+    }
+    
+    // ___ Lathos ___________________________________________________________
+    
+    protected[this] override def renderMoreFields(out: lathos.Output): Unit = {
+        optMemories.foreach { mem => 
+            for((kind, facts) <- mem.alphas) {
+                out.par { out.bolded { out.outputText(kind.getSimpleName) } }
+                out.list(facts)
+            }
+        }
     }
     
 }

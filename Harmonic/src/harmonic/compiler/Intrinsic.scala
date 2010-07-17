@@ -1,7 +1,65 @@
 package harmonic.compiler
 
 import ch.ethz.intervals._
+import harmonic.lang.Mutable
+import java.lang.reflect
+import java.lang.annotation
 import Util._
+
+object Intrinsic {
+    
+    // ___ Extra Annotations ________________________________________________
+    //
+    // Rather than invoking foo.getAnnotation(), invoke foo.getHAnnotation(),
+    // which may use default values.
+    
+    class AnnotHandler(cls: Class[_ <: annotation.Annotation], values: Map[String, Object])
+    extends reflect.InvocationHandler {
+        def invoke(proxy: Object, method: reflect.Method, args: Array[Object]): Object = {
+            if(method.getName == "annotationType") cls
+            else values.get(method.getName)
+        }
+    }
+    
+    def at[C <: annotation.Annotation](cls: Class[C], values: Map[String, Object]): C = {
+        val proxy = reflect.Proxy.newProxyInstance(
+            cls.getClassLoader, Array(cls), new AnnotHandler(cls, values)
+        )
+        cls.cast(proxy)
+    }
+    
+    private[this] val extraAnnot = Map[reflect.AnnotatedElement, List[Object]](
+        
+        classOf[RoInterval].getDeclaredMethod("getStart") -> List(
+            at(classOf[Mutable], Map("value" -> "(ch.ethz.intervals.guard.FinalGuard#Final)"))
+        ),
+
+        classOf[Interval].getDeclaredMethod("getStart") -> List(
+            at(classOf[Mutable], Map("value" -> "(ch.ethz.intervals.guard.FinalGuard#Final)"))
+        ),
+        
+        classOf[RoInterval].getDeclaredMethod("getEnd") -> List(
+            at(classOf[Mutable], Map("value" -> "(ch.ethz.intervals.guard.FinalGuard#Final)"))
+        ),
+
+        classOf[Interval].getDeclaredMethod("getEnd") -> List(
+            at(classOf[Mutable], Map("value" -> "(ch.ethz.intervals.guard.FinalGuard#Final)"))
+        )
+        
+    )
+    
+    case class HarmonicAnnotated(obj: reflect.AnnotatedElement) {
+        def getHAnnotation[C <: annotation.Annotation](cls: Class[C]): Option[C] = {
+            obj.getAnnotation(cls) match {
+                case null => extraAnnot.get(obj).find(cls.isInstance(_)).map(cls.cast(_))
+                case ann => Some(ann)
+            }
+        }
+    }
+    
+    implicit def toHarmonicAnnotated(obj: reflect.AnnotatedElement) = HarmonicAnnotated(obj)
+    
+}
 
 case class Intrinsic(global: Global) {
     implicit val implicitGlobal = global
@@ -9,6 +67,7 @@ case class Intrinsic(global: Global) {
     private[this] def initReqs(msym: MethodSymbol) = {
         msym.Requirements.v = Nil
         msym.Ensures.v = Nil
+        msym.GuardPath.v = Path.RacyGuard
         msym
     }
     
@@ -296,9 +355,14 @@ case class Intrinsic(global: Global) {
         inlineInterval("Intrinsic Creation") { inter =>
             addMathTo(inter)
             addControlFlow(inter)            
-            ensureLoadable(classOf[ch.ethz.intervals.Interval])         // type of "method"
-            ensureLoadable(classOf[ch.ethz.intervals.guard.FinalGuard]) // type of "final"
-            ensureLoadable(classOf[ch.ethz.intervals.guard.RacyGuard])  // type of "final"
+            ensureLoadable(classOf[ch.ethz.intervals.RoPoint])
+            ensureLoadable(classOf[ch.ethz.intervals.Point])
+            ensureLoadable(classOf[ch.ethz.intervals.RoInterval])
+            ensureLoadable(classOf[ch.ethz.intervals.AsyncInterval])
+            ensureLoadable(classOf[ch.ethz.intervals.InlineInterval])
+            ensureLoadable(classOf[ch.ethz.intervals.Interval])
+            ensureLoadable(classOf[ch.ethz.intervals.guard.FinalGuard])
+            ensureLoadable(classOf[ch.ethz.intervals.guard.RacyGuard])
         }
     }
 

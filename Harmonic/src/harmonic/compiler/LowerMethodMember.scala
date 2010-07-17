@@ -119,6 +119,7 @@ class LowerMethodMember(
         ) { inter =>
             sym.Requirements.v = outMethodDecl.v.requirements.map(_.toFact)
             sym.Ensures.v = outMethodDecl.v.ensures.map(_.toFact)
+            sym.GuardPath.v = Path.RacyGuard // TODO Issue #11
         }
     }
     

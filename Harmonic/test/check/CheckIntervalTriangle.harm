@@ -1,0 +1,41 @@
+package test.check;
+
+class CheckIntervalTriangle(parent: Interval) {
+    @Mutable(a)
+    aRes: Integer = null;
+    interval a(parent) {
+        aRes = 22;
+    }
+    
+    @Mutable(b)
+    bRes: Integer = null;
+    interval b(parent) {
+        bRes = 22;
+    }
+    
+    @Mutable(c)
+    cRes: Integer = null;
+    interval c(parent) {
+        cRes = aRes + bRes;
+    }
+
+    @Mutable(d)
+    dRes: Integer = null;
+    interval d(parent) {
+        x = aRes;       // ERROR DoesNotPermitReadsFrom(this.(*.a), this.(*.d))
+        y = bRes;       // ERROR DoesNotPermitReadsFrom(this.(*.b), this.(*.d))
+        dRes = x + y;
+    }
+    
+    interval e(parent) {
+        aRes = 22;      // ERROR DoesNotPermitWritesFrom(this.(*.a), this.(*.e))
+        bRes = 22;      // ERROR DoesNotPermitWritesFrom(this.(*.b), this.(*.e))
+        cRes = 22;      // ERROR DoesNotPermitWritesFrom(this.(*.c), this.(*.e))
+        dRes = 22;      // ERROR DoesNotPermitWritesFrom(this.(*.d), this.(*.e))
+    }
+    
+    a.end -> c.start;
+    b.end -> c.start;
+}
+
+// COMPILE

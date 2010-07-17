@@ -779,7 +779,7 @@ case class Env(
             }
             
             case SPath.Call(receiver, msym, args) => {
-                false && // TODO: Allow finalBy annotations in method signature
+                guardEnsuresFinal(msym.guardPath) &&
                 ownerIsFinalBy(receiver, inter) &&
                 args.forall(pathIsFinalBy(_, inter))
             }

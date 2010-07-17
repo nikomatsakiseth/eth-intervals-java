@@ -178,11 +178,15 @@ object Util {
         override def renderInLine(out: lathos.Output): Unit = {
             Lathos.renderInLine(this, out)
         }
+        
+        protected[this] def renderMoreFields(out: lathos.Output): Unit = ()
 
         def renderInPage(out: lathos.Output): Unit = synchronized {
             out.startPage(this)
             
             Lathos.reflectivePageContents(this, out)
+            
+            renderMoreFields(out)
             
             contents.reverseIterator.foreach { content =>
                 content.renderInPage(out)

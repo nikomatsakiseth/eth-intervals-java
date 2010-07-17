@@ -15,6 +15,8 @@ import harmonic.jcompat.Ghost
 import harmonic.lang.Mutable
 import harmonic.lang.Requires
 
+import Intrinsic.toHarmonicAnnotated
+
 import Util._
 
 class ClassFromReflection(
@@ -65,7 +67,7 @@ class ClassFromReflection(
         
         varMembers = List[Array[SymTab.Entry]](
             Intrinsic(global).extraVarMembers(name),
-            ghostSymTabEntries(cls.getAnnotation(classOf[Ghosts])),
+            ghostSymTabEntries(cls.getHAnnotation(classOf[Ghosts])),
             cls.getDeclaredFields.map(fieldSymTabEntry),
             cls.getTypeParameters.map(typeParamSymTabEntry)
         ).flatten,
@@ -76,15 +78,17 @@ class ClassFromReflection(
                 ctors.map(ctorSymbol(inter)).toList            
             } else { // gin up an empty constructor for interfaces:
                 List(
-                    initReqs(new MethodSymbol(
-                        pos       = pos, 
-                        modifiers = Modifier.Set.empty,
-                        kind      = MethodKind.JavaDummyCtor,
-                        className = name,
-                        name      = Name.InitMethod,
-                        elaborate = inter,
-                        msig      = MethodSignature(Type.Void, List())
-                    ))
+                    initReqs(None)(
+                        new MethodSymbol(
+                            pos       = pos, 
+                            modifiers = Modifier.Set.empty,
+                            kind      = MethodKind.JavaDummyCtor,
+                            className = name,
+                            name      = Name.InitMethod,
+                            elaborate = inter,
+                            msig      = MethodSignature(Type.Void, List())
+                        )
+                    )
                 )
             }            
         },
@@ -105,16 +109,33 @@ class ClassFromReflection(
         
         allGhostSymbols = List(
             Intrinsic(global).extraGhostSymbols(name),
-            ghostSymbols(cls.getAnnotation(classOf[Ghosts]))
+            ghostSymbols(cls.getHAnnotation(classOf[Ghosts]))
         ).flatten,
         
         checkEnv = Env.empty(global)
     )
     
-    private[this] def initReqs(msym: MethodSymbol) = {
+    private[this] def initReqs(robj: Option[reflect.AccessibleObject])(msym: MethodSymbol) = {
         // TODO Honor @Requires and @Ensures annotations
         msym.Requirements.v = Nil
         msym.Ensures.v = Nil
+        msym.GuardPath.v = robj.flatMap(_.getHAnnotation(classOf[Mutable])) match {
+            case None => 
+                Path.RacyGuard
+                
+            case Some(path) => 
+                AnnParse.parsePath(path.value) match {
+                    case Left(err) => {
+                        err.report(global, pos)
+                        Path.RacyGuard
+                    }
+                
+                    case Right(path) => {
+                        path
+                    }
+                }
+        }
+        
         msym
     }
     
@@ -125,9 +146,13 @@ class ClassFromReflection(
         else SymTab.InstanceField(memberName)
     }
     
-    private[this] def ghostSymTabEntries(ghosts: Ghosts): Array[SymTab.Entry] = {
-        if(ghosts == null) Array()
-        else for(g <- ghosts.value) yield SymTab.Ghost(Name.Member(name, g.name))
+    private[this] def ghostSymTabEntries(optGhosts: Option[Ghosts]): Array[SymTab.Entry] = {
+        optGhosts match {
+            case None => 
+                Array()
+            case Some(ghosts) =>
+                for(g <- ghosts.value) yield SymTab.Ghost(Name.Member(name, g.name))
+        }
     }
     
     private[this] def typeParamSymTabEntry(tv: reflect.TypeVariable[_]) = {
@@ -195,23 +220,24 @@ class ClassFromReflection(
             elaborate = inter
         )
         
-        fsym.GuardPath.v = fld.getAnnotation(classOf[Mutable]) match {
-            case null if fld.getModifiers.containsBits(jModifier.FINAL) => 
+        fsym.GuardPath.v = fld.getHAnnotation(classOf[Mutable]) match {
+            case None if fld.getModifiers.containsBits(jModifier.FINAL) => 
                 Path.Final
-            case null if fld.getModifiers.containsBits(jModifier.STATIC) => 
+            case None if fld.getModifiers.containsBits(jModifier.STATIC) => 
                 Path.RacyGuard
-            case null => 
+            case None => 
                 Path.ThisWr
-            case path => AnnParse.parsePath(path.value) match {
-                case Left(err) => {
-                    err.report(global, pos)
-                    Path.ThisWr
-                }
+            case Some(path) => 
+                AnnParse.parsePath(path.value) match {
+                    case Left(err) => {
+                        err.report(global, pos)
+                        Path.ThisWr
+                    }
                 
-                case Right(path) => {
-                    path
+                    case Right(path) => {
+                        path
+                    }
                 }
-            }
         }
         
         fsym
@@ -225,9 +251,13 @@ class ClassFromReflection(
         )
     }
     
-    private[this] def ghostSymbols(ghosts: Ghosts): Array[GhostSymbol] = {
-        if(ghosts == null) Array()
-        else for(g <- ghosts.value) yield ghostSymbol(g)
+    private[this] def ghostSymbols(optGhosts: Option[Ghosts]): Array[GhostSymbol] = {
+        optGhosts match {
+            case None => 
+                Array()
+            case Some(ghosts) =>
+                for(g <- ghosts.value) yield ghostSymbol(g)
+        }
     }
     
     private[this] def paramPattern(pair: (reflect.Type, Int)) = {
@@ -238,25 +268,27 @@ class ClassFromReflection(
     }
     
     private[this] def ctorSymbol(inter: Interval)(mthd: reflect.Constructor[_]) = {
-        initReqs(new MethodSymbol(
-            pos       = pos,
-            modifiers = Modifier.forMember(mthd),
-            kind      = MethodKind.Java(
-                MethodKind.JavaSpecial, 
-                cls, 
-                Name.InitMethod.javaName,
-                mthd.getParameterTypes,
-                classOf[Unit]
-            ),
-            className = name,
-            name      = Name.InitMethod,
-            elaborate = inter,
-            msig      = MethodSignature(
-                returnTy          = Type.Void,
-                parameterPatterns = List(Pattern.Tuple(
-                    mthd.getGenericParameterTypes.toList.zipWithIndex.map(paramPattern)))
+        initReqs(Some(mthd))(
+            new MethodSymbol(
+                pos       = pos,
+                modifiers = Modifier.forMember(mthd),
+                kind      = MethodKind.Java(
+                    MethodKind.JavaSpecial, 
+                    cls, 
+                    Name.InitMethod.javaName,
+                    mthd.getParameterTypes,
+                    classOf[Unit]
+                ),
+                className = name,
+                name      = Name.InitMethod,
+                elaborate = inter,
+                msig      = MethodSignature(
+                    returnTy          = Type.Void,
+                    parameterPatterns = List(Pattern.Tuple(
+                        mthd.getGenericParameterTypes.toList.zipWithIndex.map(paramPattern)))
+                )
             )
-        ))
+        )
     }
     
     private[this] def methodSymbol(inter: Interval)(mthd: reflect.Method) = {
@@ -268,25 +300,27 @@ class ClassFromReflection(
             else
                 MethodKind.JavaVirtual            
         }
-        initReqs(new MethodSymbol(
-            pos       = pos,
-            modifiers = Modifier.forMember(mthd),
-            kind      = MethodKind.Java(
-                op,
-                cls,
-                mthd.getName,
-                mthd.getParameterTypes,
-                mthd.getReturnType
-            ),
-            className = name,
-            name      = Name.Method(List(mthd.getName)),
-            elaborate = inter,
-            msig      = MethodSignature(
-                returnTy          = typeRef(mthd.getGenericReturnType),
-                parameterPatterns = List(Pattern.Tuple(
-                    mthd.getGenericParameterTypes.toList.zipWithIndex.map(paramPattern)))
+        initReqs(Some(mthd))(
+            new MethodSymbol(
+                pos       = pos,
+                modifiers = Modifier.forMember(mthd),
+                kind      = MethodKind.Java(
+                    op,
+                    cls,
+                    mthd.getName,
+                    mthd.getParameterTypes,
+                    mthd.getReturnType
+                ),
+                className = name,
+                name      = Name.Method(List(mthd.getName)),
+                elaborate = inter,
+                msig      = MethodSignature(
+                    returnTy          = typeRef(mthd.getGenericReturnType),
+                    parameterPatterns = List(Pattern.Tuple(
+                        mthd.getGenericParameterTypes.toList.zipWithIndex.map(paramPattern)))
+                )
             )
-        ))
+        )
     }
     
     // Unfortunately, if a class overrides a method with a covariant

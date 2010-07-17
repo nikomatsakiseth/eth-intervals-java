@@ -4,16 +4,19 @@ class Resolve1(parent: Interval) {
     
     bad: IntervalX = null; // ERROR CannotResolve(IntervalX)
     
+    @Mutable(a)
     aRes: Integer = null;
     interval a(parent) {
         aRes = 22;
     }
     
+    @Mutable(b)
     bRes: Integer = null;
     interval b(parent) {
         bRes = 22;
     }
     
+    @Mutable(c)
     cRes: Integer = null;
     interval c(parent) {
         cRes = process(aRes + bRes); // ERROR NoSuchMethod(test.resolve.Resolve1, process())

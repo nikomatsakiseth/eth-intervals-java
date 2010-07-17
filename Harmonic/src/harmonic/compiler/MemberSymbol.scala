@@ -86,6 +86,9 @@ class MethodSymbol(
     // in the requirements lists (otherwise, one method would have to be 
     // fully constructed first, which would be impossible).
     
+    val GuardPath = new GuardedBy[Path.Ref](elaborate)
+    def guardPath = GuardPath.v
+    
     val Requirements = new GuardedBy[List[inference.Fact]](elaborate)
     def requirements = Requirements.v
     
