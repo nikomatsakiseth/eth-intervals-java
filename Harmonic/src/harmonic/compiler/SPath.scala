@@ -60,12 +60,14 @@ object SPath {
     
     case class Field(base: SPath.Owner, sym: VarSymbol.Field) extends Typed {
         def toPath = Path.Field(base.toPathOwner, sym.name)
-        lazy val ty = {
+        private[this] lazy val subst = {
             base match {
-                case Static => sym.ty
-                case base: SPath.Typed => Subst(Path.This -> base.toPath).ty(sym.ty)
+                case Static => Subst()
+                case base: SPath.Typed => Subst(Path.This -> base.toPath)
             }
         }
+        lazy val ty = subst.ty(sym.ty)
+        lazy val guardPath = subst.path(sym.guardPath)
         override def toString = toPath.toString
     }
     

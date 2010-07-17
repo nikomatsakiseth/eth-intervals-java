@@ -609,6 +609,10 @@ extends Resolve(global, compUnit)
             
             case (expr: in.Expr) :: stmts => 
                 resolveExpr(expr) :: resolveStmts(stmts)
+
+            case (stmt @ in.DefineLv((), rv)) :: stmts => {
+                throw new RuntimeException("AssignLV in ResolveBody") // TODO: Refactor types
+            }
                 
             case (stmt @ in.Assign(lvs, rvs)) :: stmts => {
                 val outRvs = rvs.map(resolveExpr)

@@ -756,8 +756,20 @@ abstract class Ast {
         override def toString = obj.toString
     }
 
-    /** */
-    case class Assign(lvalues: List[Lvalue], rvalues: List[Expr]) extends LowerStmt {
+    /** Eventually, all the complex rvalues get moved into `DefineLv` statements */
+    case class DefineLv(lvsym: LVSym, rvalue: Expr) extends LowerStmt {
+        def ty = voidTy
+        override def toString = "%s = %s".format(lvsym, rvalue)
+        
+        override def print(out: PrettyPrinter) {
+            out.newl(lvsym.toString)
+            out.addl(" = ")
+            rvalue.print(out)
+        }        
+    }
+
+    /** Initially all assignments, but eventually simplified and flattened */
+    case class Assign(lvalues: List[Lvalue], rvalues: List[NE]) extends LowerStmt {
         def ty = voidTy
         override def toString = "(%s) = (%s)".format(lvalues.mkString(", "), rvalues.mkString(", "))
         

@@ -555,8 +555,8 @@ extends Network[Env.Xtra](server)
         def trigger(recurse: Recurse[Env.Xtra], fact: K.HasClass): Boolean = {
             val global = recurse.xtra.global
             recurse.xtra.hasClass(
-                recurse.xtra.symPath(fact.left),
-                fact.right,
+                recurse.xtra.symPath(fact.path),
+                fact.cls,
                 recurse.queryRGivenL(_, classOf[K.TypeUb])
             )
         }

@@ -148,6 +148,11 @@ object VarSymbol {
     ) extends VarSymbol[Name.LocalVar] {
         def toPath = Path.Local(name)
         def toSPath = SPath.Local(this)
+        
+        def guardPath: Path.Ref = {
+            if(modifiers.isNotMutable) Path.Final
+            else Path.Method // TODO configurable
+        }
     }
     
     def errorLocal(name: Name.LocalVar, optExpTy: Option[Type]) = {
@@ -169,7 +174,9 @@ abstract class VarSymbol[+N <: Name.Var] extends Symbol with Page {
         System.identityHashCode(this)
     )
     
-    def isNamed(aName: Name.Var) = (name == aName)    
+    def isNamed(aName: Name.Var) = (name == aName)
+    
+    def guardPath: Path.Ref
     
     // ___ Page interface ___________________________________________________
     

@@ -227,7 +227,19 @@ case class Env(
     def typesAreEquatable(ty1: Type, ty2: Type) = factHolds(K.TypeEq(ty1, ty2))
     def pathsAreEquatable(p1: Path.Ref, p2: Path.Ref) = factHolds(K.PathEq(p1, p2))
     def symPath(path: Path.Ref) = xtra.symPath(path)
-    def ensuresFinal(guard: Path.Ref, inter: Path.Ref) = factHolds(K.EnsuresFinal(guard, inter))
+    
+    def ensuresFinal(guard: Path.Ref, inter: Path.Ref) = {
+        factHolds(K.EnsuresFinal(guard, inter))
+    }
+    
+    def permitsWr(guard: Path.Ref, inter: Path.Ref) = {
+        factHolds(K.PermitsWr(guard, inter))
+    }
+    
+    def permitsRd(guard: Path.Ref, inter: Path.Ref) = {
+        factHolds(K.PermitsRd(guard, inter))
+    }
+    
     def pathUpperBounds(path: Path.Ref) = {
         Lathos.context.indent(this, ".pathUpperBounds(", path, ")? Consulting ", factSet) {
             factSet.queryRGivenL(path, classOf[K.HasType])
@@ -722,17 +734,18 @@ case class Env(
     def pathIsFinalBy(path: SPath, inter: SPath): Boolean = {
         def wr(path: Path.Ref) = Path.Field(path, Name.Wr)
         
+        def guardEnsuresFinal(guardPath: Path.Ref) = {
+            pathIsFinalBy(symPath(guardPath), inter) &&
+            ensuresFinal(guardPath, inter.toPath)            
+        }
+        
         path match {
             case SPath.Tuple(paths) => {
                 paths.forall(pathIsFinalBy(_, inter))
             }
             
-            case SPath.Local(sym) => {
-                if(sym.modifiers.isNotMutable) true
-                else {
-                    val guardPath = locals(Name.MethodLocal) // TODO: Configurable guard paths for locals
-                    ensuresFinal(guardPath.toPath, inter.toPath)
-                }
+            case SPath.Local(lvsym) => {
+                guardEnsuresFinal(lvsym.guardPath)
             }
                 
             case SPath.Cast(_, castedPath) => {
@@ -748,18 +761,15 @@ case class Env(
             }
                 
             case SPath.Field(base, fsym) => {
-                ownerIsFinalBy(base, inter) && {                    
-                    val guardPath = locals(Name.FinalLocal) // TODO: Guard path for fields
-                    ensuresFinal(guardPath.toPath, inter.toPath)
+                ownerIsFinalBy(base, inter) && {
+                    guardEnsuresFinal(fsym.guardPath)
                 }
             }
             
             case SPath.Call(receiver, msym, args) => {
+                false && // TODO: Allow finalBy annotations in method signature
                 ownerIsFinalBy(receiver, inter) &&
-                args.forall(pathIsFinalBy(_, inter)) && {
-                    // TODO: Allow finalBy annotations in method signature
-                    false 
-                }
+                args.forall(pathIsFinalBy(_, inter))
             }
             
             case SPath.Index(array, index) => {
