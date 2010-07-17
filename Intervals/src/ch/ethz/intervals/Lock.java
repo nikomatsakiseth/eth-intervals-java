@@ -1,6 +1,5 @@
 package ch.ethz.intervals;
 
-
 /** 
  * Mirror class representing locks.
  */

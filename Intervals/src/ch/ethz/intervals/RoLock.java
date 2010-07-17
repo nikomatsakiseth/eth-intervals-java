@@ -1,5 +1,7 @@
 package ch.ethz.intervals;
 
-public interface RoLock {
+import ch.ethz.intervals.guard.StaticGuard;
+
+public interface RoLock extends StaticGuard {
 
 }

@@ -259,6 +259,17 @@ public abstract class IntervalException extends RuntimeException {
 		}
 	}
 
+	public static class NeverPermitsWrites extends IntervalException {
+		public final Guard guard;
+		
+		public NeverPermitsWrites(Guard guard) {
+			this.guard = guard;
+		}
+		
+		@Override public String toString() {
+			return "The guard " + guard + " never permits writes.";
+		}
+	}
 
 
 }

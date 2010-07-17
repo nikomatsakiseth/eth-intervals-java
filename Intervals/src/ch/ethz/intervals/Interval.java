@@ -5,7 +5,7 @@ import ch.ethz.intervals.guard.Guard;
 /** 
  * Mirror class representing intervals.
  */
-public interface Interval extends RoInterval, Guard {
+public interface Interval extends RoInterval {
 	/** Returns the parent interval */
 	public Interval getParent();
 

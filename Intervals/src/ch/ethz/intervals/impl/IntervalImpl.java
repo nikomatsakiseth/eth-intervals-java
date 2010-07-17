@@ -47,44 +47,69 @@ implements Guard, Interval, Page, RefManipulator
 		return end.bound;
 	}
 	
-	private boolean isWritableBy(RoInterval inter) {
-		while(inter != this && inter.isInline())
-			inter = inter.getParent();
-		return (inter == this);
+	/**
+	 * Shared implementation of {@link #checkReadable(RoPoint, RoInterval)} used both by
+	 * this class and also the Harmonic code.
+	 */
+	public static IntervalException checkReadableImpl(RoInterval self, RoPoint mr, RoInterval inter) {
+		if(inter.isSubintervalOfOrEqualTo(self) || (mr != null && self.getEnd().hbeq(mr)))
+			return null;
+		
+		return new IntervalException.MustHappenBefore(self.getEnd(), mr);
 	}
 	
-	private boolean isReadableBy(RoPoint mr, RoInterval inter) {
-		return (isWritableBy(inter) || (mr != null && end.hbeq(mr)));
-	}
-	
-	@Override
-	public IntervalException checkLockable(RoInterval interval, RoLock lock) {
-		return new IntervalException.CannotBeLockedBy(this, lock);
+	/**
+	 * Shared implementation of {@link #checkWritable(RoPoint, RoInterval)} used both by
+	 * this class and also the Harmonic code.
+	 */
+	public static IntervalException checkWritableImpl(RoInterval self, RoPoint mr, RoInterval inter) {
+		if(inter.isInlineSubintervalOfOrEqualTo(self))
+			return null;
+		
+		return new IntervalException.NotSubinterval(inter, self);
 	}
 
+	/**
+	 * Shared implementation of {@link #ensuresFinal(RoPoint, RoInterval)} used both by
+	 * this class and also the Harmonic code.
+	 */
+	public static IntervalException ensuresFinalImpl(RoInterval self, RoPoint mr, RoInterval inter) {
+		if(self.getEnd().hbeq(mr))
+			return null;
+		
+		return new IntervalException.MustHappenBefore(self.getEnd(), mr);		
+	}
+	
+	/**
+	 * Shared implementation of {@link #checkLockable(RoInterval, RoLock)} used both by
+	 * this class and also the Harmonic code.
+	 */
+	public static IntervalException checkLockableImpl(RoInterval self, RoInterval interval, RoLock lock) {
+		return new IntervalException.CannotBeLockedBy(self, lock);		
+	}
+	
 	@Override
 	public IntervalException checkReadable(RoPoint mr, RoInterval inter) {
-		if(!isReadableBy(mr, inter))
-			return new IntervalException.MustHappenBefore(end, mr);
-		return null;
+		return checkReadableImpl(this, mr, inter);
 	}
-
+	
 	@Override
 	public IntervalException checkWritable(RoPoint mr, RoInterval inter) {
-		if(!isWritableBy(inter))
-			return new IntervalException.NotSubinterval(inter, this);
-		return null;
+		return checkWritableImpl(this, mr, inter);
 	}
 	
 	@Override
 	public IntervalException ensuresFinal(RoPoint mr, RoInterval inter) {
-		if(end.hb(mr))
-			return null;
-		return new IntervalException.MustHappenBefore(end, mr);
+		return ensuresFinalImpl(this, mr, inter);		
 	}
 	
 	@Override
-	public boolean isSubintervalOf(Interval inter) {
+	public IntervalException checkLockable(RoInterval interval, RoLock lock) {
+		return checkLockableImpl(this, interval, lock);
+	}
+	
+	@Override
+	public boolean isSubintervalOfOrEqualTo(RoInterval inter) {
 		if(inter == this)
 			return true;
 		
@@ -94,11 +119,11 @@ implements Guard, Interval, Page, RefManipulator
 		if(parent == null)
 			return false;
 		
-		return parent.isSubintervalOf(inter);
+		return parent.isSubintervalOfOrEqualTo(inter);
 	}
 
 	@Override
-	public boolean isInlineSubintervalOf(Interval inter) {
+	public boolean isInlineSubintervalOfOrEqualTo(RoInterval inter) {
 		if(inter == this)
 			return true;
 		
@@ -108,7 +133,7 @@ implements Guard, Interval, Page, RefManipulator
 		if(parent == null)
 			return false;
 		
-		return parent.isInlineSubintervalOf(inter);
+		return parent.isInlineSubintervalOfOrEqualTo(inter);
 	}
 
 	/**

@@ -27,7 +27,7 @@ public class ScopedVarImpl<T> implements ScopedVar<T> {
 			throw new NullPointerException();
 		
 		Current current = Current.get();
-		if(!forInterval.isInlineSubintervalOf(current.inter))
+		if(!forInterval.isInlineSubintervalOfOrEqualTo(current.inter))
 			throw new IntervalException.MustBeCurrent(forInterval);
 		
 		synchronized(this) {
@@ -58,7 +58,7 @@ public class ScopedVarImpl<T> implements ScopedVar<T> {
 			Current current = Current.get();
 			if(current.inter == null) 
 				throw new IntervalException.MustBeCurrent(forInterval);
-			else if(!current.inter.isSubintervalOf(forInterval))
+			else if(!current.inter.isSubintervalOfOrEqualTo(forInterval))
 				throw new IntervalException.MustBeCurrent(forInterval);
 		}
 		

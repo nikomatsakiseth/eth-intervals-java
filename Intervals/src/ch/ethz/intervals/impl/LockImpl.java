@@ -5,11 +5,10 @@ import ch.ethz.intervals.Lock;
 import ch.ethz.intervals.RoInterval;
 import ch.ethz.intervals.RoLock;
 import ch.ethz.intervals.RoPoint;
-import ch.ethz.intervals.guard.Guard;
 
 public class LockImpl
 extends /*@Writer("this.constructor")*/ LockBase 
-implements Guard, Lock
+implements Lock
 {
 	private final String name;
 	
@@ -29,28 +28,46 @@ implements Guard, Lock
 		return String.format("Lock(%x)", System.identityHashCode(this));
 	}
 	
-	@Override
-	public IntervalException checkLockable(RoInterval interval, RoLock lock) {
-		if(lock != this)
-			return new IntervalException.CannotBeLockedBy(this, lock);
+	public static IntervalException checkReadableImpl(RoLock self, RoPoint mr, RoInterval inter) {
+		return checkWritableImpl(self, mr, inter);
+	}
+	
+	public static IntervalException checkWritableImpl(RoLock self, RoPoint mr, RoInterval inter) {
+		if(inter.locks(self))
+			return null;
+		
+		return new IntervalException.LockNotHeld(self, inter);
+	}
+	
+	public static IntervalException checkLockableImpl(RoLock self, RoInterval interval, RoLock lock) {
+		if(!lock.equals(self))
+			return new IntervalException.CannotBeLockedBy(self, lock);
+		
 		return null;
 	}
-
+	
+	public static IntervalException ensuresFinalImpl(RoLock self, RoPoint mr, RoInterval inter) {
+		return new IntervalException.NeverFinal(self);		
+	}
+	
 	@Override
 	public IntervalException checkReadable(RoPoint mr, RoInterval inter) {
-		return checkWritable(mr, inter);
+		return checkReadableImpl(this, mr, inter);
 	}
 
 	@Override
-	public IntervalException checkWritable(RoPoint mr, RoInterval inter) {
-		if(!inter.locks(this))
-			return new IntervalException.LockNotHeld(this, inter);
-		return null;
+	public RuntimeException checkWritable(RoPoint mr, RoInterval inter) {
+		return checkWritableImpl(this, mr, inter);
+	}
+	
+	@Override
+	public IntervalException checkLockable(RoInterval interval, RoLock lock) {
+		return checkLockableImpl(this, interval, lock);		
 	}
 
 	@Override
-	public RuntimeException ensuresFinal(RoPoint mr, RoInterval current) {
-		return new IntervalException.NeverFinal(this);
+	public RuntimeException ensuresFinal(RoPoint mr, RoInterval inter) {
+		return ensuresFinalImpl(this, mr, inter);
 	}
 
 }

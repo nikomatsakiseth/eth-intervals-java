@@ -1,10 +1,12 @@
 package ch.ethz.intervals;
 
+import ch.ethz.intervals.guard.StaticGuard;
+
 /**
  * Read-only interval interface.  This interface allows the user
  * to query the schedule but not to make changes.
  */
-public interface RoInterval {
+public interface RoInterval extends StaticGuard {
 	/** Returns the parent interval */
 	public RoInterval getParent();
 
@@ -28,7 +30,7 @@ public interface RoInterval {
 	 * interval, and therefore returns this method returns true if 
 	 * {@code inter == null}. 
 	 */
-	public boolean isSubintervalOf(Interval inter);
+	public boolean isSubintervalOfOrEqualTo(RoInterval inter);
 
 	/**
 	 * Returns true if {@code this} is a (transitive) inline subinterval 
@@ -37,5 +39,5 @@ public interface RoInterval {
 	 * @param inter the parent interval.  {@code null} is considered the root
 	 * interval.
 	 */
-	public boolean isInlineSubintervalOf(Interval inter);
+	public boolean isInlineSubintervalOfOrEqualTo(RoInterval inter);
 }
