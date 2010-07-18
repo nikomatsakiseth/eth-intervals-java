@@ -50,7 +50,7 @@ class MockEnv(
         }
     }
     
-    private[this] def tryStaticField(path: Path) = {
+    private[this] def tryStaticField(path: Path) = Lathos.context.indent("tryStaticField(", path, ")") {
         path match {
             case Path.Field(Path.Static, name) => {
                 val csym = global.csym(name.className)
@@ -73,36 +73,38 @@ class MockEnv(
         }
     }
     
-    private[this] def tryStaticMethod(path: Path) = {
-        path match {
-            case Path.StaticCall(methodId, args) => {
-                global.methodSymbol(methodId).flatMap { msym =>
-                    msym.toReflectedJavaMethod.flatMap { mthd =>
-                        if(mthd.hasHAnnotation(classOf[StaticCheck])) {
-                            // TODO-- Infinite recursion
-                            // TODO-- Check lvalues and incorporate into this test
-                            val optMockedArgs = args.map(tryMock)
-                            if(optMockedArgs.forall(_.isDefined)) {
-                                val mockedArgs = optMockedArgs.flatten
-                                
-                                try {
-                                    Some(mthd.invoke(null, mockedArgs: _*))
-                                } catch {
-                                    case exc: Exception => None
-                                }                            
-                            } else {
-                                None
-                            }
-                        } else {
-                            None
-                        }
-                    }
-                }
-            }
-            
-            case _ => None
-        }
-    }
+    //private[this] def tryStaticMethod(path: Path) = Lathos.context.indent("tryStaticMethod(", path, ")") {
+    //    path match {
+    //        case Path.StaticCall(methodId, args) => {
+    //            global.methodSymbol(methodId).flatMap { msym =>
+    //                Lathos.context.log("Static call to ", msym)
+    //                msym.toReflectedJavaMethod.flatMap { mthd =>
+    //                    Lathos.context.log("Reflected Java method ", mthd)
+    //                    if(mthd.hasHAnnotation(classOf[StaticCheck])) {
+    //                        // TODO-- Infinite recursion
+    //                        // TODO-- Check lvalues and incorporate into this test
+    //                        val optMockedArgs = args.map(tryMock)
+    //                        if(optMockedArgs.forall(_.isDefined)) {
+    //                            val mockedArgs = optMockedArgs.flatten
+    //                            
+    //                            try {
+    //                                Some(mthd.invoke(null, mockedArgs: _*))
+    //                            } catch {
+    //                                case exc: Exception => None
+    //                            }                            
+    //                        } else {
+    //                            None
+    //                        }
+    //                    } else {
+    //                        None
+    //                    }
+    //                }
+    //            }
+    //        }
+    //        
+    //        case _ => None
+    //    }
+    //}
     
     // Applies `technique` to all of the objects in `paths`,
     // yielding the first successful result, or None.
@@ -119,7 +121,6 @@ class MockEnv(
         tryAlreadyMapped, 
         tryConstant, 
         tryStaticField, 
-        tryStaticMethod,
         tryBuiltin
     )
     
