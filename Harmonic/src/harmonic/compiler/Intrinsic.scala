@@ -31,19 +31,19 @@ object Intrinsic {
     private[this] val extraAnnot = Map[reflect.AnnotatedElement, List[Object]](
         
         classOf[RoInterval].getDeclaredMethod("getStart") -> List(
-            at(classOf[Mutable], Map("value" -> "(ch.ethz.intervals.guard.FinalGuard#Final)"))
+            at(classOf[Mutable], Map("value" -> Name.FinalMember.toAnnString))
         ),
 
         classOf[Interval].getDeclaredMethod("getStart") -> List(
-            at(classOf[Mutable], Map("value" -> "(ch.ethz.intervals.guard.FinalGuard#Final)"))
+            at(classOf[Mutable], Map("value" -> Name.FinalMember.toAnnString))
         ),
         
         classOf[RoInterval].getDeclaredMethod("getEnd") -> List(
-            at(classOf[Mutable], Map("value" -> "(ch.ethz.intervals.guard.FinalGuard#Final)"))
+            at(classOf[Mutable], Map("value" -> Name.FinalMember.toAnnString))
         ),
 
         classOf[Interval].getDeclaredMethod("getEnd") -> List(
-            at(classOf[Mutable], Map("value" -> "(ch.ethz.intervals.guard.FinalGuard#Final)"))
+            at(classOf[Mutable], Map("value" -> Name.FinalMember.toAnnString))
         )
         
     )
