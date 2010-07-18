@@ -650,9 +650,18 @@ extends Resolve(global, compUnit)
                     global.requireLoadedOrLoadable(owner.pos, name)
                     out.Static(name)
                 }
+    
+                case owner: in.AnyPathNode => {
+                    resolvePathToFinal(owner) match {
+                        case ResolvedToClass(className) => 
+                            out.Static(className)
+                        case ResolvedToPath(path) => 
+                            path
+                    }
+                }
                 
-                case expr: in.Expr => {
-                    resolveExpr(expr)
+                case owner: in.Expr => {
+                    resolveExpr(owner)
                 }
             }
         })

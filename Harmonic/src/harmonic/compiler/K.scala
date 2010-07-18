@@ -56,7 +56,7 @@ object K {
     final case class InlineSubOf(child: Path, parent: Path) extends ChildParent {
         def withPaths(left: Path, right: Path) = InlineSubOf(left, right)                                
     }
-    final case class Locks(inter: Path, lock: Path) extends Paths with Fact.Forward {
+    final case class Locks(inter: Path, lock: Path) extends ForwardPaths {
         def left = inter
         def right = lock
         def withPaths(left: Path, right: Path) = Locks(left, right)                        

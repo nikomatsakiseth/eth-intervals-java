@@ -55,17 +55,17 @@ class MockEnv(
             case Path.Field(Path.Static, name) => {
                 val csym = global.csym(name.className)
                 csym.toReflectedJavaClass.flatMap { cls =>
-                    try {
-                        val fld = cls.getDeclaredField(name.text)
-                        if(fld.hasHAnnotation(classOf[StaticCheck])) {
+                    val fld = cls.getDeclaredField(name.text)
+                    if(fld.hasHAnnotation(classOf[StaticCheck])) {
+                        try {
                             assert(fld.getModifiers.containsBits(jModifier.STATIC | jModifier.FINAL))
                             fld.setAccessible(true)
                             Some(fld.get(null))
-                        } else {
-                            None
-                        }
-                    } catch {
-                        case exc: Exception => None
+                        } catch {
+                            case exc: Exception => None
+                        }                        
+                    } else {
+                        None
                     }
                 }
             }
@@ -79,7 +79,24 @@ class MockEnv(
             case Path.StaticCall(methodId, args) => {
                 global.methodSymbol(methodId).flatMap { msym =>
                     msym.toReflectedJavaMethod.flatMap { mthd =>
-                        None
+                        if(mthd.hasHAnnotation(classOf[StaticCheck])) {
+                            // TODO-- Infinite recursion
+                            // TODO-- Check lvalues and incorporate into this test
+                            val optMockedArgs = args.map(tryMock)
+                            if(optMockedArgs.forall(_.isDefined)) {
+                                val mockedArgs = optMockedArgs.flatten
+                                
+                                try {
+                                    Some(mthd.invoke(null, mockedArgs: _*))
+                                } catch {
+                                    case exc: Exception => None
+                                }                            
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
                     }
                 }
             }
