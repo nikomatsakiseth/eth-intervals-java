@@ -7,7 +7,7 @@ import ch.ethz.intervals.RoPoint;
 
 public final class FinalGuard implements StaticGuard {
 	
-	public static FinalGuard Final = new FinalGuard();
+	public static final FinalGuard Final = new FinalGuard();
 	
 	private FinalGuard() {
 	}
