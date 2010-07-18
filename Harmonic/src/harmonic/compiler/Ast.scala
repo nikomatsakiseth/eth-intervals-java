@@ -645,11 +645,11 @@ abstract class Ast {
         }
     }
     
-    case class AnyPath(path: SPath) extends Node {
+    case class AnyPath(path: SPath[Phantasmal]) extends Node {
         override def toString = path.toString
     }
     
-    case class TypedPath(path: SPath.Typed) extends TypedNode with LowerTlExpr {
+    case class TypedPath(path: SPath[Reified]) extends TypedNode with LowerTlExpr {
         override def toString = path.toString
         def ty = toTy(path.ty)
     }
@@ -1155,18 +1155,18 @@ object Ast {
             implicit def extendedParam(pat: Param[VSym]): ExtendedParam = 
                 ExtendedParam(pat)
             
-            case class ExtendedTypedPath(path: SPath.Typed) {
+            case class ExtendedTypedPath(path: SPath[Reified]) {
                 def toNode: TypedPath = TypedPath(path)
                 def toNodeWithPosOf(n: Node): TypedPath = withPosOf(n, toNode)
             }
-            implicit def extendedTypedPath(path: SPath.Typed): ExtendedTypedPath = 
+            implicit def extendedTypedPath(path: SPath[Reified]): ExtendedTypedPath = 
                 ExtendedTypedPath(path)
                 
-            case class ExtendedAnyPath(path: SPath) {
+            case class ExtendedAnyPath(path: SPath[Phantasmal]) {
                 def toApNode: AnyPath = AnyPath(path)
                 def toApNodeWithPosOf(n: Node): AnyPath = withPosOf(n, toApNode)
             }
-            implicit def extendedAnyPath(path: SPath): ExtendedAnyPath = 
+            implicit def extendedAnyPath(path: SPath[Phantasmal]): ExtendedAnyPath = 
                 ExtendedAnyPath(path)
                 
             case class ExtendedRequirement(req: Requirement) {

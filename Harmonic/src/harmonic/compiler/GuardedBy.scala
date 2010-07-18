@@ -6,6 +6,8 @@ import Util._
 class GuardedBy[T](pass: Interval)(implicit global: Global) {
     private[this] var value: Option[T] = None
     
+    override def toString = "GuardedBy(%s by %s)".format(value, pass)
+    
     def join = {
         pass.join()
         v

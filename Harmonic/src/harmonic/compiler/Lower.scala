@@ -321,7 +321,7 @@ case class Lower(global: Global) {
         lvalues: List[Pattern.Any], 
         rvalues: List[out.TypedPath]
     ): List[out.TypedPath] = {
-        def flattenPair(pos: out.TypedPath)(pair: (Pattern.Any, SPath.Typed)): List[out.TypedPath] = {
+        def flattenPair(pos: out.TypedPath)(pair: (Pattern.Any, SPath[Reified])): List[out.TypedPath] = {
             pair match {
                 case (Pattern.AnyTuple(List(pat)), path) => {
                     flattenPair(pos)((pat, path))
@@ -370,9 +370,9 @@ case class Lower(global: Global) {
             SPath.Local(sym)
         }
         
-        def typedPathForPath(path: in.AnyPathNode): SPath.Typed = {
+        def typedPathForPath(path: in.AnyPathNode): SPath[Reified] = {
             symPathForPath(path) match {
-                case spath: SPath.Typed => spath
+                case spath: SPath[Reified] => spath
                 case spath => {
                     Error.NoGhostHere(spath).report(global, path.pos)
                     errorTypedPath(path.toString)
@@ -380,7 +380,7 @@ case class Lower(global: Global) {
             }
         }
             
-        def symPathForPath(path: in.AnyPathNode): SPath = {
+        def symPathForPath(path: in.AnyPathNode): SPath[Phantasmal] = {
             def callData(
                 name: Name.Method,
                 msyms: List[MethodSymbol], 
@@ -388,7 +388,7 @@ case class Lower(global: Global) {
                 inRcvr: in.Rcvr, 
                 inArgs: List[in.AnyPathNode],
                 outArgNodes: List[out.TypedPath]
-            ): Option[(List[SPath.Typed], MethodSymbol)] = {
+            ): Option[(List[SPath[Reified]], MethodSymbol)] = {
                 val argTys = outArgNodes.map(_.ty)
                 msyms match {
                     case List() => {
@@ -425,11 +425,11 @@ case class Lower(global: Global) {
 
                         case Some(fsym) if !fsym.modifiers.isStatic => {
                             Error.ExpStatic(memberVar).report(global, path.pos)
-                            errorTypedPath(path.toString)               
+                            errorTypedPath(path.toString)
                         }
 
                         case Some(fsym) => {
-                            SPath.Field(SPath.Static, fsym)
+                            SPath.staticField(fsym)
                         }
                     }
                 }
@@ -444,7 +444,7 @@ case class Lower(global: Global) {
                         
                         case Right(fsym: VarSymbol.Field) if fsym.modifiers.isStatic => {
                             Error.QualStatic(fsym.name).report(global, path.pos)
-                            SPath.Field(SPath.Static, fsym)
+                            SPath.staticField(fsym)
                         }
                         
                         case Right(fsym: VarSymbol.Field) => {
@@ -950,7 +950,7 @@ case class Lower(global: Global) {
                             VarSymbol.errorField(memberVar, optExpTy)
                         }
                     }
-                    SPath.Field(SPath.Static, fsym).toNode
+                    SPath.staticField(fsym).toNode
                 }
                 
                 // Instance field ref like foo.bar:
@@ -1218,7 +1218,7 @@ case class Lower(global: Global) {
             case e: in.ImpThis => lowerImpThis(e)
         }
         
-        def lowerToTypedPath(optExpTy: Option[Type])(expr: in.Expr): SPath.Typed = {
+        def lowerToTypedPath(optExpTy: Option[Type])(expr: in.Expr): SPath[Reified] = {
             typedPathForExpr(lowerExpr(optExpTy)(expr))
         }
         
@@ -1226,7 +1226,7 @@ case class Lower(global: Global) {
             typedPathNodeForExpr(lowerExpr(optExpTy)(expr))
         }
 
-        def typedPathForExprFilter(filter: (SPath.Typed => Boolean))(outExpr: out.Expr): SPath.Typed = {
+        def typedPathForExprFilter(filter: (SPath[Reified] => Boolean))(outExpr: out.Expr): SPath[Reified] = {
             outExpr match {
                 // Extract paths meeting the filter:
                 case out.TypedPath(outPath) if filter(outPath) => outPath
@@ -1243,7 +1243,7 @@ case class Lower(global: Global) {
         }
         
         // TODO: Refactor type system to prove that atomic paths are composed only of atomic comp.
-        def isAtomicPath(path: SPath.Typed) = path match {
+        def isAtomicPath(path: SPath[Reified]) = path match {
             case SPath.Local(_) => true
             case SPath.Tuple(_) => true
             case SPath.Constant(_) => true

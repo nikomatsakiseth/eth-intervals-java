@@ -645,15 +645,15 @@ case class ByteCode(global: Global) {
         case _ => Nil
     }
     
-    def summarizeSymbolsInPath(summary: SymbolSummary, path: SPath.Typed): SymbolSummary = {
+    def summarizeSymbolsInPath(summary: SymbolSummary, path: SPath[Reified]): SymbolSummary = {
         path match {
             case SPath.Local(sym) => summary.copy(readSyms = summary.readSyms + sym)
             case SPath.Cast(_, path) => summarizeSymbolsInPath(summary, path)
             case SPath.Constant(_) => summary
             case SPath.Field(SPath.Static, sym) => summary
-            case SPath.Field(path: SPath.Typed, _) => summarizeSymbolsInPath(summary, path)
+            case SPath.Field(path: SPath[Reified], _) => summarizeSymbolsInPath(summary, path)
             case SPath.Call(SPath.Static, _, args) => args.foldLeft(summary)(summarizeSymbolsInPath)
-            case SPath.Call(rcvr: SPath.Typed, _, args) => (rcvr :: args).foldLeft(summary)(summarizeSymbolsInPath)
+            case SPath.Call(rcvr: SPath[Reified], _, args) => (rcvr :: args).foldLeft(summary)(summarizeSymbolsInPath)
             case SPath.Index(array, index) => List(array, index).foldLeft(summary)(summarizeSymbolsInPath)            
             case SPath.Tuple(paths) => paths.foldLeft(summary)(summarizeSymbolsInPath)
         }
@@ -737,7 +737,7 @@ case class ByteCode(global: Global) {
         
         def inBlock = (flags & IN_BLOCK) != 0
         
-        def pushPathRvalues(lvalue: Pattern.Any, rvalue: SPath.Typed, asmTypes: List[asm.Type]): List[asm.Type] = {
+        def pushPathRvalues(lvalue: Pattern.Any, rvalue: SPath[Reified], asmTypes: List[asm.Type]): List[asm.Type] = {
             (lvalue, rvalue) match {
                 case (Pattern.AnyTuple(List(l)), _) =>
                     pushPathRvalues(l, rvalue, asmTypes)
@@ -796,7 +796,7 @@ case class ByteCode(global: Global) {
             rcvr: Int,
             
             /** Argument expressions */
-            args: List[SPath.Typed]
+            args: List[SPath[Reified]]
         ) {
             def pushConvertingTo(asmTypes: Array[asm.Type]) {
                 asmTypes.zip(args).foreach { case (asmType, arg) =>
@@ -825,16 +825,16 @@ case class ByteCode(global: Global) {
             }
         }
         
-        def pushPathValueDowncastingTo(toTy: Type, path: SPath.Typed) {
+        def pushPathValueDowncastingTo(toTy: Type, path: SPath[Reified]) {
             pushPathValueDowncastingTo(toTy.toAsmType, path)
         }
         
-        def pushPathValueDowncastingTo(toAsmTy: asm.Type, path: SPath.Typed) {
+        def pushPathValueDowncastingTo(toAsmTy: asm.Type, path: SPath[Reified]) {
             pushPathValue(path)
             mvis.convert(toAsmTy, path.ty.toAsmType)
         }
 
-        def pushPathValue(path: SPath.Typed) {
+        def pushPathValue(path: SPath[Reified]) {
             path match {
                 case SPath.Tuple(List()) => {
                     mvis.visitInsn(O.ACONST_NULL)
@@ -906,7 +906,7 @@ case class ByteCode(global: Global) {
                     }
                 }
                 
-                case SPath.Field(ownerPath: SPath.Typed, fsym) => {
+                case SPath.Field(ownerPath: SPath[Reified], fsym) => {
                     pushPathValue(ownerPath)
                     fsym.kind match {
                         case FieldKind.Java(owner, name, cls) => {
@@ -951,7 +951,7 @@ case class ByteCode(global: Global) {
                     }                    
                 }
                 
-                case path @ SPath.Call(receiver: SPath.Typed, msym, args) => {
+                case path @ SPath.Call(receiver: SPath[Reified], msym, args) => {
                     val msig = path.msig
                     msym.kind match {
                         case harm: MethodKind.Harmonic => {
@@ -1653,7 +1653,7 @@ case class ByteCode(global: Global) {
         // So if the source patterns were `(a: A, b: B)` and `(c: C)`, we would:
         // (a) Create three symbols `a`, `b`, and `c`
         // (b) Return the expressions `(a, b)` and `c`.
-        def constructPathFromPattern(pattern: Pattern.Ref): SPath.Typed = pattern match {
+        def constructPathFromPattern(pattern: Pattern.Ref): SPath[Reified] = pattern match {
             case Pattern.Tuple(subpatterns) => 
                 SPath.Tuple(subpatterns.map(constructPathFromPattern))
                 

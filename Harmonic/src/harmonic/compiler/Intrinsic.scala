@@ -2,6 +2,7 @@ package harmonic.compiler
 
 import ch.ethz.intervals._
 import harmonic.lang.Mutable
+import com.smallcultfollowing.lathos.Lathos
 import java.lang.reflect
 import java.lang.annotation
 import Util._
@@ -17,7 +18,8 @@ object Intrinsic {
     extends reflect.InvocationHandler {
         def invoke(proxy: Object, method: reflect.Method, args: Array[Object]): Object = {
             if(method.getName == "annotationType") cls
-            else values.get(method.getName)
+            else if(method.getName == "toString") "%s(%s)".format(cls.getSimpleName, values.mkString("; "))
+            else values(method.getName)
         }
     }
     
@@ -28,7 +30,7 @@ object Intrinsic {
         cls.cast(proxy)
     }
     
-    private[this] val extraAnnot = Map[reflect.AnnotatedElement, List[Object]](
+    private[this] val extraAnnot = Map[reflect.AnnotatedElement, List[annotation.Annotation]](
         
         classOf[RoInterval].getDeclaredMethod("getStart") -> List(
             at(classOf[Mutable], Map("value" -> Name.FinalMember.toAnnString))
@@ -50,9 +52,17 @@ object Intrinsic {
     
     case class HarmonicAnnotated(obj: reflect.AnnotatedElement) {
         def getHAnnotation[C <: annotation.Annotation](cls: Class[C]): Option[C] = {
-            obj.getAnnotation(cls) match {
-                case null => extraAnnot.get(obj).find(cls.isInstance(_)).map(cls.cast(_))
-                case ann => Some(ann)
+            Lathos.context.indent("getHAnnotation(", obj, ", ", cls, ")") {
+                obj.getAnnotation(cls) match {
+                    case null => {
+                        extraAnnot.get(obj).flatMap { extras =>
+                            Lathos.context.log("extras = ", extras)
+                            Lathos.context.log(cls, " isInst = ", extras.map(cls.isInstance))
+                            extras.find(cls.isInstance(_)).map(cls.cast(_))                            
+                        }
+                    }
+                    case ann => Some(ann)
+                }                
             }
         }
     }

@@ -4,7 +4,7 @@ import scala.collection.immutable.Map
 import scala.collection.mutable
 import scala.util.parsing.input.Position
 
-import com.smallcultfollowing.lathos.Context
+import com.smallcultfollowing.lathos.Lathos
 
 import Ast.{Lower => in}
 import Ast.Lower.Extensions._
@@ -29,6 +29,8 @@ case class Envirate(global: Global) {
     
     def forClassFromSource(csym: ClassFromSource) = {
         
+        val log = Lathos.context
+        
         val cdecl = csym.loweredSource
         
         // Add the this variable:
@@ -45,7 +47,7 @@ case class Envirate(global: Global) {
             case in.ExtendsDecl(name, args, (msym, msig)) => {
                 val argPaths = args.map(_.path)
 
-                val vsubst = msym.substForFlatArgs(argPaths)
+                val vsubst = msym.substForFlatSPaths(argPaths)
                 val ensures = msym.ensures.view.map(vsubst.fact)
                 val finalEnsures = ensures.filter(env.factIsFinalBy(_, method))
                 env = env.plusFacts(finalEnsures)
@@ -57,11 +59,15 @@ case class Envirate(global: Global) {
         
         // Add from class body:
         val newFacts = cdecl.members.flatMap {
-            case in.RelDecl(_, in.TypedPath(left), rel, in.TypedPath(right))
-            if(
-                env.pathIsFinalBy(left, method) && 
-                env.pathIsFinalBy(right, method)
-            ) => Some(rel.toFact(left.toPath, right.toPath))
+            case in.RelDecl(_, in.TypedPath(left), rel, in.TypedPath(right)) => {
+                log.embeddedIndent("Considering ", left, rel, right) {
+                    (
+                        env.pathIsFinalBy(left, method) &&
+                        env.pathIsFinalBy(right, method)
+                    ).toOption(rel.toFact(left.toPath, right.toPath))
+                }
+            }
+                
             case _ => None
         }
         env = env.plusFacts(newFacts)

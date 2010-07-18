@@ -97,7 +97,8 @@ object AnnParse extends StdTokenParsers with PackratParsers {
     |   stringLit               ^^ { case l => Path.Constant(l) }
     |   "true"                  ^^ { case _ => Path.Constant(java.lang.Boolean.TRUE) }
     |   "false"                 ^^ { case _ => Path.Constant(java.lang.Boolean.FALSE) }
-    |   owner~memberName        ^^ { case o~f => Path.Field(o, f) }
+    |   memberName              ^^ { case f => Path.Field(Path.Static, f) }
+    |   path~memberName         ^^ { case o~f => Path.Field(o, f) }
     |   path~"["~path~"]"       ^^ { case a~_~i~_ => Path.Index(a, i) }
     |   "("~comma1(path)~")"    ^^ { case _~t~_ => Path.Tuple(t) }
     |   call

@@ -72,7 +72,7 @@ class MethodSymbol(
     
     def isNamed(aName: Name.Method) = (name == aName)
     
-    def substForFlatArgs(flatArgs: List[SPath.Typed]) = {
+    def substForFlatSPaths(flatArgs: List[SPath[Reified]]) = {
         msig.parameterPatterns.flatMap(_.varNames).zip(flatArgs).foldLeft(Subst.empty) {
             case (s, (x, tp)) => s + (x.toPath -> tp.toPath)
         }

@@ -235,8 +235,26 @@ class Global(
         csym(className).methodsNamed(methodName).filter(_.modifiers.isStatic)            
     }
     
+    def methodSymbol(methodId: MethodId) = {
+        csym(methodId.className).methodsNamed(methodId.methodName).find(_.id.is(methodId))
+    }
+    
+    def methodSymbolOrError(methodId: MethodId) = {
+        methodSymbol(methodId).getOrElse {
+            Error.NoSuchMethodId(methodId).report(this)
+            MethodSymbol.error(methodId)(this)
+        }        
+    }
+    
     def fieldSymbol(memberName: Name.Member) = {
         csym(memberName.className).fieldNamed(memberName)
+    }
+    
+    def fieldSymbolOrError(memberName: Name.Member) = {
+        fieldSymbol(memberName).getOrElse {
+            Error.NoSuchField(memberName).report(this)
+            VarSymbol.errorField(memberName, None)(this)
+        }
     }
     
     def ghostSymbol(memberName: Name.Member) = {

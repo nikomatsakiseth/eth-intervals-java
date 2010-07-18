@@ -30,7 +30,7 @@ object Error {
     
     case class DoesNotPermitWritesFrom(guardPath: Path.Ref, interPath: Path.Ref) extends ErrorProduct
     case class DoesNotPermitReadsFrom(guardPath: Path.Ref, interPath: Path.Ref) extends ErrorProduct
-    case class NoGhostHere(path: SPath) extends ErrorProduct
+    case class NoGhostHere(path: SPath[Phantasmal]) extends ErrorProduct
     case class ExplicitTypeRequiredDueToCycle(memName: String) extends ErrorProduct
     case class NoSuperClassImplements(mthdName: Name.Method) extends ErrorProduct
     case class CanOnlyCreateClasses(ty: Type) extends ErrorProduct
@@ -40,8 +40,8 @@ object Error {
     case class DoesNotEnsure(fact: inference.Fact) extends ErrorProduct
     case class NoReturnHere() extends ErrorProduct
     case class MustBeSubtype(subTy: Type, supTy: Type) extends ErrorProduct
-    case class MustHaveClass(path: SPath, expClassName: Name.Class) extends ErrorProduct
-    case class MustHaveType(path: SPath.Typed, expTy: Type) extends ErrorProduct {
+    case class MustHaveClass(path: SPath[Phantasmal], expClassName: Name.Class) extends ErrorProduct
+    case class MustHaveType(path: SPath[Reified], expTy: Type) extends ErrorProduct {
         override def args = List(path.toString, path.ty.toString, expTy.toString)
     }
     case class NotOverride(className: Name.Class, methodName: Name.Method) extends ErrorProduct
@@ -52,9 +52,9 @@ object Error {
     case class ExtendsNotEquiv(
         extendedName: Name.Class,
         leftName: Name.Class,
-        leftPath: SPath.Typed,
+        leftPath: SPath[Reified],
         rightName: Name.Class,
-        rightPath: SPath.Typed
+        rightPath: SPath[Reified]
     ) extends ErrorProduct
     case class AmbiguousInheritance(
         className: Name.Class,

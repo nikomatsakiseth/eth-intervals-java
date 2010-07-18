@@ -15,10 +15,10 @@ case class Check(global: Global) {
     private[this] val emptyEnv = Env.empty(global)
     
     object In {
-        def apply(env: Env, current: SPath) = new In(env, current)
+        def apply(env: Env, current: SPath[Phantasmal]) = new In(env, current)
     }
     
-    class In(env: Env, current: SPath) {
+    class In(env: Env, current: SPath[Phantasmal]) {
         
         object At {
             def apply(node: Ast.Node) = new At(node)
@@ -38,7 +38,7 @@ case class Check(global: Global) {
                 }
             }
             
-            def checkHasClass(path: SPath, className: Name.Class): Unit = {
+            def checkHasClass(path: SPath[Phantasmal], className: Name.Class): Unit = {
                 if(!env.hasClass(path, className)) {
                     Error.MustHaveClass(path, className).report(global, node.pos)
                 }
@@ -56,30 +56,30 @@ case class Check(global: Global) {
                 }
             }
             
-            def checkIsAssignable(path: SPath.Typed, ty: Type): Unit = {
+            def checkIsAssignable(path: SPath[Reified], ty: Type): Unit = {
                 if(!env.isAssignable(path, ty)) {
                     Error.MustHaveType(path, ty).report(global, node.pos)
                 }
             }
             
-            def checkOwner(owner: SPath.Owner): Unit = {
+            def checkOwner(owner: SPath.Owner[Reified]): Unit = {
                 owner match {
                     case SPath.Static =>
-                    case owner: SPath.Typed => checkPath(owner)
+                    case owner: SPath[Reified] => checkEvalPath(owner)
                 }
             }
             
-            def checkParamType(pair: (Type, SPath.Typed)): Unit = {
+            def checkParamType(pair: (Type, SPath[Reified])): Unit = {
                 checkIsAssignable(pair._2, pair._1)
             }
             
-            def checkPath(path: SPath): Unit = {
+            def checkEvalPath(path: SPath[Reified]): Unit = {
                 path match {
                     case SPath.Local(sym) => {
                         // TODO Check that guard is readable.
                     }
                     case SPath.Cast(_, castedPath) => {
-                        checkPath(castedPath)
+                        checkEvalPath(castedPath)
                     }
                     case SPath.Constant(_) => {
                     }
@@ -89,29 +89,26 @@ case class Check(global: Global) {
                     }
                     case path @ SPath.Call(rcvr, msym, args) => {
                         checkOwner(rcvr)
-                        args.foreach(checkPath)
+                        args.foreach(checkEvalPath)
                         path.msig.flatParamTypes.zip(args).foreach(checkParamType)
                     }
                     case SPath.Index(array, index) => {
-                        checkPath(array)
-                        checkPath(index)
+                        checkEvalPath(array)
+                        checkEvalPath(index)
                     }
                     case SPath.Tuple(paths) => {
-                        paths.foreach(checkPath)
-                    }
-                    case SPath.Ghost(base, gsym) => {
-                        checkPath(base)
+                        paths.foreach(checkEvalPath)
                     }
                 }
             }
 
-            def checkPathAndClass(path: SPath, cls: Name.Class): Unit = {
-                checkPath(path)
+            def checkPathAndClass(path: SPath[Phantasmal], cls: Name.Class): Unit = {
+                //checkPath(path)
                 checkHasClass(path, cls)
             }
             
-            def checkPathAndAssignable(path: SPath.Typed, ty: Type): Unit = {
-                checkPath(path)
+            def checkEvalPathAndAssignable(path: SPath[Reified], ty: Type): Unit = {
+                checkEvalPath(path)
                 checkIsAssignable(path, ty)
             }
             
@@ -121,9 +118,9 @@ case class Check(global: Global) {
             At(path).checkPathAndClass(path.path, className)
         }
 
-        def checkPathAndAssignable(path: in.TypedPath, ty: Type): Unit = {
-            log.indent("checkPathAndAssignable(", path, ", ", ty, ")") {
-                At(path).checkPathAndAssignable(path.path, ty)
+        def checkEvalPathAndAssignable(path: in.TypedPath, ty: Type): Unit = {
+            log.indent("checkEvalPathAndAssignable(", path, ", ", ty, ")") {
+                At(path).checkEvalPathAndAssignable(path.path, ty)
             }
         }
 
@@ -138,14 +135,14 @@ case class Check(global: Global) {
         
         def checkParam(pair: (Type, in.TypedPath)): Unit = {
             val (ty, path) = pair
-            At(path).checkPath(path.path)
+            At(path).checkEvalPath(path.path)
             At(path).checkIsAssignable(path.path, ty)
         }
         
         def checkExpr(expr: in.LowerTlExpr): Type = log.indent("checkExpr(", expr, ")") {
             expr match {
                 case in.TypedPath(path) => {
-                    At(expr).checkPath(path)
+                    At(expr).checkEvalPath(path)
                     path.ty
                 }
                 case in.MethodCall(in.Super(_), name, args, (msym, msig)) => {
@@ -170,7 +167,7 @@ case class Check(global: Global) {
         
     }
     
-    def checkAndAddReq(current: SPath)(env: Env, req: in.Requirement) = {
+    def checkAndAddReq(current: SPath[Phantasmal])(env: Env, req: in.Requirement) = {
         In(env, current).checkReq(req)
         
         req match {
@@ -192,25 +189,25 @@ case class Check(global: Global) {
         }
     }
 
-    def checkAndAddAssign(current: SPath)(env: Env, pair: (in.Lvalue, in.TypedPath)): Env = {
+    def checkAndAddAssign(current: SPath[Phantasmal])(env: Env, pair: (in.Lvalue, in.TypedPath)): Env = {
         val (lv, rv) = pair
         log.indent(lv, " <- ", rv) {
             val chk = In(env, current).At(rv)
             lv match {
                 case in.DeclareVarLvalue(_, _, _, sym) => {
-                    chk.checkPathAndAssignable(rv.path, sym.ty)
+                    chk.checkEvalPathAndAssignable(rv.path, sym.ty)
                     env.plusLocalVar(sym)
                 }
 
                 case in.ReassignVarLvalue(_, sym) => {
-                    chk.checkPathAndAssignable(rv.path, sym.ty)
+                    chk.checkEvalPathAndAssignable(rv.path, sym.ty)
                     chk.checkPermitsWr(sym.guardPath)
                     env
                 }
 
                 case in.FieldLvalue(_, sym) => {
                     // TODO Check that dependent fields are assigned together.
-                    chk.checkPathAndAssignable(rv.path, sym.ty)
+                    chk.checkEvalPathAndAssignable(rv.path, sym.ty)
                     chk.checkPermitsWr(sym.guardPath)
                     env
                 }
@@ -218,7 +215,7 @@ case class Check(global: Global) {
         }
     }
         
-    def checkAndAddStmt(current: SPath)(env: Env, stmt: in.LowerStmt): Env = 
+    def checkAndAddStmt(current: SPath[Phantasmal])(env: Env, stmt: in.LowerStmt): Env = 
         log.indent("checkAndAddStmt(", stmt, ")") {
             stmt match {
                 case stmt: in.LowerTlExpr => {
@@ -247,7 +244,7 @@ case class Check(global: Global) {
                         case None => Error.NoReturnHere().report(global, stmt.pos)
                     
                         case Some(returnTy) => {
-                            In(env, current).At(stmt).checkPathAndAssignable(path, returnTy)
+                            In(env, current).At(stmt).checkEvalPathAndAssignable(path, returnTy)
                         }
                     }
                     env
@@ -255,7 +252,7 @@ case class Check(global: Global) {
             }
         }
     
-    def checkStmts(current: SPath, env: Env, stmts: List[in.LowerStmt]): Unit = {
+    def checkStmts(current: SPath[Phantasmal], env: Env, stmts: List[in.LowerStmt]): Unit = {
         stmts.foldLeft(env)(checkAndAddStmt(current))
     }
     
@@ -267,7 +264,7 @@ case class Check(global: Global) {
         val env = csym.checkEnv
         val thisPath = csym.loweredSource.thisSym.toSPath
         val initPath = env.symPath(Path.ThisInit)
-        In(env, initPath).checkPathAndAssignable(decl.parent, Type.Interval)
+        In(env, initPath).checkEvalPathAndAssignable(decl.parent, Type.Interval)
         checkStmts(thisPath / fsym, csym.checkEnv, decl.body.stmts)
     }
     

@@ -27,11 +27,11 @@ case class GatherExtends(global: Global) {
         
         // Extends declarations for (transitive) supertypes of `csym`.
         // All substituted so as to be in terms of the parameters of `csym`.        
-        val result = new mutable.HashMap[Name.Class, (Name.Class, in.ExtendsDecl, List[SPath.Typed])]()
+        val result = new mutable.HashMap[Name.Class, (Name.Class, in.ExtendsDecl, List[SPath[Reified]])]()
         
         // Returns None if pair are equivalent, else returns `Some(pos)` where
         // pos is the position of the item in the left which caused an error.
-        def notEquatable(env: Env)(pair: (SPath.Typed, SPath.Typed)): Boolean = {
+        def notEquatable(env: Env)(pair: (SPath[Reified], SPath[Reified])): Boolean = {
             val (left, right) = pair
             !env.pathsAreEquatable(left.toPath, right.toPath)
         }
@@ -44,7 +44,7 @@ case class GatherExtends(global: Global) {
             extendsDecl: in.ExtendsDecl
         ): Unit = {
             val className = extendsDecl.className.name
-            val args = extendsDecl.args.map(n => subst.typedPath(n.path))
+            val args = extendsDecl.args.map(n => n.path.subst(subst))
 
             global.csym(className) match {
                 // Harmonic classes may be extended multiple times,

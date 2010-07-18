@@ -75,7 +75,7 @@ object Subst {
         new Subst(Map(vars.map(_.toPath).zip(paths): _*))
     }
     
-    def vt(lists: (List[Name.LocalVar], List[SPath.Typed])) = {
+    def vt(lists: (List[Name.LocalVar], List[SPath[Phantasmal]])) = {
         val (vars, paths) = lists
         vp(vars -> paths.map(_.toPath))
     }

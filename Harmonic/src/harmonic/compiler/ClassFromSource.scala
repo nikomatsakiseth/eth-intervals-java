@@ -262,7 +262,7 @@ class ClassFromSource(
     /** Given values `p` for the class parameters `f`, 
       * returns a substituion including `thisPath.f1 -> p1`, 
       * `thisPath.f2 -> p2`, etc. */
-    def typedSubstForFlatArgs(args: List[SPath.Typed]): TypedSubst = {
+    def typedSubstForFlatArgs(args: List[SPath[Reified]]): TypedSubst = {
         val thisSym = loweredSource.thisSym
         val fieldSyms = loweredSource.pattern.symbols
         fieldSyms.zip(args).foldLeft(TypedSubst.empty) { case (s, (fsym, arg)) =>
@@ -281,7 +281,7 @@ class ClassFromSource(
     val MethodGroups = new GuardedBy[List[MethodGroup]](gather)
     def methodGroups = MethodGroups.v
 
-    val ExtendedClasses = new GuardedBy[List[(Ast.Lower.ExtendsDecl, List[SPath.Typed])]](gather)    
+    val ExtendedClasses = new GuardedBy[List[(Ast.Lower.ExtendsDecl, List[SPath[Reified]])]](gather)    
     def extendedClasses = ExtendedClasses.v
     
     def setMethodGroups(groups: List[MethodGroup]) {
