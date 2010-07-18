@@ -7,7 +7,7 @@ import Util._
 sealed trait Path extends Path.Owner {
     def is(r: Path) = (this == r)
     def /(fname: Name.Member) = Path.Field(this, fname)
-    def call(methodId: MethodId, args: Path*) = Path.Call(this, methodId, args.toList)
+    def call(methodId: MethodId.Virtual, args: Path*) = Path.Call(this, methodId, args.toList)
     def unapply(r: Path) = (this == r)
 }
 
@@ -36,8 +36,12 @@ object Path {
         override def toString = base.toString + "." + f.toString
     }
     
-    case class Call(receiver: Owner, methodId: MethodId, args: List[Path]) extends Path {
-        override def toString = "%s.%s(%s)".format(receiver, methodId, args.mkString(", "))
+    case class StaticCall(methodId: MethodId.Static, args: List[Path]) extends Path {
+        override def toString = "%s(%s)".format(methodId, args.mkString(", "))
+    }
+    
+    case class Call(owner: Path, methodId: MethodId.Virtual, args: List[Path]) extends Path {
+        override def toString = "%s.%s(%s)".format(owner, methodId, args.mkString(", "))
     }
     
     case class Index(array: Path, index: Path) extends Path {

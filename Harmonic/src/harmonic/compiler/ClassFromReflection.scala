@@ -75,21 +75,9 @@ class ClassFromReflection(
         constructors = {
             val ctors = cls.getConstructors
             if(!ctors.isEmpty) {
-                ctors.map(ctorSymbol(inter)).toList            
+                ctors.map(ctorSymbol).toList            
             } else { // gin up an empty constructor for interfaces:
-                List(
-                    initReqs(None)(
-                        new MethodSymbol(
-                            pos       = pos, 
-                            modifiers = Modifier.Set.empty,
-                            kind      = MethodKind.JavaDummyCtor,
-                            className = name,
-                            name      = Name.InitMethod,
-                            elaborate = inter,
-                            msig      = MethodSignature(Type.Void, List(Pattern.EmptyTuple))
-                        )
-                    )
-                )
+                List(new InterfaceCtor())
             }            
         },
         
@@ -114,12 +102,17 @@ class ClassFromReflection(
         
         checkEnv = Env.empty(global)
     )
-    
-    private[this] def initReqs(robj: Option[reflect.AccessibleObject])(msym: MethodSymbol) = {
-        // TODO Honor @Requires and @Ensures annotations
-        msym.Requirements.v = Nil
-        msym.Ensures.v = Nil
-        msym.GuardPath.v = robj.flatMap(_.getHAnnotation(classOf[Mutable])) match {
+
+    private[this] def methodRequirements(robj: Option[reflect.AccessibleObject]) = {
+        Nil // TODO method reqs from refl
+    }
+
+    private[this] def methodEnsures(robj: Option[reflect.AccessibleObject]) = {
+        Nil // TODO method ensures from refl
+    }
+
+    private[this] def methodGuardPath(robj: Option[reflect.AccessibleObject]) = {
+        robj.flatMap(_.getHAnnotation(classOf[Mutable])) match {
             case None => 
                 Path.RacyGuard
                 
@@ -134,9 +127,7 @@ class ClassFromReflection(
                         path
                     }
                 }
-        }
-        
-        msym
+        }        
     }
     
     private[this] def fieldSymTabEntry(fld: reflect.Field) = {
@@ -267,60 +258,108 @@ class ClassFromReflection(
         )
     }
     
-    private[this] def ctorSymbol(inter: Interval)(mthd: reflect.Constructor[_]) = {
-        initReqs(Some(mthd))(
-            new MethodSymbol(
-                pos       = pos,
-                modifiers = Modifier.forMember(mthd),
-                kind      = MethodKind.Java(
-                    MethodKind.JavaSpecial, 
-                    cls, 
-                    Name.InitMethod.javaName,
-                    mthd.getParameterTypes,
-                    classOf[Unit]
-                ),
-                className = name,
-                name      = Name.InitMethod,
-                elaborate = inter,
-                msig      = MethodSignature(
-                    returnTy          = Type.Void,
-                    parameterPatterns = List(Pattern.Tuple(
-                        mthd.getGenericParameterTypes.toList.zipWithIndex.map(paramPattern)))
-                )
+    // ___ Translating ctors ________________________________________________
+
+    // In Harmonic, every class must have a constructor, so gin up an empty
+    // constructor for interfaces:
+    class InterfaceCtor
+    extends VirtualMethodSymbol {
+        val pos = ClassFromReflection.this.pos
+        val modifiers = Modifier.Set.empty
+        val kind = MethodKind.JavaDummyCtor
+        val className = ClassFromReflection.this.name
+        val name = Name.InitMethod
+        val msig = MethodSignature[Pattern.Ref](Type.Void, List(Pattern.EmptyTuple))
+        val guardPath = methodGuardPath(None)
+        val requirements = methodRequirements(None)
+        val ensures = methodEnsures(None)
+    }
+    
+    class CtorFromReflection(mthd: reflect.Constructor[_]) 
+    extends VirtualMethodSymbol {
+        val pos = ClassFromReflection.this.pos
+        val modifiers = Modifier.forMember(mthd)
+        val kind = {
+            MethodKind.Java(
+                MethodKind.JavaSpecial, 
+                cls, 
+                Name.InitMethod.javaName,
+                mthd.getParameterTypes,
+                classOf[Unit]
             )
-        )
+        }
+        val className = ClassFromReflection.this.name
+        val name = Name.InitMethod
+        val msig = {
+            val returnTy = Type.Void
+            val patterns = List(Pattern.Tuple(
+                    mthd.getGenericParameterTypes.toList.zipWithIndex.map(paramPattern)
+            ))
+            MethodSignature[Pattern.Ref](returnTy, patterns)
+        }
+        val guardPath = methodGuardPath(Some(mthd))
+        val requirements = methodRequirements(Some(mthd))
+        val ensures = methodEnsures(Some(mthd))
+    }    
+    
+    private[this] def ctorSymbol(mthd: reflect.Constructor[_]) = {
+        new CtorFromReflection(mthd)
+    }
+    
+    // ___ Translating methods ______________________________________________
+    
+    abstract class MethodFromReflection(mthd: reflect.Method) 
+    extends MethodSymbol {
+        val pos = ClassFromReflection.this.pos
+        val modifiers = Modifier.forMember(mthd)
+        val kind = {
+            val opcode = {
+                if(mthd.getModifiers.containsBits(jModifier.STATIC))
+                    MethodKind.JavaStatic
+                else if(cls.getModifiers.containsBits(jModifier.INTERFACE))
+                    MethodKind.JavaInterface
+                else
+                    MethodKind.JavaVirtual            
+            }
+            
+            MethodKind.Java(
+                opcode,
+                cls,
+                mthd.getName,
+                mthd.getParameterTypes,
+                mthd.getReturnType
+            )
+        }
+        val className = ClassFromReflection.this.name
+        val name = Name.Method(List(mthd.getName))
+        val msig = {
+            val returnTy = typeRef(mthd.getGenericReturnType)
+            val patterns = List(Pattern.Tuple(
+                    mthd.getGenericParameterTypes.toList.zipWithIndex.map(paramPattern)
+            ))
+            MethodSignature[Pattern.Ref](returnTy, patterns)
+        }
+        val guardPath = methodGuardPath(Some(mthd))
+        val requirements = methodRequirements(Some(mthd))
+        val ensures = methodEnsures(Some(mthd))
+    }
+    
+    class StaticMethodFromReflection(mthd: reflect.Method)
+    extends MethodFromReflection(mthd) with StaticMethodSymbol {
+        override def toReflectedJavaMethod = Some(mthd)
+        assert(mthd.getModifiers.containsBits(jModifier.STATIC))
+    }
+
+    class VirtualMethodFromReflection(mthd: reflect.Method)
+    extends MethodFromReflection(mthd) with VirtualMethodSymbol { 
+        assert(!mthd.getModifiers.containsBits(jModifier.STATIC))
     }
     
     private[this] def methodSymbol(inter: Interval)(mthd: reflect.Method) = {
-        val op = {
-            if(mthd.getModifiers.containsBits(jModifier.STATIC))
-                MethodKind.JavaStatic
-            else if(cls.getModifiers.containsBits(jModifier.INTERFACE))
-                MethodKind.JavaInterface
-            else
-                MethodKind.JavaVirtual            
-        }
-        initReqs(Some(mthd))(
-            new MethodSymbol(
-                pos       = pos,
-                modifiers = Modifier.forMember(mthd),
-                kind      = MethodKind.Java(
-                    op,
-                    cls,
-                    mthd.getName,
-                    mthd.getParameterTypes,
-                    mthd.getReturnType
-                ),
-                className = name,
-                name      = Name.Method(List(mthd.getName)),
-                elaborate = inter,
-                msig      = MethodSignature(
-                    returnTy          = typeRef(mthd.getGenericReturnType),
-                    parameterPatterns = List(Pattern.Tuple(
-                        mthd.getGenericParameterTypes.toList.zipWithIndex.map(paramPattern)))
-                )
-            )
-        )
+        if(mthd.getModifiers.containsBits(jModifier.STATIC))
+            new StaticMethodFromReflection(mthd)
+        else
+            new VirtualMethodFromReflection(mthd)
     }
     
     // Unfortunately, if a class overrides a method with a covariant

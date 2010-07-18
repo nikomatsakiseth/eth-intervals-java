@@ -4,6 +4,8 @@ import scala.collection.mutable
 import com.smallcultfollowing.lathos.Lathos
 import harmonic.compiler._
 import harmonic.compiler.Util._
+import harmonic.compiler.Intrinsic.toHarmonicAnnotated
+import harmonic.lang.StaticCheck
 import java.lang.reflect
 import java.lang.reflect.{Modifier => jModifier}
 
@@ -48,16 +50,15 @@ class MockEnv(
         }
     }
     
-    private[this] def tryStaticFinalField(path: Path) = {
+    private[this] def tryStaticField(path: Path) = {
         path match {
             case Path.Field(Path.Static, name) => {
                 val csym = global.csym(name.className)
                 csym.toReflectedJavaClass.flatMap { cls =>
                     try {
                         val fld = cls.getDeclaredField(name.text)
-                        if(
-                            fld.getModifiers.containsBits(jModifier.STATIC | jModifier.FINAL)
-                        ) {
+                        if(fld.hasHAnnotation(classOf[StaticCheck])) {
+                            assert(fld.getModifiers.containsBits(jModifier.STATIC | jModifier.FINAL))
                             fld.setAccessible(true)
                             Some(fld.get(null))
                         } else {
@@ -65,6 +66,20 @@ class MockEnv(
                         }
                     } catch {
                         case exc: Exception => None
+                    }
+                }
+            }
+            
+            case _ => None
+        }
+    }
+    
+    private[this] def tryStaticMethod(path: Path) = {
+        path match {
+            case Path.StaticCall(methodId, args) => {
+                global.methodSymbol(methodId).flatMap { msym =>
+                    msym.toReflectedJavaMethod.flatMap { mthd =>
+                        None
                     }
                 }
             }
@@ -84,7 +99,13 @@ class MockEnv(
     // with `path`.  We use the first succesful result.  
     //
     // TODO-- Address issues that can arise as equatable relation is not symmetrically computable
-    private[this] val techniques = List[Technique](tryAlreadyMapped, tryConstant, tryStaticFinalField, tryBuiltin)
+    private[this] val techniques = List[Technique](
+        tryAlreadyMapped, 
+        tryConstant, 
+        tryStaticField, 
+        tryStaticMethod,
+        tryBuiltin
+    )
     
     def tryMock(path: Path): Option[Object] = {
         val log = Lathos.context

@@ -87,8 +87,12 @@ case class Check(global: Global) {
                         checkOwner(base)
                         checkPermitsRd(path.guardPath)
                     }
+                    case path @ SPath.StaticCall(msym, args) => {
+                        args.foreach(checkEvalPath)
+                        path.msig.flatParamTypes.zip(args).foreach(checkParamType)                        
+                    }
                     case path @ SPath.Call(rcvr, msym, args) => {
-                        checkOwner(rcvr)
+                        checkEvalPath(rcvr)
                         args.foreach(checkEvalPath)
                         path.msig.flatParamTypes.zip(args).foreach(checkParamType)
                     }

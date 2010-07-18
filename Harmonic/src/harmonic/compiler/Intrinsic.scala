@@ -65,6 +65,10 @@ object Intrinsic {
                 }                
             }
         }
+        
+        def hasHAnnotation[C <: annotation.Annotation](cls: Class[C]): Boolean = {
+            getHAnnotation(cls).isDefined
+        }
     }
     
     implicit def toHarmonicAnnotated(obj: reflect.AnnotatedElement) = HarmonicAnnotated(obj)
@@ -74,11 +78,21 @@ object Intrinsic {
 case class Intrinsic(global: Global) {
     implicit val implicitGlobal = global
     
-    private[this] def initReqs(msym: MethodSymbol) = {
-        msym.Requirements.v = Nil
-        msym.Ensures.v = Nil
-        msym.GuardPath.v = Path.RacyGuard
-        msym
+    class IntrinsicMethodSymbol(
+        implClass: Class[_],
+        javaName: String,
+        argClasses: Array[Class[_]],
+        returnClass: Class[_],
+        val className: Name.Class,
+        val name: Name.Method,
+        val msig: MethodSignature[Pattern.Ref],
+        val requirements: List[inference.Fact] = Nil,
+        val ensures: List[inference.Fact] = Nil,
+        val guardPath: Path = Path.RacyGuard
+    ) extends VirtualMethodSymbol {
+        val pos = InterPosition.forClass(classOf[Intrinsic])
+        val modifiers = Modifier.Set.empty
+        val kind = MethodKind.Java(MethodKind.JavaStatic, implClass, javaName, argClasses, returnClass)
     }
     
     def ensureLoadable(cls: Class[_]) {
@@ -147,24 +161,15 @@ case class Intrinsic(global: Global) {
             val returnTy = Type.Class(returnClass)
             for((interName, javaName) <- mathOps) {
                 global.addIntrinsic(
-                    initReqs(new MethodSymbol(
-                        pos = InterPosition.forClass(classOf[Intrinsic]),
-                        modifiers = Modifier.Set.empty,
-                        kind = MethodKind.Java(
-                            MethodKind.JavaStatic,
-                            classOf[IntrinsicMathGen],
-                            javaName,
-                            Array(leftClass, rightClass),
-                            returnClass
-                        ),
-                        className = leftTy.name,
-                        name = interName, 
-                        elaborate = inter,
-                        msig = MethodSignature(
-                            returnTy = returnTy,
-                            parameterPatterns = List(Pattern.Var(Name.LocalVar("arg"), rightTy))
-                        )
-                    ))
+                    new IntrinsicMethodSymbol(
+                        implClass   = classOf[IntrinsicMathGen], 
+                        javaName    = javaName, 
+                        argClasses  = Array(leftClass, rightClass), 
+                        returnClass = returnClass,
+                        className   = leftTy.name,
+                        name        = interName,
+                        msig        = MethodSignature(returnTy, List(Pattern.Var(Name.LocalVar("arg"), rightTy)))
+                    )
                 )
             }
         }
@@ -192,20 +197,6 @@ case class Intrinsic(global: Global) {
         val objectTy = Type.Class(objectClass)
         val iterableTy = Type.Class(iterableClass)
         
-        def controlFlow(
-            mthdName: String,
-            argumentClasses: Array[Class[_]],
-            returnClass: Class[_]
-        ) = {
-            MethodKind.Java(
-                MethodKind.JavaStatic,
-                classOf[IntrinsicControlFlow],
-                mthdName,
-                argumentClasses,
-                returnClass
-            )
-        }
-        
         def templateTy(
             returnTy: Type,
             argumentTy: Type
@@ -221,140 +212,95 @@ case class Intrinsic(global: Global) {
         
         // (boolean) if {...}
         global.addIntrinsic(
-            initReqs(new MethodSymbol(
-                pos = InterPosition.forClass(classOf[Intrinsic]),
-                modifiers = Modifier.Set.empty,
-                kind = controlFlow(
-                    "if_",
-                    Array(booleanClass, templateClass),
-                    voidClass
-                ),
-                className = booleanTy.name,
-                name = Name.Method(List("if")),
-                elaborate = inter,
-                msig = MethodSignature(
-                    returnTy = voidTy,
-                    parameterPatterns = List(
-                        Pattern.Var(Name.LocalVar("ifTmpl"), templateTy(voidTy, voidTy))
-                    )
-                )
-            ))
+            new IntrinsicMethodSymbol(
+                implClass   = classOf[IntrinsicControlFlow], 
+                javaName    = "if_", 
+                argClasses  = Array(booleanClass, templateClass), 
+                returnClass = voidClass,
+                className   = booleanTy.name,
+                name        = Name.Method(List("if")),
+                msig        = MethodSignature(voidTy, List(
+                    Pattern.Var(Name.LocalVar("ifTmpl"), templateTy(voidTy, voidTy))
+                ))
+            )
         )
         
         // (Object) ifNull {...}
         global.addIntrinsic(
-            initReqs(new MethodSymbol(
-                pos = InterPosition.forClass(classOf[Intrinsic]),
-                modifiers = Modifier.Set.empty,
-                kind = controlFlow(
-                    "ifNull",
-                    Array(objectClass, templateClass),
-                    voidClass
-                ),
-                className = objectTy.name,
-                name = Name.Method(List("ifNull")),
-                elaborate = inter,
-                msig = MethodSignature(
-                    returnTy = voidTy,
-                    parameterPatterns = List(
-                        Pattern.Var(Name.LocalVar("ifTmpl"), templateTy(voidTy, voidTy))
-                    )
-                )
-            ))
+            new IntrinsicMethodSymbol(
+                implClass   = classOf[IntrinsicControlFlow], 
+                javaName    = "ifNull", 
+                argClasses  = Array(objectClass, templateClass), 
+                returnClass = voidClass,
+                className   = objectTy.name,
+                name        = Name.Method(List("ifNull")),
+                msig        = MethodSignature(voidTy, List(
+                    Pattern.Var(Name.LocalVar("ifTmpl"), templateTy(voidTy, voidTy))
+                ))
+            )
         )
 
         // (boolean) if {...} else {...}
         global.addIntrinsic(
-            initReqs(new MethodSymbol(
-                pos = InterPosition.forClass(classOf[Intrinsic]),
-                modifiers = Modifier.Set.empty,
-                kind = controlFlow(
-                    "ifElse",
-                    Array(booleanClass, templateClass, templateClass),
-                    objectClass
-                ),
-                className = booleanTy.name,
-                name = Name.Method(List("if", "else")),
-                elaborate = inter,
-                msig = MethodSignature(
-                    returnTy = voidTy, /* ΧΧΧ Generic Method */
-                    parameterPatterns = List(
-                        Pattern.Var(Name.LocalVar("ifTmpl"), templateTy(voidTy, voidTy)),
-                        Pattern.Var(Name.LocalVar("elseTmpl"), templateTy(voidTy, voidTy))
-                    )
-                )
-            ))
+            new IntrinsicMethodSymbol(
+                implClass   = classOf[IntrinsicControlFlow], 
+                javaName    = "ifElse", 
+                argClasses  = Array(booleanClass, templateClass, templateClass), 
+                returnClass = voidClass,
+                className   = booleanTy.name,
+                name        = Name.Method(List("if", "else")),
+                msig        = MethodSignature(voidTy, List( /* TODO Generic Method */
+                    Pattern.Var(Name.LocalVar("ifTmpl"), templateTy(voidTy, voidTy)),
+                    Pattern.Var(Name.LocalVar("elseTmpl"), templateTy(voidTy, voidTy))
+                ))
+            )
         )
         
         // (Object) ifNull {...} else {...}
         global.addIntrinsic(
-            initReqs(new MethodSymbol(
-                pos = InterPosition.forClass(classOf[Intrinsic]),
-                modifiers = Modifier.Set.empty,
-                kind = controlFlow(
-                    "ifNullElse",
-                    Array(objectClass, templateClass, templateClass),
-                    objectClass
-                ),
-                className = objectTy.name,
-                name = Name.Method(List("ifNull", "else")),
-                elaborate = inter,
-                msig = MethodSignature(
-                    returnTy = voidTy, /* ΧΧΧ Generic Method */
-                    parameterPatterns = List(
-                        Pattern.Var(Name.LocalVar("ifTmpl"), templateTy(voidTy, voidTy)),
-                        Pattern.Var(Name.LocalVar("elseTmpl"), templateTy(voidTy, voidTy))
-                    )
-                )
-            ))
+            new IntrinsicMethodSymbol(
+                implClass   = classOf[IntrinsicControlFlow], 
+                javaName    = "ifNullElse", 
+                argClasses  = Array(objectClass, templateClass, templateClass), 
+                returnClass = objectClass,
+                className   = booleanTy.name,
+                name        = Name.Method(List("ifNull", "else")),
+                msig        = MethodSignature(voidTy, List( /* TODO Generic Method */
+                    Pattern.Var(Name.LocalVar("ifTmpl"), templateTy(voidTy, voidTy)),
+                    Pattern.Var(Name.LocalVar("elseTmpl"), templateTy(voidTy, voidTy))
+                ))
+            )
         )
         
         // (Iterable<T>) forEach { (T i) -> ... }
         val typeT = Type.Member(Path.This, Name.Member(iterableTy.name, "T"))
         global.addIntrinsic(
-            initReqs(new MethodSymbol(
-                pos = InterPosition.forClass(classOf[Intrinsic]),
-                modifiers = Modifier.Set.empty,
-                kind = controlFlow(
-                    "forEach",
-                    Array(iterableClass, templateClass),
-                    voidClass
-                ),
-                className = iterableTy.name,
-                name = Name.Method(List("forEach")),
-                elaborate = inter,
-                msig = MethodSignature(
-                    returnTy = voidTy,
-                    parameterPatterns = List(
-                        Pattern.Var(
-                            Name.LocalVar("eachTmpl"), 
-                            templateTy(voidTy, typeT)
-                        )
-                    )
-                )
-            ))
+            new IntrinsicMethodSymbol(
+                implClass   = classOf[IntrinsicControlFlow], 
+                javaName    = "forEach", 
+                argClasses  = Array(iterableClass, templateClass),
+                returnClass = voidClass,
+                className   = iterableTy.name,
+                name        = Name.Method(List("forEach")),
+                msig        = MethodSignature(voidTy, List( /* TODO Generic Method */
+                    Pattern.Var(Name.LocalVar("eachTmpl"), templateTy(voidTy, typeT))
+                ))
+            )
         )
 
         // (Block<Boolean,_>) while { ... }
         global.addIntrinsic(
-            initReqs(new MethodSymbol(
-                pos = InterPosition.forClass(classOf[Intrinsic]),
-                modifiers = Modifier.Set.empty,
-                kind = controlFlow(
-                    "while_",
-                    Array(templateClass, templateClass),
-                    objectClass
-                ),
-                className = Name.Class(templateClass),
-                name = Name.Method(List("while")),
-                elaborate = inter,
-                msig = MethodSignature(
-                    returnTy = voidTy, 
-                    parameterPatterns = List(
-                        Pattern.Var(Name.LocalVar("bodyTmpl"), templateTy(voidTy, voidTy))
-                    )
-                )
-            ))
+            new IntrinsicMethodSymbol(
+                implClass   = classOf[IntrinsicControlFlow], 
+                javaName    = "while_", 
+                argClasses  = Array(templateClass, templateClass),
+                returnClass = objectClass,
+                className   = Name.Class(templateClass),
+                name        = Name.Method(List("while")),
+                msig        = MethodSignature(voidTy, List( /* TODO Generic Method */
+                    Pattern.Var(Name.LocalVar("bodyTmpl"), templateTy(voidTy, voidTy))
+                ))
+            )
         )    
 
     }

@@ -1,5 +1,7 @@
 package harmonic.compiler
 
+import scala.util.parsing.input.Position
+import scala.util.parsing.input.NoPosition
 import ch.ethz.intervals._
 import Ast.{Resolve => in}
 import Ast.{Lower => out}
@@ -15,6 +17,29 @@ class LowerMethodMember(
     implicit val implicitGlobal = global
     import global.debugServer
     
+    // ___ MethodSymbol class _______________________________________________
+    
+    class MethodFromSource(
+        val pos: Position,
+        val modifiers: Modifier.Set,
+        val className: Name.Class,         /** Class in which the method is defined. */
+        val name: Name.Method,           /** Name of the method. */
+        val msig: MethodSignature[Pattern.Ref]
+    ) extends VirtualMethodSymbol {
+        override def toString = "MethodSymbol(%s.%s, %x)".format(className, name, System.identityHashCode(this))
+        
+        val kind = MethodKind.HarmonicVirtual
+        
+        val GuardPath = new GuardedBy[Path](symElaborate)
+        def guardPath = GuardPath.v
+
+        val Requirements = new GuardedBy[List[inference.Fact]](symElaborate)
+        def requirements = Requirements.v
+
+        val Ensures = new GuardedBy[List[inference.Fact]](symElaborate)
+        def ensures = Ensures.v
+    }
+
     // ___ Lowering the Parameters __________________________________________
 
     private[this] val paramLower: AsyncInterval = {
@@ -61,13 +86,11 @@ class LowerMethodMember(
             outParams: List[out.Param[VarSymbol.Local]],
             outReturnTref: out.TypeRef
         ) = {
-            new MethodSymbol(
+            new MethodFromSource(
                 pos       = inMethodDecl.pos,
                 modifiers = Modifier.forResolvedAnnotations(inMethodDecl.annotations),
-                kind      = MethodKind.HarmonicVirtual,
-                className   = csym.name,
+                className = csym.name,
                 name      = inMethodDecl.name,
-                elaborate = symElaborate,
                 msig      = MethodSignature(
                     returnTy          = outReturnTref.ty,
                     parameterPatterns = outParams.map(_.toPatternRef)
@@ -106,7 +129,7 @@ class LowerMethodMember(
         }
     }
         
-    private[this] val Sym = new GuardedBy[MethodSymbol](symCreate)
+    private[this] val Sym = new GuardedBy[MethodFromSource](symCreate)
     def sym = Sym.v
     
     private[this] val symElaborate: AsyncInterval = {

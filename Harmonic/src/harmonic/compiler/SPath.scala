@@ -151,21 +151,33 @@ object SPath {
         }
     }
     
+    case class StaticCall[+B >: Reified <: Phantasmal](
+        msym: StaticMethodSymbol, 
+        args: List[SPath[B]]
+    ) extends SPath[B] {
+        assert(sameLength(msym.msig.parameterPatterns.flatMap(_.varNames), args))
+        def kind = args.foldLeft[B](Reified)(combineKinds)
+    
+        lazy val msig = msym.substForFlatSPaths(args).methodSignature(msym.msig)
+        override def ty = msig.returnTy
+        def toPath = Path.StaticCall(msym.id, args.map(_.toPath))
+        override def toString = toPath.toString
+
+        override def subst(s: TypedSubst): SPath[B] = {
+            StaticCall(msym, args.map(_.subst(s)))
+        }
+    }
+    
     case class Call[+B >: Reified <: Phantasmal](
-        receiver: SPath.Owner[B], 
-        msym: MethodSymbol, 
+        receiver: SPath[B], 
+        msym: VirtualMethodSymbol, 
         args: List[SPath[B]]
     ) extends SPath[B] {
         assert(sameLength(msym.msig.parameterPatterns.flatMap(_.varNames), args))
         def kind = args.foldLeft(receiver.kind)(combineKinds)
     
         lazy val msig = {
-            val varNames = msym.msig.parameterPatterns.flatMap(_.varNames)
-            var subst = Subst.vt(varNames -> args)
-            subst = receiver match {
-                case SPath.Static => subst
-                case receiver: SPath[_] => subst + (Path.This -> receiver.toPath)
-            }
+            val subst = msym.substForFlatSPaths(args) + (Path.This -> receiver.toPath)
             subst.methodSignature(msym.msig)
         }
         override def ty = msig.returnTy

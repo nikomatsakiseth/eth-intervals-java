@@ -652,8 +652,8 @@ case class ByteCode(global: Global) {
             case SPath.Constant(_) => summary
             case SPath.Field(SPath.Static, sym) => summary
             case SPath.Field(path: SPath[Reified], _) => summarizeSymbolsInPath(summary, path)
-            case SPath.Call(SPath.Static, _, args) => args.foldLeft(summary)(summarizeSymbolsInPath)
-            case SPath.Call(rcvr: SPath[Reified], _, args) => (rcvr :: args).foldLeft(summary)(summarizeSymbolsInPath)
+            case SPath.StaticCall(_, args) => args.foldLeft(summary)(summarizeSymbolsInPath)
+            case SPath.Call(rcvr, _, args) => (rcvr :: args).foldLeft(summary)(summarizeSymbolsInPath)
             case SPath.Index(array, index) => List(array, index).foldLeft(summary)(summarizeSymbolsInPath)            
             case SPath.Tuple(paths) => paths.foldLeft(summary)(summarizeSymbolsInPath)
         }
@@ -923,7 +923,7 @@ case class ByteCode(global: Global) {
                     }
                 }
                 
-                case path @ SPath.Call(SPath.Static, msym, args) => {
+                case path @ SPath.StaticCall(msym, args) => {
                     val msig = path.msig
                     msym.kind match {
                         case MethodKind.Java(

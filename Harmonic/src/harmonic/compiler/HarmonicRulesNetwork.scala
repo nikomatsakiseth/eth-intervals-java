@@ -68,8 +68,8 @@ extends Network[Env.Xtra](server)
             val subpaths = fact.path match {
                 case Path.Field(p: Path, _) => List(p)
                 case Path.Cast(_, p) => List(p)
-                case Path.Call(r: Path, _, args) => r :: args
-                case Path.Call(Path.Static, _, args) => args
+                case Path.Call(r, _, args) => r :: args
+                case Path.StaticCall(_, args) => args
                 case Path.Index(a, i) => List(a, i)
                 case Path.Tuple(paths) => paths
                 case _ => Nil

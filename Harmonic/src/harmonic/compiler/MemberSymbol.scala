@@ -6,12 +6,13 @@ import com.smallcultfollowing.lathos.Lathos
 import scala.util.parsing.input.Position
 import scala.util.parsing.input.NoPosition
 import scala.collection.mutable
+import java.lang.reflect
 import Util._
 
 // ___ Supertypes _______________________________________________________
 
 // Either a field, ghost, or a method
-sealed trait BeanSymbol extends Symbol
+sealed trait BeanSymbol extends Symbol with DebugPage
 
 // Field or a ghost
 sealed trait FieldLikeSymbol extends BeanSymbol
@@ -20,81 +21,86 @@ sealed trait FieldLikeSymbol extends BeanSymbol
 
 object MethodSymbol {
     
-    private[this] def error(
-        name: Name.Method, 
-        className: Name.Class, 
-        returnTy: Type,
-        patterns: List[Pattern.Ref]
-    )(implicit global: Global): MethodSymbol = {
-        inlineInterval("Error %s.%s".format(className, name)) { inter =>
-            new MethodSymbol(
-                pos       = InterPosition.forClassNamed(className),
-                modifiers = Modifier.Set.empty,
-                kind      = MethodKind.ErrorMethod, 
-                className = className, 
-                name      = name, 
-                elaborate = inter,
-                msig      = MethodSignature(returnTy, patterns)
-            ) {
-                override def isError = true
-            }            
-        }
+    abstract class ErrorMethod(methodId: MethodId)(implicit global: Global)
+    extends MethodSymbol {
+        val className: Name.Class = methodId.className
+        val name: Name.Method = methodId.methodName
+        val pos = InterPosition.forClassNamed(methodId.className)
+        val modifiers = Modifier.Set.empty
+        val kind = MethodKind.ErrorMethod
+        val msig = MethodSignature(Type.Null, Pattern.makeRefs(methodId.patterns))
+        val guardPath = Path.RacyGuard
+        val requirements = Nil
+        val ensures = Nil
+        
+        override def isError: Boolean = true
     }
 
-    def error(methodId: MethodId)(implicit global: Global): MethodSymbol = {
-        val patterns = Pattern.makeRefs(methodId.patterns)
-        error(methodId.methodName, methodId.className, Type.Null, patterns)
+    def error(methodId: MethodId.Static)(implicit global: Global): StaticMethodSymbol = {
+        new ErrorMethod(methodId) with StaticMethodSymbol
     }
     
-    def error(name: Name.Method, className: Name.Class)(implicit global: Global): MethodSymbol = {
-        val parameterPatterns = name.parts.zipWithIndex.map { case (_, i) => 
-            Pattern.Var(Name.LocalVar("arg%d".format(i)), Type.Top)
-        }
-        error(name, className, Type.Null, parameterPatterns)
+    def error(methodId: MethodId.Virtual)(implicit global: Global): VirtualMethodSymbol = {
+        new ErrorMethod(methodId) with VirtualMethodSymbol
+    }
+    
+    def error(name: Name.Method, className: Name.Class)(implicit global: Global): VirtualMethodSymbol = {
+        val patterns = name.parts.map(_ => Pattern.AnonVar(Type.Top))
+        val methodId = MethodId.Virtual(className, name, patterns)
+        error(methodId)
     }
     
 }
 
-class MethodSymbol(
-    val pos: Position,
-    val modifiers: Modifier.Set,
-    val kind: MethodKind,            /** Intrinsic, harmonic, java, etc. */
-    val className: Name.Class,         /** Class in which the method is defined. */
-    val name: Name.Method,           /** Name of the method. */
-    val msig: MethodSignature[Pattern.Ref],
-    val elaborate: Interval
-)(implicit global: Global) extends BeanSymbol with DebugPage {
-    override def toString = "MethodSymbol(%s.%s, %x)".format(className, name, System.identityHashCode(this))
+trait MethodSymbol extends Symbol {
+    val pos: Position
+    val modifiers: Modifier.Set
+    val kind: MethodKind
+    val className: Name.Class
+    val name: Name.Method
+    val msig: MethodSignature[Pattern.Ref]
+    val id: MethodId
+    def guardPath: Path
+    def requirements: List[inference.Fact]
+    def ensures: List[inference.Fact]
     
-    val id = MethodId(className, name, msig.toAnon.parameterPatterns)
+    def ifStatic: Option[StaticMethodSymbol]
+    def ifVirtual: Option[VirtualMethodSymbol]
     
-    def isFromClassNamed(aName: Name.Qual) = (className == aName)
+    def isFromClassNamed(aName: Name.Class) = (className is aName)
+    def isNamed(aName: Name.Method) = (name is aName)
+    def ifId(id: MethodId.Static): Option[StaticMethodSymbol]
+    def ifId(id: MethodId.Virtual): Option[VirtualMethodSymbol]
     
-    def isNamed(aName: Name.Method) = (name == aName)
-    
-    def substForFlatSPaths(flatArgs: List[SPath[Reified]]) = {
+    def substForFlatSPaths(flatArgs: List[SPath[Phantasmal]]) = {
         msig.parameterPatterns.flatMap(_.varNames).zip(flatArgs).foldLeft(Subst.empty) {
             case (s, (x, tp)) => s + (x.toPath -> tp.toPath)
         }
     }
     
-    // ___ Elaborate Phase __________________________________________________
-    //
-    // After the symbol is constructed, there is a later phase that 
-    // computes the "requirements" and "ensures" lists.  This is done in
-    // a later phase to avoid problems when two methods reference one another
-    // in the requirements lists (otherwise, one method would have to be 
-    // fully constructed first, which would be impossible).
+    override def toString = "%s(%s)".format(getClass.getSimpleName, id)
+}
+
+trait StaticMethodSymbol extends MethodSymbol {
+    lazy val id: MethodId.Static = MethodId.Static(className, name, msig.toAnon.parameterPatterns)
     
-    val GuardPath = new GuardedBy[Path](elaborate)
-    def guardPath = GuardPath.v
+    override def ifId(anId: MethodId.Static) = (id is anId).toOption(this)
+    override def ifId(anId: MethodId.Virtual) = None
     
-    val Requirements = new GuardedBy[List[inference.Fact]](elaborate)
-    def requirements = Requirements.v
+    override def ifStatic: Option[StaticMethodSymbol] = Some(this)
+    override def ifVirtual: Option[VirtualMethodSymbol] = None
     
-    val Ensures = new GuardedBy[List[inference.Fact]](elaborate)
-    def ensures = Ensures.v
+    def toReflectedJavaMethod: Option[reflect.Method] = None
+}
+
+trait VirtualMethodSymbol extends MethodSymbol with BeanSymbol {
+    lazy val id: MethodId.Virtual = MethodId.Virtual(className, name, msig.toAnon.parameterPatterns)
     
+    override def ifId(anId: MethodId.Static) = None
+    override def ifId(anId: MethodId.Virtual) = (id is anId).toOption(this)
+    
+    override def ifStatic: Option[StaticMethodSymbol] = None
+    override def ifVirtual: Option[VirtualMethodSymbol] = Some(this)
 }
 
 // ___ Ghosts ___________________________________________________________
@@ -107,7 +113,7 @@ class GhostSymbol(
     
     /** All objects bound to this ghost must be instance of this class */
     val bound: Name.Class
-) extends FieldLikeSymbol with DebugPage {
+) extends FieldLikeSymbol {
     override def toString = "Ghost(%s, %x)".format(name, System.identityHashCode(this))
     
     val modifiers = Modifier.Set.empty
@@ -171,7 +177,7 @@ object VarSymbol {
     }
 }
 
-abstract class VarSymbol[+N <: Name.Var] extends Symbol with Page {
+sealed trait VarSymbol[+N <: Name.Var] extends Symbol {
     val modifiers: Modifier.Set
     val name: N
     val ty: Type
@@ -185,32 +191,5 @@ abstract class VarSymbol[+N <: Name.Var] extends Symbol with Page {
     def isNamed(aName: Name.Var) = (name == aName)
     
     def guardPath: Path
-    
-    // ___ Page interface ___________________________________________________
-    
-    override def getId = "VarSymbol[%s]".format(System.identityHashCode(this))
-    
-    override def getParent = null
-    
-    override def addContent(content: PageContent) = throw new UnsupportedOperationException()
-    
-    override def renderInLine(out: Output): Unit = {
-        Lathos.renderInLine(this, out)
-    }
-    
-    override def renderInPage(out: Output): Unit = {
-        out.startPage(this)
-        
-        out.startTable
-        
-        out.row("name", name)
-        out.row("class", getClass.getSimpleName)
-        out.row("ty", ty)
-        out.row("pos", pos)
-        
-        out.endTable
-        
-        out.endPage(this)
-    }
     
 }

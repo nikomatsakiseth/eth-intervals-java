@@ -102,16 +102,16 @@ class Global(
     
     // ___ Intrinsics _______________________________________________________
     
-    val intrinsics = new mutable.HashMap[(Name.Qual, Name.Method), List[MethodSymbol]]()
+    val intrinsics = new mutable.HashMap[(Name.Qual, Name.Method), List[VirtualMethodSymbol]]()
     
-    def addIntrinsic(msym: MethodSymbol) {
+    def addIntrinsic(msym: VirtualMethodSymbol) {
         val key = (msym.className, msym.name)
         intrinsics(key) = msym :: intrinsics.get(key).getOrElse(Nil)
     }
     
     /** Checks for an intrinsic method --- i.e., one that is built-in to the compiler ---
       * defined on the type `rcvrTy` with the name `name`. */
-    def lookupIntrinsic(className: Name.Qual, methodName: Name.Method): Option[List[MethodSymbol]] = {
+    def lookupIntrinsic(className: Name.Qual, methodName: Name.Method): Option[List[VirtualMethodSymbol]] = {
         intrinsics.get((className, methodName))
     }
     
@@ -234,15 +234,26 @@ class Global(
     //
     // This must be done after the lowering phase of the appropriate class.
     
-    def staticMethods(className: Name.Class, methodName: Name.Method) = {
-        csym(className).methodsNamed(methodName).filter(_.modifiers.isStatic)            
+    def staticMethods(className: Name.Class, methodName: Name.Method): List[StaticMethodSymbol] = {
+        csym(className).methodsNamed(methodName).flatMap(_.ifStatic)
     }
     
-    def methodSymbol(methodId: MethodId) = {
-        csym(methodId.className).methodsNamed(methodId.methodName).find(_.id.is(methodId))
+    def methodSymbol(methodId: MethodId.Virtual): Option[VirtualMethodSymbol] = {
+        csym(methodId.className).methodsNamed(methodId.methodName).firstSome(_.ifId(methodId))
     }
     
-    def methodSymbolOrError(methodId: MethodId) = {
+    def methodSymbol(methodId: MethodId.Static): Option[StaticMethodSymbol] = {
+        csym(methodId.className).methodsNamed(methodId.methodName).firstSome(_.ifId(methodId))
+    }
+    
+    def methodSymbolOrError(methodId: MethodId.Virtual): VirtualMethodSymbol = {
+        methodSymbol(methodId).getOrElse {
+            Error.NoSuchMethodId(methodId).report(this)
+            MethodSymbol.error(methodId)(this)
+        }        
+    }
+    
+    def methodSymbolOrError(methodId: MethodId.Static): StaticMethodSymbol = {
         methodSymbol(methodId).getOrElse {
             Error.NoSuchMethodId(methodId).report(this)
             MethodSymbol.error(methodId)(this)

@@ -75,11 +75,19 @@ object AnnParse extends StdTokenParsers with PackratParsers {
         case i~pat => (i, pat)
     }
     
-    lazy val methodId = "("~>className~"#"~rep1(methodPart)<~")" ^^ {
+    lazy val staticMethodId = "("~>className~"#"~rep1(methodPart)<~")" ^^ {
         case className~"#"~parts => {
             val methodName = Name.Method(parts.map(_._1))
             val patterns = parts.map(_._2)
-            MethodId(className, methodName, patterns)
+            MethodId.Static(className, methodName, patterns)
+        }
+    }
+    
+    lazy val virtualMethodId = "("~>className~"#"~rep1(methodPart)<~")" ^^ {
+        case className~"#"~parts => {
+            val methodName = Name.Method(parts.map(_._1))
+            val patterns = parts.map(_._2)
+            MethodId.Virtual(className, methodName, patterns)
         }
     }
     
@@ -87,7 +95,11 @@ object AnnParse extends StdTokenParsers with PackratParsers {
     
     lazy val owner: PackratParser[Path.Owner] = static | path
     
-    lazy val call = path~"."~methodId~"("~comma(path)~")" ^^ {
+    lazy val staticCall = staticMethodId~"("~comma(path)~")" ^^ {
+        case m~_~args~_ => Path.StaticCall(m, args)
+    }
+    
+    lazy val virtualCall = path~"."~virtualMethodId~"("~comma(path)~")" ^^ {
         case r~_~m~_~args~_ => Path.Call(r, m, args)
     }
     
@@ -98,10 +110,11 @@ object AnnParse extends StdTokenParsers with PackratParsers {
     |   "true"                  ^^ { case _ => Path.Constant(java.lang.Boolean.TRUE) }
     |   "false"                 ^^ { case _ => Path.Constant(java.lang.Boolean.FALSE) }
     |   memberName              ^^ { case f => Path.Field(Path.Static, f) }
-    |   path~memberName         ^^ { case o~f => Path.Field(o, f) }
+    |   path~"."~memberName     ^^ { case o~_~f => Path.Field(o, f) }
     |   path~"["~path~"]"       ^^ { case a~_~i~_ => Path.Index(a, i) }
     |   "("~comma1(path)~")"    ^^ { case _~t~_ => Path.Tuple(t) }
-    |   call
+    |   virtualCall
+    |   staticCall
     )
     
     lazy val ty: PackratParser[Type] = (

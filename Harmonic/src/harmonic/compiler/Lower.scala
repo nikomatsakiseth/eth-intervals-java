@@ -29,27 +29,20 @@ case class Lower(global: Global) {
     }
     
     def createSymbolForConstructor(csym: ClassFromSource) = {
-        val cdecl = csym.resolvedSource
-        val msym = new MethodSymbol(
-            pos       = cdecl.pattern.pos,
-            modifiers = Modifier.Set.empty,
-            kind      = MethodKind.HarmonicCtor,
-            className = csym.name,
-            name      = Name.InitMethod,
-            elaborate = csym.create,
-            msig      = MethodSignature(
-                returnTy = Type.Void,
-                parameterPatterns = List(csym.classParam.toPatternRef)
-            )
-        )
-        
-        // TODO Add requirements and ensures from class
-        // TODO Add ensures that equate each argument x to a field this.x
-        msym.Requirements.v = Nil
-        msym.Ensures.v = Nil
-        msym.GuardPath.v = Path.RacyGuard
-        
-        msym
+        new VirtualMethodSymbol() {
+            val pos = csym.resolvedSource.pattern.pos
+            val modifiers = Modifier.Set.empty
+            val kind = MethodKind.HarmonicCtor
+            val className = csym.name
+            val name = Name.InitMethod
+            val msig = MethodSignature(Type.Void, List(csym.classParam.toPatternRef))
+            
+            // TODO Add requirements and ensures from class
+            // TODO Add ensures that equate each argument x to a field this.x
+            val requirements = Nil
+            val ensures = Nil
+            val guardPath = Path.RacyGuard            
+        }
     }
     
     def lowerRelDecl(
@@ -380,14 +373,14 @@ case class Lower(global: Global) {
         }
             
         def symPathForPath(path: in.AnyPathNode): SPath[Phantasmal] = {
-            def callData(
+            def callData[M <: MethodSymbol](
                 name: Name.Method,
-                msyms: List[MethodSymbol], 
+                msyms: List[M], 
                 rcvrTy: Type, 
                 inRcvr: in.Rcvr, 
                 inArgs: List[in.AnyPathNode],
                 outArgNodes: List[out.TypedPath]
-            ): Option[(List[SPath[Reified]], MethodSymbol)] = {
+            ): Option[(List[SPath[Reified]], M)] = {
                 val argTys = outArgNodes.map(_.ty)
                 msyms match {
                     case List() => {
@@ -454,7 +447,7 @@ case class Lower(global: Global) {
                             SPath.Ghost(ownerSPath, gsym)
                         }
                         
-                        case Right(msym: MethodSymbol) => {
+                        case Right(msym: VirtualMethodSymbol) => {
                             assert(!msym.modifiers.isStatic) // wouldn't get a static method from lookupBean
                             SPath.Call(ownerSPath, msym, List())
                         }
@@ -468,7 +461,7 @@ case class Lower(global: Global) {
                     val msyms = global.staticMethods(className, methodName)
                     callData(methodName, msyms, classTy, inRcvr, inArgs, outArgNodes) match {
                         case Some((flatArgs, msym)) =>
-                            SPath.Call(SPath.Static, msym, flatArgs)
+                            SPath.StaticCall(msym, flatArgs)
                         case None => 
                             errorTypedPath(path.toString)
                     }
@@ -633,12 +626,12 @@ case class Lower(global: Global) {
         /** Given a list of potential symbols, along with the types of the
           * arguments, finds the method which fits the types of the arguments
           * supplied (if any). */
-        def resolveOverloading(
+        def resolveOverloading[M <: MethodSymbol](
             pos: Position,
             createSubst: (MethodSymbol => Subst),
-            msyms: List[MethodSymbol],
+            msyms: List[M],
             argTys: List[Type]
-        ): Option[out.MCallData] = {
+        ): Option[(M, MethodSignature[Pattern.Anon])] = {
             // Find those symbols that are potentially applicable
             // to the arguments provided:
             def potentiallyApplicable(msym: MethodSymbol) = {
@@ -974,7 +967,7 @@ case class Lower(global: Global) {
                             Error.NoGhostHere(spath).report(global, expr.name.pos)
                             errorTypedPath(spath.toString).toNode
                         }
-                        case Right(msym: MethodSymbol) => {
+                        case Right(msym: VirtualMethodSymbol) => {
                             assert(!msym.modifiers.isStatic)
                             SPath.Call(ownerPath, msym, List()).toNode
                         }
@@ -987,9 +980,9 @@ case class Lower(global: Global) {
             SPath.Constant(expr.obj).toNode
         })
         
-        def identifyBestMethod(
+        def identifyBestMethod[M <: MethodSymbol](
             pos: Position,
-            msyms: List[MethodSymbol],
+            msyms: List[M],
             name: Name.Method,
             rcvrTy: Type,
             inRcvr: in.Rcvr,
@@ -1029,7 +1022,7 @@ case class Lower(global: Global) {
         }
         
         def lowerMethodCall(optExpTy: Option[Type])(mcall: in.MethodCall) = withPosOf(mcall, {
-            def identifyBestFromMcall(msyms: List[MethodSymbol], rcvrTy: Type) =
+            def identifyBestFromMcall[M <: MethodSymbol](msyms: List[M], rcvrTy: Type) =
                 identifyBestMethod(mcall.pos, msyms, mcall.name, rcvrTy, mcall.rcvr, mcall.args)
             
             val optRes = mcall.rcvr match {
@@ -1039,7 +1032,7 @@ case class Lower(global: Global) {
                         case (flatArgs, msym, msig) => {
                             val flatPaths = flatArgs.map(_.path)
                             out.TypedPath(
-                                SPath.Call(SPath.Static, msym, flatPaths)
+                                SPath.StaticCall(msym, flatPaths)
                             )
                         }
                     }

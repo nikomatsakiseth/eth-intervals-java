@@ -27,8 +27,10 @@ class Subst(private val map: Map[Path, Path]) {
             Path.Index(path(array), path(index))
         case (None, Path.Tuple(paths)) => 
             Path.Tuple(paths.map(path))
+        case (None, Path.StaticCall(methodId, args)) => 
+            Path.StaticCall(methodId, args.map(path))
         case (None, Path.Call(receiver, methodId, args)) => 
-            Path.Call(owner(receiver), methodId, args.map(path))
+            Path.Call(receiver, methodId, args.map(path))
     }
     
     def fact(fact: inference.Fact): inference.Fact = fact match {

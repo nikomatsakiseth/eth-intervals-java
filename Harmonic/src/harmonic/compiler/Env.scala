@@ -89,8 +89,14 @@ object Env {
                     }
                 }
                 
+                case Path.StaticCall(methodId, args) => {
+                    val msym = global.methodSymbolOrError(methodId)
+                    val sargs = args.map(symPath)
+                    SPath.StaticCall(msym, sargs)
+                }
+                
                 case Path.Call(owner, methodId, args) => {
-                    val sowner = symOwner(owner)
+                    val sowner = symPath(owner)
                     val msym = global.methodSymbolOrError(methodId)
                     val sargs = args.map(symPath)
                     SPath.Call(sowner, msym, sargs)
@@ -370,17 +376,17 @@ case class Env(
     private[this] def lookupInstanceMethodsDefinedOnClass(
         className: Name.Class,
         methodName: Name.Method
-    ): List[MethodSymbol] = {
+    ): List[VirtualMethodSymbol] = {
         global.lookupIntrinsic(className, methodName).getOrElse {
             val csym = global.csym(className)
-            csym.methodsNamed(methodName).filterNot(_.modifiers.isStatic)
+            csym.methodsNamed(methodName).flatMap(_.ifVirtual)
         }
     }
     
     def lookupInstanceMethods(
         rcvrTy: Type, 
         methodName: Name.Method
-    ): List[MethodSymbol] = {
+    ): List[VirtualMethodSymbol] = {
         minimalUpperBounds(rcvrTy).firstSome({ 
             case Type.Class(className, _) => 
                 val mro = global.csym(className).mro
@@ -755,9 +761,14 @@ case class Env(
                 }
             }
             
+            case SPath.StaticCall(msym, args) => {
+                guardEnsuresFinal(msym.guardPath) &&
+                args.forall(pathIsFinalBy(_, inter))
+            }
+            
             case SPath.Call(receiver, msym, args) => {
                 guardEnsuresFinal(msym.guardPath) &&
-                ownerIsFinalBy(receiver, inter) &&
+                pathIsFinalBy(receiver, inter) &&
                 args.forall(pathIsFinalBy(_, inter))
             }
             
