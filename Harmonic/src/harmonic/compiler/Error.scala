@@ -28,8 +28,8 @@ object Error {
         }
     }
     
-    case class DoesNotPermitWritesFrom(guardPath: Path.Ref, interPath: Path.Ref) extends ErrorProduct
-    case class DoesNotPermitReadsFrom(guardPath: Path.Ref, interPath: Path.Ref) extends ErrorProduct
+    case class DoesNotPermitWritesFrom(guardPath: Path, interPath: Path) extends ErrorProduct
+    case class DoesNotPermitReadsFrom(guardPath: Path, interPath: Path) extends ErrorProduct
     case class NoGhostHere(path: SPath[Phantasmal]) extends ErrorProduct
     case class ExplicitTypeRequiredDueToCycle(memName: String) extends ErrorProduct
     case class NoSuperClassImplements(mthdName: Name.Method) extends ErrorProduct

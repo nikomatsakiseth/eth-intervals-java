@@ -86,7 +86,7 @@ class MethodSymbol(
     // in the requirements lists (otherwise, one method would have to be 
     // fully constructed first, which would be impossible).
     
-    val GuardPath = new GuardedBy[Path.Ref](elaborate)
+    val GuardPath = new GuardedBy[Path](elaborate)
     def guardPath = GuardPath.v
     
     val Requirements = new GuardedBy[List[inference.Fact]](elaborate)
@@ -133,7 +133,7 @@ object VarSymbol {
         // After the symbol is constructed, there is a later phase that 
         // computes the guard path.
 
-        val GuardPath = new GuardedBy[Path.Ref](elaborate)
+        val GuardPath = new GuardedBy[Path](elaborate)
         def guardPath = GuardPath.v
     }
     
@@ -157,7 +157,7 @@ object VarSymbol {
         def toPath = Path.Local(name)
         def toSPath = SPath.Local(this)
         
-        def guardPath: Path.Ref = {
+        def guardPath: Path = {
             if(modifiers.isNotMutable) Path.Final
             else Path.Method // TODO configurable
         }
@@ -184,7 +184,7 @@ abstract class VarSymbol[+N <: Name.Var] extends Symbol with Page {
     
     def isNamed(aName: Name.Var) = (name == aName)
     
-    def guardPath: Path.Ref
+    def guardPath: Path
     
     // ___ Page interface ___________________________________________________
     

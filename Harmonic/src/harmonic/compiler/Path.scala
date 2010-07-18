@@ -4,41 +4,47 @@ import scala.collection.immutable.Set
 
 import Util._
 
+sealed trait Path extends Path.Owner {
+    def is(r: Path) = (this == r)
+    def /(fname: Name.Member) = Path.Field(this, fname)
+    def call(methodId: MethodId, args: Path*) = Path.Call(this, methodId, args.toList)
+    def unapply(r: Path) = (this == r)
+}
+
 object Path {
     
     sealed abstract trait Owner
+    
     case object Static extends Owner
     
-    // ___ Untyped Paths ____________________________________________________
-    
-    sealed abstract class Ref extends Owner {
-        def is(r: Ref) = (this == r)
-        def /(fname: Name.Member) = Field(this, fname)
-        def call(methodId: MethodId, args: Path.Ref*) = Call(this, methodId, args.toList)
-        def unapply(r: Ref) = (this == r)
-    }
-    case class Local(v: Name.LocalVar) extends Ref {
+    case class Local(v: Name.LocalVar) extends Path {
         override def toString = v.toString
     }
-    case class Cast(ty: Type, path: Ref) extends Ref {
+    
+    case class Cast(ty: Type, path: Path) extends Path {
         override def toString = "(%s)%s".format(ty, path)
     }
-    case class Constant(obj: Object) extends Ref {
+    
+    case class Constant(obj: Object) extends Path {
         override def toString = obj match {
             case obj: String => '"' + obj.toString + '"'
             case _ => obj.toString
         }
     }
-    case class Field(base: Owner, f: Name.Member) extends Ref {
+    
+    case class Field(base: Owner, f: Name.Member) extends Path {
         override def toString = base.toString + "." + f.toString
     }
-    case class Call(receiver: Owner, methodId: MethodId, args: List[Path.Ref]) extends Ref {
+    
+    case class Call(receiver: Owner, methodId: MethodId, args: List[Path]) extends Path {
         override def toString = "%s.%s(%s)".format(receiver, methodId, args.mkString(", "))
     }
-    case class Index(array: Path.Ref, index: Path.Ref) extends Ref {
+    
+    case class Index(array: Path, index: Path) extends Path {
         override def toString = "%s[%s]".format(array, index)
     }
-    case class Tuple(paths: List[Ref]) extends Ref {
+    
+    case class Tuple(paths: List[Path]) extends Path {
         override def toString = "(%s)".format(paths.mkString(","))
     }
     

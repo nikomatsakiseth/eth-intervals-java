@@ -5,36 +5,36 @@ import harmonic.compiler.inference.Fact
 // "K" for "Knowledge"
 object K {
     
-    case class PathExists(path: Path.Ref) extends Fact.Forward
+    case class PathExists(path: Path) extends Fact.Forward
     case class TypeExists(ty: Type) extends Fact.Forward
     
     // ___ Two paths ________________________________________________________
     
     sealed trait Paths {
-        def left: Path.Ref
-        def right: Path.Ref
-        def withPaths(left: Path.Ref, right: Path.Ref): inference.Fact
+        def left: Path
+        def right: Path
+        def withPaths(left: Path, right: Path): inference.Fact
     }
     
     object Paths {
         def unapply(fact: Paths) = Some(fact.left, fact.right)
     }
     
-    sealed trait ForwardPaths extends Paths with Fact.Binary[Path.Ref, Path.Ref] {
-        def withPaths(left: Path.Ref, right: Path.Ref): inference.Fact.Forward
+    sealed trait ForwardPaths extends Paths with Fact.Binary[Path, Path] {
+        def withPaths(left: Path, right: Path): inference.Fact.Forward
     }
     
     sealed trait ChildParent extends ForwardPaths {
-        def child: Path.Ref
-        def parent: Path.Ref
+        def child: Path
+        def parent: Path
         
         def left = child
         def right = parent
     }
     
     sealed trait GuardInter extends Paths with Fact.Backward {
-        def guard: Path.Ref
-        def inter: Path.Ref
+        def guard: Path
+        def inter: Path
         
         def left = guard
         def right = inter
@@ -44,32 +44,32 @@ object K {
         def unapply(fact: GuardInter) = Some(fact.guard, fact.inter)
     }
     
-    final case class PathEq(left: Path.Ref, right: Path.Ref) extends ForwardPaths {
-        def withPaths(left: Path.Ref, right: Path.Ref) = PathEq(left, right)        
+    final case class PathEq(left: Path, right: Path) extends ForwardPaths {
+        def withPaths(left: Path, right: Path) = PathEq(left, right)        
     }
-    final case class Hb(left: Path.Ref, right: Path.Ref) extends ForwardPaths {
-        def withPaths(left: Path.Ref, right: Path.Ref) = Hb(left, right)                
+    final case class Hb(left: Path, right: Path) extends ForwardPaths {
+        def withPaths(left: Path, right: Path) = Hb(left, right)                
     }
-    final case class SubOf(child: Path.Ref, parent: Path.Ref) extends ChildParent {
-        def withPaths(left: Path.Ref, right: Path.Ref) = SubOf(left, right)                        
+    final case class SubOf(child: Path, parent: Path) extends ChildParent {
+        def withPaths(left: Path, right: Path) = SubOf(left, right)                        
     }
-    final case class InlineSubOf(child: Path.Ref, parent: Path.Ref) extends ChildParent {
-        def withPaths(left: Path.Ref, right: Path.Ref) = InlineSubOf(left, right)                                
+    final case class InlineSubOf(child: Path, parent: Path) extends ChildParent {
+        def withPaths(left: Path, right: Path) = InlineSubOf(left, right)                                
     }
-    final case class Locks(inter: Path.Ref, lock: Path.Ref) extends Paths with Fact.Forward {
+    final case class Locks(inter: Path, lock: Path) extends Paths with Fact.Forward {
         def left = inter
         def right = lock
-        def withPaths(left: Path.Ref, right: Path.Ref) = Locks(left, right)                        
+        def withPaths(left: Path, right: Path) = Locks(left, right)                        
     }
     
-    final case class PermitsWr(guard: Path.Ref, inter: Path.Ref) extends GuardInter {
-        def withPaths(left: Path.Ref, right: Path.Ref) = PermitsWr(left, right)                                
+    final case class PermitsWr(guard: Path, inter: Path) extends GuardInter {
+        def withPaths(left: Path, right: Path) = PermitsWr(left, right)                                
     }
-    final case class PermitsRd(guard: Path.Ref, inter: Path.Ref) extends GuardInter {
-        def withPaths(left: Path.Ref, right: Path.Ref) = PermitsRd(left, right)                        
+    final case class PermitsRd(guard: Path, inter: Path) extends GuardInter {
+        def withPaths(left: Path, right: Path) = PermitsRd(left, right)                        
     }
-    final case class EnsuresFinal(guard: Path.Ref, inter: Path.Ref) extends GuardInter {
-        def withPaths(left: Path.Ref, right: Path.Ref) = EnsuresFinal(left, right)                                
+    final case class EnsuresFinal(guard: Path, inter: Path) extends GuardInter {
+        def withPaths(left: Path, right: Path) = EnsuresFinal(left, right)                                
     }
 
     // ___ Two types ________________________________________________________
@@ -100,13 +100,13 @@ object K {
     
     // True if the path is (a) re-ified and (b) the object at runtime will have type `ty`.
     // Note that this fact is never true if `path` refers to a ghost.
-    final case class HasType(path: Path.Ref, ty: Type) extends Fact.Binary[Path.Ref, Type] {
+    final case class HasType(path: Path, ty: Type) extends Fact.Binary[Path, Type] {
         def left = path
         def right = ty
     }
 
     // True if the object to which `path` refers will be an instance of `cls`.
     // This is computable even for ghosts, unlike HasType.
-    final case class HasClass(path: Path.Ref, cls: Name.Class) extends Fact.Backward 
+    final case class HasClass(path: Path, cls: Name.Class) extends Fact.Backward 
     
 }

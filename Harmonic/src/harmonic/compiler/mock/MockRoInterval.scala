@@ -4,7 +4,7 @@ import ch.ethz.intervals._
 import harmonic.compiler._
 
 class MockRoInterval(
-    val path: Path.Ref,
+    val path: Path,
     menv: MockEnv
 ) extends MockObject with RoInterval {
     import MethodId.{GetParent, GetStart, GetEnd}

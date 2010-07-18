@@ -38,7 +38,7 @@ extends SPath.Owner[B] {
     }
     
     // "Unsymbolizing":
-    def toPath: Path.Ref
+    def toPath: Path
     def toPathOwner = toPath
     
     // Extending paths:

@@ -10,7 +10,7 @@ sealed abstract class Type {
 
 object Type {
     
-    case class Member(path: Path.Ref, typeVar: Name.Member) extends Type {
+    case class Member(path: Path, typeVar: Name.Member) extends Type {
         override def toString = "%s.%s".format(path, typeVar)
     }
     case class Class(name: Name.Class, typeArgs: List[Type.Arg]) extends Type {
@@ -28,7 +28,7 @@ object Type {
     sealed abstract class Arg {
         def name: Name.Member
     }
-    case class PathArg(name: Name.Member, rel: PcRel, path: Path.Ref) extends Arg {
+    case class PathArg(name: Name.Member, rel: PcRel, path: Path) extends Arg {
         override def toString = "%s %s %s".format(name, rel, path)
     }
     case class TypeArg(name: Name.Member, rel: TcRel, ty: Type) extends Arg {

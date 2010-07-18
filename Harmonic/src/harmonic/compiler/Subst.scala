@@ -2,17 +2,17 @@ package harmonic.compiler
 
 import scala.collection.immutable.Map
 
-class Subst(private val map: Map[Path.Ref, Path.Ref]) {
+class Subst(private val map: Map[Path, Path]) {
     
     def +(s: Subst) = new Subst(map ++ s.map)
-    def +(p: Pair[Path.Ref, Path.Ref]) = new Subst(map + p)
+    def +(p: Pair[Path, Path]) = new Subst(map + p)
     
     def owner(owner: Path.Owner): Path.Owner = owner match {
         case Path.Static => Path.Static
-        case owner: Path.Ref => path(owner)
+        case owner: Path => path(owner)
     }
     
-    def path(p: Path.Ref): Path.Ref = (map.get(p), p) match {
+    def path(p: Path): Path = (map.get(p), p) match {
         case (Some(q), _) => 
             q
         case (None, Path.Local(v)) => 
@@ -66,11 +66,11 @@ class Subst(private val map: Map[Path.Ref, Path.Ref]) {
 object Subst {
     val empty = new Subst(Map())
 
-    def apply(pairs: (Path.Ref, Path.Ref)*): Subst = {
+    def apply(pairs: (Path, Path)*): Subst = {
         new Subst(Map(pairs: _*))
     }
     
-    def vp(lists: (List[Name.LocalVar], List[Path.Ref])) = {
+    def vp(lists: (List[Name.LocalVar], List[Path])) = {
         val (vars, paths) = lists
         new Subst(Map(vars.map(_.toPath).zip(paths): _*))
     }

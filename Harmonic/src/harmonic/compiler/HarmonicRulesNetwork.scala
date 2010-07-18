@@ -29,7 +29,7 @@ extends Network[Env.Xtra](server)
     
     protected[this] override def prequery(kind: Fact.Kind, args: Array[Option[Any]]): Iterable[Fact.Forward] = {
         args.view.flatMap {
-            case Some(path: Path.Ref) => Some(K.PathExists(path))
+            case Some(path: Path) => Some(K.PathExists(path))
             case Some(ty: Type) => Some(K.TypeExists(ty))
             case _ => None
         }
@@ -66,9 +66,9 @@ extends Network[Env.Xtra](server)
         
         def trigger(xtra: Env.Xtra, fact: K.PathExists) = {
             val subpaths = fact.path match {
-                case Path.Field(p: Path.Ref, _) => List(p)
+                case Path.Field(p: Path, _) => List(p)
                 case Path.Cast(_, p) => List(p)
-                case Path.Call(r: Path.Ref, _, args) => r :: args
+                case Path.Call(r: Path, _, args) => r :: args
                 case Path.Call(Path.Static, _, args) => args
                 case Path.Index(a, i) => List(a, i)
                 case Path.Tuple(paths) => paths

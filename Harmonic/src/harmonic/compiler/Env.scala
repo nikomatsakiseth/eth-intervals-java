@@ -59,11 +59,11 @@ object Env {
         def plusLocalVar(sym: VarSymbol.Local) = 
             copy(locals = locals + (sym.name -> sym))
             
-        def symPath(path: Path.Ref): SPath[Phantasmal] = {
+        def symPath(path: Path): SPath[Phantasmal] = {
             
             def symOwner(owner: Path.Owner) = owner match {
                 case Path.Static => SPath.Static
-                case owner: Path.Ref => symPath(owner)
+                case owner: Path => symPath(owner)
             }
             
             path match {
@@ -138,7 +138,7 @@ object Env {
         }
         
         def superTypes(
-            path: Path.Ref,
+            path: Path,
             ty: Type.Class
         ) = Lathos.context.embeddedIndent("superTypes(", path, ", ", ty, ")") {
             val Type.Class(nm, args) = ty
@@ -206,22 +206,22 @@ case class Env(
     }
     
     def typesAreEquatable(ty1: Type, ty2: Type) = factHolds(K.TypeEq(ty1, ty2))
-    def pathsAreEquatable(p1: Path.Ref, p2: Path.Ref) = factHolds(K.PathEq(p1, p2))
-    def symPath(path: Path.Ref) = xtra.symPath(path)
+    def pathsAreEquatable(p1: Path, p2: Path) = factHolds(K.PathEq(p1, p2))
+    def symPath(path: Path) = xtra.symPath(path)
     
-    def ensuresFinal(guard: Path.Ref, inter: Path.Ref) = {
+    def ensuresFinal(guard: Path, inter: Path) = {
         factHolds(K.EnsuresFinal(guard, inter))
     }
     
-    def permitsWr(guard: Path.Ref, inter: Path.Ref) = {
+    def permitsWr(guard: Path, inter: Path) = {
         factHolds(K.PermitsWr(guard, inter))
     }
     
-    def permitsRd(guard: Path.Ref, inter: Path.Ref) = {
+    def permitsRd(guard: Path, inter: Path) = {
         factHolds(K.PermitsRd(guard, inter))
     }
     
-    def pathUpperBounds(path: Path.Ref) = {
+    def pathUpperBounds(path: Path) = {
         Lathos.context.indent(this, ".pathUpperBounds(", path, ")? Consulting ", factSet) {
             factSet.queryRGivenL(path, classOf[K.HasType])
         }
@@ -713,9 +713,9 @@ case class Env(
     }
     
     def pathIsFinalBy(path: SPath[Phantasmal], inter: SPath[Phantasmal]): Boolean = {
-        def wr(path: Path.Ref) = Path.Field(path, Name.Wr)
+        def wr(path: Path) = Path.Field(path, Name.Wr)
         
-        def guardEnsuresFinal(guardPath: Path.Ref) = {
+        def guardEnsuresFinal(guardPath: Path) = {
             pathIsFinalBy(symPath(guardPath), inter) &&
             ensuresFinal(guardPath, inter.toPath)            
         }

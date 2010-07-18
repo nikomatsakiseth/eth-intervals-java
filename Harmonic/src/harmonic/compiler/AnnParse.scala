@@ -91,7 +91,7 @@ object AnnParse extends StdTokenParsers with PackratParsers {
         case r~_~m~_~args~_ => Path.Call(r, m, args)
     }
     
-    lazy val path: PackratParser[Path.Ref] = (
+    lazy val path: PackratParser[Path] = (
         localName               ^^ { case i => Path.Local(i) }
     |   numericLit              ^^ { case l => Path.Constant(Integer.valueOf(l)) }
     |   stringLit               ^^ { case l => Path.Constant(l) }

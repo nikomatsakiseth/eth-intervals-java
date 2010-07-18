@@ -12,7 +12,7 @@ class MockEnv(
 ) {
     private[this] val xtra = recurse.xtra
     private[this] implicit val global = recurse.xtra.global
-    private[this] val mockedObjects = new mutable.HashMap[Path.Ref, Object]()
+    private[this] val mockedObjects = new mutable.HashMap[Path, Object]()
     
     def contains(fact: inference.Fact): Boolean = {
         recurse.contains(fact)
@@ -22,21 +22,21 @@ class MockEnv(
         recurse.queryRGivenL(left, kind)
     }
     
-    type Technique = (Path.Ref => Option[Object])
+    type Technique = (Path => Option[Object])
     
-    private[this] def tryAlreadyMapped(path: Path.Ref) = {
+    private[this] def tryAlreadyMapped(path: Path) = {
         mockedObjects.get(path)
     }
     
-    private[this] def tryConstant(path: Path.Ref) = {
+    private[this] def tryConstant(path: Path) = {
         path match {
             case Path.Constant(obj) => Some(obj)
             case _ => None
         }
     }
 
-    private[this] def tryBuiltin(path: Path.Ref) = {
-        def isOfClass(path: Path.Ref, cls: Name.Class) = {
+    private[this] def tryBuiltin(path: Path) = {
+        def isOfClass(path: Path, cls: Name.Class) = {
             contains(K.HasClass(path, cls))
         }
         
@@ -48,7 +48,7 @@ class MockEnv(
         }
     }
     
-    private[this] def tryStaticFinalField(path: Path.Ref) = {
+    private[this] def tryStaticFinalField(path: Path) = {
         path match {
             case Path.Field(Path.Static, name) => {
                 val csym = global.csym(name.className)
@@ -75,7 +75,7 @@ class MockEnv(
     
     // Applies `technique` to all of the objects in `paths`,
     // yielding the first successful result, or None.
-    private[this] def attempt(paths: Set[Path.Ref])(technique: Technique) = {
+    private[this] def attempt(paths: Set[Path])(technique: Technique) = {
         paths.firstSome(technique)
     }
 
@@ -86,7 +86,7 @@ class MockEnv(
     // TODO-- Address issues that can arise as equatable relation is not symmetrically computable
     private[this] val techniques = List[Technique](tryAlreadyMapped, tryConstant, tryStaticFinalField, tryBuiltin)
     
-    def tryMock(path: Path.Ref): Option[Object] = {
+    def tryMock(path: Path): Option[Object] = {
         val log = Lathos.context
         mockedObjects.get(path) match {
             case Some(obj) => Some(obj)
@@ -119,5 +119,5 @@ class MockEnv(
     //
     // For example, a path like foo.(Interval#getStart())
     // will always yield SOME mocked interval.
-    def mock(path: Path.Ref) = tryMock(path).get
+    def mock(path: Path) = tryMock(path).get
 }

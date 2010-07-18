@@ -290,7 +290,7 @@ object Util {
                     false
                 }
                 
-                case value: Path.Ref => {
+                case value: Path => {
                     false
                 }
                 

@@ -4,7 +4,7 @@ import ch.ethz.intervals._
 import harmonic.compiler._
 
 class MockRoPoint(
-    val path: Path.Ref,
+    val path: Path,
     menv: MockEnv
 ) extends MockObject with RoPoint {
     

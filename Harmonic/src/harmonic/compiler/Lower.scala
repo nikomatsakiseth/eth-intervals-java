@@ -254,7 +254,7 @@ case class Lower(global: Global) {
     
     // ___ Substitutions ____________________________________________________
     
-    def addPatPathToSubst(subst: Subst, pair: (Pattern.Ref, Path.Ref)): Subst = {
+    def addPatPathToSubst(subst: Subst, pair: (Pattern.Ref, Path)): Subst = {
         pair match {
             case (Pattern.Tuple(List(pat)), path) => 
                 addPatPathToSubst(subst, (pat, path))
@@ -488,7 +488,7 @@ case class Lower(global: Global) {
             }
         }
         
-        def pathForPath(path: in.AnyPathNode): Path.Ref = {
+        def pathForPath(path: in.AnyPathNode): Path = {
             typedPathForPath(path).toPath
         }
         

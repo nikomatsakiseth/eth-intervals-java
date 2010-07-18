@@ -44,13 +44,13 @@ case class Check(global: Global) {
                 }
             }
             
-            def checkPermitsWr(guardPath: Path.Ref): Unit = {
+            def checkPermitsWr(guardPath: Path): Unit = {
                 if(!env.permitsWr(guardPath, current.toPath)) {
                     Error.DoesNotPermitWritesFrom(guardPath, current.toPath).report(global, node.pos)
                 }
             }
             
-            def checkPermitsRd(guardPath: Path.Ref): Unit = {
+            def checkPermitsRd(guardPath: Path): Unit = {
                 if(!env.permitsRd(guardPath, current.toPath)) {
                     Error.DoesNotPermitReadsFrom(guardPath, current.toPath).report(global, node.pos)
                 }
