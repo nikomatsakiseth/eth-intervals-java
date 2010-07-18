@@ -54,6 +54,8 @@ object Pattern {
         override def toString = "(%s)".format(patterns.mkString(", "))        
     }
     
+    val EmptyAnonTuple = AnonTuple(Nil)
+    
     // ___ Named patterns ___________________________________________________
     
     sealed trait Ref extends Any {
@@ -73,6 +75,8 @@ object Pattern {
         def varNames = patterns.flatMap(_.varNames)
         override def toString = "(%s)".format(patterns.mkString(", "))
     }
+    
+    val EmptyTuple = Tuple(Nil)
     
     // ___ Helpers __________________________________________________________
     

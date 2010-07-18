@@ -85,13 +85,16 @@ class Global(
                         }
                     }                                
                 }
-            } finally {
+                
                 val cnt = reporter.errorCount
                 if(cnt > config.joinIfMore || cnt < config.joinIfLess) {
                     println("Joining debug server (%d errors): http://localhost:%d/Errors".format(cnt, config.debugPort))
                     debugServer.join            
-                } else {
-                    debugServer.stop
+                }
+            } catch {
+                case e: RuntimeException => {
+                    println("Joining due to excepiton %s", e)
+                    debugServer.join            
                 }
             }            
         }

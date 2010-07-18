@@ -86,7 +86,7 @@ class ClassFromReflection(
                             className = name,
                             name      = Name.InitMethod,
                             elaborate = inter,
-                            msig      = MethodSignature(Type.Void, List())
+                            msig      = MethodSignature(Type.Void, List(Pattern.EmptyTuple))
                         )
                     )
                 )

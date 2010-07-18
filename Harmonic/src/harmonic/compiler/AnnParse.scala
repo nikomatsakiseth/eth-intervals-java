@@ -75,11 +75,11 @@ object AnnParse extends StdTokenParsers with PackratParsers {
         case i~pat => (i, pat)
     }
     
-    lazy val methodId = "("~className~"#"~rep1(methodPart)~ty~")" ^^ {
-        case _~className~_~parts~returnTy~_ => {
+    lazy val methodId = "("~>className~"#"~rep1(methodPart)<~")" ^^ {
+        case className~"#"~parts => {
             val methodName = Name.Method(parts.map(_._1))
             val patterns = parts.map(_._2)
-            MethodId(className, methodName, MethodSignature(returnTy, patterns))
+            MethodId(className, methodName, patterns)
         }
     }
     

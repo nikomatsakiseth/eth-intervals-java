@@ -371,12 +371,11 @@ case class Lower(global: Global) {
         }
         
         def typedPathForPath(path: in.AnyPathNode): SPath[Reified] = {
-            symPathForPath(path) match {
-                case spath: SPath[Reified] => spath
-                case spath => {
-                    Error.NoGhostHere(spath).report(global, path.pos)
-                    errorTypedPath(path.toString)
-                }
+            val spath = symPathForPath(path)
+            if(spath.isReified) spath.asReified
+            else {
+                Error.NoGhostHere(spath).report(global, path.pos)
+                errorTypedPath(path.toString)
             }
         }
             

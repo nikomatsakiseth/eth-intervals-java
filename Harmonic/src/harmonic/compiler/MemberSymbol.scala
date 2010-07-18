@@ -42,8 +42,8 @@ object MethodSymbol {
     }
 
     def error(methodId: MethodId)(implicit global: Global): MethodSymbol = {
-        val patterns = Pattern.makeRefs(methodId.msig.parameterPatterns)
-        error(methodId.methodName, methodId.className, methodId.msig.returnTy, patterns)
+        val patterns = Pattern.makeRefs(methodId.patterns)
+        error(methodId.methodName, methodId.className, Type.Null, patterns)
     }
     
     def error(name: Name.Method, className: Name.Class)(implicit global: Global): MethodSymbol = {
@@ -66,7 +66,7 @@ class MethodSymbol(
 )(implicit global: Global) extends BeanSymbol with DebugPage {
     override def toString = "MethodSymbol(%s.%s, %x)".format(className, name, System.identityHashCode(this))
     
-    val id = MethodId(className, name, msig.toAnon)
+    val id = MethodId(className, name, msig.toAnon.parameterPatterns)
     
     def isFromClassNamed(aName: Name.Qual) = (className == aName)
     
