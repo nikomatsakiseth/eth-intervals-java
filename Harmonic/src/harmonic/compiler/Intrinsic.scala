@@ -1,7 +1,9 @@
 package harmonic.compiler
 
 import ch.ethz.intervals._
+import ch.ethz.intervals.guard._
 import harmonic.lang.Mutable
+import harmonic.lang.StaticCheck
 import com.smallcultfollowing.lathos.Lathos
 import java.lang.reflect
 import java.lang.annotation
@@ -46,6 +48,14 @@ object Intrinsic {
 
         classOf[Interval].getDeclaredMethod("getEnd") -> List(
             at(classOf[Mutable], Map("value" -> Name.FinalMember.toAnnString))
+        ),
+        
+        classOf[RacyGuard].getDeclaredField("Racy") -> List(
+            at(classOf[StaticCheck], Map())
+        ),
+        
+        classOf[FinalGuard].getDeclaredField("Final") -> List(
+            at(classOf[StaticCheck], Map())
         )
         
     )
@@ -246,7 +256,7 @@ case class Intrinsic(global: Global) {
                 implClass   = classOf[IntrinsicControlFlow], 
                 javaName    = "ifElse", 
                 argClasses  = Array(booleanClass, templateClass, templateClass), 
-                returnClass = voidClass,
+                returnClass = objectClass,
                 className   = booleanTy.name,
                 name        = Name.Method(List("if", "else")),
                 msig        = MethodSignature(voidTy, List( /* TODO Generic Method */
@@ -263,7 +273,7 @@ case class Intrinsic(global: Global) {
                 javaName    = "ifNullElse", 
                 argClasses  = Array(objectClass, templateClass, templateClass), 
                 returnClass = objectClass,
-                className   = booleanTy.name,
+                className   = objectTy.name,
                 name        = Name.Method(List("ifNull", "else")),
                 msig        = MethodSignature(voidTy, List( /* TODO Generic Method */
                     Pattern.Var(Name.LocalVar("ifTmpl"), templateTy(voidTy, voidTy)),

@@ -51,5 +51,6 @@ unit: compile
 # To keep .test files, add "--preserve" to test.py invocation
 test: compile
 	rm -rf bin-test/*
+	${JAVAC} -cp ${CLASSPATH} -d bin-test -sourcepath . $$(find test -name '*.java')
 	time python test.py --preserve $$(find test -name '*.harm')
 	#python test.py --preserve test/bytecode/BytecodeInline.harm

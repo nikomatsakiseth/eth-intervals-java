@@ -57,16 +57,15 @@ class MockEnv(
                 csym.toReflectedJavaClass.flatMap { cls =>
                     val fld = cls.getDeclaredField(name.text)
                     if(fld.hasHAnnotation(classOf[StaticCheck])) {
-                        try {
-                            assert(fld.getModifiers.containsBits(jModifier.STATIC | jModifier.FINAL))
-                            fld.setAccessible(true)
-                            Some(fld.get(null))
-                        } catch {
-                            case exc: Exception => None
-                        }                        
-                    } else {
-                        None
-                    }
+                        if(fld.getModifiers.containsBits(jModifier.STATIC | jModifier.FINAL)) {
+                            try {
+                                fld.setAccessible(true)
+                                Some(fld.get(null))
+                            } catch {
+                                case exc: Exception => None
+                            }                                                    
+                        } else None
+                    } else None
                 }
             }
             
