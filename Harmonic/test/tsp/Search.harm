@@ -1,0 +1,22 @@
+import java.util.PriorityQueue;
+
+class Search(
+    numNodes: Integer,
+    weights: Array[Wr final, E: Array[Wr final, E: Integer]]
+) {
+    minLock = Intervals.lock();
+    queueLock = Intervals.lock();
+    
+    queue = new PriorityQueue[E: TourElement, Wr=queueLock]();
+    
+    minTour = new Array[Wr=minLock, E: Integer](numNodes + 1);
+    
+    @Mutable(new MinTourLengthGuard(search, minLock))
+    minTourLength = Integer.MAX_VALUE;
+    
+    interval search {
+        
+    }
+}
+
+// SKIP

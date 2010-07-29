@@ -53,7 +53,7 @@ class LowerMethodMember(
         }
     }
     
-    private[this] val outSig = new GuardedBy[(List[out.Param[VarSymbol.Local]], Env)](paramLower)
+    private[this] val outSig = new GuardedBy[(List[out.Param[LocalSymbol]], Env)](paramLower)
     
     // ___ Lowering the Method Body _________________________________________
     
@@ -83,7 +83,7 @@ class LowerMethodMember(
     
     private[this] val symCreate: AsyncInterval = {
         def createSymbol(
-            outParams: List[out.Param[VarSymbol.Local]],
+            outParams: List[out.Param[LocalSymbol]],
             outReturnTref: out.TypeRef
         ) = {
             new MethodFromSource(

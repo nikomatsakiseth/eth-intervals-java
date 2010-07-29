@@ -42,7 +42,7 @@ extends SPath.Owner[B] {
     def toPathOwner = toPath
     
     // Extending paths:
-    def /(fsym: VarSymbol.Field): SPath[B] = SPath.Field(this, fsym)
+    def /(fsym: FieldSymbol): SPath[B] = SPath.Field(this, fsym)
     def /(gsym: GhostSymbol): SPath[Phantasmal] = SPath.Ghost(this, gsym)
 
     // The type of value this path evaluates to:
@@ -69,7 +69,7 @@ object SPath {
     }
     
     case class Local(
-        sym: VarSymbol.Local
+        sym: LocalSymbol
     ) extends SPath[Reified] {
         def kind = Reified
         def toPath = Path.Local(sym.name)
@@ -108,7 +108,7 @@ object SPath {
     
     case class Field[+B >: Reified <: Phantasmal](
         base: SPath.Owner[B], 
-        sym: VarSymbol.Field
+        sym: FieldSymbol
     ) extends SPath[B] {
         def kind = base.kind
         def toPath = Path.Field(base.toPathOwner, sym.name)
@@ -132,7 +132,7 @@ object SPath {
         }
     }
     
-    def staticField(fsym: VarSymbol.Field) = {
+    def staticField(fsym: FieldSymbol) = {
         assert(fsym.modifiers.isStatic)
         Field[Reified](Static, fsym)
     }

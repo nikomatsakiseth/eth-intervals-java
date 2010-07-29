@@ -1132,8 +1132,8 @@ object Ast {
         type Owner = ResolveOwner // No longer relevant.
         type CSym = ClassSymbol
         type VSym = VarSymbol.Any
-        type LVSym = VarSymbol.Local
-        type FSym = VarSymbol.Field
+        type LVSym = LocalSymbol
+        type FSym = FieldSymbol
         type MSym = MethodSymbol
         type MCallData = (MethodSymbol, MethodSignature[Pattern.Anon])
         type Ty = Type

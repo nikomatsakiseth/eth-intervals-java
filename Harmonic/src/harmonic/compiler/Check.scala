@@ -76,7 +76,7 @@ case class Check(global: Global) {
             def checkEvalPath(path: SPath[Reified]): Unit = {
                 path match {
                     case SPath.Local(sym) => {
-                        // TODO Check that guard is readable.
+                        checkPermitsRd(sym.guardPath)
                     }
                     case SPath.Cast(_, castedPath) => {
                         checkEvalPath(castedPath)
@@ -243,12 +243,12 @@ case class Check(global: Global) {
                     stmts.foldLeft(env)(checkAndAddStmt(vsym.toSPath))
                 }
             
-                case stmt @ in.MethodReturn(in.TypedPath(path)) => {
+                case stmt @ in.MethodReturn(expr) => {
                     env.optReturnTy match {
                         case None => Error.NoReturnHere().report(global, stmt.pos)
                     
                         case Some(returnTy) => {
-                            In(env, current).At(stmt).checkEvalPathAndAssignable(path, returnTy)
+                            In(env, current).At(stmt).checkEvalPathAndAssignable(expr.path, returnTy)
                         }
                     }
                     env
@@ -262,7 +262,7 @@ case class Check(global: Global) {
     
     def checkIntervalDecl(
         csym: ClassFromSource, 
-        fsym: VarSymbol.Field, 
+        fsym: FieldSymbol, 
         decl: in.IntervalDecl
     ) = log.indent("checkIntervalDecl(", fsym, ")") {
         val env = csym.checkEnv
@@ -280,7 +280,7 @@ case class Check(global: Global) {
         var env = csym.checkEnv
         
         // Create the "method" variable:
-        val methodSym = new VarSymbol.Local(
+        val methodSym = new LocalSymbol(
             decl.pos,
             Modifier.Set.empty,
             Name.MethodLocal,
@@ -322,7 +322,7 @@ case class Check(global: Global) {
     
     def checkFieldDecl(
         csym: ClassFromSource, 
-        fsym: VarSymbol.Field,
+        fsym: FieldSymbol,
         decl: in.FieldDecl
     ) = {
         // TODO: Check that statements are valid etc

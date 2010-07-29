@@ -19,9 +19,9 @@ case class Lower(global: Global) {
     val log = Lathos.context
     private[this] val emptyEnv = Env.empty(global)
     
-    def classParamAndEnv(csym: ClassFromSource): (out.Param[VarSymbol.Field], Env) = {
+    def classParamAndEnv(csym: ClassFromSource): (out.Param[FieldSymbol], Env) = {
         val thisTy = Type.Class(csym.name, List())
-        val thisSym = new VarSymbol.Local(csym.pos, Modifier.Set.empty, Name.ThisLocal, thisTy)
+        val thisSym = new LocalSymbol(csym.pos, Modifier.Set.empty, Name.ThisLocal, thisTy)
         val env0 = emptyEnv.plusThis(thisTy, thisSym)
         val cdecl = csym.resolvedSource
         val (outParam, env) = lowerClassParam(csym, env0, cdecl.pattern)
@@ -103,7 +103,7 @@ case class Lower(global: Global) {
     def lowerMethodDecl(
         csym: ClassFromSource, 
         mdecl: in.MethodDecl,
-        outParams: List[out.Param[VarSymbol.Local]],
+        outParams: List[out.Param[LocalSymbol]],
         env: Env
     ): out.MethodDecl = {
         val absBody = lowerAbstractableBody(env, mdecl.body)
@@ -154,14 +154,24 @@ case class Lower(global: Global) {
     
     // ___ Parameters _______________________________________________________
     
+    class ClassParamFieldSymbol(
+        override val pos: Position,
+        override val modifiers: Modifier.Set,
+        className: Name.Class,
+        paramName: Name.LocalVar,
+        override val ty: Type
+    ) extends FieldSymbol {
+        override val name = Name.Member(className, paramName.text)
+        override val kind = FieldKind.Harmonic
+        override val initializedTo = None
+        override val guardPath = Path.Final
+    }
+    
     // Method parameters always have a specified type.  
     def lowerClassParam(csym: ClassFromSource, classEnv: Env, inParam: in.Param[Unit]) = {
-        def newSym(pos: Position, modifiers: Modifier.Set, name: Name.LocalVar, ty: Type) = {
-            val fsym = new VarSymbol.Field(pos, modifiers, Name.Member(csym.name, name.text), ty, FieldKind.Harmonic, csym.create)
-            fsym.GuardPath.v = Path.Final
-            fsym
-        }
-        def addSym(env: Env, sym: VarSymbol.Field) = env
+        def newSym(pos: Position, modifiers: Modifier.Set, name: Name.LocalVar, ty: Type) =
+            new ClassParamFieldSymbol(pos, modifiers, csym.name, name, ty)
+        def addSym(env: Env, sym: FieldSymbol) = env
         val (List(outParam), env1) = lowerAnyParams(newSym, addSym)(classEnv, List((Type.Top, inParam)))
         (outParam, env1)
     }
@@ -169,16 +179,16 @@ case class Lower(global: Global) {
     // Method parameters always have a specified type.  
     def lowerMethodParams(classEnv: Env, inParams: List[in.Param[Unit]]) = {
         def newSym(pos: Position, modifiers: Modifier.Set, name: Name.LocalVar, ty: Type) = 
-            new VarSymbol.Local(pos, modifiers, name, ty)
-        def addSym(env: Env, sym: VarSymbol.Local) = env.plusLocalVar(sym)
+            new LocalSymbol(pos, modifiers, name, ty)
+        def addSym(env: Env, sym: LocalSymbol) = env.plusLocalVar(sym)
         lowerAnyParams(newSym, addSym)(classEnv, inParams.map(p => (Type.Top, p)))
     }
     
     // The type of block parameters can be inferred from context.
     def lowerBlockParam(env: Env, expTy: Type, inParam: in.Param[Unit]) = {
         def newSym(pos: Position, modifiers: Modifier.Set, name: Name.LocalVar, ty: Type) = 
-            new VarSymbol.Local(pos, modifiers, name, ty)
-        def addSym(env: Env, sym: VarSymbol.Local) = env.plusLocalVar(sym)
+            new LocalSymbol(pos, modifiers, name, ty)
+        def addSym(env: Env, sym: LocalSymbol) = env.plusLocalVar(sym)
         val (List(outParam), env1) = lowerAnyParams(newSym, addSym)(env, List((expTy, inParam)))
         (outParam, env1)            
     }
@@ -434,12 +444,12 @@ case class Lower(global: Global) {
                             errorTypedPath(path.toString)
                         }
                         
-                        case Right(fsym: VarSymbol.Field) if fsym.modifiers.isStatic => {
+                        case Right(fsym: FieldSymbol) if fsym.modifiers.isStatic => {
                             Error.QualStatic(fsym.name).report(global, path.pos)
                             SPath.staticField(fsym)
                         }
                         
-                        case Right(fsym: VarSymbol.Field) => {
+                        case Right(fsym: FieldSymbol) => {
                             SPath.Field(ownerSPath, fsym)
                         }
                         
@@ -723,7 +733,7 @@ case class Lower(global: Global) {
                 
                 case in.InlineInterval(name, body, ()) => {
                     // TODO Inline intervals should be in scope from the beginning of the method!
-                    val sym = new VarSymbol.Local(stmt.pos, Modifier.Set.empty, name.name, Type.InlineInterval)
+                    val sym = new LocalSymbol(stmt.pos, Modifier.Set.empty, name.name, Type.InlineInterval)
                     optStmts.foreach(_ += withPosOf(stmt, 
                         out.InlineInterval(name, lowerBody(env, body), sym)
                     ))
@@ -804,7 +814,7 @@ case class Lower(global: Global) {
                 val in.DeclareVarLvalue(anns, _, name, ()) = lv
                 val outAnnotations = anns.map(InEnv(outEnv).lowerAnnotation)
                 val mod = Modifier.forLoweredAnnotations(outAnnotations)
-                val sym = new VarSymbol.Local(name.pos, mod, name.name, ty)
+                val sym = new LocalSymbol(name.pos, mod, name.name, ty)
                 outEnv = outEnv.plusLocalVar(sym)
 
                 outLvalues += withPosOf(lv, 
@@ -814,14 +824,14 @@ case class Lower(global: Global) {
                 outExprs += rv
             }
             
-            def lowerReassignedVar(localName: Ast.LocalName, sym: VarSymbol.Local, rv: out.TypedPath) = {
+            def lowerReassignedVar(localName: Ast.LocalName, sym: LocalSymbol, rv: out.TypedPath) = {
                 outLvalues += withPosOf(localName,
                     out.ReassignVarLvalue(localName, sym)
                 )
                 outExprs += rv
             }
             
-            def lowerReassignedField(memberName: Ast.MemberName, fsym: VarSymbol.Field, rv: out.TypedPath) = {
+            def lowerReassignedField(memberName: Ast.MemberName, fsym: FieldSymbol, rv: out.TypedPath) = {
                 outLvalues += withPosOf(memberName,
                     out.FieldLvalue(memberName, fsym)
                 )
@@ -951,11 +961,11 @@ case class Lower(global: Global) {
                             val fsym = VarSymbol.errorField(memberVar, optExpTy)
                             SPath.Field(ownerPath, fsym).toNode
                         }
-                        case Right(fsym: VarSymbol.Field) if fsym.modifiers.isStatic => {
+                        case Right(fsym: FieldSymbol) if fsym.modifiers.isStatic => {
                             Error.QualStatic(fsym.name).report(global, expr.name.pos)
                             SPath.Field(ownerPath, fsym).toNode
                         }
-                        case Right(fsym: VarSymbol.Field) => {
+                        case Right(fsym: FieldSymbol) => {
                             SPath.Field(ownerPath, fsym).toNode
                         }
                         case Right(gsym: GhostSymbol) => {
@@ -1221,7 +1231,7 @@ case class Lower(global: Global) {
                 // Store everything else into a variable and return that:
                 case _ => {
                     val name = Name.LocalVar(tmpVarName(outExpr))
-                    val sym = new VarSymbol.Local(outExpr.pos, Modifier.Set.empty, name, outExpr.ty)
+                    val sym = new LocalSymbol(outExpr.pos, Modifier.Set.empty, name, outExpr.ty)
                     val assign = withPosOf(outExpr, out.DefineLv(sym, outExpr))
                     optStmts.foreach(_ += assign)
                     SPath.Local(sym)

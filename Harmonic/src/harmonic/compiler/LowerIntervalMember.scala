@@ -12,6 +12,22 @@ class LowerIntervalMember(
     inIntervalDecl: in.IntervalDecl
 ) extends LowerMember(global, csym, inIntervalDecl) {
     implicit val implicitGlobal = global
+    
+    // ___ Symbol ___________________________________________________________
+    
+    class IntervalField extends FieldSymbol {
+        override val pos = inIntervalDecl.pos
+        override val modifiers = Modifier.forResolvedAnnotations(inIntervalDecl.annotations)
+        override val name = inIntervalDecl.name.name
+        override val ty = Type.AsyncInterval
+        override val initializedTo = None
+        override val guardPath = Path.Final
+        override val kind = FieldKind.Harmonic
+    }
+    
+    val sym = new IntervalField()
+
+    // ___ Lowered Decl _____________________________________________________
 
     private[this] val memberLower: AsyncInterval = {
         global.master.subinterval(
@@ -28,20 +44,7 @@ class LowerIntervalMember(
     
     override def memberDecl: out.IntervalDecl = outIntervalDecl.v
     
-    val sym = {
-        new VarSymbol.Field(
-            pos       = inIntervalDecl.pos,
-            modifiers = Modifier.forResolvedAnnotations(inIntervalDecl.annotations),
-            name      = inIntervalDecl.name.name,
-            ty        = Type.AsyncInterval,
-            kind      = FieldKind.Harmonic,
-            elaborate = csym.create // i.e., the current interval
-        )        
-    }
-    
-    sym.GuardPath.v = Path.Final
-    
-    override def toOptFieldSymbol(memName: Name.Member): Option[VarSymbol.Field] = {
+    override def toOptFieldSymbol(memName: Name.Member): Option[FieldSymbol] = {
         if(inIntervalDecl.name.name.is(memName)) Some(sym)
         else None
     }

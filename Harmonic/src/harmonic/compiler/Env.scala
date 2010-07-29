@@ -52,11 +52,11 @@ object Env {
     
     case class Xtra(
         global: Global,
-        locals: Map[Name.LocalVar, VarSymbol.Local]
+        locals: Map[Name.LocalVar, LocalSymbol]
     ) {
         implicit val implicitGlobal = global
         
-        def plusLocalVar(sym: VarSymbol.Local) = 
+        def plusLocalVar(sym: LocalSymbol) = 
             copy(locals = locals + (sym.name -> sym))
             
         def symPath(path: Path): SPath[Phantasmal] = {
@@ -181,10 +181,10 @@ case class Env(
     
     // ___ Extending the Environment ________________________________________
     
-    def plusLocalVar(sym: VarSymbol.Local): Env = 
+    def plusLocalVar(sym: LocalSymbol): Env = 
         copy(factSet = factSet.plusXtra(xtra.plusLocalVar(sym)))
         
-    def plusThis(thisTy: Type.Class, sym: VarSymbol.Local): Env = 
+    def plusThis(thisTy: Type.Class, sym: LocalSymbol): Env = 
         plusLocalVar(sym).copy(thisTy = thisTy)
         
     def withOptReturnTy(optReturnTy: Option[Type]): Env = 
@@ -797,7 +797,7 @@ case class Env(
         // * Gin up a fake local variable x of type c[args1].
         // * Check whether x → c[args2].
     
-        val fresh = new VarSymbol.Local(
+        val fresh = new LocalSymbol(
             pos = NoPosition,
             modifiers = Modifier.Set.empty,
             name = global.freshLocalName,

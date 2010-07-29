@@ -6,15 +6,15 @@ import Ast.{Lower => in}
 import Util._
 
 class TypedSubst(
-    val lvmap: Map[VarSymbol.Local, SPath[Reified]],
-    val fmap: Map[(VarSymbol.Local, VarSymbol.Field), SPath[Reified]]
+    val lvmap: Map[LocalSymbol, SPath[Reified]],
+    val fmap: Map[(LocalSymbol, FieldSymbol), SPath[Reified]]
 ) {
     
-    def +(p: Pair[VarSymbol.Local, SPath[Reified]]): TypedSubst = {
+    def +(p: Pair[LocalSymbol, SPath[Reified]]): TypedSubst = {
         new TypedSubst(lvmap + p, fmap)
     }
     
-    def plusField(p: Pair[(VarSymbol.Local, VarSymbol.Field), SPath[Reified]]) = {
+    def plusField(p: Pair[(LocalSymbol, FieldSymbol), SPath[Reified]]) = {
         new TypedSubst(lvmap, fmap + p)        
     }
     

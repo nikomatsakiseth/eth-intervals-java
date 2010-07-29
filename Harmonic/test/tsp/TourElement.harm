@@ -1,0 +1,21 @@
+class TourElement(
+    node: Integer
+) extends Comparable[T: TourElement]
+{
+    // Initialize values to a 1-link path:
+    @Mutable(Init) length: Integer = 1;
+    @Mutable(Init) visited: Integer = (1 << node);
+    @Mutable(Init) previous: TourElement = null;
+    @Mutable(Init) prefixWeight: Integer = 0;
+    @Mutable(Init) lowerBound: Integer = 0;
+    
+    visited(node: Integer): Boolean {
+        return (visited & (1 << node)) != 0;
+    }
+    
+    compareTo(elem: TourElement): Integer {
+        return lowerBound - o.lowerBound;
+    }
+}
+
+// SKIP

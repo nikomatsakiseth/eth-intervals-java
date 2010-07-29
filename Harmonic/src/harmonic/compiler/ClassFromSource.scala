@@ -206,7 +206,7 @@ class ClassFromSource(
     def superTypes = SuperTypes.join
 
     /** Lowered version of class parameter */
-    val ClassParam = new GuardedBy[Ast.Lower.Param[VarSymbol.Field]](create)    
+    val ClassParam = new GuardedBy[Ast.Lower.Param[FieldSymbol]](create)    
     def classParam = ClassParam.v
     
     /** Environment immediately within the class body */
@@ -232,7 +232,7 @@ class ClassFromSource(
     
     override def fieldNamed(name: Name.Member) = {
         LowerMembers.join.firstSome(_.toOptFieldSymbol(name)).ifNone {
-            val fsyms: List[VarSymbol.Field] = classParam.symbols
+            val fsyms: List[FieldSymbol] = classParam.symbols
             fsyms.find(_.isNamed(name))
         }
     }
@@ -251,10 +251,10 @@ class ClassFromSource(
 
     def allMethodSymbols: List[MethodSymbol] = loweredMethods.map(_._1)
 
-    val AllFieldSymbols = new GuardedBy[List[VarSymbol.Field]](merge)
+    val AllFieldSymbols = new GuardedBy[List[FieldSymbol]](merge)
     def allFieldSymbols = AllFieldSymbols.v
 
-    val AllIntervalSymbols = new GuardedBy[List[VarSymbol.Field]](merge)
+    val AllIntervalSymbols = new GuardedBy[List[FieldSymbol]](merge)
     def allIntervalSymbols = AllIntervalSymbols.v
     
     // ___ Computed by Pass.Envirate ________________________________________

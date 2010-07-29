@@ -6,6 +6,7 @@ import java.lang.reflect
 import java.lang.reflect.{Modifier => jModifier}
 
 import scala.collection.mutable
+import scala.util.parsing.input.Position
 
 import com.smallcultfollowing.lathos.Lathos
 
@@ -90,7 +91,7 @@ class ClassFromReflection(
         },
         
         allFieldSymbols = List(
-            cls.getDeclaredFields.filter(isSuitable).map(fieldSymbol(inter))
+            cls.getDeclaredFields.filter(isSuitable).map(fieldSymbol)
         ).flatten,
         
         allIntervalSymbols = Nil,
@@ -201,37 +202,44 @@ class ClassFromReflection(
         case _ => throw new RuntimeException("Not here")
     }
     
-    private[this] def fieldSymbol(inter: Interval)(fld: reflect.Field) = {
-        val fsym = new VarSymbol.Field(
-            pos       = pos,
-            modifiers = Modifier.forMember(fld),
-            name      = Name.Member(name, fld.getName),
-            ty        = typeRef(fld.getGenericType),
-            kind      = FieldKind.Java(cls, fld.getName, fld.getType),
-            elaborate = inter
-        )
+    // ___ Translating fields and ghosts ____________________________________
+    
+    class FieldSymbolFromReflection(
+        fld: reflect.Field
+    ) extends FieldSymbol {
+        override val pos = ClassFromReflection.this.pos
+        override val modifiers = Modifier.forMember(fld)
+        override val name = Name.Member(ClassFromReflection.this.name, fld.getName)
+        override val ty = typeRef(fld.getGenericType)
+        override val kind = FieldKind.Java(cls, fld.getName, fld.getType)
         
-        fsym.GuardPath.v = fld.getHAnnotation(classOf[Mutable]) match {
-            case None if fld.getModifiers.containsBits(jModifier.FINAL) => 
-                Path.Final
-            case None if fld.getModifiers.containsBits(jModifier.STATIC) => 
-                Path.RacyGuard
-            case None => 
-                Path.ThisWr
-            case Some(path) => 
-                AnnParse.parsePath(path.value) match {
-                    case Left(err) => {
-                        err.report(global, pos)
-                        Path.ThisWr
+        override val initializedTo = None
+        
+        override val guardPath = {
+            fld.getHAnnotation(classOf[Mutable]) match {
+                case None if fld.getModifiers.containsBits(jModifier.FINAL) => 
+                    Path.Final
+                case None if fld.getModifiers.containsBits(jModifier.STATIC) => 
+                    Path.RacyGuard
+                case None => 
+                    Path.ThisWr
+                case Some(path) => 
+                    AnnParse.parsePath(path.value) match {
+                        case Left(err) => {
+                            err.report(global, pos)
+                            Path.ThisWr
+                        }
+
+                        case Right(path) => {
+                            path
+                        }
                     }
-                
-                    case Right(path) => {
-                        path
-                    }
-                }
+            }            
         }
-        
-        fsym
+    }
+
+    private[this] def fieldSymbol(fld: reflect.Field) = {
+        new FieldSymbolFromReflection(fld)
     }
     
     private[this] def ghostSymbol(ghost: Ghost) = {
@@ -251,6 +259,8 @@ class ClassFromReflection(
         }
     }
     
+    // ___ Translating ctors ________________________________________________
+
     private[this] def paramPattern(pair: (reflect.Type, Int)) = {
         Pattern.Var(
             name = Name.LocalVar("arg"+pair._2),
@@ -258,8 +268,6 @@ class ClassFromReflection(
         )
     }
     
-    // ___ Translating ctors ________________________________________________
-
     // In Harmonic, every class must have a constructor, so gin up an empty
     // constructor for interfaces:
     class InterfaceCtor

@@ -37,18 +37,7 @@ class LowerFieldMember(
     // If the field type is to be inferred, this must happen after lowering
     // the body, but it is otherwise independent.
     
-    private[this] val symCreate: AsyncInterval = {
-        def createFieldSymbol(ty: Type) = {
-            new VarSymbol.Field(
-                pos       = inFieldDecl.pos,
-                modifiers = Modifier.forResolvedAnnotations(inFieldDecl.annotations),
-                name      = inFieldDecl.name.name,
-                ty        = ty,
-                kind      = FieldKind.Harmonic,
-                elaborate = symElaborate
-            )            
-        }
-        
+    private[this] val symType: AsyncInterval = {
         inFieldDecl.tref match {
             case in.InferredTypeRef() => {
                 global.master.subinterval(
@@ -58,7 +47,7 @@ class LowerFieldMember(
                     during = List(csym.members),
                     after = List(memberLower.getEnd)
                 ) { inter =>
-                    Sym.v = createFieldSymbol(outFieldDecl.v.tref.ty)
+                    sym.Ty.v = outFieldDecl.v.tref.ty
                 }
             }
             
@@ -70,13 +59,11 @@ class LowerFieldMember(
                     during = List(csym.members)
                 ) { inter =>
                     val outTref = Lower(global).InEnv(csym.classEnv).lowerTypeRef(inTref)
-                    Sym.v = createFieldSymbol(outTref.ty)
+                    sym.Ty.v = outTref.ty
                 }
             }
         }
     }
-    private[this] val Sym = new GuardedBy[VarSymbol.Field](symCreate)
-    def sym = Sym.v
     
     private[this] val symElaborate: AsyncInterval = {
         global.master.subinterval(
@@ -84,9 +71,17 @@ class LowerFieldMember(
             parentPage = csym.classPage,
             name = "%s.%s:symElaborate".format(csym.name, inFieldDecl.name),
             during = List(csym.members),
-            after = List(symCreate.getEnd, memberLower.getEnd)
+            after = List(symType.getEnd, memberLower.getEnd)
         ) { inter =>
             // Obtain guard path from @Mutable annotation:
+            sym.InitializedTo.v = memberDecl.body match {
+                case out.Body(List(out.TypedPath(spath))) => {
+                    Some(spath.toPath)
+                }
+                
+                case _ => None
+            }
+            
             sym.GuardPath.v = memberDecl.annotations.find(_.name.is(Name.MutableClass)) match {
                 case Some(out.Annotation(_, List(arg))) => arg.path.toPath
                 case _ => Path.Final
@@ -94,20 +89,42 @@ class LowerFieldMember(
         }
     }
     
-    override def toOptFieldSymbol(memName: Name.Member): Option[VarSymbol.Field] = {
-        if(inFieldDecl.name.is(memName)) {
-            try {
-                Some(Sym.join)                
-            } catch {
-                case _: IntervalException.Cycle => {
-                    Error.ExplicitTypeRequiredDueToCycle(memName.toString).report(global, inFieldDecl.tref.pos)
-                    Some(VarSymbol.errorField(memName, None))
-                }
-            }
-        } else None
+    override def toOptFieldSymbol(memName: Name.Member): Option[FieldSymbol] = {
+        inFieldDecl.name.is(memName).toOption(sym)
     }
     
+    // ___ Symbol Class _____________________________________________________
+    
+    class FieldFromSource extends FieldSymbol {
+        override val pos = inFieldDecl.pos
+        override val modifiers = Modifier.forResolvedAnnotations(inFieldDecl.annotations)
+        override val name = inFieldDecl.name.name
+        override val kind = FieldKind.Harmonic
+        
+        val Ty = new GuardedBy[Type](symType)
+        override def ty = {
+            try {
+                Ty.join                
+            } catch {
+                case _: IntervalException.Cycle => {
+                    Error.ExplicitTypeRequiredDueToCycle(name.toString).report(global, inFieldDecl.tref.pos)
+                    Type.Top
+                }
+            }
+        }
+        
+        val InitializedTo = new GuardedBy[Option[Path]](symElaborate)
+        override def initializedTo = InitializedTo.v
+        
+        val GuardPath = new GuardedBy[Path](symElaborate)
+        override def guardPath = GuardPath.v
+    }
+    
+    val sym = new FieldFromSource()
+    
+    // ___ Schedule intervals _______________________________________________
+    
     memberLower.schedule
-    symCreate.schedule
+    symType.schedule
     symElaborate.schedule
 }

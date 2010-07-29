@@ -181,7 +181,7 @@ case class ByteCode(global: Global) {
             mvis.visitVarInsn(asmTy.getOpcode(O.ISTORE), index)
         }
         
-        def getHarmonicField(fsym: VarSymbol.Field) = {
+        def getHarmonicField(fsym: FieldSymbol) = {
             mvis.visitMethodInsn(
                 O.INVOKEINTERFACE,
                 fsym.name.className.internalName,
@@ -190,7 +190,7 @@ case class ByteCode(global: Global) {
             )
         }
         
-        def setHarmonicField(fsym: VarSymbol.Field) = {
+        def setHarmonicField(fsym: FieldSymbol) = {
             mvis.visitMethodInsn(
                 O.INVOKEINTERFACE,
                 fsym.name.className.internalName,
@@ -464,7 +464,7 @@ case class ByteCode(global: Global) {
     
     sealed case class AccessHarmonicAccessor(
         owner: AccessPath,
-        fsym: VarSymbol.Field
+        fsym: FieldSymbol
     ) extends AccessPath {
         def asmType = fsym.ty.toAsmType
         
@@ -659,8 +659,8 @@ case class ByteCode(global: Global) {
         }
     }
     
-    def summarizeSymbolsInPathNode(summary: SymbolSummary, node: in.TypedPath) = {
-        summarizeSymbolsInPath(summary, node.path)        
+    def summarizeSymbolsInNestedExpr(summary: SymbolSummary, node: in.TypedPath) = {
+        summarizeSymbolsInPath(summary, node.path)
     }
 
     def summarizeSymbolsInExpr(summary: SymbolSummary, expr: in.Expr): SymbolSummary = {
@@ -675,9 +675,9 @@ case class ByteCode(global: Global) {
             }
             case in.TypedPath(path) => summarizeSymbolsInPath(summary, path)
             case in.MethodCall(in.Super(_), _, args, _) => {
-                args.foldLeft(summary)(summarizeSymbolsInPathNode)
+                args.foldLeft(summary)(summarizeSymbolsInNestedExpr)
             }
-            case in.NewCtor(_, args, _, _) => args.foldLeft(summary)(summarizeSymbolsInPathNode)
+            case in.NewCtor(_, args, _, _) => args.foldLeft(summary)(summarizeSymbolsInNestedExpr)
             case in.Null(_) => summary
         }
     }
@@ -1658,7 +1658,7 @@ case class ByteCode(global: Global) {
                 SPath.Tuple(subpatterns.map(constructPathFromPattern))
                 
             case Pattern.Var(name, ty) => {
-                val sym = new VarSymbol.Local(NoPosition, Modifier.Set.empty, name, ty)
+                val sym = new LocalSymbol(NoPosition, Modifier.Set.empty, name, ty)
                 accessMap.addUnboxedSym(sym)
                 SPath.Local(sym)
             }
@@ -1762,7 +1762,7 @@ case class ByteCode(global: Global) {
     
     // ___ Methods __________________________________________________________
 
-    def allInheritedFieldSymbols(csym: ClassSymbol): Iterable[VarSymbol.Field] = {
+    def allInheritedFieldSymbols(csym: ClassSymbol): Iterable[FieldSymbol] = {
         csym.mro.view.flatMap(_.allFieldSymbols)
     }
     
@@ -1997,7 +1997,7 @@ case class ByteCode(global: Global) {
         opts: Int,
         csym: ClassFromSource, 
         cvis: asm.ClassVisitor, 
-        fsym: VarSymbol.Field,
+        fsym: FieldSymbol,
         desc: (Type => String)
     ) = {
         cvis.visitMethod(

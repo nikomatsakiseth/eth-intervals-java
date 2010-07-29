@@ -6,6 +6,7 @@ import harmonic.compiler._
 import harmonic.compiler.Util._
 import harmonic.compiler.Intrinsic.toHarmonicAnnotated
 import harmonic.lang.StaticCheck
+import harmonic.compiler.Ast.{Lower => in}
 import java.lang.reflect
 import java.lang.reflect.{Modifier => jModifier}
 
@@ -73,38 +74,50 @@ class MockEnv(
         }
     }
     
-    //private[this] def tryStaticMethod(path: Path) = Lathos.context.indent("tryStaticMethod(", path, ")") {
-    //    path match {
-    //        case Path.StaticCall(methodId, args) => {
-    //            global.methodSymbol(methodId).flatMap { msym =>
-    //                Lathos.context.log("Static call to ", msym)
-    //                msym.toReflectedJavaMethod.flatMap { mthd =>
-    //                    Lathos.context.log("Reflected Java method ", mthd)
-    //                    if(mthd.hasHAnnotation(classOf[StaticCheck])) {
-    //                        // TODO-- Infinite recursion
-    //                        // TODO-- Check lvalues and incorporate into this test
-    //                        val optMockedArgs = args.map(tryMock)
-    //                        if(optMockedArgs.forall(_.isDefined)) {
-    //                            val mockedArgs = optMockedArgs.flatten
-    //                            
-    //                            try {
-    //                                Some(mthd.invoke(null, mockedArgs: _*))
-    //                            } catch {
-    //                                case exc: Exception => None
-    //                            }                            
-    //                        } else {
-    //                            None
-    //                        }
-    //                    } else {
-    //                        None
-    //                    }
-    //                }
-    //            }
-    //        }
-    //        
-    //        case _ => None
-    //    }
-    //}
+    private[this] def tryExecuting(path: Path) = Lathos.context.indent("tryExecuting(", path, ")") {
+        path match {
+            case Path.StaticCall(methodId, args) => {
+                global.methodSymbol(methodId).flatMap { msym =>
+                    Lathos.context.log("Static call to ", msym)
+                    msym.toReflectedJavaMethod.flatMap { mthd =>
+                        Lathos.context.log("Reflected Java method ", mthd)
+                        if(mthd.hasHAnnotation(classOf[StaticCheck])) {
+                            // TODO-- Infinite recursion
+                            // TODO-- Check lvalues and incorporate into this test
+                            val optMockedArgs = args.map(tryMock)
+                            if(optMockedArgs.forall(_.isDefined)) {
+                                val mockedArgs = optMockedArgs.flatten
+                                
+                                try {
+                                    Some(mthd.invoke(null, mockedArgs: _*))
+                                } catch {
+                                    case exc: Exception => None
+                                }                            
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    }
+                }
+            }
+            
+            case _ => None
+        }
+    }
+    
+    private[this] def tryInitializedField(path: Path) = Lathos.context.indent("tryInitializedField(", path, ")") {
+        path match {
+            case Path.Field(Path.This, memName) => 
+                global.fieldSymbol(memName).flatMap { fsym =>
+                    Lathos.context.log("Field symbol ", fsym, ".initializedTo = ", fsym.initializedTo)
+                    fsym.initializedTo.flatMap(tryExecuting)                    
+                }
+            case _ => 
+                None
+        }
+    }
     
     // Applies `technique` to all of the objects in `paths`,
     // yielding the first successful result, or None.
@@ -120,8 +133,9 @@ class MockEnv(
     private[this] val techniques = List[Technique](
         tryAlreadyMapped, 
         tryConstant, 
-        tryStaticField, 
-        tryBuiltin
+        tryStaticField,
+        tryBuiltin,
+        tryInitializedField
     )
     
     def tryMock(path: Path): Option[Object] = {
