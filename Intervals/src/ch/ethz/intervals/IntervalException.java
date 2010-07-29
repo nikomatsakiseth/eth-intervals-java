@@ -117,17 +117,19 @@ public abstract class IntervalException extends RuntimeException {
 
 	public static class LockNotHeld extends IntervalException {
 		public final RoLock lock;
+		public final Guard guard; 
 		public final RoInterval inter;
 
-		public LockNotHeld(RoLock lock, RoInterval inter) {
+		public LockNotHeld(RoLock lock, Guard guard, RoInterval inter) {
 			this.lock = lock;
+			this.guard = guard;
 			this.inter = inter;
 		}
 
 		public String toString() {
 			return String.format(
-					"%s must hold the lock %s to perform this operation", 
-					inter, lock);
+					"%s must hold the lock %s for %s to perform this operation", 
+					inter, lock, guard);
 		}		
 	}
 	

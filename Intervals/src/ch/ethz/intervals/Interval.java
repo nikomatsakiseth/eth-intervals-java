@@ -15,18 +15,33 @@ public interface Interval extends RoInterval {
 	/** Returns the end point */
 	public Point getEnd();
 	
-	/** Equivalent to {@code addLock(lock, null)} */
+	/** 
+	 * Equivalent to {@code addLock(getStart(), lock, lock)} 
+	 * 
+	 * @see #addLock(Point, Lock, Guard) */
 	public void addLock(Lock lock);
+	
+	/** 
+	 * Equivalent to {@code addLock(getStart(), lock, lock)}
+	 *  
+	 * @see #addLock(Point, Lock, Guard) */
+	public void addLock(Lock lock, Guard guard);
 	
 	/** Indicates that {@code interval} should execute while holding
 	 *  the exclusive lock {@code lock}.  The lock will be automatically
-	 *  acquired sometime before {@code interval.start} and release
-	 *  sometime after {@code interval.end}.  You may also, optionally, 
-	 *  provide a guard {@code guard} which is being protected by this lock.
+	 *  acquired sometime before {@code acq} and released
+	 *  sometime after {@link #getEnd()}.  The purpose of the lock
+	 *  is to access data guarded by {@code guard}.
 	 *   
+	 *  @param acq the point at which the lock is to be acquired.
+	 *  Must {@link RoPoint#hbeq(RoPoint)} the start point of this
+	 *  interval.
 	 *  @param lock the lock to be acquired
-	 *  @param guard the guard whose data is being protected, or {@code null} */
-	public void addLock(Lock lock, Guard guard);
+	 *  @param guard the guard whose data is being protected 
+	 *  
+	 *  @see #addLock(Lock)
+	 *  @see #addLock(Lock, Guard) */
+	public void addLock(Point acq, Lock lock, Guard guard);
 	
 	/** Creates a new asynchronous interval child of this. */
 	public AsyncInterval newAsyncChild(Task task);

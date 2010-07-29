@@ -1,5 +1,6 @@
 package ch.ethz.intervals;
 
+import ch.ethz.intervals.guard.Guard;
 import ch.ethz.intervals.guard.StaticGuard;
 
 /**
@@ -19,8 +20,14 @@ public interface RoInterval extends StaticGuard {
 	/** Returns the end point */
 	public RoPoint getEnd();
 	
-	/** True if this will hold {@code lock} when it executes */
-	public boolean locks(RoLock lock);
+	/** 
+	 * True if this will lock {@code guard} with {@code lock} when it executes.
+	 *  
+	 * @param guard The guard with which the lock was associated when it
+	 * was added to the interval.  If {@code null}, then the method returns
+	 * true if the lock is held at all, regardless of the guard it was associated
+	 * with. */
+	public boolean locks(RoLock lock, Guard guard);
 	
 	/**
 	 * Returns true if {@code this} is a (transitive) subinterval of {@code inter} or

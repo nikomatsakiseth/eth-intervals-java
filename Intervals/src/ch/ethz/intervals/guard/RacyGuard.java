@@ -20,8 +20,8 @@ public final class RacyGuard implements StaticGuard {
 	
 	@Override
 	public RuntimeException checkLockable(
-			RoInterval interval,
-			RoLock lock) 
+			RoPoint acq,
+			RoInterval interval, RoLock lock) 
 	{
 		return null;
 	}

@@ -191,7 +191,7 @@ abstract class WriteTrackingDynamicGuard<R> implements DynamicGuard {
 	}
 
 	@Override
-	public synchronized IntervalException checkLockable(RoInterval inter, RoLock lock) {
+	public synchronized IntervalException checkLockable(RoPoint acq, RoInterval inter, RoLock lock) {
 		assert lock != null;
 		
 		RoPoint interStart = inter.getEnd();

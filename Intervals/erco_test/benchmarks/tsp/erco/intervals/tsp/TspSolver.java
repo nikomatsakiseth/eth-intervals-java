@@ -1,6 +1,5 @@
 package erco.intervals.tsp;
 
-import java.util.Arrays;
 import java.util.BitSet;
 
 import ch.ethz.intervals.Interval;

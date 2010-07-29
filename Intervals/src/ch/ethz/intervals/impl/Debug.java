@@ -7,6 +7,7 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
 import pcollections.PSet;
+import ch.ethz.intervals.Lock;
 import ch.ethz.intervals.impl.IntervalImpl.State;
 import ch.ethz.intervals.impl.ThreadPool.Medallion;
 import ch.ethz.intervals.impl.ThreadPool.WorkItem;
@@ -572,15 +573,15 @@ implements Page
 
 	static class LockEvent extends Event {
 		final String kind;
-		final LockBase lock;
-		final LockList acq;
+		final Lock lock;
+		final LockRecord acq;
 		
 		public LockEvent(
 				String kind, 
-				LockBase lock,
-				LockList acq) 
+				Lock lock,
+				LockRecord acq) 
 		{
-			super((acq != null ? acq.inter.end : null));
+			super((acq != null ? acq.releasedBy : null));
 			this.kind = kind;
 			this.lock = lock;
 			this.acq = acq;
@@ -600,25 +601,25 @@ implements Page
 		
 	}
 	
-	public void postLockAcquired(LockBase lockBase, LockList acq) {
+	public void postLockAcquired(Lock lockBase, LockRecord acq) {
 		if(ENABLED) {
 			putQueue(new LockEvent("Acquired", lockBase, acq));
 		}
 	}
 
-	public void postLockEnqueued(LockBase lockBase, LockList acq) {
+	public void postLockEnqueued(Lock lockBase, LockRecord acq) {
 		if(ENABLED) {
 			putQueue(new LockEvent("Enqueued", lockBase, acq));
 		}
 	}
 
-	public void postLockDequeued(LockBase lockBase, LockList acq) {
+	public void postLockDequeued(Lock lockBase, LockRecord acq) {
 		if(ENABLED) {
 			putQueue(new LockEvent("Dequeued", lockBase, acq));
 		}
 	}
 
-	public void postLockFreed(LockBase lockBase) {
+	public void postLockFreed(Lock lockBase) {
 		if(ENABLED) {
 			putQueue(new LockEvent("Freed", lockBase, null));
 		}

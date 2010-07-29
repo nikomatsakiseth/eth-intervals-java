@@ -28,7 +28,7 @@ public final class FinalGuard implements StaticGuard {
 	}
 
 	@Override
-	public RuntimeException checkLockable(RoInterval interval, RoLock lock) {
+	public RuntimeException checkLockable(RoPoint acq, RoInterval interval, RoLock lock) {
 		return new IntervalException.CannotBeLockedBy(this, lock);
 	}
 

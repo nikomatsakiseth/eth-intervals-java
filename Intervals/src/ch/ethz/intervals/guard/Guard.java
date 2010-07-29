@@ -53,11 +53,11 @@ public interface Guard {
 	 * This is normally {@code inter.start}, but if there have been synchronous
 	 * subintervals it will be the end of the most recent subinterval.
 	 * 
-	 * @param inter the currently executing interval
+	 * @param current the currently executing interval
 	 * 
 	 * @returns null if there is no error, otherwise a descriptive exception
 	 */
-	public RuntimeException checkWritable(RoPoint mr, RoInterval inter); 
+	public RuntimeException checkWritable(RoPoint mr, RoInterval current); 
 
 	/** 
 	 * Same as {@link #checkWritable(RoPoint, RoInterval)}, but only
@@ -77,7 +77,11 @@ public interface Guard {
 	 * invoke this method directly; it is invoked automatically when you
 	 * use the method {@link Interval#addLock(Lock)}.
 	 * 
+	 * @param acq the point at which the lock was acquired.  Typically
+	 * {@code interval.getStart()}.
+	 * @param interval the interval that will hold the lock
+	 * @param lock the lock that was acquired
 	 * @returns null if there is no error, otherwise a descriptive exception
 	 */
-	public RuntimeException checkLockable(RoInterval interval, RoLock lock);
+	public RuntimeException checkLockable(RoPoint acq, RoInterval interval, RoLock lock);
 }

@@ -1,20 +1,18 @@
 package erco.intervals.tsp;
 
-import java.util.Arrays;
 import java.util.PriorityQueue;
 
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
-import ch.ethz.intervals.impl.IntervalImpl;
-import ch.ethz.intervals.impl.LockImpl;
+import ch.ethz.intervals.Lock;
 import ch.ethz.intervals.quals.Creator;
 import ch.ethz.intervals.quals.GuardedBy;
 import ch.ethz.intervals.task.AbstractTask;
 import ch.ethz.intervals.task.ResultTask;
 
 public class Config {
-	private final LockImpl minLock;
-	private final LockImpl queueLock;
+	private final Lock minLock;
+	private final Lock queueLock;
 	private final @Creator("queueLock") PriorityQueue<TourElement> queue;	
 	final int numNodes;
 	final int/*@Creator("Constructor")*/[]/*@Creator("Constructor")*/[] weights;
@@ -26,8 +24,8 @@ public class Config {
 	@GuardedBy("minLock") int[] minTour;
 	
 	Config(int tspSize) {
-		minLock = new LockImpl();
-		queueLock = new LockImpl();
+		minLock = Intervals.lock("minLock");
+		queueLock = Intervals.lock("queueLock");
 		queue = new PriorityQueue<TourElement>();
 		numNodes = tspSize;
 		weights = new int[numNodes + 1][numNodes + 1];
@@ -61,7 +59,7 @@ public class Config {
 	public void setBest(final int curDist, final int[] path) {
 		Intervals.inline(new AbstractTask() {
 			@Override public void attachedTo(Interval subinterval) {
-				subinterval.addLock(queueLock);
+				subinterval.addLock(minLock);
 			}
 			@Override public void run(Interval subinterval) {
 //				System.err.printf("curDist: %d minTourLength: %d tour: %s\n", 

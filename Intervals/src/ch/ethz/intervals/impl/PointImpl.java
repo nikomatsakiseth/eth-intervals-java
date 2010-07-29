@@ -15,7 +15,9 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import ch.ethz.intervals.IntervalException;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.Point;
+import ch.ethz.intervals.RoLock;
 import ch.ethz.intervals.RoPoint;
+import ch.ethz.intervals.guard.Guard;
 import ch.ethz.intervals.util.ChunkList;
 
 import com.smallcultfollowing.lathos.Lathos;
@@ -43,7 +45,8 @@ implements Point, Page, RefManipulator
 	final PointImpl bound;						/** if a start point, the paired end point.  otherwise, null. */
 	final int flags;                            /** various flags */
 	final int depth;							/** depth of bound + 1 */
-	
+
+	private LockRecord locks;					/** Linked list of locks we acquire/release */
 	private ChunkList<PointImpl> outEdges;      /** Linked list of outgoing edges from this point. */
 	private volatile int waitCount;           	/** Number of preceding points that have not arrived. */	                                              	
 	private IntervalImpl intervalImpl;          /** Interval which owns this point.  Set to {@code null} when the point occurs. */
@@ -146,6 +149,34 @@ implements Point, Page, RefManipulator
 		}
 		
 		return i;
+	}
+	
+	void addLockRecord(LockRecord record) {
+		synchronized(this) {
+			locks = record.insertFor(this, locks);
+		}
+	}
+	
+	@Override public boolean acquiresLock(RoLock lock, Guard guard) {
+		LockRecord record;
+		synchronized(this) {
+			record = locks;
+		}
+		for(; record != null; record = record.nextFor(this))
+			if(record.isAcquirer(this) && record.matches(lock, guard))
+				return true;
+		return false;
+	}
+	
+	@Override public boolean releasesLock(RoLock lock, Guard guard) {
+		LockRecord record;
+		synchronized(this) {
+			record = locks;
+		}
+		for(; record != null; record = record.nextFor(this))
+			if(record.isReleaser(this) && record.matches(lock, guard))
+				return true;
+		return false;
 	}
 	
 	@Override public final PointImpl getBound() {
@@ -368,7 +399,40 @@ implements Point, Page, RefManipulator
 
 	/** Invoked by {@link #arrive(int, RefManipulator)} when wait count reaches zero. */
 	void didReachWaitCountZero() {
-		intervalImpl.didReachWaitCountZero(this);
+		acquireNextUnacquiredLock();
+	}
+	
+	/** 
+	 * Acquires the next unacquired lock.  Once all locks have been
+	 * acquired, invokes {@link IntervalImpl#didReachWaitCountZero(PointImpl)}. */
+	final void acquireNextUnacquiredLock() {
+		// Find the last lock which has not yet been acquired.
+		// It is safe to use unsynchronized reads/writes here, 
+		// because any modification to this list must have been 
+		// during some interval which HB the start point.
+		LockRecord record = locks, unacq = null;
+		for(; record != null; record = record.nextFor(this)) {
+			if(record.isAcquirer(this) && record.mustAcquire())
+			{
+				unacq = record;
+			}
+		}
+		
+		if(unacq != null) {
+			// Acquire the lock.  Will invoke didAcquireLock() once
+			// the lock is acquired (possibly immediately).
+			unacq.lock.acquire(unacq);
+		} else {
+			// All locks acquired:
+			intervalImpl.didReachWaitCountZero(this);
+		}
+	}
+	
+	/** Invoked by {@code ll} when it has acquired a lock.  Checks for data 
+	 *  race errors and then tries to acquire the next lock. */
+	final void didAcquireLock(LockRecord record) {
+		record.setAcquired();
+		acquireNextUnacquiredLock();
 	}
 	
 	/** Invoked by {@link #intervalImpl} after wait count reaches zero.
@@ -408,6 +472,11 @@ implements Point, Page, RefManipulator
 		}
 		if(bound != null)
 			notifySuccessor(bound, true);
+		
+		// Release any locks:
+		for(LockRecord record = this.locks; record != null; record = record.nextFor(this)) {
+			record.releaseIfAcquired();
+		}
 		
 		intervalImpl.didOccur(this);
 		intervalImpl = null;

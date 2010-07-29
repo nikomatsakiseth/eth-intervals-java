@@ -1,5 +1,7 @@
 package ch.ethz.intervals;
 
+import ch.ethz.intervals.guard.Guard;
+
 /** Read-only point interface. */
 public interface RoPoint {
 
@@ -44,6 +46,25 @@ public interface RoPoint {
 	public boolean hb(RoPoint pnt);
 	
 	public boolean hbeq(RoPoint pnt);
-	
+
+	/**
+	 * True if this point acquires the lock {@code lock} to protect
+	 * {@code guard} before occurring. 
+	 * 
+	 * @param lock the lock being acquired
+	 * @param guard if non-null, the guard being protected.
+	 * 
+	 * @see RoInterval#locks(RoLock, Guard) */
+	public boolean acquiresLock(RoLock lock, Guard guard);
+
+	/**
+	 * True if this point releases the lock {@code lock} to protect 
+	 * {@code guard} after occurring. 
+	 * 
+	 * @param lock the lock being acquired
+	 * @param guard if non-null, the guard being protected.
+	 * 
+	 * @see RoInterval#locks(RoLock, Guard) */
+	public boolean releasesLock(RoLock lock, Guard guard);
 
 }

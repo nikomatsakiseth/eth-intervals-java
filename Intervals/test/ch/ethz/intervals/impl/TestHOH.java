@@ -8,6 +8,7 @@ import org.junit.Test;
 
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
+import ch.ethz.intervals.Lock;
 import ch.ethz.intervals.quals.DefinesGhost;
 import ch.ethz.intervals.task.AbstractTask;
 
@@ -20,12 +21,12 @@ public class TestHOH {
     
 	static class Link 
 	extends Object {
-		final LockImpl lockImpl;
+		final Lock lock;
 		int data;
 		Link next;
 		
 		public Link(int data, Link next) {
-			this.lockImpl = new LockImpl();
+			this.lock = Intervals.lock(null);
 			this.data = data;
 			this.next = next;
 		}
@@ -85,7 +86,7 @@ public class TestHOH {
 		@Override
 		public void attachedTo(Interval inter) {
 			super.attachedTo(inter);
-			inter.addLock(link.lockImpl);
+			inter.addLock(link.lock);
 		}
 
 		@Override

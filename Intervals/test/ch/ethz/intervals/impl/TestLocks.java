@@ -5,13 +5,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.junit.AfterClass;
 import org.junit.Assert;
-import org.junit.BeforeClass;
 import org.junit.Test;
-
-import com.smallcultfollowing.lathos.JettyLathosServer;
-import com.smallcultfollowing.lathos.LathosServer;
 
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
@@ -43,7 +38,7 @@ public class TestLocks {
 		@Override 
 		public void run(Interval current) {
 			Assert.assertTrue(Intervals.checkWritable(lock));
-			Assert.assertTrue(current.locks(lock));
+			Assert.assertTrue(current.locks(lock, lock));
 			list.add(id);
 		}
 	}
@@ -106,9 +101,9 @@ public class TestLocks {
 		final String name;
 		final long[] times;
 		final List<String> ids;
-		final LockImpl l1;
+		final Lock l1;
 		
-		public LockingVoidSubinterval(String n, long[] times, List<String> ids, LockImpl l1) {
+		public LockingVoidSubinterval(String n, long[] times, List<String> ids, Lock l1) {
 			this.name = n;
 			this.times = times;
 			this.ids = ids;
@@ -132,7 +127,7 @@ public class TestLocks {
 	 *  both eventually get it, but run in disjoint times: */
 	@Test public void subinterLock() {
 		for(int i = 0; i < REPEAT_SMALL; i++) {
-			final LockImpl l1 = new LockImpl();
+			final Lock l1 = Intervals.lock("l1");
 			final List<String> ids = Collections.synchronizedList(new ArrayList<String>());
 			final long[] aTimes = new long[2];
 			final long[] bTimes = new long[2];
@@ -172,7 +167,7 @@ public class TestLocks {
 	/** Like {@link #subinterLock()} but the locks are acquired by async intervals: */
 	@Test public void interLock() {
 		for(int i = 0; i < REPEAT_SMALL; i++) {
-			final LockImpl l1 = new LockImpl();
+			final Lock l1 = Intervals.lock("l1");
 			final List<String> ids = Collections.synchronizedList(new ArrayList<String>());
 			final long[] aTimes = new long[2];
 			final long[] bTimes = new long[2];
@@ -214,7 +209,8 @@ public class TestLocks {
 	// If locks are acquired strictly in order, should not deadlock.
 	@Test public void lockOrdering() {
 		for(int repeat = 0; repeat < REPEAT; repeat++) {
-			final LockImpl l1 = new LockImpl(), l2 = new LockImpl();
+			final Lock l1 = Intervals.lock("l1");
+			final Lock l2 = Intervals.lock("l2");
 			final int[] executed = new int[3];
 			
 			Intervals.inline(new AbstractTask("outer") {			
@@ -253,7 +249,8 @@ public class TestLocks {
 	/** Same test as {@link #lockOrdering()} but {@code b} is a subinterval */
 	@Test public void lockOrderingSubinter() {
 		for(int repeat = 0; repeat < REPEAT; repeat++) {
-			final LockImpl l1 = new LockImpl(), l2 = new LockImpl();
+			final Lock l1 = Intervals.lock("l1");
+			final Lock l2 = Intervals.lock("l2");
 			final int[] executed = new int[3];
 			
 			Intervals.inline(new AbstractTask("outer") {

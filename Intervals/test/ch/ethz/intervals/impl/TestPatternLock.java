@@ -4,6 +4,7 @@ import org.junit.Test;
 
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.Intervals;
+import ch.ethz.intervals.Lock;
 import ch.ethz.intervals.task.AbstractTask;
 import ch.ethz.intervals.task.SetupTask;
 
@@ -36,7 +37,7 @@ public class TestPatternLock {
 		 *      |--> l2 -----------|
 		 */
 			
-		final LockImpl l = new LockImpl();
+		final Lock l = Intervals.lock("l");
 		
 		Intervals.inline(new SetupTask("outer") {
 			private Interval debugInterval(Interval worker, String name) {

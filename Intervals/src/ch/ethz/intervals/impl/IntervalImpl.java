@@ -81,7 +81,7 @@ implements Guard, Interval, Page, RefManipulator
 	}
 	
 	/**
-	 * Shared implementation of {@link #checkLockable(RoInterval, RoLock)} used both by
+	 * Shared implementation of {@link #checkLockable(RoPoint, RoInterval, RoLock)} used both by
 	 * this class and also the Harmonic code.
 	 */
 	public static IntervalException checkLockableImpl(RoInterval self, RoInterval interval, RoLock lock) {
@@ -104,7 +104,7 @@ implements Guard, Interval, Page, RefManipulator
 	}
 	
 	@Override
-	public IntervalException checkLockable(RoInterval interval, RoLock lock) {
+	public IntervalException checkLockable(RoPoint acq, RoInterval interval, RoLock lock) {
 		return checkLockableImpl(this, interval, lock);
 	}
 	
@@ -141,12 +141,12 @@ implements Guard, Interval, Page, RefManipulator
 	 * when it executes, or it is a blocking subinterval of
 	 * someone who will.
 	 */
-	@Override public final boolean locks(RoLock lock) {
-		if(holdsLockItself(lock))
+	@Override public final boolean locks(RoLock lock, Guard guard) {
+		if(holdsLockItself(lock, guard))
 			return true;
 		
 		if(isInline() && parent != null)
-			return parent.locks(lock);
+			return parent.locks(lock, guard);
 		
 		return false;
 	}
@@ -155,10 +155,15 @@ implements Guard, Interval, Page, RefManipulator
 	 * True if {@code this} will hold the lock {@code lock}
 	 * when it executes.
 	 */
-	final boolean holdsLockItself(RoLock lock) {
-		for(LockList ll = revLocksSync(); ll != null; ll = ll.next)
-			if(ll.lockImpl == lock)
+	final boolean holdsLockItself(RoLock lock, Guard guard) {
+		LockRecord rec;
+		synchronized(this) {
+			rec = records;
+		}
+		for(; rec != null; rec = rec.nextForInterval()) {
+			if(rec.matches(lock, guard))
 				return true;
+		}
 		return false;
 	}
 	
@@ -171,15 +176,27 @@ implements Guard, Interval, Page, RefManipulator
 	}
 	
 	@Override public void addLock(Lock lock) {
-		addLock(lock, null);
+		addLock(lock, lock);
 	}
 	
-	@Override public void addLock(Lock _lock, Guard guard) {
+	@Override public void addLock(Lock lock, Guard guard) {
+		addLock(start, lock, guard);
+	}
+	
+	@Override public void addLock(Point _acq, Lock _lock, Guard guard) {
+		PointImpl acq = (PointImpl) _acq;
 		LockImpl lock = (LockImpl) _lock;
 		
+		assert acq != null && lock != null && guard != null;
+		
+		if(!acq.hbeq(start)) {
+			throw new IntervalException.MustHappenBefore(acq, start);
+		}
+			
 		Current current = Current.get();
-		current.checkCanAddDep(start);
-		addExclusiveLock(lock, guard);
+		current.checkCanAddDep(acq);
+		
+		addExclusiveLock(acq, lock, guard);
 	}
 
 	@Override
@@ -229,7 +246,7 @@ implements Guard, Interval, Page, RefManipulator
 	enum State {
 		// Normal, non-error states:
 		WAIT(PERMITS_CHILDREN | WILL_SIGNAL_CHILDREN),
-		LOCK(PERMITS_CHILDREN | WILL_SIGNAL_CHILDREN),
+		// LOCK(PERMITS_CHILDREN | WILL_SIGNAL_CHILDREN), (points do the locking now)
 		RUN(PERMITS_CHILDREN | WILL_SIGNAL_CHILDREN),
 		PAR(PERMITS_CHILDREN),
 		
@@ -319,11 +336,10 @@ implements Guard, Interval, Page, RefManipulator
 	 */
 	private PSet<Throwable> vertExceptions;
 
-	/** Linked list of locks to acquire before executing.  Modified only when
-	 *  synchronized, but once start point occurs can now longer be modified,
-	 *  so used without synchronization in methods that must happen after start. 
-	 *  <b>Warning:</b> Stored in THE REVERSE ORDER of how they should be acquired! */
-	private LockList revLocks;
+	/** Linked list of locks that will be held while executing.
+	 *  Until the start point occurs, only accessed with synchronization.
+	 *  After that point, accessible without lock. */  
+	private LockRecord records;
 	
 	/** Any child intervals created before run method finishes execution.
 	 * 
@@ -482,23 +498,24 @@ implements Guard, Interval, Page, RefManipulator
 			Debug.debug.postVertException(this, null, vertExceptions);
 	}
 
-	final void setRevLocksUnsync(LockList locks) {
-		revLocks = locks;
-	}
-	
 	/** Note: Safety checks apply!  See {@link Current#checkCanAddDep(PointImpl)} */ 
-	final void addExclusiveLock(LockImpl lockImpl, Guard guard) {
-		LockList list = new LockList(this, lockImpl, guard, null);
-		synchronized(this) {
-			list.next = revLocks;			
-			setRevLocksUnsync(list);
+	final void addExclusiveLock(PointImpl acq, LockImpl lock, Guard guard) {
+		LockRecord record = new LockRecord(lock, guard, acq, end);
+		
+		// Check for recursive lock:
+		//    Note that set of locks held by parent is 
+		//    fixed at this point.
+		if(isInline()) {
+			if(parent.locks(lock, null))
+				record.setRecursive();
 		}
+		
+		synchronized(this) {
+			records = record.insertForInterval(records);
+		}
+		record.acquiredBy.addLockRecord(record);
+		record.releasedBy.addLockRecord(record);
 	}
-	
-	final synchronized LockList revLocksSync() {
-		return revLocks;
-	}
-	
 	
 	private PSet<Throwable> makePSet(
 			Set<? extends Throwable> catchErrors,
@@ -519,8 +536,7 @@ implements Guard, Interval, Page, RefManipulator
 		switch(state) {
 		case WAIT:
 			assert pointImpl == start;
-			transitionUnsync(State.LOCK);
-			acquireNextUnacquiredLock();
+			start.occur(false);
 			break;
 			
 		case CANCEL_WAIT:
@@ -589,74 +605,20 @@ implements Guard, Interval, Page, RefManipulator
 		}
 	}
 
-	/** Acquires the next unacquired lock, invoking {@link PointImpl#occur(boolean)}
-	 *  when complete.  If some lock cannot be immediately acquired,
-	 *  then it returns and waits for a callback when the lock has
-	 *  been acquired. */
-	final void acquireNextUnacquiredLock() {
-		assert state == State.LOCK;
-		
-		// Find the last lock which has not yet been acquired.
-		// It is safe to use unsynchronized reads/writes here, 
-		// because any modification to this list must have been 
-		// during some interval which HB the start point.
-		LockList ll1 = null, ll2 = revLocks;
-		while(ll2 != null) {
-			if(ll2.acquiredLock != null)
-				break;
-			ll1 = ll2;
-			ll2 = ll2.next;
-		}
-		if(ll1 != null) {
-			acquireLock(ll1);
-			return;
-		}
-		
-		// Finished acquiring locks.
-		start.occur(false);
-	}
-	
-	/** Invoked by {@code ll} when it has acquired a lock.  Checks for data 
-	 *  race errors and then tries to acquire the next lock. */
-	final void didAcquireLock(LockList ll) {
-		assert ll.acquiredLock != null;
-		
-		// Check that acquiring this lock did not
-		// create a data race:		
-		Throwable err = (ll.guard == null ? null : ll.guard.checkLockable(this, ll.lockImpl));
-		if(err != null)
-			addVertExceptionUnsync(err);
-		
-		acquireNextUnacquiredLock();
-	}
-
-	/** Tries to acquire the lock indicated by {@code thisLockList}: first determines 
-	 *  if this is a recursive acquire by checking for an ancestor which has already 
-	 *  acquired {@code thisLockList}. If one is found, tries to acquire the parent's lock.  
-	 *  Otherwise, tries to acquire the {@link LockList#lockImpl} of {@code thisLockList} 
-	 *  directly.
-	 *  
-	 *  @param thisLockList the {@link LockList} entry we are acquiring
-	 */
-	private int acquireLock(LockList thisLockList) {
-		// First check whether we are recursively acquiring this lock:
-		for(IntervalImpl ancestor = parent; ancestor != null; ancestor = ancestor.parent) {
-			for(LockList ancLockList = ancestor.revLocks; ancLockList != null; ancLockList = ancLockList.next)
-				if(ancLockList.lockImpl == thisLockList.lockImpl) {
-					return ancLockList.tryAndEnqueue(thisLockList);
-				}
-		}
-		
-		// If not:
-		return thisLockList.lockImpl.tryAndEnqueue(thisLockList);							
-	}
-
 	/** Invoked by {@code pnt} when it has occurred. */
 	final void didOccur(PointImpl pnt) {
 		assert pnt.didOccur();
 		switch(state) {
-		case LOCK:
+		case WAIT:
 			assert pnt == start;
+			
+			// Check that acquiring locks did not create data races:
+			for(LockRecord record = records; record != null; record = record.nextForInterval()) {
+				Throwable err = record.guard.checkLockable(record.acquiredBy, this, record.lock);
+				if(err != null)
+					addVertExceptionUnsync(err);
+			}
+
 			if(vertExceptions == null) { // No errors acquiring locks.
 				transitionUnsync(State.RUN);
 				ContextImpl.POOL.submit(this);
@@ -678,14 +640,10 @@ implements Guard, Interval, Page, RefManipulator
 				transitionUnsync(State.ERROR_END);
 			else
 				transitionUnsync(State.END);
-
-			// After end point occurs, release any locks we acquired.
-			assert pnt == end;
-			for(LockList lock = revLocks; lock != null; lock = lock.next)
-				// If there were pending exceptions, we may not have acquired any locks:
-				if(lock.acquiredLock != null)
-					lock.unlockAcquiredLock();
 			break;
+			
+		default:
+			throw new IntervalException.InternalError("Invalid state: " + state);
 		}
 	}
 	

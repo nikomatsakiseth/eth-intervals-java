@@ -56,7 +56,7 @@ class Lift {
 	// The thread starts itself
 	public Lift(int numFloors, Controls c) {
 		name = "Lift " + count++;
-		lockImpl = new LockImpl();
+		lockImpl = Intervals.lock(name);
 		controls = c;
 		firstFloor = 1;
 		lastFloor = numFloors;
