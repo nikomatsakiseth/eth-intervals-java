@@ -47,8 +47,8 @@ abstract class Ast {
     type OTR <: Node        // Optional type reference (i.e., inferrable)
     type TR <: Node         // Mandatory type reference
     
-    type Stmt <: ParseStmt  
-    type Expr <: ParseTlExpr
+    type Stmt <: Node  
+    type Expr <: Node
     type Lvalue <: Node
     type TyPathNode <: Node   // must be a typed path
     type AnyPathNode <: Node  // possibly refers to a ghost
@@ -676,17 +676,11 @@ abstract class Ast {
         }
     }
     
-    sealed abstract trait ParseStmt extends Node {
-        def printalone(out: PrettyPrinter) {
-            out.newl("")
-            print(out)
-            out.addl(";")
-        }
-    }
+    sealed abstract trait ParseStmt extends Node
     
     sealed abstract trait ResolveStmt extends ParseStmt
     
-    sealed abstract trait LowerStmt extends ResolveStmt with TypedNode
+    sealed abstract trait LowerStmt extends TypedNode
 
     sealed abstract trait ParseRcvr extends Node
     sealed abstract trait ParseOwner extends ParseRcvr
@@ -696,7 +690,7 @@ abstract class Ast {
     sealed abstract trait ResolveOwner extends ParseOwner with ResolveRcvr
     sealed abstract trait ResolveTlExpr extends ParseTlExpr with ResolveOwner with ResolveStmt
     
-    sealed abstract trait LowerTlExpr extends ResolveTlExpr with LowerStmt with TypedNode
+    sealed abstract trait LowerTlExpr extends LowerStmt with TypedNode
 
     case class Tuple(exprs: List[Expr]) extends ResolveTlExpr {
         override def toString = "(%s)".format(exprs.mkString(", "))
@@ -714,7 +708,7 @@ abstract class Ast {
         param: Param[LVSym], 
         stmts: List[Stmt], 
         ty: Ty
-    ) extends LowerTlExpr {
+    ) extends LowerTlExpr with ResolveTlExpr {
         def className = if(async) Name.AsyncBlockClass else Name.BlockClass
 
         private[this] def sep = if(async) ("{{", "}}") else ("{", "}")
@@ -770,7 +764,8 @@ abstract class Ast {
     }
 
     /** Initially all assignments, but eventually simplified and flattened */
-    case class Assign(lvalues: List[Lvalue], rvalues: List[NE]) extends LowerStmt {
+    case class Assign(lvalues: List[Lvalue], rvalues: List[NE]) 
+    extends LowerStmt with ResolveStmt {
         def ty = voidTy
         override def toString = "(%s) = (%s)".format(lvalues.mkString(", "), rvalues.mkString(", "))
         
@@ -806,7 +801,7 @@ abstract class Ast {
     // Note: after lowering, the only valid Rcvr is Super.
     // All other method calls are represented as paths.
     case class MethodCall(rcvr: Rcvr, name: Name.Method, args: List[NE], data: MCallData)
-    extends LowerTlExpr {
+    extends LowerTlExpr with ResolveTlExpr {
         def ty = returnTy(data)
         override def toString = {
             val strs = name.parts.zip(args).map { case (p, a) =>
@@ -830,7 +825,8 @@ abstract class Ast {
     }
     
     /** Used to create new instances of classes. */
-    case class NewCtor(tref: TR, args: List[NE], data: MCallData, ty: TyClass) extends LowerTlExpr {
+    case class NewCtor(tref: TR, args: List[NE], data: MCallData, ty: TyClass) 
+    extends LowerTlExpr with ResolveTlExpr {
         override def toString = "new %s%s".format(tref, args.mkString("(", ", ", ")"))
         
         override def print(out: PrettyPrinter) {
@@ -842,7 +838,8 @@ abstract class Ast {
         }        
     }
     
-    case class Null(ty: Ty) extends LowerTlExpr {
+    case class Null(ty: Ty) 
+    extends LowerTlExpr with ResolveTlExpr {
         override def toString = "null"
     }
     
@@ -860,7 +857,7 @@ abstract class Ast {
         name: LocalName, 
         body: Body,
         vsym: LVSym
-    ) extends LowerStmt {
+    ) extends LowerStmt with ResolveStmt {
         def ty = voidTy
         override def toString = "interval %s {...}".format(name)
         
@@ -870,7 +867,8 @@ abstract class Ast {
         }
     }
     
-    case class MethodReturn(value: NE) extends LowerStmt {
+    case class MethodReturn(value: NE) 
+    extends LowerStmt with ResolveStmt {
         def ty = voidTy
         
         override def toString = "return(%s)".format(value)
@@ -891,6 +889,12 @@ object Ast {
     sealed abstract class Node extends Positional with Product with Page {
         def print(out: PrettyPrinter) {
             out.addl(toString)
+        }
+        
+        def printalone(out: PrettyPrinter) {
+            out.newl("")
+            print(out)
+            out.addl(";")
         }
         
         def printsp(out: PrettyPrinter) {

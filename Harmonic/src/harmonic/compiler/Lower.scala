@@ -721,10 +721,6 @@ case class Lower(global: Global) {
                     appendAssign(stmt)
                 }
                 
-                case stmt: in.DefineLv => {
-                    throw new Ast.RefactorTypeException("DefineLv in Lower")
-                }
-                
                 case in.InlineInterval(name, body, ()) => {
                     // TODO Inline intervals should be in scope from the beginning of the method!
                     val sym = new VarSymbol.Local(stmt.pos, Modifier.Set.empty, name.name, Type.InlineInterval)
@@ -1196,7 +1192,6 @@ case class Lower(global: Global) {
         }
         
         def lowerExpr(optExpTy: Option[Type])(expr: in.Expr): out.Expr = expr match {
-            case in.TypedPath(path) => out.TypedPath(path) // TODO Refine types further to elim this case
             case e: in.Tuple => lowerTuple(optExpTy)(e)
             case e: in.Block => lowerBlock(optExpTy)(e)
             case e: in.Cast => lowerCast(e)

@@ -2,18 +2,17 @@ package test.check;
 
 import ch.ethz.intervals.Intervals;
 
-class CheckLock(parent: Interval) {
-    lock = Intervals.lock("lock");
-    guard = ScopedLock.create(lock, a);
-    
-    @Mutable(guard)
-    field: Integer = null;
-    
+class CheckScopedLock(parent: Interval) {
     interval a(parent) {
         field = 22;
     }
     
+    lock = Intervals.lock("lock");
+    guard = ScopedLock.create(lock, a);
     a locks lock;
+    
+    @Mutable(guard)
+    field: Integer = null;
     
     interval b(parent) {
         field = 22; // ERROR DoesNotPermitWritesFrom(this.(*.lock), this.(*.b))
@@ -22,7 +21,6 @@ class CheckLock(parent: Interval) {
     interval c(parent) {
         System.out.println(field); // ERROR DoesNotPermitReadsFrom(this.(*.lock), this.(*.c))
     }
-
 }
 
 // COMPILE

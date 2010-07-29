@@ -610,10 +610,6 @@ extends Resolve(global, compUnit)
             case (expr: in.Expr) :: stmts => 
                 resolveExpr(expr) :: resolveStmts(stmts)
 
-            case (stmt @ in.DefineLv((), rv)) :: stmts => {
-                throw new Ast.RefactorTypeException("DefineLv")
-            }
-                
             case (stmt @ in.Assign(lvs, rvs)) :: stmts => {
                 val outRvs = rvs.map(resolveExpr)
                 val resolveLvs = new ResolveLvalues(this, lvs)
@@ -690,7 +686,6 @@ extends Resolve(global, compUnit)
         }
         
         def resolveExpr(expr: in.Expr): out.Expr = withPosOf(expr, expr match {
-            case in.TypedPath(path) => out.TypedPath(path) // TODO Refine types further to elim this case
             case tuple: in.Tuple => resolveTuple(tuple)
             case tmpl: in.Block => resolveBlock(tmpl)
             case in.Cast(v, t) => out.Cast(resolveExpr(v), resolveTypeRef(t))

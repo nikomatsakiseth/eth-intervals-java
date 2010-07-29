@@ -8,7 +8,6 @@ import harmonic.lang.StaticCheck;
 class ScopedLock 
 implements StaticGuard 
 {
-    
     public final RoLock lock;
     public final RoInterval scope;
 
@@ -35,10 +34,10 @@ implements StaticGuard
     
     @Override
     public RuntimeException checkReadable(RoPoint mr, RoInterval inter) {
-        if(scope.getEnd().hbeq(mr))
-            return null;
+        if(inter.isSubintervalOfOrEqualTo(scope))
+            return lock.checkReadable(mr, inter);
             
-        return checkWritable(mr, inter);
+        return ensuresFinal(mr, inter);
     }
     
     @Override
@@ -51,7 +50,10 @@ implements StaticGuard
 
     @Override
     public RuntimeException checkLockable(RoInterval inter, RoLock lock) {
-        return scope.checkLockable(inter, lock);
+        if(inter.isSubintervalOfOrEqualTo(scope))
+            return lock.checkLockable(inter, lock);
+            
+        return new RuntimeException("Not lockable");
     }
     
 }
