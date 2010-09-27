@@ -52,5 +52,18 @@ public interface Context {
 	 *  
 	 * @return the newly created inline subinterval */
 	public InlineInterval unexecutedInline(Task task);
+	
+	/**
+	 * This function does not return until 
+	 * {@code inter} has completed.  This is
+	 * the equivalent of creating an inline 
+	 * interval X where {@code inter.end -> X.start},
+	 * but potentially optimized.  
+	 * 
+	 * If this causes a cycle, will throw 
+	 * a {@link IntervalException.Cycle}.
+	 * 
+	 * @param inter the interval to join */
+	public void join(Interval inter);
 
 }

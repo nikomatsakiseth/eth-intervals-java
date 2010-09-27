@@ -506,7 +506,7 @@ implements Guard, Interval, Page, RefManipulator
 		//    Note that set of locks held by parent is 
 		//    fixed at this point.
 		if(isInline()) {
-			if(parent.locks(lock, null))
+			if(parent != null && parent.locks(lock, null))
 				record.setRecursive();
 		}
 		

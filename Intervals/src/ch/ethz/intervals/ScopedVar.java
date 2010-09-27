@@ -42,6 +42,16 @@ public interface ScopedVar<T> {
 	void set(Interval forInterval, T value);
 	
 	/**
+	 * Clears the entry for the given interval (if any).
+	 * @param forInterval the interval whose entry should be cleared
+	 * @throws NullPointerException if forInterval is null
+	 * @throws IntervalException.MustBeCurrent if {@code forInterval}
+	 * is not the current interval or an inline subinterval of
+	 * the current interval.
+	 */
+	void clear(Interval forInterval);
+	
+	/**
 	 * Reads the value of this variable for the current interval.
 	 * 
 	 * @return the value set for the current interval or the closest

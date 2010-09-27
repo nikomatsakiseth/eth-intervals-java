@@ -475,7 +475,9 @@ implements Point, Page, RefManipulator
 		
 		// Release any locks:
 		for(LockRecord record = this.locks; record != null; record = record.nextFor(this)) {
-			record.releaseIfAcquired();
+			if(record.isReleaser(this)) {
+				record.releaseIfAcquired();
+			}
 		}
 		
 		intervalImpl.didOccur(this);

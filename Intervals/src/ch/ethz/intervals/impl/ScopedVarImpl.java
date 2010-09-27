@@ -35,6 +35,20 @@ public class ScopedVarImpl<T> implements ScopedVar<T> {
 		}
 	}
 	
+	@Override
+	public void clear(Interval forInterval) {
+		if(forInterval == null)
+			throw new NullPointerException();
+		
+		Current current = Current.get();
+		if(!forInterval.isInlineSubintervalOfOrEqualTo(current.inter))
+			throw new IntervalException.MustBeCurrent(forInterval);
+		
+		synchronized(this) {
+			storedValues.remove(forInterval);
+		}
+	}
+	
 	private T getUnchecked(Interval forInterval) {
 		if(forInterval == null) 
 			return defaultValue;

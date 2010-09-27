@@ -87,7 +87,7 @@ public class LockImpl implements Lock, Page {
 				heldBy = record;
 			} else {
 				successful = false;
-				if(pending != null)
+				if(pending == null)
 					pending = new LinkedList<LockRecord>();
 				pending.add(record);
 			}
