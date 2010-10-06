@@ -336,10 +336,10 @@ extends Network[Env.Xtra](server)
     })
     
     /*
+    path : c1[args]
     class c1 extends c2[a1]
-    c1[args] <: c2[a1 + a2]
     --------------------
-    path : c2[a2]
+    path : c2[args + a1]
     */
     addRule(new Rule.ReflectiveForward[Env.Xtra]() {
         override def toString = "Extends"
