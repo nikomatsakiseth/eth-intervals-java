@@ -164,11 +164,11 @@ public class Current
 		// p's parent.  In other words, edges are permitted from
 		// high-level nodes down the tree, but not the other direction.
 		
-		PointImpl interBound = from.interBound();
-		if(interBound == null || to.isBoundedBy(interBound))
-			return;
-		
-		throw new IntervalException.MustBeBoundedBy(from.bound, to);
+		//XXX PointImpl interBound = from.interBound();
+		//XXX if(interBound == null || to.isBoundedBy(interBound))
+		//XXX 	return;
+		//XXX 
+		//XXX throw new IntervalException.MustBeBoundedBy(from.bound, to);
 	}
 
 	void checkCanAddHb(PointImpl from, PointImpl to) {

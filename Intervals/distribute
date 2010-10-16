@@ -5,7 +5,7 @@
 echo "Building intervals.jar..."
 ant jar
 echo ""
-for DIR in ../Harmonic/lib
+for DIR in ../Harmonic/lib $HOME/fossil/harmonic/lib
 do
 	echo cp Intervals.jar $DIR
 	cp Intervals.jar $DIR

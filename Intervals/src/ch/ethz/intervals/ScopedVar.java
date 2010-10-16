@@ -58,5 +58,12 @@ public interface ScopedVar<T> {
 	 * is not the current interval or a subinterval of it.
 	 */
 	T get(Interval forInterval);
+	
+	/**
+	 * Removes any value that was set for this interval.  Must be  
+	 * executed during {@code forInterval}.
+	 * @param forInterval
+	 */
+	void clear(Interval forInterval);
 
 }
