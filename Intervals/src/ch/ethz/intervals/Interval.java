@@ -34,8 +34,7 @@ public interface Interval extends RoInterval {
 	 *  is to access data guarded by {@code guard}.
 	 *   
 	 *  @param acq the point at which the lock is to be acquired.
-	 *  Must {@link RoPoint#hbeq(RoPoint)} the start point of this
-	 *  interval.
+	 *  Must happen before the start point of this interval.
 	 *  @param lock the lock to be acquired
 	 *  @param guard the guard whose data is being protected 
 	 *  
@@ -65,5 +64,17 @@ public interface Interval extends RoInterval {
 	 * @see AsyncInterval#schedule() 
 	 * @see InlineInterval#execute() */
 	public void cancel(boolean unconditionally);
+	
+	/** 
+	 * Equivalent to {@code getEnd().addHb(to)}
+	 * @see Point#addHb(Point)
+	 */
+	public void addHb(Point to);
+	
+	/** 
+	 * Equivalent to {@code getEnd().addHb(to)}
+	 * @see Point#addHb(Interval)
+	 */
+	public void addHb(Interval to);
 	
 }

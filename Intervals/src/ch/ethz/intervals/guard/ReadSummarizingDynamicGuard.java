@@ -68,13 +68,13 @@ public class ReadSummarizingDynamicGuard extends WriteTrackingDynamicGuard<Objec
 				// Multiple reads active:
 				//    Note: if null, then the bound is effectively root.end
 				SummarizedRead summary = (SummarizedRead) reads;
-				if(summary.bound == null || !summary.bound.hbeq(mr))
+				if(summary.bound == null || !summary.bound.occurred())
 					throw new IntervalException.DataRace(this, interRole, inter, DataRace.READ, summary.bound);
 			} else {
 				// Precisely one read:
 				//    Note: if null, then the bound is effectively root.end
 				RoPoint rd = (RoPoint) reads;
-				if(rd != inter.getEnd() && !rd.hbeq(mr))
+				if(rd != inter.getEnd() && !rd.occurred())
 					throw new IntervalException.DataRace(this, interRole, inter, DataRace.READ, rd);
 			}
 		}

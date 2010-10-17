@@ -1,11 +1,14 @@
 package ch.ethz.intervals.impl;
 
 import ch.ethz.intervals.Context;
+import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.IntervalException;
+import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.Lock;
 import ch.ethz.intervals.ScopedVar;
 import ch.ethz.intervals.Task;
 import ch.ethz.intervals.guard.Guard;
+import ch.ethz.intervals.task.AbstractTask;
 
 public class ContextImpl implements Context {
 	
@@ -57,6 +60,27 @@ public class ContextImpl implements Context {
 	@Override
 	public <T> ScopedVar<T> scopedVar(T defaultValue) {
 		return new ScopedVarImpl<T>(defaultValue);
+	}
+
+	@Override
+	public void join(final Interval toJoin) {
+		// Slight optimization: avoid "joining"
+		// the same interval many times.
+		Current cur = Current.get();
+		if(cur.joined.contains(toJoin))
+			return;
+		
+		Intervals.inline(new AbstractTask("join:"+toJoin.toString()) {
+			@Override public void attachedTo(Interval inter) {
+				super.attachedTo(inter);
+				toJoin.getEnd().addHb(inter.getStart());
+			}
+
+			@Override public void run(Interval current) throws Exception {
+			}
+		});
+		
+		cur.joined = cur.joined.plus(toJoin);
 	}
 
 	

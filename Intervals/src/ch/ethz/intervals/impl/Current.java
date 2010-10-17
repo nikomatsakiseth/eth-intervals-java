@@ -1,6 +1,9 @@
 package ch.ethz.intervals.impl;
 
 import static ch.ethz.intervals.Intervals.SAFETY_CHECKS;
+import pcollections.Empty;
+import pcollections.PSet;
+import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.IntervalException;
 
 public class Current
@@ -30,6 +33,7 @@ public class Current
 	public final IntervalImpl inter;	/** Smallest containing interval. {@code null} if root. */
 	public PointImpl mr;                /** Most recent point on inter.line that occurred. Not always inter.start! May be {@code null} if root. */
 	private IntervalImpl unscheduled; 	/** Linked list of unscheduled intervals. */
+	public PSet<Interval> joined = Empty.set();
 	
 	private Current() {
 		this.prev = null;
@@ -158,23 +162,10 @@ public class Current
 			throw new IntervalException.MustHappenBefore((inter != null ? inter.end : null), to);
 		}		
 	}
-	
-	void checkEdgeEndPointsProperlyBound(PointImpl from, PointImpl to) {
-		// An edge p->q is only permitted if q is bound by
-		// p's parent.  In other words, edges are permitted from
-		// high-level nodes down the tree, but not the other direction.
-		
-		//XXX PointImpl interBound = from.interBound();
-		//XXX if(interBound == null || to.isBoundedBy(interBound))
-		//XXX 	return;
-		//XXX 
-		//XXX throw new IntervalException.MustBeBoundedBy(from.bound, to);
-	}
 
 	void checkCanAddHb(PointImpl from, PointImpl to) {
 		if(SAFETY_CHECKS) {
 			checkCanAddDep(to);
-			checkEdgeEndPointsProperlyBound(from, to);
 			checkCycle(from, to);
 		}
 	}

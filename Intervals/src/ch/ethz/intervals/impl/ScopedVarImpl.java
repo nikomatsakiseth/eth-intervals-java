@@ -46,7 +46,7 @@ public class ScopedVarImpl<T> implements ScopedVar<T> {
 		
 		synchronized(this) {
 			storedValues.remove(forInterval);
-		}		
+		}
 	}
 	
 	private T getUnchecked(Interval forInterval) {

@@ -12,6 +12,7 @@ import java.util.LinkedList;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
+import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.IntervalException;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.Point;
@@ -206,13 +207,18 @@ implements Point, Page, RefManipulator
 	}
 
 	/** Returns true if {@code this} <i>happens before</i> {@code p} */
-	@Override public final boolean hb(final RoPoint p) {
-		return hb((PointImpl) p, SPECULATIVE|TEST_EDGE);
+	final boolean hb(final PointImpl p) {
+		return hb(p, SPECULATIVE|TEST_EDGE);
 	}
 	
 	/** Returns true if {@code this == p} or {@code this} <i>happens before</i> {@code p} */
-	@Override public boolean hbeq(final RoPoint p) {
+	final boolean hbeq(final PointImpl p) {
 		return (this == p) || hb(p);
+	}
+
+	@Override
+	public synchronized boolean occurred() {
+		return didOccur();
 	}
 	
 	/** Returns true if {@code this} <i>happens before</i> {@code p},
@@ -475,7 +481,9 @@ implements Point, Page, RefManipulator
 		
 		// Release any locks:
 		for(LockRecord record = this.locks; record != null; record = record.nextFor(this)) {
-			record.releaseIfAcquired();
+			if(record.isReleaser(this)) {
+				record.releaseIfAcquired();
+			}
 		}
 		
 		intervalImpl.didOccur(this);
@@ -648,6 +656,11 @@ implements Point, Page, RefManipulator
 		assert didOccur();	
 		notifySuccessor(toImpl, false);
 	}
+	
+	@Override
+	public void addHb(Interval to) {
+		addHb(to.getStart());
+	}
 
 	@Override
 	public void addHb(Point _to) {
@@ -707,8 +720,6 @@ implements Point, Page, RefManipulator
 		
 		Current current = Current.get();
 		current.checkCanAddDep(to);
-		
-		current.checkEdgeEndPointsProperlyBound(this, to);
 		
 		// Avoid edges that duplicate the bound.  Besides
 		// saving space, this check lets us guarantee that

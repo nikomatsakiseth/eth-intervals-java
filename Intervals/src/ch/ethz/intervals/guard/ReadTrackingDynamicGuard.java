@@ -35,7 +35,7 @@ extends WriteTrackingDynamicGuard<ChunkList<RoPoint>> {
 		if(reads != null) {
 			new ChunkList.Iterator<RoPoint>(reads) {
 				@Override public void doForEach(RoPoint rd, int _) {
-					if(rd != interEnd && !rd.hbeq(mr))
+					if(rd != interEnd && !rd.occurred())
 						throw new IntervalException.DataRace(
 								ReadTrackingDynamicGuard.this, 
 								interRole, inter,

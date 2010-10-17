@@ -42,4 +42,9 @@ public interface Point extends RoPoint {
 	 * @throws IntervalException.Cycle see above. */
 	public void addHb(Point to);
 	
+	/** 
+	 * Equivalent to {@code addHb(to.getStart())}
+	 * @see #addHb(Point)
+	 */
+	public void addHb(Interval to);
 }

@@ -65,38 +65,6 @@ public class TestLocks {
 		}
 	}
 	
-	// Test recursive locking:
-	@Test public void recursive() {
-		for(int i = 0; i < REPEAT; i++) {
-			final LockImpl l1 = (LockImpl) Intervals.lock("l1");
-			final List<String> ids = new ArrayList<String>();
-			Intervals.inline(new AbstractTask("iter"+i) {			
-				@Override public void run(Interval subinterval) {
-					Interval a = subinterval.newAsyncChild(new IdInterval(ids, "a", l1));
-					Interval a1 = a.newAsyncChild(new IdInterval(ids, "a1", l1));
-					Interval a11 = a1.newAsyncChild(new IdInterval(ids, "a11", l1));
-					Interval a111 = a11.newAsyncChild(new IdInterval(ids, "a111", l1));
-					Interval a2 = a.newAsyncChild(new IdInterval(ids, "a2", l1));
-					a2.newAsyncChild(new IdInterval(ids, "a21", l1));
-				}
-			});
-			
-			Assert.assertEquals(6, ids.size());
-			Assert.assertTrue(ids.contains("a"));
-			Assert.assertTrue(ids.contains("a1"));
-			Assert.assertTrue(ids.contains("a11"));
-			Assert.assertTrue(ids.contains("a111"));
-			Assert.assertTrue(ids.contains("a2"));
-			Assert.assertTrue(ids.contains("a21"));
-			
-			Assert.assertEquals(0, ids.indexOf("a"));
-			Assert.assertEquals(ids.indexOf("a1")+1, ids.indexOf("a11"));
-			Assert.assertEquals(ids.indexOf("a11")+1, ids.indexOf("a111"));
-			Assert.assertEquals(ids.indexOf("a2")+1, ids.indexOf("a21"));
-		}
-	}
-	
-	
 	class LockingVoidSubinterval extends AbstractTask {
 		final String name;
 		final long[] times;
@@ -104,6 +72,7 @@ public class TestLocks {
 		final Lock l1;
 		
 		public LockingVoidSubinterval(String n, long[] times, List<String> ids, Lock l1) {
+			super(n);
 			this.name = n;
 			this.times = times;
 			this.ids = ids;

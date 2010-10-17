@@ -115,7 +115,7 @@ abstract class WriteTrackingDynamicGuard<R> implements DynamicGuard {
 			final Role interRole,
 			State<R> result) 
 	{
-		if(result.mrw != null && !result.mrw.hbeq(mr))
+		if(result.mrw != null && !result.mrw.occurred())
 			throw new IntervalException.DataRace(this, interRole, inter, mrRole(result), result.mrw);
 	}
 

@@ -7,6 +7,7 @@ import com.smallcultfollowing.lathos.Lathos;
 import com.smallcultfollowing.lathos.Output;
 import com.smallcultfollowing.lathos.Page;
 import com.smallcultfollowing.lathos.PageContent;
+import com.sun.corba.se.spi.legacy.connection.GetEndPointInfoAgainException;
 
 import pcollections.Empty;
 import pcollections.HashTreePSet;
@@ -52,7 +53,10 @@ implements Guard, Interval, Page, RefManipulator
 	 * this class and also the Harmonic code.
 	 */
 	public static IntervalException checkReadableImpl(RoInterval self, RoPoint mr, RoInterval inter) {
-		if(inter.isSubintervalOfOrEqualTo(self) || (mr != null && self.getEnd().hbeq(mr)))
+		if(inter.isSubintervalOfOrEqualTo(self))
+			return null;
+		
+		if(self.getEnd().occurred())
 			return null;
 		
 		return new IntervalException.MustHappenBefore(self.getEnd(), mr);
@@ -74,7 +78,7 @@ implements Guard, Interval, Page, RefManipulator
 	 * this class and also the Harmonic code.
 	 */
 	public static IntervalException ensuresFinalImpl(RoInterval self, RoPoint mr, RoInterval inter) {
-		if(self.getEnd().hbeq(mr))
+		if(self.getEnd().occurred())
 			return null;
 		
 		return new IntervalException.MustHappenBefore(self.getEnd(), mr);		
@@ -165,6 +169,14 @@ implements Guard, Interval, Page, RefManipulator
 				return true;
 		}
 		return false;
+	}
+	
+	@Override public void addHb(Point to) {
+		end.addHb(to);
+	}
+	
+	@Override public void addHb(Interval to) {
+		end.addHb(to);
 	}
 	
 	@Override public Point getStart() {
@@ -506,7 +518,7 @@ implements Guard, Interval, Page, RefManipulator
 		//    Note that set of locks held by parent is 
 		//    fixed at this point.
 		if(isInline()) {
-			if(parent.locks(lock, null))
+			if(parent != null && parent.locks(lock, null))
 				record.setRecursive();
 		}
 		
