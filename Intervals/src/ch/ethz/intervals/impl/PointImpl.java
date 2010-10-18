@@ -12,10 +12,12 @@ import java.util.LinkedList;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
+import ch.ethz.intervals.Condition;
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.IntervalException;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.Point;
+import ch.ethz.intervals.RoInterval;
 import ch.ethz.intervals.RoLock;
 import ch.ethz.intervals.RoPoint;
 import ch.ethz.intervals.guard.Guard;
@@ -89,7 +91,8 @@ implements Point, Page, RefManipulator
 		return wc < 0;
 	}
 	
-	final boolean didOccur() {
+	@Override
+	final public boolean didOccur() {
 		return didOccur(waitCount);
 	}
 	
@@ -216,11 +219,6 @@ implements Point, Page, RefManipulator
 		return (this == p) || hb(p);
 	}
 
-	@Override
-	public synchronized boolean occurred() {
-		return didOccur();
-	}
-	
 	/** Returns true if {@code this} <i>happens before</i> {@code p},
 	 *  including speculative edges. */
 	boolean hbOrSpec(final PointImpl p) {
@@ -863,6 +861,15 @@ implements Point, Page, RefManipulator
 	@Override
 	public void addContent(PageContent content) {
 		throw new UnsupportedOperationException();
+	}
+
+	public Condition condDidOccur() {
+		return new Condition() {
+			@Override
+			public boolean isTrueFor(RoPoint mr, RoInterval current) {
+				return didOccur();
+			}
+		};
 	}
 	
 }

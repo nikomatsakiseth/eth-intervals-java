@@ -33,7 +33,6 @@ public class Current
 	public final IntervalImpl inter;	/** Smallest containing interval. {@code null} if root. */
 	public PointImpl mr;                /** Most recent point on inter.line that occurred. Not always inter.start! May be {@code null} if root. */
 	private IntervalImpl unscheduled; 	/** Linked list of unscheduled intervals. */
-	public PSet<Interval> joined = Empty.set();
 	
 	private Current() {
 		this.prev = null;

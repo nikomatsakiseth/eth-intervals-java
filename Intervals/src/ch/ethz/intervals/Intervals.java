@@ -1,5 +1,6 @@
 package ch.ethz.intervals;
 
+import ch.ethz.intervals.guard.DynamicGuard;
 import ch.ethz.intervals.guard.Guard;
 import ch.ethz.intervals.impl.ContextImpl;
 import ch.ethz.intervals.task.ResultTask;
@@ -151,7 +152,28 @@ public class Intervals {
 	public static boolean checkReadable(Guard guard) {
 		return context().checkReadable(guard);
 	}
-	
+
+	/** 
+	 * Invokes {@link Context#makeWritable(Guard)} on the
+	 * current context.  Intended to be used in asserts. */
+	public static void makeWritable(DynamicGuard guard) {
+		context().makeWritable(guard);
+	}
+
+	/** 
+	 * Invokes {@link Context#makeReadable(Guard)} on the
+	 * current context.  Intended to be used in asserts. */
+	public static void makeReadable(DynamicGuard guard) {
+		context().makeReadable(guard);
+	}
+
+	/** 
+	 * Invokes {@link Context#makeFinal(Guard)} on the
+	 * current context.  Intended to be used in asserts. */
+	public static void makeFinal(DynamicGuard guard) {
+		context().makeFinal(guard);
+	}
+
 	/**
 	 * Invokes {@link Context#join(Interval)} on the
 	 * current context. */

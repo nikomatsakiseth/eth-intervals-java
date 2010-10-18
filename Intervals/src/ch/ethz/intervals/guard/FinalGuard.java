@@ -1,9 +1,6 @@
 package ch.ethz.intervals.guard;
 
-import ch.ethz.intervals.IntervalException;
-import ch.ethz.intervals.RoInterval;
-import ch.ethz.intervals.RoLock;
-import ch.ethz.intervals.RoPoint;
+import ch.ethz.intervals.Condition;
 
 public final class FinalGuard implements StaticGuard {
 	
@@ -13,23 +10,18 @@ public final class FinalGuard implements StaticGuard {
 	}
 
 	@Override
-	public RuntimeException checkWritable(RoPoint mr, RoInterval inter) {
-		return new IntervalException.NeverPermitsWrites(this);
+	public Condition condReadableBy() {
+		return Condition.TRUE;
 	}
 
 	@Override
-	public RuntimeException checkReadable(RoPoint mr, RoInterval current) {
-		return null;
+	public Condition condWritableBy() {
+		return Condition.FALSE;
 	}
 
 	@Override
-	public RuntimeException ensuresFinal(RoPoint mr, RoInterval current) {
-		return null;
-	}
-
-	@Override
-	public RuntimeException checkLockable(RoPoint acq, RoInterval interval, RoLock lock) {
-		return new IntervalException.CannotBeLockedBy(this, lock);
+	public Condition condFinal() {
+		return Condition.TRUE;
 	}
 
 }

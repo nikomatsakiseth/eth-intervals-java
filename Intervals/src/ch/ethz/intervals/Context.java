@@ -1,5 +1,6 @@
 package ch.ethz.intervals;
 
+import ch.ethz.intervals.guard.DynamicGuard;
 import ch.ethz.intervals.guard.Guard;
 
 /**
@@ -40,6 +41,18 @@ public interface Context {
 	 * 
 	 * @see #checkReadable(Guard) */
 	public boolean checkWritable(Guard guard);
+
+	/** 
+	 * Instructs {@code guard} to make itself writable by the current interval. */
+	public void makeWritable(DynamicGuard guard);
+
+	/** 
+	 * Instructs {@code guard} to make itself readable by the current interval. */
+	public void makeReadable(DynamicGuard guard);
+
+	/** 
+	 * Instructs {@code guard} to make itself final for the current interval. */
+	public void makeFinal(DynamicGuard guard);
 
 	/**
 	 * Creates and returns a new, unexected inline subinterval

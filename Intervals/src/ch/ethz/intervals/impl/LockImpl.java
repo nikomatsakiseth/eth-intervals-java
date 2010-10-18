@@ -8,6 +8,7 @@ import com.smallcultfollowing.lathos.Output;
 import com.smallcultfollowing.lathos.Page;
 import com.smallcultfollowing.lathos.PageContent;
 
+import ch.ethz.intervals.Condition;
 import ch.ethz.intervals.IntervalException;
 import ch.ethz.intervals.Lock;
 import ch.ethz.intervals.RoInterval;
@@ -33,48 +34,6 @@ public class LockImpl implements Lock, Page {
 			return name;
 	}
 	
-	public static RuntimeException checkWritableImpl(RoLock self, RoPoint mr, RoInterval inter) {
-		if(inter.locks(self, self))
-			return null;
-		
-		return new IntervalException.LockNotHeld(self, self, inter);		
-	}
-	
-	public static RuntimeException checkReadableImpl(RoLock self, RoPoint mr, RoInterval inter) {
-		return checkWritableImpl(self, mr, inter);
-	}
-	
-	public static RuntimeException ensuresFinalImpl(RoLock self, RoPoint mr, RoInterval current) {
-		return new IntervalException.NeverFinal(self);
-	}
-
-	public static RuntimeException checkLockableImpl(RoLock self, RoPoint acq, RoInterval interval, RoLock lock) {
-		if(lock == self)
-			return null;
-		
-		return new IntervalException.CannotBeLockedBy(self, lock);
-	}
-
-	@Override
-	public RuntimeException checkWritable(RoPoint mr, RoInterval inter) {
-		return checkWritableImpl(this, mr, inter);
-	}
-
-	@Override
-	public RuntimeException checkReadable(RoPoint mr, RoInterval current) {
-		return checkReadableImpl(this, mr, current);
-	}
-
-	@Override
-	public RuntimeException ensuresFinal(RoPoint mr, RoInterval current) {
-		return ensuresFinalImpl(this, mr, current);
-	}
-
-	@Override
-	public RuntimeException checkLockable(RoPoint acq, RoInterval interval, RoLock lock) {
-		return checkLockableImpl(this, acq, interval, lock);
-	}
-
 	/** 
 	 * Invoked by the acquisition point when lock should be
 	 * acquired.  Notifies the acq. point once the lock has
@@ -155,6 +114,36 @@ public class LockImpl implements Lock, Page {
 	@Override
 	public void addContent(PageContent content) {
 		throw new UnsupportedOperationException();
+	}
+
+	@Override
+	public Condition condHeld() {
+		return new Condition() {
+			@Override
+			public boolean isTrueFor(RoPoint mr, RoInterval current) {
+				return current.locks(LockImpl.this, null);
+			}
+			
+			@Override
+			public String toString() {
+				return String.format("locks(%s)", LockImpl.this);
+			}
+		};
+	}
+
+	@Override
+	public Condition condReadableBy() {
+		return condHeld();
+	}
+
+	@Override
+	public Condition condWritableBy() {
+		return condHeld();
+	}
+
+	@Override
+	public Condition condFinal() {
+		return Condition.FALSE;
 	}
 
 }
