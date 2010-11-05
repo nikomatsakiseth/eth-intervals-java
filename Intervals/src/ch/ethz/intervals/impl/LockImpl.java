@@ -125,7 +125,7 @@ public class LockImpl implements Lock, Page {
 			}
 			
 			@Override
-			public String toString() {
+			public String description() {
 				return String.format("locks(%s)", LockImpl.this);
 			}
 		};

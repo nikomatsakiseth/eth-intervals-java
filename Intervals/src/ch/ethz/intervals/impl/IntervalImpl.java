@@ -50,7 +50,7 @@ implements Guard, Interval, Page, RefManipulator
 
 	@Override
 	public Condition condReadableBy() {
-		return end.condDidOccur();
+		return end.condDidOccurWithoutError();
 	}
 
 	@Override
@@ -60,7 +60,7 @@ implements Guard, Interval, Page, RefManipulator
 	
 	@Override
 	public Condition condFinal() {
-		return end.condDidOccur();
+		return end.condDidOccurWithoutError();
 	}
 	
 	@Override
@@ -72,7 +72,7 @@ implements Guard, Interval, Page, RefManipulator
 			}
 
 			@Override
-			public String toString() {
+			public String description() {
 				return String.format("subOf(%s)", IntervalImpl.this);
 			}
 		};
@@ -87,7 +87,7 @@ implements Guard, Interval, Page, RefManipulator
 			}
 
 			@Override
-			public String toString() {
+			public String description() {
 				return String.format("inlineSubOf(%s)", IntervalImpl.this);
 			}
 		};

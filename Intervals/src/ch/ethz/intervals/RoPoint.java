@@ -45,11 +45,11 @@ public interface RoPoint {
 	
 	/**
 	 * True if this point occurred before the current moment in time. */
-	public boolean didOccur();
+	public boolean didOccurWithoutError();
 	
 	/**
 	 * A condition which evalutes to true whenever this point has occurred. */
-	public Condition condDidOccur();
+	public Condition condDidOccurWithoutError();
 	
 	/**
 	 * True if this point acquires the lock {@code lock} to protect

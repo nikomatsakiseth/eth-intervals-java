@@ -24,7 +24,7 @@ public class ScopedGuard implements Guard {
 
 	@Override
 	public Condition condFinal() {
-		return inter.getEnd().condDidOccur();
+		return inter.getEnd().condDidOccurWithoutError();
 	}
 
 }

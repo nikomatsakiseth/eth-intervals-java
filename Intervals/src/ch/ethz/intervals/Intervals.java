@@ -3,6 +3,7 @@ package ch.ethz.intervals;
 import ch.ethz.intervals.guard.DynamicGuard;
 import ch.ethz.intervals.guard.Guard;
 import ch.ethz.intervals.impl.ContextImpl;
+import ch.ethz.intervals.task.AbstractTask;
 import ch.ethz.intervals.task.ResultTask;
 
 /** 
@@ -175,10 +176,32 @@ public class Intervals {
 	}
 
 	/**
-	 * Invokes {@link Context#join(Interval)} on the
-	 * current context. */
+	 * This function does not return until 
+	 * {@code toJoin} has completed.  This is
+	 * the equivalent of creating an inline 
+	 * interval X where {@code inter.end -> X.start},
+	 * but potentially optimized.  
+	 * 
+	 * If this causes a cycle, will throw 
+	 * a {@link IntervalException.Cycle}.
+	 * 
+	 * If {@code toJoin} failed with uncaught exceptions,
+	 * then will throw a {@link RethrownException}
+	 * containing those errors. 
+	 * 
+	 * @param toJoin the interval to join */
 	public static void join(final Interval toJoin) {
-		context().join(toJoin);
+		if(!toJoin.getEnd().didOccurWithoutError()) {
+			Intervals.inline(new AbstractTask("join:"+toJoin.toString()) {
+				@Override public void attachedTo(Interval inter) {
+					super.attachedTo(inter);
+					toJoin.getEnd().addHb(inter.getStart());
+				}
+
+				@Override public void run(Interval current) throws Exception {
+				}
+			});
+		}
 	}
 	
 

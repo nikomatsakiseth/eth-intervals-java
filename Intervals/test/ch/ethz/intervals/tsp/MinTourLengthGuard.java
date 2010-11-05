@@ -31,7 +31,7 @@ public class MinTourLengthGuard implements Guard {
 
 	@Override
 	public Condition condFinal() {
-		return search.getEnd().condDidOccur();
+		return search.getEnd().condDidOccurWithoutError();
 	}
 
 }

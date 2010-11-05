@@ -74,21 +74,6 @@ public class ContextImpl implements Context {
 	}
 
 	@Override
-	public void join(final Interval toJoin) {
-		if(!toJoin.getEnd().didOccur()) {
-			Intervals.inline(new AbstractTask("join:"+toJoin.toString()) {
-				@Override public void attachedTo(Interval inter) {
-					super.attachedTo(inter);
-					toJoin.getEnd().addHb(inter.getStart());
-				}
-
-				@Override public void run(Interval current) throws Exception {
-				}
-			});
-		}
-	}
-
-	@Override
 	public void makeWritable(DynamicGuard guard) {
 		Current current = Current.get();
 		guard.makeWritableBy(current.mr, current.inter);

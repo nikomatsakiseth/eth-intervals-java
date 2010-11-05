@@ -12,10 +12,21 @@ public abstract class Condition {
 	 */
 	public abstract boolean isTrueFor(RoPoint mr, RoInterval current);
 	
+	public final String toString() {
+		return description();
+	}
+	
+	public abstract String description();
+	
 	public static final Condition FALSE = new Condition() {
 		@Override
 		public boolean isTrueFor(RoPoint mr, RoInterval current) {
 			return false;
+		}
+
+		@Override
+		public String description() {
+			return "false";
 		}
 	};
 	
@@ -24,12 +35,22 @@ public abstract class Condition {
 		public boolean isTrueFor(RoPoint mr, RoInterval current) {
 			return true;
 		}
+
+		@Override
+		public String description() {
+			return "true";
+		}
 	};
 	
 	public static final Condition UNKNOWN = new Condition() {
 		@Override
 		public boolean isTrueFor(RoPoint mr, RoInterval current) {
 			throw new ConditionUnknown();
+		}
+
+		@Override
+		public String description() {
+			return "unknown";
 		}
 	};
 	
@@ -61,7 +82,7 @@ public abstract class Condition {
 		}
 		
 		@Override
-		public String toString() {
+		public String description() {
 			return String.format("(%s) && (%s)", left, right);
 		}
 	}
@@ -77,7 +98,7 @@ public abstract class Condition {
 		}		
 		
 		@Override
-		public String toString() {
+		public String description() {
 			return String.format("(%s) || (%s)", left, right);
 		}
 	}

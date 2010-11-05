@@ -236,7 +236,7 @@ public class TestErrorPropagation extends TestUtil {
 							thr.newAsyncChild(new IncTask("skipped", integer));
 						}
 					});
-					impl(thr.getStart()).addEdgeAndAdjust(impl(add.getStart()), TEST_EDGE);
+					impl(thr.getStart()).addTestEdge(impl(add.getStart()));
 					Intervals.addHb(add.getEnd(), thr.getEnd());
 				}
 			});

@@ -27,7 +27,7 @@ public abstract class IntervalException extends RuntimeException {
 		public String toString() {
 			return String.format(
 					"Condition %s does not hold for %s (most recent point: %s)",
-					cond, mr, inter);
+					cond, inter, mr);
 		}		
 	}
 
