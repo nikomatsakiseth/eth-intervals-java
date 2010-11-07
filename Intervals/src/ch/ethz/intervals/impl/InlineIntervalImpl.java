@@ -44,11 +44,6 @@ implements InlineInterval
 		Current current = Current.get();
 		
 		if(isUnscheduled(current)) {
-
-			// Add an edge from end of previous inline interval to start of this:
-			if(current.mr != null && current.mr != current.start())
-				current.mr.addEdgeAfterOccurredWithoutException(start, NORMAL);
-			
 			current.schedule(this);
 			end.join();
 			current.updateMostRecent(end);

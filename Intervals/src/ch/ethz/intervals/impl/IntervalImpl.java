@@ -3,15 +3,11 @@ package ch.ethz.intervals.impl;
 import java.io.IOException;
 import java.util.Set;
 
-import com.smallcultfollowing.lathos.Lathos;
-import com.smallcultfollowing.lathos.Output;
-import com.smallcultfollowing.lathos.Page;
-import com.smallcultfollowing.lathos.PageContent;
-
 import pcollections.Empty;
 import pcollections.HashTreePSet;
 import pcollections.PSet;
 import ch.ethz.intervals.AsyncInterval;
+import ch.ethz.intervals.Condition;
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.IntervalException;
 import ch.ethz.intervals.Intervals;
@@ -25,6 +21,11 @@ import ch.ethz.intervals.Task;
 import ch.ethz.intervals.guard.Guard;
 import ch.ethz.intervals.impl.ThreadPool.Medallion;
 import ch.ethz.intervals.util.ChunkList;
+
+import com.smallcultfollowing.lathos.Lathos;
+import com.smallcultfollowing.lathos.Output;
+import com.smallcultfollowing.lathos.Page;
+import com.smallcultfollowing.lathos.PageContent;
 
 public abstract class IntervalImpl 
 extends ThreadPool.WorkItem 
@@ -46,68 +47,52 @@ implements Guard, Interval, Page, RefManipulator
 	public final PointImpl bound() {
 		return end.bound;
 	}
-	
-	/**
-	 * Shared implementation of {@link #checkReadable(RoPoint, RoInterval)} used both by
-	 * this class and also the Harmonic code.
-	 */
-	public static IntervalException checkReadableImpl(RoInterval self, RoPoint mr, RoInterval inter) {
-		if(inter.isSubintervalOfOrEqualTo(self) || (mr != null && self.getEnd().hbeq(mr)))
-			return null;
-		
-		return new IntervalException.MustHappenBefore(self.getEnd(), mr);
-	}
-	
-	/**
-	 * Shared implementation of {@link #checkWritable(RoPoint, RoInterval)} used both by
-	 * this class and also the Harmonic code.
-	 */
-	public static IntervalException checkWritableImpl(RoInterval self, RoPoint mr, RoInterval inter) {
-		if(inter.isInlineSubintervalOfOrEqualTo(self))
-			return null;
-		
-		return new IntervalException.NotSubinterval(inter, self);
+
+	@Override
+	public Condition condReadableBy() {
+		return end.condDidOccurWithoutError();
 	}
 
-	/**
-	 * Shared implementation of {@link #ensuresFinal(RoPoint, RoInterval)} used both by
-	 * this class and also the Harmonic code.
-	 */
-	public static IntervalException ensuresFinalImpl(RoInterval self, RoPoint mr, RoInterval inter) {
-		if(self.getEnd().hbeq(mr))
-			return null;
-		
-		return new IntervalException.MustHappenBefore(self.getEnd(), mr);		
-	}
-	
-	/**
-	 * Shared implementation of {@link #checkLockable(RoPoint, RoInterval, RoLock)} used both by
-	 * this class and also the Harmonic code.
-	 */
-	public static IntervalException checkLockableImpl(RoInterval self, RoInterval interval, RoLock lock) {
-		return new IntervalException.CannotBeLockedBy(self, lock);		
+	@Override
+	public Condition condWritableBy() {
+		return this.condIsInlineSubintervalOfOrEqualTo();
 	}
 	
 	@Override
-	public IntervalException checkReadable(RoPoint mr, RoInterval inter) {
-		return checkReadableImpl(this, mr, inter);
+	public Condition condFinal() {
+		return end.condDidOccurWithoutError();
 	}
 	
 	@Override
-	public IntervalException checkWritable(RoPoint mr, RoInterval inter) {
-		return checkWritableImpl(this, mr, inter);
+	public Condition condSubintervalOfOrEqualTo() {
+		return new Condition() {
+			@Override
+			public boolean isTrueFor(RoPoint mr, RoInterval current) {
+				return current.isSubintervalOfOrEqualTo(IntervalImpl.this);
+			}
+
+			@Override
+			public String description() {
+				return String.format("subOf(%s)", IntervalImpl.this);
+			}
+		};
 	}
-	
+
 	@Override
-	public IntervalException ensuresFinal(RoPoint mr, RoInterval inter) {
-		return ensuresFinalImpl(this, mr, inter);		
+	public Condition condIsInlineSubintervalOfOrEqualTo() {
+		return new Condition() {
+			@Override
+			public boolean isTrueFor(RoPoint mr, RoInterval current) {
+				return current.isInlineSubintervalOfOrEqualTo(IntervalImpl.this);
+			}
+
+			@Override
+			public String description() {
+				return String.format("inlineSubOf(%s)", IntervalImpl.this);
+			}
+		};
 	}
-	
-	@Override
-	public IntervalException checkLockable(RoPoint acq, RoInterval interval, RoLock lock) {
-		return checkLockableImpl(this, interval, lock);
-	}
-	
+
 	@Override
 	public boolean isSubintervalOfOrEqualTo(RoInterval inter) {
 		if(inter == this)
@@ -165,6 +150,14 @@ implements Guard, Interval, Page, RefManipulator
 				return true;
 		}
 		return false;
+	}
+	
+	@Override public void addHb(Point to) {
+		end.addHb(to);
+	}
+	
+	@Override public void addHb(Interval to) {
+		end.addHb(to);
 	}
 	
 	@Override public Point getStart() {
@@ -324,8 +317,8 @@ implements Guard, Interval, Page, RefManipulator
 	 *  Locking policy:
 	 *  <ul>
 	 *  <li> Only modified by ourselves or our children.
-	 *  <li> During states {@link State#LOCK} and {@link State#RUN}
-	 *       this is modified without locks (using {@link #addVertExceptionUnsync(Throwable)})_, 
+	 *  <li> During state {@link State#RUN} this is modified without locks
+	 *       (using {@link #addVertExceptionUnsync(Throwable)})_, 
 	 *       because no children are active.
 	 *  <li> During state {@link State#PAR}, only modified by children with a lock (using
 	 *       {@link #addVertExceptionSync(Throwable)}.
@@ -613,11 +606,11 @@ implements Guard, Interval, Page, RefManipulator
 			assert pnt == start;
 			
 			// Check that acquiring locks did not create data races:
-			for(LockRecord record = records; record != null; record = record.nextForInterval()) {
-				Throwable err = record.guard.checkLockable(record.acquiredBy, this, record.lock);
-				if(err != null)
-					addVertExceptionUnsync(err);
-			}
+			//for(LockRecord record = records; record != null; record = record.nextForInterval()) {
+			//	Throwable err = record.guard.checkLockable(record.acquiredBy, this, record.lock);
+			//	if(err != null)
+			//		addVertExceptionUnsync(err);
+			//}
 
 			if(vertExceptions == null) { // No errors acquiring locks.
 				transitionUnsync(State.RUN);

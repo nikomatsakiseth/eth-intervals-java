@@ -43,10 +43,14 @@ public interface RoPoint {
 	 * if {@code pnt == this}. */
 	public boolean isBoundedBy(RoPoint pnt);
 	
-	public boolean hb(RoPoint pnt);
+	/**
+	 * True if this point occurred before the current moment in time. */
+	public boolean didOccurWithoutError();
 	
-	public boolean hbeq(RoPoint pnt);
-
+	/**
+	 * A condition which evalutes to true whenever this point has occurred. */
+	public Condition condDidOccurWithoutError();
+	
 	/**
 	 * True if this point acquires the lock {@code lock} to protect
 	 * {@code guard} before occurring. 

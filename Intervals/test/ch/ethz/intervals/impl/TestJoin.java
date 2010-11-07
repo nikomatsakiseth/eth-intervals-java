@@ -1,5 +1,6 @@
 package ch.ethz.intervals.impl;
 
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.Assert;
@@ -7,6 +8,7 @@ import org.junit.Test;
 
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.IntervalException;
+import ch.ethz.intervals.IntervalException.Cycle;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.RethrownException;
 import ch.ethz.intervals.task.AbstractTask;
@@ -112,5 +114,65 @@ public class TestJoin extends TestUtil {
 		}
 	}
 
+	@Test 
+	public void joinThrowsCyclicOnCycleAndNotRethrown() {
+		final AtomicInteger succ = new AtomicInteger(0);
+		
+		Intervals.inline(new AbstractTask("outer") {
+				@Override
+				public void run(Interval outer) throws Exception {
+					try {
+						Intervals.join(outer);
+					} catch (Cycle c) {
+						succ.addAndGet(1);
+					}
+				}
+		});
+		
+		Assert.assertEquals(1, succ.get());
+	}
+
+	@Test 
+	public void joinRethrowsErrors() {
+		final AtomicInteger succ = new AtomicInteger(0);
+		
+		Intervals.inline(new AbstractTask("outer") {
+				@Override
+				public void run(Interval outer) throws Exception {
+					final Interval[] intervals = new Interval[3];
+					
+					intervals[0] = outer.newAsyncChild(new AbstractTask("catcher") {
+						@Override public void run(Interval current) {}
+						@Override
+						public Set<? extends Throwable> catchErrors(Set<Throwable> errors) {
+							return null;
+						}
+					});
+					
+					intervals[1] = intervals[0].newAsyncChild(new ThrowTask());
+					
+					intervals[2] = outer.newAsyncChild(new AbstractTask("joiner") {
+						@Override
+						public void run(Interval current) throws Exception {
+							try {
+								// At this point, intervals[1] will always have
+								// occurred.  However, no errors will have prop
+								// to intervals[2] because intervals[0] will have
+								// caught them.  This join however will cause
+								// the errors to be rethrown.
+								Intervals.join(intervals[1]);
+							} catch (RethrownException e) {
+								assertThrew(e, TestException.class);
+								succ.addAndGet(1);
+							}
+						}
+					});
+					
+					Intervals.addHb(intervals[0], intervals[2]);
+				}
+		});
+		
+		Assert.assertEquals(1, succ.get());
+	}
 	
 }

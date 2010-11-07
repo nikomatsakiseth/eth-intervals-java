@@ -69,6 +69,25 @@ public class TestUtil {
 	@SuppressWarnings("serial")
 	static class TestException extends RuntimeException { 
 	}
+	
+	public static class ThrowTask extends AbstractTask {
+		
+		public final RuntimeException err;
+		
+		public ThrowTask(RuntimeException err) {
+			this.err = err;
+		}
+		
+		public ThrowTask() {
+			this.err = new TestException();
+		}
+
+		@Override
+		public void run(Interval current) throws Exception {
+			throw err;
+		}
+	
+	}
 
 	public static class IncTask extends AbstractTask {
 		public final AtomicInteger i;

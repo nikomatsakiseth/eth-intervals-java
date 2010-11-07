@@ -8,6 +8,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.Assert;
 import org.junit.Test;
 
+import ch.ethz.intervals.Condition;
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.IntervalException;
 import ch.ethz.intervals.Intervals;
@@ -43,38 +44,47 @@ public class TestAtMostOne {
 		}
 		
 		AtomicReference<RoInterval> ref = new AtomicReference<RoInterval>();
+		
+		@Override
+		public Condition condReadableBy() {
+			return condWritableBy();
+		}
 
 		@Override
-		public RuntimeException checkWritable(RoPoint mr, RoInterval current) {
+		public Condition condWritableBy() {
+			RoInterval w = ref.get();
+			if(w == null) 
+				return Condition.FALSE;
+			return w.condWritableBy();
+		}
+
+		@Override
+		public Condition condFinal() {
+			return Condition.FALSE;
+		}
+
+		@Override
+		public void makeReadableBy(RoPoint mr, RoInterval current) {
+			makeWritableBy(mr, current);
+		}
+
+		@Override
+		public void makeWritableBy(RoPoint mr, RoInterval current) {
 			if(ref.compareAndSet(null, current))
-				return null; // claimed for inter
+				return; // claimed for inter
 			
 			RoInterval writer = ref.get();
 			if(writer == current)
-				return null; // previously claimed for inter
+				return; // previously claimed for inter
 			
-			return new AlreadyClaimed(writer);
+			throw new AlreadyClaimed(writer);
 		}
 
 		@Override
-		public RuntimeException checkReadable(RoPoint mr, RoInterval current) {
-			return checkWritable(mr, current);
+		public void makeFinal(RoPoint mr, RoInterval current) {
+			throw new IntervalException.NeverFinal(this);
 		}
 
-		@Override
-		public RuntimeException ensuresFinal(RoPoint mr, RoInterval current) {
-			return new IntervalException.NeverFinal(this);
-		}
-
-		@Override
-		public RuntimeException checkLockable(
-				RoPoint acq, 
-				RoInterval interval,
-				RoLock lock) 
-		{
-			return new IntervalException.CannotBeLockedBy(this, lock);
-		}
-		
 	}
 	
 	@Test public void testAtMostOne() {
@@ -86,6 +96,7 @@ public class TestAtMostOne {
 			class IncTask extends AbstractTask {
 				@Override
 				public void run(Interval current) {
+					Intervals.makeWritable(guard);
 					Intervals.checkWritable(guard);
 					integer.incrementAndGet();
 				}

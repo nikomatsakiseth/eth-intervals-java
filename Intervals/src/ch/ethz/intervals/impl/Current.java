@@ -162,23 +162,10 @@ public class Current
 			throw new IntervalException.MustHappenBefore((inter != null ? inter.end : null), to);
 		}		
 	}
-	
-	void checkEdgeEndPointsProperlyBound(PointImpl from, PointImpl to) {
-		// An edge p->q is only permitted if q is bound by
-		// p's parent.  In other words, edges are permitted from
-		// high-level nodes down the tree, but not the other direction.
-		
-		PointImpl interBound = from.interBound();
-		if(interBound == null || to.isBoundedBy(interBound))
-			return;
-		
-		throw new IntervalException.MustBeBoundedBy(from.bound, to);
-	}
 
 	void checkCanAddHb(PointImpl from, PointImpl to) {
 		if(SAFETY_CHECKS) {
 			checkCanAddDep(to);
-			checkEdgeEndPointsProperlyBound(from, to);
 			checkCycle(from, to);
 		}
 	}

@@ -47,4 +47,8 @@ public interface RoInterval extends StaticGuard {
 	 * interval.
 	 */
 	public boolean isInlineSubintervalOfOrEqualTo(RoInterval inter);
+	
+	public Condition condSubintervalOfOrEqualTo();
+	public Condition condIsInlineSubintervalOfOrEqualTo();
+	
 }

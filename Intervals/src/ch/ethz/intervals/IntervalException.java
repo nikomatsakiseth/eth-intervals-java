@@ -1,12 +1,35 @@
 package ch.ethz.intervals;
 
 import ch.ethz.intervals.guard.Guard;
-import ch.ethz.intervals.guard.ReadTrackingDynamicGuard;
+import ch.ethz.intervals.impl.IntervalImpl;
+import ch.ethz.intervals.impl.PointImpl;
 
 
 /** Base class for all exceptions thrown by the interval runtime. */
 @SuppressWarnings("serial")
 public abstract class IntervalException extends RuntimeException {
+
+	public static class ConditionDoesNotHold extends IntervalException {
+		public final Condition cond;
+		public final PointImpl mr;
+		public final IntervalImpl inter;
+
+		public ConditionDoesNotHold(
+				Condition readable, 
+				PointImpl mr,
+				IntervalImpl inter) 
+		{
+			this.cond = readable;
+			this.mr = mr;
+			this.inter = inter;
+		}
+		
+		public String toString() {
+			return String.format(
+					"Condition %s does not hold for %s (most recent point: %s)",
+					cond, inter, mr);
+		}		
+	}
 
 	public IntervalException() {
 	}

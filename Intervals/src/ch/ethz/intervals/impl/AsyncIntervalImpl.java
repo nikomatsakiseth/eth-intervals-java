@@ -1,6 +1,7 @@
 package ch.ethz.intervals.impl;
 
 import ch.ethz.intervals.AsyncInterval;
+import ch.ethz.intervals.Condition;
 import ch.ethz.intervals.IntervalException;
 import ch.ethz.intervals.Task;
 

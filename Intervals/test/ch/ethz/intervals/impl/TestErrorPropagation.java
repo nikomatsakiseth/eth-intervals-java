@@ -236,7 +236,7 @@ public class TestErrorPropagation extends TestUtil {
 							thr.newAsyncChild(new IncTask("skipped", integer));
 						}
 					});
-					impl(thr.getStart()).addEdgeAndAdjust(impl(add.getStart()), TEST_EDGE);
+					impl(thr.getStart()).addTestEdge(impl(add.getStart()));
 					Intervals.addHb(add.getEnd(), thr.getEnd());
 				}
 			});
@@ -552,23 +552,23 @@ public class TestErrorPropagation extends TestUtil {
 		final AtomicInteger cnt = new AtomicInteger();
 		inline(new AbstractTask() {			
 			public void run(final Interval subinterval) {
-				Interval a = subinterval.newAsyncChild(new IncTask("a", cnt));
-				Interval b = subinterval.newAsyncChild(new IncTask("b", cnt));
-				Interval c = subinterval.newAsyncChild(new IncTask("c", cnt));
-				Interval d = subinterval.newAsyncChild(new IncTask("d", cnt));
+				IntervalImpl a = (IntervalImpl) subinterval.newAsyncChild(new IncTask("a", cnt));
+				IntervalImpl b = (IntervalImpl) subinterval.newAsyncChild(new IncTask("b", cnt));
+				IntervalImpl c = (IntervalImpl) subinterval.newAsyncChild(new IncTask("c", cnt));
+				IntervalImpl d = (IntervalImpl) subinterval.newAsyncChild(new IncTask("d", cnt));
 				
 				Intervals.addHb(a, c);
 				Intervals.addHb(d, b);
 				
 				impl(b.getEnd()).optimisticallyAddEdge(impl(a.getStart()));
-				Assert.assertFalse("hb observed before final", b.getEnd().hb(a.getStart()));
+				Assert.assertFalse("hb observed before final", b.end.hb(a.start));
 				try {
 					Intervals.addHb(c.getEnd(), d.getStart());
 					Assert.fail("No cycle exception");
 				} catch(IntervalException.Cycle e) {					
 				}
 				impl(b.getEnd()).checkForCycleAndRecover(impl(a.getStart()));
-				Assert.assertTrue("hb not observed after final", b.getEnd().hb(a.getStart()));
+				Assert.assertTrue("hb not observed after final", b.end.hb(a.start));
 			}
 		});
 		Assert.assertEquals("Not all subintervals executed!", 4, cnt.get());
@@ -594,7 +594,6 @@ public class TestErrorPropagation extends TestUtil {
 						Intervals.addHb(d, b);
 						
 						impl(b.getEnd()).optimisticallyAddEdge(impl(a.getStart()));
-						Assert.assertFalse("hb observed before final", b.getEnd().hb(a.getStart()));
 						try {
 							Intervals.addHb(c.getEnd(), d.getStart());
 							Assert.fail("No cycle exception");
@@ -616,7 +615,6 @@ public class TestErrorPropagation extends TestUtil {
 						
 						// Note: manually invoking this method doesn't cause a CycleException
 						impl(b.getEnd()).recoverFromCycle(impl(a.getStart()));				
-						Assert.assertFalse("hb observed after recoverFromCycle", b.getEnd().hb(a.getStart()));
 					}
 				});
 			}

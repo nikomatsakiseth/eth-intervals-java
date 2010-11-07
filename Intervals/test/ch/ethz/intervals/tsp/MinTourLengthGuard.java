@@ -1,5 +1,6 @@
 package ch.ethz.intervals.tsp;
 
+import ch.ethz.intervals.Condition;
 import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.IntervalException;
 import ch.ethz.intervals.Lock;
@@ -19,38 +20,18 @@ public class MinTourLengthGuard implements Guard {
 	}
 
 	@Override
-	public RuntimeException checkWritable(RoPoint mr, RoInterval current) {
-		if(!current.isSubintervalOfOrEqualTo(search))
-			return new IntervalException.NotSubinterval(current, search);
-		if(!current.locks(lock, null))
-			return new IntervalException.LockNotHeld(lock, this, current);
-		return null;
+	public Condition condReadableBy() {
+		return search.condSubintervalOfOrEqualTo();
 	}
 
 	@Override
-	public RuntimeException checkReadable(RoPoint mr, RoInterval current) {
-		// Note: readable without lock!
-		if(!current.isSubintervalOfOrEqualTo(search))
-			return ensuresFinal(mr, current);
-		return null;
+	public Condition condWritableBy() {
+		return search.condSubintervalOfOrEqualTo().and(lock.condHeld());
 	}
 
 	@Override
-	public RuntimeException ensuresFinal(RoPoint mr, RoInterval current) {
-		if(!search.getEnd().hbeq(mr))
-			return new IntervalException.MustHappenBefore(search.getEnd(), mr);
-		return null;
+	public Condition condFinal() {
+		return search.getEnd().condDidOccurWithoutError();
 	}
-
-	@Override
-	public RuntimeException checkLockable(
-			RoPoint acq, 
-			RoInterval interval,
-			RoLock lock) 
-	{
-		return null;
-	}
-
-	
 
 }

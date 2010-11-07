@@ -3,7 +3,6 @@ package ch.ethz.intervals.impl;
 import static ch.ethz.intervals.util.ChunkList.NORMAL;
 import static ch.ethz.intervals.util.ChunkList.SPECULATIVE;
 import static ch.ethz.intervals.util.ChunkList.TEST_EDGE;
-import static ch.ethz.intervals.util.ChunkList.WAITING;
 import static ch.ethz.intervals.util.ChunkList.speculative;
 
 import java.io.IOException;
@@ -12,9 +11,14 @@ import java.util.LinkedList;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
+import pcollections.PSet;
+
+import ch.ethz.intervals.Condition;
+import ch.ethz.intervals.Interval;
 import ch.ethz.intervals.IntervalException;
 import ch.ethz.intervals.Intervals;
 import ch.ethz.intervals.Point;
+import ch.ethz.intervals.RoInterval;
 import ch.ethz.intervals.RoLock;
 import ch.ethz.intervals.RoPoint;
 import ch.ethz.intervals.guard.Guard;
@@ -80,7 +84,7 @@ implements Point, Page, RefManipulator
 		return (flags & (FLAG_INLINE|FLAG_END)) == (FLAG_INLINE|FLAG_END);
 	}
 
-	final synchronized ChunkList<PointImpl> outEdgesSync() {
+	final private synchronized ChunkList<PointImpl> outEdgesSync() {
 		return outEdges;
 	}
 	
@@ -92,7 +96,8 @@ implements Point, Page, RefManipulator
 		return didOccur(waitCount);
 	}
 	
-	final boolean didOccurWithoutError() {
+	@Override
+	final public boolean didOccurWithoutError() {
 		return (waitCount == OCCURRED_WITHOUT_ERROR);
 	}
 
@@ -157,7 +162,8 @@ implements Point, Page, RefManipulator
 		}
 	}
 	
-	@Override public boolean acquiresLock(RoLock lock, Guard guard) {
+	@Override 
+	public boolean acquiresLock(RoLock lock, Guard guard) {
 		LockRecord record;
 		synchronized(this) {
 			record = locks;
@@ -168,7 +174,8 @@ implements Point, Page, RefManipulator
 		return false;
 	}
 	
-	@Override public boolean releasesLock(RoLock lock, Guard guard) {
+	@Override 
+	public boolean releasesLock(RoLock lock, Guard guard) {
 		LockRecord record;
 		synchronized(this) {
 			record = locks;
@@ -179,7 +186,8 @@ implements Point, Page, RefManipulator
 		return false;
 	}
 	
-	@Override public final PointImpl getBound() {
+	@Override 
+	public final PointImpl getBound() {
 		return bound;
 	}
 	
@@ -206,15 +214,15 @@ implements Point, Page, RefManipulator
 	}
 
 	/** Returns true if {@code this} <i>happens before</i> {@code p} */
-	@Override public final boolean hb(final RoPoint p) {
-		return hb((PointImpl) p, SPECULATIVE|TEST_EDGE);
+	final boolean hb(final PointImpl p) {
+		return hb(p, SPECULATIVE|TEST_EDGE);
 	}
 	
 	/** Returns true if {@code this == p} or {@code this} <i>happens before</i> {@code p} */
-	@Override public boolean hbeq(final RoPoint p) {
+	final boolean hbeq(final PointImpl p) {
 		return (this == p) || hb(p);
 	}
-	
+
 	/** Returns true if {@code this} <i>happens before</i> {@code p},
 	 *  including speculative edges. */
 	boolean hbOrSpec(final PointImpl p) {
@@ -451,6 +459,7 @@ implements Point, Page, RefManipulator
 		final ChunkList<PointImpl> outEdges;
 		synchronized(this) {
 			outEdges = this.outEdges;
+			this.outEdges = null;
 			this.waitCount = newWaitCount;
 			notifyAll();  // someone might be wait()ing on us!
 		}
@@ -464,7 +473,7 @@ implements Point, Page, RefManipulator
 		if(outEdges != null) {
 			new ChunkList.Iterator<PointImpl>(outEdges) {
 				public void doForEach(PointImpl toPoint, int flags) {
-					if(ChunkList.waiting(flags)) {
+					if(!ChunkList.speculative(flags)) {
 						notifySuccessor(toPoint, true);
 					}
 				}
@@ -497,12 +506,19 @@ implements Point, Page, RefManipulator
 			 *   the error was delivered to us.
 			 * But we do need to deliver to anyone up to but not including
 			 * the bound.  See {@link TestErrorPropagation#predecessorsOfSubintervalEndThatDie()}
-			 * for reason why. */
+			 * for reason why. 
+			 * 
+			 * If, however, the successor is not bounded by our bound, then we push
+			 * the error to them as though it is new. */
 			PointImpl interBound = interBound();
-			PointImpl p = pnt;
-			while(p != interBound) {
-				p.cancel();
-				p = p.bound;
+			if(pnt.isBoundedBy(interBound)) {
+				PointImpl p = pnt;
+				while(p != interBound) {
+					p.cancel();
+					p = p.bound;
+				}
+			} else {
+				//XXX pnt.receiveErrors(errorSet);
 			}
 		}
 		if(arrive)
@@ -565,54 +581,7 @@ implements Point, Page, RefManipulator
 	private void primAddOutEdge(PointImpl targetPnt, int flags) {
 		outEdges = ChunkList.add(outEdges, targetPnt, flags);
 	}
-	
-	void addSpeculativeEdge(PointImpl targetPnt, int flags) {
-		synchronized(this) {
-			primAddOutEdge(targetPnt, flags | ChunkList.SPECULATIVE);
-		}
-	}
-	
-	/**
-	 * Optimized routine for the case where 'this' is known to have
-	 * already occurred and not to have had any exceptions.
-	 */
-	void addEdgeAfterOccurredWithoutException(PointImpl targetPnt, int edgeFlags) {
-		synchronized(this) {
-			assert didOccurWithoutError();			
-			primAddOutEdge(targetPnt, edgeFlags);
-		}
-	}
 
-	/**
-	 * Adds an edge from {@code this} to {@code toImpl}, doing no safety
-	 * checking, and adjusts the wait count of {@code toImpl}.
-	 *  
-	 * Returns the number of wait counts added to {@code toImpl}.
-	 */
-	void addEdgeAndAdjust(PointImpl toImpl, int flags) {
-		assert !speculative(flags) : "addEdgeAndAdjust should not be used for spec. edges!";		
-		
-		// Note: we must increment the wait count before we release
-		// the lock on this, because otherwise toImpl could arrive and
-		// then decrement the wait count before we get a chance to increment
-		// it.  Therefore, it's important that we do not have to acquire a lock
-		// on toImpl, because otherwise deadlock could result.
-		synchronized(this) {			
-			if(!didOccur()) {
-				primAddOutEdge(toImpl, flags | ChunkList.WAITING); 
-				toImpl.addWaitCount(this);
-				return;
-			} else {
-				primAddOutEdge(toImpl, flags);
-			}
-		}
-		
-		// If we already occurred, then we may still have to push the pending
-		// exceptions, but we do not need to invoke arrive():
-		assert didOccur();
-		notifySuccessor(toImpl, false);
-	}
-	
 	/** Removes an edge to {@code toImpl}, returning true 
 	 *  if this point has occurred. */
 	void unAddEdge(PointImpl toImpl) {
@@ -621,26 +590,32 @@ implements Point, Page, RefManipulator
 		}
 	}
 
+	/** Adds an edge unconditionally.  Used in testing. */
+	void addTestEdge(PointImpl impl) {
+		synchronized(this) {
+			assert(!didOccur());
+			impl.addWaitCount(this);
+			primAddOutEdge(impl, NORMAL);
+		}
+	}
+	
 	void confirmEdgeAndAdjust(PointImpl toImpl, int flags) {
 		
 		// Careful
 		//
 		// The edge to toImpl was speculative.  We are now going
-		// to convert it into an ordinary edge.  If we are doing this
-		// conversion before we occurred, then we will have to set the
-		// WAITING flag on it and add to its wait count.
-		//
-		// Otherwise, we just leave its ref count alone, but we may have
-		// to propagate pendingExceptions to it.
+		// to convert it into an ordinary edge.  However, it is possible
+		// that the point occurred in the meantime.  In that case, we 
+		// no longer have to correct the list, since it's no longer
+		// relevant.  However, we may have to propagate exceptions to the 
+		// target point.
 		
 		synchronized(this) {
 			if(!didOccur()) {
 				toImpl.addWaitCount(this);
-				ChunkList.removeSpeculativeFlagAndAdd(outEdges, toImpl, WAITING);
-				return;
-			} else {
 				ChunkList.removeSpeculativeFlagAndAdd(outEdges, toImpl, 0);
-			}			
+				return;
+			}		
 		} 
 		
 		// If we get here, then we occurred either before the speculative
@@ -649,6 +624,11 @@ implements Point, Page, RefManipulator
 		// need to invoke accept():
 		assert didOccur();	
 		notifySuccessor(toImpl, false);
+	}
+	
+	@Override
+	public void addHb(Interval to) {
+		addHb(to.getStart());
 	}
 
 	@Override
@@ -710,7 +690,10 @@ implements Point, Page, RefManipulator
 		Current current = Current.get();
 		current.checkCanAddDep(to);
 		
-		current.checkEdgeEndPointsProperlyBound(this, to);
+		// If this point already occurred, and there are no
+		// errors, then the HB edge has no effect. (Micro-optimize)
+		if(didOccurWithoutError())
+			return;
 		
 		// Avoid edges that duplicate the bound.  Besides
 		// saving space, this check lets us guarantee that
@@ -726,14 +709,10 @@ implements Point, Page, RefManipulator
 		//   the edge as non-deterministic until we have confirmed
 		//   that it causes no problems.
 		
-		if(!Intervals.SAFETY_CHECKS) {
-			addEdgeAndAdjust(to, NORMAL);
-		} else {
-			// Really, these helper methods ought to be inlined,
-			// but they are separated to aid in testing. 
-			optimisticallyAddEdge(to);
-			checkForCycleAndRecover(to);			
-		}
+		// Really, these helper methods ought to be inlined,
+		// but they are separated to aid in testing. 
+		optimisticallyAddEdge(to);
+		checkForCycleAndRecover(to);			
 		
 		ExecutionLog.logEdge(this, to);
 	}
@@ -745,14 +724,30 @@ implements Point, Page, RefManipulator
 	{
 		// Note: the edge is considered speculative until we have
 		// verified that the resulting graph is acyclic.
-		addSpeculativeEdge(to, NORMAL);
+		synchronized(this) {
+			if(!didOccur()) {
+				primAddOutEdge(to, SPECULATIVE);				
+			}
+		}
+	}
+	
+	private boolean checkForCycle(PointImpl to) 
+	{
+		// If this point occurred, then to cannot possibly HB this
+		if(didOccur()) 
+			return false;
+		
+		if(!Intervals.SAFETY_CHECKS)
+			return false;
+	
+		return to.hbOrSpec(this);
 	}
 	
 	/** Helper method of {@link #addHb(Point)}.
 	 *  Pulled apart for use with testing. */
 	void checkForCycleAndRecover(PointImpl to) 
 	{
-		if(to.hbOrSpec(this)) {
+		if(checkForCycle(to)) {
 			recoverFromCycle(to);
 			throw new IntervalException.Cycle(this, to);
 		} else {
@@ -819,14 +814,13 @@ implements Point, Page, RefManipulator
 		out.outputText("Edges");
 		out.endBold();
 		out.startTable();
-		Lathos.headerRow(out, "toPoint", "speculative", "waiting", "test edge");		
+		Lathos.headerRow(out, "toPoint", "speculative", "test edge");		
 		new ChunkList.Iterator<PointImpl>(outEdges) {
 			@Override public void doForEach(PointImpl toPoint, int flags) {
 				try {
 					Lathos.row(out, 
 							toPoint, 
 							(flags & ChunkList.SPECULATIVE) != 0,
-							(flags & ChunkList.WAITING) != 0,
 							(flags & ChunkList.TEST_EDGE) != 0);
 				} catch (IOException e) {
 					throw new RuntimeException(e);
@@ -854,6 +848,20 @@ implements Point, Page, RefManipulator
 	@Override
 	public void addContent(PageContent content) {
 		throw new UnsupportedOperationException();
+	}
+
+	public Condition condDidOccurWithoutError() {
+		return new Condition() {
+			@Override
+			public boolean isTrueFor(RoPoint mr, RoInterval current) {
+				return didOccurWithoutError();
+			}
+			
+			@Override
+			public String description() {
+				return String.format("occurred(%s)", PointImpl.this);
+			}
+		};
 	}
 	
 }

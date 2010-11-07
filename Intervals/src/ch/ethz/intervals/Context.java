@@ -1,5 +1,6 @@
 package ch.ethz.intervals;
 
+import ch.ethz.intervals.guard.DynamicGuard;
 import ch.ethz.intervals.guard.Guard;
 
 /**
@@ -41,6 +42,18 @@ public interface Context {
 	 * @see #checkReadable(Guard) */
 	public boolean checkWritable(Guard guard);
 
+	/** 
+	 * Instructs {@code guard} to make itself writable by the current interval. */
+	public void makeWritable(DynamicGuard guard);
+
+	/** 
+	 * Instructs {@code guard} to make itself readable by the current interval. */
+	public void makeReadable(DynamicGuard guard);
+
+	/** 
+	 * Instructs {@code guard} to make itself final for the current interval. */
+	public void makeFinal(DynamicGuard guard);
+
 	/**
 	 * Creates and returns a new, unexected inline subinterval
 	 * of the current interval.  The user is responsible for
@@ -53,17 +66,4 @@ public interface Context {
 	 * @return the newly created inline subinterval */
 	public InlineInterval unexecutedInline(Task task);
 	
-	/**
-	 * This function does not return until 
-	 * {@code inter} has completed.  This is
-	 * the equivalent of creating an inline 
-	 * interval X where {@code inter.end -> X.start},
-	 * but potentially optimized.  
-	 * 
-	 * If this causes a cycle, will throw 
-	 * a {@link IntervalException.Cycle}.
-	 * 
-	 * @param inter the interval to join */
-	public void join(Interval inter);
-
 }
